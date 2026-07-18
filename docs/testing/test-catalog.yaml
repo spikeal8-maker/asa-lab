@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-catalog_version: 2026.07.18-1
+catalog_version: 2026.07.18-2
 source_of_truth: docs/testing/test-catalog.yaml
 result_states:
   - PASS
@@ -35,7 +35,7 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-CI-001, TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
     command: python tools/validate_architecture.py
     timeout_seconds: 60
     owner: platform-architecture
@@ -46,7 +46,7 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-CI-001, TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
     command: python tools/validate_project_map.py
     timeout_seconds: 60
     owner: platform-architecture
@@ -57,7 +57,7 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-CI-001, TASK-GOV-001, TASK-BOOT-001]
     command: python tools/validate_test_catalog.py
     timeout_seconds: 60
     owner: quality-engineering
