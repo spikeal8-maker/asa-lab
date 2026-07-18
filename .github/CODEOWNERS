@@ -1,0 +1,20 @@
+# Default owner
+* @spikeal8-maker
+
+# Normative architecture and agent governance
+/AGENTS.md @spikeal8-maker
+/START_HERE_FOR_AI.md @spikeal8-maker
+/CONTRIBUTING.md @spikeal8-maker
+/SECURITY.md @spikeal8-maker
+/docs/architecture/ @spikeal8-maker
+/.github/workflows/ @spikeal8-maker
+/.github/CODEOWNERS @spikeal8-maker
+
+# Security-, identity-, billing- and data-sensitive areas
+/contexts/identity/ @spikeal8-maker
+/contexts/organization/ @spikeal8-maker
+/contexts/billing/ @spikeal8-maker
+/contexts/support/ @spikeal8-maker
+/packages/authz/ @spikeal8-maker
+/packages/database/ @spikeal8-maker
+/infra/ @spikeal8-maker
