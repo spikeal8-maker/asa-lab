@@ -1,10 +1,10 @@
 schema_version: 1.0.0
-map_version: 2026.07.18-3
+map_version: 2026.07.18-4
 project:
   id: asa-lab
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
-  current_focus: TASK-CI-001
+  current_focus: TASK-ARCH-001
   source_of_truth: docs/project-map/project-map.yaml
 status_definitions:
   planned: Зафиксировано в плане, но ещё не готово к работе.
@@ -87,9 +87,9 @@ nodes:
   - {id: PHASE-10, label: Phase 10 Commercial Foundation, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Entitlements, quotas и billing adapter.}
   - {id: PHASE-11, label: Phase 11 Multi-school Scale, kind: roadmap_phase, layer: roadmap, status: blocked, summary: TenantPlacement и региональное масштабирование.}
   - {id: PHASE-12, label: Phase 12 New Modules, kind: roadmap_phase, layer: roadmap, status: blocked, summary: 3D, robotics, chess и drawing.}
-  - {id: TASK-CI-001, label: Разблокировать Architecture CI, kind: task, layer: delivery, status: in_progress, summary: Получить runner steps logs и успешный workflow., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
-  - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: in_review, summary: Регламент ботов, test catalog и quality graph., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
-  - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: blocked, summary: Проверить и объединить PR номер 1 после governance gates., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
+  - {id: TASK-CI-001, label: Разблокировать Architecture CI, kind: task, layer: delivery, status: done, summary: Local-first exit gate - TST-ARCH-001, TST-MAP-001, TST-CATALOG-001 проходят локально; GitHub-hosted CI отклонён из-за billing-blocker., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
+  - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: done, summary: Регламент ботов, test catalog, quality graph и единый локальный task test runner., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
+  - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: ready, summary: Проверить и объединить PR номер 1 после governance gates., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
   - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: blocked, summary: Создать pnpm и Nx foundation., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
   - {id: TASK-TEN-001, label: Tenant context vertical slice, kind: task, layer: delivery, status: blocked, summary: Server-derived tenant context и negative test., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
   - {id: TASK-CLS-001, label: Педагог создаёт класс, kind: task, layer: delivery, status: blocked, summary: Первый Classroom use case end-to-end., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/4}
@@ -210,7 +210,7 @@ edges:
   - {from: PHASE-12, to: MOD-CHESS, type: produces}
   - {from: PHASE-12, to: MOD-DRAWING, type: produces}
 execution_queue:
-  - {position: 1, task_id: TASK-CI-001, instruction: Разблокировать GitHub-hosted runner и получить зелёный governance workflow., gate: Steps logs и успешные TST-ARCH-001 TST-MAP-001 TST-CATALOG-001.}
+  - {position: 1, task_id: TASK-CI-001, instruction: Local-first verification - выполнить обязательные валидаторы через tools/run_task_tests.py; GitHub-hosted CI отклонён из-за billing-blocker., gate: Локальные TST-ARCH-001 TST-MAP-001 TST-CATALOG-001 фактически PASS.}
   - {position: 2, task_id: TASK-GOV-001, instruction: Завершить Bot Runbook test registry и quality graph., gate: Issue 9 criteria и governance validators проходят.}
   - {position: 3, task_id: TASK-ARCH-001, instruction: Проверить и объединить архитектурный PR., gate: CI и governance tasks done плюс ручная проверка карты.}
   - {position: 4, task_id: TASK-BOOT-001, instruction: Выполнить Bootstrap из START_HERE_FOR_AI.md., gate: Все foundation test IDs проходят.}

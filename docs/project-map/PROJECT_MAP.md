@@ -13,11 +13,10 @@
 ## Текущий фокус
 
 ```text
-TASK-CI-001      разблокировать GitHub Actions и получить реальные логи
+TASK-CI-001      done — local-first exit gate (GitHub-hosted CI отклонён: billing)
+TASK-GOV-001     done — BOT_RUNBOOK, test catalog, quality graph, task test runner
         ↓
-TASK-GOV-001     завершить BOT_RUNBOOK, test catalog и quality graph
-        ↓
-TASK-ARCH-001    принять и объединить Architecture Foundation PR №1
+TASK-ARCH-001    ← текущий фокус: принять и объединить Architecture Foundation PR №1
         ↓
 TASK-BOOT-001    выполнить Bootstrap-итерацию
         ↓
@@ -34,7 +33,7 @@ TASK-ACT-001     первое задание и immutable submission
 TASK-ELEC-001    первая рабочая электронная схема
 ```
 
-Текущая задача: [Issue №13 — TASK-CI-001](https://github.com/spikeal8-maker/asa-lab/issues/13).
+Текущая задача: [Issue №1 — TASK-ARCH-001 (объединить PR №1)](https://github.com/spikeal8-maker/asa-lab/pull/1). Проверка задач — local-first через `python tools/run_task_tests.py --task <TASK-ID>` (см. [`QUALITY_MAP.md`](QUALITY_MAP.md)).
 
 ## 1. Карта платформы
 
