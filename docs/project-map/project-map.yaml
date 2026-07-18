@@ -1,10 +1,10 @@
 schema_version: 1.0.0
-map_version: 2026.07.18-1
+map_version: 2026.07.18-2
 project:
   id: asa-lab
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
-  current_focus: TASK-ARCH-001
+  current_focus: TASK-CI-001
   source_of_truth: docs/project-map/project-map.yaml
 status_definitions:
   planned: Зафиксировано в плане, но ещё не готово к работе.
@@ -21,6 +21,7 @@ relation_definitions:
   produces: Создаёт результат.
   implements: Реализует фазу или элемент.
   governs: Устанавливает обязательные правила.
+  verifies: Проверяет готовность узла или задачи.
   observes: Экспортирует техническую телеметрию.
   stores_in: Хранит данные.
   queues_to: Передаёт вычислительное задание.
@@ -32,7 +33,7 @@ nodes:
   - {id: ACT-TEACHER, label: Педагог, kind: actor, layer: actors, status: planned, summary: Создаёт классы, выдаёт задания и проверяет работы.}
   - {id: ACT-SCHOOL-ADMIN, label: Администратор школы, kind: actor, layer: actors, status: planned, summary: Управляет педагогами, периодами и политиками школы.}
   - {id: ACT-PLATFORM-ADMIN, label: Администратор платформы, kind: actor, layer: actors, status: planned, summary: Управляет tenants, эксплуатацией, модулями и тарифами.}
-  - {id: ACT-AGENT, label: Coding-агент, kind: actor, layer: actors, status: ready, summary: Выполняет только готовую задачу по AGENTS.md и обновляет карту.}
+  - {id: ACT-AGENT, label: Coding-агент, kind: actor, layer: actors, status: ready, summary: Выполняет только готовую задачу по BOT_RUNBOOK и обновляет карты.}
   - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: planned, summary: Пользовательские приложения платформы.}
   - {id: APP-WEB, label: Web/PWA, kind: application, layer: experience, status: planned, summary: Ученический и педагогический интерфейс., path: apps/web}
   - {id: APP-ADMIN, label: Admin Console, kind: application, layer: experience, status: planned, summary: Отдельный интерфейс администрирования., path: apps/admin}
@@ -65,15 +66,20 @@ nodes:
   - {id: MOD-CHESS, label: Шахматы и шашки, kind: subject_module, layer: modules, status: planned, summary: Позиции, партии, задачи и проверка решений., phase: PHASE-12, path: modules/chess}
   - {id: MOD-DRAWING, label: Рисование и черчение, kind: subject_module, layer: modules, status: planned, summary: Векторные и технические учебные документы., phase: PHASE-12, path: modules/drawing}
   - {id: DOC-AGENTS, label: AGENTS.md, kind: document, layer: governance, status: in_review, summary: Обязательные правила coding-агентов., path: AGENTS.md}
+  - {id: DOC-RUNBOOK, label: Bot Runbook, kind: document, layer: governance, status: in_review, summary: Алгоритм выбора и выполнения задач coding-агентом., path: docs/delivery/BOT_RUNBOOK.md}
   - {id: DOC-BASELINE, label: Architecture Baseline, kind: document, layer: governance, status: in_review, summary: Архитектура и инварианты., path: docs/architecture/ARCHITECTURE_BASELINE.md}
   - {id: DOC-ROADMAP, label: Implementation Roadmap, kind: document, layer: governance, status: in_review, summary: Фазы и exit gates., path: docs/architecture/IMPLEMENTATION_ROADMAP.md}
   - {id: DOC-MAP, label: Project Map, kind: document, layer: governance, status: in_review, summary: Машиночитаемый граф проекта., path: docs/project-map/project-map.yaml}
   - {id: DOC-TASKS, label: Task System, kind: document, layer: governance, status: in_review, summary: Правила постановки и выдачи задач., path: docs/project-map/TASK_SYSTEM.md}
+  - {id: DOC-QUALITY-MAP, label: Quality Map, kind: document, layer: governance, status: in_review, summary: Граф задач, тестов и quality gates., path: docs/project-map/QUALITY_MAP.md}
+  - {id: DOC-TEST-STRATEGY, label: Test Strategy, kind: document, layer: governance, status: in_review, summary: Уровни и обязательность тестирования., path: docs/testing/TEST_STRATEGY.md}
+  - {id: DOC-TEST-CATALOG, label: Test Catalog, kind: document, layer: governance, status: in_review, summary: Машиночитаемые test IDs и команды., path: docs/testing/test-catalog.yaml}
+  - {id: QG-GOVERNANCE, label: Governance Quality Gate, kind: quality_gate, layer: governance, status: in_review, summary: Architecture, map и test catalog validators., path: .github/workflows/spec-validation.yml}
   - {id: PHASE-0, label: Phase 0 Foundation, kind: roadmap_phase, layer: roadmap, status: ready, summary: Репозиторий, boundaries, CI и local infrastructure.}
   - {id: PHASE-1, label: Phase 1 Tenancy and Identity, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Tenant context и идентичность.}
   - {id: PHASE-2, label: Phase 2 Classroom Core, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Классы и StudentSeat.}
   - {id: PHASE-3, label: Phase 3 Module SDK and Projects, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Модули, проекты и версии.}
-  - {id: PHASE-4, label: Phase 4 Activities and Assessment, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Назначения, сдачи и проверка.}
+  - {id: PHASE-4, label: Phase 4 Activities and Assessment, kind: roadmap_phase, status: blocked, summary: Назначения, сдачи и проверка.}
   - {id: PHASE-5, label: Phase 5 Electronics Editor, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Редактор электронной схемы.}
   - {id: PHASE-6, label: Phase 6 Simulation Core, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Rust/WASM solver и golden tests.}
   - {id: PHASE-7, label: Phase 7 Arduino, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Компиляция и эмуляция Arduino.}
@@ -82,8 +88,9 @@ nodes:
   - {id: PHASE-10, label: Phase 10 Commercial Foundation, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Entitlements, quotas и billing adapter.}
   - {id: PHASE-11, label: Phase 11 Multi-school Scale, kind: roadmap_phase, layer: roadmap, status: blocked, summary: TenantPlacement и региональное масштабирование.}
   - {id: PHASE-12, label: Phase 12 New Modules, kind: roadmap_phase, layer: roadmap, status: blocked, summary: 3D, robotics, chess и drawing.}
-  - {id: TASK-CI-001, label: Подтвердить Architecture CI, kind: task, layer: delivery, status: in_review, summary: Исправить action version и получить зелёный workflow., phase: PHASE-0}
-  - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: in_review, summary: Проверить и объединить PR номер 1., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
+  - {id: TASK-CI-001, label: Разблокировать Architecture CI, kind: task, layer: delivery, status: ready, summary: Получить runner steps logs и успешный workflow., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
+  - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: in_review, summary: Регламент ботов, test catalog и quality graph., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
+  - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: blocked, summary: Проверить и объединить PR номер 1 после governance gates., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
   - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: blocked, summary: Создать pnpm и Nx foundation., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
   - {id: TASK-TEN-001, label: Tenant context vertical slice, kind: task, layer: delivery, status: blocked, summary: Server-derived tenant context и negative test., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
   - {id: TASK-CLS-001, label: Педагог создаёт класс, kind: task, layer: delivery, status: blocked, summary: Первый Classroom use case end-to-end., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/4}
@@ -122,6 +129,11 @@ edges:
   - {from: APP-ADMIN, to: ACT-SCHOOL-ADMIN, type: serves}
   - {from: APP-ADMIN, to: ACT-PLATFORM-ADMIN, type: serves}
   - {from: DOC-AGENTS, to: ACT-AGENT, type: governs}
+  - {from: DOC-AGENTS, to: DOC-RUNBOOK, type: governs}
+  - {from: DOC-RUNBOOK, to: ACT-AGENT, type: governs}
+  - {from: DOC-TEST-STRATEGY, to: DOC-TEST-CATALOG, type: governs}
+  - {from: DOC-TEST-CATALOG, to: QG-GOVERNANCE, type: governs}
+  - {from: DOC-QUALITY-MAP, to: QG-GOVERNANCE, type: governs}
   - {from: APP-WEB, to: PLANE-CONTROL, type: uses, label: REST and WebSocket}
   - {from: APP-ADMIN, to: PLANE-CONTROL, type: uses, label: Admin API}
   - {from: APP-SITE, to: PLANE-CONTROL, type: uses, label: Public API}
@@ -175,7 +187,9 @@ edges:
   - {from: PHASE-9, to: PHASE-10, type: next}
   - {from: PHASE-10, to: PHASE-11, type: next}
   - {from: PHASE-11, to: PHASE-12, type: next}
+  - {from: TASK-GOV-001, to: TASK-CI-001, type: depends_on}
   - {from: TASK-ARCH-001, to: TASK-CI-001, type: depends_on}
+  - {from: TASK-ARCH-001, to: TASK-GOV-001, type: depends_on}
   - {from: TASK-BOOT-001, to: TASK-ARCH-001, type: depends_on}
   - {from: TASK-TEN-001, to: TASK-BOOT-001, type: depends_on}
   - {from: TASK-CLS-001, to: TASK-TEN-001, type: depends_on}
@@ -183,6 +197,8 @@ edges:
   - {from: TASK-MOD-001, to: TASK-SEAT-001, type: depends_on}
   - {from: TASK-ACT-001, to: TASK-MOD-001, type: depends_on}
   - {from: TASK-ELEC-001, to: TASK-ACT-001, type: depends_on}
+  - {from: TASK-CI-001, to: QG-GOVERNANCE, type: verifies}
+  - {from: TASK-GOV-001, to: QG-GOVERNANCE, type: implements}
   - {from: TASK-BOOT-001, to: PHASE-0, type: implements}
   - {from: TASK-TEN-001, to: PHASE-1, type: implements}
   - {from: TASK-CLS-001, to: PHASE-2, type: implements}
@@ -196,11 +212,13 @@ edges:
   - {from: PHASE-12, to: MOD-CHESS, type: produces}
   - {from: PHASE-12, to: MOD-DRAWING, type: produces}
 execution_queue:
-  - {position: 1, task_id: TASK-ARCH-001, instruction: Проверить и объединить архитектурный PR после зелёного CI., gate: Workflow success и ручная проверка карты.}
-  - {position: 2, task_id: TASK-BOOT-001, instruction: Выполнить Bootstrap из START_HERE_FOR_AI.md., gate: Все foundation-команды проходят.}
-  - {position: 3, task_id: TASK-TEN-001, instruction: Реализовать tenant context., gate: Cross-tenant negative tests проходят.}
-  - {position: 4, task_id: TASK-CLS-001, instruction: Реализовать создание класса., gate: UI API DB authz audit telemetry и E2E подтверждены.}
-  - {position: 5, task_id: TASK-SEAT-001, instruction: Реализовать StudentSeat и вход без email., gate: Import codes revocation rate limits и E2E проходят.}
-  - {position: 6, task_id: TASK-MOD-001, instruction: Реализовать Module SDK и Project envelope., gate: Два модуля подключены без изменения Classroom.}
-  - {position: 7, task_id: TASK-ACT-001, instruction: Реализовать назначение и immutable submission., gate: Teacher student submit review queue E2E проходит.}
-  - {position: 8, task_id: TASK-ELEC-001, instruction: Реализовать первую электронную схему., gate: Save reload validation и DC calculation проходят.}
+  - {position: 1, task_id: TASK-CI-001, instruction: Разблокировать GitHub-hosted runner и получить зелёный governance workflow., gate: Steps logs и успешные TST-ARCH-001 TST-MAP-001 TST-CATALOG-001.}
+  - {position: 2, task_id: TASK-GOV-001, instruction: Завершить Bot Runbook test registry и quality graph., gate: Issue 9 criteria и governance validators проходят.}
+  - {position: 3, task_id: TASK-ARCH-001, instruction: Проверить и объединить архитектурный PR., gate: CI и governance tasks done плюс ручная проверка карты.}
+  - {position: 4, task_id: TASK-BOOT-001, instruction: Выполнить Bootstrap из START_HERE_FOR_AI.md., gate: Все foundation test IDs проходят.}
+  - {position: 5, task_id: TASK-TEN-001, instruction: Реализовать tenant context., gate: Cross-tenant negative tests проходят.}
+  - {position: 6, task_id: TASK-CLS-001, instruction: Реализовать создание класса., gate: UI API DB authz audit telemetry и E2E подтверждены.}
+  - {position: 7, task_id: TASK-SEAT-001, instruction: Реализовать StudentSeat и вход без email., gate: Import codes revocation rate limits и E2E проходят.}
+  - {position: 8, task_id: TASK-MOD-001, instruction: Реализовать Module SDK и Project envelope., gate: Два модуля подключены без изменения Classroom.}
+  - {position: 9, task_id: TASK-ACT-001, instruction: Реализовать назначение и immutable submission., gate: Teacher student submit review queue E2E проходит.}
+  - {position: 10, task_id: TASK-ELEC-001, instruction: Реализовать первую электронную схему., gate: Save reload validation и DC calculation проходят.}
