@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -32,6 +34,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
 TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+-[0-9]{3}$")
 OUTPUT_TAIL_LINES = 20
+# EX_CONFIG (sysexits.h): a command uses this to signal that a required
+# environment is unavailable, which the runner records as BLOCKED.
+BLOCKED_EXIT_CODE = 78
 
 
 def git_value(args: list[str]) -> str:
@@ -108,24 +113,37 @@ def run_test(test: dict[str, Any]) -> dict[str, Any]:
         return record
 
     try:
-        parts = shlex.split(command)
+        parts = shlex.split(command, posix=os.name != "nt")
     except ValueError as exc:
         record["state"] = "BLOCKED"
         record["reason"] = f"cannot tokenize command: {exc}"
         return record
 
+    # Decide real availability with the OS resolver so a genuinely missing tool
+    # (e.g. docker) is BLOCKED, while a present Windows script (pnpm.CMD) is run.
+    executable = parts[0] if parts else ""
+    if shutil.which(executable) is None:
+        record["state"] = "BLOCKED"
+        record["reason"] = f"executable not available: {executable}"
+        return record
+
+    # On Windows, pnpm/eslint are .CMD scripts that require a shell to launch.
+    on_windows = os.name == "nt"
+    run_target: Any = command if on_windows else parts
+
     start = time.monotonic()
     try:
         completed = subprocess.run(
-            parts,
+            run_target,
             cwd=ROOT,
             text=True,
             capture_output=True,
             timeout=timeout_value,
+            shell=on_windows,
         )
     except FileNotFoundError:
         record["state"] = "BLOCKED"
-        record["reason"] = f"executable not available: {parts[0]}"
+        record["reason"] = f"executable not available: {executable}"
         record["duration_s"] = round(time.monotonic() - start, 3)
         return record
     except subprocess.TimeoutExpired:
@@ -136,19 +154,37 @@ def run_test(test: dict[str, Any]) -> dict[str, Any]:
 
     record["duration_s"] = round(time.monotonic() - start, 3)
     record["exit_code"] = completed.returncode
-    record["state"] = "PASS" if completed.returncode == 0 else "FAIL"
     record["stdout_tail"] = tail(completed.stdout)
     record["stderr_tail"] = tail(completed.stderr)
-    if completed.returncode != 0:
+    if completed.returncode == 0:
+        record["state"] = "PASS"
+    elif completed.returncode == BLOCKED_EXIT_CODE:
+        # EX_CONFIG: the command ran and reported that a required environment
+        # (e.g. a live database or Docker runtime) is unavailable.
+        record["state"] = "BLOCKED"
+        first_stderr_line = next(
+            (line for line in completed.stderr.splitlines() if line.strip()), ""
+        )
+        record["reason"] = first_stderr_line or "required environment unavailable"
+    else:
+        record["state"] = "FAIL"
         record["reason"] = f"exit code {completed.returncode}"
     return record
 
 
 def build_report(task_id: str, results: list[dict[str, Any]]) -> dict[str, Any]:
     passed = sum(1 for item in results if item["state"] == "PASS")
-    gate = "PASS" if results and all(item["state"] == "PASS" for item in results) else "FAIL"
+    failed = sum(1 for item in results if item["state"] == "FAIL")
+    blocked = sum(1 for item in results if item["state"] == "BLOCKED")
+    not_run = sum(1 for item in results if item["state"] == "NOT_RUN")
     if not results:
         gate = "NO_TESTS"
+    elif failed or not_run:
+        gate = "FAIL"
+    elif blocked:
+        gate = "BLOCKED"
+    else:
+        gate = "PASS"
     return {
         "task": task_id,
         "commit": git_value(["rev-parse", "HEAD"]),
@@ -159,6 +195,9 @@ def build_report(task_id: str, results: list[dict[str, Any]]) -> dict[str, Any]:
         "catalog": str(CATALOG_PATH.relative_to(ROOT)),
         "total": len(results),
         "passed": passed,
+        "failed": failed,
+        "blocked": blocked,
+        "not_run": not_run,
         "gate": gate,
         "results": results,
     }
@@ -185,7 +224,11 @@ def print_report(report: dict[str, Any]) -> None:
         print(line)
         print(f"      command: {item['command']}")
     print("")
-    print(f"  GATE: {report['gate']} ({report['passed']}/{report['total']} PASS)")
+    print(
+        f"  GATE: {report['gate']} "
+        f"(PASS={report['passed']} FAIL={report['failed']} "
+        f"BLOCKED={report['blocked']} NOT_RUN={report['not_run']} / {report['total']})"
+    )
 
 
 def main() -> int:

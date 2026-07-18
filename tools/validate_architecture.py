@@ -49,6 +49,22 @@ IMPLEMENTATION_MARKER_PATTERN = re.compile(
 )
 CODE_DIRECTORIES = ("apps", "packages", "contexts", "modules", "crates")
 TEXT_SUFFIXES = {".ts", ".tsx", ".js", ".mjs", ".cjs", ".rs", ".sql", ".py"}
+# Generated and third-party directories are never part of first-party review.
+IGNORE_DIRS = {
+    ".git",
+    "node_modules",
+    "dist",
+    "build",
+    "out-tsc",
+    ".nx",
+    "coverage",
+    "reports",
+    "__pycache__",
+}
+
+
+def _is_ignored(path: Path) -> bool:
+    return any(part in IGNORE_DIRS for part in path.parts)
 
 
 def read_text(relative_path: str) -> str:
@@ -130,7 +146,7 @@ def validate_baseline(errors: list[str]) -> None:
 def validate_markdown_links(errors: list[str]) -> int:
     scanned = 0
     for path in sorted(ROOT.rglob("*.md")):
-        if ".git" in path.parts:
+        if _is_ignored(path):
             continue
         scanned += 1
         text = path.read_text(encoding="utf-8")
@@ -159,6 +175,8 @@ def validate_implementation_markers(errors: list[str]) -> int:
         if not directory.is_dir():
             continue
         for path in sorted(directory.rglob("*")):
+            if _is_ignored(path):
+                continue
             if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
                 continue
             scanned += 1
