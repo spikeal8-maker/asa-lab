@@ -1,0 +1,12 @@
+{
+  "name": "observability",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/observability/src",
+  "tags": ["type:lib", "scope:shared"],
+  "targets": {
+    "build": { "command": "tsc -p packages/observability/tsconfig.json" },
+    "typecheck": { "command": "tsc -p packages/observability/tsconfig.json --noEmit" },
+    "lint": { "command": "eslint packages/observability/src" }
+  }
+}

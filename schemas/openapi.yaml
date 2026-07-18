@@ -1,0 +1,47 @@
+openapi: 3.1.0
+info:
+  title: ASA Lab Control Plane API
+  version: 0.0.0
+  description: >-
+    Foundation contract for the ASA Lab Control Plane. In the Bootstrap
+    iteration it exposes only liveness and readiness probes. Business endpoints
+    are added by later vertical-slice tasks.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local development
+paths:
+  /health/live:
+    get:
+      operationId: getHealthLive
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Service is live
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /health/ready:
+    get:
+      operationId: getHealthReady
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - live
+            - ready

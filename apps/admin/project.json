@@ -1,0 +1,18 @@
+{
+  "name": "admin",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/admin/src",
+  "tags": ["type:app", "scope:app"],
+  "targets": {
+    "build": {
+      "command": "tsc -p apps/admin/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p apps/admin/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint apps/admin/src"
+    }
+  }
+}

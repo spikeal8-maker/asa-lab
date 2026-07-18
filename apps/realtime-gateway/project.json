@@ -1,0 +1,18 @@
+{
+  "name": "realtime-gateway",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/realtime-gateway/src",
+  "tags": ["type:app", "scope:app"],
+  "targets": {
+    "build": {
+      "command": "tsc -p apps/realtime-gateway/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p apps/realtime-gateway/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint apps/realtime-gateway/src"
+    }
+  }
+}
