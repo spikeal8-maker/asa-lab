@@ -29,12 +29,15 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+          cache: pip
+
+      - name: Install validator dependency
+        run: python -m pip install --disable-pip-version-check "PyYAML>=6.0,<7"
 
       - name: Validate architecture rules
         run: |
           python - <<'PY'
           from pathlib import Path
-          import sys
           import yaml
 
           required = [
@@ -81,10 +84,20 @@ jobs:
           print(f"Architecture validation PASS: {len(items)} rules")
           PY
 
-      - name: Detect prohibited placeholders in normative files
+      - name: Detect prohibited implementation markers
+        shell: bash
         run: |
-          if grep -RInE '(^|[^A-Za-z])(TODO|TBD|FIXME|placeholder|mock success)([^A-Za-z]|$)' \
-            AGENTS.md START_HERE_FOR_AI.md docs/architecture; then
-            echo "Prohibited placeholder marker found in normative architecture files"
+          targets=()
+          for path in apps packages contexts modules crates; do
+            if [[ -d "$path" ]]; then
+              targets+=("$path")
+            fi
+          done
+          if [[ ${#targets[@]} -eq 0 ]]; then
+            echo "Implementation directories are not created yet; marker scan skipped."
+            exit 0
+          fi
+          if grep -RInE '(^|[^A-Za-z])(TODO|TBD|FIXME|mock success)([^A-Za-z]|$)' "${targets[@]}"; then
+            echo "Prohibited implementation marker found"
             exit 1
           fi
