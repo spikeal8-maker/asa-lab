@@ -1,14 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://asa-lab.dev/schemas/health.schema.json",
-  "title": "HealthResponse",
+  "title": "HealthStatus",
   "type": "object",
   "additionalProperties": false,
   "required": ["status"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["live", "ready"]
+      "enum": ["live", "ready", "not_ready"]
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["up", "down", "unknown"]
+      }
     }
   }
 }

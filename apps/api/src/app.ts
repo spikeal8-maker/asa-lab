@@ -1,8 +1,34 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 
-export interface HealthResponse {
-  readonly status: 'live' | 'ready';
+export type DependencyState = 'up' | 'down' | 'unknown';
+
+export interface LiveResponse {
+  readonly status: 'live';
+}
+
+export interface ReadyResponse {
+  readonly status: 'ready' | 'not_ready';
+  readonly dependencies: Readonly<Record<string, DependencyState>>;
+}
+
+/**
+ * Evaluate readiness. In the Bootstrap foundation no external dependency is
+ * wired yet, so their state is unknown and readiness is intentionally NOT
+ * confirmed. Real probes replace the `unknown` states in later persistence and
+ * infrastructure tasks.
+ */
+export function evaluateReadiness(): { ready: boolean; body: ReadyResponse } {
+  const dependencies: Record<string, DependencyState> = {
+    database: 'unknown',
+    redis: 'unknown',
+    objectStorage: 'unknown',
+  };
+  const ready = Object.values(dependencies).every((state) => state === 'up');
+  return {
+    ready,
+    body: { status: ready ? 'ready' : 'not_ready', dependencies },
+  };
 }
 
 /**
@@ -20,15 +46,13 @@ export function buildApp(): FastifyInstance {
     reply.header('x-request-id', request.id);
   });
 
-  app.get('/health/live', async (): Promise<HealthResponse> => ({ status: 'live' }));
+  app.get('/health/live', async (): Promise<LiveResponse> => ({ status: 'live' }));
 
-  app.get(
-    '/health/ready',
-    async (): Promise<HealthResponse & { dependencies: Record<string, string> }> => ({
-      status: 'ready',
-      dependencies: { database: 'unknown', redis: 'unknown', objectStorage: 'unknown' },
-    }),
-  );
+  app.get('/health/ready', async (_request, reply): Promise<ReadyResponse> => {
+    const { ready, body } = evaluateReadiness();
+    reply.code(ready ? 200 : 503);
+    return body;
+  });
 
   return app;
 }

@@ -7,6 +7,10 @@
   "targets": {
     "build": { "command": "tsc -p apps/api/tsconfig.json" },
     "typecheck": { "command": "tsc -p apps/api/tsconfig.json --noEmit" },
-    "lint": { "command": "eslint apps/api/src" }
+    "lint": { "command": "eslint apps/api/src" },
+    "serve": {
+      "command": "node apps/api/dist/server.js",
+      "dependsOn": ["build"]
+    }
   }
 }
