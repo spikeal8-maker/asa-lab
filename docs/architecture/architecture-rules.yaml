@@ -1,0 +1,127 @@
+version: 1
+name: ASA Lab architecture rules
+rules:
+  - id: ARCH-001
+    severity: error
+    statement: Classroom Core MUST NOT import subject-module internals.
+    verification: nx-boundary
+  - id: ARCH-002
+    severity: error
+    statement: Subject modules MUST NOT access Core database tables directly.
+    verification: dependency-and-sql-scan
+  - id: ARCH-003
+    severity: error
+    statement: Every tenant-owned row MUST contain tenant_id.
+    verification: migration-lint
+  - id: ARCH-004
+    severity: error
+    statement: tenant_id MUST be derived from validated request context, not arbitrary request body.
+    verification: application-review
+  - id: ARCH-005
+    severity: error
+    statement: Every administrative mutation MUST emit an immutable AuditEvent.
+    verification: integration-test
+  - id: ARCH-006
+    severity: error
+    statement: Submitted ProjectVersion MUST be immutable.
+    verification: database-and-domain-test
+  - id: ARCH-007
+    severity: error
+    statement: Untrusted user code MUST NOT execute in API or realtime processes.
+    verification: deployment-policy
+  - id: ARCH-008
+    severity: error
+    statement: Every worker job MUST define timeout, resource profile and idempotency key.
+    verification: job-schema
+  - id: ARCH-009
+    severity: error
+    statement: External API changes MUST update OpenAPI and contract tests.
+    verification: api-diff
+  - id: ARCH-010
+    severity: error
+    statement: Module project formats MUST have schemaVersion and migration path.
+    verification: schema-lint
+  - id: ARCH-011
+    severity: error
+    statement: Critical domain events MUST use transactional outbox.
+    verification: integration-test
+  - id: ARCH-012
+    severity: error
+    statement: Event consumers MUST be idempotent.
+    verification: duplicate-delivery-test
+  - id: ARCH-013
+    severity: error
+    statement: Redis MUST NOT be the source of truth for authorization, billing or projects.
+    verification: architecture-review
+  - id: ARCH-014
+    severity: error
+    statement: Child project content and access codes MUST NOT be written to logs or traces.
+    verification: telemetry-test
+  - id: ARCH-015
+    severity: error
+    statement: Paid capabilities MUST be resolved through EntitlementService, never global booleans.
+    verification: code-scan-and-review
+  - id: ARCH-016
+    severity: error
+    statement: A new microservice requires an accepted ADR and extraction trigger.
+    verification: pull-request-template
+  - id: ARCH-017
+    severity: error
+    statement: Direct cross-context writes are forbidden.
+    verification: repository-boundary-test
+  - id: ARCH-018
+    severity: error
+    statement: Domain packages MUST remain framework-independent.
+    verification: banned-imports
+  - id: ARCH-019
+    severity: error
+    statement: Database migrations require forward and rollback/forward-fix procedures.
+    verification: migration-checklist
+  - id: ARCH-020
+    severity: error
+    statement: Feature rollout MUST support tenant-scoped flags or explicit release ring.
+    verification: release-review
+  - id: ARCH-021
+    severity: error
+    statement: No placeholder, fake success adapter or critical TODO may be merged.
+    verification: code-review
+  - id: ARCH-022
+    severity: error
+    statement: Every authorization policy MUST include negative tests.
+    verification: authz-matrix
+  - id: ARCH-023
+    severity: error
+    statement: Old project versions MUST remain openable after compatible releases.
+    verification: compatibility-suite
+  - id: ARCH-024
+    severity: error
+    statement: Object storage keys MUST NOT be treated as authorization tokens.
+    verification: integration-test
+  - id: ARCH-025
+    severity: warning
+    statement: Full project snapshots SHOULD NOT be sent on every editor action.
+    verification: performance-review
+  - id: ARCH-026
+    severity: error
+    statement: Every module release MUST include owner, schema, manifest, SBOM and capability allowlist.
+    verification: module-admission
+  - id: ARCH-027
+    severity: error
+    statement: A PR that changes architecture paths MUST reference an ADR.
+    verification: ci-pr-check
+  - id: ARCH-028
+    severity: error
+    statement: Support access to tenant data MUST be time-limited and audited.
+    verification: policy-test
+  - id: ARCH-029
+    severity: error
+    statement: Analytics MUST NOT control critical business state.
+    verification: dependency-boundary
+  - id: ARCH-030
+    severity: error
+    statement: Production child data MUST NOT be copied to lower environments without anonymization.
+    verification: operations-policy
+  - id: ARCH-031
+    severity: error
+    statement: Tenant-owned child rows MUST enforce parent lineage with a composite (tenant_id, parent_id) foreign key or equivalent database constraint.
+    verification: database-schema-validation
