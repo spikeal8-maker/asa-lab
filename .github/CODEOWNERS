@@ -1,12 +1,13 @@
 # Default owner
 * @spikeal8-maker
 
-# Normative architecture and agent governance
+# Normative architecture, project map and agent governance
 /AGENTS.md @spikeal8-maker
 /START_HERE_FOR_AI.md @spikeal8-maker
 /CONTRIBUTING.md @spikeal8-maker
 /SECURITY.md @spikeal8-maker
 /docs/architecture/ @spikeal8-maker
+/docs/project-map/ @spikeal8-maker
 /.github/workflows/ @spikeal8-maker
 /.github/CODEOWNERS @spikeal8-maker
 
