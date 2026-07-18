@@ -19,6 +19,7 @@ Modular Monolith Control Plane
 + Entitlement-based commercial model
 + Strict rules for AI coding agents
 + Versioned project knowledge graph
++ Executable test registry
 ```
 
 Микросервисы не создаются для каждого CRUD-модуля. С первого дня отдельно изолируются только опасные или тяжёлые вычисления: компиляция, автопроверка, серверная симуляция, preview/render/export и будущие 3D- и robotics-задачи.
@@ -35,16 +36,27 @@ Modular Monolith Control Plane
 - [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивный Obsidian-подобный граф;
 - [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — машиночитаемый источник истины;
 - [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — откуда coding-агент берёт задачи;
+- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — связь задач, проверок и quality gates;
 - [`docs/architecture/structurizr/workspace.dsl`](docs/architecture/structurizr/workspace.dsl) — C4 architecture model as code.
 
 Каждый архитектурный PR обязан обновлять карту. После Bootstrap к ней добавляется автоматически генерируемый Nx project graph фактических зависимостей кода.
 
+## Управление coding-агентами
+
+- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — точный цикл ORIENT → PLAN → IMPLEMENT → VERIFY → UPDATE MAP → PR;
+- [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — уровни и правила тестирования;
+- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — стабильные test IDs, команды, фазы и владельцы;
+- [`tools/validate_test_catalog.py`](tools/validate_test_catalog.py) — проверка целостности реестра тестов.
+
+Бот не выбирает работу самостоятельно. Он читает `current_focus`, `execution_queue`, зависимости задачи и связанные test IDs. В конце каждой сессии бот обязан назвать `NEXT_ALLOWED_TASK` и дать точную `NEXT_COMMAND`.
+
 ## Текущая очередь
 
-1. Получить зелёный Architecture CI.
-2. Проверить и объединить [Architecture Foundation PR №1](https://github.com/spikeal8-maker/asa-lab/pull/1).
-3. Передать coding-агенту только [Issue №2 — TASK-BOOT-001](https://github.com/spikeal8-maker/asa-lab/issues/2).
-4. Последующие задачи берутся строго из `execution_queue` в `project-map.yaml`.
+1. Завершить governance Issue №9 внутри Architecture Foundation PR №1.
+2. Получить зелёный Architecture CI.
+3. Проверить и объединить [Architecture Foundation PR №1](https://github.com/spikeal8-maker/asa-lab/pull/1).
+4. Передать coding-агенту только [Issue №2 — TASK-BOOT-001](https://github.com/spikeal8-maker/asa-lab/issues/2).
+5. Последующие задачи брать строго из `execution_queue` в `project-map.yaml`.
 
 ## Целевой масштаб
 
@@ -62,16 +74,20 @@ Modular Monolith Control Plane
 
 1. [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — первая задача coding-агенту.
 2. [`AGENTS.md`](AGENTS.md) — обязательные архитектурные правила.
-3. [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — карта системы и текущий фокус.
-4. [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — правила очереди задач.
-5. [`docs/architecture/ARCHITECTURE_BASELINE.md`](docs/architecture/ARCHITECTURE_BASELINE.md) — целевая архитектура платформы.
-6. [`docs/architecture/CAPACITY_AND_SLO.md`](docs/architecture/CAPACITY_AND_SLO.md) — нагрузочная модель и SLO.
-7. [`docs/architecture/DATA_SECURITY_AND_TENANCY.md`](docs/architecture/DATA_SECURITY_AND_TENANCY.md) — мультитенантность, хранение и защита детских данных.
-8. [`docs/architecture/ADMIN_AND_COMMERCIAL.md`](docs/architecture/ADMIN_AND_COMMERCIAL.md) — административная и коммерческая модель.
-9. [`docs/architecture/AI_DELIVERY_GOVERNANCE.md`](docs/architecture/AI_DELIVERY_GOVERNANCE.md) — процесс разработки ботами.
-10. [`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) — принятые ADR и условия пересмотра.
-11. [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — последовательность реализации.
-12. [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила изменения системы и оформления Pull Request.
+3. [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — регламент управления агентом.
+4. [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — карта системы и текущий фокус.
+5. [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — правила очереди задач.
+6. [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — карта тестов и quality gates.
+7. [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — стратегия тестирования.
+8. [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — исполняемый каталог тестов.
+9. [`docs/architecture/ARCHITECTURE_BASELINE.md`](docs/architecture/ARCHITECTURE_BASELINE.md) — целевая архитектура платформы.
+10. [`docs/architecture/CAPACITY_AND_SLO.md`](docs/architecture/CAPACITY_AND_SLO.md) — нагрузочная модель и SLO.
+11. [`docs/architecture/DATA_SECURITY_AND_TENANCY.md`](docs/architecture/DATA_SECURITY_AND_TENANCY.md) — мультитенантность, хранение и защита детских данных.
+12. [`docs/architecture/ADMIN_AND_COMMERCIAL.md`](docs/architecture/ADMIN_AND_COMMERCIAL.md) — административная и коммерческая модель.
+13. [`docs/architecture/AI_DELIVERY_GOVERNANCE.md`](docs/architecture/AI_DELIVERY_GOVERNANCE.md) — процесс разработки ботами.
+14. [`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) — принятые ADR и условия пересмотра.
+15. [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — последовательность реализации.
+16. [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила изменения системы и оформления Pull Request.
 
 ## Главные инварианты
 
@@ -87,6 +103,7 @@ Modular Monolith Control Plane
 - Форматы проектов версионируются и мигрируются.
 - Изменение архитектурной границы требует ADR.
 - Изменение структуры, зависимости или статуса задачи требует обновления project map.
+- Каждая рабочая задача имеет обязательные test IDs и фактический отчёт.
 
 ## Планируемая структура кода
 
@@ -103,7 +120,7 @@ tests/         unit, integration, contract, security, load, simulation golden te
 
 ## Статус
 
-Репозиторий находится на стадии утверждения архитектурного фундамента. Реализация бизнес-функций не должна начинаться до принятия архитектурного Pull Request и прохождения Bootstrap quality gates.
+Репозиторий находится на стадии утверждения архитектурного фундамента. Реализация бизнес-функций не должна начинаться до принятия Architecture Foundation PR и прохождения Bootstrap quality gates.
 
 ## Правовой статус
 
