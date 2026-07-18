@@ -30,74 +30,13 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+          cache-dependency-path: tools/requirements.txt
 
-      - name: Install validator dependency
-        run: python -m pip install --disable-pip-version-check "PyYAML>=6.0,<7"
+      - name: Install validator dependencies
+        run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
-      - name: Validate architecture rules
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import yaml
+      - name: Compile validator
+        run: python -m compileall -q tools/validate_architecture.py
 
-          required = [
-              Path("AGENTS.md"),
-              Path("START_HERE_FOR_AI.md"),
-              Path("docs/architecture/ARCHITECTURE_BASELINE.md"),
-              Path("docs/architecture/CAPACITY_AND_SLO.md"),
-              Path("docs/architecture/AI_DELIVERY_GOVERNANCE.md"),
-              Path("docs/architecture/DECISIONS.md"),
-              Path("docs/architecture/IMPLEMENTATION_ROADMAP.md"),
-              Path("docs/architecture/DATA_SECURITY_AND_TENANCY.md"),
-              Path("docs/architecture/ADMIN_AND_COMMERCIAL.md"),
-              Path("docs/architecture/architecture-rules.yaml"),
-          ]
-          missing = [str(path) for path in required if not path.is_file()]
-          if missing:
-              raise SystemExit("Missing normative files: " + ", ".join(missing))
-
-          rules = yaml.safe_load(Path("docs/architecture/architecture-rules.yaml").read_text())
-          items = rules.get("rules", [])
-          ids = [item.get("id") for item in items]
-          if len(items) < 30:
-              raise SystemExit(f"Expected at least 30 architecture rules, got {len(items)}")
-          if len(ids) != len(set(ids)):
-              raise SystemExit("Duplicate architecture rule IDs")
-          invalid = [item for item in items if item.get("severity") not in {"error", "warning"}]
-          if invalid:
-              raise SystemExit("Invalid architecture rule severity")
-
-          baseline = Path("docs/architecture/ARCHITECTURE_BASELINE.md").read_text()
-          invariants = [
-              "Modular Monolith Control Plane",
-              "Compute Plane",
-              "tenant_id",
-              "ProjectVersion",
-              "transactional outbox",
-              "Module SDK",
-              "EntitlementService",
-          ]
-          absent = [item for item in invariants if item not in baseline]
-          if absent:
-              raise SystemExit("Architecture baseline misses invariants: " + ", ".join(absent))
-
-          print(f"Architecture validation PASS: {len(items)} rules")
-          PY
-
-      - name: Detect prohibited implementation markers
-        shell: bash
-        run: |
-          targets=()
-          for path in apps packages contexts modules crates; do
-            if [[ -d "$path" ]]; then
-              targets+=("$path")
-            fi
-          done
-          if [[ ${#targets[@]} -eq 0 ]]; then
-            echo "Implementation directories are not created yet; marker scan skipped."
-            exit 0
-          fi
-          if grep -RInE '(^|[^A-Za-z])(TODO|TBD|FIXME|mock success)([^A-Za-z]|$)' "${targets[@]}"; then
-            echo "Prohibited implementation marker found"
-            exit 1
-          fi
+      - name: Validate architecture foundation
+        run: python tools/validate_architecture.py
