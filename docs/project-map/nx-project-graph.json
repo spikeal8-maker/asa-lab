@@ -836,6 +836,17 @@
                 "{workspaceRoot}/eslint.config.mjs"
               ],
               "cache": true
+            },
+            "serve": {
+              "dependsOn": [
+                "build"
+              ],
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "node apps/api/dist/server.js"
+              },
+              "configurations": {},
+              "parallelism": true
             }
           },
           "implicitDependencies": []

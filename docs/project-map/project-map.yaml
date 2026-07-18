@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-map_version: 2026.07.18-6
+map_version: 2026.07.18-7
 project:
   id: asa-lab
   name: ASA Lab
@@ -90,7 +90,7 @@ nodes:
   - {id: TASK-CI-001, label: Разблокировать Architecture CI, kind: task, layer: delivery, status: done, summary: Local-first exit gate - TST-ARCH-001, TST-MAP-001, TST-CATALOG-001 проходят локально; GitHub-hosted CI отклонён из-за billing-blocker., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
   - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: done, summary: Регламент ботов, test catalog, quality graph и единый локальный task test runner., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
   - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: done, summary: PR №1 объединён в main (merge d93899b)., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
-  - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: in_review, summary: pnpm+Nx foundation в draft PR - 13/15 обязательных тестов PASS; TST-COMPOSE-001 и TST-MIGRATION-001 BLOCKED (нет Docker/Postgres). Nx graph docs/project-map/nx-project-graph.json., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
+  - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: in_review, summary: "pnpm+Nx foundation в PR 14 - 13/15 PASS, 0 FAIL; реальные readiness 503, runnable API (serve + HTTP smoke), OTel NodeSDK, pg migration runner (apply доказан на встроенном Postgres); BLOCKED только TST-COMPOSE-001 (нет Docker) и TST-MIGRATION-001 smoke (нет внешнего Postgres); Nx graph docs/project-map/nx-project-graph.json", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
   - {id: TASK-TEN-001, label: Tenant context vertical slice, kind: task, layer: delivery, status: blocked, summary: Server-derived tenant context и negative test., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
   - {id: TASK-CLS-001, label: Педагог создаёт класс, kind: task, layer: delivery, status: blocked, summary: Первый Classroom use case end-to-end., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/4}
   - {id: TASK-SEAT-001, label: StudentSeat import and login, kind: task, layer: delivery, status: blocked, summary: Импорт мест и вход ребёнка без email., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
