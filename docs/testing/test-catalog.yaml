@@ -1,0 +1,328 @@
+schema_version: 1.0.0
+catalog_version: 2026.07.18-1
+source_of_truth: docs/testing/test-catalog.yaml
+result_states:
+  - PASS
+  - FAIL
+  - NOT_RUN
+  - BLOCKED
+suites:
+  governance:
+    description: Архитектура, документация, карта и процесс разработки.
+  static:
+    description: Форматирование, lint, типы и границы зависимостей.
+  contracts:
+    description: OpenAPI, JSON Schema, events, jobs и Module SDK.
+  integration:
+    description: Базы данных, инфраструктура, repositories и migrations.
+  authorization:
+    description: Tenant, role, class и resource isolation.
+  e2e:
+    description: Сквозные пользовательские сценарии.
+  security:
+    description: Секреты, зависимости, sandbox и злоупотребления.
+  load:
+    description: Нагрузочные профили и устойчивость очередей.
+  recovery:
+    description: Backup, restore, PITR и восстановление backlog.
+  simulation:
+    description: Детерминированные golden tests вычислительных модулей.
+  accessibility:
+    description: Доступность пользовательских интерфейсов.
+tests:
+  - id: TST-ARCH-001
+    title: Architecture foundation validation
+    suite: governance
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    command: python tools/validate_architecture.py
+    timeout_seconds: 60
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-MAP-001
+    title: Project map structural validation
+    suite: governance
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    command: python tools/validate_project_map.py
+    timeout_seconds: 60
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-CATALOG-001
+    title: Test catalog validation
+    suite: governance
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-GOV-001, TASK-BOOT-001]
+    command: python tools/validate_test_catalog.py
+    timeout_seconds: 60
+    owner: quality-engineering
+    artifacts: [console-report]
+
+  - id: TST-YAML-001
+    title: Parse normative YAML documents
+    suite: governance
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-ARCH-001, TASK-GOV-001]
+    command: python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text(encoding='utf-8')) for p in Path('.').rglob('*.yaml')]; print('YAML PASS')"
+    timeout_seconds: 60
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-LINKS-001
+    title: Relative Markdown links
+    suite: governance
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    command: python tools/validate_architecture.py
+    timeout_seconds: 60
+    owner: documentation
+    artifacts: [console-report]
+
+  - id: TST-FORMAT-001
+    title: Repository formatting
+    suite: static
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm format:check
+    timeout_seconds: 300
+    owner: developer-experience
+    artifacts: [console-report]
+
+  - id: TST-LINT-001
+    title: Repository lint
+    suite: static
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm lint
+    timeout_seconds: 600
+    owner: developer-experience
+    artifacts: [console-report]
+
+  - id: TST-TYPE-001
+    title: Strict TypeScript typecheck
+    suite: static
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm typecheck
+    timeout_seconds: 600
+    owner: developer-experience
+    artifacts: [console-report]
+
+  - id: TST-BOUNDARY-001
+    title: Nx module boundary validation
+    suite: static
+    level: architecture
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001, TASK-MOD-001, TASK-ELEC-001]
+    command: pnpm boundaries:check
+    timeout_seconds: 600
+    owner: platform-architecture
+    artifacts: [nx-project-graph, console-report]
+
+  - id: TST-CONTRACT-001
+    title: OpenAPI and JSON Schema validation
+    suite: contracts
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-ELEC-001]
+    command: pnpm contracts:check
+    timeout_seconds: 600
+    owner: platform-contracts
+    artifacts: [console-report]
+
+  - id: TST-UNIT-001
+    title: Unit test suite
+    suite: integration
+    level: unit
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-ELEC-001]
+    command: pnpm test
+    timeout_seconds: 900
+    owner: engineering
+    artifacts: [junit, coverage]
+
+  - id: TST-BUILD-001
+    title: Production build
+    suite: static
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm build
+    timeout_seconds: 1200
+    owner: developer-experience
+    artifacts: [build-manifest]
+
+  - id: TST-COMPOSE-001
+    title: Local infrastructure configuration
+    suite: integration
+    level: infrastructure
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: docker compose config
+    timeout_seconds: 120
+    owner: platform-operations
+    artifacts: [console-report]
+
+  - id: TST-MIGRATION-001
+    title: Database migration smoke
+    suite: integration
+    level: database
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001]
+    command: pnpm db:migrate:test
+    timeout_seconds: 600
+    owner: data-platform
+    artifacts: [migration-report]
+
+  - id: TST-TENANT-001
+    title: Server-derived tenant context
+    suite: authorization
+    level: integration
+    phase_available: PHASE-1
+    required_for: [TASK-TEN-001]
+    command: pnpm test:tenant-context
+    timeout_seconds: 600
+    owner: identity-and-tenancy
+    artifacts: [junit]
+
+  - id: TST-AUTHZ-001
+    title: Cross-tenant read and write denial matrix
+    suite: authorization
+    level: integration
+    phase_available: PHASE-1
+    required_for: [TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001]
+    command: pnpm test:authz
+    timeout_seconds: 900
+    owner: security-engineering
+    artifacts: [authorization-matrix, junit]
+
+  - id: TST-E2E-CLS-001
+    title: Teacher creates and lists classroom
+    suite: e2e
+    level: system
+    phase_available: PHASE-2
+    required_for: [TASK-CLS-001]
+    command: pnpm e2e:classroom-create
+    timeout_seconds: 1200
+    owner: classroom-team
+    artifacts: [playwright-report, screenshots]
+
+  - id: TST-E2E-SEAT-001
+    title: Teacher issues StudentSeat and child logs in
+    suite: e2e
+    level: system
+    phase_available: PHASE-2
+    required_for: [TASK-SEAT-001]
+    command: pnpm e2e:student-seat
+    timeout_seconds: 1200
+    owner: identity-and-classroom
+    artifacts: [playwright-report, security-report]
+
+  - id: TST-MODULE-001
+    title: Two modules share universal project lifecycle
+    suite: contracts
+    level: integration
+    phase_available: PHASE-3
+    required_for: [TASK-MOD-001]
+    command: pnpm test:module-sdk
+    timeout_seconds: 900
+    owner: module-platform
+    artifacts: [contract-report, nx-project-graph]
+
+  - id: TST-E2E-ACT-001
+    title: Assignment and immutable submission flow
+    suite: e2e
+    level: system
+    phase_available: PHASE-4
+    required_for: [TASK-ACT-001]
+    command: pnpm e2e:assignment-submission
+    timeout_seconds: 1500
+    owner: learning-workflows
+    artifacts: [playwright-report, submission-manifest]
+
+  - id: TST-SIM-GOLDEN-001
+    title: Electronics DC golden circuits
+    suite: simulation
+    level: kernel
+    phase_available: PHASE-5
+    required_for: [TASK-ELEC-001]
+    command: cargo test --workspace golden_dc
+    timeout_seconds: 900
+    owner: simulation-engineering
+    artifacts: [golden-report]
+
+  - id: TST-E2E-ELEC-001
+    title: Build save reload and simulate first circuit
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELEC-001]
+    command: pnpm e2e:electronics-first-circuit
+    timeout_seconds: 1800
+    owner: electronics-team
+    artifacts: [playwright-report, circuit-document, simulation-report]
+
+  - id: TST-SECRET-001
+    title: Secret scanning
+    suite: security
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm security:secrets
+    timeout_seconds: 600
+    owner: security-engineering
+    artifacts: [security-report]
+
+  - id: TST-DEPENDENCY-001
+    title: Dependency and license inventory
+    suite: security
+    level: repository
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm security:dependencies
+    timeout_seconds: 900
+    owner: security-engineering
+    artifacts: [sbom, license-report]
+
+  - id: TST-LOAD-L1-001
+    title: Large school 500 CCU profile
+    suite: load
+    level: system
+    phase_available: PHASE-9
+    required_for: []
+    command: pnpm load:school-l1
+    timeout_seconds: 7200
+    owner: performance-engineering
+    artifacts: [load-report, telemetry-export]
+
+  - id: TST-RECOVERY-001
+    title: PostgreSQL backup restore verification
+    suite: recovery
+    level: infrastructure
+    phase_available: PHASE-9
+    required_for: []
+    command: pnpm recovery:postgres
+    timeout_seconds: 7200
+    owner: platform-operations
+    artifacts: [restore-report]
+
+  - id: TST-A11Y-001
+    title: Critical accessibility paths
+    suite: accessibility
+    level: system
+    phase_available: PHASE-2
+    required_for: [TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001, TASK-ELEC-001]
+    command: pnpm test:a11y
+    timeout_seconds: 1200
+    owner: frontend-platform
+    artifacts: [accessibility-report]
