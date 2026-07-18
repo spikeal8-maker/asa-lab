@@ -1,6 +1,8 @@
 /** Foundation surface for the observability package: request/trace context and
- * an OpenTelemetry bootstrap that never carries personal data. */
+ * a real, minimal OpenTelemetry NodeSDK bootstrap that never carries personal
+ * data. */
 import { trace, type Tracer } from '@opentelemetry/api';
+import { NodeSDK } from '@opentelemetry/sdk-node';
 
 export const PACKAGE_NAME = '@asa-lab/observability';
 
@@ -39,4 +41,39 @@ export const ALLOWED_TELEMETRY_ATTRIBUTES = [
 
 export function getTracer(name = 'asa-lab'): Tracer {
   return trace.getTracer(name);
+}
+
+export interface TelemetryHandle {
+  start(): void;
+  shutdown(): Promise<void>;
+}
+
+/**
+ * Create a real OpenTelemetry NodeSDK bootstrap.
+ *
+ * No exporter is configured by default, so telemetry stays in-process and no
+ * data — and no personal data in particular — leaves the machine. An OTLP
+ * exporter is wired only when operators explicitly configure one. The service
+ * name is a technical identifier and never a personal attribute.
+ */
+export function createTelemetry(serviceName = 'asa-lab'): TelemetryHandle {
+  if (!process.env['OTEL_SERVICE_NAME']) {
+    process.env['OTEL_SERVICE_NAME'] = serviceName;
+  }
+  const sdk = new NodeSDK({});
+  let started = false;
+  return {
+    start: (): void => {
+      if (!started) {
+        sdk.start();
+        started = true;
+      }
+    },
+    shutdown: async (): Promise<void> => {
+      if (started) {
+        await sdk.shutdown();
+        started = false;
+      }
+    },
+  };
 }
