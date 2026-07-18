@@ -1,0 +1,46 @@
+{
+  "name": "@asa-lab/source",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ASA Lab modular education platform monorepo foundation.",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "nx run-many -t lint --all",
+    "typecheck": "nx run-many -t typecheck --all",
+    "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.ts\"",
+    "contracts:check": "node tools/validate-contracts.mjs",
+    "test": "vitest run",
+    "build": "nx run-many -t build --all",
+    "db:migrate:test": "node tools/migrate.mjs --check",
+    "security:secrets": "node tools/secret-scan.mjs",
+    "security:dependencies": "node tools/dependency-inventory.mjs",
+    "graph:report": "nx graph --file=docs/project-map/nx-project-graph.json"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^10.1.1",
+    "@eslint/js": "^9.18.0",
+    "@nx/eslint": "20.3.0",
+    "@nx/eslint-plugin": "20.3.0",
+    "@nx/js": "20.3.0",
+    "@types/node": "^22.10.5",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^9.18.0",
+    "nx": "20.3.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8",
+    "yaml": "^2.7.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "fastify": "^5.2.1"
+  }
+}

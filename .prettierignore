@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+out-tsc
+.nx
+coverage
+reports
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Markdown and prose docs are governed separately (not part of the code format
+# gate); the architecture/governance docs predate this workspace.
+**/*.md
+docs
+
+# CI workflow formatting is owned by the governance task, not the code gate.
+.github

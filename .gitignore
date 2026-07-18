@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out-tsc/
+*.tsbuildinfo
+
+# Nx caches / generated
+.nx/cache
+.nx/workspace-data
+tmp/
+
+# Rust / WASM
+target/
+crates/**/pkg/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Reports (generated artifacts)
+reports/*.json
+reports/*.txt
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# Local docker data volumes
+/data/
+
+# Python bytecode
+__pycache__/
