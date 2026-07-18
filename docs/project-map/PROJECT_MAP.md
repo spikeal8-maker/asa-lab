@@ -1,18 +1,21 @@
 # Карта проекта ASA Lab
 
-Эта страница — человекочитаемое представление [`project-map.yaml`](project-map.yaml). Она отвечает на четыре вопроса:
+Эта страница — человекочитаемое представление [`project-map.yaml`](project-map.yaml). Она отвечает на вопросы:
 
 1. из каких частей состоит платформа;
 2. какие части зависят друг от друга;
-3. какая фаза и задача активны;
-4. что coding-агент должен делать следующим.
+3. какая задача активна;
+4. чем подтверждается готовность;
+5. что coding-агент должен делать следующим.
 
-Для Obsidian-подобного режима с поиском, фильтрами, масштабированием и карточкой узла откройте [`viewer.html`](viewer.html).
+Для Obsidian-подобного режима откройте [`viewer.html`](viewer.html). Отдельная карта проверок находится в [`QUALITY_MAP.md`](QUALITY_MAP.md).
 
 ## Текущий фокус
 
 ```text
-TASK-CI-001      подтвердить зелёный Architecture CI
+TASK-CI-001      разблокировать GitHub Actions и получить реальные логи
+        ↓
+TASK-GOV-001     завершить BOT_RUNBOOK, test catalog и quality graph
         ↓
 TASK-ARCH-001    принять и объединить Architecture Foundation PR №1
         ↓
@@ -30,6 +33,8 @@ TASK-ACT-001     первое задание и immutable submission
         ↓
 TASK-ELEC-001    первая рабочая электронная схема
 ```
+
+Текущая задача: [Issue №13 — TASK-CI-001](https://github.com/spikeal8-maker/asa-lab/issues/13).
 
 ## 1. Карта платформы
 
@@ -130,7 +135,39 @@ flowchart LR
     ENT --> MOD
 ```
 
-## 3. Подключаемые учебные среды
+## 3. Контур управления ботами и качеством
+
+```mermaid
+flowchart LR
+    OWNER["Владелец"]
+    MAP["project-map.yaml"]
+    ISSUE["GitHub Issue"]
+    RUNBOOK["BOT_RUNBOOK"]
+    CATALOG["test-catalog.yaml"]
+    AGENT["Coding-агент"]
+    PR["Draft PR"]
+    CI["Governance / Product CI"]
+    REPORT["Test report"]
+
+    OWNER --> MAP
+    MAP --> AGENT
+    ISSUE --> AGENT
+    RUNBOOK --> AGENT
+    CATALOG --> AGENT
+    AGENT --> PR
+    PR --> CI
+    CI --> REPORT
+    REPORT --> OWNER
+    OWNER -->|merge и смена статуса| MAP
+```
+
+Рабочий цикл:
+
+```text
+ORIENT → PLAN → IMPLEMENT → VERIFY → UPDATE MAP → DRAFT PR → REVIEW → MERGE → NEXT TASK
+```
+
+## 4. Подключаемые учебные среды
 
 ```mermaid
 flowchart TB
@@ -152,7 +189,7 @@ flowchart TB
     G --> GW["Preview / Export workers"]
 ```
 
-## 4. Дорожная карта
+## 5. Дорожная карта
 
 ```mermaid
 flowchart LR
@@ -170,7 +207,7 @@ flowchart LR
     P11 --> P12["12 New Subject Modules"]
 ```
 
-## 5. Поток задачи для coding-агента
+## 6. Состояния задачи
 
 ```mermaid
 stateDiagram-v2
@@ -178,32 +215,33 @@ stateDiagram-v2
     Planned --> Blocked: есть зависимость
     Planned --> Ready: зависимости done
     Blocked --> Ready: блокировка снята
-    Ready --> InProgress: агент взял задачу
+    Ready --> InProgress: агент начал реализацию
     InProgress --> InReview: открыт PR
     InReview --> InProgress: замечания или красный CI
     InReview --> Done: merge и exit gate
     Done --> [*]
 ```
 
-## 6. Три карты, работающие вместе
+## 7. Карты, работающие вместе
 
 | Карта | Для чего | Источник истины |
 |---|---|---|
 | Project Knowledge Graph | Устройство, задачи, документы, фазы и зависимости | `project-map.yaml` |
+| Quality Map | Задачи, test IDs и quality gates | `QUALITY_MAP.md` + `test-catalog.yaml` |
 | C4 Architecture Model | Система, контейнеры и deployment | `docs/architecture/structurizr/workspace.dsl` |
 | Nx Project Graph | Фактические импорты исходного кода | автоматически из Nx metadata |
 
 Nx-граф появляется после Bootstrap. Он показывает, как код зависит от кода. `project-map.yaml` дополнительно показывает назначение узла, фазу, статус и следующую задачу.
 
-## 7. Обязательное правило актуальности
+## 8. Обязательное правило актуальности
 
 Карта меняется в том же Pull Request, если PR:
 
 - добавляет или удаляет приложение, bounded context, worker, data store или предметный модуль;
 - меняет архитектурную зависимость;
-- добавляет ADR, фазу или exit gate;
+- добавляет ADR, фазу, task, test registry или exit gate;
 - начинает, блокирует, завершает или заменяет задачу;
 - переносит ответственность между модулями;
 - меняет путь исходного кода или нормативного документа.
 
-Задача не получает статус `done`, пока её exit gate не подтверждён командами и тестами.
+Задача не получает статус `done`, пока её exit gate и обязательные test IDs не подтверждены фактическими командами.
