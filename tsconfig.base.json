@@ -29,7 +29,6 @@
       "@asa-lab/database": ["packages/database/src/index.ts"],
       "@asa-lab/eventing": ["packages/eventing/src/index.ts"],
       "@asa-lab/module-sdk": ["packages/module-sdk/src/index.ts"],
-      "@asa-lab/observability": ["packages/observability/src/index.ts"],
       "@asa-lab/ui-kit": ["packages/ui-kit/src/index.ts"],
       "@asa-lab/test-kit": ["packages/test-kit/src/index.ts"]
     }
