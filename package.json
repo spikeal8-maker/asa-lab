@@ -15,15 +15,19 @@
     "typecheck": "nx run-many -t typecheck --all",
     "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.ts\"",
     "contracts:check": "node tools/validate-contracts.mjs",
+    "compose:check": "node tools/validate-compose.mjs",
     "test": "vitest run",
     "build": "nx run-many -t build --all",
-    "db:migrate:test": "node tools/migrate.mjs --check",
+    "db:migrate": "node tools/migrate.mjs --apply",
+    "db:migrate:check": "node tools/migrate.mjs --check",
+    "db:migrate:test": "node tools/migrate.mjs --smoke",
     "security:secrets": "node tools/secret-scan.mjs",
     "security:dependencies": "node tools/dependency-inventory.mjs",
     "graph:report": "nx graph --file=docs/project-map/nx-project-graph.json"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
+    "@electric-sql/pglite": "0.2.17",
     "@eslint/js": "^9.18.0",
     "@nx/eslint": "20.3.0",
     "@nx/eslint-plugin": "20.3.0",
@@ -41,6 +45,8 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "fastify": "^5.2.1"
+    "@opentelemetry/sdk-node": "0.57.2",
+    "fastify": "^5.2.1",
+    "pg": "8.13.1"
   }
 }
