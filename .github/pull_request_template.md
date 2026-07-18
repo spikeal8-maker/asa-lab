@@ -18,6 +18,7 @@
 
 - [ ] `docs/project-map/project-map.yaml` обновлён или изменение карты обоснованно неприменимо.
 - [ ] `docs/project-map/PROJECT_MAP.md` соответствует машиночитаемой карте.
+- [ ] `docs/project-map/QUALITY_MAP.md` обновлена, если изменились quality gates.
 - [ ] Статус TASK изменён корректно.
 - [ ] Новые узлы и связи имеют стабильные IDs.
 - [ ] Фактический Nx graph проверен, если изменялись зависимости кода.
@@ -51,18 +52,34 @@
 
 <!-- Job contract, timeout, resource profile, retries, duplicate delivery, sandbox. Неприменимо для обычного Control Plane use case. -->
 
-## Фактические проверки
+## Обязательные Test IDs
+
+<!-- Перечислите test IDs из docs/testing/test-catalog.yaml, обязательные для TASK. -->
 
 ```text
-Укажите команды и реальные результаты. Не отмечайте проверки, которые не запускались.
+TST-...
 ```
 
+## Фактические результаты проверок
+
+Не отмечайте и не записывайте `PASS`, если команда не запускалась. Для каждой проверки используйте формат:
+
+```text
+TST-ARCH-001 PASS duration=...
+TST-MAP-001 PASS duration=...
+TST-... FAIL reason="..."
+TST-... NOT_RUN reason="..."
+```
+
+- [ ] architecture validation
+- [ ] project map validation
+- [ ] test catalog validation
 - [ ] format/lint
 - [ ] typecheck
 - [ ] architecture boundaries
-- [ ] project map validation
 - [ ] unit tests
 - [ ] contract tests
+- [ ] authorization negative tests
 - [ ] integration/E2E
 - [ ] migration tests
 - [ ] security checks
@@ -80,14 +97,32 @@
 
 <!-- Скриншоты и состояния loading/empty/error/success/conflict для UI-изменений. -->
 
+## Стандартный отчёт BOT_RUNBOOK
+
+```text
+TASK:
+ISSUE:
+STATUS:
+BRANCH:
+COMMITS:
+FILES_CHANGED:
+MAP_NODES_CHANGED:
+TESTS_RUN:
+BLOCKERS:
+RESIDUAL_RISKS:
+NEXT_ALLOWED_TASK:
+NEXT_COMMAND:
+```
+
 ## Известные ограничения
 
 <!-- Только реальные ограничения. Critical placeholders и fake success не допускаются. -->
 
 ## Финальная проверка
 
-- [ ] Прочитаны `AGENTS.md`, `START_HERE_FOR_AI.md` и `docs/project-map/TASK_SYSTEM.md`.
+- [ ] Прочитаны `AGENTS.md`, `START_HERE_FOR_AI.md`, `docs/delivery/BOT_RUNBOOK.md` и `docs/project-map/TASK_SYSTEM.md`.
 - [ ] Выполнялась только одна готовая задача из project map.
+- [ ] Обязательные test IDs взяты из `docs/testing/test-catalog.yaml`.
 - [ ] Изменение не нарушает Module SDK и владение контекстами.
 - [ ] Старые ProjectVersion/Submission остаются открываемыми.
 - [ ] Недоверенный код не выполняется в Core API.
