@@ -38,6 +38,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -66,14 +69,25 @@
         "type": "lib",
         "data": {
           "root": "packages/observability",
-          "name": "observability",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
           "sourceRoot": "packages/observability/src",
+          "name": "observability",
           "tags": [
+            "npm:private",
             "type:lib",
             "scope:shared"
           ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/observability",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              }
+            }
+          },
           "targets": {
             "build": {
               "executor": "nx:run-commands",
@@ -98,6 +112,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -118,6 +135,8 @@
               "cache": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
           "implicitDependencies": []
         }
       },
@@ -158,6 +177,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -218,6 +240,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -278,6 +303,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -338,6 +366,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -398,6 +429,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -458,6 +492,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -518,6 +555,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -578,6 +618,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -638,6 +681,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -698,6 +744,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -758,6 +807,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -786,14 +838,19 @@
         "type": "app",
         "data": {
           "root": "apps/api",
-          "name": "api",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "application",
           "sourceRoot": "apps/api/src",
+          "name": "api",
           "tags": [
+            "npm:private",
             "type:app",
             "scope:app"
           ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/api"
+            }
+          },
           "targets": {
             "build": {
               "executor": "nx:run-commands",
@@ -818,6 +875,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -849,6 +909,8 @@
               "parallelism": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "application",
           "implicitDependencies": []
         }
       },
@@ -889,6 +951,9 @@
               },
               "configurations": {},
               "parallelism": true,
+              "dependsOn": [
+                "^build"
+              ],
               "inputs": [
                 "default",
                 "^default"
@@ -927,7 +992,13 @@
       "ui-kit": [],
       "authz": [],
       "admin": [],
-      "api": [],
+      "api": [
+        {
+          "source": "api",
+          "target": "observability",
+          "type": "static"
+        }
+      ],
       "web": []
     }
   }
