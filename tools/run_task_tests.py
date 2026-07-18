@@ -49,10 +49,17 @@ def git_value(args: list[str]) -> str:
 
 
 def working_tree_state() -> str:
-    status = git_value(["status", "--porcelain"])
-    if status in {"", "unknown"}:
-        return "clean" if status == "" else "unknown"
-    return "dirty"
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return "dirty" if result.stdout.strip() else "clean"
 
 
 def load_catalog() -> dict[str, Any]:
