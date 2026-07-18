@@ -87,7 +87,7 @@ nodes:
   - {id: PHASE-10, label: Phase 10 Commercial Foundation, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Entitlements, quotas и billing adapter.}
   - {id: PHASE-11, label: Phase 11 Multi-school Scale, kind: roadmap_phase, layer: roadmap, status: blocked, summary: TenantPlacement и региональное масштабирование.}
   - {id: PHASE-12, label: Phase 12 New Modules, kind: roadmap_phase, layer: roadmap, status: blocked, summary: 3D, robotics, chess и drawing.}
-  - {id: TASK-CI-001, label: Разблокировать Architecture CI, kind: task, layer: delivery, status: ready, summary: Получить runner steps logs и успешный workflow., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
+  - {id: TASK-CI-001, label: Разблокировать Architecture CI, kind: task, layer: delivery, status: in_progress, summary: Получить runner steps logs и успешный workflow., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
   - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: in_review, summary: Регламент ботов, test catalog и quality graph., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
   - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: blocked, summary: Проверить и объединить PR номер 1 после governance gates., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
   - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: blocked, summary: Создать pnpm и Nx foundation., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
