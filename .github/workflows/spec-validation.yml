@@ -40,9 +40,13 @@ jobs:
         run: |
           python -m compileall -q tools/validate_architecture.py
           python -m compileall -q tools/validate_project_map.py
+          python -m compileall -q tools/validate_test_catalog.py
 
       - name: Validate architecture foundation
         run: python tools/validate_architecture.py
 
       - name: Validate project knowledge graph
         run: python tools/validate_project_map.py
+
+      - name: Validate executable test registry
+        run: python tools/validate_test_catalog.py
