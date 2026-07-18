@@ -118,8 +118,9 @@ def validate_baseline(errors: list[str]) -> None:
         return
 
     baseline = path.read_text(encoding="utf-8")
+    baseline_normalized = baseline.casefold()
     for invariant in BASELINE_INVARIANTS:
-        if invariant not in baseline:
+        if invariant.casefold() not in baseline_normalized:
             errors.append(f"Architecture baseline misses invariant: {invariant}")
 
     if baseline.count("## ") < 20:
