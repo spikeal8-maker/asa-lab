@@ -60,6 +60,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
+    CI[TASK-CI-001]
     ARCH[TASK-ARCH-001]
     GOV[TASK-GOV-001]
     BOOT[TASK-BOOT-001]
@@ -89,6 +90,9 @@ flowchart LR
     SG1[TST-SIM-GOLDEN-001]
     EE1[TST-E2E-ELEC-001]
 
+    CI --> A1
+    CI --> M1
+    CI --> C1
     ARCH --> A1
     ARCH --> M1
     GOV --> A1
@@ -129,3 +133,4 @@ flowchart LR
 - Изменение задачи, которое меняет критерии готовности, должно обновить каталог тестов и эту карту в том же PR.
 - `PASS` допускается только при фактически запущенной команде.
 - `NOT_RUN` и `BLOCKED` отображаются явно и не позволяют закрыть обязательный exit gate.
+- Текущий режим — local-first verification: обязательный gate доказывается локальным запуском `python tools/run_task_tests.py --task <TASK-ID>`; узел `GitHub Actions` информационен, пока действует внешний billing-blocker.

@@ -168,3 +168,38 @@ NEXT_COMMAND: точная команда следующему агенту
 4. утвердить ADR при изменении архитектуры.
 
 Нельзя регулировать работу только устной командой, не обновив Issue или карту. Иначе следующий агент получит устаревшую модель проекта.
+
+## 9. Local-first verification (текущий режим)
+
+Проект использует **local-first verification** до появления отдельной необходимости в managed CI.
+
+Причина: GitHub-hosted runners недоступны из-за внешнего billing-blocker аккаунта (job не стартует, `steps_count = 0`, аннотация «The job was not started because recent account payments have failed or your spending limit needs to be increased»). Платный биллинг GitHub и self-hosted runner на текущем этапе не подключаются.
+
+Правила текущего режима:
+
+- обязательный quality gate задачи — это её тесты из `docs/testing/test-catalog.yaml`, фактически выполненные локально;
+- GitHub Actions не является обязательным exit gate; его результат считается информационным;
+- ни один валидатор не отключается и критерии `PASS` не ослабляются;
+- `NOT_RUN` и `BLOCKED` не считаются `PASS` и не позволяют закрыть gate;
+- фактические результаты (с commit SHA) публикуются в связанном Pull Request и Issue.
+
+### Единая команда запуска тестов задачи
+
+Все обязательные тесты текущей задачи запускаются одной командой через раннер `tools/run_task_tests.py`, который читает `docs/testing/test-catalog.yaml`:
+
+```bash
+python tools/run_task_tests.py --task TASK-CI-001
+```
+
+Раннер выбирает тесты, у которых `required_for` содержит указанную задачу, реально выполняет их команды и печатает отчёт, привязанный к commit SHA. Код возврата `0` только если все обязательные тесты имеют фактический `PASS`.
+
+### Локальный fallback-процесс
+
+Когда managed CI недоступен, разработчик или агент обязан перед push выполнить локально:
+
+```bash
+python -m compileall -q tools
+python tools/run_task_tests.py --task <TASK-ID>
+```
+
+Push и отчёт в PR допускаются только после фактического `GATE: PASS`. Возврат к managed CI (self-hosted или иному) оформляется отдельным решением владельца и обновлением этого документа.

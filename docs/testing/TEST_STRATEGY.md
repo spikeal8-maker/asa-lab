@@ -164,3 +164,15 @@ TST-LOAD-L1-001 NOT_RUN reason="Phase 9 not reached"
 - `TST-LINKS-001`.
 
 Команды pnpm, Nx, Docker Compose и application tests становятся активными после выполнения Issue №2.
+
+## 10. Local-first verification
+
+До появления отдельной необходимости в managed CI проект использует local-first verification. GitHub-hosted runners недоступны из-за внешнего billing-blocker аккаунта, поэтому обязательным quality gate является фактический локальный запуск тестов задачи из `test-catalog.yaml`, а GitHub Actions трактуется как информационный сигнал.
+
+Единая команда запуска обязательных тестов текущей задачи:
+
+```bash
+python tools/run_task_tests.py --task <TASK-ID>
+```
+
+Раннер читает `test-catalog.yaml`, выбирает тесты с соответствующим `required_for`, реально выполняет их и печатает отчёт с commit SHA. `PASS` фиксируется только при фактически выполненной команде; `NOT_RUN` и `BLOCKED` не закрывают gate. Порядок работы в этом режиме описан в `../delivery/BOT_RUNBOOK.md`.
