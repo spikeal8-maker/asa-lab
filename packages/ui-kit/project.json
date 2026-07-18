@@ -1,0 +1,18 @@
+{
+  "name": "ui-kit",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/ui-kit/src",
+  "tags": ["type:lib", "scope:shared"],
+  "targets": {
+    "build": {
+      "command": "tsc -p packages/ui-kit/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p packages/ui-kit/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint packages/ui-kit/src"
+    }
+  }
+}

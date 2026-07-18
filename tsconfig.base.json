@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@asa-lab/contracts": ["packages/contracts/src/index.ts"],
+      "@asa-lab/domain-kernel": ["packages/domain-kernel/src/index.ts"],
+      "@asa-lab/authz": ["packages/authz/src/index.ts"],
+      "@asa-lab/database": ["packages/database/src/index.ts"],
+      "@asa-lab/eventing": ["packages/eventing/src/index.ts"],
+      "@asa-lab/module-sdk": ["packages/module-sdk/src/index.ts"],
+      "@asa-lab/ui-kit": ["packages/ui-kit/src/index.ts"],
+      "@asa-lab/test-kit": ["packages/test-kit/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "tmp"]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "domain-kernel",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/domain-kernel/src",
+  "tags": ["type:lib", "scope:shared"],
+  "targets": {
+    "build": { "command": "tsc -p packages/domain-kernel/tsconfig.json" },
+    "typecheck": { "command": "tsc -p packages/domain-kernel/tsconfig.json --noEmit" },
+    "lint": { "command": "eslint packages/domain-kernel/src" }
+  }
+}

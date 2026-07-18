@@ -1,0 +1,9 @@
+{
+  "name": "@asa-lab/api",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@asa-lab/observability": "workspace:*",
+    "fastify": "^5.2.1"
+  }
+}
