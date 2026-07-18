@@ -16,6 +16,7 @@ CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 STRATEGY_PATH = ROOT / "docs/testing/TEST_STRATEGY.md"
 RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
+QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
 
 TEST_ID_PATTERN = re.compile(r"^TST-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
 TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+-[0-9]{3}$")
@@ -33,6 +34,7 @@ REQUIRED_TEST_FIELDS = {
     "artifacts",
 }
 ALLOWED_RESULT_STATES = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
+EXTERNAL_GOVERNANCE_TASKS = {"TASK-GOV-001"}
 DANGEROUS_COMMAND_FRAGMENTS = {
     "rm -rf /",
     "git push --force",
@@ -53,12 +55,6 @@ def load_yaml(path: Path, errors: list[str]) -> Any:
         return None
 
 
-def validate_required_files(errors: list[str]) -> None:
-    for path in (STRATEGY_PATH, RUNBOOK_PATH):
-        if not path.is_file():
-            errors.append(f"Missing required file: {path.relative_to(ROOT)}")
-
-
 def task_ids_from_map(document: Any, errors: list[str]) -> set[str]:
     if not isinstance(document, dict):
         return set()
@@ -69,9 +65,7 @@ def task_ids_from_map(document: Any, errors: list[str]) -> set[str]:
 
     task_ids: set[str] = set()
     for node in nodes:
-        if not isinstance(node, dict):
-            continue
-        if node.get("kind") != "task":
+        if not isinstance(node, dict) or node.get("kind") != "task":
             continue
         task_id = node.get("id")
         if isinstance(task_id, str) and TASK_ID_PATTERN.fullmatch(task_id):
@@ -85,12 +79,10 @@ def validate_command(test_id: str, command: Any, errors: list[str]) -> None:
     if not isinstance(command, str) or not command.strip():
         errors.append(f"{test_id}: command must be a non-empty string")
         return
-
     normalized = " ".join(command.lower().split())
     for fragment in DANGEROUS_COMMAND_FRAGMENTS:
         if fragment in normalized:
             errors.append(f"{test_id}: dangerous command fragment: {fragment}")
-
     try:
         parts = shlex.split(command)
     except ValueError as exc:
@@ -107,9 +99,7 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
 
     result_states = catalog.get("result_states")
     if not isinstance(result_states, list) or set(result_states) != ALLOWED_RESULT_STATES:
-        errors.append(
-            "result_states must contain exactly PASS, FAIL, NOT_RUN and BLOCKED"
-        )
+        errors.append("result_states must contain exactly PASS, FAIL, NOT_RUN and BLOCKED")
 
     suites = catalog.get("suites")
     if not isinstance(suites, dict) or not suites:
@@ -123,6 +113,7 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
     if len(tests) < 20:
         errors.append(f"Expected at least 20 registered tests, got {len(tests)}")
 
+    known_tasks = task_ids | EXTERNAL_GOVERNANCE_TASKS
     seen_ids: set[str] = set()
     covered_tasks: set[str] = set()
 
@@ -133,9 +124,7 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
 
         missing = REQUIRED_TEST_FIELDS - set(test)
         if missing:
-            errors.append(
-                f"Test #{index} misses fields: {', '.join(sorted(missing))}"
-            )
+            errors.append(f"Test #{index} misses fields: {', '.join(sorted(missing))}")
 
         test_id = test.get("id")
         if not isinstance(test_id, str) or not TEST_ID_PATTERN.fullmatch(test_id):
@@ -146,16 +135,11 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
         else:
             seen_ids.add(test_id)
 
-        title = test.get("title")
-        if not isinstance(title, str) or not title.strip():
+        if not isinstance(test.get("title"), str) or not test.get("title", "").strip():
             errors.append(f"{test_id}: title must be non-empty")
-
-        suite = test.get("suite")
-        if suite not in suites:
-            errors.append(f"{test_id}: unknown suite {suite!r}")
-
-        level = test.get("level")
-        if not isinstance(level, str) or not level.strip():
+        if test.get("suite") not in suites:
+            errors.append(f"{test_id}: unknown suite {test.get('suite')!r}")
+        if not isinstance(test.get("level"), str) or not test.get("level", "").strip():
             errors.append(f"{test_id}: level must be non-empty")
 
         phase = test.get("phase_available")
@@ -171,8 +155,8 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
                     errors.append(f"{test_id}: invalid task reference {task_id!r}")
                     continue
                 covered_tasks.add(task_id)
-                if task_id not in task_ids:
-                    errors.append(f"{test_id}: unknown project-map task {task_id}")
+                if task_id not in known_tasks:
+                    errors.append(f"{test_id}: unknown task {task_id}")
 
         validate_command(test_id, test.get("command"), errors)
 
@@ -180,8 +164,7 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
         if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 14400:
             errors.append(f"{test_id}: timeout_seconds must be 1..14400")
 
-        owner = test.get("owner")
-        if not isinstance(owner, str) or not owner.strip():
+        if not isinstance(test.get("owner"), str) or not test.get("owner", "").strip():
             errors.append(f"{test_id}: owner must be non-empty")
 
         artifacts = test.get("artifacts")
@@ -190,21 +173,22 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
         elif any(not isinstance(item, str) or not item.strip() for item in artifacts):
             errors.append(f"{test_id}: artifacts must contain non-empty strings")
 
-    tasks_requiring_coverage = {
-        task_id
-        for task_id in task_ids
-        if task_id not in {"TASK-CI-001"}
-    }
-    missing_coverage = sorted(tasks_requiring_coverage - covered_tasks)
-    for task_id in missing_coverage:
-        errors.append(f"Project-map task has no registered test: {task_id}")
+    tasks_requiring_coverage = (task_ids - {"TASK-CI-001"}) | EXTERNAL_GOVERNANCE_TASKS
+    for task_id in sorted(tasks_requiring_coverage - covered_tasks):
+        errors.append(f"Task has no registered test: {task_id}")
 
     return len(seen_ids), len(suites)
 
 
-def validate_docs_reference_test_ids(catalog: Any, errors: list[str]) -> None:
+def validate_documents(catalog: Any, errors: list[str]) -> None:
+    required_files = (STRATEGY_PATH, RUNBOOK_PATH, QUALITY_MAP_PATH)
+    for path in required_files:
+        if not path.is_file():
+            errors.append(f"Missing required file: {path.relative_to(ROOT)}")
+
     if not isinstance(catalog, dict) or not isinstance(catalog.get("tests"), list):
         return
+
     test_ids = {
         item.get("id")
         for item in catalog["tests"]
@@ -212,6 +196,8 @@ def validate_docs_reference_test_ids(catalog: Any, errors: list[str]) -> None:
     }
     strategy = STRATEGY_PATH.read_text(encoding="utf-8") if STRATEGY_PATH.is_file() else ""
     runbook = RUNBOOK_PATH.read_text(encoding="utf-8") if RUNBOOK_PATH.is_file() else ""
+    quality_map = QUALITY_MAP_PATH.read_text(encoding="utf-8") if QUALITY_MAP_PATH.is_file() else ""
+
     if "test-catalog.yaml" not in strategy:
         errors.append("TEST_STRATEGY.md must reference test-catalog.yaml")
     if "test-catalog.yaml" not in runbook:
@@ -219,16 +205,17 @@ def validate_docs_reference_test_ids(catalog: Any, errors: list[str]) -> None:
     for required_id in ("TST-ARCH-001", "TST-MAP-001", "TST-CATALOG-001"):
         if required_id not in test_ids:
             errors.append(f"Missing governance test: {required_id}")
+        if required_id not in quality_map:
+            errors.append(f"QUALITY_MAP.md must display {required_id}")
 
 
 def main() -> int:
     errors: list[str] = []
-    validate_required_files(errors)
     project_map = load_yaml(MAP_PATH, errors)
     task_ids = task_ids_from_map(project_map, errors)
     catalog = load_yaml(CATALOG_PATH, errors)
     tests, suites = validate_catalog(catalog, task_ids, errors)
-    validate_docs_reference_test_ids(catalog, errors)
+    validate_documents(catalog, errors)
 
     if errors:
         print("ASA Lab test catalog validation: FAIL", file=sys.stderr)
@@ -240,6 +227,7 @@ def main() -> int:
     print(f"registeredTests={tests}")
     print(f"registeredSuites={suites}")
     print(f"projectTasks={len(task_ids)}")
+    print(f"externalGovernanceTasks={len(EXTERNAL_GOVERNANCE_TASKS)}")
     return 0
 
 
