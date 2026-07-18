@@ -63,6 +63,23 @@ function isNonEmpty(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function assertValidOtlpEndpoint(endpoint: string): void {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error(`telemetry: invalid OTLP endpoint URL: ${endpoint}`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(
+      `telemetry: unsupported OTLP endpoint protocol (expected http/https): ${endpoint}`,
+    );
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw new Error('telemetry: OTLP endpoint must not contain credentials');
+  }
+}
+
 /**
  * Resolve an explicit telemetry plan from options only. This never reads
  * ambient OTEL_* environment variables, so external configuration can never
@@ -84,11 +101,7 @@ export function planTelemetry(options: TelemetryOptions): TelemetryPlan {
     if (!isNonEmpty(options.otlpEndpoint)) {
       throw new Error('telemetry: otlp mode requires an otlpEndpoint');
     }
-    if (!/^https?:\/\//u.test(options.otlpEndpoint)) {
-      throw new Error(
-        `telemetry: unsupported OTLP endpoint protocol (expected http/https): ${options.otlpEndpoint}`,
-      );
-    }
+    assertValidOtlpEndpoint(options.otlpEndpoint);
     return {
       serviceName: options.serviceName,
       mode: 'otlp',
@@ -106,39 +119,70 @@ export interface TelemetryHandle {
   shutdown(): Promise<void>;
 }
 
+/** Minimal SDK surface used by the handle; lets tests inject a factory. */
+export interface TelemetrySdk {
+  start(): void;
+  shutdown(): Promise<void>;
+}
+
+export interface TelemetryFactories {
+  /** Construct the real SDK. Only ever called for `otlp` mode. */
+  createSdk(plan: TelemetryPlan): TelemetrySdk;
+}
+
+function defaultCreateSdk(plan: TelemetryPlan): TelemetrySdk {
+  // Reached only for otlp mode (endpoint already validated and non-null).
+  const exporter = new OTLPTraceExporter(
+    plan.otlpEndpoint !== null ? { url: plan.otlpEndpoint } : {},
+  );
+  const sdk = new NodeSDK({
+    serviceName: plan.serviceName,
+    autoDetectResources: false,
+    traceExporter: exporter,
+  });
+  return {
+    start: (): void => sdk.start(),
+    shutdown: (): Promise<void> => sdk.shutdown(),
+  };
+}
+
+export const DEFAULT_TELEMETRY_FACTORIES: TelemetryFactories = {
+  createSdk: defaultCreateSdk,
+};
+
 /**
- * Create an OpenTelemetry NodeSDK with an explicit, safe-by-default
- * configuration.
+ * Create a telemetry handle with an explicit, safe-by-default configuration.
  *
- * - `disabled` (default use): span processors are set explicitly to an empty
- *   list, so no exporter is created and no data leaves the process — the SDK
- *   never falls back to an implicit OTLP exporter from the environment.
- * - `otlp`: an OTLP/HTTP trace exporter is created explicitly against the
- *   required endpoint. Only http/https endpoints are accepted.
+ * - `disabled` (default use): a pure no-op handle. No NodeSDK, exporter,
+ *   provider or resource detector is constructed, no OTEL_* variable is read
+ *   and no network connection is possible.
+ * - `otlp`: an OTLP/HTTP trace exporter and NodeSDK are constructed explicitly
+ *   against a validated http/https endpoint.
  *
- * The service name is passed through the NodeSDK API, not by mutating
- * `process.env`.
+ * A factory seam allows tests to prove that no SDK/exporter is constructed in
+ * disabled mode.
  */
-export function createTelemetry(options: TelemetryOptions): TelemetryHandle {
+export function createTelemetry(
+  options: TelemetryOptions,
+  factories: TelemetryFactories = DEFAULT_TELEMETRY_FACTORIES,
+): TelemetryHandle {
   const plan = planTelemetry(options);
 
-  const sdk =
-    plan.mode === 'otlp' && plan.otlpEndpoint !== null
-      ? new NodeSDK({
-          serviceName: plan.serviceName,
-          autoDetectResources: false,
-          traceExporter: new OTLPTraceExporter({ url: plan.otlpEndpoint }),
-        })
-      : new NodeSDK({
-          serviceName: plan.serviceName,
-          autoDetectResources: false,
-          spanProcessors: [],
-        });
+  if (plan.mode === 'disabled') {
+    // Pure no-op handle: nothing is constructed and there is no state to track.
+    return {
+      mode: 'disabled',
+      networkExport: false,
+      start: (): void => undefined,
+      shutdown: (): Promise<void> => Promise.resolve(),
+    };
+  }
 
+  const sdk = factories.createSdk(plan);
   let started = false;
   return {
-    mode: plan.mode,
-    networkExport: plan.networkExport,
+    mode: 'otlp',
+    networkExport: true,
     start: (): void => {
       if (!started) {
         sdk.start();

@@ -51,4 +51,30 @@ describe('api launcher wires telemetry together with Fastify', () => {
     expect(telemetry.start).toHaveBeenCalledTimes(1);
     expect(telemetry.shutdown).toHaveBeenCalledTimes(1);
   });
+
+  it('shuts telemetry down once even if closing Fastify fails, without swallowing the error', async () => {
+    const telemetry = {
+      start: vi.fn(),
+      shutdown: vi.fn(async () => {}),
+    };
+    const server = await launch({
+      telemetry,
+      loadApp: async () => ({ buildApp }),
+      host: '127.0.0.1',
+      port: 0,
+    });
+
+    const closeSpy = vi.spyOn(server.app, 'close').mockRejectedValue(new Error('close-fail'));
+
+    await expect(server.stop()).rejects.toThrow('close-fail');
+    expect(telemetry.shutdown).toHaveBeenCalledTimes(1);
+
+    // Idempotent: a second stop does nothing more.
+    await expect(server.stop()).resolves.toBeUndefined();
+    expect(telemetry.shutdown).toHaveBeenCalledTimes(1);
+
+    // Real cleanup so the listening port is released.
+    closeSpy.mockRestore();
+    await server.app.close();
+  });
 });

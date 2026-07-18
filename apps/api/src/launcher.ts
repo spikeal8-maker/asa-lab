@@ -48,8 +48,13 @@ export async function launch(options: LaunchOptions): Promise<RunningServer> {
       return;
     }
     stopped = true;
-    await app.close();
-    await options.telemetry.shutdown();
+    // Telemetry is shut down exactly once even if closing Fastify throws; the
+    // close error is not swallowed.
+    try {
+      await app.close();
+    } finally {
+      await options.telemetry.shutdown();
+    }
   };
 
   return { app, stop };
