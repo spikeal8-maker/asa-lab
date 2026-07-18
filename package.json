@@ -21,6 +21,7 @@
     "db:migrate": "node tools/migrate.mjs --apply",
     "db:migrate:check": "node tools/migrate.mjs --check",
     "db:migrate:test": "node tools/migrate.mjs --smoke",
+    "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
     "security:secrets": "node tools/secret-scan.mjs",
     "security:dependencies": "node tools/dependency-inventory.mjs",
     "graph:report": "nx graph --file=docs/project-map/nx-project-graph.json"

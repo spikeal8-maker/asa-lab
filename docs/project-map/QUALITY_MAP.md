@@ -64,6 +64,7 @@ flowchart LR
     ARCH[TASK-ARCH-001]
     GOV[TASK-GOV-001]
     BOOT[TASK-BOOT-001]
+    ENV[TASK-ENV-001]
     TEN[TASK-TEN-001]
     CLS[TASK-CLS-001]
     SEAT[TASK-SEAT-001]
@@ -80,6 +81,9 @@ flowchart LR
     B1[TST-BOUNDARY-001]
     CT1[TST-CONTRACT-001]
     U1[TST-UNIT-001]
+    CS1[TST-COMPOSE-STRUCTURE-001]
+    ME1[TST-MIGRATION-EMBEDDED-001]
+    CO1[TST-COMPOSE-001]
     DB1[TST-MIGRATION-001]
     T1[TST-TENANT-001]
     AZ1[TST-AUTHZ-001]
@@ -108,9 +112,14 @@ flowchart LR
     BOOT --> B1
     BOOT --> CT1
     BOOT --> U1
-    BOOT --> DB1
+    BOOT --> CS1
+    BOOT --> ME1
+
+    ENV --> CO1
+    ENV --> DB1
 
     TEN --> T1
+    TEN --> DB1
     TEN --> AZ1
     CLS --> AZ1
     CLS --> EC1

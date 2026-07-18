@@ -17,8 +17,11 @@ TASK-CI-001      done — local-first exit gate (GitHub-hosted CI отклонё
 TASK-GOV-001     done — BOT_RUNBOOK, test catalog, quality graph, task test runner
 TASK-ARCH-001    done — PR №1 объединён в main (merge d93899b)
         ↓
-TASK-BOOT-001    ← текущий фокус (in_review): pnpm+Nx foundation, 13/15 PASS,
-                   2 BLOCKED (нет Docker/Postgres)
+TASK-BOOT-001    ← текущий фокус (in_review): pnpm+Nx foundation,
+                   все обязательные Bootstrap-тесты PASS, 0 FAIL (PR №14)
+        ↓
+TASK-ENV-001     blocked — локальная интеграционная среда (PostgreSQL, Redis,
+                   MinIO, Compose CLI); закрывает реальные TST-COMPOSE-001/MIGRATION-001
         ↓
 TASK-TEN-001     tenant context
         ↓

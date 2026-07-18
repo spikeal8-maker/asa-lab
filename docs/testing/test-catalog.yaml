@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-catalog_version: 2026.07.18-2
+catalog_version: 2026.07.18-3
 source_of_truth: docs/testing/test-catalog.yaml
 result_states:
   - PASS
@@ -163,11 +163,11 @@ tests:
     artifacts: [build-manifest]
 
   - id: TST-COMPOSE-001
-    title: Local infrastructure configuration
+    title: Local infrastructure runtime configuration
     suite: integration
     level: infrastructure
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-ENV-001]
     command: docker compose config
     timeout_seconds: 120
     owner: platform-operations
@@ -178,11 +178,33 @@ tests:
     suite: integration
     level: database
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001]
+    required_for: [TASK-ENV-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001]
     command: pnpm db:migrate:test
     timeout_seconds: 600
     owner: data-platform
     artifacts: [migration-report]
+
+  - id: TST-COMPOSE-STRUCTURE-001
+    title: Docker Compose structural validation
+    suite: integration
+    level: infrastructure
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm compose:check
+    timeout_seconds: 120
+    owner: platform-operations
+    artifacts: [console-report]
+
+  - id: TST-MIGRATION-EMBEDDED-001
+    title: Migration apply against embedded PostgreSQL
+    suite: integration
+    level: database
+    phase_available: PHASE-0
+    required_for: [TASK-BOOT-001]
+    command: pnpm test:migration:embedded
+    timeout_seconds: 300
+    owner: data-platform
+    artifacts: [console-report]
 
   - id: TST-TENANT-001
     title: Server-derived tenant context
