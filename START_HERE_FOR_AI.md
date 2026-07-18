@@ -9,18 +9,23 @@
 Прочитай полностью:
 
 1. `AGENTS.md`;
-2. `docs/architecture/ARCHITECTURE_BASELINE.md`;
-3. `docs/architecture/CAPACITY_AND_SLO.md`;
-4. `docs/architecture/AI_DELIVERY_GOVERNANCE.md`;
-5. `docs/architecture/DECISIONS.md`;
-6. `docs/architecture/IMPLEMENTATION_ROADMAP.md`;
-7. `.github/workflows/spec-validation.yml`.
+2. `docs/project-map/TASK_SYSTEM.md`;
+3. `docs/project-map/PROJECT_MAP.md`;
+4. `docs/project-map/project-map.yaml`;
+5. `docs/architecture/ARCHITECTURE_BASELINE.md`;
+6. `docs/architecture/CAPACITY_AND_SLO.md`;
+7. `docs/architecture/AI_DELIVERY_GOVERNANCE.md`;
+8. `docs/architecture/DECISIONS.md`;
+9. `docs/architecture/IMPLEMENTATION_ROADMAP.md`;
+10. `.github/workflows/spec-validation.yml`.
 
 До этого код не создавать. Конфликт требований не разрешать догадкой: остановить изменение, описать конфликт и предложить ADR.
 
+Coding-агент берёт только GitHub Issue, чей `TASK-ID` присутствует в `project-map.yaml`, имеет статус `ready` и не имеет незавершённых зависимостей. Самостоятельно выбирать последующую фазу запрещено.
+
 ## 3. Bootstrap-итерация
 
-Выполни только foundation. Не реализуй пользователей, классы, биллинг или электронику.
+Выполни только foundation из Issue `TASK-BOOT-001`. Не реализуй пользователей, классы, биллинг или электронику.
 
 ### Результат
 
@@ -65,7 +70,9 @@ tests/
 12. Добавь архитектурный тест, запрещающий import `modules/*` из Classroom Core.
 13. Добавь secret scan и dependency/license inventory baseline.
 14. Добавь `.env.example` только с безопасными локальными значениями.
-15. Обнови README точными командами запуска.
+15. Добавь команду сохранения фактического Nx graph как CI artifact и локальный отчёт.
+16. Сопоставь Nx nodes с узлами `project-map.yaml`; расхождение не скрывай.
+17. Обнови `project-map.yaml`, `PROJECT_MAP.md` и README точными командами запуска.
 
 ### Запрещено
 
@@ -75,7 +82,8 @@ tests/
 - выполнять пользовательский код;
 - создавать mock success, изображающий готовую функцию;
 - менять архитектурные документы без ADR;
-- ослаблять проверки.
+- ослаблять проверки;
+- отмечать TASK как `done` до подтверждения exit gate.
 
 ## 4. Команды приёмки
 
@@ -90,18 +98,23 @@ pnpm contracts:check
 pnpm test
 pnpm build
 docker compose config
+python tools/validate_architecture.py
+python tools/validate_project_map.py
 ```
 
 ## 5. Отчёт агента
 
 В конце агент обязан вывести:
 
+- номер Issue и TASK-ID;
 - созданные проекты и Nx tags;
 - фактический dependency graph;
+- расхождения между Nx graph и project map;
 - версии инструментов;
 - результаты каждой команды;
 - принятые решения;
 - известные ограничения;
+- изменённые узлы и связи карты;
 - подтверждение отсутствия business features и placeholders.
 
-Следующая задача берётся только после успешной bootstrap-приёмки и реализуется как один вертикальный use case.
+Следующая задача берётся только после успешной Bootstrap-приёмки, merge PR и перевода TASK в `done`.
