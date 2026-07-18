@@ -1,0 +1,90 @@
+name: Specification and Architecture Gates
+
+"on":
+  push:
+    branches: [main, "agent/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spec-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-architecture:
+    name: Validate architecture contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Validate architecture rules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          required = [
+              Path("AGENTS.md"),
+              Path("START_HERE_FOR_AI.md"),
+              Path("docs/architecture/ARCHITECTURE_BASELINE.md"),
+              Path("docs/architecture/CAPACITY_AND_SLO.md"),
+              Path("docs/architecture/AI_DELIVERY_GOVERNANCE.md"),
+              Path("docs/architecture/DECISIONS.md"),
+              Path("docs/architecture/IMPLEMENTATION_ROADMAP.md"),
+              Path("docs/architecture/DATA_SECURITY_AND_TENANCY.md"),
+              Path("docs/architecture/ADMIN_AND_COMMERCIAL.md"),
+              Path("docs/architecture/architecture-rules.yaml"),
+          ]
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise SystemExit("Missing normative files: " + ", ".join(missing))
+
+          rules = yaml.safe_load(Path("docs/architecture/architecture-rules.yaml").read_text())
+          items = rules.get("rules", [])
+          ids = [item.get("id") for item in items]
+          if len(items) < 30:
+              raise SystemExit(f"Expected at least 30 architecture rules, got {len(items)}")
+          if len(ids) != len(set(ids)):
+              raise SystemExit("Duplicate architecture rule IDs")
+          invalid = [item for item in items if item.get("severity") not in {"error", "warning"}]
+          if invalid:
+              raise SystemExit("Invalid architecture rule severity")
+
+          baseline = Path("docs/architecture/ARCHITECTURE_BASELINE.md").read_text()
+          invariants = [
+              "Modular Monolith Control Plane",
+              "Compute Plane",
+              "tenant_id",
+              "ProjectVersion",
+              "transactional outbox",
+              "Module SDK",
+              "EntitlementService",
+          ]
+          absent = [item for item in invariants if item not in baseline]
+          if absent:
+              raise SystemExit("Architecture baseline misses invariants: " + ", ".join(absent))
+
+          print(f"Architecture validation PASS: {len(items)} rules")
+          PY
+
+      - name: Detect prohibited placeholders in normative files
+        run: |
+          if grep -RInE '(^|[^A-Za-z])(TODO|TBD|FIXME|placeholder|mock success)([^A-Za-z]|$)' \
+            AGENTS.md START_HERE_FOR_AI.md docs/architecture; then
+            echo "Prohibited placeholder marker found in normative architecture files"
+            exit 1
+          fi
