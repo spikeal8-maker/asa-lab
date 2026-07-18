@@ -21,9 +21,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -35,8 +36,13 @@ jobs:
       - name: Install validator dependencies
         run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
-      - name: Compile validator
-        run: python -m compileall -q tools/validate_architecture.py
+      - name: Compile validators
+        run: |
+          python -m compileall -q tools/validate_architecture.py
+          python -m compileall -q tools/validate_project_map.py
 
       - name: Validate architecture foundation
         run: python tools/validate_architecture.py
+
+      - name: Validate project knowledge graph
+        run: python tools/validate_project_map.py
