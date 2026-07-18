@@ -2,9 +2,9 @@
 
 <!-- Какое проверяемое пользовательское или архитектурное изменение вносится? -->
 
-## Requirement IDs
+## Task / Requirement IDs
 
-<!-- Перечислите идентификаторы требований. -->
+<!-- Укажите GitHub Issue, TASK-ID из project-map.yaml и requirement IDs. -->
 
 ## Применимые ADR
 
@@ -13,6 +13,16 @@
 ## Затронутые bounded contexts
 
 <!-- Укажите владельцев доменных данных и публичные границы. -->
+
+## Карта проекта
+
+- [ ] `docs/project-map/project-map.yaml` обновлён или изменение карты обоснованно неприменимо.
+- [ ] `docs/project-map/PROJECT_MAP.md` соответствует машиночитаемой карте.
+- [ ] Статус TASK изменён корректно.
+- [ ] Новые узлы и связи имеют стабильные IDs.
+- [ ] Фактический Nx graph проверен, если изменялись зависимости кода.
+
+<!-- Перечислите изменённые узлы, связи и ожидаемый current_focus. -->
 
 ## Что изменено
 
@@ -50,6 +60,7 @@
 - [ ] format/lint
 - [ ] typecheck
 - [ ] architecture boundaries
+- [ ] project map validation
 - [ ] unit tests
 - [ ] contract tests
 - [ ] integration/E2E
@@ -75,7 +86,8 @@
 
 ## Финальная проверка
 
-- [ ] Прочитан `AGENTS.md`.
+- [ ] Прочитаны `AGENTS.md`, `START_HERE_FOR_AI.md` и `docs/project-map/TASK_SYSTEM.md`.
+- [ ] Выполнялась только одна готовая задача из project map.
 - [ ] Изменение не нарушает Module SDK и владение контекстами.
 - [ ] Старые ProjectVersion/Submission остаются открываемыми.
 - [ ] Недоверенный код не выполняется в Core API.
