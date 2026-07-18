@@ -18,6 +18,7 @@ Modular Monolith Control Plane
 + Browser-first Rust/WASM simulation core
 + Entitlement-based commercial model
 + Strict rules for AI coding agents
++ Versioned project knowledge graph
 ```
 
 Микросервисы не создаются для каждого CRUD-модуля. С первого дня отдельно изолируются только опасные или тяжёлые вычисления: компиляция, автопроверка, серверная симуляция, preview/render/export и будущие 3D- и robotics-задачи.
@@ -25,6 +26,25 @@ Modular Monolith Control Plane
 ## Почему именно так
 
 Такой фундамент даёт школе быстрый и управляемый старт, но не блокирует рост до сети школ, региона и федеральной платформы. Классы, права, проекты и сдачи остаются транзакционно целостными; вычислительные worker-пулы масштабируются независимо; предметные модули подключаются через стабильный контракт, а не встраиваются в Classroom Core условными операторами.
+
+## Карта проекта
+
+Карта является обязательной частью репозитория, а не отдельной презентацией:
+
+- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — обзорные Mermaid-графы в GitHub;
+- [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивный Obsidian-подобный граф;
+- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — машиночитаемый источник истины;
+- [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — откуда coding-агент берёт задачи;
+- [`docs/architecture/structurizr/workspace.dsl`](docs/architecture/structurizr/workspace.dsl) — C4 architecture model as code.
+
+Каждый архитектурный PR обязан обновлять карту. После Bootstrap к ней добавляется автоматически генерируемый Nx project graph фактических зависимостей кода.
+
+## Текущая очередь
+
+1. Получить зелёный Architecture CI.
+2. Проверить и объединить [Architecture Foundation PR №1](https://github.com/spikeal8-maker/asa-lab/pull/1).
+3. Передать coding-агенту только [Issue №2 — TASK-BOOT-001](https://github.com/spikeal8-maker/asa-lab/issues/2).
+4. Последующие задачи берутся строго из `execution_queue` в `project-map.yaml`.
 
 ## Целевой масштаб
 
@@ -42,14 +62,16 @@ Modular Monolith Control Plane
 
 1. [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — первая задача coding-агенту.
 2. [`AGENTS.md`](AGENTS.md) — обязательные архитектурные правила.
-3. [`docs/architecture/ARCHITECTURE_BASELINE.md`](docs/architecture/ARCHITECTURE_BASELINE.md) — целевая архитектура платформы.
-4. [`docs/architecture/CAPACITY_AND_SLO.md`](docs/architecture/CAPACITY_AND_SLO.md) — нагрузочная модель и SLO.
-5. [`docs/architecture/DATA_SECURITY_AND_TENANCY.md`](docs/architecture/DATA_SECURITY_AND_TENANCY.md) — мультитенантность, хранение и защита детских данных.
-6. [`docs/architecture/ADMIN_AND_COMMERCIAL.md`](docs/architecture/ADMIN_AND_COMMERCIAL.md) — административная и коммерческая модель.
-7. [`docs/architecture/AI_DELIVERY_GOVERNANCE.md`](docs/architecture/AI_DELIVERY_GOVERNANCE.md) — процесс разработки ботами.
-8. [`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) — принятые ADR и условия пересмотра.
-9. [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — последовательность реализации.
-10. [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила изменения системы и оформления Pull Request.
+3. [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — карта системы и текущий фокус.
+4. [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — правила очереди задач.
+5. [`docs/architecture/ARCHITECTURE_BASELINE.md`](docs/architecture/ARCHITECTURE_BASELINE.md) — целевая архитектура платформы.
+6. [`docs/architecture/CAPACITY_AND_SLO.md`](docs/architecture/CAPACITY_AND_SLO.md) — нагрузочная модель и SLO.
+7. [`docs/architecture/DATA_SECURITY_AND_TENANCY.md`](docs/architecture/DATA_SECURITY_AND_TENANCY.md) — мультитенантность, хранение и защита детских данных.
+8. [`docs/architecture/ADMIN_AND_COMMERCIAL.md`](docs/architecture/ADMIN_AND_COMMERCIAL.md) — административная и коммерческая модель.
+9. [`docs/architecture/AI_DELIVERY_GOVERNANCE.md`](docs/architecture/AI_DELIVERY_GOVERNANCE.md) — процесс разработки ботами.
+10. [`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) — принятые ADR и условия пересмотра.
+11. [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — последовательность реализации.
+12. [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила изменения системы и оформления Pull Request.
 
 ## Главные инварианты
 
@@ -64,6 +86,7 @@ Modular Monolith Control Plane
 - Платные функции определяются entitlement и quota, а не boolean-флагами.
 - Форматы проектов версионируются и мигрируются.
 - Изменение архитектурной границы требует ADR.
+- Изменение структуры, зависимости или статуса задачи требует обновления project map.
 
 ## Планируемая структура кода
 
@@ -80,7 +103,7 @@ tests/         unit, integration, contract, security, load, simulation golden te
 
 ## Статус
 
-Репозиторий находится на стадии утверждения архитектурного фундамента. Реализация бизнес-функций не должна начинаться до принятия архитектурного Pull Request и прохождения bootstrap quality gates.
+Репозиторий находится на стадии утверждения архитектурного фундамента. Реализация бизнес-функций не должна начинаться до принятия архитектурного Pull Request и прохождения Bootstrap quality gates.
 
 ## Правовой статус
 
