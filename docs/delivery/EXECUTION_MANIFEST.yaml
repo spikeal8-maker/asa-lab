@@ -113,7 +113,7 @@ tasks:
     visible_result: Product Blueprint, Capability Map, Development Program, Port Policy and executable Issues are consistent and machine-validated.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#6-этап-0--product-documentation-acceptance
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 0 — Product Documentation Acceptance'
       - docs/delivery/LOCAL_PORT_POLICY.md
       - docs/product/PRODUCT_BLUEPRINT.md
       - docs/product/CAPABILITY_MAP.yaml
@@ -136,8 +136,8 @@ tasks:
     visible_result: Teacher opens the site, logs in, creates a classroom, reloads it and logs out.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#7-этап-1--teacher-portal-v01
-      - docs/product/CLASSROOM_CORE_SPEC.md#4-создание-класса
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 1 — Teacher Portal v0.1'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Создание класса'
       - docs/architecture/DATA_SECURITY_AND_TENANCY.md
     test_profiles: [code_common, tenant_storage]
     task_tests: [TST-PORTAL-API-001, TST-E2E-PORTAL-001]
@@ -158,9 +158,9 @@ tasks:
     visible_result: Teacher creates a module project, saves a draft, reloads it and creates an immutable checkpoint.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#8-этап-2--universal-project-shell
-      - docs/product/MODULE_PLATFORM_SPEC.md#module-sdk-v01
-      - docs/product/MODULE_PLATFORM_SPEC.md#5-project-envelope
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 2 — Universal Project Shell'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Project envelope'
     test_profiles: [code_common, tenant_storage, module_runtime]
     task_tests: [TST-PROJECT-SHELL-001, TST-E2E-PROJECT-SHELL-001]
     map_nodes: [CTX-PROJECTS, CTX-MODULES, SDK-MODULE, MOD-BLANK, APP-WEB]
@@ -180,9 +180,9 @@ tasks:
     visible_result: Teacher opens an 8x8 board, makes one legal move, sees validation, saves, reloads and sees a preview.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#9-этап-3--checkers-lite
-      - docs/product/MODULE_PLATFORM_SPEC.md#module-sdk-v01
-      - docs/product/MODULE_PLATFORM_SPEC.md#20-chesscheckers-module
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 3 — Checkers Lite'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Checkers Lite'
     test_profiles: [code_common, module_runtime]
     task_tests: [TST-CHECKERS-SCHEMA-001, TST-CHECKERS-RULES-001, TST-E2E-CHECKERS-LITE-001]
     map_nodes: [MOD-CHECKERS-LITE, SDK-MODULE, APP-WEB]
@@ -202,12 +202,12 @@ tasks:
     visible_result: Teacher builds source-resistor-LED circuit, gets netlist and deterministic DC result, then saves and reloads it.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#10-этап-4--electronics-alpha
-      - docs/product/MODULE_PLATFORM_SPEC.md#16-electronics-module
-      - docs/product/MODULE_PLATFORM_SPEC.md#module-sdk-v01
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 4 — Electronics Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Electronics Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
     test_profiles: [code_common, module_runtime, electronics_kernel]
     task_tests: [TST-E2E-ELECTRONICS-ALPHA-001]
-    map_nodes: [MOD-ELECTRONICS, SDK-MODULE, WORK-SIM, APP-WEB]
+    map_nodes: [MOD-ELECTRONICS, SDK-MODULE, APP-WEB]
     artifacts: [circuit-document, normalized-netlist, golden-report, parity-report, working-circuit-screenshot, diagnostic-screenshot]
 
   - position: 6
@@ -224,9 +224,9 @@ tasks:
     visible_result: Teacher issues a one-time child credential; child logs in without email, sees own class/project, and reset revokes the old session.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#11-этап-5--studentseat-and-child-dashboard
-      - docs/product/CLASSROOM_CORE_SPEC.md#5-roster-и-studentseat
-      - docs/product/PRODUCT_BLUEPRINT.md#6-модель-доступа-ребёнка
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 5 — StudentSeat and Child Dashboard'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Roster и StudentSeat'
+      - 'docs/product/PRODUCT_BLUEPRINT.md :: Модель доступа ребёнка'
     test_profiles: [code_common, tenant_storage]
     task_tests: [TST-STUDENT-SEAT-001, TST-STUDENT-CREDENTIAL-001, TST-STUDENT-IMPORT-001, TST-E2E-STUDENT-SEAT-001]
     map_nodes: [CTX-IDENTITY, CTX-CLASSROOM, APP-WEB]
@@ -246,10 +246,10 @@ tasks:
     visible_result: Teacher assigns an immutable activity; child works and submits an exact ProjectVersion; teacher sees the attempt.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#12-этап-6--assignment-and-immutable-submission
-      - docs/product/CLASSROOM_CORE_SPEC.md#7-учебные-задания
-      - docs/product/CLASSROOM_CORE_SPEC.md#8-работа-ученика
-      - docs/product/CLASSROOM_CORE_SPEC.md#9-submission
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 6 — Assignment and Immutable Submission'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Учебные задания'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Работа ученика'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Submission'
     test_profiles: [code_common, tenant_storage, module_runtime]
     task_tests: [TST-ACTIVITY-VERSION-001, TST-ASSIGNMENT-001, TST-SUBMISSION-IMMUTABLE-001, TST-E2E-ASSIGNMENT-SUBMISSION-001]
     map_nodes: [CTX-CONTENT, CTX-ACTIVITIES, CTX-PROJECTS, CTX-ASSESSMENT, APP-WEB]
@@ -269,9 +269,9 @@ tasks:
     visible_result: Teacher comments, requests changes, accepts a resubmission, records grade and awards a badge; both dashboards update.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#13-этап-7--comments-review-grade-and-badge
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 7 — Comments, Review, Grade and Badge'
       - docs/product/ASSESSMENT_REWARDS_SPEC.md
-      - docs/product/CLASSROOM_CORE_SPEC.md#10-review
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Review'
     test_profiles: [code_common, tenant_storage, assessment_common]
     task_tests: [TST-E2E-REVIEW-001]
     map_nodes: [CTX-ASSESSMENT, CTX-NOTIFICATIONS, APP-WEB]
@@ -291,8 +291,8 @@ tasks:
     visible_result: A complete electronics assignment goes from teacher to child, circuit work, immutable submission, anchored review, revision, grade and badge.
     read:
       - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md#14-этап-8--full-electronics-classroom-cycle
-      - docs/product/MODULE_PLATFORM_SPEC.md#16-electronics-module
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 8 — Full Electronics Classroom Cycle'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Electronics Alpha'
       - docs/product/ASSESSMENT_REWARDS_SPEC.md
     test_profiles: [code_common, module_runtime, assessment_common, electronics_kernel]
     task_tests: [TST-TENANT-001, TST-RLS-001, TST-ELECTRONICS-ACTIVITY-001, TST-ELECTRONICS-AUTOGRADE-001, TST-ELECTRONICS-DIFF-001, TST-E2E-ELECTRONICS-CLASSROOM-001]
