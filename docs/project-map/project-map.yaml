@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-map_version: 2026.07.19-10
+map_version: 2026.07.19-11
 project:
   id: asa-lab
   name: ASA Lab
@@ -19,115 +19,140 @@ relation_definitions:
   uses: Использует через публичный контракт.
   depends_on: Исходный узел не может завершиться раньше целевого.
   produces: Создаёт результат.
-  implements: Реализует фазу, элемент или quality gate.
+  implements: Реализует фазу, track, capability или quality gate.
   governs: Устанавливает обязательные правила.
   observes: Экспортирует техническую телеметрию.
   stores_in: Хранит данные.
   queues_to: Передаёт вычислительное задание.
   serves: Предоставляет интерфейс актору.
-  next: Следующая фаза.
+  next: Следующий этап.
 nodes:
-  - {id: ASA, label: ASA Lab, kind: platform, layer: root, status: in_progress, summary: Единая образовательная workspace platform с Classroom Core, заданиями, оцениванием и предметными модулями., path: README.md}
-  - {id: ACT-STUDENT, label: Ученик, kind: actor, layer: actors, status: planned, summary: Входит без обязательного email, выполняет задания, сдаёт проекты и получает обратную связь.}
-  - {id: ACT-TEACHER, label: Педагог, kind: actor, layer: actors, status: planned, summary: Управляет классами, заданиями, проверкой, оценками и достижениями.}
-  - {id: ACT-SCHOOL-ADMIN, label: Администратор школы, kind: actor, layer: actors, status: planned, summary: Управляет педагогами, периодами, модулями и политиками школы.}
-  - {id: ACT-PLATFORM-ADMIN, label: Администратор платформы, kind: actor, layer: actors, status: planned, summary: Управляет tenants, эксплуатацией, модулями, тарифами и инцидентами.}
-  - {id: ACT-METHODIST, label: Методист, kind: actor, layer: actors, status: planned, summary: Создаёт программы, активности, рубрики и методические материалы.}
-  - {id: ACT-AGENT, label: Coding-агент, kind: actor, layer: actors, status: ready, summary: Выполняет только готовую Issue по Product Blueprint, capability map и BOT_RUNBOOK.}
+  - {id: ASA, label: ASA Lab, kind: platform, layer: root, status: in_progress, summary: "Единая образовательная workspace platform с Classroom Core, проектами и предметными модулями.", path: README.md}
 
-  - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: planned, summary: Пользовательские кабинеты и редакторы.}
-  - {id: APP-WEB, label: Web/PWA, kind: application, layer: experience, status: planned, summary: Ученический и педагогический кабинеты., path: apps/web}
-  - {id: APP-ADMIN, label: Admin Console, kind: application, layer: experience, status: planned, summary: Школьная и платформенная админка., path: apps/admin}
-  - {id: APP-SITE, label: Public Site, kind: application, layer: experience, status: planned, summary: Публичный сайт и подключение организаций., path: apps/site}
+  - {id: ACT-STUDENT, label: Ученик, kind: actor, layer: actors, status: planned, summary: "Входит без обязательного email, работает над проектами, сдаёт версии и получает обратную связь."}
+  - {id: ACT-TEACHER, label: Педагог, kind: actor, layer: actors, status: planned, summary: "Управляет классами, проектами, заданиями, проверкой, оценками и достижениями."}
+  - {id: ACT-SCHOOL-ADMIN, label: Администратор школы, kind: actor, layer: actors, status: planned, summary: "Управляет педагогами, периодами, модулями и политиками школы."}
+  - {id: ACT-PLATFORM-ADMIN, label: Администратор платформы, kind: actor, layer: actors, status: planned, summary: "Управляет tenants, эксплуатацией, версиями модулей, тарифами и инцидентами."}
+  - {id: ACT-METHODIST, label: Методист, kind: actor, layer: actors, status: planned, summary: "Создаёт программы, ActivityVersion, rubrics и методические материалы."}
+  - {id: ACT-AGENT, label: Coding-агент, kind: actor, layer: actors, status: ready, summary: "Выполняет только current_focus и связанную executable Issue по Development Program."}
 
-  - {id: PLANE-CONTROL, label: Modular Monolith Control Plane, kind: plane, layer: architecture, status: planned, summary: Транзакционно целостное образовательное ядро bounded contexts.}
-  - {id: CTX-IDENTITY, label: Identity, kind: bounded_context, layer: control, status: planned, summary: Взрослые аккаунты, StudentSeat, credentials, sessions и external identity., path: contexts/identity}
-  - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: planned, summary: Tenant, организация, школа, здания, периоды и TenantPlacement., path: contexts/organization}
-  - {id: CTX-CLASSROOM, label: Classroom, kind: bounded_context, layer: control, status: planned, summary: Классы, memberships, группы, соучителя и Safe Mode., path: contexts/classroom}
-  - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: planned, summary: Programs, courses, lessons, activity templates и versions., path: contexts/content}
-  - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: planned, summary: Project envelope, autosave, checkpoints и immutable ProjectVersion., path: contexts/projects}
-  - {id: CTX-ACTIVITIES, label: Assignments, kind: bounded_context, layer: control, status: planned, summary: ActivityVersion, audience, deadlines, attempts и assignment policies., path: contexts/activities}
-  - {id: CTX-ASSESSMENT, label: Assessment, kind: bounded_context, layer: control, status: planned, summary: Submission, review, comments, rubric, grade, badges и progress., path: contexts/assessment}
-  - {id: CTX-MODULES, label: Module Registry, kind: bounded_context, layer: control, status: planned, summary: Module SDK, manifests, admission, schemas и compatibility., path: contexts/modules}
-  - {id: CTX-NOTIFICATIONS, label: Notifications, kind: bounded_context, layer: control, status: planned, summary: Безопасные in-app уведомления о заданиях и проверке., path: contexts/notifications}
-  - {id: CTX-BILLING, label: Billing, kind: bounded_context, layer: control, status: planned, summary: Entitlements, quotas и usage ledger., path: contexts/billing}
-  - {id: CTX-SAFETY, label: Safety and Audit, kind: bounded_context, layer: control, status: planned, summary: Детская безопасность, модерация, retention и immutable audit., path: contexts/safety}
+  - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: planned, summary: "Пользовательские кабинеты и предметные редакторы."}
+  - {id: APP-WEB, label: Web/PWA, kind: application, layer: experience, status: planned, summary: "Teacher Portal, Child Dashboard и module host.", path: apps/web}
+  - {id: APP-ADMIN, label: Admin Console, kind: application, layer: experience, status: planned, summary: "Школьная и платформенная админка.", path: apps/admin}
+  - {id: APP-SITE, label: Public Site, kind: application, layer: experience, status: planned, summary: "Публичная информация и подключение организаций.", path: apps/site}
 
-  - {id: PLANE-COMPUTE, label: Isolated Compute Plane, kind: plane, layer: architecture, status: planned, summary: Изолированные и независимо масштабируемые вычисления.}
-  - {id: WORK-COMPILER, label: Compiler Workers, kind: worker_pool, layer: compute, status: planned, summary: Компиляция Arduino и пользовательского кода., path: apps/compiler-worker}
-  - {id: WORK-SIM, label: Simulation Workers, kind: worker_pool, layer: compute, status: planned, summary: Детерминированная серверная симуляция., path: apps/simulation-worker}
-  - {id: WORK-GRADER, label: Autograder Workers, kind: worker_pool, layer: compute, status: planned, summary: Публичные и скрытые структурные и поведенческие проверки., path: apps/autograder-worker}
-  - {id: WORK-RENDER, label: Render Workers, kind: worker_pool, layer: compute, status: planned, summary: Preview, изображения, 3D export и документы., path: apps/worker-runtime}
-  - {id: WORK-ROBOTICS, label: Robotics Physics Workers, kind: worker_pool, layer: compute, status: planned, summary: Физическая симуляция миров и роботов., path: apps/worker-runtime}
+  - {id: PLANE-CONTROL, label: Modular Monolith Control Plane, kind: plane, layer: architecture, status: planned, summary: "Транзакционно целостное образовательное ядро bounded contexts."}
+  - {id: CTX-IDENTITY, label: Identity, kind: bounded_context, layer: control, status: planned, summary: "Adult accounts, StudentSeat, credentials и sessions.", path: contexts/identity}
+  - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: planned, summary: "Tenant, organization, school, period и TenantPlacement.", path: contexts/organization}
+  - {id: CTX-CLASSROOM, label: Classroom, kind: bounded_context, layer: control, status: planned, summary: "Classroom, memberships, roster, groups и Safe Mode.", path: contexts/classroom}
+  - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: planned, summary: "ActivityTemplate и immutable ActivityVersion.", path: contexts/content}
+  - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: planned, summary: "Universal Project, draft, checkpoint и immutable ProjectVersion.", path: contexts/projects}
+  - {id: CTX-ACTIVITIES, label: Assignments, kind: bounded_context, layer: control, status: planned, summary: "Assignment, audience, deadlines, policies и AssignmentWork.", path: contexts/activities}
+  - {id: CTX-ASSESSMENT, label: Assessment, kind: bounded_context, layer: control, status: planned, summary: "Submission, comments, review, rubric, grade, badge и progress.", path: contexts/assessment}
+  - {id: CTX-MODULES, label: Module Registry, kind: bounded_context, layer: control, status: planned, summary: "Module SDK, manifests, schemas, providers и compatibility.", path: contexts/modules}
+  - {id: CTX-NOTIFICATIONS, label: Notifications, kind: bounded_context, layer: control, status: planned, summary: "Безопасные in-app уведомления об учебных событиях.", path: contexts/notifications}
+  - {id: CTX-BILLING, label: Billing, kind: bounded_context, layer: control, status: planned, summary: "Entitlements, quotas и usage ledger.", path: contexts/billing}
+  - {id: CTX-SAFETY, label: Safety and Audit, kind: bounded_context, layer: control, status: planned, summary: "Child safety, moderation, retention и immutable audit.", path: contexts/safety}
 
-  - {id: DATA-PG, label: PostgreSQL, kind: data_store, layer: data, status: planned, summary: Основные транзакционные tenant-owned данные.}
-  - {id: DATA-REDIS, label: Redis, kind: data_store, layer: data, status: planned, summary: Кэш, rate limits, sessions и coordination.}
-  - {id: DATA-S3, label: S3-compatible Storage, kind: data_store, layer: data, status: planned, summary: Project payloads, assets, previews, exports и certificates.}
-  - {id: DATA-OUTBOX, label: Transactional Outbox, kind: integration, layer: data, status: planned, summary: Надёжная публикация событий после commit.}
-  - {id: DATA-QUEUE, label: Job Queue, kind: integration, layer: data, status: planned, summary: Очередь задач Compute Plane.}
-  - {id: OBS-OTEL, label: OpenTelemetry, kind: observability, layer: operations, status: planned, summary: Traces, metrics и logs без детского содержимого.}
+  - {id: PLANE-COMPUTE, label: Isolated Compute Plane, kind: plane, layer: architecture, status: planned, summary: "Изолированные и независимо масштабируемые вычисления."}
+  - {id: WORK-COMPILER, label: Compiler Workers, kind: worker_pool, layer: compute, status: planned, summary: "Компиляция Arduino и будущего пользовательского кода.", path: apps/compiler-worker}
+  - {id: WORK-SIM, label: Simulation Workers, kind: worker_pool, layer: compute, status: planned, summary: "Детерминированная серверная симуляция.", path: apps/simulation-worker}
+  - {id: WORK-GRADER, label: Autograder Workers, kind: worker_pool, layer: compute, status: planned, summary: "Публичные и скрытые структурные и поведенческие проверки.", path: apps/autograder-worker}
+  - {id: WORK-RENDER, label: Render Workers, kind: worker_pool, layer: compute, status: planned, summary: "Preview, изображения, 3D export и документы.", path: apps/worker-runtime}
+  - {id: WORK-ROBOTICS, label: Robotics Physics Workers, kind: worker_pool, layer: compute, status: planned, summary: "Физическая симуляция роботов и миров.", path: apps/worker-runtime}
 
-  - {id: SDK-MODULE, label: Module SDK, kind: sdk, layer: modules, status: planned, summary: Версионированный контракт предметных редакторов., path: packages/module-sdk}
-  - {id: MOD-ELECTRONICS, label: Электронная лаборатория, kind: subject_module, layer: modules, status: planned, summary: Редактор схем, simulation, Arduino, instruments и autograding., phase: PHASE-5, path: modules/electronics}
-  - {id: MOD-BLOCKS, label: Блочное программирование, kind: subject_module, layer: modules, status: planned, summary: Scratch-подобные sprites, stage, blocks и безопасные class projects., phase: PHASE-12, path: modules/block-coding}
-  - {id: MOD-3D, label: 3D-моделирование, kind: subject_module, layer: modules, status: planned, summary: Scene graph и подготовка файлов к печати., phase: PHASE-12, path: modules/3d}
-  - {id: MOD-ROBOTICS, label: Виртуальная робототехника, kind: subject_module, layer: modules, status: planned, summary: Мир, робот, физика и программирование., phase: PHASE-12, path: modules/robotics}
-  - {id: MOD-CHESS, label: Шахматы и шашки, kind: subject_module, layer: modules, status: planned, summary: Позиции, партии, задачи, комментарии и проверка решений., phase: PHASE-12, path: modules/chess}
-  - {id: MOD-DRAWING, label: Рисование и черчение, kind: subject_module, layer: modules, status: planned, summary: Векторные и технические учебные документы., phase: PHASE-12, path: modules/drawing}
+  - {id: DATA-PG, label: PostgreSQL, kind: data_store, layer: data, status: planned, summary: "Основные транзакционные tenant-owned данные."}
+  - {id: DATA-REDIS, label: Redis, kind: data_store, layer: data, status: planned, summary: "Будущие cache, rate limits и coordination; не блокирует ранние product tasks."}
+  - {id: DATA-S3, label: S3-compatible Storage, kind: data_store, layer: data, status: planned, summary: "Будущие большие payloads, assets, previews и exports."}
+  - {id: DATA-OUTBOX, label: Transactional Outbox, kind: integration, layer: data, status: planned, summary: "Надёжная публикация событий после commit."}
+  - {id: DATA-QUEUE, label: Job Queue, kind: integration, layer: data, status: planned, summary: "Очередь задач Compute Plane."}
+  - {id: OBS-OTEL, label: OpenTelemetry, kind: observability, layer: operations, status: planned, summary: "Traces, metrics и logs без детского содержимого."}
 
-  - {id: DOC-AGENTS, label: AGENTS.md, kind: document, layer: governance, status: done, summary: Обязательные правила coding-агентов., path: AGENTS.md}
-  - {id: DOC-RUNBOOK, label: Bot Runbook, kind: document, layer: governance, status: done, summary: Алгоритм выбора и выполнения задач coding-агентом., path: docs/delivery/BOT_RUNBOOK.md}
-  - {id: DOC-BASELINE, label: Architecture Baseline, kind: document, layer: governance, status: done, summary: Архитектура и технические инварианты., path: docs/architecture/ARCHITECTURE_BASELINE.md}
-  - {id: DOC-ROADMAP, label: Implementation Roadmap, kind: document, layer: governance, status: done, summary: Фазы и exit gates., path: docs/architecture/IMPLEMENTATION_ROADMAP.md}
-  - {id: DOC-MAP, label: Project Map, kind: document, layer: governance, status: done, summary: Машиночитаемый граф архитектуры и задач., path: docs/project-map/project-map.yaml}
-  - {id: DOC-TASKS, label: Task System, kind: document, layer: governance, status: done, summary: Правила постановки и выдачи задач., path: docs/project-map/TASK_SYSTEM.md}
-  - {id: DOC-QUALITY-MAP, label: Quality Map, kind: document, layer: governance, status: done, summary: Граф задач, test IDs и quality gates., path: docs/project-map/QUALITY_MAP.md}
-  - {id: DOC-TEST-STRATEGY, label: Test Strategy, kind: document, layer: governance, status: done, summary: Уровни и обязательность тестирования., path: docs/testing/TEST_STRATEGY.md}
-  - {id: DOC-TEST-CATALOG, label: Test Catalog, kind: document, layer: governance, status: done, summary: Машиночитаемые test IDs и команды., path: docs/testing/test-catalog.yaml}
-  - {id: DOC-PRODUCT-BLUEPRINT, label: Product Blueprint, kind: document, layer: product, status: in_review, summary: Полное определение конечной образовательной платформы., path: docs/product/PRODUCT_BLUEPRINT.md}
-  - {id: DOC-CAPABILITY-MAP, label: Capability Map, kind: document, layer: product, status: in_review, summary: Машиночитаемые возможности, зависимости и релизные slices., path: docs/product/CAPABILITY_MAP.yaml}
-  - {id: DOC-CLASSROOM-SPEC, label: Classroom Core Spec, kind: document, layer: product, status: in_review, summary: Классы, StudentSeat, assignments, submissions и кабинеты., path: docs/product/CLASSROOM_CORE_SPEC.md}
-  - {id: DOC-MODULE-SPEC, label: Module Platform Spec, kind: document, layer: product, status: in_review, summary: Контракт подключения предметных модулей., path: docs/product/MODULE_PLATFORM_SPEC.md}
-  - {id: DOC-ASSESSMENT-SPEC, label: Assessment and Rewards Spec, kind: document, layer: product, status: in_review, summary: Комментарии, review, rubrics, grades, badges и progress., path: docs/product/ASSESSMENT_REWARDS_SPEC.md}
-  - {id: QG-GOVERNANCE, label: Governance Quality Gate, kind: quality_gate, layer: governance, status: done, summary: Architecture, project map и test catalog validators., path: .github/workflows/spec-validation.yml}
+  - {id: SDK-MODULE, label: Module SDK, kind: sdk, layer: modules, status: planned, summary: "Версионированный контракт subject modules и универсального project lifecycle.", path: packages/module-sdk}
+  - {id: MOD-BLANK, label: Blank Canvas Technical Module, kind: subject_module, layer: modules, status: planned, summary: "Технический module для проверки Project Shell; не является продуктовым предметом.", path: modules/blank-canvas}
+  - {id: MOD-CHECKERS-LITE, label: Checkers Lite, kind: subject_module, layer: modules, status: blocked, summary: "Reference module: board, one legal move, validation, save/reload и preview.", path: modules/checkers-lite}
+  - {id: MOD-ELECTRONICS, label: Electronics Alpha, kind: subject_module, layer: modules, status: blocked, summary: "Source, resistor, LED, wire, netlist, DC calculation и diagnostics.", path: modules/electronics}
+  - {id: MOD-BLOCKS, label: Блочное программирование, kind: subject_module, layer: modules, status: planned, summary: "Scratch-подобные sprites, stage, blocks и безопасные проекты.", path: modules/block-coding}
+  - {id: MOD-3D, label: 3D-моделирование, kind: subject_module, layer: modules, status: planned, summary: "Scene graph и подготовка к 3D-печати.", path: modules/3d}
+  - {id: MOD-ROBOTICS, label: Виртуальная робототехника, kind: subject_module, layer: modules, status: planned, summary: "Robot, world, sensors, physics и programming.", path: modules/robotics}
+  - {id: MOD-CHESS, label: Chess and Checkers Advanced, kind: subject_module, layer: modules, status: planned, summary: "Полные позиции, партии, задачи и анализ после reference module.", path: modules/chess}
+  - {id: MOD-DRAWING, label: Рисование и черчение, kind: subject_module, layer: modules, status: planned, summary: "Векторные и технические учебные документы.", path: modules/drawing}
 
-  - {id: PHASE-0, label: Phase 0 Foundation, kind: roadmap_phase, layer: roadmap, status: done, summary: Репозиторий, boundaries, contracts, migration runner и local-first quality.}
-  - {id: PHASE-1, label: Phase 1 Teacher Portal, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Organization, identity, teacher dashboard и classroom lifecycle.}
-  - {id: PHASE-2, label: Phase 2 Child Access, kind: roadmap_phase, layer: roadmap, status: blocked, summary: StudentSeat и кабинет ребёнка.}
-  - {id: PHASE-3, label: Phase 3 Modules Projects Assignments, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Module Registry, projects, versions, activities и submissions.}
-  - {id: PHASE-4, label: Phase 4 Review Assessment Rewards, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Comments, review, rubrics, grades, badges и progress.}
-  - {id: PHASE-5, label: Phase 5 Electronics, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Электронный editor, simulation и classroom integration.}
-  - {id: PHASE-6, label: Phase 6 Simulation Core, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Rust/WASM solver и golden tests.}
-  - {id: PHASE-7, label: Phase 7 Arduino, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Компиляция и эмуляция Arduino.}
-  - {id: PHASE-8, label: Phase 8 Instruments and Advanced Autograding, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Приборы и расширенная автоматическая проверка.}
-  - {id: PHASE-9, label: Phase 9 Pilot Hardening, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Нагрузка школы, security, accessibility и recovery.}
-  - {id: PHASE-10, label: Phase 10 Commercial Foundation, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Entitlements, quotas и billing adapter.}
-  - {id: PHASE-11, label: Phase 11 Multi-school Scale, kind: roadmap_phase, layer: roadmap, status: blocked, summary: TenantPlacement, dedicated databases и региональное масштабирование.}
-  - {id: PHASE-12, label: Phase 12 Additional Modules, kind: roadmap_phase, layer: roadmap, status: blocked, summary: Block coding, 3D, robotics, chess и drawing.}
+  - {id: DOC-AGENTS, label: AGENTS.md, kind: document, layer: governance, status: done, summary: "Обязательные правила coding-агентов.", path: AGENTS.md}
+  - {id: DOC-RUNBOOK, label: Bot Runbook, kind: document, layer: governance, status: done, summary: "Рабочий алгоритм coding-агента.", path: docs/delivery/BOT_RUNBOOK.md}
+  - {id: DOC-DEVELOPMENT-PROGRAM, label: Development Program v1, kind: document, layer: governance, status: in_review, summary: "Канонический путь Product Alpha и School Pilot.", path: docs/delivery/DEVELOPMENT_PROGRAM_V1.md}
+  - {id: DOC-PORT-POLICY, label: Local Port Policy, kind: document, layer: governance, status: in_review, summary: "Порты 4610/4611/4612 и запрет вмешательства в чужие процессы.", path: docs/delivery/LOCAL_PORT_POLICY.md}
+  - {id: DOC-BASELINE, label: Architecture Baseline, kind: document, layer: governance, status: done, summary: "Архитектура и технические инварианты.", path: docs/architecture/ARCHITECTURE_BASELINE.md}
+  - {id: DOC-ROADMAP, label: Implementation Roadmap, kind: document, layer: governance, status: done, summary: "Долгосрочные фазы и exit gates.", path: docs/architecture/IMPLEMENTATION_ROADMAP.md}
+  - {id: DOC-MAP, label: Project Map, kind: document, layer: governance, status: done, summary: "Машиночитаемый граф архитектуры и задач.", path: docs/project-map/project-map.yaml}
+  - {id: DOC-TASKS, label: Task System, kind: document, layer: governance, status: done, summary: "Правила постановки и выдачи задач.", path: docs/project-map/TASK_SYSTEM.md}
+  - {id: DOC-QUALITY-MAP, label: Quality Map, kind: document, layer: governance, status: done, summary: "Граф задач, test IDs и quality gates.", path: docs/project-map/QUALITY_MAP.md}
+  - {id: DOC-TEST-STRATEGY, label: Test Strategy, kind: document, layer: governance, status: done, summary: "Уровни и обязательность тестирования.", path: docs/testing/TEST_STRATEGY.md}
+  - {id: DOC-TEST-CATALOG, label: Test Catalog, kind: document, layer: governance, status: done, summary: "Машиночитаемые test IDs и команды.", path: docs/testing/test-catalog.yaml}
+  - {id: DOC-PRODUCT-BLUEPRINT, label: Product Blueprint, kind: document, layer: product, status: in_review, summary: "Полное определение конечной платформы.", path: docs/product/PRODUCT_BLUEPRINT.md}
+  - {id: DOC-CAPABILITY-MAP, label: Capability Map, kind: document, layer: product, status: in_review, summary: "Возможности, зависимости и release slices.", path: docs/product/CAPABILITY_MAP.yaml}
+  - {id: DOC-CLASSROOM-SPEC, label: Classroom Core Spec, kind: document, layer: product, status: in_review, summary: "Classroom, StudentSeat, assignments, submissions и кабинеты.", path: docs/product/CLASSROOM_CORE_SPEC.md}
+  - {id: DOC-MODULE-SPEC, label: Module Platform Spec, kind: document, layer: product, status: in_review, summary: "Контракт подключения предметных модулей.", path: docs/product/MODULE_PLATFORM_SPEC.md}
+  - {id: DOC-ASSESSMENT-SPEC, label: Assessment and Rewards Spec, kind: document, layer: product, status: in_review, summary: "Comments, review, rubrics, grades, badges и progress.", path: docs/product/ASSESSMENT_REWARDS_SPEC.md}
+  - {id: QG-GOVERNANCE, label: Governance Quality Gate, kind: quality_gate, layer: governance, status: done, summary: "Architecture, capability, project map и test catalog validators.", path: .github/workflows/spec-validation.yml}
 
-  - {id: TASK-CI-001, label: Architecture CI, kind: task, layer: delivery, status: done, summary: Local-first governance validation действует., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
-  - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: done, summary: Регламент агентов, test catalog и quality graph готовы., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
-  - {id: TASK-ARCH-001, label: Architecture Foundation, kind: task, layer: delivery, status: done, summary: Архитектурный baseline объединён., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
-  - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: done, summary: pnpm Nx foundation, contracts, tests, API skeleton и migration runner объединены., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
-  - {id: TASK-ENV-001, label: Local Integration Environment, kind: task, layer: delivery, status: deprecated, summary: Отложено до фактической потребности product runtime., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/15}
-  - {id: TASK-TEN-001, label: Legacy Tenant Slice, kind: task, layer: delivery, status: deprecated, summary: Заменено канонической MVP-задачей., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
-  - {id: TASK-CLS-001, label: Legacy Classroom Slice, kind: task, layer: delivery, status: deprecated, summary: Заменено канонической MVP-задачей., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/4}
-  - {id: TASK-PRODUCT-DOC-001, label: Product Blueprint and Capability Map, kind: task, layer: delivery, status: in_review, summary: Нормативная модель конечной платформы, Classroom Core, Module Platform и Assessment., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}
-  - {id: TASK-MVP-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: blocked, summary: React/NestJS portal: teacher login, dashboard, classroom create/list, RLS, owner membership и automated E2E., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
-  - {id: TASK-SEAT-001, label: StudentSeat and Child Dashboard, kind: task, layer: delivery, status: blocked, summary: Вход ребёнка без email, карточки доступа и ученический кабинет., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
-  - {id: TASK-MOD-001, label: Module SDK and Universal Projects, kind: task, layer: delivery, status: blocked, summary: Module Registry, project envelope, versions и dummy modules., phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/5}
-  - {id: TASK-ACT-001, label: Assignment and Submission Cycle, kind: task, layer: delivery, status: blocked, summary: ActivityVersion, assignment, student work и immutable submission., phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/8}
-  - {id: TASK-REVIEW-001, label: Review Assessment and Rewards, kind: task, layer: delivery, status: blocked, summary: Comments, request changes, rubric, grade, badge и progress., phase: PHASE-4, issue: https://github.com/spikeal8-maker/asa-lab/issues/20}
-  - {id: TASK-ELEC-001, label: First Electronics Learning Cycle, kind: task, layer: delivery, status: blocked, summary: Первая схема проходит assignment, submission, review и autograding., phase: PHASE-5, issue: https://github.com/spikeal8-maker/asa-lab/issues/6}
+  - {id: PROGRAM-ALPHA-001, label: Product Alpha to School Pilot, kind: program, layer: delivery, status: in_progress, summary: "Каноническая программа Issue 23: working portal, projects, modules and school workflow.", issue: https://github.com/spikeal8-maker/asa-lab/issues/23}
+  - {id: TRACK-TECH-ALPHA, label: Technical Product Alpha, kind: delivery_track, layer: delivery, status: planned, summary: "Portal, Project Shell, Checkers Lite и Electronics Alpha."}
+  - {id: TRACK-SCHOOL-PILOT, label: School Pilot, kind: delivery_track, layer: delivery, status: planned, summary: "StudentSeat, assignments, review и полный electronics classroom cycle."}
+
+  - {id: PHASE-0, label: Phase 0 Foundation and Product Definition, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Foundation merged; Product Blueprint and Development Program are in review."}
+  - {id: PHASE-1, label: Phase 1 Teacher Portal, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Teacher login, dashboard and classroom create/list."}
+  - {id: PHASE-2, label: Phase 2 Child Access, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and Child Dashboard."}
+  - {id: PHASE-3, label: Phase 3 Modules Projects Assignments, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Project Shell, modules, ActivityVersion, Assignment and Submission."}
+  - {id: PHASE-4, label: Phase 4 Review Assessment Rewards, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Comments, review, rubrics, grades, badges and progress."}
+  - {id: PHASE-5, label: Phase 5 Electronics, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Electronics Alpha and full classroom integration."}
+  - {id: PHASE-6, label: Phase 6 Simulation Core, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Extended Rust/WASM solver and golden suites."}
+  - {id: PHASE-7, label: Phase 7 Arduino, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Compilation and MCU emulation."}
+  - {id: PHASE-8, label: Phase 8 Instruments and Advanced Autograding, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Instruments and extended automated checks."}
+  - {id: PHASE-9, label: Phase 9 Pilot Hardening, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "School load, security, accessibility and recovery."}
+  - {id: PHASE-10, label: Phase 10 Commercial Foundation, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Entitlements, quotas and billing adapter."}
+  - {id: PHASE-11, label: Phase 11 Multi-school Scale, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "TenantPlacement, dedicated databases and regional scale."}
+  - {id: PHASE-12, label: Phase 12 Additional Modules, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Block coding, 3D, robotics, advanced chess and drawing."}
+
+  - {id: TASK-CI-001, label: Architecture CI, kind: task, layer: delivery, status: done, summary: "Local-first governance validation действует.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/13}
+  - {id: TASK-GOV-001, label: Bot Runbook and Test Registry, kind: task, layer: delivery, status: done, summary: "Регламент агентов, test catalog и quality graph готовы.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/9}
+  - {id: TASK-ARCH-001, label: Architecture Foundation, kind: task, layer: delivery, status: done, summary: "Архитектурный baseline объединён.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
+  - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: done, summary: "pnpm/Nx foundation, contracts, tests, API skeleton и migration runner объединены.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
+  - {id: TASK-ENV-001, label: Local Integration Environment, kind: task, layer: delivery, status: deprecated, summary: "Отложено до фактической потребности runtime.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/15}
+  - {id: TASK-TEN-001, label: Legacy Tenant Slice, kind: task, layer: delivery, status: deprecated, summary: "Заменено Teacher Portal task.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
+  - {id: TASK-CLS-001, label: Legacy Classroom Slice, kind: task, layer: delivery, status: deprecated, summary: "Заменено Teacher Portal task.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/4}
+  - {id: TASK-MVP-001, label: Legacy MVP Task, kind: task, layer: delivery, status: deprecated, summary: "Переименовано и уточнено как TASK-PORTAL-001.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
+  - {id: TASK-MOD-001, label: Legacy Module and Project Task, kind: task, layer: delivery, status: deprecated, summary: "Разделено на Project Shell, Checkers Lite и Electronics Alpha.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/5}
+
+  - {id: TASK-PRODUCT-DOC-001, label: Product Blueprint and Development Program, kind: task, layer: delivery, status: in_review, summary: "Product specs, capability map, execution path and port policy in PR 21.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}
+  - {id: TASK-PORTAL-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: blocked, summary: "Stabilize PR 22: login, classes, security, full gate and canonical ports.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
+  - {id: TASK-PROJECT-SHELL-001, label: Universal Project Shell, kind: task, layer: delivery, status: blocked, summary: "Module Registry v0.1, ProjectDraft save/reload and immutable checkpoint.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/24}
+  - {id: TASK-CHECKERS-LITE-001, label: Checkers Lite Reference Module, kind: task, layer: delivery, status: blocked, summary: "8x8 board, one legal move, validation, save/reload and preview.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/25}
+  - {id: TASK-ELECTRONICS-ALPHA-001, label: Electronics Alpha, kind: task, layer: delivery, status: blocked, summary: "Source, resistor, LED, wire, netlist, Rust/WASM DC and diagnostics.", phase: PHASE-5, issue: https://github.com/spikeal8-maker/asa-lab/issues/26}
+  - {id: TASK-SEAT-001, label: StudentSeat and Child Dashboard, kind: task, layer: delivery, status: blocked, summary: "Teacher issues child access; child logs in without email and opens own project.", phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
+  - {id: TASK-ACT-001, label: Assignment and Immutable Submission Cycle, kind: task, layer: delivery, status: blocked, summary: "ActivityVersion, Assignment, child work and exact ProjectVersion submission.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/8}
+  - {id: TASK-REVIEW-001, label: Comments Review Grade and Badge, kind: task, layer: delivery, status: blocked, summary: "Anchored comments, changes requested, rubric, grade, badge and progress.", phase: PHASE-4, issue: https://github.com/spikeal8-maker/asa-lab/issues/20}
+  - {id: TASK-ELEC-001, label: Full Electronics Classroom Cycle, kind: task, layer: delivery, status: blocked, summary: "Electronics assignment, submission, review, grade, badge and progress.", phase: PHASE-5, issue: https://github.com/spikeal8-maker/asa-lab/issues/6}
 
 edges:
   - {from: ASA, to: PLANE-EXPERIENCE, type: contains}
   - {from: ASA, to: PLANE-CONTROL, type: contains}
   - {from: ASA, to: PLANE-COMPUTE, type: contains}
   - {from: ASA, to: SDK-MODULE, type: contains}
+  - {from: ASA, to: PROGRAM-ALPHA-001, type: contains}
+
   - {from: PLANE-EXPERIENCE, to: APP-WEB, type: contains}
   - {from: PLANE-EXPERIENCE, to: APP-ADMIN, type: contains}
   - {from: PLANE-EXPERIENCE, to: APP-SITE, type: contains}
+  - {from: APP-WEB, to: ACT-STUDENT, type: serves}
+  - {from: APP-WEB, to: ACT-TEACHER, type: serves}
+  - {from: APP-ADMIN, to: ACT-SCHOOL-ADMIN, type: serves}
+  - {from: APP-ADMIN, to: ACT-PLATFORM-ADMIN, type: serves}
+  - {from: APP-ADMIN, to: ACT-METHODIST, type: serves}
+  - {from: APP-WEB, to: PLANE-CONTROL, type: uses, label: REST and WebSocket}
+  - {from: APP-ADMIN, to: PLANE-CONTROL, type: uses, label: Admin API}
+  - {from: APP-SITE, to: PLANE-CONTROL, type: uses, label: Public API}
+
   - {from: PLANE-CONTROL, to: CTX-IDENTITY, type: contains}
   - {from: PLANE-CONTROL, to: CTX-ORG, type: contains}
   - {from: PLANE-CONTROL, to: CTX-CLASSROOM, type: contains}
@@ -139,26 +164,21 @@ edges:
   - {from: PLANE-CONTROL, to: CTX-NOTIFICATIONS, type: contains}
   - {from: PLANE-CONTROL, to: CTX-BILLING, type: contains}
   - {from: PLANE-CONTROL, to: CTX-SAFETY, type: contains}
+
   - {from: PLANE-COMPUTE, to: WORK-COMPILER, type: contains}
   - {from: PLANE-COMPUTE, to: WORK-SIM, type: contains}
   - {from: PLANE-COMPUTE, to: WORK-GRADER, type: contains}
   - {from: PLANE-COMPUTE, to: WORK-RENDER, type: contains}
   - {from: PLANE-COMPUTE, to: WORK-ROBOTICS, type: contains}
+
+  - {from: SDK-MODULE, to: MOD-BLANK, type: contains}
+  - {from: SDK-MODULE, to: MOD-CHECKERS-LITE, type: contains}
   - {from: SDK-MODULE, to: MOD-ELECTRONICS, type: contains}
   - {from: SDK-MODULE, to: MOD-BLOCKS, type: contains}
   - {from: SDK-MODULE, to: MOD-3D, type: contains}
   - {from: SDK-MODULE, to: MOD-ROBOTICS, type: contains}
   - {from: SDK-MODULE, to: MOD-CHESS, type: contains}
   - {from: SDK-MODULE, to: MOD-DRAWING, type: contains}
-
-  - {from: APP-WEB, to: ACT-STUDENT, type: serves}
-  - {from: APP-WEB, to: ACT-TEACHER, type: serves}
-  - {from: APP-ADMIN, to: ACT-SCHOOL-ADMIN, type: serves}
-  - {from: APP-ADMIN, to: ACT-PLATFORM-ADMIN, type: serves}
-  - {from: APP-ADMIN, to: ACT-METHODIST, type: serves}
-  - {from: APP-WEB, to: PLANE-CONTROL, type: uses, label: REST and WebSocket}
-  - {from: APP-ADMIN, to: PLANE-CONTROL, type: uses, label: Admin API}
-  - {from: APP-SITE, to: PLANE-CONTROL, type: uses, label: Public API}
 
   - {from: CTX-IDENTITY, to: DATA-PG, type: stores_in}
   - {from: CTX-ORG, to: DATA-PG, type: stores_in}
@@ -171,9 +191,9 @@ edges:
   - {from: CTX-NOTIFICATIONS, to: DATA-PG, type: stores_in}
   - {from: CTX-BILLING, to: DATA-PG, type: stores_in}
   - {from: CTX-SAFETY, to: DATA-PG, type: stores_in}
+  - {from: CTX-IDENTITY, to: DATA-REDIS, type: uses}
   - {from: CTX-PROJECTS, to: DATA-S3, type: stores_in}
   - {from: CTX-ASSESSMENT, to: DATA-S3, type: stores_in}
-  - {from: CTX-IDENTITY, to: DATA-REDIS, type: uses}
   - {from: PLANE-CONTROL, to: DATA-OUTBOX, type: produces}
   - {from: DATA-OUTBOX, to: DATA-QUEUE, type: queues_to}
   - {from: DATA-QUEUE, to: WORK-COMPILER, type: queues_to}
@@ -212,6 +232,9 @@ edges:
 
   - {from: DOC-AGENTS, to: ACT-AGENT, type: governs}
   - {from: DOC-RUNBOOK, to: ACT-AGENT, type: governs}
+  - {from: DOC-DEVELOPMENT-PROGRAM, to: ACT-AGENT, type: governs}
+  - {from: DOC-PORT-POLICY, to: APP-WEB, type: governs}
+  - {from: DOC-PORT-POLICY, to: PLANE-CONTROL, type: governs}
   - {from: DOC-PRODUCT-BLUEPRINT, to: ACT-AGENT, type: governs}
   - {from: DOC-CAPABILITY-MAP, to: ACT-AGENT, type: governs}
   - {from: DOC-PRODUCT-BLUEPRINT, to: PLANE-EXPERIENCE, type: governs}
@@ -226,6 +249,17 @@ edges:
   - {from: DOC-TEST-STRATEGY, to: DOC-TEST-CATALOG, type: governs}
   - {from: DOC-TEST-CATALOG, to: QG-GOVERNANCE, type: governs}
   - {from: DOC-QUALITY-MAP, to: QG-GOVERNANCE, type: governs}
+
+  - {from: PROGRAM-ALPHA-001, to: TRACK-TECH-ALPHA, type: contains}
+  - {from: PROGRAM-ALPHA-001, to: TRACK-SCHOOL-PILOT, type: contains}
+  - {from: TRACK-TECH-ALPHA, to: TASK-PORTAL-001, type: contains}
+  - {from: TRACK-TECH-ALPHA, to: TASK-PROJECT-SHELL-001, type: contains}
+  - {from: TRACK-TECH-ALPHA, to: TASK-CHECKERS-LITE-001, type: contains}
+  - {from: TRACK-TECH-ALPHA, to: TASK-ELECTRONICS-ALPHA-001, type: contains}
+  - {from: TRACK-SCHOOL-PILOT, to: TASK-SEAT-001, type: contains}
+  - {from: TRACK-SCHOOL-PILOT, to: TASK-ACT-001, type: contains}
+  - {from: TRACK-SCHOOL-PILOT, to: TASK-REVIEW-001, type: contains}
+  - {from: TRACK-SCHOOL-PILOT, to: TASK-ELEC-001, type: contains}
 
   - {from: PHASE-0, to: PHASE-1, type: next}
   - {from: PHASE-1, to: PHASE-2, type: next}
@@ -244,25 +278,32 @@ edges:
   - {from: TASK-ARCH-001, to: TASK-GOV-001, type: depends_on}
   - {from: TASK-BOOT-001, to: TASK-ARCH-001, type: depends_on}
   - {from: TASK-PRODUCT-DOC-001, to: TASK-BOOT-001, type: depends_on}
-  - {from: TASK-MVP-001, to: TASK-PRODUCT-DOC-001, type: depends_on}
-  - {from: TASK-SEAT-001, to: TASK-MVP-001, type: depends_on}
-  - {from: TASK-MOD-001, to: TASK-SEAT-001, type: depends_on}
-  - {from: TASK-ACT-001, to: TASK-MOD-001, type: depends_on}
+  - {from: TASK-PORTAL-001, to: TASK-PRODUCT-DOC-001, type: depends_on}
+  - {from: TASK-PROJECT-SHELL-001, to: TASK-PORTAL-001, type: depends_on}
+  - {from: TASK-CHECKERS-LITE-001, to: TASK-PROJECT-SHELL-001, type: depends_on}
+  - {from: TASK-ELECTRONICS-ALPHA-001, to: TASK-CHECKERS-LITE-001, type: depends_on}
+  - {from: TASK-SEAT-001, to: TASK-ELECTRONICS-ALPHA-001, type: depends_on}
+  - {from: TASK-ACT-001, to: TASK-SEAT-001, type: depends_on}
+  - {from: TASK-ACT-001, to: TASK-PROJECT-SHELL-001, type: depends_on}
   - {from: TASK-REVIEW-001, to: TASK-ACT-001, type: depends_on}
   - {from: TASK-ELEC-001, to: TASK-REVIEW-001, type: depends_on}
+  - {from: TASK-ELEC-001, to: TASK-ELECTRONICS-ALPHA-001, type: depends_on}
 
   - {from: TASK-CI-001, to: QG-GOVERNANCE, type: implements}
   - {from: TASK-GOV-001, to: QG-GOVERNANCE, type: implements}
   - {from: TASK-BOOT-001, to: PHASE-0, type: implements}
   - {from: TASK-PRODUCT-DOC-001, to: DOC-PRODUCT-BLUEPRINT, type: implements}
   - {from: TASK-PRODUCT-DOC-001, to: DOC-CAPABILITY-MAP, type: implements}
-  - {from: TASK-MVP-001, to: PHASE-1, type: implements}
+  - {from: TASK-PRODUCT-DOC-001, to: DOC-DEVELOPMENT-PROGRAM, type: implements}
+  - {from: TASK-PRODUCT-DOC-001, to: DOC-PORT-POLICY, type: implements}
+  - {from: TASK-PORTAL-001, to: PHASE-1, type: implements}
+  - {from: TASK-PROJECT-SHELL-001, to: PHASE-3, type: implements}
+  - {from: TASK-CHECKERS-LITE-001, to: MOD-CHECKERS-LITE, type: implements}
+  - {from: TASK-ELECTRONICS-ALPHA-001, to: MOD-ELECTRONICS, type: implements}
   - {from: TASK-SEAT-001, to: PHASE-2, type: implements}
-  - {from: TASK-MOD-001, to: PHASE-3, type: implements}
   - {from: TASK-ACT-001, to: PHASE-3, type: implements}
   - {from: TASK-REVIEW-001, to: PHASE-4, type: implements}
   - {from: TASK-ELEC-001, to: PHASE-5, type: implements}
-  - {from: PHASE-5, to: MOD-ELECTRONICS, type: produces}
   - {from: PHASE-12, to: MOD-BLOCKS, type: produces}
   - {from: PHASE-12, to: MOD-3D, type: produces}
   - {from: PHASE-12, to: MOD-ROBOTICS, type: produces}
@@ -270,10 +311,12 @@ edges:
   - {from: PHASE-12, to: MOD-DRAWING, type: produces}
 
 execution_queue:
-  - {position: 1, task_id: TASK-PRODUCT-DOC-001, instruction: Принять Product Blueprint, Capability Map и детальные продуктовые спецификации., gate: Нормативные документы и карты согласованы и merged.}
-  - {position: 2, task_id: TASK-MVP-001, instruction: Реализовать Teacher Portal v0.1 строго по Issue 18 и capability IDs., gate: React/NestJS user flow, RLS, owner membership и automated browser E2E PASS.}
-  - {position: 3, task_id: TASK-SEAT-001, instruction: Реализовать StudentSeat, child login и Student Dashboard., gate: Ребёнок входит без email, видит класс и безопасно управляет сессией.}
-  - {position: 4, task_id: TASK-MOD-001, instruction: Реализовать Module Registry, Project envelope и два dummy modules., gate: Classroom работает с модулями без предметных imports.}
-  - {position: 5, task_id: TASK-ACT-001, instruction: Реализовать ActivityVersion, Assignment и immutable Submission cycle., gate: Teacher assigns, student works and submits exact ProjectVersion.}
-  - {position: 6, task_id: TASK-REVIEW-001, instruction: Реализовать comments, review, rubric, grade, badge и progress., gate: Return revise accept grade badge E2E PASS.}
-  - {position: 7, task_id: TASK-ELEC-001, instruction: Реализовать первый полный electronics learning cycle., gate: Circuit assignment проходит save submit review autograding.}
+  - {position: 1, task_id: TASK-PRODUCT-DOC-001, instruction: "Validate and merge Product Blueprint, Development Program, Port Policy and canonical Issues.", gate: "All Product Doc test IDs PASS and PR 21 merged."}
+  - {position: 2, task_id: TASK-PORTAL-001, instruction: "Rebase and stabilize PR 22 strictly by Issue 18 on ports 4610/4611/4612.", gate: "Teacher login, classroom create/reload/logout, full security/quality gate and Playwright PASS."}
+  - {position: 3, task_id: TASK-PROJECT-SHELL-001, instruction: "Implement Module Registry v0.1 and universal Project draft/checkpoint lifecycle.", gate: "Create/save/reload/checkpoint E2E PASS without subject logic in Core."}
+  - {position: 4, task_id: TASK-CHECKERS-LITE-001, instruction: "Implement small Checkers Lite reference module.", gate: "Board, legal move, validation, save/reload and preview E2E PASS."}
+  - {position: 5, task_id: TASK-ELECTRONICS-ALPHA-001, instruction: "Implement Electronics Alpha with source, resistor, LED, wire and DC solver.", gate: "Editor, netlist, diagnostics, native/WASM parity and E2E PASS."}
+  - {position: 6, task_id: TASK-SEAT-001, instruction: "Implement StudentSeat, child login and Child Dashboard.", gate: "Child enters without email, sees class/project and old session is revoked after reset."}
+  - {position: 7, task_id: TASK-ACT-001, instruction: "Implement ActivityVersion, Assignment and immutable Submission.", gate: "Teacher assign, child work/save/submit and teacher queue E2E PASS."}
+  - {position: 8, task_id: TASK-REVIEW-001, instruction: "Implement comments, review, grade, badge and progress.", gate: "Return, revise, accept, grade and badge E2E PASS."}
+  - {position: 9, task_id: TASK-ELEC-001, instruction: "Integrate Electronics Alpha into the full classroom learning cycle.", gate: "Electronics assignment, submission, anchored review, grade and badge E2E PASS."}
