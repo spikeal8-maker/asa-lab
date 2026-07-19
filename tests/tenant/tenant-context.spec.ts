@@ -23,7 +23,7 @@ afterAll(async () => {
 describe('tenant context from session', () => {
   it('login → me returns the session user; logout revokes it', async () => {
     const teacher = await seedTeacher(pool, 'ctx');
-    const token = await loginSession(app, teacher.email, teacher.password);
+    const token = await loginSession(app, teacher.workspace, teacher.email, teacher.password);
 
     const me = await app.inject({
       method: 'GET',
@@ -53,7 +53,7 @@ describe('tenant context from session', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: teacher.email, password: 'wrong-password' },
+      payload: { workspace: teacher.workspace, email: teacher.email, password: 'wrong-password' },
     });
     expect(response.statusCode).toBe(401);
   });
@@ -63,7 +63,7 @@ describe('tenant context from session', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: teacher.email, password: teacher.password },
+      payload: { workspace: teacher.workspace, email: teacher.email, password: teacher.password },
     });
     const cookie = response.cookies.find((c) => c.name === 'asa_session');
     expect(cookie?.httpOnly).toBe(true);
@@ -72,7 +72,7 @@ describe('tenant context from session', () => {
 
   it('rejects a client-supplied tenant_id in the request body', async () => {
     const teacher = await seedTeacher(pool, 'forge');
-    const token = await loginSession(app, teacher.email, teacher.password);
+    const token = await loginSession(app, teacher.workspace, teacher.email, teacher.password);
     const response = await app.inject({
       method: 'POST',
       url: '/classrooms',
@@ -84,7 +84,7 @@ describe('tenant context from session', () => {
 
   it('assigns the classroom to the session tenant, not to any client value', async () => {
     const teacher = await seedTeacher(pool, 'assign');
-    const token = await loginSession(app, teacher.email, teacher.password);
+    const token = await loginSession(app, teacher.workspace, teacher.email, teacher.password);
     const created = await app.inject({
       method: 'POST',
       url: '/classrooms',
@@ -98,6 +98,69 @@ describe('tenant context from session', () => {
     ]);
     expect(row.rows[0].tenant_id).toBe(teacher.tenantId);
     expect(row.rows[0].teacher_id).toBe(teacher.teacherId);
+  });
+
+  it('the same email in two tenants resolves by workspace to the right user', async () => {
+    const shared = `shared-${Date.now()}-${Math.floor(Math.random() * 1e6)}@test.asa-lab.local`;
+    const teacherA = await seedTeacher(pool, 'dup-a', { email: shared });
+    const teacherB = await seedTeacher(pool, 'dup-b', { email: shared });
+    expect(teacherA.tenantId).not.toBe(teacherB.tenantId);
+
+    const tokenA = await loginSession(app, teacherA.workspace, shared, teacherA.password);
+    const tokenB = await loginSession(app, teacherB.workspace, shared, teacherB.password);
+
+    const meA = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      cookies: { asa_session: tokenA },
+    });
+    const meB = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      cookies: { asa_session: tokenB },
+    });
+    expect(meA.json().user.id).toBe(teacherA.teacherId);
+    expect(meB.json().user.id).toBe(teacherB.teacherId);
+
+    // The session carries the right tenant: a classroom created by A lands in
+    // tenant A even though B shares the same email.
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classrooms',
+      cookies: { asa_session: tokenA },
+      payload: { title: 'Класс общей почты' },
+    });
+    const row = await pool.query(`SELECT tenant_id FROM classrooms WHERE id = $1`, [
+      created.json().classroom.id,
+    ]);
+    expect(row.rows[0].tenant_id).toBe(teacherA.tenantId);
+  });
+
+  it('a wrong workspace yields 401 even with valid email and password', async () => {
+    const teacher = await seedTeacher(pool, 'wrong-ws');
+    const other = await seedTeacher(pool, 'other-ws');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { workspace: other.workspace, email: teacher.email, password: teacher.password },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('login matches the email case-insensitively', async () => {
+    const teacher = await seedTeacher(pool, 'case');
+    const token = await loginSession(
+      app,
+      teacher.workspace,
+      teacher.email.toUpperCase(),
+      teacher.password,
+    );
+    const me = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      cookies: { asa_session: token },
+    });
+    expect(me.statusCode).toBe(200);
   });
 
   it('requires a session for classroom routes', async () => {

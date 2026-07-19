@@ -6,6 +6,7 @@
 CREATE TABLE IF NOT EXISTS tenants (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     title       varchar(255) NOT NULL,
+    slug        varchar(64)  NOT NULL UNIQUE,
     status      varchar(32)  NOT NULL DEFAULT 'active',
     created_at  timestamptz  NOT NULL DEFAULT now()
 );
@@ -31,9 +32,10 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    timestamptz  NOT NULL DEFAULT now(),
     PRIMARY KEY (id),
     UNIQUE (tenant_id, id),
-    UNIQUE (tenant_id, email),
     FOREIGN KEY (tenant_id, school_id) REFERENCES schools (tenant_id, id)
 );
+-- E-mail is unique per tenant case-insensitively.
+CREATE UNIQUE INDEX IF NOT EXISTS users_tenant_email_ci_idx ON users (tenant_id, lower(email));
 
 CREATE TABLE IF NOT EXISTS sessions (
     id          uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -71,7 +73,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
     entity_id      uuid,
     action         varchar(128) NOT NULL,
     payload_json   jsonb,
-    created_at     timestamptz  NOT NULL DEFAULT now()
+    created_at     timestamptz  NOT NULL DEFAULT now(),
+    -- A non-null actor must belong to the same tenant (system events may be null).
+    FOREIGN KEY (tenant_id, actor_user_id) REFERENCES users (tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS audit_events_tenant_idx ON audit_events (tenant_id, created_at);
 

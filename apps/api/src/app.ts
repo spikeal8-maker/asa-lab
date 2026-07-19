@@ -7,13 +7,15 @@ import {
   createSessionToken,
   isValidClassroomTitle,
   isValidEmail,
+  isValidWorkspace,
+  normalizeEmail,
   verifyPassword,
 } from './security.js';
 import {
   createClassroom,
   createPool,
   createSession,
-  findUserByEmail,
+  findUserForLogin,
   listClassrooms,
   resolveContext,
   revokeSession,
@@ -38,23 +40,32 @@ export interface AppOptions {
 
 const SESSION_COOKIE = 'asa_session';
 
+const READINESS_TIMEOUT_MS = 1500;
+
 /**
- * Evaluate readiness. In the Bootstrap foundation no external dependency is
- * wired yet, so their state is unknown and readiness is intentionally NOT
- * confirmed. Real probes replace the `unknown` states in later persistence and
- * infrastructure tasks.
+ * Real readiness: PostgreSQL is the only dependency the application uses, so
+ * readiness is confirmed by an actual `SELECT 1` with a short timeout. Redis
+ * and object storage are not used yet and therefore never block readiness.
  */
-export function evaluateReadiness(): { ready: boolean; body: ReadyResponse } {
-  const dependencies: Record<string, DependencyState> = {
-    database: 'unknown',
-    redis: 'unknown',
-    objectStorage: 'unknown',
-  };
-  const ready = Object.values(dependencies).every((state) => state === 'up');
-  return {
-    ready,
-    body: { status: ready ? 'ready' : 'not_ready', dependencies },
-  };
+export async function evaluateReadiness(
+  pool: pg.Pool | null,
+): Promise<{ ready: boolean; body: ReadyResponse }> {
+  let database: DependencyState = 'down';
+  if (pool !== null) {
+    try {
+      await Promise.race([
+        pool.query('SELECT 1'),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('readiness timeout')), READINESS_TIMEOUT_MS),
+        ),
+      ]);
+      database = 'up';
+    } catch {
+      database = 'down';
+    }
+  }
+  const ready = database === 'up';
+  return { ready, body: { status: ready ? 'ready' : 'not_ready', dependencies: { database } } };
 }
 
 function errorBody(code: string, message: string): { error: { code: string; message: string } } {
@@ -105,7 +116,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.get('/health/live', async (): Promise<LiveResponse> => ({ status: 'live' }));
 
   app.get('/health/ready', async (_request, reply): Promise<ReadyResponse> => {
-    const { ready, body } = evaluateReadiness();
+    const { ready, body } = await evaluateReadiness(pool);
     reply.code(ready ? 200 : 503);
     return body;
   });
@@ -117,12 +128,20 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.post('/auth/login', async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, unknown>;
-    if (!isValidEmail(body['email']) || typeof body['password'] !== 'string') {
+    if (
+      !isValidWorkspace(body['workspace']) ||
+      !isValidEmail(body['email']) ||
+      typeof body['password'] !== 'string'
+    ) {
       reply.code(400);
-      return errorBody('validation_error', 'email and password are required');
+      return errorBody('validation_error', 'workspace, email and password are required');
     }
     const db = requirePool();
-    const user = await findUserByEmail(db, body['email']);
+    const user = await findUserForLogin(
+      db,
+      body['workspace'].trim(),
+      normalizeEmail(body['email']),
+    );
     if (
       !user ||
       user.status !== 'active' ||

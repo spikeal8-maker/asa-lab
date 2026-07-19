@@ -15,6 +15,7 @@ if (!DATABASE_URL) {
 }
 
 const TENANT = 'Локальная школа (dev)';
+const WORKSPACE = process.env.ASA_SEED_WORKSPACE ?? 'local-school';
 const SCHOOL = 'Школа №1 (dev)';
 const EMAIL = process.env.ASA_SEED_TEACHER_EMAIL ?? 'teacher@asa-lab.local';
 const NAME = 'Педагог (dev)';
@@ -31,14 +32,12 @@ const password = envPassword ?? randomBytes(12).toString('hex');
 const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 2 });
 try {
   const tenant = await pool.query(
-    `INSERT INTO tenants (title) SELECT $1::varchar(255)
-     WHERE NOT EXISTS (SELECT 1 FROM tenants WHERE title = $1::varchar(255))
+    `INSERT INTO tenants (title, slug) VALUES ($1, $2)
+     ON CONFLICT (slug) DO UPDATE SET title = EXCLUDED.title
      RETURNING id`,
-    [TENANT],
+    [TENANT, WORKSPACE],
   );
-  const tenantId =
-    tenant.rows[0]?.id ??
-    (await pool.query(`SELECT id FROM tenants WHERE title = $1`, [TENANT])).rows[0].id;
+  const tenantId = tenant.rows[0].id;
 
   const school = await pool.query(
     `INSERT INTO schools (tenant_id, title) SELECT $1::uuid, $2::varchar(255)
@@ -82,7 +81,7 @@ try {
     writeFileSync(file, `email=${EMAIL}\npassword=${password}\n`, { encoding: 'utf8' });
     console.log(`seed: teacher password generated and written to ${file}`);
   }
-  console.log(`seed: tenant, school and teacher ready (email=${EMAIL})`);
+  console.log(`seed: tenant, school and teacher ready (workspace=${WORKSPACE}, email=${EMAIL})`);
 } finally {
   await pool.end();
 }

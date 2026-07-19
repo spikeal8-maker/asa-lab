@@ -191,12 +191,12 @@ components:
             - not_ready
         dependencies:
           type: object
+          description: PostgreSQL is the only readiness-blocking dependency.
           additionalProperties:
             type: string
             enum:
               - up
               - down
-              - unknown
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -214,8 +214,13 @@ components:
     LoginRequest:
       type: object
       additionalProperties: false
-      required: [email, password]
+      required: [workspace, email, password]
       properties:
+        workspace:
+          type: string
+          description: Tenant locator (slug) used only during authentication.
+          minLength: 3
+          maxLength: 64
         email:
           type: string
           format: email

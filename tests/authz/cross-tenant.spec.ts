@@ -23,8 +23,8 @@ describe('cross-tenant isolation', () => {
   it('a classroom of tenant A is never visible to tenant B', async () => {
     const teacherA = await seedTeacher(pool, 'a');
     const teacherB = await seedTeacher(pool, 'b');
-    const tokenA = await loginSession(app, teacherA.email, teacherA.password);
-    const tokenB = await loginSession(app, teacherB.email, teacherB.password);
+    const tokenA = await loginSession(app, teacherA.workspace, teacherA.email, teacherA.password);
+    const tokenB = await loginSession(app, teacherB.workspace, teacherB.email, teacherB.password);
 
     const created = await app.inject({
       method: 'POST',
@@ -55,8 +55,8 @@ describe('cross-tenant isolation', () => {
   it('tenant B cannot modify tenant A data through any exposed route', async () => {
     const teacherA = await seedTeacher(pool, 'mod-a');
     const teacherB = await seedTeacher(pool, 'mod-b');
-    const tokenA = await loginSession(app, teacherA.email, teacherA.password);
-    const tokenB = await loginSession(app, teacherB.email, teacherB.password);
+    const tokenA = await loginSession(app, teacherA.workspace, teacherA.email, teacherA.password);
+    const tokenB = await loginSession(app, teacherB.workspace, teacherB.email, teacherB.password);
 
     const created = await app.inject({
       method: 'POST',
@@ -89,7 +89,7 @@ describe('cross-tenant isolation', () => {
 
   it('classroom creation writes an immutable AuditEvent in the right tenant', async () => {
     const teacher = await seedTeacher(pool, 'audit');
-    const token = await loginSession(app, teacher.email, teacher.password);
+    const token = await loginSession(app, teacher.workspace, teacher.email, teacher.password);
     const created = await app.inject({
       method: 'POST',
       url: '/classrooms',
@@ -114,5 +114,17 @@ describe('cross-tenant isolation', () => {
     await expect(
       pool.query(`DELETE FROM audit_events WHERE id = $1`, [audit.rows[0].id]),
     ).rejects.toThrow(/immutable/);
+  });
+
+  it('rejects an audit event whose actor belongs to another tenant (DB-level)', async () => {
+    const teacherA = await seedTeacher(pool, 'lineage-a');
+    const teacherB = await seedTeacher(pool, 'lineage-b');
+    await expect(
+      pool.query(
+        `INSERT INTO audit_events (tenant_id, actor_user_id, entity_type, action)
+         VALUES ($1, $2, 'classroom', 'forged')`,
+        [teacherA.tenantId, teacherB.teacherId],
+      ),
+    ).rejects.toThrow();
   });
 });

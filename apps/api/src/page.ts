@@ -30,6 +30,7 @@ export const PAGE_HTML = `<!doctype html>
 <section id="login-section">
   <h2>Вход</h2>
   <form id="login-form">
+    <input id="workspace" name="workspace" placeholder="workspace (напр. local-school)" autocomplete="organization" required>
     <input id="email" type="email" name="email" placeholder="email" autocomplete="username" required>
     <input id="password" type="password" name="password" placeholder="пароль" autocomplete="current-password" required>
     <button id="login-btn" type="submit">Войти</button>
@@ -93,7 +94,7 @@ $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   hide($('login-error'));
   const btn = $('login-btn'); btn.disabled = true;
-  const { status, body } = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email: $('email').value, password: $('password').value }) });
+  const { status, body } = await api('/auth/login', { method: 'POST', body: JSON.stringify({ workspace: $('workspace').value.trim(), email: $('email').value, password: $('password').value }) });
   btn.disabled = false;
   if (status === 200) { await enterApp(body.user); return; }
   if (status === 400 || status === 401) { show($('login-error'), 'Неверный email или пароль.'); return; }

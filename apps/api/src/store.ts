@@ -29,16 +29,22 @@ export function createPool(databaseUrl = process.env['DATABASE_URL']): pg.Pool {
   return new pg.Pool({ connectionString: databaseUrl, max: 5 });
 }
 
-export async function findUserByEmail(
+export async function findUserForLogin(
   pool: pg.Pool,
+  workspace: string,
   email: string,
 ): Promise<{ id: string; tenant_id: string; password_hash: string; status: string } | null> {
-  // Login identifies the user by e-mail across tenants (email is unique per
-  // tenant; the dev seed keeps it globally unique). The tenant is then taken
-  // from the user row itself — never from the request.
+  // The workspace slug is only a LOCATOR during authentication: it selects the
+  // tenant whose user list is searched. It is never an authorization context —
+  // after login the tenant always comes from the server-side session row.
+  // E-mail comparison is case-insensitive (unique per tenant via lower(email)).
   const result = await pool.query(
-    `SELECT id, tenant_id, password_hash, status FROM users WHERE email = $1 LIMIT 1`,
-    [email],
+    `SELECT u.id, u.tenant_id, u.password_hash, u.status
+       FROM users u
+       JOIN tenants t ON t.id = u.tenant_id
+      WHERE t.slug = $1 AND lower(u.email) = lower($2)
+      LIMIT 1`,
+    [workspace, email],
   );
   return result.rows[0] ?? null;
 }

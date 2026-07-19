@@ -48,3 +48,12 @@ export function isValidEmail(value: unknown): value is string {
 export function isValidClassroomTitle(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length >= 1 && value.trim().length <= 255;
 }
+
+/** Workspace slug: tenant locator used only during authentication. */
+export function isValidWorkspace(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(value.trim());
+}
+
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}

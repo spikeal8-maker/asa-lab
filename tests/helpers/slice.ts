@@ -21,6 +21,7 @@ export function createTestPool(): pg.Pool {
 
 export interface SeededTeacher {
   readonly tenantId: string;
+  readonly workspace: string;
   readonly schoolId: string;
   readonly teacherId: string;
   readonly email: string;
@@ -29,16 +30,23 @@ export interface SeededTeacher {
 
 let counter = 0;
 
-/** Create an isolated tenant + school + teacher for one test run. */
-export async function seedTeacher(pool: pg.Pool, label: string): Promise<SeededTeacher> {
+/** Create an isolated tenant + school + teacher for one test run.
+ * `options.email` lets two tenants share the same e-mail on purpose. */
+export async function seedTeacher(
+  pool: pg.Pool,
+  label: string,
+  options: { email?: string } = {},
+): Promise<SeededTeacher> {
   counter += 1;
   const unique = `${Date.now()}-${counter}-${Math.floor(Math.random() * 1e6)}`;
-  const email = `teacher-${label}-${unique}@test.asa-lab.local`;
+  const email = options.email ?? `teacher-${label}-${unique}@test.asa-lab.local`;
   const password = `pw-${unique}`;
+  const workspace = `ws-${label}-${unique}`.toLowerCase();
 
-  const tenant = await pool.query(`INSERT INTO tenants (title) VALUES ($1) RETURNING id`, [
-    `Test tenant ${label} ${unique}`,
-  ]);
+  const tenant = await pool.query(
+    `INSERT INTO tenants (title, slug) VALUES ($1, $2) RETURNING id`,
+    [`Test tenant ${label} ${unique}`, workspace],
+  );
   const tenantId = tenant.rows[0].id as string;
   const school = await pool.query(
     `INSERT INTO schools (tenant_id, title) VALUES ($1, $2) RETURNING id`,
@@ -50,19 +58,27 @@ export async function seedTeacher(pool: pg.Pool, label: string): Promise<SeededT
      VALUES ($1, $2, 'teacher', $3, $4, $5) RETURNING id`,
     [tenantId, schoolId, email, `Teacher ${label}`, hashPassword(password)],
   );
-  return { tenantId, schoolId, teacherId: teacher.rows[0].id as string, email, password };
+  return {
+    tenantId,
+    workspace,
+    schoolId,
+    teacherId: teacher.rows[0].id as string,
+    email,
+    password,
+  };
 }
 
 /** Login through the real route and return the session cookie value. */
 export async function loginSession(
   app: FastifyInstance,
+  workspace: string,
   email: string,
   password: string,
 ): Promise<string> {
   const response = await app.inject({
     method: 'POST',
     url: '/auth/login',
-    payload: { email, password },
+    payload: { workspace, email, password },
   });
   if (response.statusCode !== 200) {
     throw new Error(`login failed: ${response.statusCode} ${response.body}`);
