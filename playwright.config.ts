@@ -7,12 +7,12 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:3100',
+    baseURL: 'http://127.0.0.1:4612',
     trace: 'retain-on-failure',
   },
   webServer: {
     command: 'node e2e/server.mjs',
-    url: 'http://127.0.0.1:3100/health/live',
+    url: 'http://127.0.0.1:4612/health/live',
     reuseExistingServer: false,
     timeout: 30_000,
   },

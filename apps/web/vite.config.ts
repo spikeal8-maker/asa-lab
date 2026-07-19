@@ -10,10 +10,12 @@ export default defineConfig({
   plugins: [react()],
   build: { outDir: 'dist', emptyOutDir: true },
   server: {
-    port: 5173,
+    port: 4610,
+    strictPort: true,
+    host: '127.0.0.1',
     proxy: {
-      '/api': 'http://127.0.0.1:3000',
-      '/health': 'http://127.0.0.1:3000',
+      '/api': 'http://127.0.0.1:4611',
+      '/health': 'http://127.0.0.1:4611',
     },
   },
 });

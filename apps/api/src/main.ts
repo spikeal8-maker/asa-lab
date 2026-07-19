@@ -3,7 +3,7 @@ import { createTelemetry } from '@asa-lab/observability';
 import { createApiApp } from './app.factory.js';
 
 const HOST = process.env['API_HOST'] ?? '127.0.0.1';
-const PORT = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
+const PORT = Number.parseInt(process.env['API_PORT'] ?? '4611', 10);
 
 async function run(): Promise<void> {
   // Telemetry stays disabled by default: nothing leaves the process unless an
