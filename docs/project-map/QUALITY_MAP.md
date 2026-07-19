@@ -1,36 +1,18 @@
 # Карта качества ASA Lab
 
-Эта карта связывает Product Blueprint, Development Program, Project Map, executable Issues и стабильные test IDs.
+Эта карта отвечает на вопрос: **чем доказана готовность каждого delivery stage**.
 
-## 1. Источники
+Источники:
 
-```mermaid
-flowchart LR
-    PRODUCT[Product Blueprint]
-    CAP[Capability Map]
-    PROGRAM[Development Program v1]
-    PORTS[Local Port Policy]
-    MAP[project-map.yaml]
-    ISSUE[Executable GitHub Issue]
-    CATALOG[test-catalog.yaml]
-    AGENT[Coding Agent]
-    PR[Draft PR]
-    REPORT[Evidence and Test Report]
-    OWNER[Owner Review]
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — test profiles и task-specific tests;
+- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml) — команды и `required_for`;
+- [`project-map.yaml`](project-map.yaml) — task status/current focus;
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — видимые результаты;
+- GitHub Issue — acceptance конкретного flow.
 
-    PRODUCT --> AGENT
-    CAP --> AGENT
-    PROGRAM --> AGENT
-    PORTS --> AGENT
-    MAP --> AGENT
-    ISSUE --> AGENT
-    CATALOG --> AGENT
-    AGENT --> PR
-    PR --> REPORT
-    REPORT --> OWNER
-```
+`tools/validate_delivery_program.py` разворачивает profiles manifest и требует **точного совпадения** с `required_for` test catalog. Бот не может сократить gate после начала задачи.
 
-## 2. Каноническая очередь
+## 1. Каноническая очередь
 
 ```mermaid
 flowchart LR
@@ -47,7 +29,77 @@ flowchart LR
     DOC --> PORTAL --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
 ```
 
-## 3. Обязательные governance gates
+## 2. Test profiles
+
+### product_docs
+
+```text
+TST-ARCH-001
+TST-MAP-001
+TST-CAPABILITY-MAP-001
+TST-DEVELOPMENT-PROGRAM-001
+TST-CATALOG-001
+TST-YAML-001
+TST-LINKS-001
+```
+
+### code_common
+
+```text
+TST-MAP-001
+TST-CAPABILITY-MAP-001
+TST-DEVELOPMENT-PROGRAM-001
+TST-FORMAT-001
+TST-LINT-001
+TST-TYPE-001
+TST-BOUNDARY-001
+TST-BUILD-001
+TST-CONTRACT-001
+TST-UNIT-001
+TST-SECRET-001
+TST-DEPENDENCY-001
+TST-PORTS-001
+TST-STARTUP-001
+TST-A11Y-001
+```
+
+### tenant_storage
+
+```text
+TST-MIGRATION-001
+TST-TENANT-001
+TST-RLS-001
+TST-AUTHZ-001
+```
+
+### module_runtime
+
+```text
+TST-MODULE-CONTRACT-001
+TST-AUTHZ-001
+```
+
+### assessment_common
+
+```text
+TST-COMMENTS-001
+TST-REVIEW-LIFECYCLE-001
+TST-ASSESSMENT-REVISION-001
+TST-BADGE-EVIDENCE-001
+```
+
+### electronics_kernel
+
+```text
+TST-ELECTRONICS-SCHEMA-001
+TST-ELECTRONICS-NETLIST-001
+TST-ELECTRONICS-GOLDEN-001
+TST-ELECTRONICS-WASM-PARITY-001
+```
+
+Profiles являются машиночитаемыми в Execution Manifest. Эта страница — визуальное представление.
+
+## 3. Product Documentation gate
 
 ```mermaid
 flowchart LR
@@ -60,116 +112,45 @@ flowchart LR
     YAML[TST-YAML-001]
     LINKS[TST-LINKS-001]
 
-    DOC --> ARCH
-    DOC --> MAP
-    DOC --> CAP
-    DOC --> PROGRAM
-    DOC --> CATALOG
-    DOC --> YAML
-    DOC --> LINKS
+    DOC --> ARCH & MAP & CAP & PROGRAM & CATALOG & YAML & LINKS
 ```
 
-`TASK-PRODUCT-DOC-001` не закрывается, пока `TST-DEVELOPMENT-PROGRAM-001` не подтверждает:
+Gate подтверждает Product Blueprint, Capability Map, Execution Manifest, Development Program, Port Policy, точную очередь, Issues, task/test mapping и карты.
 
-- два delivery tracks;
-- точную очередь из девяти задач;
-- ссылки на Issues №19, №18, №24, №25, №26, №7, №8, №20, №6;
-- порты `4610/4611/4612`;
-- наличие Development Program и Port Policy.
+## 4. Teacher Portal gate
 
-## 4. Общий gate каждой code-задачи
+Profiles: `code_common + tenant_storage`.
 
-```mermaid
-flowchart TB
-    TASK[Current product task]
-    MAP[TST-MAP-001]
-    CAP[TST-CAPABILITY-MAP-001]
-    PROGRAM[TST-DEVELOPMENT-PROGRAM-001]
-    FORMAT[TST-FORMAT-001]
-    LINT[TST-LINT-001]
-    TYPE[TST-TYPE-001]
-    BOUNDARY[TST-BOUNDARY-001]
-    BUILD[TST-BUILD-001]
-    CONTRACT[TST-CONTRACT-001]
-    UNIT[TST-UNIT-001]
-    TENANT[TST-TENANT-001]
-    AUTHZ[TST-AUTHZ-001]
-    SECRET[TST-SECRET-001]
-    DEP[TST-DEPENDENCY-001]
-    PORT[TST-PORTS-001]
-    START[TST-STARTUP-001]
-    A11Y[TST-A11Y-001]
+Task tests:
 
-    TASK --> MAP
-    TASK --> CAP
-    TASK --> PROGRAM
-    TASK --> FORMAT
-    TASK --> LINT
-    TASK --> TYPE
-    TASK --> BOUNDARY
-    TASK --> BUILD
-    TASK --> CONTRACT
-    TASK --> UNIT
-    TASK --> TENANT
-    TASK --> AUTHZ
-    TASK --> SECRET
-    TASK --> DEP
-    TASK --> PORT
-    TASK --> START
-    TASK --> A11Y
+```text
+TST-PORTAL-API-001
+TST-E2E-PORTAL-001
 ```
 
-Точный набор определяется `required_for` в `test-catalog.yaml`.
-
-## 5. Teacher Portal gate
-
-```mermaid
-flowchart LR
-    PORTAL[TASK-PORTAL-001]
-    MIG[TST-MIGRATION-001]
-    RLS[TST-RLS-001]
-    API[TST-PORTAL-API-001]
-    E2E[TST-E2E-PORTAL-001]
-
-    PORTAL --> MIG
-    PORTAL --> RLS
-    PORTAL --> API
-    PORTAL --> E2E
-```
-
-Наблюдаемый flow:
+Flow:
 
 ```text
 site opens
-→ teacher login
-→ dashboard
-→ empty classes
+→ login
+→ empty classrooms
 → create classroom
 → owner membership + AuditEvent
 → reload persists
 → logout
 ```
 
-Дополнительно:
+Дополнительно: runtime DB URL only, idempotency conflict, users/sessions/classrooms/audit isolation, clean PowerShell startup, canonical ports and accessibility.
 
-- API использует только runtime DB URL;
-- idempotency conflict проверяется;
-- cross-tenant users/sessions/classrooms/audit matrix PASS;
-- clean PowerShell startup PASS;
-- ports 4610/4611/4612 PASS.
+## 5. Universal Project Shell gate
 
-## 6. Universal Project Shell gate
+Profiles: `code_common + tenant_storage + module_runtime`.
 
-```mermaid
-flowchart LR
-    PROJECT[TASK-PROJECT-SHELL-001]
-    MODULE[TST-MODULE-CONTRACT-001]
-    LIFE[TST-PROJECT-SHELL-001]
-    E2E[TST-E2E-PROJECT-SHELL-001]
+Task tests:
 
-    PROJECT --> MODULE
-    PROJECT --> LIFE
-    PROJECT --> E2E
+```text
+TST-PROJECT-SHELL-001
+TST-E2E-PROJECT-SHELL-001
 ```
 
 Flow:
@@ -183,204 +164,119 @@ create project
 → immutable checkpoint
 ```
 
-## 7. Checkers Lite gate
+## 6. Checkers Lite gate
 
-```mermaid
-flowchart LR
-    CHECKERS[TASK-CHECKERS-LITE-001]
-    SCHEMA[TST-CHECKERS-SCHEMA-001]
-    RULES[TST-CHECKERS-RULES-001]
-    E2E[TST-E2E-CHECKERS-LITE-001]
+Profiles: `code_common + module_runtime`.
 
-    CHECKERS --> SCHEMA
-    CHECKERS --> RULES
-    CHECKERS --> E2E
-```
-
-Flow:
+Task tests:
 
 ```text
-module selected
-→ board rendered
-→ legal move
-→ invalid move diagnostic
-→ save/reload
-→ preview
+TST-CHECKERS-SCHEMA-001
+TST-CHECKERS-RULES-001
+TST-E2E-CHECKERS-LITE-001
 ```
 
-Gate доказывает отсутствие предметных imports в Classroom/Project Core.
+Flow: board → legal move → diagnostic → save/reload → preview. Gate также доказывает отсутствие subject imports в Core.
 
-## 8. Electronics Alpha gate
+## 7. Electronics Alpha gate
 
-```mermaid
-flowchart LR
-    ELEC[TASK-ELECTRONICS-ALPHA-001]
-    SCHEMA[TST-ELECTRONICS-SCHEMA-001]
-    NET[TST-ELECTRONICS-NETLIST-001]
-    GOLD[TST-ELECTRONICS-GOLDEN-001]
-    WASM[TST-ELECTRONICS-WASM-PARITY-001]
-    E2E[TST-E2E-ELECTRONICS-ALPHA-001]
+Profiles: `code_common + module_runtime + electronics_kernel`.
 
-    ELEC --> SCHEMA
-    ELEC --> NET
-    ELEC --> GOLD
-    ELEC --> WASM
-    ELEC --> E2E
-```
-
-Flow:
+Task test:
 
 ```text
-source + resistor + LED + wire
-→ validation
-→ deterministic netlist
-→ native/WASM DC calculation
-→ diagnostics
-→ save/reload
+TST-E2E-ELECTRONICS-ALPHA-001
 ```
 
-Unsupported topology must fail explicitly; fake numerical success запрещён.
+Flow: source/resistor/LED/wire → validation → netlist → native/WASM DC result → diagnostic → save/reload.
 
-## 9. StudentSeat gate
+Unsupported topology обязана завершаться diagnostic, а не fake numerical success.
 
-```mermaid
-flowchart LR
-    SEAT[TASK-SEAT-001]
-    LIFE[TST-STUDENT-SEAT-001]
-    CRED[TST-STUDENT-CREDENTIAL-001]
-    IMPORT[TST-STUDENT-IMPORT-001]
-    E2E[TST-E2E-STUDENT-SEAT-001]
+## 8. StudentSeat gate
 
-    SEAT --> LIFE
-    SEAT --> CRED
-    SEAT --> IMPORT
-    SEAT --> E2E
-```
+Profiles: `code_common + tenant_storage`.
 
-Flow:
+Task tests:
 
 ```text
-teacher creates/imports seat
-→ one-time card
-→ child login without email
-→ child dashboard/project
-→ reset revokes old session
+TST-STUDENT-SEAT-001
+TST-STUDENT-CREDENTIAL-001
+TST-STUDENT-IMPORT-001
+TST-E2E-STUDENT-SEAT-001
 ```
 
-## 10. Assignment and Submission gate
+Flow: create/import seat → one-time card → child login without email → dashboard/project → reset revokes old session.
 
-```mermaid
-flowchart LR
-    ACT[TASK-ACT-001]
-    VERSION[TST-ACTIVITY-VERSION-001]
-    ASSIGN[TST-ASSIGNMENT-001]
-    SUB[TST-SUBMISSION-IMMUTABLE-001]
-    E2E[TST-E2E-ASSIGNMENT-SUBMISSION-001]
+## 9. Assignment and Submission gate
 
-    ACT --> VERSION
-    ACT --> ASSIGN
-    ACT --> SUB
-    ACT --> E2E
-```
+Profiles: `code_common + tenant_storage + module_runtime`.
 
-Flow:
+Task tests:
 
 ```text
-publish ActivityVersion
-→ assign class
-→ child opens starter project
-→ save
-→ submit immutable ProjectVersion
-→ teacher queue sees exact attempt
+TST-ACTIVITY-VERSION-001
+TST-ASSIGNMENT-001
+TST-SUBMISSION-IMMUTABLE-001
+TST-E2E-ASSIGNMENT-SUBMISSION-001
 ```
 
-## 11. Review, Grade and Badge gate
+Flow: publish immutable ActivityVersion → assign → child work/save → exact ProjectVersion submission → teacher queue.
 
-```mermaid
-flowchart LR
-    REVIEW[TASK-REVIEW-001]
-    COMMENTS[TST-COMMENTS-001]
-    LIFE[TST-REVIEW-LIFECYCLE-001]
-    ASSESS[TST-ASSESSMENT-REVISION-001]
-    BADGE[TST-BADGE-EVIDENCE-001]
-    E2E[TST-E2E-REVIEW-001]
+## 10. Review, Grade and Badge gate
 
-    REVIEW --> COMMENTS
-    REVIEW --> LIFE
-    REVIEW --> ASSESS
-    REVIEW --> BADGE
-    REVIEW --> E2E
-```
+Profiles: `code_common + tenant_storage + assessment_common`.
 
-Flow:
+Task test:
 
 ```text
-anchored comment
-→ request changes
-→ resubmit
-→ compare attempts
-→ accept
-→ rubric/grade
-→ badge/progress
+TST-E2E-REVIEW-001
 ```
 
-## 12. Full Electronics Classroom gate
+Flow: anchored comment → request changes → resubmit → compare → accept → rubric/grade → badge/progress.
 
-```mermaid
-flowchart LR
-    ELEC[TASK-ELEC-001]
-    ACTIVITY[TST-ELECTRONICS-ACTIVITY-001]
-    AUTO[TST-ELECTRONICS-AUTOGRADE-001]
-    DIFF[TST-ELECTRONICS-DIFF-001]
-    SCHEMA[TST-ELECTRONICS-SCHEMA-001]
-    NET[TST-ELECTRONICS-NETLIST-001]
-    GOLD[TST-ELECTRONICS-GOLDEN-001]
-    WASM[TST-ELECTRONICS-WASM-PARITY-001]
-    E2E[TST-E2E-ELECTRONICS-CLASSROOM-001]
+## 11. Full Electronics Classroom gate
 
-    ELEC --> ACTIVITY
-    ELEC --> AUTO
-    ELEC --> DIFF
-    ELEC --> SCHEMA
-    ELEC --> NET
-    ELEC --> GOLD
-    ELEC --> WASM
-    ELEC --> E2E
-```
+Profiles: `code_common + module_runtime + assessment_common + electronics_kernel`.
 
-Flow:
+Additional tests:
 
 ```text
-teacher assigns electronics task
-→ child builds and validates circuit
-→ immutable submission
-→ public checks
-→ anchored feedback
-→ revision
-→ accept/grade/badge
+TST-TENANT-001
+TST-RLS-001
+TST-ELECTRONICS-ACTIVITY-001
+TST-ELECTRONICS-AUTOGRADE-001
+TST-ELECTRONICS-DIFF-001
+TST-E2E-ELECTRONICS-CLASSROOM-001
 ```
 
-## 13. Evidence required before Ready for review
+Flow: assign electronics → child circuit → public checks → immutable submission → anchored review → revision → grade/badge.
 
-Каждый UI/product PR предоставляет:
+## 12. Map and evidence gate
 
-- commit SHA;
-- `python tools/run_task_tests.py --task <TASK-ID>` output;
-- exact demo URLs;
-- Playwright report;
-- screenshot основного состояния;
-- screenshot error/diagnostic state, если применимо;
-- migrations/contracts reports;
-- clean working tree;
-- statement that next capability is absent from diff.
+Каждая product-code task должна изменить или подтвердить:
 
-## 14. Правила результата
+```text
+project-map.yaml
+PROJECT_MAP.md
+QUALITY_MAP.md
+nx-project-graph.json
+```
 
-- `PASS` — команда реально запущена и exit code 0.
-- `FAIL` — команда реально запущена и завершилась ошибкой.
-- `BLOCKED` — отсутствует обязательная среда; не считается успехом.
-- `NOT_RUN` — команда не запускалась; не считается успехом.
-- Draft PR допустим с честными статусами.
-- Ready/merge допустимы только при полном обязательном PASS.
-- Manual browser smoke не заменяет automated E2E.
-- Изменение user flow, test IDs или exit gate обновляет Issue, Project Map, Quality Map и test catalog до реализации.
+`TST-DEVELOPMENT-PROGRAM-001` проверяет наличие map artifacts в product-code diff.
+
+В Draft PR task имеет `in_review`, next task остаётся `blocked`. После merge отдельный map transition переводит current task в `done`, next в `ready` и сдвигает `current_focus`.
+
+## 13. Правила результата
+
+- PASS — команда фактически завершилась exit 0;
+- FAIL — команда фактически упала;
+- BLOCKED — обязательная среда отсутствует;
+- NOT_RUN — команда не запускалась.
+
+`BLOCKED` и `NOT_RUN` не закрывают gate. Manual browser smoke не заменяет Playwright. Screenshot не заменяет assertion. Test ID нельзя удалить из `required_for` ради зелёного отчёта.
+
+Единый запуск:
+
+```bash
+python tools/run_task_tests.py --task <TASK-ID>
+```
