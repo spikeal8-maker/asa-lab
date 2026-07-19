@@ -1,127 +1,174 @@
 # ASA Lab
 
-**Модульная образовательная платформа для классов, виртуальных лабораторий и проектной работы.**
+**Единая образовательная платформа для классов, проектов, виртуальных лабораторий, заданий и проверки работ.**
 
-ASA Lab создаётся как единая школьная и в дальнейшем федеральная платформа. Универсальное ядро `Classroom Core` управляет организациями, школами, педагогами, ученическими местами без электронной почты, классами, заданиями, проектами, сдачами, проверкой, безопасностью, подписками и аудитом. Предметные среды подключаются как независимые модули.
+ASA Lab создаётся как школьная, а затем многопользовательская платформа. Универсальное ядро управляет организациями, педагогами, детским доступом без обязательного email, классами, проектами, заданиями, submissions, comments, grades, achievements, safety и audit. Предметные среды подключаются как независимые modules.
 
-Первый производственный модуль — **виртуальная лаборатория электроники**. В архитектуру заранее заложены будущие модули 3D-моделирования, подготовки файлов для 3D-печати, 2D-робототехники, шахмат, шашек, рисования, черчения и других дисциплин.
+Первый приоритетный предметный модуль — **виртуальная лаборатория электроники**. Архитектура также поддерживает Scratch-like block coding, 3D, virtual robotics, checkers/chess, drawing и drafting.
 
-## Архитектурное решение
+## Главное определение
+
+> Один безопасный вход, единые классы, проекты, задания, submissions, comments, grades и achievements — множество независимых учебных модулей через Module SDK.
+
+ASA Lab — не один редактор и не набор несвязанных сайтов.
+
+## Канонический контракт разработки
+
+- [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml) — точные task IDs, Issues, branches, delivery stages, architecture horizons, dependencies, test profiles, map nodes и artifacts;
+- [`docs/delivery/DEVELOPMENT_PROGRAM_V1.md`](docs/delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый Product Alpha → School Pilot;
+- [`docs/delivery/LOCAL_PORT_POLICY.md`](docs/delivery/LOCAL_PORT_POLICY.md) — Web `4610`, API `4611`, E2E `4612`;
+- [Epic №23](https://github.com/spikeal8-maker/asa-lab/issues/23) — общая программа;
+- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — current focus и dynamic statuses;
+- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — команды обязательных test IDs.
+
+`delivery_stage` задаёт порядок выполнения. `architecture_horizon` показывает архитектурный контур и не используется для выбора следующей задачи.
+
+```text
+Product Definition
+→ Teacher Portal
+→ Universal Project Shell
+→ Checkers Lite reference module
+→ Electronics Alpha
+→ StudentSeat and Child Dashboard
+→ Assignment and Immutable Submission
+→ Comments Review Grade Badge
+→ Full Electronics Classroom Cycle
+```
+
+Checkers Lite — маленькое доказательство Module SDK. Продуктовый приоритет остаётся у Electronics.
+
+## Что пользователь увидит
+
+| Этап | Видимый результат |
+|---|---|
+| Teacher Portal | Педагог входит, создаёт класс, reload сохраняет класс |
+| Project Shell | Создание project, module selector, draft save/reload и checkpoint |
+| Checkers Lite | Board, legal move, validation, save/reload и preview |
+| Electronics Alpha | Source, resistor, LED, wire, netlist, DC calculation и diagnostics |
+| StudentSeat | Access card, вход ребёнка без email, Child Dashboard |
+| Assignment | Педагог назначает; ребёнок сдаёт immutable ProjectVersion |
+| Review | Comment, return, resubmit, rubric, grade и badge |
+| Electronics Classroom | Полный электронный учебный цикл внутри класса |
+
+## Полный образовательный цикл
+
+```text
+Teacher creates classroom
+→ issues StudentSeats
+→ child logs in without email
+→ teacher assigns ActivityVersion
+→ child opens subject module
+→ project autosaves
+→ child submits immutable ProjectVersion
+→ automatic checks run
+→ teacher comments and requests changes
+→ child resubmits
+→ teacher accepts, grades and awards badge
+→ progress updates in both dashboards
+```
+
+## Подключаемые модули
+
+```text
+Classroom Core
+├── Electronics Laboratory
+├── Block Coding / Scratch-like Environment
+├── 3D Modelling and Printer Export
+├── Virtual Robotics
+├── Checkers / Chess
+├── Drawing and Drafting
+├── Programming
+└── Future Learning Modules
+```
+
+Classroom/Project Core не знает, что такое resistor, LED, checker piece, sprite или 3D mesh. Он знает только module/project/submission contracts.
+
+## Продуктовые документы
+
+- [`docs/product/PRODUCT_BLUEPRINT.md`](docs/product/PRODUCT_BLUEPRINT.md) — конечная платформа;
+- [`docs/product/CAPABILITY_MAP.yaml`](docs/product/CAPABILITY_MAP.yaml) — capabilities и release dependencies;
+- [`docs/product/CAPABILITY_MAP.md`](docs/product/CAPABILITY_MAP.md) — визуальная карта возможностей;
+- [`docs/product/CLASSROOM_CORE_SPEC.md`](docs/product/CLASSROOM_CORE_SPEC.md) — classroom, StudentSeat, assignments и submissions;
+- [`docs/product/MODULE_PLATFORM_SPEC.md`](docs/product/MODULE_PLATFORM_SPEC.md) — Module SDK и subject editors;
+- [`docs/product/ASSESSMENT_REWARDS_SPEC.md`](docs/product/ASSESSMENT_REWARDS_SPEC.md) — comments, review, grades, badges и progress.
+
+## Архитектура
 
 ```text
 Modular Monolith Control Plane
-+ Isolated Compute Plane
++ Isolated Compute Plane for heavy/untrusted work
 + Versioned Module SDK
 + PostgreSQL multi-tenancy
-+ Immutable project versions
-+ Transactional outbox
-+ Browser-first Rust/WASM simulation core
++ Immutable ProjectVersion and SubmissionAttempt
++ Transactional Outbox when asynchronous workflows require it
++ Rust/WASM electronics simulation core
 + Entitlement-based commercial model
-+ Strict rules for AI coding agents
-+ Versioned project knowledge graph
++ Product/Project/Quality/Nx maps
 + Executable test registry
 ```
 
-Микросервисы не создаются для каждого CRUD-модуля. С первого дня отдельно изолируются только опасные или тяжёлые вычисления: компиляция, автопроверка, серверная симуляция, preview/render/export и будущие 3D- и robotics-задачи.
+Микросервисы не создаются для каждого CRUD. Redis, S3/MinIO, queues и workers не блокируют раннюю функцию, которая их не использует.
 
-## Почему именно так
+## Карты
 
-Такой фундамент даёт школе быстрый и управляемый старт, но не блокирует рост до сети школ, региона и федеральной платформы. Классы, права, проекты и сдачи остаются транзакционно целостными; вычислительные worker-пулы масштабируются независимо; предметные модули подключаются через стабильный контракт, а не встраиваются в Classroom Core условными операторами.
+- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — delivery stages, architecture horizons и system graph;
+- [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивная Obsidian-like карта, объединяющая Project Map и Execution Manifest;
+- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — architecture graph, current focus и statuses;
+- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — test profiles и stage gates;
+- [`docs/project-map/nx-project-graph.json`](docs/project-map/nx-project-graph.json) — фактические code dependencies;
+- [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — долгосрочные architecture horizons.
 
-## Карта проекта
+## Управление coding-агентом
 
-Карта является обязательной частью репозитория, а не отдельной презентацией:
+- [`AGENTS.md`](AGENTS.md) — обязательный контракт;
+- [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — короткий вход;
+- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — ORIENT → IMPLEMENT → VERIFY → MAP → PR → MERGE → TRANSITION;
+- [`tools/validate_delivery_program.py`](tools/validate_delivery_program.py) — manifest/map/test/port synchronization;
+- [`tools/run_task_tests.py`](tools/run_task_tests.py) — фактический task gate.
 
-- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — обзорные Mermaid-графы в GitHub;
-- [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивный Obsidian-подобный граф;
-- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — машиночитаемый источник истины;
-- [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — откуда coding-агент берёт задачи;
-- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — связь задач, проверок и quality gates;
-- [`docs/architecture/structurizr/workspace.dsl`](docs/architecture/structurizr/workspace.dsl) — C4 architecture model as code.
+Короткая команда:
 
-Каждый архитектурный PR обязан обновлять карту. После Bootstrap к ней добавляется автоматически генерируемый Nx project graph фактических зависимостей кода.
+```text
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+```
 
-## Управление coding-агентами
+## Локальные порты
 
-- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — точный цикл ORIENT → PLAN → IMPLEMENT → VERIFY → UPDATE MAP → PR;
-- [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — уровни и правила тестирования;
-- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — стабильные test IDs, команды, фазы и владельцы;
-- [`tools/validate_test_catalog.py`](tools/validate_test_catalog.py) — проверка целостности реестра тестов.
+```text
+Web  http://127.0.0.1:4610
+API  http://127.0.0.1:4611
+E2E  http://127.0.0.1:4612
+```
 
-Бот не выбирает работу самостоятельно. Он читает `current_focus`, `execution_queue`, зависимости задачи и связанные test IDs. В конце каждой сессии бот обязан назвать `NEXT_ALLOWED_TASK` и дать точную `NEXT_COMMAND`.
-
-## Текущая очередь
-
-1. Завершить governance Issue №9 внутри Architecture Foundation PR №1.
-2. Получить зелёный Architecture CI.
-3. Проверить и объединить [Architecture Foundation PR №1](https://github.com/spikeal8-maker/asa-lab/pull/1).
-4. Передать coding-агенту только [Issue №2 — TASK-BOOT-001](https://github.com/spikeal8-maker/asa-lab/issues/2).
-5. Последующие задачи брать строго из `execution_queue` в `project-map.yaml`.
-
-## Целевой масштаб
-
-| Уровень | Назначение | Целевой CCU |
-|---|---|---:|
-| L0 | разработка и демонстрация | 50 |
-| L1 | одна крупная школа | 500 |
-| L2 | сеть школ | 10 000 |
-| L3 | регион | 50 000 |
-| L4 | федеральный контур | 200 000 |
-
-Это planning targets, а не обещание производительности одного сервера. Каждый переход подтверждается нагрузочными тестами, проверкой изоляции данных и восстановлением резервной копии.
-
-## Основные документы
-
-1. [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — первая задача coding-агенту.
-2. [`AGENTS.md`](AGENTS.md) — обязательные архитектурные правила.
-3. [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — регламент управления агентом.
-4. [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — карта системы и текущий фокус.
-5. [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — правила очереди задач.
-6. [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — карта тестов и quality gates.
-7. [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — стратегия тестирования.
-8. [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — исполняемый каталог тестов.
-9. [`docs/architecture/ARCHITECTURE_BASELINE.md`](docs/architecture/ARCHITECTURE_BASELINE.md) — целевая архитектура платформы.
-10. [`docs/architecture/CAPACITY_AND_SLO.md`](docs/architecture/CAPACITY_AND_SLO.md) — нагрузочная модель и SLO.
-11. [`docs/architecture/DATA_SECURITY_AND_TENANCY.md`](docs/architecture/DATA_SECURITY_AND_TENANCY.md) — мультитенантность, хранение и защита детских данных.
-12. [`docs/architecture/ADMIN_AND_COMMERCIAL.md`](docs/architecture/ADMIN_AND_COMMERCIAL.md) — административная и коммерческая модель.
-13. [`docs/architecture/AI_DELIVERY_GOVERNANCE.md`](docs/architecture/AI_DELIVERY_GOVERNANCE.md) — процесс разработки ботами.
-14. [`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) — принятые ADR и условия пересмотра.
-15. [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — последовательность реализации.
-16. [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила изменения системы и оформления Pull Request.
+Порты `3000`, `3100`, `5173` запрещены. Занятый порт не разрешает завершать чужой процесс.
 
 ## Главные инварианты
 
-- `Classroom Core` не импортирует предметную логику.
-- Ученик может входить через `StudentSeat` без email.
+- Classroom Core не импортирует subject logic.
+- StudentSeat не требует email.
 - Детский контент закрыт по умолчанию.
+- Tenant context определяется сервером.
 - Каждая tenant-owned сущность имеет `tenant_id`.
-- Авторизация выполняется сервером.
-- Сохранённые `ProjectVersion` и отправленные `Submission` неизменяемы.
-- Недоверенный пользовательский код не выполняется в Core API.
-- Критические события публикуются через transactional outbox.
-- Платные функции определяются entitlement и quota, а не boolean-флагами.
+- ProjectVersion и SubmissionAttempt неизменяемы.
+- Hidden tests не передаются в browser.
+- Пользовательский код не выполняется в Core API.
 - Форматы проектов версионируются и мигрируются.
-- Изменение архитектурной границы требует ADR.
-- Изменение структуры, зависимости или статуса задачи требует обновления project map.
-- Каждая рабочая задача имеет обязательные test IDs и фактический отчёт.
+- Одна Issue реализует один user flow.
+- Следующая capability не начинается до merge и map transition текущей.
 
-## Планируемая структура кода
+## Структура кода
 
 ```text
 apps/          web, admin, api, realtime, dispatcher, workers
 packages/      contracts, domain kernel, authz, database, eventing, Module SDK
-contexts/      bounded contexts Classroom Core
-modules/       electronics, затем 3D, robotics, chess и другие предметы
+contexts/      identity, organization, classroom, projects, content, activities, assessment
+modules/       blank-canvas, checkers-lite, electronics, затем block coding, 3D, robotics, drawing
 crates/        Rust/WASM simulation kernels
-infra/         локальная, школьная и облачная поставка
-schemas/       OpenAPI, JSON Schema и event contracts
-tests/         unit, integration, contract, security, load, simulation golden tests
+infra/         deployment profiles only when required
+schemas/       OpenAPI, JSON Schema, events and module contracts
+tests/         unit, integration, authz, E2E, accessibility, security and simulation golden
 ```
-
-## Статус
-
-Репозиторий находится на стадии утверждения архитектурного фундамента. Реализация бизнес-функций не должна начинаться до принятия Architecture Foundation PR и прохождения Bootstrap quality gates.
 
 ## Правовой статус
 
-Архитектура предусматривает российский primary data plane, минимизацию детских данных и локальную поставку. Документация задаёт инженерные меры, но не заменяет юридическое заключение, локальные акты образовательной организации, модель угроз и регуляторные процедуры.
+Архитектура предусматривает российский primary data plane, минимизацию детских данных и локальную поставку. Документация не заменяет юридическое заключение, локальные акты образовательной организации, модель угроз и регуляторные процедуры.

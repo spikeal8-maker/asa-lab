@@ -1,145 +1,140 @@
-# START_HERE_FOR_AI — первая задача coding-агенту
+# START_HERE_FOR_AI — вход coding-агента в ASA Lab
 
-## 1. Миссия
+## Миссия
 
-Создать production-oriented фундамент ASA Lab: универсальный Classroom Core и подключаемые учебные модули. Первый производственный модуль — виртуальная лаборатория электроники.
-
-## 2. Перед созданием кода
-
-Прочитай полностью:
-
-1. `AGENTS.md`;
-2. `docs/delivery/BOT_RUNBOOK.md`;
-3. `docs/project-map/TASK_SYSTEM.md`;
-4. `docs/project-map/PROJECT_MAP.md`;
-5. `docs/project-map/QUALITY_MAP.md`;
-6. `docs/project-map/project-map.yaml`;
-7. `docs/testing/TEST_STRATEGY.md`;
-8. `docs/testing/test-catalog.yaml`;
-9. `docs/architecture/ARCHITECTURE_BASELINE.md`;
-10. `docs/architecture/CAPACITY_AND_SLO.md`;
-11. `docs/architecture/AI_DELIVERY_GOVERNANCE.md`;
-12. `docs/architecture/DECISIONS.md`;
-13. `docs/architecture/IMPLEMENTATION_ROADMAP.md`;
-14. `.github/workflows/spec-validation.yml`.
-
-До этого код не создавать. Конфликт требований не разрешать догадкой: остановить изменение, описать конфликт и предложить ADR.
-
-Coding-агент берёт только GitHub Issue, чей `TASK-ID` присутствует в `project-map.yaml`, имеет статус `ready` и не имеет незавершённых зависимостей. Самостоятельно выбирать последующую фазу запрещено.
-
-Перед реализацией агент выполняет ORIENT и PLAN из `BOT_RUNBOOK.md`, перечисляет обязательные test IDs и сообщает критерий остановки.
-
-## 3. Bootstrap-итерация
-
-Выполни только foundation из Issue `TASK-BOOT-001`. Не реализуй пользователей, классы, биллинг или электронику.
-
-### Результат
+ASA Lab — единая образовательная платформа:
 
 ```text
-apps/
-  web/
-  admin/
-  api/
-  realtime-gateway/
-  job-dispatcher/
-  worker-runtime/
-packages/
-  contracts/
-  domain-kernel/
-  authz/
-  database/
-  eventing/
-  module-sdk/
-  observability/
-  ui-kit/
-  test-kit/
-contexts/
-modules/
-crates/
-infra/
-tests/
+teacher/child identity
+→ classroom
+→ universal project
+→ subject module
+→ assignment
+→ immutable submission
+→ review/comment
+→ grade/badge/progress
 ```
 
-### Точные действия
+Приоритетный предметный результат — Electronics. Checkers Lite является только маленьким reference module для проверки Module SDK.
 
-1. Создай `pnpm` workspace и Nx project graph.
-2. Зафиксируй активные LTS/stable версии в lockfile и tool-version files.
-3. Включи строгий TypeScript без implicit `any`.
-4. Добавь Nx tags и `@nx/enforce-module-boundaries`.
-5. Создай пустые приложения и пакеты с health endpoints.
-6. Добавь Docker Compose: PostgreSQL, Redis, MinIO.
-7. Добавь migration runner и одну служебную migration table.
-8. Добавь request context: requestId, trace context и validated tenant placeholder без доверия данным body.
-9. Добавь OpenTelemetry bootstrap без персональных attributes.
-10. Добавь OpenAPI/JSON Schema validation scripts.
-11. Добавь GitHub Actions: format, lint, typecheck, boundaries, unit, contracts, build.
-12. Добавь архитектурный тест, запрещающий import `modules/*` из Classroom Core.
-13. Добавь secret scan и dependency/license inventory baseline.
-14. Добавь `.env.example` только с безопасными локальными значениями.
-15. Добавь команду сохранения фактического Nx graph как CI artifact и локальный отчёт.
-16. Сопоставь Nx nodes с узлами `project-map.yaml`; расхождение не скрывай.
-17. Реализуй команды, зарегистрированные для `TASK-BOOT-001` в `test-catalog.yaml`.
-18. Обнови `project-map.yaml`, `PROJECT_MAP.md`, `QUALITY_MAP.md` и README точными командами запуска.
+## Не выбирай задачу самостоятельно
 
-### Запрещено
+Текущая задача определяется четырьмя связанными источниками:
 
-- реализовывать business entities;
-- добавлять GraphQL;
-- добавлять Kafka, Kubernetes или service mesh;
-- выполнять пользовательский код;
-- создавать mock success, изображающий готовую функцию;
-- менять архитектурные документы без ADR;
-- ослаблять проверки;
-- отмечать TASK как `done` до подтверждения exit gate;
-- обозначать невыполненный test ID как `PASS`.
+```text
+docs/project-map/project-map.yaml        current_focus и status
+docs/delivery/EXECUTION_MANIFEST.yaml   Issue, branch, stage, dependencies, ports, tests
+docs/delivery/DEVELOPMENT_PROGRAM_V1.md человекочитаемый путь
+tекущая GitHub Issue                     исполнимый scope одного user flow
+```
 
-## 4. Команды приёмки
+Чат не меняет task, capability, dependency, branch, scope, port или test gate.
+
+## Первые действия
 
 ```bash
-corepack enable
-pnpm install --frozen-lockfile
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm boundaries:check
-pnpm contracts:check
-pnpm test
-pnpm build
-docker compose config
-python tools/validate_architecture.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
+git remote -v
+git status --short --branch
+git fetch --all --prune
+git branch --all
 ```
 
-Полный нормативный список test IDs берётся из `docs/testing/test-catalog.yaml`. Issue может требовать дополнительные тесты, но не может молча исключить обязательные.
+Затем:
 
-## 5. Отчёт агента
+1. прочитай `AGENTS.md`;
+2. прочитай `project.current_focus`;
+3. найди entry того же task в `EXECUTION_MANIFEST.yaml`;
+4. проверь status и все `depends_on`;
+5. открой Issue и branch из manifest;
+6. прочитай только manifest `read` links и раздел текущего этапа;
+7. выведи CAPABILITY CHECK и PLAN максимум на 25 строк;
+8. реализуй только текущий user flow.
 
-В конце агент обязан вывести стандартный отчёт `BOT_RUNBOOK.md`:
+Если task `blocked`, `planned`, `done` или `deprecated`, код не писать. Если current focus нельзя продолжить, сообщить `BLOCKED`, а не выбирать следующую задачу.
+
+## Каноническая очередь
+
+```text
+TASK-PRODUCT-DOC-001
+→ TASK-PORTAL-001
+→ TASK-PROJECT-SHELL-001
+→ TASK-CHECKERS-LITE-001
+→ TASK-ELECTRONICS-ALPHA-001
+→ TASK-SEAT-001
+→ TASK-ACT-001
+→ TASK-REVIEW-001
+→ TASK-ELEC-001
+```
+
+`delivery_stage` задаёт эту очередь. `architecture_horizon` в manifest — информационная группировка, а не порядок исполнения.
+
+## Порты
+
+```text
+Web  127.0.0.1:4610
+API  127.0.0.1:4611
+E2E  127.0.0.1:4612
+```
+
+Запрещены `3000`, `3100`, `5173`. Занятый порт даёт `BLOCKED`; чужой процесс не останавливать.
+
+## Обязательный первый отчёт
 
 ```text
 TASK:
 ISSUE:
-STATUS:
-BRANCH:
-COMMITS:
-FILES_CHANGED:
-MAP_NODES_CHANGED:
-TESTS_RUN:
-BLOCKERS:
-RESIDUAL_RISKS:
-NEXT_ALLOWED_TASK:
-NEXT_COMMAND:
+MILESTONE:
+DELIVERY_STAGE:
+ARCHITECTURE_HORIZON:
+CAPABILITIES:
+DEPENDENCIES:
+USER_FLOW:
+NON_GOALS:
+PORTS:
+PLAN:
+STOP_CRITERION:
 ```
 
-Дополнительно указать:
+## Рабочий цикл
 
-- созданные проекты и Nx tags;
-- фактический dependency graph;
-- расхождения между Nx graph и project map;
-- версии инструментов;
-- результат каждого обязательного test ID;
-- принятые решения;
-- подтверждение отсутствия business features и placeholders.
+```text
+ORIENT
+→ manifest/Issue check
+→ PLAN
+→ IMPLEMENT one vertical flow
+→ VERIFY manifest test IDs
+→ UPDATE project/quality/Nx maps
+→ Draft PR
+→ evidence/review
+→ merge
+→ mandatory map-only transition
+→ next task ready
+→ stop
+```
 
-Следующая задача берётся только после успешной Bootstrap-приёмки, merge PR и перевода TASK в `done`.
+## Проверка
+
+```bash
+python tools/run_task_tests.py --task <TASK-ID>
+```
+
+`PASS` существует только после фактического exit 0. `BLOCKED` и `NOT_RUN` не разрешают Ready/merge. Manual browser smoke не заменяет automated E2E.
+
+## Map transition
+
+В task PR карта показывает task `in_review`. После merge обязательно:
+
+- task → `done`;
+- next task → `ready`;
+- `current_focus` → next task;
+- `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
+- validators PASS;
+- агент останавливается.
+
+## Команда владельца
+
+```text
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+```
+
+Этой команды достаточно. Полное ТЗ находится в GitHub.

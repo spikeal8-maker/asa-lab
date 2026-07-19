@@ -1,249 +1,246 @@
 # Карта проекта ASA Lab
 
-Эта страница — человекочитаемое представление [`project-map.yaml`](project-map.yaml). Она отвечает на вопросы:
+Человекочитаемое представление [`project-map.yaml`](project-map.yaml).
 
-1. из каких частей состоит платформа;
-2. какие части зависят друг от друга;
-3. какая задача активна;
-4. чем подтверждается готовность;
-5. что coding-агент должен делать следующим.
+Связанные источники:
 
-Для Obsidian-подобного режима откройте [`viewer.html`](viewer.html). Отдельная карта проверок находится в [`QUALITY_MAP.md`](QUALITY_MAP.md).
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — точный task contract, stages, branches, tests и map nodes;
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый путь;
+- [`../product/CAPABILITY_MAP.md`](../product/CAPABILITY_MAP.md) — продуктовые возможности;
+- [`QUALITY_MAP.md`](QUALITY_MAP.md) — чем доказывается готовность;
+- [`viewer.html`](viewer.html) — интерактивный Obsidian-подобный граф.
 
-## Текущий фокус
+## 1. Что является порядком выполнения
 
-```text
-TASK-CI-001      done — local-first exit gate (GitHub-hosted CI отклонён: billing)
-TASK-GOV-001     done — BOT_RUNBOOK, test catalog, quality graph, task test runner
-TASK-ARCH-001    done — PR №1 объединён в main (merge d93899b)
-        ↓
-TASK-BOOT-001    ← текущий фокус (in_review): pnpm+Nx foundation,
-                   все обязательные Bootstrap-тесты PASS, 0 FAIL (PR №14)
-        ↓
-TASK-ENV-001     blocked — локальная интеграционная среда (PostgreSQL, Redis,
-                   MinIO, Compose CLI); закрывает реальные TST-COMPOSE-001/MIGRATION-001
-        ↓
-TASK-TEN-001     tenant context
-        ↓
-TASK-CLS-001     педагог создаёт класс
-        ↓
-TASK-SEAT-001    StudentSeat и вход без email
-        ↓
-TASK-MOD-001     Module SDK и Project envelope
-        ↓
-TASK-ACT-001     первое задание и immutable submission
-        ↓
-TASK-ELEC-001    первая рабочая электронная схема
+Только `delivery_stage` из Execution Manifest и `execution_queue` из `project-map.yaml`.
+
+`architecture_horizon`/`phase` — архитектурная группировка, не execution order. Technical Alpha намеренно проверяет Project Shell и Electronics до полного StudentSeat/Assignment workflow.
+
+## 2. Текущий фокус и очередь
+
+```mermaid
+flowchart LR
+    DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>in_review]
+    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>blocked]
+    PROJECT[3 Project Shell<br/>TASK-PROJECT-SHELL-001<br/>blocked]
+    CHECKERS[4 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
+    EALPHA[5 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]
+    SEAT[6 StudentSeat<br/>TASK-SEAT-001<br/>blocked]
+    ACT[7 Assignment Submission<br/>TASK-ACT-001<br/>blocked]
+    REVIEW[8 Review Grade Badge<br/>TASK-REVIEW-001<br/>blocked]
+    EFULL[9 Electronics Classroom<br/>TASK-ELEC-001<br/>blocked]
+
+    DOC --> PORTAL --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
 ```
 
-Текущая задача: [Issue №2 — TASK-BOOT-001 (Bootstrap monorepo)](https://github.com/spikeal8-maker/asa-lab/issues/2). Проверка задач — local-first через `python tools/run_task_tests.py --task <TASK-ID>` (см. [`QUALITY_MAP.md`](QUALITY_MAP.md)).
+Текущий `current_focus` всегда берётся из YAML. Более поздний узел не выбирается при блокировке текущего.
 
-## 1. Карта платформы
+## 3. Два delivery tracks
 
 ```mermaid
 flowchart TB
-    ASA["ASA Lab"]
+    PROGRAM[PROGRAM-ALPHA-001]
 
-    subgraph EXP["Experience Plane"]
-        WEB["Web / PWA"]
-        ADMIN["Admin Console"]
-        SITE["Public Site"]
+    subgraph TECH[Technical Product Alpha]
+        P1[Teacher Portal]
+        P2[Universal Project Shell]
+        P3[Checkers Lite]
+        P4[Electronics Alpha]
+        P1 --> P2 --> P3 --> P4
     end
 
-    subgraph CORE["Modular Monolith Control Plane"]
-        ID["Identity"]
-        ORG["Organizations"]
-        CLS["Classroom"]
-        PRJ["Projects"]
-        ACT["Activities"]
-        ASM["Assessment"]
-        REG["Module Registry"]
-        SAFE["Safety / Audit"]
-        BILL["Billing"]
+    subgraph PILOT[School Pilot]
+        S1[StudentSeat]
+        S2[Assignment and Submission]
+        S3[Comments Review Grade Badge]
+        S4[Full Electronics Classroom Cycle]
+        S1 --> S2 --> S3 --> S4
     end
 
-    subgraph COMPUTE["Isolated Compute Plane"]
-        COMP["Compiler Workers"]
-        SIM["Simulation Workers"]
-        GRADER["Autograder Workers"]
-        RENDER["Render / Robotics Workers"]
+    PROGRAM --> TECH
+    TECH --> PILOT
+```
+
+## 4. Конечная система
+
+```mermaid
+flowchart TB
+    ASA[ASA Lab]
+
+    subgraph USERS[Users]
+        TEACHER[Teacher]
+        CHILD[Child]
+        ADMIN[School Admin]
+        METHODIST[Methodist]
     end
 
-    subgraph DATA["Data and Integration"]
-        PG[("PostgreSQL")]
-        REDIS[("Redis")]
-        S3[("S3-compatible Storage")]
-        OUTBOX["Transactional Outbox"]
-        QUEUE["Job Queue"]
-        OTEL["OpenTelemetry"]
+    subgraph EXPERIENCE[Experience]
+        WEB[Teacher and Child Web/PWA]
+        ADMINUI[Admin Console]
+        HOST[Module Host]
     end
 
-    subgraph MODULES["Subject Modules via Module SDK"]
-        ELEC["Electronics"]
-        M3D["3D"]
-        ROB["Robotics"]
-        CHESS["Chess / Checkers"]
-        DRAW["Drawing / Drafting"]
+    subgraph CORE[Classroom and Learning Core]
+        ORG[Organization]
+        ID[Identity and StudentSeat]
+        CLASS[Classroom]
+        CONTENT[ActivityVersion]
+        PROJECTS[Universal Projects]
+        ASSIGN[Assignments]
+        ASSESS[Submission Review Grade Badge]
+        REGISTRY[Module Registry]
+        SAFE[Safety and Audit]
     end
 
-    ASA --> EXP
-    ASA --> CORE
-    ASA --> COMPUTE
-    ASA --> MODULES
+    subgraph MODULES[Subject Modules]
+        BLANK[Blank Canvas Technical]
+        CHECKERS[Checkers Lite]
+        ELEC[Electronics]
+        BLOCKS[Block Coding]
+        D3[3D]
+        ROBOT[Robotics]
+        DRAW[Drawing]
+    end
+
+    TEACHER --> WEB
+    CHILD --> WEB
+    ADMIN --> ADMINUI
+    METHODIST --> ADMINUI
     WEB --> CORE
-    ADMIN --> CORE
-    SITE --> CORE
-    CORE --> PG
-    CORE --> REDIS
-    CORE --> S3
-    CORE --> OUTBOX
-    OUTBOX --> QUEUE
-    QUEUE --> COMPUTE
-    MODULES --> CORE
-    ELEC --> COMP
-    ELEC --> SIM
-    ELEC --> GRADER
-    M3D --> RENDER
-    ROB --> RENDER
-    EXP -. telemetry .-> OTEL
-    CORE -. telemetry .-> OTEL
-    COMPUTE -. telemetry .-> OTEL
+    WEB --> HOST
+    HOST --> REGISTRY
+    REGISTRY --> MODULES
+    ORG --> ID --> CLASS
+    CONTENT --> ASSIGN
+    CLASS --> ASSIGN
+    REGISTRY --> PROJECTS
+    ASSIGN --> PROJECTS --> ASSESS
+    SAFE --> CORE
 ```
 
-## 2. Classroom Core и проекты
+## 5. Главный образовательный цикл
 
 ```mermaid
 flowchart LR
-    ORG["Organization / School"]
-    ID["Identity / StudentSeat"]
-    CLS["Classroom"]
-    ACT["Activity / Assignment"]
-    PRJ["Project"]
-    VER["Immutable ProjectVersion"]
-    SUB["Submission"]
-    REV["Review"]
-    MOD["Module Manifest"]
-    ENT["Entitlement"]
+    C1[Teacher creates class]
+    C2[Teacher issues StudentSeat]
+    C3[Teacher assigns ActivityVersion]
+    C4[Child opens module]
+    C5[Project autosave]
+    C6[Immutable submission]
+    C7[Automatic checks]
+    C8[Teacher comment]
+    C9[Changes requested]
+    C10[Child resubmits]
+    C11[Accept grade badge]
+    C12[Progress updated]
 
-    ORG --> CLS
-    ID --> CLS
-    CLS --> ACT
-    CLS --> PRJ
-    ACT --> SUB
-    PRJ --> VER
-    SUB --> VER
-    SUB --> REV
-    PRJ --> MOD
-    ENT --> MOD
+    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9 --> C10 --> C11 --> C12
 ```
 
-## 3. Контур управления ботами и качеством
+## 6. Module/Project boundary
 
 ```mermaid
 flowchart LR
-    OWNER["Владелец"]
-    MAP["project-map.yaml"]
-    ISSUE["GitHub Issue"]
-    RUNBOOK["BOT_RUNBOOK"]
-    CATALOG["test-catalog.yaml"]
-    AGENT["Coding-агент"]
-    PR["Draft PR"]
-    CI["Governance / Product CI"]
-    REPORT["Test report"]
+    CLASSROOM[Classroom Core]
+    PROJECT[Project Core]
+    SDK[Module SDK]
+    CHECKERS[Checkers payload]
+    ELECTRONICS[CircuitDocument]
 
-    OWNER --> MAP
-    MAP --> AGENT
-    ISSUE --> AGENT
-    RUNBOOK --> AGENT
-    CATALOG --> AGENT
-    AGENT --> PR
-    PR --> CI
-    CI --> REPORT
-    REPORT --> OWNER
-    OWNER -->|merge и смена статуса| MAP
+    CLASSROOM --> PROJECT --> SDK
+    SDK --> CHECKERS
+    SDK --> ELECTRONICS
 ```
 
-Рабочий цикл:
+Core знает только:
 
 ```text
-ORIENT → PLAN → IMPLEMENT → VERIFY → UPDATE MAP → DRAFT PR → REVIEW → MERGE → NEXT TASK
+moduleKey
+moduleVersion
+schemaVersion
+ProjectDraft
+ProjectVersion
+preview/diagnostics envelope
 ```
 
-## 4. Подключаемые учебные среды
+Core не знает `resistor`, `wire`, `LED`, checker piece, sprite или 3D mesh.
 
-```mermaid
-flowchart TB
-    SDK["Versioned Module SDK"]
-    SDK --> E["Electronics"]
-    SDK --> D3["3D Modelling"]
-    SDK --> R["Virtual Robotics"]
-    SDK --> C["Chess / Checkers"]
-    SDK --> G["Drawing / Drafting"]
-    E --> ES["Circuit schema"]
-    E --> EW["Simulation / Compile / Grade workers"]
-    D3 --> DS["Scene schema"]
-    D3 --> DW["Preview / Export / Slicing workers"]
-    R --> RS["Robot + World schema"]
-    R --> RW["Physics workers"]
-    C --> CS["Position + Move schema"]
-    C --> CW["Validation / Engine workers"]
-    G --> GS["Vector document schema"]
-    G --> GW["Preview / Export workers"]
-```
+## 7. Что показывает каждый этап
 
-## 5. Дорожная карта
+| Delivery stage | Видимый результат |
+|---|---|
+| Product Definition | Одна очередь, Issues, maps и validators |
+| Teacher Portal | Login, classroom create/list, reload, logout |
+| Project Shell | Create project, save/reload, immutable checkpoint |
+| Checkers Lite | Board, legal move, diagnostic, preview |
+| Electronics Alpha | Source/resistor/LED/wire, netlist, DC result |
+| StudentSeat | Child credential, login without email, own dashboard |
+| Assignment | ActivityVersion, assignment, exact immutable submission |
+| Review | Anchored comment, revision, grade, badge |
+| Electronics Classroom | Полный электронный учебный цикл |
+
+## 8. Map protocol
 
 ```mermaid
 flowchart LR
-    P0["0 Foundation"] --> P1["1 Tenancy & Identity"]
-    P1 --> P2["2 Classroom Core"]
-    P2 --> P3["3 Module SDK & Projects"]
-    P3 --> P4["4 Activities & Assessment"]
-    P4 --> P5["5 Electronics Editor"]
-    P5 --> P6["6 Simulation Core"]
-    P6 --> P7["7 Arduino"]
-    P7 --> P8["8 Autograding & Instruments"]
-    P8 --> P9["9 Pilot Hardening"]
-    P9 --> P10["10 Commercial Foundation"]
-    P10 --> P11["11 Multi-school Scale"]
-    P11 --> P12["12 New Subject Modules"]
+    READY[ready]
+    PROGRESS[in_progress]
+    REVIEW[in_review]
+    MERGE[PR merged]
+    DONE[done]
+    NEXT[next ready]
+    STOP[agent stops]
+
+    READY --> PROGRESS --> REVIEW --> MERGE --> DONE --> NEXT --> STOP
 ```
 
-## 6. Состояния задачи
+### Start
 
-```mermaid
-stateDiagram-v2
-    [*] --> Planned
-    Planned --> Blocked: есть зависимость
-    Planned --> Ready: зависимости done
-    Blocked --> Ready: блокировка снята
-    Ready --> InProgress: агент начал реализацию
-    InProgress --> InReview: открыт PR
-    InReview --> InProgress: замечания или красный CI
-    InReview --> Done: merge и exit gate
-    Done --> [*]
+- current task → `in_progress`;
+- `current_focus` остаётся task;
+- реальные `map_nodes` → `in_progress`.
+
+### Draft PR
+
+- task → `in_review`;
+- next task остаётся `blocked`;
+- paths/nodes/edges отражают код;
+- Quality Map, test catalog и Nx graph синхронизированы.
+
+### After merge
+
+- обязательный map-only transition;
+- task → `done`;
+- next → `ready` после dependency check;
+- `current_focus` → next;
+- validators PASS;
+- агент останавливается.
+
+## 9. Карты, работающие вместе
+
+| Источник | Вопрос |
+|---|---|
+| Product Blueprint | Зачем и для кого строим? |
+| Capability Map | Что должна уметь платформа? |
+| Execution Manifest | Какой точный task/branch/tests/map contract? |
+| Development Program | Как выглядит путь человеку? |
+| Project Map | Что активно и от чего зависит? |
+| Quality Map | Чем доказана готовность? |
+| Nx Graph | Как фактически связан код? |
+
+## 10. Канонические порты
+
+```text
+Web  http://127.0.0.1:4610
+API  http://127.0.0.1:4611
+E2E  http://127.0.0.1:4612
 ```
 
-## 7. Карты, работающие вместе
+Запрещены `3000`, `3100`, `5173`. Занятый порт не является разрешением остановить чужой процесс.
 
-| Карта | Для чего | Источник истины |
-|---|---|---|
-| Project Knowledge Graph | Устройство, задачи, документы, фазы и зависимости | `project-map.yaml` |
-| Quality Map | Задачи, test IDs и quality gates | `QUALITY_MAP.md` + `test-catalog.yaml` |
-| C4 Architecture Model | Система, контейнеры и deployment | `docs/architecture/structurizr/workspace.dsl` |
-| Nx Project Graph | Фактические импорты исходного кода | автоматически из Nx metadata |
+## 11. Команда coding-агенту
 
-Nx-граф появляется после Bootstrap. Актуальный экспорт: [`nx-project-graph.json`](nx-project-graph.json) (регенерируется `pnpm graph:report`). Он показывает, как код зависит от кода. `project-map.yaml` дополнительно показывает назначение узла, фазу, статус и следующую задачу.
-
-## 8. Обязательное правило актуальности
-
-Карта меняется в том же Pull Request, если PR:
-
-- добавляет или удаляет приложение, bounded context, worker, data store или предметный модуль;
-- меняет архитектурную зависимость;
-- добавляет ADR, фазу, task, test registry или exit gate;
-- начинает, блокирует, завершает или заменяет задачу;
-- переносит ответственность между модулями;
-- меняет путь исходного кода или нормативного документа.
-
-Задача не получает статус `done`, пока её exit gate и обязательные test IDs не подтверждены фактическими командами.
+```text
+Прочитай AGENTS.md, current_focus и соответствующий entry в EXECUTION_MANIFEST.yaml. Открой указанную Issue и выполни только её. Следующую задачу не начинай.
+```

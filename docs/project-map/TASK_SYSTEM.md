@@ -1,157 +1,211 @@
 # Система задач ASA Lab
 
-## 1. Где coding-агент получает задачу
-
-Рабочая очередь хранится в двух взаимосвязанных местах:
-
-1. **GitHub Issue** — конкретная исполнимая задача, обсуждение и приёмка.
-2. **`docs/project-map/project-map.yaml`** — место задачи в общей системе, зависимости и статус.
-
-Issue без `task_id` из карты не считается разрешённой архитектурной задачей. Узел карты без Issue допустим только для будущей работы со статусом `planned` или `blocked`.
-
-## 2. Как выбрать следующую задачу
-
-Агент выполняет только задачу, для которой одновременно верно:
+## 1. Где находится полное ТЗ
 
 ```text
-kind = task
-status = ready
-все depends_on имеют status = done
-нет другого task со status = in_progress
-Issue открыт
-Issue содержит критерии приёмки
+docs/delivery/EXECUTION_MANIFEST.yaml   машиночитаемый task contract
+docs/delivery/DEVELOPMENT_PROGRAM_V1.md человекочитаемая программа
+docs/project-map/project-map.yaml       current focus, statuses, dependencies
+GitHub Issue                             подробный scope одного user flow
+docs/testing/test-catalog.yaml           команды обязательных tests
 ```
 
-Если таких задач несколько, используется порядок `execution_queue` из `project-map.yaml`. Задачи со статусом `done` или `deprecated` в выборе не участвуют и в активной `execution_queue` не перечисляются; `current_focus` имеет приоритет.
+Владелец не пересказывает ТЗ вручную. Чат не изменяет task, capability, branch, dependency, port или exit gate.
 
-Агенту запрещено самостоятельно перескакивать на более интересную фазу.
+## 2. Что хранит Execution Manifest
 
-## 3. Состояния
+Для каждой canonical task:
 
-| Статус | Значение |
+- position;
+- Issue;
+- branch;
+- milestone и delivery stage;
+- architecture horizon;
+- dependencies и next task;
+- capability IDs;
+- видимый результат;
+- точные документы для чтения;
+- test profiles и task-specific tests;
+- map nodes;
+- обязательные artifacts.
+
+`delivery_stage` задаёт порядок исполнения. `architecture_horizon` описывает архитектурный контур и не используется как очередь.
+
+## 3. Как выбирается задача
+
+Агент выполняет только task, для которой одновременно верно:
+
+```text
+task_id = project.current_focus
+task присутствует в EXECUTION_MANIFEST.yaml
+status = ready | in_progress | in_review
+все manifest/map depends_on = done
+Issue открыта
+branch соответствует manifest
+```
+
+Если current focus заблокирован, агент сообщает `BLOCKED` и не выбирает следующий task.
+
+## 4. Каноническая очередь
+
+```text
+TASK-PRODUCT-DOC-001
+→ TASK-PORTAL-001
+→ TASK-PROJECT-SHELL-001
+→ TASK-CHECKERS-LITE-001
+→ TASK-ELECTRONICS-ALPHA-001
+→ TASK-SEAT-001
+→ TASK-ACT-001
+→ TASK-REVIEW-001
+→ TASK-ELEC-001
+```
+
+### Technical Product Alpha
+
+```text
+Teacher Portal
+→ Universal Project Shell
+→ Checkers Lite
+→ Electronics Alpha
+```
+
+### School Pilot
+
+```text
+StudentSeat
+→ Assignment/Submission
+→ Review/Grade/Badge
+→ Full Electronics Classroom Cycle
+```
+
+Следующая задача не начинается до merge и map transition предыдущей.
+
+## 5. Статусы
+
+| Status | Значение |
 |---|---|
-| `planned` | Работа определена, но ещё не готова |
-| `blocked` | Обязательная зависимость не завершена |
-| `ready` | Задачу можно выдать агенту |
-| `in_progress` | Ровно один исполнитель работает |
-| `in_review` | Открыт PR, идёт проверка |
-| `done` | PR объединён и exit gate подтверждён |
-| `deprecated` | Узел сохранён только для истории |
+| `planned` | определена, но не входит в текущую executable очередь |
+| `blocked` | dependency не завершена |
+| `ready` | можно начать |
+| `in_progress` | реализуется одна branch |
+| `in_review` | открыт PR |
+| `done` | PR merged, gate PASS, map transition выполнен |
+| `deprecated` | история, реализацию не начинать |
 
-## 4. Обязательная структура Issue
+## 6. Одна задача — один flow
+
+Правильные границы:
+
+```text
+login → create classroom → reload
+create project → save → reload → checkpoint
+place source/resistor/LED → DC result → save/reload
+```
+
+Неправильно:
+
+```text
+Portal + StudentSeat + Assignments + Electronics + Deployment
+```
+
+Scope freeze действует после `in_progress`. Новая идея создаёт следующую Issue после merge.
+
+## 7. Map lifecycle
+
+### Start
+
+```text
+task = in_progress
+current_focus = task
+map_nodes = in_progress по факту
+```
+
+### Draft PR
+
+```text
+task = in_review
+next task = blocked
+project-map.yaml + PROJECT_MAP.md updated
+QUALITY_MAP + test catalog synchronized
+Nx graph regenerated for structural code changes
+```
+
+### After merge
+
+```text
+task = done
+next task = ready, если dependencies done
+current_focus = next task
+map-only transition validated
+agent stops
+```
+
+Map transition не является новой продуктовой задачей и не содержит product code.
+
+## 8. Обязательная структура executable Issue
 
 ```markdown
-# [TASK-ID] Краткое название
+## Статус
+## Программа
+## CAPABILITIES
+## Пользовательский результат
+## Scope
+## Ports
+## Security / tenant / audit
+## Non-goals
+## Acceptance
+## Required test IDs
+## Branch
+## Report format
+```
 
-## Результат
-Одно проверяемое пользовательское или платформенное поведение.
+Issue дополняет manifest деталями, но не может менять его order/branch/ports/tests без нормативного PR.
 
-## Зависимости
-- TASK-...
-- ADR-...
+## 9. Команда владельца
 
-## Разрешённый scope
-- точный список каталогов и файлов;
-- bounded contexts;
-- допустимые контракты.
+```text
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+```
 
-## Запрещённый scope
-- функции, которые нельзя реализовывать в этой задаче;
-- архитектурные границы, которые нельзя менять.
+## 10. Проверка
 
-## Критерии приёмки
-1. ...
-2. ...
-
-## Команды проверки
 ```bash
-точные команды без сокращений
+python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-## Tenant / authz / audit
-- tenant boundary;
-- policies;
-- отрицательные тесты;
-- AuditEvent.
+`tools/validate_delivery_program.py` сверяет:
 
-## Data / API / events
-- migration;
-- OpenAPI;
-- JSON Schema;
-- event schema.
+- manifest task order;
+- Issues и branches;
+- map queue/dependencies/status progression;
+- architecture horizon отдельно от delivery stage;
+- exact required tests;
+- port policy;
+- map artifacts при product-code changes.
 
-## Карта проекта
-- узлы и связи, которые должны измениться;
-- ожидаемый статус task после PR.
+Ready/merge требуют полного PASS.
 
-## Rollout / rollback
-- безопасное включение;
-- способ возврата.
-```
+## 11. Evidence
 
-## 5. Команда, которую вы даёте боту
+Каждый product PR предоставляет:
 
-Используйте следующий формат без свободного пересказа:
+- visible user result;
+- commit SHA;
+- полный runner report;
+- canonical ports и demo URLs;
+- Playwright report;
+- screenshots;
+- contract/migration/security artifacts;
+- map/Nx changes;
+- clean working tree;
+- подтверждение отсутствия следующей capability;
+- `NEXT_ALLOWED_TASK`.
+
+## 12. Текущий переход
 
 ```text
-Работай в репозитории spikeal8-maker/asa-lab.
-
-Выполни только GitHub Issue #[НОМЕР] с task_id [TASK-ID].
-
-Перед кодом полностью прочитай:
-1. AGENTS.md
-2. START_HERE_FOR_AI.md
-3. docs/project-map/PROJECT_MAP.md
-4. docs/project-map/project-map.yaml
-5. документы и ADR, перечисленные в Issue
-
-Не выполняй заблокированные или последующие задачи.
-Не расширяй scope.
-Обнови project-map.yaml в том же PR.
-В конце выполни все команды приёмки из Issue и перечисли фактические результаты.
-Открой draft PR с заполненным шаблоном.
+TASK-PRODUCT-DOC-001 — in_review, PR 21
+TASK-PORTAL-001 — blocked, PR 22 frozen
 ```
 
-## 6. Что происходит после PR
-
-```text
-ready
-→ агент меняет task на in_progress
-→ создаёт ветку agent/<task-id>-<slug>
-→ реализует один вертикальный срез
-→ обновляет карту и документацию
-→ выполняет проверки
-→ открывает draft PR
-→ task становится in_review
-→ замечания исправляются в той же ветке
-→ merge и подтверждённый exit gate
-→ task становится done
-→ следующая blocked-задача может стать ready
-```
-
-## 7. Правило параллельной работы
-
-До завершения Bootstrap разрешена только одна `in_progress` задача.
-
-После Bootstrap параллельная работа допускается, когда задачи:
-
-- не меняют один bounded context;
-- не меняют один контракт или migration chain;
-- не зависят друг от друга;
-- имеют разные разрешённые файлы;
-- не требуют противоречащих ADR.
-
-## 8. Активная последовательность
-
-Завершённые задачи Phase 0 (`TASK-CI-001`, `TASK-GOV-001`, `TASK-ARCH-001`) переведены в `done` и в активной очереди не участвуют. Текущая активная последовательность:
-
-1. `TASK-BOOT-001` — Bootstrap монорепозитория (in_review, PR №14).
-2. `TASK-ENV-001` — локальная интеграционная среда (PostgreSQL, Redis, MinIO, Compose CLI); закрывает реальные `TST-COMPOSE-001` и `TST-MIGRATION-001`.
-3. `TASK-TEN-001` — tenant context.
-4. `TASK-CLS-001` — педагог создаёт класс.
-5. `TASK-SEAT-001` — StudentSeat и вход ребёнка без email.
-6. `TASK-MOD-001` — Module SDK и Project envelope.
-7. `TASK-ACT-001` — первое назначение и immutable submission.
-8. `TASK-ELEC-001` — первая электронная схема.
-
-`TASK-TEN-001` зависит от `TASK-ENV-001`, а не напрямую от `TASK-BOOT-001`: продуктовые вертикальные срезы не начинаются, пока не появится реальная интеграционная среда. Переход к электронике до завершения предыдущих пунктов запрещён.
+Сначала проверяется и принимается PR 21. Затем PR 22 rebased и выполняется только по Issue 18 / manifest entry.

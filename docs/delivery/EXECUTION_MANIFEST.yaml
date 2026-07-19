@@ -1,0 +1,299 @@
+schema_version: 1.0.0
+program_id: PROGRAM-ALPHA-001
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/23
+human_program: docs/delivery/DEVELOPMENT_PROGRAM_V1.md
+state_source: docs/project-map/project-map.yaml
+quality_source: docs/testing/test-catalog.yaml
+
+semantics:
+  execution_order: Defined only by tasks.position in this manifest and execution_queue in project-map.yaml.
+  architecture_horizon: Informational architecture grouping; it is not execution order and may be non-monotonic.
+  issue_scope: The linked GitHub Issue is the executable scope for one user flow.
+  next_task_rule: The next task becomes ready only after merge and the mandatory map transition.
+
+ports:
+  bind: 127.0.0.1
+  web: 4610
+  api: 4611
+  e2e: 4612
+  preview_reserved: 4613
+  forbidden: [3000, 3100, 5173]
+
+map_protocol:
+  start:
+    - current task status becomes in_progress
+    - project.current_focus remains the current task
+    - implementation, delivery-track and architecture-horizon nodes listed in map_nodes become in_progress when work actually starts
+  draft_pr:
+    - current task status becomes in_review
+    - project-map.yaml and PROJECT_MAP.md reflect actual nodes, paths and dependencies
+    - QUALITY_MAP.md and test-catalog.yaml reflect the exact exit gate
+    - nx-project-graph.json is regenerated for code-structure changes
+  after_merge:
+    - current task status becomes done
+    - next task status becomes ready when every dependency is done
+    - project.current_focus becomes next_task
+    - a shared map node becomes done only when no later incomplete manifest task lists that node
+    - project-map.yaml and PROJECT_MAP.md are updated in one map-only transition commit or PR
+    - the agent stops without implementing next_task
+
+report_contract:
+  required_fields:
+    - MILESTONE
+    - TASK
+    - ISSUE
+    - STATUS
+    - VISIBLE_RESULT
+    - USER_FLOW
+    - PORTS
+    - DEMO_URLS
+    - SCREENSHOTS
+    - TESTS_RUN
+    - MAP_NODES_CHANGED
+    - WORKING_TREE
+    - NEXT_ALLOWED_TASK
+
+test_profiles:
+  product_docs:
+    - TST-ARCH-001
+    - TST-MAP-001
+    - TST-CAPABILITY-MAP-001
+    - TST-DEVELOPMENT-PROGRAM-001
+    - TST-CATALOG-001
+    - TST-YAML-001
+    - TST-LINKS-001
+  code_common:
+    - TST-MAP-001
+    - TST-CAPABILITY-MAP-001
+    - TST-DEVELOPMENT-PROGRAM-001
+    - TST-FORMAT-001
+    - TST-LINT-001
+    - TST-TYPE-001
+    - TST-BOUNDARY-001
+    - TST-BUILD-001
+    - TST-CONTRACT-001
+    - TST-UNIT-001
+    - TST-SECRET-001
+    - TST-DEPENDENCY-001
+    - TST-PORTS-001
+    - TST-STARTUP-001
+    - TST-A11Y-001
+  tenant_storage:
+    - TST-MIGRATION-001
+    - TST-TENANT-001
+    - TST-RLS-001
+    - TST-AUTHZ-001
+  module_runtime:
+    - TST-MODULE-CONTRACT-001
+    - TST-AUTHZ-001
+  assessment_common:
+    - TST-COMMENTS-001
+    - TST-REVIEW-LIFECYCLE-001
+    - TST-ASSESSMENT-REVISION-001
+    - TST-BADGE-EVIDENCE-001
+  electronics_kernel:
+    - TST-ELECTRONICS-SCHEMA-001
+    - TST-ELECTRONICS-NETLIST-001
+    - TST-ELECTRONICS-GOLDEN-001
+    - TST-ELECTRONICS-WASM-PARITY-001
+
+tasks:
+  - position: 1
+    task_id: TASK-PRODUCT-DOC-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/19
+    branch: agent/product-blueprint-platform-map
+    milestone: Program Foundation
+    track: governance
+    delivery_stage: STAGE-0-PRODUCT-DEFINITION
+    architecture_horizon: PHASE-0
+    depends_on: [TASK-BOOT-001]
+    next_task: TASK-PORTAL-001
+    capabilities: []
+    visible_result: Product Blueprint, Capability Map, Development Program, Port Policy and executable Issues are consistent and machine-validated.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 0 — Product Documentation Acceptance'
+      - docs/delivery/LOCAL_PORT_POLICY.md
+      - docs/product/PRODUCT_BLUEPRINT.md
+      - docs/product/CAPABILITY_MAP.yaml
+    test_profiles: [product_docs]
+    task_tests: []
+    map_nodes: [PROGRAM-ALPHA-001, PHASE-0, DOC-PRODUCT-BLUEPRINT, DOC-CAPABILITY-MAP, DOC-CLASSROOM-SPEC, DOC-MODULE-SPEC, DOC-ASSESSMENT-SPEC, DOC-DEVELOPMENT-PROGRAM, DOC-PORT-POLICY]
+    artifacts: [validator-reports, execution-queue]
+
+  - position: 2
+    task_id: TASK-PORTAL-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/18
+    branch: agent/task-mvp-001-teacher-portal
+    milestone: Technical Alpha 1
+    track: technical-alpha
+    delivery_stage: STAGE-1-TEACHER-PORTAL
+    architecture_horizon: PHASE-1
+    depends_on: [TASK-PRODUCT-DOC-001]
+    next_task: TASK-PROJECT-SHELL-001
+    capabilities: [CAP-ORG, CAP-IDENTITY, CAP-CLASSROOM, CAP-PORTAL-BASIC, CAP-SAFETY, CAP-OPERATIONS]
+    visible_result: Teacher opens the site, logs in, creates a classroom, reloads it and logs out.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 1 — Teacher Portal v0.1'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Создание класса'
+      - docs/architecture/DATA_SECURITY_AND_TENANCY.md
+    test_profiles: [code_common, tenant_storage]
+    task_tests: [TST-PORTAL-API-001, TST-E2E-PORTAL-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-1, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-CLASSROOM, DATA-PG]
+    artifacts: [playwright-report, portal-screenshot, startup-report, authorization-matrix]
+
+  - position: 3
+    task_id: TASK-PROJECT-SHELL-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/24
+    branch: agent/task-project-shell-001
+    milestone: Technical Alpha 2
+    track: technical-alpha
+    delivery_stage: STAGE-2-PROJECT-SHELL
+    architecture_horizon: PHASE-3
+    depends_on: [TASK-PORTAL-001]
+    next_task: TASK-CHECKERS-LITE-001
+    capabilities: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-IDENTITY, CAP-CLASSROOM, CAP-SAFETY]
+    visible_result: Teacher creates a module project, saves a draft, reloads it and creates an immutable checkpoint.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 2 — Universal Project Shell'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Project envelope'
+    test_profiles: [code_common, tenant_storage, module_runtime]
+    task_tests: [TST-PROJECT-SHELL-001, TST-E2E-PROJECT-SHELL-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-3, CTX-PROJECTS, CTX-MODULES, SDK-MODULE, MOD-BLANK, APP-WEB, DATA-PG]
+    artifacts: [project-document, checkpoint-report, playwright-report, project-shell-screenshot]
+
+  - position: 4
+    task_id: TASK-CHECKERS-LITE-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/25
+    branch: agent/task-checkers-lite-001
+    milestone: Technical Alpha 3
+    track: technical-alpha
+    delivery_stage: STAGE-3-CHECKERS-LITE
+    architecture_horizon: PHASE-3
+    depends_on: [TASK-PROJECT-SHELL-001]
+    next_task: TASK-ELECTRONICS-ALPHA-001
+    capabilities: [CAP-CHECKERS-LITE, CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-SAFETY]
+    visible_result: Teacher opens an 8x8 board, makes one legal move, sees validation, saves, reloads and sees a preview.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 3 — Checkers Lite'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Checkers Lite'
+    test_profiles: [code_common, module_runtime]
+    task_tests: [TST-CHECKERS-SCHEMA-001, TST-CHECKERS-RULES-001, TST-E2E-CHECKERS-LITE-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-3, MOD-CHECKERS-LITE, SDK-MODULE, APP-WEB]
+    artifacts: [checkers-document, preview, playwright-report, checkers-screenshot]
+
+  - position: 5
+    task_id: TASK-ELECTRONICS-ALPHA-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/26
+    branch: agent/task-electronics-alpha-001
+    milestone: Technical Alpha 4
+    track: technical-alpha
+    delivery_stage: STAGE-4-ELECTRONICS-ALPHA
+    architecture_horizon: PHASE-5
+    depends_on: [TASK-CHECKERS-LITE-001]
+    next_task: TASK-SEAT-001
+    capabilities: [CAP-ELECTRONICS-ALPHA, CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-SAFETY]
+    visible_result: Teacher builds source-resistor-LED circuit, gets netlist and deterministic DC result, then saves and reloads it.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 4 — Electronics Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Electronics Alpha'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
+    test_profiles: [code_common, module_runtime, electronics_kernel]
+    task_tests: [TST-E2E-ELECTRONICS-ALPHA-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-5, MOD-ELECTRONICS, SDK-MODULE, APP-WEB]
+    artifacts: [circuit-document, normalized-netlist, golden-report, parity-report, working-circuit-screenshot, diagnostic-screenshot]
+
+  - position: 6
+    task_id: TASK-SEAT-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/7
+    branch: agent/task-seat-001-child-dashboard
+    milestone: School Pilot 1
+    track: school-pilot
+    delivery_stage: STAGE-5-STUDENT-SEAT
+    architecture_horizon: PHASE-2
+    depends_on: [TASK-ELECTRONICS-ALPHA-001]
+    next_task: TASK-ACT-001
+    capabilities: [CAP-STUDENT-SEAT, CAP-STUDENT-DASHBOARD, CAP-IDENTITY, CAP-CLASSROOM, CAP-PROJECTS, CAP-SAFETY]
+    visible_result: Teacher issues a one-time child credential; child logs in without email, sees own class/project, and reset revokes the old session.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 5 — StudentSeat and Child Dashboard'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Roster и StudentSeat'
+      - 'docs/product/PRODUCT_BLUEPRINT.md :: Модель доступа ребёнка'
+    test_profiles: [code_common, tenant_storage]
+    task_tests: [TST-STUDENT-SEAT-001, TST-STUDENT-CREDENTIAL-001, TST-STUDENT-IMPORT-001, TST-E2E-STUDENT-SEAT-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-2, CTX-IDENTITY, CTX-CLASSROOM, APP-WEB, DATA-PG]
+    artifacts: [access-card, import-report, security-report, playwright-report, child-dashboard-screenshot]
+
+  - position: 7
+    task_id: TASK-ACT-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/8
+    branch: agent/task-act-001-assignment-submission
+    milestone: School Pilot 2
+    track: school-pilot
+    delivery_stage: STAGE-6-ASSIGNMENT-SUBMISSION
+    architecture_horizon: PHASE-3
+    depends_on: [TASK-SEAT-001, TASK-PROJECT-SHELL-001]
+    next_task: TASK-REVIEW-001
+    capabilities: [CAP-CONTENT-LITE, CAP-ASSIGNMENTS, CAP-PROJECTS, CAP-SUBMISSIONS, CAP-CLASSROOM, CAP-STUDENT-DASHBOARD, CAP-NOTIFICATIONS]
+    visible_result: Teacher assigns an immutable activity; child works and submits an exact ProjectVersion; teacher sees the attempt.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 6 — Assignment and Immutable Submission'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Учебные задания'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Работа ученика'
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Submission'
+    test_profiles: [code_common, tenant_storage, module_runtime]
+    task_tests: [TST-ACTIVITY-VERSION-001, TST-ASSIGNMENT-001, TST-SUBMISSION-IMMUTABLE-001, TST-E2E-ASSIGNMENT-SUBMISSION-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-3, CTX-CONTENT, CTX-ACTIVITIES, CTX-PROJECTS, CTX-ASSESSMENT, CTX-NOTIFICATIONS, APP-WEB, DATA-PG]
+    artifacts: [activity-fixtures, assignment-report, submission-manifest, playwright-report]
+
+  - position: 8
+    task_id: TASK-REVIEW-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/20
+    branch: agent/task-review-001-comments-grade-badge
+    milestone: School Pilot 3
+    track: school-pilot
+    delivery_stage: STAGE-7-REVIEW-ASSESSMENT
+    architecture_horizon: PHASE-4
+    depends_on: [TASK-ACT-001]
+    next_task: TASK-ELEC-001
+    capabilities: [CAP-COMMENTS, CAP-REVIEW, CAP-ASSESSMENT, CAP-REWARDS, CAP-PROGRESS, CAP-NOTIFICATIONS]
+    visible_result: Teacher comments, requests changes, accepts a resubmission, records grade and awards a badge; both dashboards update.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 7 — Comments, Review, Grade and Badge'
+      - docs/product/ASSESSMENT_REWARDS_SPEC.md
+      - 'docs/product/CLASSROOM_CORE_SPEC.md :: Review'
+    test_profiles: [code_common, tenant_storage, assessment_common]
+    task_tests: [TST-E2E-REVIEW-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-4, CTX-ASSESSMENT, CTX-NOTIFICATIONS, APP-WEB, DATA-PG]
+    artifacts: [comment-report, review-report, assessment-report, badge-report, playwright-report]
+
+  - position: 9
+    task_id: TASK-ELEC-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/6
+    branch: agent/task-elec-001-classroom-cycle
+    milestone: School Pilot 4
+    track: school-pilot
+    delivery_stage: STAGE-8-ELECTRONICS-CLASSROOM
+    architecture_horizon: PHASE-5
+    depends_on: [TASK-REVIEW-001, TASK-ELECTRONICS-ALPHA-001]
+    next_task: null
+    capabilities: [CAP-ELECTRONICS-CLASSROOM, CAP-ELECTRONICS-ALPHA, CAP-AUTOGRADING, CAP-ASSIGNMENTS, CAP-SUBMISSIONS, CAP-COMMENTS, CAP-REVIEW, CAP-ASSESSMENT, CAP-PROGRESS]
+    visible_result: A complete electronics assignment goes from teacher to child, circuit work, immutable submission, anchored review, revision, grade and badge.
+    read:
+      - AGENTS.md
+      - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 8 — Full Electronics Classroom Cycle'
+      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Electronics Alpha'
+      - docs/product/ASSESSMENT_REWARDS_SPEC.md
+    test_profiles: [code_common, module_runtime, assessment_common, electronics_kernel]
+    task_tests: [TST-TENANT-001, TST-RLS-001, TST-ELECTRONICS-ACTIVITY-001, TST-ELECTRONICS-AUTOGRADE-001, TST-ELECTRONICS-DIFF-001, TST-E2E-ELECTRONICS-CLASSROOM-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-5, MOD-ELECTRONICS, SDK-MODULE, CTX-ACTIVITIES, CTX-ASSESSMENT, APP-WEB, DATA-PG]
+    artifacts: [circuit-document, simulation-report, review-report, playwright-report, final-cycle-screenshots]
