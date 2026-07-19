@@ -23,7 +23,7 @@ TASK-ENV-001     deprecated — среда deferred (PR №16 closed); лока�
 TASK-TEN-001     ← текущий фокус (in_review): первый пользовательский срез —
                    педагог входит, создаёт класс, класс виден после reload
         ↓
-TASK-CLS-001     педагог создаёт класс
+TASK-CLS-001     classroom lifecycle и teacher management
         ↓
 TASK-SEAT-001    StudentSeat и вход без email
         ↓
