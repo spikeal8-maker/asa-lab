@@ -123,11 +123,17 @@ paths:
       parameters:
         - name: Idempotency-Key
           in: header
-          required: false
-          description: Repeating a request with the same key never creates a duplicate.
+          required: true
+          description: >-
+            Mandatory. A repeat with the same key and the same payload returns
+            the existing classroom; the same key with a different payload is
+            rejected with 409 idempotency_conflict. Keys longer than 128
+            characters are rejected, never truncated.
           schema:
             type: string
+            minLength: 1
             maxLength: 128
+            pattern: '^[A-Za-z0-9._:-]+$'
       requestBody:
         required: true
         content:
@@ -148,7 +154,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClassroomEnvelope'
         '400':
-          description: Validation error (including any client-supplied tenant identifier)
+          description: >-
+            Validation error: malformed body, additional properties, any
+            client-supplied tenant identifier, or a missing/invalid
+            Idempotency-Key.
           content:
             application/json:
               schema:
@@ -160,7 +169,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: No active academic period for the teacher
+          description: >-
+            Explicit conflict: idempotency_conflict (same key, different
+            payload), no_school_assigned or no_active_period.
           content:
             application/json:
               schema:

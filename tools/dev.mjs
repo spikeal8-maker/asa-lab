@@ -9,6 +9,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
+import { apiChildEnv, webChildEnv } from './child-env.mjs';
 
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
 
@@ -78,11 +79,11 @@ if (build.status !== 0) {
 }
 
 const children = [];
-function start(name, command, args, env) {
+function startWithEnv(name, command, args, env) {
   const child = spawn(command, args, {
     stdio: 'inherit',
     shell: process.platform === 'win32',
-    env: { ...process.env, ...env },
+    env,
   });
   children.push(child);
   child.on('exit', (code) => {
@@ -94,11 +95,13 @@ function start(name, command, args, env) {
   });
 }
 
-start('api', 'node', ['apps/api/dist/main.js'], {
-  API_PORT: String(API_PORT),
-  API_HOST: '127.0.0.1',
-});
-start('web', 'pnpm', ['exec', 'vite', '-c', 'apps/web/vite.config.ts'], {});
+startWithEnv('api', 'node', ['apps/api/dist/main.js'], apiChildEnv(process.env, API_PORT));
+startWithEnv(
+  'web',
+  'pnpm',
+  ['exec', 'vite', '-c', 'apps/web/vite.config.ts'],
+  webChildEnv(process.env),
+);
 
 process.on('SIGINT', () => children.forEach((c) => c.kill('SIGINT')));
 
