@@ -1,43 +1,29 @@
-# BOT_RUNBOOK — управление coding-агентами ASA Lab
+# BOT_RUNBOOK — рабочий процесс coding-агента ASA Lab
 
-Этот документ задаёт обязательный процесс разработки. Агент не выбирает произвольную работу, не переопределяет продукт через чат и не начинает следующую задачу до merge текущей.
-
-## 1. Источники истины
-
-Порядок приоритета:
-
-1. более поздняя принятая ADR;
-2. `AGENTS.md`;
-3. `docs/product/PRODUCT_BLUEPRINT.md`;
-4. `docs/product/CAPABILITY_MAP.yaml`;
-5. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md`;
-6. `docs/delivery/LOCAL_PORT_POLICY.md`;
-7. детальная продуктовая спецификация затронутого контура;
-8. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные документы;
-9. исполняемые contracts: OpenAPI, JSON Schema, migrations, event schemas;
-10. `docs/project-map/project-map.yaml`;
-11. GitHub Issue текущей задачи;
-12. `docs/testing/test-catalog.yaml`;
-13. остальные документы.
-
-Чат может уточнить выполнение, но не меняет молча task ID, capability, scope, dependency, порт, test ID или exit gate.
-
-При конфликте агент:
-
-1. прекращает изменения;
-2. указывает два конфликтующих источника;
-3. не выбирает один из них по догадке;
-4. не пишет код до исправления Issue/карты/ADR.
-
-## 2. Короткая команда владельца
-
-Владелец не должен пересказывать ТЗ. Достаточно:
+## 1. Короткая команда владельца
 
 ```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, docs/delivery/DEVELOPMENT_PROGRAM_V1.md и current_focus из docs/project-map/project-map.yaml. Открой связанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
 ```
 
-## 3. ORIENT после новой сессии
+Владелец не пересказывает ТЗ вручную.
+
+## 2. Источники выполнения
+
+```text
+Product Blueprint                 что строим
+Capability Map                   какие возможности и зависимости
+EXECUTION_MANIFEST.yaml          task order, Issue, branch, stage, tests, map nodes
+DEVELOPMENT_PROGRAM_V1.md        человекочитаемый путь
+LOCAL_PORT_POLICY.md             порты и безопасный запуск
+project-map.yaml                 current focus и динамические statuses
+GitHub Issue                     scope одного user flow
+test-catalog.yaml                команды test IDs
+```
+
+Конфликт не разрешается догадкой. Чат не меняет task ID, capability, dependency, branch, scope, port, test ID или exit gate.
+
+## 3. ORIENT
 
 ```bash
 git remote -v
@@ -48,141 +34,62 @@ git branch --all
 
 Затем:
 
-1. открыть `project.current_focus`;
-2. найти task node в `project-map.yaml`;
-3. проверить task status;
-4. проверить все `depends_on`;
-5. открыть связанную GitHub Issue;
-6. определить существующую ветку/PR задачи;
-7. прочитать только релевантный раздел Development Program;
-8. прочитать capability entries и явно указанные Issue разделы;
-9. прочитать test IDs задачи;
-10. проверить Port Policy для UI/server задачи.
+1. прочитать `project.current_focus`;
+2. найти task entry в `EXECUTION_MANIFEST.yaml`;
+3. проверить status и manifest `depends_on` против map edges;
+4. открыть manifest Issue;
+5. продолжить manifest branch/PR либо создать её от актуального `main`;
+6. прочитать manifest `read` links;
+7. получить обязательные tests из manifest profiles и test catalog;
+8. проверить Port Policy для server/UI задачи.
 
-Агент не обязан перечитывать всю продуктовую документацию, если Issue даёт точные ссылки.
+Разрешена работа только с current focus или существующим PR этого task. `planned`, `blocked`, `done`, `deprecated` не выполняются.
 
-## 4. Выбор задачи
+## 4. CAPABILITY CHECK и PLAN
 
-Разрешена работа только если task:
-
-- совпадает с `current_focus`; или
-- уже имеет status `in_progress`/`in_review` и агент продолжает существующий PR;
-- находится в `execution_queue`;
-- имеет завершённые dependencies;
-- имеет GitHub Issue;
-- имеет хотя бы один test ID.
-
-Задачи `planned`, `blocked`, `done`, `deprecated` не начинаются.
-
-Следующая задача не может быть начата в той же сессии после завершения текущей.
-
-## 5. CAPABILITY CHECK
-
-До плана агент выводит:
+До изменения кода:
 
 ```text
-TASK: TASK-...
-ISSUE: #...
-MILESTONE: ...
+TASK:
+ISSUE:
+MILESTONE:
+DELIVERY_STAGE:
+ARCHITECTURE_HORIZON:
 CAPABILITIES:
-- CAP-...
 DEPENDENCIES:
-- TASK-... done
-- CAP-... satisfied|included|blocked
 USER_FLOW:
-...
 NON_GOALS:
-...
 PORTS:
-- web 127.0.0.1:4610
-- api 127.0.0.1:4611
-- e2e 127.0.0.1:4612
+PLAN: максимум 25 строк
+STOP_CRITERION:
 ```
 
-Если capability dependency не завершена и не включена явно в текущий vertical slice, задача `BLOCKED`.
+`delivery_stage` — порядок выполнения. `architecture_horizon` — информационная архитектурная группировка и может идти не по порядку Product Alpha.
 
-## 6. PLAN
+## 5. Scope freeze
 
-План обычной задачи — максимум 25 строк.
+После начала task разрешены только defect/security/contract/migration/test fixes текущего flow и review feedback текущего PR.
 
-Он содержит:
+Запрещены следующая capability, дополнительные роли/страницы, unrelated refactoring, новый framework, Docker/Redis/MinIO/CI polish без прямой необходимости, изменение портов и второй competing PR.
 
-- пользовательский flow;
-- bounded contexts;
-- изменяемые приложения/пакеты;
-- API/data/schema impact;
-- tenant/authz/audit impact;
-- UX states;
-- test IDs;
-- логические коммиты;
-- stop criterion.
+## 6. IMPLEMENT
 
-План не должен превращаться в отдельный проект по инфраструктуре.
-
-## 7. Scope freeze
-
-После начала реализации scope заморожен.
-
-Допустимы:
-
-- defect fix внутри user flow;
-- security fix данных текущей задачи;
-- contract/migration/test update, необходимый текущему flow;
-- review feedback по текущему PR.
-
-Запрещены:
-
-- следующая capability;
-- дополнительные роли и страницы;
-- unrelated refactoring;
-- новый framework;
-- Docker/Redis/MinIO/CI polish без фактической необходимости;
-- новая большая документация;
-- federal-scale optimization;
-- изменение портов.
-
-Новая идея оформляется новой Issue после merge текущей.
-
-## 8. IMPLEMENT
-
-### 8.1. Один vertical slice
-
-Реализуется полный наблюдаемый пользовательский flow текущей Issue, а не набор disconnected layers.
-
-Правильный порядок внутри задачи:
+Один task реализует один вертикальный user flow:
 
 ```text
-domain/application contract
+domain/application
 → migration/repository
 → API
 → UI
 → automated E2E
-→ maps/evidence
+→ evidence/maps
 ```
 
-Допускается другой порядок, если он уменьшает риск, но final result должен быть вертикальным.
+Если существует PR, сохранять рабочий код и продолжать его. Переписывание с нуля требует доказанного blocker.
 
-### 8.2. Existing PR
+Архитектурные правила находятся в `AGENTS.md`; Issue определяет точный scope.
 
-Если Issue связана с существующим PR:
-
-- продолжать существующую ветку;
-- сохранять рабочий код;
-- не переписывать с нуля без доказанной необходимости;
-- rebase/merge нормативные изменения до remediation;
-- не открывать второй competing PR.
-
-### 8.3. Framework boundaries
-
-- `apps/api` и `apps/web` — composition roots/adapters;
-- domain не импортирует NestJS, pg, React, HTTP, Redis или object storage SDK;
-- cross-context interaction — через public ports/contracts;
-- предметный module не импортирует Core internals;
-- Core не содержит subject-specific conditionals.
-
-## 9. Port Policy
-
-Обязательные defaults:
+## 7. Порты
 
 ```text
 Web  127.0.0.1:4610
@@ -190,176 +97,117 @@ API  127.0.0.1:4611
 E2E  127.0.0.1:4612
 ```
 
-Запрещены `3000`, `3100`, `5173`.
-
-Если порт занят:
+Запрещены `3000`, `3100`, `5173`. При занятом порте:
 
 - не kill процесс;
 - не выбирать другой порт молча;
 - вывести точный `BLOCKED`;
-- назвать порт и тип server;
 - остановить текущий запуск.
 
-Подробности: `LOCAL_PORT_POLICY.md`.
+## 8. Промежуточные milestones
 
-## 10. Промежуточные checkpoints
-
-Для длинной задачи агент сообщает только завершённые внутренние milestones, а не каждую команду.
-
-Пример:
+После завершённого внутреннего результата, а не каждой команды:
 
 ```text
-MILESTONE: Technical Alpha 2 / Database and API
-STATUS: completed
-VISIBLE_RESULT: project can be created through API and draft survives reload
+MILESTONE:
+STATUS: completed | blocked
+VISIBLE_RESULT:
 TESTS:
-  TST-PROJECT-SHELL-001 PASS
-DEMO_URLS: not yet — UI milestone next
-BLOCKERS: none
-NEXT_INTERNAL_MILESTONE: React project list and module host
+DEMO_URLS:
+SCREENSHOTS:
+BLOCKERS:
+NEXT_INTERNAL_MILESTONE:
 ```
 
-Checkpoint:
+Checkpoint не меняет scope и не разблокирует следующую Issue.
 
-- не меняет scope;
-- не является `done`;
-- не разрешает следующую Issue;
-- показывает фактический, уже проверенный результат.
-
-## 11. VERIFY
-
-Агент запускает:
+## 9. VERIFY
 
 ```bash
 python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-Плюс команды, которые Issue требует явно.
+Runner поддерживает многочастные IDs (`TASK-PROJECT-SHELL-001`) и передаёт текущий TASK-ID validators.
 
-Статусы:
+- PASS — фактический exit 0;
+- FAIL — фактический non-zero;
+- BLOCKED — обязательная среда отсутствует;
+- NOT_RUN — команда не запускалась.
 
-- `PASS` — команда выполнена, exit code 0;
-- `FAIL` — команда выполнена и упала;
-- `BLOCKED` — обязательная среда отсутствует;
-- `NOT_RUN` — команда не запускалась.
+`BLOCKED`/`NOT_RUN` не закрывают gate. Нельзя удалять test ID, сокращать `required_for` или заменять automated E2E ручным просмотром.
 
-`BLOCKED` и `NOT_RUN` не закрывают gate.
+Для UI обязательны keyboard/focus/accessibility, Playwright и screenshots. Для tenant data обязательны отрицательные authz tests, отдельный test DB, runtime-role checks и отсутствие admin credentials в API.
 
-Нельзя:
+## 10. UPDATE MAPS
 
-- удалять test ID ради зелёного отчёта;
-- сокращать `required_for` после начала задачи;
-- заменять тест ручным утверждением;
-- объявлять manual browser smoke автоматизированным E2E.
+Машиночитаемый map protocol находится в `EXECUTION_MANIFEST.yaml`.
 
-## 12. Проверка UI-задачи
+### При начале
 
-Обязательно:
+- task → `in_progress`;
+- implementation nodes из `map_nodes` → `in_progress` по факту;
+- `current_focus` остаётся task.
 
-- loading;
-- empty;
-- error;
-- success;
-- conflict при применимости;
-- keyboard navigation;
-- focus management;
-- automated accessibility path;
-- browser E2E;
-- screenshot основного состояния;
-- screenshot diagnostic/error state при применимости;
-- canonical port report.
+### В Draft PR
 
-## 13. Проверка security/data задачи
+- task → `in_review`;
+- `project-map.yaml` и `PROJECT_MAP.md` отражают реальные nodes/paths/edges;
+- `QUALITY_MAP.md` и test catalog отражают точный gate;
+- `nx-project-graph.json` регенерирован при изменении структуры кода;
+- next task остаётся `blocked`.
 
-По применимости:
+Product-code diff без этих map artifacts должен падать на `TST-DEVELOPMENT-PROGRAM-001`.
 
-- server-derived tenant context;
-- cross-tenant negative matrix;
-- runtime role and RLS defense-in-depth;
-- no admin DB credentials in API;
-- session/credential revocation;
-- secrets absent from logs/artifacts;
-- audit events;
-- idempotency/duplicate handling;
-- test database isolation;
-- dependency advisory/license gate.
+## 11. DRAFT PR
 
-## 14. UPDATE MAPS
+Один task — один Draft PR. Body содержит:
 
-В том же PR обновляются, если изменились:
-
-- task status;
-- task dependency;
-- application/context/module node;
-- code path;
-- capability/release boundary;
-- test ID;
-- Nx dependency.
-
-Файлы:
-
-- `docs/project-map/project-map.yaml`;
-- `docs/project-map/PROJECT_MAP.md`;
-- `docs/project-map/QUALITY_MAP.md`;
-- `docs/testing/test-catalog.yaml`;
-- `docs/project-map/nx-project-graph.json`;
-- Capability Map только при реальном изменении capability.
-
-Косметически переписывать карты в каждой задаче не нужно.
-
-## 15. DRAFT PR
-
-Один task — один Draft PR.
-
-PR body содержит:
-
-- TASK/Issue/Milestone;
-- capability IDs;
-- user flow;
+- TASK/Issue/Milestone/Capabilities;
+- visible result и user flow;
 - non-goals;
-- affected contexts;
-- API/data/events;
-- tenant/authz/audit impact;
+- API/data/security impact;
 - ports;
-- test IDs and actual statuses;
+- map/Nx changes;
+- test IDs и реальные статусы;
 - demo URLs;
 - screenshots/artifacts;
 - rollout/rollback;
-- known limitations;
-- map/Nx impact;
 - `NEXT_ALLOWED_TASK`.
 
-Draft можно открыть с честными FAIL/BLOCKED/NOT_RUN. Ready и merge требуют полного PASS.
+Draft разрешён с честными FAIL/BLOCKED/NOT_RUN. Ready/merge требуют полного PASS.
 
-## 16. MERGE и переход
+## 12. MERGE и обязательный map transition
 
-После подтверждённого exit gate:
+После review и полного exit gate:
 
-1. PR → Ready;
-2. review;
-3. merge;
-4. task → done;
+1. merge task PR;
+2. синхронизировать `main`;
+3. сделать map-only transition commit/PR:
+   - task → `done`;
+   - next task → `ready`, если dependencies done;
+   - `current_focus` → `next_task`;
+   - implementation nodes/stage обновлены;
+   - `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
+4. запустить governance validators;
 5. Issue → completed;
-6. next task → ready, если dependencies done;
-7. `current_focus` → next task;
-8. агент останавливается.
+6. остановиться.
 
-Агент не реализует next task сразу после merge.
+Если repository не разрешает прямой map-only commit в `main`, открыть и объединить маленький transition PR. Product code в нём запрещён.
 
-## 17. Стандартный финальный отчёт
+Следующая задача не реализуется в той же сессии.
+
+## 13. Финальный отчёт
 
 ```text
 MILESTONE:
 TASK:
 ISSUE:
-STATUS: blocked | in_progress | in_review | done
+STATUS:
+VISIBLE_RESULT:
 CAPABILITIES:
 USER_FLOW:
   ... PASS|FAIL|BLOCKED
 PORTS:
-  web: 127.0.0.1:4610
-  api: 127.0.0.1:4611
-  e2e: 127.0.0.1:4612
 BRANCH:
 COMMITS:
 FILES_CHANGED:
@@ -367,16 +215,17 @@ MAP_NODES_CHANGED:
 TESTS_RUN:
 ARTIFACTS:
 DEMO_URLS:
+SCREENSHOTS:
 BLOCKERS:
 RESIDUAL_RISKS:
-WORKING_TREE: clean|dirty
+WORKING_TREE:
 NEXT_ALLOWED_TASK:
 NEXT_COMMAND:
 ```
 
-Отчёт начинается с пользовательского результата, не с установленных инструментов.
+Отчёт начинается с видимого результата, не с установленных инструментов.
 
-## 18. Каноническая очередь v1
+## 14. Каноническая очередь
 
 ```text
 TASK-PRODUCT-DOC-001
@@ -390,25 +239,4 @@ TASK-PRODUCT-DOC-001
 → TASK-ELEC-001
 ```
 
-Очередь изменяется только через Development Program, Project Map, Issues и test catalog в одном нормативном PR.
-
-## 19. Local-first verification
-
-GitHub-hosted Actions не является источником обязательного PASS, пока аккаунт блокирует hosted jobs.
-
-Обязательный gate доказывается локальным task runner с commit SHA. Это не разрешает ослаблять тесты.
-
-Возврат managed CI оформляется отдельным решением после появления фактической потребности.
-
-## 20. Запрет на управление через посредника
-
-Владелец не должен быть ручной прокладкой между двумя агентами.
-
-Если консультант или другой агент предлагает изменение:
-
-1. изменение оформляется в GitHub Issue/Program/Map;
-2. executable agent читает GitHub;
-3. владелец передаёт только короткую команду запуска;
-4. итог проверяется по PR, evidence и test IDs.
-
-Устная команда без обновления GitHub не меняет текущую задачу.
+Очередь изменяется только синхронной правкой Execution Manifest, Development Program, Project Map, Issues и test catalog в нормативном PR.
