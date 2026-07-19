@@ -2,9 +2,9 @@
 
 **Единая образовательная платформа для классов, проектов, виртуальных лабораторий, заданий и проверки работ.**
 
-ASA Lab создаётся как школьная, а затем многопользовательская платформа. Универсальное ядро управляет организациями, педагогами, детским доступом без обязательного email, классами, проектами, заданиями, submissions, комментариями, оценками, достижениями, безопасностью и аудитом. Предметные среды подключаются как независимые модули.
+ASA Lab создаётся как школьная, а затем многопользовательская платформа. Универсальное ядро управляет организациями, педагогами, детским доступом без обязательного email, классами, проектами, заданиями, submissions, comments, grades, achievements, safety и audit. Предметные среды подключаются как независимые modules.
 
-Первый приоритетный предметный модуль — **виртуальная лаборатория электроники**. Архитектура также поддерживает Scratch-подобное блочное программирование, 3D, виртуальную робототехнику, шашки/шахматы, рисование и черчение.
+Первый приоритетный предметный модуль — **виртуальная лаборатория электроники**. Архитектура также поддерживает Scratch-like block coding, 3D, virtual robotics, checkers/chess, drawing и drafting.
 
 ## Главное определение
 
@@ -12,17 +12,19 @@ ASA Lab создаётся как школьная, а затем многопо
 
 ASA Lab — не один редактор и не набор несвязанных сайтов.
 
-## Каноническая программа разработки
+## Канонический контракт разработки
 
-Практический маршрут закреплён в:
-
-- [`docs/delivery/DEVELOPMENT_PROGRAM_V1.md`](docs/delivery/DEVELOPMENT_PROGRAM_V1.md) — Product Alpha → School Pilot;
+- [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml) — точные task IDs, Issues, branches, delivery stages, architecture horizons, dependencies, test profiles, map nodes и artifacts;
+- [`docs/delivery/DEVELOPMENT_PROGRAM_V1.md`](docs/delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый Product Alpha → School Pilot;
 - [`docs/delivery/LOCAL_PORT_POLICY.md`](docs/delivery/LOCAL_PORT_POLICY.md) — Web `4610`, API `4611`, E2E `4612`;
 - [Epic №23](https://github.com/spikeal8-maker/asa-lab/issues/23) — общая программа;
-- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — current focus и executable queue.
+- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — current focus и dynamic statuses;
+- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — команды обязательных test IDs.
+
+`delivery_stage` задаёт порядок выполнения. `architecture_horizon` показывает архитектурный контур и не используется для выбора следующей задачи.
 
 ```text
-Product Documentation
+Product Definition
 → Teacher Portal
 → Universal Project Shell
 → Checkers Lite reference module
@@ -33,17 +35,17 @@ Product Documentation
 → Full Electronics Classroom Cycle
 ```
 
-Checkers Lite — маленькое архитектурное доказательство Module SDK. Продуктовый приоритет остаётся у Electronics.
+Checkers Lite — маленькое доказательство Module SDK. Продуктовый приоритет остаётся у Electronics.
 
-## Что пользователь увидит по этапам
+## Что пользователь увидит
 
 | Этап | Видимый результат |
 |---|---|
 | Teacher Portal | Педагог входит, создаёт класс, reload сохраняет класс |
-| Project Shell | Создание проекта, module selector, draft save/reload и checkpoint |
-| Checkers Lite | Доска, legal move, validation, save/reload и preview |
+| Project Shell | Создание project, module selector, draft save/reload и checkpoint |
+| Checkers Lite | Board, legal move, validation, save/reload и preview |
 | Electronics Alpha | Source, resistor, LED, wire, netlist, DC calculation и diagnostics |
-| StudentSeat | Карточка доступа, вход ребёнка без email, Child Dashboard |
+| StudentSeat | Access card, вход ребёнка без email, Child Dashboard |
 | Assignment | Педагог назначает; ребёнок сдаёт immutable ProjectVersion |
 | Review | Comment, return, resubmit, rubric, grade и badge |
 | Electronics Classroom | Полный электронный учебный цикл внутри класса |
@@ -79,60 +81,56 @@ Classroom Core
 └── Future Learning Modules
 ```
 
-Classroom Core не знает, что такое resistor, LED, checker piece, sprite или 3D mesh. Он знает только module/project/submission contracts.
+Classroom/Project Core не знает, что такое resistor, LED, checker piece, sprite или 3D mesh. Он знает только module/project/submission contracts.
 
 ## Продуктовые документы
 
 - [`docs/product/PRODUCT_BLUEPRINT.md`](docs/product/PRODUCT_BLUEPRINT.md) — конечная платформа;
-- [`docs/product/CAPABILITY_MAP.yaml`](docs/product/CAPABILITY_MAP.yaml) — capability IDs и dependencies;
+- [`docs/product/CAPABILITY_MAP.yaml`](docs/product/CAPABILITY_MAP.yaml) — capabilities и release dependencies;
 - [`docs/product/CAPABILITY_MAP.md`](docs/product/CAPABILITY_MAP.md) — визуальная карта возможностей;
-- [`docs/product/CLASSROOM_CORE_SPEC.md`](docs/product/CLASSROOM_CORE_SPEC.md) — классы, StudentSeat, assignments и submissions;
-- [`docs/product/MODULE_PLATFORM_SPEC.md`](docs/product/MODULE_PLATFORM_SPEC.md) — Module SDK и предметные редакторы;
+- [`docs/product/CLASSROOM_CORE_SPEC.md`](docs/product/CLASSROOM_CORE_SPEC.md) — classroom, StudentSeat, assignments и submissions;
+- [`docs/product/MODULE_PLATFORM_SPEC.md`](docs/product/MODULE_PLATFORM_SPEC.md) — Module SDK и subject editors;
 - [`docs/product/ASSESSMENT_REWARDS_SPEC.md`](docs/product/ASSESSMENT_REWARDS_SPEC.md) — comments, review, grades, badges и progress.
 
-## Архитектурное решение
+## Архитектура
 
 ```text
 Modular Monolith Control Plane
-+ Isolated Compute Plane
++ Isolated Compute Plane for heavy/untrusted work
 + Versioned Module SDK
 + PostgreSQL multi-tenancy
 + Immutable ProjectVersion and SubmissionAttempt
 + Transactional Outbox when asynchronous workflows require it
 + Rust/WASM electronics simulation core
 + Entitlement-based commercial model
-+ Product and project knowledge graphs
++ Product/Project/Quality/Nx maps
 + Executable test registry
 ```
 
-Микросервисы не создаются для каждого CRUD. Отдельно изолируются только тяжёлые или недоверенные вычисления.
+Микросервисы не создаются для каждого CRUD. Redis, S3/MinIO, queues и workers не блокируют раннюю функцию, которая их не использует.
 
-## Карты системы
+## Карты
 
-- [`docs/product/CAPABILITY_MAP.md`](docs/product/CAPABILITY_MAP.md) — что должна уметь платформа;
-- [`docs/delivery/DEVELOPMENT_PROGRAM_V1.md`](docs/delivery/DEVELOPMENT_PROGRAM_V1.md) — в каком порядке это строится;
-- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — архитектура, текущий focus и задачи;
-- [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивный граф;
-- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — машиночитаемый source of truth;
-- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — чем подтверждается готовность;
-- [`docs/project-map/nx-project-graph.json`](docs/project-map/nx-project-graph.json) — фактические dependencies кода;
-- [`docs/architecture/structurizr/workspace.dsl`](docs/architecture/structurizr/workspace.dsl) — C4 model as code.
+- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — delivery stages, architecture horizons и system graph;
+- [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивная Obsidian-like карта, объединяющая Project Map и Execution Manifest;
+- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — architecture graph, current focus и statuses;
+- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — test profiles и stage gates;
+- [`docs/project-map/nx-project-graph.json`](docs/project-map/nx-project-graph.json) — фактические code dependencies;
+- [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — долгосрочные architecture horizons.
 
-## Управление coding-агентами
+## Управление coding-агентом
 
-- [`AGENTS.md`](AGENTS.md) — обязательные правила;
-- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — рабочий цикл;
-- [`docs/delivery/LOCAL_PORT_POLICY.md`](docs/delivery/LOCAL_PORT_POLICY.md) — безопасный локальный запуск;
-- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — stable test IDs;
-- [`tools/validate_delivery_program.py`](tools/validate_delivery_program.py) — проверка canonical queue.
+- [`AGENTS.md`](AGENTS.md) — обязательный контракт;
+- [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — короткий вход;
+- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — ORIENT → IMPLEMENT → VERIFY → MAP → PR → MERGE → TRANSITION;
+- [`tools/validate_delivery_program.py`](tools/validate_delivery_program.py) — manifest/map/test/port synchronization;
+- [`tools/run_task_tests.py`](tools/run_task_tests.py) — фактический task gate.
 
-Короткая команда агенту:
+Короткая команда:
 
 ```text
-Прочитай AGENTS.md, Development Program и current_focus. Открой связанную Issue и выполни только её. Следующую задачу не начинай.
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
 ```
-
-Чат не изменяет молча scope, dependencies, ports или exit gate.
 
 ## Локальные порты
 
@@ -142,19 +140,7 @@ API  http://127.0.0.1:4611
 E2E  http://127.0.0.1:4612
 ```
 
-ASA Lab не использует порты `3000`, `3100`, `5173`. Занятый порт не является разрешением завершить чужой процесс.
-
-## Целевой масштаб
-
-| Уровень | Назначение | Planning CCU |
-|---|---|---:|
-| L0 | разработка и демонстрация | 50 |
-| L1 | одна крупная школа | 500 |
-| L2 | сеть школ | 10 000 |
-| L3 | регион | 50 000 |
-| L4 | федеральный контур | 200 000 |
-
-Это planning targets. Каждый переход подтверждается измерениями, tenant isolation и recovery tests.
+Порты `3000`, `3100`, `5173` запрещены. Занятый порт не разрешает завершать чужой процесс.
 
 ## Главные инварианты
 
@@ -168,7 +154,7 @@ ASA Lab не использует порты `3000`, `3100`, `5173`. Занят�
 - Пользовательский код не выполняется в Core API.
 - Форматы проектов версионируются и мигрируются.
 - Одна Issue реализует один user flow.
-- Следующая capability не начинается до merge текущей.
+- Следующая capability не начинается до merge и map transition текущей.
 
 ## Структура кода
 
@@ -178,7 +164,7 @@ packages/      contracts, domain kernel, authz, database, eventing, Module SDK
 contexts/      identity, organization, classroom, projects, content, activities, assessment
 modules/       blank-canvas, checkers-lite, electronics, затем block coding, 3D, robotics, drawing
 crates/        Rust/WASM simulation kernels
-infra/         local, school and cloud deployment profiles when required
+infra/         deployment profiles only when required
 schemas/       OpenAPI, JSON Schema, events and module contracts
 tests/         unit, integration, authz, E2E, accessibility, security and simulation golden
 ```
