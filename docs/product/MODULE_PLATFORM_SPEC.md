@@ -1,323 +1,529 @@
 # ASA Lab — Module Platform Specification
 
 **Статус:** нормативная спецификация подключения учебных сред.  
-**Связанный документ:** [`PRODUCT_BLUEPRINT.md`](PRODUCT_BLUEPRINT.md).  
-**Основные capability IDs:** `CAP-MODULE-REGISTRY`, `CAP-PROJECTS`, `CAP-AUTOGRADING`, `CAP-ELECTRONICS`, `CAP-BLOCK-CODING`, `CAP-THREE-D`, `CAP-ROBOTICS`, `CAP-CHESS`, `CAP-DRAWING`.
+**Связанные документы:** [`PRODUCT_BLUEPRINT.md`](PRODUCT_BLUEPRINT.md), [`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml), [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md).  
+**Capability IDs:** `CAP-MODULE-REGISTRY`, `CAP-PROJECT-SHELL`, `CAP-CHECKERS-LITE`, `CAP-ELECTRONICS-ALPHA`, `CAP-AUTOGRADING`, `CAP-ELECTRONICS-ADVANCED`, `CAP-BLOCK-CODING`, `CAP-THREE-D`, `CAP-ROBOTICS`, `CAP-CHESS`, `CAP-DRAWING`.
 
-## 1. Цель Module Platform
+## 1. Назначение
 
-Module Platform позволяет подключать к ASA Lab разные учебные редакторы и лаборатории без переписывания Classroom Core.
+Module Platform позволяет подключать разные учебные редакторы без переписывания Classroom Core и Project Core.
 
-Платформа должна одинаково обслуживать:
+Для платформы все предметные работы имеют общий lifecycle:
 
-- электронную схему;
-- Scratch-подобный проект;
-- 3D-сцену;
-- виртуального робота;
-- шахматную позицию или партию;
-- чертёж;
-- текстовую программу;
-- исследовательский документ.
+```text
+ModuleManifest
+→ Project
+→ ProjectDraft
+→ immutable ProjectVersion
+→ optional Assignment
+→ SubmissionAttempt
+→ Viewer / Comment / Review
+```
 
-Для Classroom Core все они являются проектами с версией, preview, результатами проверок и возможностью сдачи.
+Предметный payload и правила остаются внутри модуля.
 
 ## 2. Главный инвариант
 
 ```text
 Classroom Core
-    знает moduleKey, capabilities и универсальные project contracts
+    знает users, classrooms, assignments, submissions and permissions
+
+Project Core
+    знает moduleKey, versions, draft/checkpoint lifecycle and access
 
 Subject Module
-    знает предметный payload, editor, simulation, validation и export
+    знает payload schema, editor, validation, preview and subject computation
 ```
 
 Запрещено:
 
-```typescript
+```ts
 if (project.moduleKey === 'electronics') {
-  // специальная предметная логика внутри Classroom
+  // circuit-specific behavior inside Classroom or Project Core
 }
 ```
 
-## 3. ModuleManifest
+Запрещены direct imports внутренних файлов между Core и subject module.
+
+## 3. Два уровня Module Platform
+
+## 3.1. Module SDK v0.1 — Technical Product Alpha
+
+Используется в Issues №24, №25 и №26.
 
 Минимальный manifest:
 
-```yaml
-moduleKey: electronics
-moduleVersion: 1.0.0
-displayName: Электронная лаборатория
-projectTypes:
-  - circuit
-schemaVersions:
-  circuit: 1
-capabilities:
-  - editor
-  - viewer
-  - preview
-  - validation
-  - autograding
-  - export
-safeMode:
-  supported: true
-  externalNetwork: false
-workerProfiles:
-  - simulation-basic
-exports:
-  - circuit-json
-  - image
-  - bom
+```ts
+interface ModuleManifestV1 {
+  moduleKey: string;
+  moduleVersion: string;
+  displayName: string;
+  projectType: string;
+  schemaVersion: number;
+  editorRoute: string;
+  viewerRoute: string;
+  safeModeSupported: boolean;
+}
 ```
 
-Поля:
+Минимальный provider:
 
-- stable `moduleKey`;
-- semantic `moduleVersion`;
-- display metadata;
-- project types;
-- supported schema versions;
-- required platform capabilities;
-- editor/viewer routes;
-- validation contract;
-- migration contract;
-- preview contract;
-- diff contract;
-- autograding contract;
-- export contract;
+```ts
+interface ModuleProviderV1<TPayload> {
+  createEmptyProject(): TPayload;
+  validate(payload: unknown): Diagnostic[];
+  createPreview(payload: TPayload): PreviewDescriptor;
+}
+```
+
+V0.1 включает только:
+
+- local/static module registry;
+- manifest validation;
+- project JSON Schema;
+- create empty project;
+- editor route;
+- viewer route;
+- validation;
+- preview;
+- ProjectDraft save/reload;
+- ProjectVersion checkpoint;
+- schema compatibility fixture;
+- Nx boundaries.
+
+V0.1 **не включает**:
+
+- remote marketplace/admission workflow;
+- worker pools;
+- hidden autograding;
+- export providers;
+- entitlements/quotas;
+- remote module loading;
+- analytics platform;
+- S3/MinIO requirement;
+- realtime collaboration.
+
+Эти возможности нельзя добавлять в Issues №24–26.
+
+## 3.2. Extended Module Platform — после School Pilot
+
+Добавляется отдельными Issues:
+
+- module admission/security review;
+- enabled versions per tenant;
 - worker profiles;
-- resource limits;
-- Safe Mode compatibility;
-- analytics allowlist;
-- data classification;
-- lifecycle status.
+- general autograding;
+- hidden test bundles;
+- export providers;
+- semantic diff providers;
+- entitlement requirements;
+- analytics allowlists;
+- deprecation/retirement lifecycle;
+- remote/open-source editor integration.
 
-## 4. Module lifecycle
+## 4. Module Registry v0.1
+
+Registry хранит:
 
 ```text
-Draft
-→ Submitted for admission
-→ Automated validation
-→ Security and privacy review
-→ Approved
-→ Enabled for selected tenants
-→ General availability
-→ Deprecated
-→ Read-only support
-→ Retired after migration/export policy
+moduleKey
+moduleVersion
+displayName
+projectType
+schemaVersion
+editorRoute
+viewerRoute
+safeModeSupported
+status
 ```
 
-Нельзя удалить module version, если существуют проекты или submissions, которые требуют её для открытия или воспроизведения.
+V0.1 registry допускает только first-party modules, собранные в monorepo.
+
+Статусы:
+
+```text
+draft
+active
+deprecated
+```
+
+Удаление active/deprecated module version запрещено, если существуют проекты, которым она нужна.
 
 ## 5. Project envelope
 
-Универсальная оболочка:
-
-```json
-{
-  "projectId": "...",
-  "tenantId": "...",
-  "moduleKey": "electronics",
-  "moduleVersion": "1.0.0",
-  "projectType": "circuit",
-  "schemaVersion": 1,
-  "payloadDigest": "sha256:...",
-  "payloadLocation": "...",
-  "assetManifestDigest": "sha256:...",
-  "createdBy": "...",
-  "createdAt": "..."
+```ts
+interface ProjectEnvelope {
+  projectId: string;
+  tenantId: string;
+  ownerPrincipalId: string;
+  classroomId?: string;
+  moduleKey: string;
+  moduleVersion: string;
+  projectType: string;
+  schemaVersion: number;
+  title: string;
+  status: 'active' | 'archived';
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
-Payload валидируется модулем, но доступ к envelope контролирует платформенное ядро.
+Core контролирует доступ к envelope. Module контролирует payload.
 
-## 6. Editor contract
+## 6. ProjectDraft
 
-Editor получает:
+Для Technical Alpha небольшие payloads хранятся в PostgreSQL `jsonb`.
 
-- project envelope;
-- draft payload;
-- actor context с минимально необходимыми grants;
-- assignment context optional;
-- locale;
-- feature/capability flags;
-- Safe Mode policy;
-- autosave API;
-- module assets.
-
-Editor обязан:
-
-- работать без доступа к таблицам Classroom Core;
-- не принимать tenant от клиента как доверенный;
-- сообщать dirty/saved/conflict states;
-- выдавать операции или checkpoint;
-- поддерживать version migration;
-- не отправлять analytics вне allowlist;
-- не логировать содержимое детского проекта.
-
-## 7. Viewer contract
-
-Viewer открывает точную ProjectVersion и используется для:
-
-- проверки педагогом;
-- просмотра учеником отправленной версии;
-- комментариев;
-- preview;
-- сравнения попыток;
-- read-only portfolio.
-
-Viewer не должен автоматически открывать текущий draft вместо сданной версии.
-
-## 8. Validation contract
-
-Результат:
-
-```json
-{
-  "valid": false,
-  "diagnostics": [
-    {
-      "code": "WIRE_DANGLING",
-      "severity": "error",
-      "messageKey": "electronics.wireDangling",
-      "anchor": {"type":"wire","ref":"w17"}
-    }
-  ]
+```ts
+interface ProjectDraft<TPayload> {
+  projectId: string;
+  tenantId: string;
+  schemaVersion: number;
+  payload: TPayload;
+  rowVersion: number;
+  updatedBy: string;
+  updatedAt: string;
 }
-```
-
-Диагностика:
-
-- имеет стабильный code;
-- локализуется вне domain logic;
-- поддерживает anchor;
-- разделяет error/warning/info;
-- не содержит hidden test details.
-
-## 9. Migration contract
-
-Каждое несовместимое изменение project schema требует migrator.
-
-```text
-schema 1
-→ migrator 1→2
-→ schema 2
 ```
 
 Требования:
 
-- детерминированность;
-- idempotency;
-- сохранение исходной immutable version;
-- migration report;
-- rollback через открытие исходной версии;
-- golden samples старых проектов.
+- optimistic concurrency;
+- stale rowVersion возвращает conflict;
+- retry не создаёт duplicate project;
+- tenant/owner access server-side;
+- reload возвращает тот же payload;
+- validation выполняется до accepted save/checkpoint;
+- payload не логируется.
 
-## 10. Diff contract
+Object storage вводится только после измеренного роста payload/assets.
 
-Diff нужен для проверки и истории.
+## 7. ProjectVersion
 
-Универсальный результат:
+Checkpoint создаёт immutable version:
 
-- summary;
-- added/removed/changed counts;
-- module-specific changes;
-- anchors;
-- semantic severity.
-
-Примеры:
-
-- electronics: изменён номинал резистора;
-- blocks: добавлен event block;
-- chess: изменён вариант решения;
-- 3D: изменены размеры детали.
-
-## 11. Preview contract
-
-Preview может быть:
-
-- PNG/SVG;
-- короткая анимация;
-- thumbnail;
-- board position;
-- schematic snapshot;
-- rendered 3D image.
-
-Preview job:
-
-- идемпотентен;
-- привязан к digest версии;
-- имеет timeout;
-- не получает лишние tenant data;
-- сохраняет technical metadata.
-
-## 12. Autograding contract
-
-Вход:
-
-- immutable ProjectVersion;
-- public/hidden test bundle refs;
-- deterministic environment manifest;
-- attempt context;
-- resource profile.
-
-Выход:
-
-```json
-{
-  "status": "completed",
-  "score": 8,
-  "maxScore": 10,
-  "checks": [
-    {
-      "testId": "public-led-pin",
-      "status": "pass",
-      "messageKey": "electronics.correctPin"
-    }
-  ],
-  "evidence": [],
-  "engineVersion": "...",
-  "durationMs": 421
+```ts
+interface ProjectVersion<TPayload> {
+  id: string;
+  projectId: string;
+  tenantId: string;
+  versionNumber: number;
+  moduleKey: string;
+  moduleVersion: string;
+  schemaVersion: number;
+  payload: TPayload;
+  payloadDigest: string;
+  parentVersionId?: string;
+  createdBy: string;
+  createdAt: string;
 }
 ```
 
-Hidden test names, code and expected internals не возвращаются ученику.
+Инварианты:
 
-## 13. Export contract
+- SHA-256 digest рассчитывается на canonical serialized payload;
+- version immutable;
+- old version remains readable;
+- later draft changes do not mutate checkpoint;
+- future SubmissionAttempt references exact version.
 
-Exporter описывает:
+## 8. Editor contract
 
-- format key;
-- MIME type;
-- filename policy;
-- synchronous/asynchronous;
-- worker profile;
-- restrictions;
-- provenance metadata.
+Editor получает:
 
-Примеры:
+- envelope;
+- current draft;
+- actor grants;
+- locale;
+- Safe Mode policy;
+- save/checkpoint API;
+- optional assignment context only after Assignment stage.
 
-- electronics: `.ino`, BOM, image;
-- 3D: STL, 3MF, G-code в отдельном безопасном этапе;
-- blocks: project package;
-- chess: PGN/FEN;
-- drawing: SVG/PDF/DXF при поддержке.
+Editor обязан:
 
-## 14. Worker profiles
+- не обращаться к Core tables;
+- не доверять client tenant ID;
+- показывать dirty/saving/saved/conflict/error;
+- возвращать structured payload;
+- поддерживать keyboard-accessible critical actions;
+- не отправлять payload в telemetry;
+- не создавать собственную identity/session system.
 
-Предметные вычисления выполняются отдельно от API.
+Все Technical Alpha editors работают внутри существующего Web origin. Новые server ports не создаются.
 
-Профиль задаёт:
+## 9. Viewer contract
 
-- runtime image/version;
-- CPU/RAM/time limits;
-- network policy;
-- filesystem policy;
-- input/output limits;
-- allowed secrets;
-- determinism level;
-- retry policy.
+Viewer открывает точную ProjectVersion.
 
-Примеры:
+Использования:
+
+- project preview;
+- read-only history;
+- future teacher review;
+- future child submission view;
+- future module anchors and diff.
+
+Viewer не подменяет requested version текущим draft.
+
+## 10. Validation contract
+
+```ts
+interface Diagnostic {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  messageKey: string;
+  anchor?: {
+    type: string;
+    ref: string;
+    property?: string;
+  };
+}
+```
+
+Требования:
+
+- stable diagnostic code;
+- localization outside domain logic;
+- deterministic ordering;
+- structured anchor;
+- no stack trace/internal hidden test data;
+- unsupported feature gives explicit diagnostic, not fake result.
+
+## 11. Preview contract
+
+```ts
+interface PreviewDescriptor {
+  kind: 'svg' | 'png' | 'board' | 'schematic' | 'json-summary';
+  digest: string;
+  inlineData?: string;
+  artifactRef?: string;
+}
+```
+
+Technical Alpha may generate inline SVG/summary from saved payload. Async rendering workers are not required.
+
+Preview:
+
+- linked to payload digest;
+- deterministic for same payload/module version;
+- private by default;
+- contains no credentials;
+- safe for project card/viewer.
+
+## 12. Schema compatibility
+
+Каждый module project has:
+
+```text
+moduleVersion
+schemaVersion
+```
+
+Rules:
+
+- JSON Schema required;
+- invalid payload rejected;
+- incompatible change increments schemaVersion;
+- migrator required when old projects must be upgraded;
+- old fixture is part of tests;
+- original immutable version is preserved;
+- migration produces report/digest.
+
+Technical Alpha can start with schema version 1 and a no-op compatibility fixture, but cannot omit version fields.
+
+## 13. Blank Canvas Technical Module
+
+Issue №24 introduces one technical module to test Project Shell.
+
+Scope:
+
+- small JSON payload;
+- one editable field or simple canvas object;
+- validation;
+- preview;
+- save/reload;
+- checkpoint.
+
+It is not a subject product and is removed/deprecated after two real modules prove the contract.
+
+## 14. Checkers Lite
+
+Issue №25.
+
+Payload v1:
+
+```ts
+interface CheckersProjectV1 {
+  schemaVersion: 1;
+  sideToMove: 'light' | 'dark';
+  pieces: Array<{
+    id: string;
+    side: 'light' | 'dark';
+    kind: 'man' | 'king';
+    square: string;
+  }>;
+  moveHistory: Array<{
+    pieceId: string;
+    from: string;
+    to: string;
+    capturedIds: string[];
+  }>;
+}
+```
+
+V0.1 capabilities:
+
+- 8×8 board;
+- simple position;
+- one legal move;
+- invalid move diagnostic;
+- save/reload;
+- board preview.
+
+Non-goals:
+
+- AI/engine;
+- multiplayer;
+- tournament/rating;
+- full chess rules;
+- assignments/grade.
+
+Checkers Lite exists to prove that Project/Core code does not change for a new subject module.
+
+## 15. Electronics Alpha
+
+Issue №26.
+
+CircuitDocument v1:
+
+```text
+metadata
+components
+pins
+wires
+positions
+properties
+annotations optional
+schemaVersion
+```
+
+Components:
+
+- DC source;
+- resistor;
+- LED;
+- wire.
+
+Module provides:
+
+- manifest/schema;
+- React editor;
+- component placement and wiring;
+- property editing;
+- connectivity resolver;
+- deterministic normalized netlist;
+- validation diagnostics;
+- minimal native/WASM DC solver;
+- schematic preview;
+- save/reload/checkpoint.
+
+Supported solver topology:
+
+```text
+source → resistor → LED → return
+```
+
+Unsupported topology returns `TOPOLOGY_UNSUPPORTED`.
+
+Electronics Alpha excludes:
+
+- breadboard realism;
+- transient;
+- Arduino;
+- instruments;
+- general autograding;
+- assignment/review integration.
+
+## 16. School Pilot integration
+
+After StudentSeat and Assignment stages, universal workflows use module contracts:
+
+```text
+ActivityVersion pins module requirements
+→ starter ProjectVersion/checkpoint
+→ child ProjectDraft
+→ final checkpoint
+→ SubmissionAttempt references exact ProjectVersion
+→ Viewer opens exact version
+→ Comment stores universal module anchor
+```
+
+Classroom/Assessment Core never import Checkers/Circuit types.
+
+## 17. Module anchor envelope
+
+```ts
+interface ModuleAnchor {
+  moduleKey: string;
+  projectVersionId: string;
+  anchorType: string;
+  anchorRef: string;
+  property?: string;
+}
+```
+
+Module validates anchor existence against exact ProjectVersion.
+
+Examples:
+
+- electronics component/wire/pin;
+- checkers piece/square/move;
+- block coding block/sprite;
+- 3D object/constraint;
+- drawing object/dimension.
+
+## 18. Semantic diff — after Project Shell
+
+Optional provider:
+
+```ts
+interface ModuleDiffProvider<TPayload> {
+  diff(before: TPayload, after: TPayload): ModuleDiff;
+}
+```
+
+Required only when Review task needs attempt comparison.
+
+Technical Alpha does not need a general diff framework.
+
+## 19. General autograding — later capability
+
+`CAP-AUTOGRADING` is not a dependency of Electronics Alpha.
+
+General platform input:
+
+- immutable ProjectVersion;
+- public/hidden test bundle refs;
+- environment manifest;
+- resource profile;
+- attempt context.
+
+General output:
+
+- status;
+- score/max;
+- public check results;
+- evidence;
+- engine version;
+- duration/failure category.
+
+Hidden test names/code/expected values are never returned to child.
+
+Electronics Alpha uses local deterministic validation/golden tests; full classroom task adds small public checks without prematurely building the entire autograding platform.
+
+## 20. Workers — only when required
+
+Potential future profiles:
 
 - `simulation-basic`;
 - `arduino-compile`;
@@ -326,188 +532,137 @@ Exporter описывает:
 - `robotics-physics`;
 - `chess-analysis`.
 
-## 15. Module admission checklist
+Worker introduction requires a current Issue and measurable reason. Module SDK v0.1 does not require worker infrastructure.
 
-Перед включением:
+## 21. Export — later capability
 
-- manifest schema PASS;
-- project schema PASS;
-- old project migration tests PASS;
-- editor/viewer contract PASS;
-- Safe Mode declared;
-- no direct Classroom imports;
-- no unapproved network access;
-- telemetry allowlist defined;
-- resource profile defined;
-- licenses reviewed;
-- security scan PASS;
-- accessibility review;
-- sample activity and starter project;
-- export and data deletion behavior documented.
+Potential exports:
 
-## 16. Electronics module
+- electronics: JSON, image, BOM, `.ino` later;
+- 3D: STL/3MF;
+- chess: FEN/PDN/PGN as applicable;
+- drawing: SVG/PDF/DXF when supported.
 
-### 16.1. Project payload
+Export is not required for Project Shell, Checkers Lite or Electronics Alpha.
 
-```text
-CircuitDocument
-├── components
-├── wires
-├── annotations
-├── code files
-├── instruments
-└── module metadata
-```
+## 22. Safe Mode and privacy
 
-### 16.2. Capabilities
+Every module declares:
 
-- scene editing;
-- connectivity resolution;
-- netlist;
-- validation;
-- simulation;
-- MCU code;
-- instruments;
-- BOM/export;
-- behavioral autograding.
+- external network usage;
+- upload/download behavior;
+- public sharing behavior;
+- telemetry allowlist;
+- child communication behavior;
+- resource limits when computation exists.
 
-### 16.3. Первый вертикальный срез
+V1 rules:
 
-- source;
-- resistor;
-- LED;
-- wire;
-- save/reload;
-- netlist;
-- DC calculation;
-- diagnostics;
-- assignment submission;
-- teacher viewer/comment.
-
-## 17. Block coding module
-
-### 17.1. Product scope
-
-- stage;
-- sprites;
-- costumes;
-- sounds;
-- event scripts;
-- blocks;
-- variables/lists;
-- runtime;
-- project templates;
-- safe sharing inside class;
-- activity tests.
-
-### 17.2. Integration options
-
-- собственный runtime на Blockly;
-- адаптация открытой совместимой среды;
-- импорт/export при соблюдении лицензий.
-
-Даже при встраивании существующего editor Classroom Core остаётся владельцем assignment, project envelope, submission, review и grade.
-
-## 18. 3D module
-
-- scene graph;
-- geometry/assets;
-- transforms;
-- units;
-- constraints;
-- measurement;
-- preview;
-- print export;
-- model validation;
-- teacher annotations.
-
-Slicing и G-code выполняются отдельным worker с явным printer profile.
-
-## 19. Robotics module
-
-- world schema;
-- robot schema;
-- sensors/actuators;
-- controller code;
-- simulation seed;
-- physics version;
-- replay;
-- goal conditions;
-- autograding evidence.
-
-## 20. Chess/checkers module
-
-- board state;
-- move history;
-- task conditions;
-- accepted variants;
-- hints;
-- engine analysis policy;
-- annotations on moves;
-- score and evidence.
-
-Движок не должен автоматически показывать ученику скрытое решение.
-
-## 21. Drawing/drafting module
-
-- document pages;
-- layers;
-- vector objects;
-- dimensions;
-- snapping;
-- standards/profile;
-- annotations;
-- export;
-- rubric evidence.
-
-## 22. Entitlements
-
-Module Platform запрашивает capability:
-
-```typescript
-canUse({ tenantId, capability: 'electronics.arduino' })
-```
-
-Модуль не знает тариф, оплату и провайдера.
+- external network off by default;
+- project private by default;
+- no child direct messaging;
+- no payload/source code in telemetry;
+- no credentials in project/export/preview;
+- module cannot bypass Core authorization.
 
 ## 23. Analytics
 
-Каждый модуль публикует только разрешённые события:
+Technical Alpha records only safe technical events if required:
 
 - editor opened;
-- first meaningful action;
-- validation run;
-- simulation run;
-- save success/conflict;
-- submission created;
-- test result category.
+- draft saved/conflict;
+- validation invoked;
+- checkpoint created.
 
-Запрещены payload, source code, child comments, student credentials и arbitrary labels.
+Payload, source code, child comments and arbitrary labels are forbidden.
 
-## 24. Compatibility policy
+Extended analytics requires separate capability/Issue.
 
-Поддерживаются:
+## 24. Entitlements
 
-- active version;
-- previous compatible versions;
-- read-only legacy versions по policy;
-- migration/export path.
+Module code asks for capability, not tariff:
 
-Assignment фиксирует ActivityVersion и module requirements, чтобы обновление модуля не меняло критерии уже выданного задания.
+```ts
+canUse({ tenantId, capability: 'electronics.advanced' })
+```
 
-## 25. Definition of Done модуля
+Entitlements are a scale capability and do not block Alpha modules.
 
-Модуль готов к учебному использованию, если:
+## 25. Required boundaries
 
-1. создаётся проект;
-2. работает autosave;
-3. проект открывается после reload;
-4. создаётся immutable version;
-5. assignment может принять проект;
-6. submission открывается в viewer;
-7. комментарий имеет module anchor;
-8. validator/autograder воспроизводим;
-9. старые fixtures открываются;
-10. Safe Mode и security подтверждены;
-11. export/data deletion документированы;
-12. E2E `teacher assigns → student works → submits → teacher reviews` проходит.
+Nx/project rules must prove:
+
+```text
+Classroom Core !→ module internals
+Project Core !→ module internals
+Subject module !→ Core internals
+Subject module → Module SDK/public Project contracts
+apps/web → module public UI entry
+apps/api → context public APIs
+```
+
+A second module must be added without changing Core domain code.
+
+## 26. Test profiles
+
+### Project Shell
+
+- module manifest/schema;
+- draft save/reload;
+- optimistic conflict;
+- immutable checkpoint/digest;
+- tenant/owner isolation;
+- E2E.
+
+### Checkers Lite
+
+- schema fixtures;
+- deterministic move rules;
+- diagnostics;
+- save/reload;
+- preview;
+- no Core imports;
+- E2E.
+
+### Electronics Alpha
+
+- CircuitDocument fixtures;
+- connectivity/netlist;
+- diagnostics;
+- native golden;
+- WASM parity;
+- save/reload;
+- preview;
+- no Core imports;
+- E2E.
+
+## 27. Definition of Done Module SDK v0.1
+
+V0.1 is proven when:
+
+1. Project Shell works with Blank Canvas;
+2. Checkers Lite uses the same lifecycle;
+3. Electronics Alpha uses the same lifecycle;
+4. Core domain code has no subject conditionals/imports;
+5. each module has versioned schema/fixtures;
+6. draft save/reload works;
+7. immutable checkpoints work;
+8. preview and diagnostics work;
+9. tenant/owner isolation works;
+10. automated E2E and screenshots exist;
+11. no future worker/export/autograding infrastructure was added without a separate task.
+
+## 28. Definition of Done School integration
+
+A module is proven for school use when:
+
+1. teacher can assign pinned ActivityVersion;
+2. child gets/opens the correct project;
+3. final sync creates exact immutable ProjectVersion;
+4. SubmissionAttempt references it;
+5. teacher viewer opens exact version;
+6. comment anchor is version-safe;
+7. revision creates a new attempt/version;
+8. assessment evidence is reproducible;
+9. full classroom E2E passes;
+10. Core still contains no subject-specific domain logic.
