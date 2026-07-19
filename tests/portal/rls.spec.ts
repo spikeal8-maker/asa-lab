@@ -67,6 +67,92 @@ describe('runtime role hardening', () => {
     }
   });
 
+  it('has exactly the hardened role attributes and no role memberships', async () => {
+    const flags = await runtime.query(
+      `SELECT rolinherit, rolcreaterole, rolcreatedb, rolreplication
+         FROM pg_roles WHERE rolname = current_user`,
+    );
+    expect(flags.rows[0]).toEqual({
+      rolinherit: false,
+      rolcreaterole: false,
+      rolcreatedb: false,
+      rolreplication: false,
+    });
+    const memberships = await runtime.query(
+      `SELECT count(*)::int AS n FROM pg_auth_members
+        WHERE member = (SELECT oid FROM pg_roles WHERE rolname = current_user)`,
+    );
+    expect(memberships.rows[0].n).toBe(0);
+  });
+
+  it('cannot CREATE in the public schema', async () => {
+    const priv = await runtime.query(
+      `SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS can_create`,
+    );
+    expect(priv.rows[0].can_create).toBe(false);
+    await expect(runtime.query(`CREATE TABLE public.hack (id int)`)).rejects.toMatchObject({
+      code: '42501',
+    });
+  });
+
+  it('holds exactly the expected table and sequence privileges', async () => {
+    const grants = await runtime.query(
+      `SELECT table_name, privilege_type
+         FROM information_schema.role_table_grants
+        WHERE grantee = current_user AND table_schema = 'public'
+        ORDER BY table_name, privilege_type`,
+    );
+    const actual = grants.rows.map((r) => `${r.table_name}:${r.privilege_type}`);
+    expect(actual).toEqual([
+      'academic_periods:SELECT',
+      'audit_events:INSERT',
+      'audit_events:SELECT',
+      'classroom_memberships:INSERT',
+      'classroom_memberships:SELECT',
+      'classrooms:INSERT',
+      'classrooms:SELECT',
+      'schools:SELECT',
+    ]);
+    const sequences = await runtime.query(
+      `SELECT c.relname,
+              has_sequence_privilege(current_user, c.oid, 'USAGE') AS usage
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'S' AND n.nspname = 'public'
+        ORDER BY c.relname`,
+    );
+    for (const row of sequences.rows) {
+      expect(row.usage).toBe(row.relname === 'audit_events_id_seq');
+    }
+  });
+
+  it('SECURITY DEFINER functions ignore hostile same-named temp tables', async () => {
+    const client = await runtime.connect();
+    try {
+      await client.query(
+        `CREATE TEMP TABLE sessions (token_hash varchar, tenant_id uuid, user_id uuid,
+                                     revoked_at timestamptz, expires_at timestamptz)`,
+      );
+      await client.query(`CREATE TEMP TABLE users (id uuid, tenant_id uuid, email varchar)`);
+      await client.query(
+        `CREATE TEMP TABLE tenants (id uuid, workspace_slug varchar, status varchar)`,
+      );
+      // The locator still resolves against the real public.tenants row.
+      const tenant = await client.query(`SELECT auth_lookup_tenant_id($1) AS id`, [
+        teacherA.workspace,
+      ]);
+      expect(tenant.rows[0].id).toBe(teacherA.tenantId);
+      // Session resolution also targets public.*, not the hostile temp copies.
+      const resolved = await client.query(`SELECT * FROM auth_resolve_session($1)`, [
+        'no-such-hash',
+      ]);
+      expect(resolved.rows).toHaveLength(0);
+    } finally {
+      await client.query(`DISCARD TEMP`).catch(() => undefined);
+      client.release();
+    }
+  });
+
   it('reaches identity data only through the narrow auth functions', async () => {
     const tenant = await runtime.query(`SELECT auth_lookup_tenant_id($1) AS id`, [
       teacherA.workspace,

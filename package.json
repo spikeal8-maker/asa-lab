@@ -33,7 +33,8 @@
     "test:startup": "node tools/check-startup.mjs",
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
     "test:authz": "vitest run tests/portal/authz.spec.ts",
-    "test:portal-api": "vitest run tests/portal/portal-api.spec.ts"
+    "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
+    "db:test:provision": "node tools/provision-test-db.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

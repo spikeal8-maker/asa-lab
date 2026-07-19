@@ -50,7 +50,7 @@ let n = 0;
 export async function seedTeacher(
   admin: pg.Pool,
   label: string,
-  options: { withSchool?: boolean } = {},
+  options: { withSchool?: boolean; withActivePeriod?: boolean } = {},
 ): Promise<SeededTeacher> {
   n += 1;
   const unique = `${Date.now()}-${n}-${Math.floor(Math.random() * 1e6)}`;
@@ -58,6 +58,7 @@ export async function seedTeacher(
   const email = `teacher-${label}-${unique}@test.local`.toLowerCase();
   const password = `pw-${unique}`;
   const withSchool = options.withSchool !== false;
+  const withActivePeriod = options.withActivePeriod !== false;
 
   const tenant = await admin.query(
     `INSERT INTO tenants (title, workspace_slug) VALUES ($1, $2) RETURNING id`,
@@ -75,8 +76,8 @@ export async function seedTeacher(
   const schoolId = school.rows[0].id as string;
   const period = await admin.query(
     `INSERT INTO academic_periods (tenant_id, school_id, title, starts_on, ends_on, is_active)
-     VALUES ($1, $2, 'Период', '2026-09-01', '2027-06-30', true) RETURNING id`,
-    [tenantId, schoolId],
+     VALUES ($1, $2, 'Период', '2026-09-01', '2027-06-30', $3) RETURNING id`,
+    [tenantId, schoolId, withActivePeriod],
   );
   const teacher = await admin.query(
     `INSERT INTO users (tenant_id, school_id, role, email, display_name, password_hash)

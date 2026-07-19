@@ -141,18 +141,37 @@ CREATE TRIGGER audit_events_no_update
 -- tables plus read-only organization lookups, all under forced RLS.
 -- ---------------------------------------------------------------------------
 DO $$
+DECLARE
+    membership record;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'asalab_app') THEN
-        CREATE ROLE asalab_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+        CREATE ROLE asalab_app;
     END IF;
+    -- Deterministic hardening: fix the attributes even for a pre-existing role.
+    ALTER ROLE asalab_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    -- The runtime role must not inherit anything through role memberships.
+    FOR membership IN
+        SELECT r.rolname
+          FROM pg_auth_members m
+          JOIN pg_roles r ON r.oid = m.roleid
+         WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = 'asalab_app')
+    LOOP
+        EXECUTE pg_catalog.format('REVOKE %I FROM asalab_app', membership.rolname);
+    END LOOP;
 END
 $$;
+
+-- Nobody creates objects in public implicitly (blocks temp/shadow tricks and
+-- keeps the schema owner-controlled).
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
 GRANT USAGE ON SCHEMA public TO asalab_app;
 REVOKE ALL ON tenants, tenant_placements, users, sessions FROM asalab_app;
 GRANT SELECT ON schools, academic_periods TO asalab_app;
 GRANT SELECT, INSERT ON classrooms, classroom_memberships, audit_events TO asalab_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO asalab_app;
+-- Exactly one sequence is needed (audit_events bigserial); nothing broader.
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM asalab_app;
+GRANT USAGE ON SEQUENCE public.audit_events_id_seq TO asalab_app;
 
 -- Forced RLS with a verified-session tenant context (SET LOCAL app.tenant_id,
 -- transaction-scoped, applied only by server middleware after session
@@ -211,8 +230,8 @@ CREATE POLICY sessions_tenant ON sessions
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auth_lookup_tenant_id(p_slug varchar)
 RETURNS uuid
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-    SELECT id FROM tenants WHERE workspace_slug = p_slug AND status = 'active';
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT id FROM public.tenants WHERE workspace_slug = p_slug AND status = 'active';
 $$;
 
 CREATE OR REPLACE FUNCTION auth_find_active_teacher(p_tenant_id uuid, p_email_lower varchar)
@@ -223,9 +242,9 @@ RETURNS TABLE (
     school_id uuid,
     password_hash text
 )
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT u.id, u.email, u.display_name, u.school_id, u.password_hash
-      FROM users u
+      FROM public.users u
      WHERE u.tenant_id = p_tenant_id
        AND lower(u.email) = p_email_lower
        AND u.role = 'teacher'
@@ -240,9 +259,9 @@ CREATE OR REPLACE FUNCTION auth_create_session(
     p_ttl_hours int
 )
 RETURNS void
-LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public AS $$
-    INSERT INTO sessions (tenant_id, user_id, token_hash, expires_at)
-    VALUES (p_tenant_id, p_user_id, p_token_hash, now() + make_interval(hours => p_ttl_hours));
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    INSERT INTO public.sessions (tenant_id, user_id, token_hash, expires_at)
+    VALUES (p_tenant_id, p_user_id, p_token_hash, pg_catalog.now() + pg_catalog.make_interval(hours => p_ttl_hours));
 $$;
 
 CREATE OR REPLACE FUNCTION auth_resolve_session(p_token_hash varchar)
@@ -253,21 +272,21 @@ RETURNS TABLE (
     display_name varchar,
     school_id uuid
 )
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT s.tenant_id, s.user_id, u.email, u.display_name, u.school_id
-      FROM sessions s
-      JOIN users u ON u.tenant_id = s.tenant_id AND u.id = s.user_id
+      FROM public.sessions s
+      JOIN public.users u ON u.tenant_id = s.tenant_id AND u.id = s.user_id
      WHERE s.token_hash = p_token_hash
        AND s.revoked_at IS NULL
-       AND s.expires_at > now()
+       AND s.expires_at > pg_catalog.now()
        AND u.status = 'active'
      LIMIT 1;
 $$;
 
 CREATE OR REPLACE FUNCTION auth_revoke_session(p_token_hash varchar)
 RETURNS void
-LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public AS $$
-    UPDATE sessions SET revoked_at = now()
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    UPDATE public.sessions SET revoked_at = pg_catalog.now()
      WHERE token_hash = p_token_hash AND revoked_at IS NULL;
 $$;
 

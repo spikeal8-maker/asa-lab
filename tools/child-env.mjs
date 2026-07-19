@@ -4,8 +4,13 @@
 // in the parent environment or .env.local. The web child gets no DB
 // credentials at all.
 
-const API_STRIP = ['DATABASE_URL', 'TEST_DATABASE_URL'];
-const WEB_STRIP = ['DATABASE_URL', 'TEST_DATABASE_URL', 'APP_DATABASE_URL'];
+const API_STRIP = ['DATABASE_URL', 'TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'];
+const WEB_STRIP = [
+  'DATABASE_URL',
+  'TEST_DATABASE_URL',
+  'APP_TEST_DATABASE_URL',
+  'APP_DATABASE_URL',
+];
 
 export function apiChildEnv(base, apiPort) {
   const env = { ...base };

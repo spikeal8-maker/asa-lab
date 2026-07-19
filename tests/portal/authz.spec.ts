@@ -94,6 +94,37 @@ describe('request validation', () => {
     }
   });
 
+  it('malformed create-classroom bodies yield 400, not 500', async () => {
+    const teacher = await seedTeacher(admin, 'authz-shape');
+    const token = await login(teacher);
+    for (const payload of [null, [], 'x', 5]) {
+      const response = await fastifyOf(app).inject({
+        method: 'POST',
+        url: '/api/classrooms',
+        cookies: { asa_session: token },
+        headers: { 'content-type': 'application/json', 'idempotency-key': 'k-shape' },
+        payload: JSON.stringify(payload),
+      });
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
+  it('an empty or whitespace Idempotency-Key yields 400', async () => {
+    const teacher = await seedTeacher(admin, 'authz-wskey');
+    const token = await login(teacher);
+    for (const key of ['', '   ']) {
+      const response = await fastifyOf(app).inject({
+        method: 'POST',
+        url: '/api/classrooms',
+        cookies: { asa_session: token },
+        headers: { 'idempotency-key': key },
+        payload: { title: 'X' },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('invalid_idempotency_key');
+    }
+  });
+
   it('additional properties are rejected with 400', async () => {
     const teacher = await seedTeacher(admin, 'authz-extra');
     const login400 = await fastifyOf(app).inject({
@@ -158,6 +189,20 @@ describe('tenant and school invariants', () => {
     });
     const idsB = (listB.json().items as Array<{ id: string }>).map((c) => c.id);
     expect(idsB).not.toContain(created.json().classroom.id);
+  });
+
+  it('a school without an active academic period yields an explicit 409', async () => {
+    const teacher = await seedTeacher(admin, 'authz-noperiod', { withActivePeriod: false });
+    const token = await login(teacher);
+    const response = await fastifyOf(app).inject({
+      method: 'POST',
+      url: '/api/classrooms',
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': 'k-noperiod' },
+      payload: { title: 'X' },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe('no_active_period');
   });
 
   it('a teacher without a school gets an explicit error', async () => {

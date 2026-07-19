@@ -21,6 +21,7 @@ const SCAN_FILES = [
   'tools/dev.mjs',
   'tools/check-startup.mjs',
   'tools/seed-dev.mjs',
+  'schemas/openapi.yaml',
 ];
 const FORBIDDEN = ['5173', '3000', '3100'];
 const REQUIRED = [
@@ -31,6 +32,7 @@ const REQUIRED = [
   ['e2e/server.mjs', '4612'],
   ['tools/dev.mjs', '4610'],
   ['tools/dev.mjs', '4611'],
+  ['schemas/openapi.yaml', '4611'],
 ];
 
 let failures = 0;

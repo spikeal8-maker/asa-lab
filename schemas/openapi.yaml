@@ -7,7 +7,7 @@ info:
     classroom create/list. The tenant context is derived exclusively from the
     server-side session; clients never send a tenant identifier.
 servers:
-  - url: http://127.0.0.1:3000
+  - url: http://127.0.0.1:4611
     description: Local development
 paths:
   /health/live:

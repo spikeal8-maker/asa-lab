@@ -42,6 +42,7 @@ describe('database URL isolation', () => {
         APP_DATABASE_URL: 'postgres://app@host/db',
         DATABASE_URL: 'postgres://admin@host/db',
         TEST_DATABASE_URL: 'postgres://admin@host/db_test',
+        APP_TEST_DATABASE_URL: 'postgres://app@host/db_test',
         PATH: 'x',
       },
       4611,
@@ -49,6 +50,7 @@ describe('database URL isolation', () => {
     expect(env['APP_DATABASE_URL']).toBe('postgres://app@host/db');
     expect(env['DATABASE_URL']).toBeUndefined();
     expect(env['TEST_DATABASE_URL']).toBeUndefined();
+    expect(env['APP_TEST_DATABASE_URL']).toBeUndefined();
     expect(env['API_PORT']).toBe('4611');
   });
 
@@ -57,12 +59,48 @@ describe('database URL isolation', () => {
       APP_DATABASE_URL: 'postgres://app@host/db',
       DATABASE_URL: 'postgres://admin@host/db',
       TEST_DATABASE_URL: 'postgres://admin@host/db_test',
+      APP_TEST_DATABASE_URL: 'postgres://app@host/db_test',
       PATH: 'x',
     });
     expect(env['APP_DATABASE_URL']).toBeUndefined();
     expect(env['DATABASE_URL']).toBeUndefined();
     expect(env['TEST_DATABASE_URL']).toBeUndefined();
+    expect(env['APP_TEST_DATABASE_URL']).toBeUndefined();
     expect(env['PATH']).toBe('x');
+  });
+});
+
+describe('migration smoke isolation', () => {
+  function smokeEnv(overrides: Record<string, string | undefined>): Record<string, string> {
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined && key !== 'TEST_DATABASE_URL') env[key] = value;
+    }
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value === undefined) delete env[key];
+      else env[key] = value;
+    }
+    return env;
+  }
+
+  it('db:migrate:test refuses a database whose name is not *_test', () => {
+    const result = spawnSync('node', ['tools/migrate.mjs', '--smoke'], {
+      env: smokeEnv({ TEST_DATABASE_URL: 'postgres://admin:x@127.0.0.1:5433/asalab' }),
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('*_test');
+  });
+
+  it('db:migrate:test is BLOCKED without TEST_DATABASE_URL (never falls back to dev)', () => {
+    const result = spawnSync('node', ['tools/migrate.mjs', '--smoke'], {
+      env: smokeEnv({}),
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('TEST_DATABASE_URL');
   });
 });
 

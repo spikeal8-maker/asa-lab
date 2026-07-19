@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import pg from 'pg';
-import { devAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-MVP-E2E-001: real browser flow —
  * login → empty state → create classroom → card visible → reload → card
@@ -11,7 +11,7 @@ let admin: pg.Pool;
 let teacher: SeededTeacher;
 
 test.beforeAll(async () => {
-  admin = devAdminPool();
+  admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'e2e');
 });
 
