@@ -1,6 +1,6 @@
 # ASA Lab — Product Documentation
 
-Эта папка определяет **что строит ASA Lab**. Delivery-документы отдельно определяют **в каком порядке это реализуется**.
+Эта папка определяет **что строит ASA Lab**. Delivery-документы отдельно определяют **в каком порядке и по какому контракту это реализуется**.
 
 ## 1. Продуктовые источники
 
@@ -8,18 +8,19 @@
 2. [`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml) — машиночитаемые capability IDs, зависимости и release slices.
 3. [`CAPABILITY_MAP.md`](CAPABILITY_MAP.md) — визуальная карта возможностей.
 4. [`CLASSROOM_CORE_SPEC.md`](CLASSROOM_CORE_SPEC.md) — классы, StudentSeat, задания, submissions и кабинеты.
-5. [`MODULE_PLATFORM_SPEC.md`](MODULE_PLATFORM_SPEC.md) — подключение электроники, блочного программирования, 3D, робототехники, шашек/шахмат и других модулей.
-6. [`ASSESSMENT_REWARDS_SPEC.md`](ASSESSMENT_REWARDS_SPEC.md) — комментарии, review, rubric, оценки, badges, certificates и progress.
+5. [`MODULE_PLATFORM_SPEC.md`](MODULE_PLATFORM_SPEC.md) — подключение электроники, block coding, 3D, robotics, checkers/chess и других модулей.
+6. [`ASSESSMENT_REWARDS_SPEC.md`](ASSESSMENT_REWARDS_SPEC.md) — comments, review, rubric, grades, badges, certificates и progress.
 
 ## 2. Практический маршрут разработки
 
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — канонический путь Product Alpha → School Pilot;
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — точный machine-readable task/Issue/branch/stage/test/map contract;
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый путь Product Alpha → School Pilot;
 - [`../delivery/LOCAL_PORT_POLICY.md`](../delivery/LOCAL_PORT_POLICY.md) — Web `4610`, API `4611`, E2E `4612`;
-- [`../project-map/project-map.yaml`](../project-map/project-map.yaml) — current focus, execution queue и dependencies;
+- [`../project-map/project-map.yaml`](../project-map/project-map.yaml) — current focus, dynamic statuses и dependencies;
 - [`../project-map/QUALITY_MAP.md`](../project-map/QUALITY_MAP.md) — gates каждого этапа;
 - [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml) — исполняемые test IDs.
 
-Продуктовая документация не является требованием реализовать всё одновременно. Development Program делит конечную систему на девять последовательных executable tasks.
+Продуктовая документация не требует реализовать всё одновременно. Execution Manifest и Development Program делят конечную систему на девять последовательных executable tasks.
 
 ## 3. Два delivery tracks
 
@@ -41,36 +42,39 @@ StudentSeat
 → Full Electronics Classroom Cycle
 ```
 
-Checkers Lite используется только как маленькое доказательство Module SDK. Приоритетный предметный модуль — Electronics.
+Checkers Lite — маленькое доказательство Module SDK. Приоритетный предметный модуль — Electronics.
 
 ## 4. Источники истины
 
-- продуктовая цель и инварианты — `PRODUCT_BLUEPRINT.md`;
-- состав возможностей и зависимости — `CAPABILITY_MAP.yaml`;
-- практическая последовательность — `DEVELOPMENT_PROGRAM_V1.md`;
-- архитектура — `docs/architecture/ARCHITECTURE_BASELINE.md` и ADR;
-- текущая задача — `project-map.yaml` + связанная GitHub Issue;
-- API/данные — OpenAPI, JSON Schema и migrations;
-- готовность — `test-catalog.yaml` и фактические artifacts.
+- продуктовая цель — `PRODUCT_BLUEPRINT.md`;
+- capabilities и release dependencies — `CAPABILITY_MAP.yaml`;
+- task contract — `EXECUTION_MANIFEST.yaml`;
+- человекочитаемая последовательность — `DEVELOPMENT_PROGRAM_V1.md`;
+- architecture horizons — `docs/architecture/IMPLEMENTATION_ROADMAP.md`;
+- current status — `project-map.yaml`;
+- executable scope — текущая GitHub Issue;
+- API/data — OpenAPI, JSON Schema и migrations;
+- готовность — manifest profiles + `test-catalog.yaml` + artifacts.
+
+`delivery_stage` задаёт execution order. `architecture_horizon` описывает архитектурную область и не используется для выбора следующей задачи.
 
 ## 5. Правило coding-агента
 
 Перед реализацией агент обязан:
 
 1. прочитать current focus;
-2. открыть одну связанную executable Issue;
-3. прочитать раздел текущего этапа Development Program;
-4. найти capability IDs;
-5. проверить dependencies;
-6. перечислить один user flow;
-7. перечислить non-goals;
-8. соблюдать port policy;
-9. выполнить только текущий flow;
-10. остановиться после Draft PR/merge и не начинать следующую Issue.
+2. найти task entry в Execution Manifest;
+3. открыть указанную Issue и branch;
+4. проверить dependencies;
+5. прочитать только manifest `read` links;
+6. перечислить один user flow и non-goals;
+7. соблюдать port policy;
+8. выполнить только текущий flow;
+9. выполнить все manifest/test-catalog tests;
+10. обновить Project/Quality/Nx maps;
+11. после merge выполнить map transition и остановиться.
 
-Агент не обязан перечитывать все документы полностью, если Issue содержит точные ссылки.
-
-При конфликте между чатом и нормативной Issue/картой агент останавливается. Scope не меняется молча.
+При конфликте агент останавливается. Чат не меняет task/capability/scope/port/test gate.
 
 ## 6. Главное определение
 
