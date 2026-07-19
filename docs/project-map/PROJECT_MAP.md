@@ -2,42 +2,66 @@
 
 Человекочитаемое представление [`project-map.yaml`](project-map.yaml).
 
-Дополнительные источники:
+Связанные источники:
 
-- [`../product/PRODUCT_BLUEPRINT.md`](../product/PRODUCT_BLUEPRINT.md) — конечный продукт;
-- [`../product/CAPABILITY_MAP.md`](../product/CAPABILITY_MAP.md) — capabilities;
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — последовательность реализации;
-- [`../delivery/LOCAL_PORT_POLICY.md`](../delivery/LOCAL_PORT_POLICY.md) — локальные порты;
-- [`QUALITY_MAP.md`](QUALITY_MAP.md) — чем подтверждается готовность;
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — точный task contract, stages, branches, tests и map nodes;
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый путь;
+- [`../product/CAPABILITY_MAP.md`](../product/CAPABILITY_MAP.md) — продуктовые возможности;
+- [`QUALITY_MAP.md`](QUALITY_MAP.md) — чем доказывается готовность;
 - [`viewer.html`](viewer.html) — интерактивный Obsidian-подобный граф.
 
-## 1. Текущий фокус
+## 1. Что является порядком выполнения
 
-```text
-Foundation                         done
-        ↓
-TASK-PRODUCT-DOC-001              in_review — Issue 19 / PR 21
-        ↓
-TASK-PORTAL-001                   blocked — Issue 18 / PR 22
-        ↓
-TASK-PROJECT-SHELL-001            blocked — Issue 24
-        ↓
-TASK-CHECKERS-LITE-001            blocked — Issue 25
-        ↓
-TASK-ELECTRONICS-ALPHA-001        blocked — Issue 26
-        ↓
-TASK-SEAT-001                     blocked — Issue 7
-        ↓
-TASK-ACT-001                      blocked — Issue 8
-        ↓
-TASK-REVIEW-001                   blocked — Issue 20
-        ↓
-TASK-ELEC-001                     blocked — Issue 6
+Только `delivery_stage` из Execution Manifest и `execution_queue` из `project-map.yaml`.
+
+`architecture_horizon`/`phase` — архитектурная группировка, не execution order. Technical Alpha намеренно проверяет Project Shell и Electronics до полного StudentSeat/Assignment workflow.
+
+## 2. Текущий фокус и очередь
+
+```mermaid
+flowchart LR
+    DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>in_review]
+    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>blocked]
+    PROJECT[3 Project Shell<br/>TASK-PROJECT-SHELL-001<br/>blocked]
+    CHECKERS[4 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
+    EALPHA[5 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]
+    SEAT[6 StudentSeat<br/>TASK-SEAT-001<br/>blocked]
+    ACT[7 Assignment Submission<br/>TASK-ACT-001<br/>blocked]
+    REVIEW[8 Review Grade Badge<br/>TASK-REVIEW-001<br/>blocked]
+    EFULL[9 Electronics Classroom<br/>TASK-ELEC-001<br/>blocked]
+
+    DOC --> PORTAL --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
 ```
 
-Current focus берётся только из `project-map.yaml`. Бот не выбирает более позднюю задачу.
+Текущий `current_focus` всегда берётся из YAML. Более поздний узел не выбирается при блокировке текущего.
 
-## 2. Конечная система
+## 3. Два delivery tracks
+
+```mermaid
+flowchart TB
+    PROGRAM[PROGRAM-ALPHA-001]
+
+    subgraph TECH[Technical Product Alpha]
+        P1[Teacher Portal]
+        P2[Universal Project Shell]
+        P3[Checkers Lite]
+        P4[Electronics Alpha]
+        P1 --> P2 --> P3 --> P4
+    end
+
+    subgraph PILOT[School Pilot]
+        S1[StudentSeat]
+        S2[Assignment and Submission]
+        S3[Comments Review Grade Badge]
+        S4[Full Electronics Classroom Cycle]
+        S1 --> S2 --> S3 --> S4
+    end
+
+    PROGRAM --> TECH
+    TECH --> PILOT
+```
+
+## 4. Конечная система
 
 ```mermaid
 flowchart TB
@@ -53,7 +77,7 @@ flowchart TB
     subgraph EXPERIENCE[Experience]
         WEB[Teacher and Child Web/PWA]
         ADMINUI[Admin Console]
-        MODULEHOST[Subject Module Host]
+        HOST[Module Host]
     end
 
     subgraph CORE[Classroom and Learning Core]
@@ -61,9 +85,9 @@ flowchart TB
         ID[Identity and StudentSeat]
         CLASS[Classroom]
         CONTENT[ActivityVersion]
-        PROJECT[Universal Projects]
+        PROJECTS[Universal Projects]
         ASSIGN[Assignments]
-        REVIEW[Submission Review Grade Badge]
+        ASSESS[Submission Review Grade Badge]
         REGISTRY[Module Registry]
         SAFE[Safety and Audit]
     end
@@ -83,28 +107,25 @@ flowchart TB
     ADMIN --> ADMINUI
     METHODIST --> ADMINUI
     WEB --> CORE
-    ADMINUI --> CORE
-    WEB --> MODULEHOST
-    MODULEHOST --> REGISTRY
+    WEB --> HOST
+    HOST --> REGISTRY
     REGISTRY --> MODULES
-    ORG --> ID
-    ID --> CLASS
-    CLASS --> ASSIGN
+    ORG --> ID --> CLASS
     CONTENT --> ASSIGN
-    REGISTRY --> PROJECT
-    ASSIGN --> PROJECT
-    PROJECT --> REVIEW
+    CLASS --> ASSIGN
+    REGISTRY --> PROJECTS
+    ASSIGN --> PROJECTS --> ASSESS
     SAFE --> CORE
 ```
 
-## 3. Главный образовательный цикл
+## 5. Главный образовательный цикл
 
 ```mermaid
 flowchart LR
-    C1[Teacher creates classroom]
+    C1[Teacher creates class]
     C2[Teacher issues StudentSeat]
     C3[Teacher assigns ActivityVersion]
-    C4[Child opens subject module]
+    C4[Child opens module]
     C5[Project autosave]
     C6[Immutable submission]
     C7[Automatic checks]
@@ -117,65 +138,22 @@ flowchart LR
     C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9 --> C10 --> C11 --> C12
 ```
 
-## 4. Два delivery tracks
-
-```mermaid
-flowchart TB
-    PROGRAM[Product Alpha to School Pilot]
-
-    subgraph TECH[Technical Product Alpha]
-        PORTAL[Teacher Portal]
-        PSHELL[Universal Project Shell]
-        CHECKERS[Checkers Lite]
-        EALPHA[Electronics Alpha]
-        PORTAL --> PSHELL --> CHECKERS --> EALPHA
-    end
-
-    subgraph PILOT[School Pilot]
-        SEAT[StudentSeat]
-        ACT[Assignment and Submission]
-        REV[Comments Review Grade Badge]
-        EFULL[Full Electronics Classroom Cycle]
-        SEAT --> ACT --> REV --> EFULL
-    end
-
-    PROGRAM --> TECH
-    TECH --> PILOT
-```
-
-Technical Alpha даёт работающий продукт до полной школьной workflow. School Pilot подключает детей, задания и оценивание.
-
-## 5. Результат каждого этапа
-
-| Этап | Что можно открыть и показать |
-|---|---|
-| Product Docs | В GitHub видна одна очередь, Issues, capability и quality maps |
-| Teacher Portal | Педагог входит, создаёт класс, reload сохраняет класс |
-| Project Shell | Педагог создаёт project, выбирает module, сохраняет draft и checkpoint |
-| Checkers Lite | Доска, legal move, validation, save/reload и preview |
-| Electronics Alpha | Source/resistor/LED/wire, netlist, DC calculation и diagnostics |
-| StudentSeat | Учитель выдаёт карточку, ребёнок входит без email и открывает свой проект |
-| Assignment | Учитель назначает, ребёнок сдаёт immutable version, очередь показывает попытку |
-| Review | Comment, return, resubmit, rubric, grade, badge |
-| Electronics Classroom | Полный электронный учебный цикл внутри класса |
-
 ## 6. Module/Project boundary
 
 ```mermaid
 flowchart LR
-    CORE[Classroom Core]
+    CLASSROOM[Classroom Core]
     PROJECT[Project Core]
     SDK[Module SDK]
     CHECKERS[Checkers payload]
     ELECTRONICS[CircuitDocument]
 
-    CORE --> PROJECT
-    PROJECT --> SDK
+    CLASSROOM --> PROJECT --> SDK
     SDK --> CHECKERS
     SDK --> ELECTRONICS
 ```
 
-Classroom/Project Core знают:
+Core знает только:
 
 ```text
 moduleKey
@@ -183,119 +161,86 @@ moduleVersion
 schemaVersion
 ProjectDraft
 ProjectVersion
-preview
-diagnostics envelope
+preview/diagnostics envelope
 ```
 
-Они не знают:
+Core не знает `resistor`, `wire`, `LED`, checker piece, sprite или 3D mesh.
 
-```text
-resistor
-wire
-LED
-checker piece
-sprite
-3D mesh
-```
+## 7. Что показывает каждый этап
 
-## 7. Канонические порты
-
-| Server | URL |
+| Delivery stage | Видимый результат |
 |---|---|
-| Web development | `http://127.0.0.1:4610` |
-| API development | `http://127.0.0.1:4611` |
-| Same-origin E2E | `http://127.0.0.1:4612` |
+| Product Definition | Одна очередь, Issues, maps и validators |
+| Teacher Portal | Login, classroom create/list, reload, logout |
+| Project Shell | Create project, save/reload, immutable checkpoint |
+| Checkers Lite | Board, legal move, diagnostic, preview |
+| Electronics Alpha | Source/resistor/LED/wire, netlist, DC result |
+| StudentSeat | Child credential, login without email, own dashboard |
+| Assignment | ActivityVersion, assignment, exact immutable submission |
+| Review | Anchored comment, revision, grade, badge |
+| Electronics Classroom | Полный электронный учебный цикл |
 
-Запрещены `3000`, `3100`, `5173`. Занятый порт не является разрешением остановить чужой процесс.
-
-## 8. Управление coding-агентом
+## 8. Map protocol
 
 ```mermaid
 flowchart LR
-    OWNER[Owner]
-    MAP[project-map.yaml]
-    PROGRAM[Development Program]
-    ISSUE[Executable Issue]
-    CATALOG[Test Catalog]
-    AGENT[Coding Agent]
-    PR[One Draft PR]
-    EVIDENCE[Demo Tests Screenshots]
+    READY[ready]
+    PROGRESS[in_progress]
+    REVIEW[in_review]
+    MERGE[PR merged]
+    DONE[done]
+    NEXT[next ready]
+    STOP[agent stops]
 
-    OWNER --> MAP
-    MAP --> AGENT
-    PROGRAM --> AGENT
-    ISSUE --> AGENT
-    CATALOG --> AGENT
-    AGENT --> PR
-    PR --> EVIDENCE
-    EVIDENCE --> OWNER
+    READY --> PROGRESS --> REVIEW --> MERGE --> DONE --> NEXT --> STOP
 ```
 
-Владелец не пересказывает задачу вручную. Достаточно команды:
+### Start
 
-```text
-Прочитай current_focus, Development Program и связанную Issue. Выполни только её.
-```
+- current task → `in_progress`;
+- `current_focus` остаётся task;
+- реальные `map_nodes` → `in_progress`.
 
-## 9. Обязательный цикл задачи
+### Draft PR
 
-```text
-ORIENT
-→ confirm current_focus and dependency
-→ read exact Issue and referenced sections
-→ CAPABILITY CHECK
-→ PLAN up to 25 lines
-→ IMPLEMENT one user flow
-→ VERIFY all required test IDs
-→ UPDATE maps
-→ DRAFT PR
-→ evidence and review
-→ merge
-→ next task ready
-```
+- task → `in_review`;
+- next task остаётся `blocked`;
+- paths/nodes/edges отражают код;
+- Quality Map, test catalog и Nx graph синхронизированы.
 
-## 10. Scope freeze
+### After merge
 
-После начала task запрещено добавлять:
+- обязательный map-only transition;
+- task → `done`;
+- next → `ready` после dependency check;
+- `current_focus` → next;
+- validators PASS;
+- агент останавливается.
 
-- следующую capability;
-- unrelated infrastructure;
-- новый framework;
-- Docker/Redis/MinIO без фактического использования;
-- дополнительную большую документацию;
-- будущие роли, страницы или модули.
+## 9. Карты, работающие вместе
 
-Новая идея оформляется новой Issue после текущего merge.
-
-## 11. Evidence before merge
-
-Каждый product PR содержит:
-
-```text
-MILESTONE
-USER_FLOW with PASS/FAIL/BLOCKED
-DEMO_URLS
-PORTS
-Playwright report
-screenshots
-contract/migration/security reports
-all required test IDs
-commit SHA
-clean working tree
-NEXT_ALLOWED_TASK
-```
-
-`NOT_RUN` и `BLOCKED` не закрывают exit gate. Manual smoke не заменяет automated E2E.
-
-## 12. Карты, работающие вместе
-
-| Карта | Вопрос |
+| Источник | Вопрос |
 |---|---|
 | Product Blueprint | Зачем и для кого строим? |
 | Capability Map | Что должна уметь платформа? |
-| Development Program | В каком практическом порядке реализуем? |
-| Project Map | Какая задача активна и от чего зависит? |
-| Quality Map | Чем доказываем готовность? |
-| Nx Graph | Как фактический код зависит от кода? |
+| Execution Manifest | Какой точный task/branch/tests/map contract? |
+| Development Program | Как выглядит путь человеку? |
+| Project Map | Что активно и от чего зависит? |
+| Quality Map | Чем доказана готовность? |
+| Nx Graph | Как фактически связан код? |
 
-Машиночитаемым источником задач и статусов остаётся `project-map.yaml`.
+## 10. Канонические порты
+
+```text
+Web  http://127.0.0.1:4610
+API  http://127.0.0.1:4611
+E2E  http://127.0.0.1:4612
+```
+
+Запрещены `3000`, `3100`, `5173`. Занятый порт не является разрешением остановить чужой процесс.
+
+## 11. Команда coding-агенту
+
+```text
+Прочитай AGENTS.md, current_focus и соответствующий entry в EXECUTION_MANIFEST.yaml. Открой указанную Issue и выполни только её. Следующую задачу не начинай.
+```
