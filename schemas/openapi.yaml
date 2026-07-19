@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: ASA Lab Control Plane API
-  version: 0.0.0
+  version: 0.2.0
   description: >-
-    Foundation contract for the ASA Lab Control Plane. In the Bootstrap
-    iteration it exposes only liveness and readiness probes. Business endpoints
-    are added by later vertical-slice tasks.
+    Teacher Portal v0.1 contract: health probes, teacher session auth and
+    classroom create/list. The tenant context is derived exclusively from the
+    server-side session; clients never send a tenant identifier.
 servers:
   - url: http://127.0.0.1:3000
     description: Local development
@@ -24,49 +24,268 @@ paths:
   /health/ready:
     get:
       operationId: getHealthReady
-      summary: Readiness probe
+      summary: Readiness probe (PostgreSQL SELECT 1)
       responses:
         '200':
-          description: Service and required dependencies are ready
+          description: Database is reachable
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
         '503':
-          description: Service is not ready (required dependencies unconfirmed)
+          description: Database is not reachable
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
+  /api/auth/login:
+    post:
+      operationId: postAuthLogin
+      summary: Teacher login (sets an HttpOnly SameSite session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Session established
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid workspace, email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/logout:
+    post:
+      operationId: postAuthLogout
+      summary: Revoke the current session
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+  /api/auth/me:
+    get:
+      operationId: getAuthMe
+      summary: Current session user
+      responses:
+        '200':
+          description: Active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms:
+    get:
+      operationId: getClassrooms
+      summary: List classrooms owned by the session teacher
+      responses:
+        '200':
+          description: Classroom collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomCollection'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: postClassrooms
+      summary: Create a classroom (atomic with owner membership and audit event)
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Repeating a request with the same key never creates a duplicate.
+          schema:
+            type: string
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassroomRequest'
+      responses:
+        '201':
+          description: Classroom created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomEnvelope'
+        '200':
+          description: Idempotent repeat — the existing classroom is returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomEnvelope'
+        '400':
+          description: Validation error (including any client-supplied tenant identifier)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: No active academic period for the teacher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     LiveResponse:
       type: object
       additionalProperties: false
-      required:
-        - status
+      required: [status]
       properties:
         status:
           type: string
-          enum:
-            - live
+          enum: [live]
     ReadyResponse:
       type: object
       additionalProperties: false
-      required:
-        - status
-        - dependencies
+      required: [status, dependencies]
       properties:
         status:
           type: string
-          enum:
-            - ready
-            - not_ready
+          enum: [ready, not_ready]
         dependencies:
           type: object
-          additionalProperties:
-            type: string
-            enum:
-              - up
-              - down
-              - unknown
+          additionalProperties: false
+          required: [database]
+          properties:
+            database:
+              type: string
+              enum: [up, down]
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [workspace, email, password]
+      properties:
+        workspace:
+          type: string
+          description: Tenant locator (slug); used only during authentication.
+          minLength: 3
+          maxLength: 64
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+    UserEnvelope:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          type: object
+          additionalProperties: false
+          required: [id, role, displayName, email]
+          properties:
+            id:
+              type: string
+              format: uuid
+            role:
+              type: string
+              enum: [teacher]
+            displayName:
+              type: string
+            email:
+              type: string
+    CreateClassroomRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+    Classroom:
+      type: object
+      additionalProperties: false
+      required: [id, title, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+    ClassroomEnvelope:
+      type: object
+      additionalProperties: false
+      required: [classroom, created]
+      properties:
+        classroom:
+          $ref: '#/components/schemas/Classroom'
+        created:
+          type: boolean
+    ClassroomCollection:
+      type: object
+      additionalProperties: false
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Classroom'
+        meta:
+          type: object
+          additionalProperties: false
+          required: [total]
+          properties:
+            total:
+              type: integer
