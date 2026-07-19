@@ -16,14 +16,12 @@
 TASK-CI-001      done — local-first exit gate (GitHub-hosted CI отклонён: billing)
 TASK-GOV-001     done — BOT_RUNBOOK, test catalog, quality graph, task test runner
 TASK-ARCH-001    done — PR №1 объединён в main (merge d93899b)
+TASK-BOOT-001    done — pnpm+Nx foundation (PR №14 merged, 1f8414b)
+TASK-ENV-001     deprecated — среда deferred (PR №16 closed); локального
+                   PostgreSQL достаточно для продуктовой разработки
         ↓
-TASK-BOOT-001    ← текущий фокус (in_review): pnpm+Nx foundation,
-                   все обязательные Bootstrap-тесты PASS, 0 FAIL (PR №14)
-        ↓
-TASK-ENV-001     blocked — локальная интеграционная среда (PostgreSQL, Redis,
-                   MinIO, Compose CLI); закрывает реальные TST-COMPOSE-001/MIGRATION-001
-        ↓
-TASK-TEN-001     tenant context
+TASK-TEN-001     ← текущий фокус (in_progress): первый пользовательский срез —
+                   педагог входит, создаёт класс, класс виден после reload
         ↓
 TASK-CLS-001     педагог создаёт класс
         ↓
@@ -36,7 +34,7 @@ TASK-ACT-001     первое задание и immutable submission
 TASK-ELEC-001    первая рабочая электронная схема
 ```
 
-Текущая задача: [Issue №2 — TASK-BOOT-001 (Bootstrap monorepo)](https://github.com/spikeal8-maker/asa-lab/issues/2). Проверка задач — local-first через `python tools/run_task_tests.py --task <TASK-ID>` (см. [`QUALITY_MAP.md`](QUALITY_MAP.md)).
+Текущая задача: [Issue №3 — TASK-TEN-001 (первый classroom-срез)](https://github.com/spikeal8-maker/asa-lab/issues/3). Проверка задач — local-first через `python tools/run_task_tests.py --task <TASK-ID>` (см. [`QUALITY_MAP.md`](QUALITY_MAP.md)).
 
 ## 1. Карта платформы
 
