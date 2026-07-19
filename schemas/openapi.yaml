@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: ASA Lab Control Plane API
-  version: 0.0.0
+  version: 0.1.0
   description: >-
-    Foundation contract for the ASA Lab Control Plane. In the Bootstrap
-    iteration it exposes only liveness and readiness probes. Business endpoints
-    are added by later vertical-slice tasks.
+    Control Plane contract. Health probes plus the first user slice: teacher
+    login with a server-side session and classroom create/list. The tenant
+    context is derived exclusively from the session on the server; clients
+    never send a tenant identifier.
 servers:
   - url: http://127.0.0.1:3000
     description: Local development
@@ -38,6 +39,132 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
+  /auth/login:
+    post:
+      operationId: postAuthLogin
+      summary: Teacher login (sets an HttpOnly session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Session established
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/logout:
+    post:
+      operationId: postAuthLogout
+      summary: Revoke the current session
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+  /auth/me:
+    get:
+      operationId: getAuthMe
+      summary: Current session user
+      responses:
+        '200':
+          description: Active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /classrooms:
+    post:
+      operationId: postClassrooms
+      summary: Create a classroom for the session teacher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassroomRequest'
+      responses:
+        '201':
+          description: Classroom created (an immutable AuditEvent is recorded)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [classroom]
+                properties:
+                  classroom:
+                    $ref: '#/components/schemas/Classroom'
+        '400':
+          description: Validation error (including any client-supplied tenant identifier)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: getClassrooms
+      summary: List classrooms of the session teacher
+      responses:
+        '200':
+          description: Classroom collection
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, meta]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Classroom'
+                  meta:
+                    type: object
+                    additionalProperties: false
+                    required: [total]
+                    properties:
+                      total:
+                        type: integer
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     LiveResponse:
@@ -70,3 +197,70 @@ components:
               - up
               - down
               - unknown
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+    UserEnvelope:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          type: object
+          additionalProperties: false
+          required: [id, role, displayName, email]
+          properties:
+            id:
+              type: string
+              format: uuid
+            role:
+              type: string
+            displayName:
+              type: string
+            email:
+              type: string
+    CreateClassroomRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+    Classroom:
+      type: object
+      additionalProperties: false
+      required: [id, title, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
