@@ -1,14 +1,14 @@
 schema_version: 1.0.0
-map_version: 2026.07.19-1
+map_version: 2026.07.19-2
 product:
   id: asa-lab
   name: ASA Lab
-  definition: Modular educational workspace platform with one Classroom Core and multiple subject modules.
-  primary_outcome: A school can manage classes, student access, assignments, projects, review, grades and rewards across multiple learning environments.
+  definition: Modular educational workspace platform with one Classroom Core, one Project lifecycle and multiple subject modules.
+  primary_outcome: A school can manage classes, child access, projects, assignments, immutable submissions, feedback, grades and rewards across several learning environments.
 status_definitions:
   foundation: Required platform foundation.
-  mvp: Required for first useful school release.
-  next: Next product expansion after MVP.
+  mvp: Required for the first useful school pilot.
+  next: Product expansion after the first pilot.
   scale: Required for multi-school or commercial scale.
   future: Planned subject or platform expansion.
 capabilities:
@@ -16,462 +16,331 @@ capabilities:
     name: Organization and tenancy
     domain: platform
     target: foundation
-    outcome: Schools and organizations are isolated, configurable tenants.
-    includes:
-      - tenant
-      - organization
-      - school
-      - building
-      - academic period
-      - tenant placement
+    outcome: Schools and organizations are isolated configurable tenants.
+    includes: [tenant, organization, school, building, academic period, tenant placement]
     depends_on: []
 
   - id: CAP-IDENTITY
-    name: Identity and sessions
+    name: Adult identity and sessions
     domain: platform
     target: foundation
-    outcome: Adults and children can enter safely with server-derived tenant context.
-    includes:
-      - adult account
-      - local login
-      - session
-      - role and grant
-      - credential reset
-      - future SSO adapter
+    outcome: Adults authenticate safely and tenant context is derived server-side.
+    includes: [adult account, workspace login, session, role, grant, credential reset, future SSO adapter]
     depends_on: [CAP-ORG]
 
-  - id: CAP-STUDENT-SEAT
-    name: StudentSeat access without email
-    domain: classroom
-    target: mvp
-    outcome: A teacher can issue, print, reset and revoke child access without requiring email.
-    includes:
-      - class code
-      - individual credential
-      - QR card
-      - alias
-      - lockout and rate limit
-      - session revocation
-    depends_on: [CAP-IDENTITY, CAP-CLASSROOM]
+  - id: CAP-SAFETY
+    name: Child safety and audit foundation
+    domain: platform
+    target: foundation
+    outcome: Data is private by default, administrative mutations are audited and unsafe communication is excluded.
+    includes: [private projects, safe mode baseline, no direct child messaging, immutable audit, retention, support access]
+    depends_on: [CAP-ORG, CAP-IDENTITY]
+
+  - id: CAP-OPERATIONS
+    name: Reliability and local delivery foundation
+    domain: operations
+    target: foundation
+    outcome: The application starts reproducibly, exposes health signals and can evolve to school and cloud delivery.
+    includes: [health, readiness, telemetry, local startup, backups later, incident model, tenant placement]
+    depends_on: [CAP-ORG, CAP-SAFETY]
 
   - id: CAP-CLASSROOM
     name: Classroom lifecycle
     domain: classroom
     target: mvp
-    outcome: Teachers manage reusable educational workspaces with rosters and policies.
-    includes:
-      - create rename archive
-      - owner membership
-      - co-teacher grants
-      - groups
-      - roster
-      - safe mode
-      - class overview
+    outcome: A teacher owns reusable educational workspaces with memberships and an active academic period.
+    includes: [create, list, rename later, archive later, owner membership, roster foundation, safe mode]
     depends_on: [CAP-ORG, CAP-IDENTITY]
 
-  - id: CAP-TEACHER-DASHBOARD
-    name: Teacher dashboard
+  - id: CAP-PORTAL-BASIC
+    name: Teacher Portal Basic
     domain: experience
     target: mvp
-    outcome: A teacher sees classes, work requiring attention, deadlines and progress.
-    includes:
-      - today overview
-      - classes
-      - review queue
-      - notifications
-      - quick actions
-      - analytics summaries
-    depends_on: [CAP-CLASSROOM, CAP-ASSIGNMENTS, CAP-REVIEW]
+    outcome: A teacher logs in, sees classes and creates the first classroom.
+    includes: [login page, dashboard shell, classroom empty state, classroom cards, create classroom, logout]
+    depends_on: [CAP-IDENTITY, CAP-CLASSROOM]
 
-  - id: CAP-STUDENT-DASHBOARD
-    name: Student dashboard
-    domain: experience
+  - id: CAP-MODULE-REGISTRY
+    name: Module Registry v0.1
+    domain: modules
     target: mvp
-    outcome: A child sees classes, assignments, projects, feedback and achievements.
-    includes:
-      - upcoming work
-      - continue project
-      - returned work
-      - comments
-      - results
-      - achievements
-    depends_on: [CAP-STUDENT-SEAT, CAP-ASSIGNMENTS, CAP-PROJECTS]
+    outcome: Subject editors are registered through a stable manifest and provider contract.
+    includes: [module manifest, project schema reference, editor route, viewer route, validator, preview provider]
+    depends_on: [CAP-ORG, CAP-IDENTITY]
 
-  - id: CAP-CONTENT
-    name: Learning content
-    domain: learning
-    target: next
-    outcome: Methodists and teachers publish versioned programs, lessons and activities.
-    includes:
-      - program
-      - course
-      - unit
-      - lesson
-      - activity template
-      - activity version
-      - teacher guide
-      - answer key
-    depends_on: [CAP-ORG]
-
-  - id: CAP-ASSIGNMENTS
-    name: Assignments
-    domain: learning
-    target: mvp
-    outcome: A teacher assigns a fixed activity version to a class, group or learner.
-    includes:
-      - audience
-      - availability and deadline
-      - attempt policy
-      - starter project
-      - grading policy
-      - late policy
-      - prerequisites
-    depends_on: [CAP-CLASSROOM, CAP-CONTENT, CAP-MODULE-REGISTRY]
-
-  - id: CAP-PROJECTS
-    name: Universal projects and versions
+  - id: CAP-PROJECT-SHELL
+    name: Universal Project Shell
     domain: projects
     target: mvp
-    outcome: Every subject module stores drafts and immutable versions through one lifecycle.
-    includes:
-      - project envelope
-      - draft
-      - autosave
-      - operation batches
-      - checkpoint
-      - immutable project version
-      - assets
-      - preview
-      - export
+    outcome: Users create module projects, save drafts, reload them and create immutable checkpoints.
+    includes: [project envelope, project draft, jsonb payload, optimistic version, immutable project version, digest, module host, project cards]
     depends_on: [CAP-IDENTITY, CAP-MODULE-REGISTRY]
 
+  - id: CAP-CHECKERS-LITE
+    name: Checkers Lite reference module
+    domain: subject-module
+    target: mvp
+    outcome: A small board editor proves that a new module plugs into Project Shell without Core subject logic.
+    includes: [8x8 board, position schema, one legal move, validation, save reload, preview]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
+
+  - id: CAP-ELECTRONICS-ALPHA
+    name: Electronics Alpha
+    domain: subject-module
+    target: mvp
+    outcome: A user builds and saves a simple DC source-resistor-LED circuit and obtains a deterministic result.
+    includes: [CircuitDocument v1, source, resistor, LED, wire, connectivity, netlist, DC calculation, diagnostics, preview]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
+
+  - id: CAP-STUDENT-SEAT
+    name: StudentSeat access without email
+    domain: classroom
+    target: mvp
+    outcome: A teacher issues, imports, resets and revokes child access without requiring email.
+    includes: [alias, class code, individual credential, QR card, Argon2id hash, lockout, session revocation, printable card]
+    depends_on: [CAP-IDENTITY, CAP-CLASSROOM]
+
+  - id: CAP-STUDENT-DASHBOARD
+    name: Child Dashboard
+    domain: experience
+    target: mvp
+    outcome: A child sees assigned classes and own module projects through a safe limited interface.
+    includes: [child login, own classes, own projects, safe profile, logout, credential state]
+    depends_on: [CAP-STUDENT-SEAT, CAP-PROJECT-SHELL]
+
+  - id: CAP-CONTENT-LITE
+    name: Activity Content Lite
+    domain: learning
+    target: mvp
+    outcome: Teachers publish a minimal immutable activity version without requiring a full course-authoring platform.
+    includes: [activity template, immutable activity version, instructions, learning goal, module requirements, starter checkpoint, public criteria]
+    depends_on: [CAP-ORG, CAP-MODULE-REGISTRY]
+
+  - id: CAP-ASSIGNMENTS
+    name: Classroom assignments
+    domain: learning
+    target: mvp
+    outcome: A teacher assigns an exact ActivityVersion to a classroom with dates and attempt policy.
+    includes: [classroom audience, availability, deadline, attempt policy, starter project, status transitions, audit]
+    depends_on: [CAP-CLASSROOM, CAP-CONTENT-LITE, CAP-PROJECT-SHELL]
+
   - id: CAP-SUBMISSIONS
-    name: Submission attempts
+    name: Immutable submission attempts
     domain: assessment
     target: mvp
-    outcome: A student submits an exact immutable project version and can revise safely.
-    includes:
-      - final sync
-      - attempt number
-      - immutable reference
-      - status lifecycle
-      - late state
-      - resubmission
-    depends_on: [CAP-ASSIGNMENTS, CAP-PROJECTS]
+    outcome: A child submits an exact immutable ProjectVersion and can create later attempts safely.
+    includes: [assignment work, final sync, attempt number, immutable reference, submitted status, teacher queue]
+    depends_on: [CAP-ASSIGNMENTS, CAP-PROJECT-SHELL, CAP-STUDENT-SEAT]
 
   - id: CAP-COMMENTS
-    name: Comments and annotations
+    name: Version-safe comments and anchors
     domain: assessment
     target: mvp
-    outcome: Teachers leave contextual, version-safe feedback on student work.
-    includes:
-      - general comment
-      - module anchor
-      - thread
-      - visibility
-      - resolved state
-      - edit history
-      - internal teacher note
+    outcome: Teachers leave feedback on an exact submission or module object without creating direct messaging.
+    includes: [general comment, module anchor, visibility, thread status, edit history, internal teacher note]
     depends_on: [CAP-SUBMISSIONS, CAP-MODULE-REGISTRY]
 
   - id: CAP-REVIEW
-    name: Review workflow
+    name: Review and revision workflow
     domain: assessment
     target: mvp
-    outcome: Teachers review, accept or return submissions through a consistent queue.
-    includes:
-      - review queue
-      - viewer
-      - previous attempts
-      - semantic diff
-      - accept
-      - request changes
-      - incomplete and excused
+    outcome: Teachers request changes, compare attempts and accept a final submission.
+    includes: [review queue, exact viewer, previous attempts, semantic diff, request changes, accept, incomplete]
     depends_on: [CAP-SUBMISSIONS, CAP-COMMENTS]
 
   - id: CAP-ASSESSMENT
-    name: Rubrics, scores and grades
+    name: Rubric score and grade
     domain: assessment
     target: mvp
-    outcome: Manual and automatic evidence produce explainable results.
-    includes:
-      - rubric versions
-      - criteria and levels
-      - automatic checks
-      - mixed scoring
-      - school grade scales
-      - assessment revisions
-      - competency evidence
-    depends_on: [CAP-REVIEW, CAP-AUTOGRADING]
+    outcome: A versioned rubric produces an explainable score or grade with audited revisions.
+    includes: [rubric version, criteria, levels, score, grade policy, finalization, assessment revision]
+    depends_on: [CAP-REVIEW]
 
   - id: CAP-REWARDS
-    name: Badges and certificates
+    name: Evidence-based badges
     domain: assessment
-    target: next
-    outcome: Evidence-based achievements recognize learning without public ranking.
-    includes:
-      - badge definition
-      - badge award
-      - revocation
-      - certificate definition
-      - certificate award
-      - verification code
+    target: mvp
+    outcome: A teacher or rule awards a badge linked to immutable learning evidence without public ranking.
+    includes: [badge definition, badge award, evidence, issuer, visibility, revocation]
     depends_on: [CAP-ASSESSMENT]
 
   - id: CAP-PROGRESS
-    name: Progress and competencies
+    name: Basic progress presentation
     domain: analytics
-    target: next
-    outcome: Learners and teachers see explainable progress across assignments and modules.
-    includes:
-      - assignment progress
-      - course completion
-      - competency model
-      - mastery evidence
-      - personal portfolio
+    target: mvp
+    outcome: Teacher and child dashboards show assignment state, attempts, result and achievements.
+    includes: [assignment state, attempt count, accepted state, grade, badges]
     depends_on: [CAP-ASSESSMENT, CAP-REWARDS]
 
-  - id: CAP-ANALYTICS
-    name: Teacher and school analytics
-    domain: analytics
-    target: next
-    outcome: Teachers identify unfinished work, common errors and support needs.
-    includes:
-      - completion matrix
-      - rubric heatmap
-      - attempts
-      - typical diagnostics
-      - time to first success
-      - privacy allowlist
-      - school aggregates
-    depends_on: [CAP-ASSIGNMENTS, CAP-SUBMISSIONS, CAP-ASSESSMENT]
+  - id: CAP-ELECTRONICS-CLASSROOM
+    name: Full Electronics classroom learning cycle
+    domain: subject-module
+    target: mvp
+    outcome: Electronics Alpha participates in assignment, submission, review, grade and badge workflows.
+    includes: [electronics activity, starter circuit, public checks, immutable circuit submission, anchored feedback, rubric, badge]
+    depends_on: [CAP-ELECTRONICS-ALPHA, CAP-ASSIGNMENTS, CAP-SUBMISSIONS, CAP-REVIEW, CAP-ASSESSMENT]
 
   - id: CAP-NOTIFICATIONS
     name: In-app notifications
     domain: experience
-    target: mvp
-    outcome: Users receive safe actionable updates about assignments and feedback.
-    includes:
-      - assignment published
-      - deadline changed
-      - submission result
-      - comment
-      - badge
-      - credential reset
+    target: next
+    outcome: Users receive safe actionable updates about assignments and review events.
+    includes: [assignment published, deadline changed, changes requested, accepted, grade, badge, credential reset]
     depends_on: [CAP-CLASSROOM, CAP-ASSIGNMENTS, CAP-REVIEW]
 
-  - id: CAP-MODULE-REGISTRY
-    name: Module registry and SDK
-    domain: modules
-    target: mvp
-    outcome: Independent learning editors connect without changing Classroom Core.
-    includes:
-      - module manifest
-      - admission
-      - version lifecycle
-      - schema registry
-      - editor and viewer contracts
-      - validator and migrator
-      - diff and preview
-      - export
-      - capability requirements
-    depends_on: [CAP-ORG, CAP-IDENTITY]
+  - id: CAP-TEACHER-DASHBOARD
+    name: Extended Teacher Dashboard
+    domain: experience
+    target: next
+    outcome: A teacher sees deadlines, review queue, support needs and analytics summaries beyond the basic portal.
+    includes: [today overview, review queue, deadlines, quick actions, notifications, summaries]
+    depends_on: [CAP-PORTAL-BASIC, CAP-ASSIGNMENTS, CAP-REVIEW]
+
+  - id: CAP-CONTENT-ADVANCED
+    name: Programs courses units and lessons
+    domain: learning
+    target: next
+    outcome: Methodists publish versioned programs and reusable lesson structures.
+    includes: [program, course, unit, lesson, teacher guide, answer key, prerequisites]
+    depends_on: [CAP-CONTENT-LITE]
 
   - id: CAP-AUTOGRADING
-    name: Autograding platform
+    name: General autograding platform
     domain: modules
     target: next
-    outcome: Modules run reproducible public and hidden checks against immutable versions.
-    includes:
-      - test bundle
-      - worker job
-      - environment manifest
-      - public hidden separation
-      - score and evidence
-      - retry and timeout
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS]
+    outcome: Modules execute reproducible public and hidden checks against immutable versions.
+    includes: [test bundle, worker job, environment manifest, hidden separation, score evidence, retry timeout]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
 
-  - id: CAP-ELECTRONICS
-    name: Electronics laboratory
+  - id: CAP-ELECTRONICS-ADVANCED
+    name: Advanced electronics laboratory
     domain: subject-module
-    target: mvp
-    outcome: Students build, simulate and submit electronic circuits.
-    includes:
-      - circuit editor
-      - components pins wires nets
-      - breadboard
-      - validation
-      - DC and transient simulation
-      - Arduino
-      - instruments
-      - BOM and code export
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS, CAP-AUTOGRADING]
+    target: next
+    outcome: Electronics expands beyond the Alpha series loop to richer simulation and instrumentation.
+    includes: [breadboard, transient, Arduino, instruments, larger catalog, BOM export, advanced autograding]
+    depends_on: [CAP-ELECTRONICS-ALPHA, CAP-AUTOGRADING]
 
   - id: CAP-BLOCK-CODING
     name: Block coding environment
     domain: subject-module
     target: next
-    outcome: Students create Scratch-like interactive projects inside the same classroom workflow.
-    includes:
-      - stage and sprites
-      - events and blocks
-      - variables
-      - sounds and animation
-      - templates
-      - safe class sharing
-      - automated checks
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS]
+    outcome: Students create Scratch-like interactive projects inside the same project and classroom workflows.
+    includes: [stage, sprites, events, blocks, variables, sounds, animation, templates, safe class sharing]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
 
-  - id: CAP-THREE-D
-    name: 3D modelling
-    domain: subject-module
-    target: future
-    outcome: Students create models and prepare controlled exports for 3D printing.
-    includes:
-      - scene graph
-      - primitives and transforms
-      - measurement
-      - constraints
-      - preview
-      - STL and 3MF export
-      - print validation
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS]
-
-  - id: CAP-ROBOTICS
-    name: Virtual robotics
-    domain: subject-module
-    target: future
-    outcome: Students program robots in reproducible simulated worlds.
-    includes:
-      - robot and world schema
-      - sensors and actuators
-      - controller code
-      - physics
-      - replay
-      - goal checks
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS, CAP-AUTOGRADING]
-
-  - id: CAP-CHESS
-    name: Chess and checkers
-    domain: subject-module
-    target: future
-    outcome: Students solve positions, play variants and submit move-based answers.
-    includes:
-      - board position
-      - move history
-      - tasks and variants
-      - move annotations
-      - engine analysis policy
-      - grading evidence
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS]
-
-  - id: CAP-DRAWING
-    name: Drawing and drafting
-    domain: subject-module
-    target: future
-    outcome: Students create vector and technical documents with teacher feedback.
-    includes:
-      - pages and layers
-      - vector objects
-      - dimensions
-      - templates
-      - annotations
-      - export
-    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECTS]
-
-  - id: CAP-SAFETY
-    name: Child safety and moderation
-    domain: platform
-    target: foundation
-    outcome: Child data and communication remain restricted, auditable and private by default.
-    includes:
-      - safe mode
-      - private projects
-      - no direct messaging
-      - content moderation
-      - audit
-      - support access
-      - retention
-    depends_on: [CAP-ORG, CAP-IDENTITY]
+  - id: CAP-ANALYTICS
+    name: Teacher and school analytics
+    domain: analytics
+    target: next
+    outcome: Teachers and schools identify unfinished work, common diagnostics and support needs.
+    includes: [completion matrix, rubric heatmap, attempts, common diagnostics, privacy allowlist, school aggregates]
+    depends_on: [CAP-ASSIGNMENTS, CAP-SUBMISSIONS, CAP-ASSESSMENT]
 
   - id: CAP-ADMIN
     name: School and platform administration
     domain: operations
     target: next
     outcome: Schools and operators manage users, policies, modules and incidents.
-    includes:
-      - tenant admin
-      - school admin
-      - module enablement
-      - feature flags
-      - audit viewer
-      - support workflow
-      - operations dashboard
+    includes: [tenant admin, school admin, module enablement, feature flags, audit viewer, support workflow]
     depends_on: [CAP-ORG, CAP-SAFETY]
+
+  - id: CAP-THREE-D
+    name: 3D modelling
+    domain: subject-module
+    target: future
+    outcome: Students create models and prepare controlled exports for 3D printing.
+    includes: [scene graph, primitives, transforms, measurement, constraints, preview, STL, 3MF, validation]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
+
+  - id: CAP-ROBOTICS
+    name: Virtual robotics
+    domain: subject-module
+    target: future
+    outcome: Students program robots in reproducible simulated worlds.
+    includes: [robot schema, world schema, sensors, actuators, controller, physics, replay, goal checks]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL, CAP-AUTOGRADING]
+
+  - id: CAP-CHESS
+    name: Advanced chess and checkers learning tools
+    domain: subject-module
+    target: future
+    outcome: Students solve positions, play variants and submit move-based answers with teacher analysis.
+    includes: [positions, move history, tasks, accepted variants, annotations, engine analysis policy, grading evidence]
+    depends_on: [CAP-CHECKERS-LITE, CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
+
+  - id: CAP-DRAWING
+    name: Drawing and drafting
+    domain: subject-module
+    target: future
+    outcome: Students create vector and technical documents with teacher feedback.
+    includes: [pages, layers, vector objects, dimensions, templates, annotations, export]
+    depends_on: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
 
   - id: CAP-ENTITLEMENTS
-    name: Entitlements, quotas and billing readiness
+    name: Entitlements quotas and billing readiness
     domain: commercial
     target: scale
-    outcome: Paid capabilities are introduced without changing subject code or deleting data.
-    includes:
-      - plan version
-      - entitlement
-      - quota
-      - usage ledger
-      - billing adapter
-      - grace period
-      - read only mode
+    outcome: Paid capabilities are introduced without changing subject code or deleting learning data.
+    includes: [plan version, entitlement, quota, usage ledger, billing adapter, grace period, read-only mode]
     depends_on: [CAP-ORG, CAP-MODULE-REGISTRY]
-
-  - id: CAP-OPERATIONS
-    name: Reliability and deployment
-    domain: operations
-    target: foundation
-    outcome: The platform can be monitored, backed up, restored and scaled safely.
-    includes:
-      - health and readiness
-      - telemetry
-      - backups
-      - restore tests
-      - incidents
-      - feature rollout
-      - tenant placement
-      - on premise profile
-    depends_on: [CAP-ORG, CAP-SAFETY]
 
 release_slices:
   - id: RELEASE-0
-    name: Platform foundation
+    name: Foundation
     capabilities: [CAP-ORG, CAP-IDENTITY, CAP-SAFETY, CAP-OPERATIONS]
-    exit: Repository foundation, secure tenant context and adult login are operational.
+    exit: Repository foundation, secure adult identity, audit baseline and reproducible local operation exist.
 
   - id: RELEASE-1
-    name: Teacher classroom portal
-    capabilities: [CAP-CLASSROOM, CAP-TEACHER-DASHBOARD, CAP-NOTIFICATIONS]
-    exit: Teacher logs in, creates a class, manages basic settings and sees the class after reload.
+    name: Teacher Portal
+    capabilities: [CAP-CLASSROOM, CAP-PORTAL-BASIC]
+    exit: Teacher logs in, creates a classroom, reloads and logs out.
 
   - id: RELEASE-2
-    name: Child access
-    capabilities: [CAP-STUDENT-SEAT, CAP-STUDENT-DASHBOARD]
-    exit: Teacher issues child access; child logs in without email and sees the class.
+    name: Universal Project Shell
+    capabilities: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL]
+    exit: User creates a module project, saves/reloads draft and creates an immutable checkpoint.
 
   - id: RELEASE-3
-    name: Universal project and assignment cycle
-    capabilities: [CAP-MODULE-REGISTRY, CAP-PROJECTS, CAP-CONTENT, CAP-ASSIGNMENTS, CAP-SUBMISSIONS]
-    exit: Teacher assigns a dummy module activity; child creates, saves and submits an immutable version.
+    name: Checkers Lite Reference Module
+    capabilities: [CAP-CHECKERS-LITE]
+    exit: A small board module plugs into Project Shell without Core subject logic.
 
   - id: RELEASE-4
-    name: Review and assessment
-    capabilities: [CAP-COMMENTS, CAP-REVIEW, CAP-ASSESSMENT, CAP-REWARDS, CAP-PROGRESS]
-    exit: Teacher comments, returns, accepts, grades and awards a badge; both dashboards update.
+    name: Electronics Alpha
+    capabilities: [CAP-ELECTRONICS-ALPHA]
+    exit: Source-resistor-LED circuit saves, reloads, validates and produces deterministic native/WASM DC result.
 
   - id: RELEASE-5
-    name: Electronics learning module
-    capabilities: [CAP-ELECTRONICS, CAP-AUTOGRADING, CAP-ANALYTICS]
-    exit: A circuit assignment passes the complete classroom workflow with deterministic checks.
+    name: Child Access
+    capabilities: [CAP-STUDENT-SEAT, CAP-STUDENT-DASHBOARD]
+    exit: Teacher issues child access; child logs in without email and opens own class/project.
 
   - id: RELEASE-6
-    name: Additional learning modules
-    capabilities: [CAP-BLOCK-CODING, CAP-THREE-D, CAP-ROBOTICS, CAP-CHESS, CAP-DRAWING]
-    exit: At least two additional modules use the same project, submission and review contracts without Classroom changes.
+    name: Assignment and Submission
+    capabilities: [CAP-CONTENT-LITE, CAP-ASSIGNMENTS, CAP-SUBMISSIONS]
+    exit: Teacher assigns an immutable activity; child submits an exact immutable ProjectVersion.
+
+  - id: RELEASE-7
+    name: Review Grade and Badge
+    capabilities: [CAP-COMMENTS, CAP-REVIEW, CAP-ASSESSMENT, CAP-REWARDS, CAP-PROGRESS]
+    exit: Teacher comments, returns, accepts, grades and awards a badge; dashboards update.
+
+  - id: RELEASE-8
+    name: Full Electronics Classroom Cycle
+    capabilities: [CAP-ELECTRONICS-CLASSROOM]
+    exit: An electronics assignment passes the complete classroom learning workflow.
+
+  - id: RELEASE-9
+    name: Product Expansion
+    capabilities: [CAP-NOTIFICATIONS, CAP-TEACHER-DASHBOARD, CAP-CONTENT-ADVANCED, CAP-AUTOGRADING, CAP-ELECTRONICS-ADVANCED, CAP-BLOCK-CODING, CAP-ANALYTICS, CAP-ADMIN]
+    exit: Advanced learning, administration and additional module workflows are available after the school pilot.
+
+  - id: RELEASE-10
+    name: Additional Subject Modules
+    capabilities: [CAP-THREE-D, CAP-ROBOTICS, CAP-CHESS, CAP-DRAWING]
+    exit: Additional modules use the same Project, Assignment, Submission and Review contracts.
+
+  - id: RELEASE-11
+    name: Multi-school Commercial Scale
+    capabilities: [CAP-ENTITLEMENTS]
+    exit: Entitlements, quotas and billing adapters work without changing subject domain code.
