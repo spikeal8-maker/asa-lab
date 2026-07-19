@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Validate the ASA Lab product capability graph."""
+"""Validate the ASA Lab product capability graph and release ordering."""
 
 from __future__ import annotations
 
+import re
 import sys
 from collections import defaultdict, deque
 from pathlib import Path
@@ -19,8 +20,12 @@ REQUIRED_FILES = (
     ROOT / "docs/product/CLASSROOM_CORE_SPEC.md",
     ROOT / "docs/product/MODULE_PLATFORM_SPEC.md",
     ROOT / "docs/product/ASSESSMENT_REWARDS_SPEC.md",
+    ROOT / "docs/delivery/DEVELOPMENT_PROGRAM_V1.md",
+    ROOT / "docs/delivery/LOCAL_PORT_POLICY.md",
 )
 ALLOWED_TARGETS = {"foundation", "mvp", "next", "scale", "future"}
+CAPABILITY_ID_PATTERN = re.compile(r"^CAP-[A-Z0-9]+(?:-[A-Z0-9]+)*$")
+RELEASE_ID_PATTERN = re.compile(r"^RELEASE-[0-9]+$")
 
 
 def fail(errors: list[str]) -> int:
@@ -48,7 +53,7 @@ def load_document(errors: list[str]) -> dict[str, Any]:
 def validate_files(errors: list[str]) -> None:
     for path in REQUIRED_FILES:
         if not path.is_file():
-            errors.append(f"Missing product document: {path.relative_to(ROOT)}")
+            errors.append(f"Missing normative file: {path.relative_to(ROOT)}")
 
 
 def validate_capabilities(
@@ -72,7 +77,9 @@ def validate_capabilities(
             )
             continue
         capability_id = capability.get("id")
-        if not isinstance(capability_id, str) or not capability_id.startswith("CAP-"):
+        if not isinstance(capability_id, str) or not CAPABILITY_ID_PATTERN.fullmatch(
+            capability_id
+        ):
             errors.append(f"Capability #{position} has invalid id: {capability_id!r}")
             continue
         if capability_id in index:
@@ -89,12 +96,14 @@ def validate_capabilities(
         includes = capability.get("includes")
         if not isinstance(includes, list) or not includes:
             errors.append(f"Capability {capability_id} must include at least one item")
+        elif any(not isinstance(item, str) or not item.strip() for item in includes):
+            errors.append(f"Capability {capability_id} includes invalid item")
         dependencies = capability.get("depends_on")
         if not isinstance(dependencies, list):
             errors.append(f"Capability {capability_id} depends_on must be an array")
         index[capability_id] = capability
 
-    if len(index) < 20:
+    if len(index) < 25:
         errors.append(f"Capability map is unexpectedly small: {len(index)} capabilities")
     return index
 
@@ -106,7 +115,10 @@ def validate_dependencies(
     reverse: dict[str, set[str]] = defaultdict(set)
 
     for capability_id, capability in capabilities.items():
-        for dependency in capability.get("depends_on", []):
+        raw_dependencies = capability.get("depends_on", [])
+        if not isinstance(raw_dependencies, list):
+            continue
+        for dependency in raw_dependencies:
             if dependency not in capabilities:
                 errors.append(
                     f"Capability {capability_id} depends on unknown capability {dependency}"
@@ -129,7 +141,7 @@ def validate_dependencies(
     while queue:
         current = queue.popleft()
         visited += 1
-        for dependent in reverse[current]:
+        for dependent in sorted(reverse[current]):
             indegree[dependent] -= 1
             if indegree[dependent] == 0:
                 queue.append(dependent)
@@ -140,28 +152,37 @@ def validate_dependencies(
 
 def validate_releases(
     document: dict[str, Any], capabilities: dict[str, dict[str, Any]], errors: list[str]
-) -> None:
+) -> tuple[int, dict[str, int]]:
     releases = document.get("release_slices")
     if not isinstance(releases, list) or not releases:
         errors.append("release_slices must be a non-empty array")
-        return
+        return 0, {}
 
     release_ids: set[str] = set()
-    covered: set[str] = set()
-    for position, release in enumerate(releases, start=1):
+    capability_release: dict[str, int] = {}
+    for position, release in enumerate(releases):
         if not isinstance(release, dict):
-            errors.append(f"Release #{position} must be an object")
+            errors.append(f"Release #{position + 1} must be an object")
             continue
         for field in ("id", "name", "capabilities", "exit"):
             if field not in release:
-                errors.append(f"Release #{position} misses {field}")
+                errors.append(f"Release #{position + 1} misses {field}")
         release_id = release.get("id")
-        if not isinstance(release_id, str) or not release_id.startswith("RELEASE-"):
-            errors.append(f"Release #{position} has invalid id: {release_id!r}")
+        if not isinstance(release_id, str) or not RELEASE_ID_PATTERN.fullmatch(release_id):
+            errors.append(f"Release #{position + 1} has invalid id: {release_id!r}")
             continue
+        expected_id = f"RELEASE-{position}"
+        if release_id != expected_id:
+            errors.append(
+                f"Release positions must be contiguous: expected {expected_id}, got {release_id}"
+            )
         if release_id in release_ids:
             errors.append(f"Duplicate release id: {release_id}")
         release_ids.add(release_id)
+        if not isinstance(release.get("name"), str) or not release.get("name", "").strip():
+            errors.append(f"Release {release_id} has empty name")
+        if not isinstance(release.get("exit"), str) or not release.get("exit", "").strip():
+            errors.append(f"Release {release_id} has empty exit")
         listed = release.get("capabilities")
         if not isinstance(listed, list) or not listed:
             errors.append(f"Release {release_id} must list capabilities")
@@ -171,19 +192,68 @@ def validate_releases(
                 errors.append(
                     f"Release {release_id} references unknown capability {capability_id}"
                 )
-            covered.add(str(capability_id))
+                continue
+            if capability_id in capability_release:
+                errors.append(
+                    f"Capability {capability_id} appears in more than one release"
+                )
+                continue
+            capability_release[capability_id] = position
 
-    required_coverage = {
-        capability_id
-        for capability_id, capability in capabilities.items()
-        if capability.get("target") in {"foundation", "mvp"}
-    }
-    uncovered = sorted(required_coverage - covered)
+    uncovered = sorted(set(capabilities) - set(capability_release))
     if uncovered:
-        errors.append(
-            "Foundation/MVP capabilities missing from release slices: "
-            + ", ".join(uncovered)
-        )
+        errors.append("Capabilities missing from release slices: " + ", ".join(uncovered))
+
+    for capability_id, capability in capabilities.items():
+        current_release = capability_release.get(capability_id)
+        if current_release is None:
+            continue
+        dependencies = capability.get("depends_on", [])
+        if not isinstance(dependencies, list):
+            continue
+        for dependency in dependencies:
+            dependency_release = capability_release.get(dependency)
+            if dependency_release is None:
+                continue
+            if dependency_release > current_release:
+                errors.append(
+                    f"Release ordering violation: {capability_id} in RELEASE-{current_release} "
+                    f"depends on later {dependency} in RELEASE-{dependency_release}"
+                )
+
+    return len(releases), capability_release
+
+
+def validate_program_alignment(
+    document: dict[str, Any], capability_release: dict[str, int], errors: list[str]
+) -> None:
+    expected = {
+        "CAP-PORTAL-BASIC": 1,
+        "CAP-PROJECT-SHELL": 2,
+        "CAP-CHECKERS-LITE": 3,
+        "CAP-ELECTRONICS-ALPHA": 4,
+        "CAP-STUDENT-SEAT": 5,
+        "CAP-ASSIGNMENTS": 6,
+        "CAP-REVIEW": 7,
+        "CAP-ELECTRONICS-CLASSROOM": 8,
+    }
+    for capability_id, release_position in expected.items():
+        actual = capability_release.get(capability_id)
+        if actual != release_position:
+            errors.append(
+                f"Development Program alignment: {capability_id} must be in "
+                f"RELEASE-{release_position}, got {actual!r}"
+            )
+
+    product = document.get("product")
+    if not isinstance(product, dict):
+        errors.append("product must be an object")
+        return
+    definition = product.get("definition")
+    outcome = product.get("primary_outcome")
+    for field, value in (("definition", definition), ("primary_outcome", outcome)):
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"product.{field} must be non-empty")
 
 
 def main() -> int:
@@ -192,14 +262,17 @@ def main() -> int:
     validate_files(errors)
     capabilities = validate_capabilities(document, errors)
     validate_dependencies(capabilities, errors)
-    validate_releases(document, capabilities, errors)
+    releases, capability_release = validate_releases(document, capabilities, errors)
+    validate_program_alignment(document, capability_release, errors)
 
     if errors:
         return fail(errors)
 
     print("ASA Lab capability map validation: PASS")
     print(f"- capabilities: {len(capabilities)}")
-    print(f"- releases: {len(document.get('release_slices', []))}")
+    print(f"- releases: {releases}")
+    print("- release dependency ordering: PASS")
+    print("- Development Program alignment: PASS")
     return 0
 
 
