@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-catalog_version: 2026.07.18-3
+catalog_version: 2026.07.19-4
 source_of_truth: docs/testing/test-catalog.yaml
 result_states:
   - PASS
@@ -8,7 +8,7 @@ result_states:
   - BLOCKED
 suites:
   governance:
-    description: Архитектура, документация, карта и процесс разработки.
+    description: Архитектура, продуктовая документация, карты и процесс разработки.
   static:
     description: Форматирование, lint, типы и границы зависимостей.
   contracts:
@@ -35,7 +35,7 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-CI-001, TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-CI-001, TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001, TASK-PRODUCT-DOC-001]
     command: python tools/validate_architecture.py
     timeout_seconds: 60
     owner: platform-architecture
@@ -46,18 +46,29 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-CI-001, TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-CI-001, TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001, TASK-PRODUCT-DOC-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: python tools/validate_project_map.py
     timeout_seconds: 60
     owner: platform-architecture
     artifacts: [console-report]
+
+  - id: TST-CAPABILITY-MAP-001
+    title: Product capability graph validation
+    suite: governance
+    level: product
+    phase_available: PHASE-0
+    required_for: [TASK-PRODUCT-DOC-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
+    command: python tools/validate_capability_map.py
+    timeout_seconds: 60
+    owner: product-architecture
+    artifacts: [console-report, capability-graph]
 
   - id: TST-CATALOG-001
     title: Test catalog validation
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-CI-001, TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-CI-001, TASK-GOV-001, TASK-BOOT-001, TASK-PRODUCT-DOC-001]
     command: python tools/validate_test_catalog.py
     timeout_seconds: 60
     owner: quality-engineering
@@ -68,8 +79,8 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-ARCH-001, TASK-GOV-001]
-    command: python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text(encoding='utf-8')) for p in Path('.').rglob('*.yaml')]; print('YAML PASS')"
+    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-PRODUCT-DOC-001]
+    command: python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text(encoding='utf-8')) for p in Path('.').rglob('*.yaml') if 'node_modules' not in p.parts]; print('YAML PASS')"
     timeout_seconds: 60
     owner: platform-architecture
     artifacts: [console-report]
@@ -79,7 +90,7 @@ tests:
     suite: governance
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001]
+    required_for: [TASK-ARCH-001, TASK-GOV-001, TASK-BOOT-001, TASK-PRODUCT-DOC-001]
     command: python tools/validate_architecture.py
     timeout_seconds: 60
     owner: documentation
@@ -90,7 +101,7 @@ tests:
     suite: static
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm format:check
     timeout_seconds: 300
     owner: developer-experience
@@ -101,7 +112,7 @@ tests:
     suite: static
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm lint
     timeout_seconds: 600
     owner: developer-experience
@@ -112,7 +123,7 @@ tests:
     suite: static
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm typecheck
     timeout_seconds: 600
     owner: developer-experience
@@ -123,7 +134,7 @@ tests:
     suite: static
     level: architecture
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001, TASK-MOD-001, TASK-ELEC-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm boundaries:check
     timeout_seconds: 600
     owner: platform-architecture
@@ -134,7 +145,7 @@ tests:
     suite: contracts
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-ELEC-001]
+    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm contracts:check
     timeout_seconds: 600
     owner: platform-contracts
@@ -145,7 +156,7 @@ tests:
     suite: integration
     level: unit
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-ELEC-001]
+    required_for: [TASK-BOOT-001, TASK-TEN-001, TASK-CLS-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm test
     timeout_seconds: 900
     owner: engineering
@@ -156,7 +167,7 @@ tests:
     suite: static
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm build
     timeout_seconds: 1200
     owner: developer-experience
@@ -178,7 +189,7 @@ tests:
     suite: integration
     level: database
     phase_available: PHASE-0
-    required_for: [TASK-ENV-001, TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001]
+    required_for: [TASK-ENV-001, TASK-TEN-001, TASK-CLS-001, TASK-MVP-001, TASK-SEAT-001, TASK-ACT-001, TASK-REVIEW-001]
     command: pnpm db:migrate:test
     timeout_seconds: 600
     owner: data-platform
@@ -211,30 +222,52 @@ tests:
     suite: authorization
     level: integration
     phase_available: PHASE-1
-    required_for: [TASK-TEN-001]
+    required_for: [TASK-TEN-001, TASK-MVP-001]
     command: pnpm test:tenant-context
     timeout_seconds: 600
     owner: identity-and-tenancy
     artifacts: [junit]
+
+  - id: TST-RLS-001
+    title: Runtime database role and RLS isolation
+    suite: authorization
+    level: database
+    phase_available: PHASE-1
+    required_for: [TASK-MVP-001, TASK-SEAT-001, TASK-ACT-001, TASK-REVIEW-001]
+    command: pnpm test:rls
+    timeout_seconds: 900
+    owner: security-engineering
+    artifacts: [authorization-matrix, database-role-report]
 
   - id: TST-AUTHZ-001
     title: Cross-tenant read and write denial matrix
     suite: authorization
     level: integration
     phase_available: PHASE-1
-    required_for: [TASK-TEN-001, TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001]
+    required_for: [TASK-TEN-001, TASK-CLS-001, TASK-MVP-001, TASK-SEAT-001, TASK-ACT-001, TASK-REVIEW-001]
     command: pnpm test:authz
     timeout_seconds: 900
     owner: security-engineering
     artifacts: [authorization-matrix, junit]
 
-  - id: TST-E2E-CLS-001
-    title: Teacher creates and lists classroom
+  - id: TST-E2E-MVP-001
+    title: Teacher portal login create classroom reload logout
     suite: e2e
     level: system
-    phase_available: PHASE-2
+    phase_available: PHASE-1
+    required_for: [TASK-MVP-001]
+    command: pnpm e2e:teacher-portal
+    timeout_seconds: 1500
+    owner: experience-and-classroom
+    artifacts: [playwright-report, screenshots]
+
+  - id: TST-E2E-CLS-001
+    title: Classroom lifecycle and teacher management
+    suite: e2e
+    level: system
+    phase_available: PHASE-1
     required_for: [TASK-CLS-001]
-    command: pnpm e2e:classroom-create
+    command: pnpm e2e:classroom-lifecycle
     timeout_seconds: 1200
     owner: classroom-team
     artifacts: [playwright-report, screenshots]
@@ -265,12 +298,23 @@ tests:
     title: Assignment and immutable submission flow
     suite: e2e
     level: system
-    phase_available: PHASE-4
+    phase_available: PHASE-3
     required_for: [TASK-ACT-001]
     command: pnpm e2e:assignment-submission
     timeout_seconds: 1500
     owner: learning-workflows
     artifacts: [playwright-report, submission-manifest]
+
+  - id: TST-E2E-REVIEW-001
+    title: Return revise accept grade and badge flow
+    suite: e2e
+    level: system
+    phase_available: PHASE-4
+    required_for: [TASK-REVIEW-001]
+    command: pnpm e2e:review-assessment
+    timeout_seconds: 1800
+    owner: assessment-team
+    artifacts: [playwright-report, review-report, screenshots]
 
   - id: TST-SIM-GOLDEN-001
     title: Electronics DC golden circuits
@@ -284,22 +328,22 @@ tests:
     artifacts: [golden-report]
 
   - id: TST-E2E-ELEC-001
-    title: Build save reload and simulate first circuit
+    title: First electronics assignment learning cycle
     suite: e2e
     level: system
     phase_available: PHASE-5
     required_for: [TASK-ELEC-001]
-    command: pnpm e2e:electronics-first-circuit
+    command: pnpm e2e:electronics-learning-cycle
     timeout_seconds: 1800
     owner: electronics-team
-    artifacts: [playwright-report, circuit-document, simulation-report]
+    artifacts: [playwright-report, circuit-document, simulation-report, review-report]
 
   - id: TST-SECRET-001
     title: Secret scanning
     suite: security
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm security:secrets
     timeout_seconds: 600
     owner: security-engineering
@@ -310,7 +354,7 @@ tests:
     suite: security
     level: repository
     phase_available: PHASE-0
-    required_for: [TASK-BOOT-001]
+    required_for: [TASK-BOOT-001, TASK-MVP-001, TASK-SEAT-001, TASK-MOD-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm security:dependencies
     timeout_seconds: 900
     owner: security-engineering
@@ -342,8 +386,8 @@ tests:
     title: Critical accessibility paths
     suite: accessibility
     level: system
-    phase_available: PHASE-2
-    required_for: [TASK-CLS-001, TASK-SEAT-001, TASK-ACT-001, TASK-ELEC-001]
+    phase_available: PHASE-1
+    required_for: [TASK-MVP-001, TASK-SEAT-001, TASK-ACT-001, TASK-REVIEW-001, TASK-ELEC-001]
     command: pnpm test:a11y
     timeout_seconds: 1200
     owner: frontend-platform
