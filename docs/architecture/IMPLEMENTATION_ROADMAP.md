@@ -1,6 +1,10 @@
 # Дорожная карта реализации ASA Lab
 
-Каждый этап является вертикальным срезом с UI, API, БД, авторизацией, аудитом и тестами. Следующий этап не начинается, пока exit gate предыдущего не подтверждён фактическими командами и тестами.
+> **Статус документа:** долгосрочные архитектурные горизонты, а не исполнимая очередь coding-агента.  
+> Точный порядок задач, ветки, Issues, test profiles и map protocol находятся в [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) и [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md).  
+> Technical Product Alpha может доказать небольшой срез Project Shell или Electronics раньше полного завершения более раннего школьного контура. Это не изменяет архитектурных зависимостей и не разрешает агенту перескакивать `execution_queue`.
+
+Каждый архитектурный горизонт реализуется вертикальными срезами с UI, API, БД, авторизацией, аудитом и тестами. Следующая **исполняемая задача** начинается только после merge, exit gate и map transition предыдущей задачи по Execution Manifest.
 
 ## Phase 0 — Repository Foundation
 
@@ -18,9 +22,9 @@
 - Docker Compose;
 - AGENTS/ADR process.
 
-Exit gate: пустой skeleton собирается, тестируется, запускается локально, а architecture rules нельзя нарушить без падения CI.
+Exit gate: пустой skeleton собирается, тестируется, запускается локально, а architecture rules нельзя нарушить без падения проверок.
 
-## Phase 1 — Tenancy and Identity
+## Phase 1 — Tenancy, Adult Identity and Teacher Portal
 
 - Tenant, TenantPlacement, School, User;
 - local adult login;
@@ -28,81 +32,97 @@ Exit gate: пустой skeleton собирается, тестируется, �
 - session security;
 - RBAC/ABAC foundation;
 - immutable audit;
-- platform/school admin shell;
-- time-limited support-access model.
+- runtime DB role и tenant isolation;
+- teacher portal basic: login, classroom create/list;
+- platform/school admin shell в более позднем срезе;
+- time-limited support-access model в более позднем срезе.
 
-Exit gate: cross-tenant matrix tests, MFA для platform admin, tenant context не берётся из body.
+Exit gate текущего v1-среза: Teacher Portal flow, cross-tenant matrix, server-derived tenant context и полный `TASK-PORTAL-001` gate PASS.
 
-## Phase 2 — Classroom Core
+## Phase 2 — Child Access and Classroom Roster
 
-- classroom lifecycle;
-- owner/co-teacher grants;
-- members and groups;
-- academic periods;
+- classroom memberships and groups;
 - StudentSeat create/import;
 - cards and revocable QR;
 - reset/suspend/archive;
-- teacher dashboard;
+- child login without email;
+- Child Dashboard;
+- co-teacher grants и расширенный teacher dashboard отдельными срезами;
 - Safe Mode foundation.
 
-Exit gate: профиль массового входа десяти классов и полный отрицательный authz matrix.
+Exit gate v1: ребёнок входит без email, видит только свой класс/проект, credential reset отзывает старые sessions, authz matrix PASS.
 
-## Phase 3 — Module SDK and Projects
+## Phase 3 — Module SDK, Projects and Learning Workflow
 
 - module registry;
 - versioned module manifest;
-- project envelope;
-- immutable versions;
-- operation batches;
-- IndexedDB autosave;
-- conflict protocol;
-- preview job contract;
-- пример второго простого модуля, доказывающий decoupling.
+- universal project envelope;
+- ProjectDraft и immutable ProjectVersion;
+- optimistic conflict protocol;
+- preview contract;
+- Checkers Lite reference module;
+- ActivityTemplate/ActivityVersion;
+- Assignment and immutable SubmissionAttempt;
+- operation batches/IndexedDB autosave в более позднем расширении.
 
-Exit gate: Classroom работает минимум с двумя dummy modules без предметных imports.
+Exit gates разделены Execution Manifest:
 
-## Phase 4 — Activities and Assessment
+1. Project Shell create/save/reload/checkpoint;
+2. Checkers Lite подключён без subject imports в Core;
+3. Assignment/Submission pins exact immutable ProjectVersion.
 
-- templates;
-- immutable activity versions;
-- assignments;
-- audience and deadline;
-- attempts and submissions;
-- immutable submission reference;
+## Phase 4 — Review, Assessment and Rewards
+
 - review queue;
-- rubric and comments;
-- notifications.
+- general and anchored comments;
+- request changes/resubmission;
+- exact attempt/version viewer;
+- rubric and grade;
+- badge and progress;
+- notifications;
+- advanced analytics отдельным срезом.
 
-Exit gate: полный `teacher → student → submit → review → revise` E2E.
+Exit gate v1: `teacher → comment → return → child revise → accept → grade → badge` automated E2E.
 
-## Phase 5 — Electronics Editor
+## Phase 5 — Electronics
 
-- circuit document JSON Schema;
-- scene graph;
+### Electronics Alpha
+
+- CircuitDocument v1 JSON Schema;
+- source, resistor, LED and wire manifests;
+- scene/editor basics;
 - components, pins, wires and nets;
-- breadboard connectivity;
-- properties and units;
-- undo/redo;
-- component manifest;
-- starter projects;
-- project preview;
-- structured diagnostics.
+- connectivity resolver;
+- normalized netlist;
+- minimal Rust native/WASM DC solver;
+- structured diagnostics;
+- project preview and save/reload.
 
-Exit gate: схема сохраняется, мигрируется и открывается после reload, offline и reconnect.
+Alpha exit gate: supported series circuit produces deterministic native/WASM result; invalid/unsupported topology produces diagnostics; E2E and golden artifacts PASS.
 
-## Phase 6 — Simulation Core
+### Full Electronics Classroom Cycle
 
-- Rust workspace;
-- netlist builder;
-- DC solver;
-- resistor, source, switch and LED;
-- diagnostics;
-- deterministic golden tests;
-- WASM binding;
+- Electronics ActivityVersion;
+- starter circuit;
+- deterministic public checks;
+- immutable submission;
+- component/wire anchored comments;
+- revision, grade and electronics badge.
+
+Classroom exit gate: electronics completes the common Assignment/Submission/Review lifecycle without circuit-specific fields in Core.
+
+## Phase 6 — Extended Simulation Core
+
+- expanded Rust workspace;
+- general netlist builder;
+- broader DC solver;
+- switch and additional linear components;
+- extended diagnostics;
+- deterministic golden suites;
 - browser Web Worker;
-- execution manifest.
+- execution manifest for compute jobs.
 
-Exit gate: golden circuits воспроизводятся в native и WASM в пределах заданных допусков.
+Exit gate: expanded golden circuits reproduce in native and WASM within declared tolerances.
 
 ## Phase 7 — Arduino
 
@@ -113,22 +133,22 @@ Exit gate: golden circuits воспроизводятся в native и WASM в �
 - ATmega/Arduino emulation adapter;
 - GPIO, PWM, ADC, UART;
 - serial monitor;
-- blocks и blocks-to-text после устойчивого text flow.
+- blocks-to-text only after stable text flow.
 
-Exit gate: Blink работает в browser simulation и server autograder с одинаковым environment manifest.
+Exit gate: Blink works in browser simulation and server autograder with the same environment manifest.
 
-## Phase 8 — Autograding and Instruments
+## Phase 8 — Instruments and Advanced Autograding
 
 - structural and topology tests;
 - behavioral tests;
-- public and hidden test separation;
+- public and hidden separation;
 - multimeter;
 - oscilloscope;
 - result report;
 - retry/idempotency;
 - teacher test-authoring UI.
 
-Exit gate: воспроизводимая оценка immutable submission без передачи hidden tests в browser.
+Exit gate: reproducible assessment of immutable submission without exposing hidden tests.
 
 ## Phase 9 — Pilot Hardening
 
@@ -141,9 +161,9 @@ Exit gate: воспроизводимая оценка immutable submission бе
 - operational runbooks;
 - support workflow;
 - school admin;
-- usage analytics с privacy allowlist.
+- privacy-allowlisted usage analytics.
 
-Exit gate: SLO school pilot подтверждён, backup восстановлен, high/critical security findings закрыты.
+Exit gate: school-pilot SLO confirmed, backup restored, high/critical findings closed.
 
 ## Phase 10 — Commercial Foundation
 
@@ -155,11 +175,11 @@ Exit gate: SLO school pilot подтверждён, backup восстановл�
 - grace period;
 - invoice references;
 - admin reports;
-- tenant entitlement overrides.
+- tenant overrides.
 
-Платёжный провайдер подключается после entitlement-модели, а не наоборот.
+Payment provider follows the entitlement model, not vice versa.
 
-Exit gate: изменение тарифа не меняет предметный код и не удаляет учебные данные.
+Exit gate: plan changes do not change subject code or delete educational data.
 
 ## Phase 11 — Multi-school and Regional Scale
 
@@ -171,22 +191,23 @@ Exit gate: изменение тарифа не меняет предметны�
 - regional operations;
 - SSO integrations;
 - advanced observability;
-- partitioning event, audit and usage tables по измеренной необходимости.
+- measured partitioning.
 
-Exit gate: L2 load profile с 2x safety factor, проверены failover и восстановление backlog.
+Exit gate: L2 load profile with safety factor, failover and backlog recovery confirmed.
 
-## Phase 12 — New Subject Modules
+## Phase 12 — Additional Subject Modules
 
-Очередность определяется педагогической ценностью и готовностью Module SDK:
+Order is set by pedagogical value and Module SDK readiness:
 
-- шахматы и шашки;
-- 3D-моделирование и printer export;
-- 2D-робототехника;
-- рисование и техническое черчение;
-- дополнительные электронные контроллеры.
+- Scratch-like block coding;
+- advanced chess/checkers learning tools;
+- 3D modelling and print export;
+- virtual robotics;
+- drawing and drafting;
+- additional controllers and laboratories.
 
-Каждый модуль проходит admission checklist, имеет schema/migrator, worker profile, Safe Mode compatibility и не изменяет Classroom Core.
+Each module has schema/migrator, Safe Mode declaration, accessibility, project lifecycle and no Classroom Core modifications.
 
 ## Правило планирования
 
-Внутри phase работа разбивается на вертикальные use cases. Нельзя сначала написать «всю базу», потом «весь backend», потом «весь frontend». Каждый срез должен давать проверяемое пользовательское поведение и включать contracts, migration, authorization, audit, telemetry и acceptance tests.
+Architecture phases describe **where a capability belongs**. Execution Manifest describes **when a specific user flow is implemented**. Work is always split into vertical tasks; it is forbidden to write “all database”, then “all backend”, then “all frontend”.
