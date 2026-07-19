@@ -1,10 +1,58 @@
 # ASA Lab
 
-**Модульная образовательная платформа для классов, виртуальных лабораторий и проектной работы.**
+**Модульная образовательная платформа для классов, виртуальных лабораторий, заданий и проектной работы.**
 
-ASA Lab создаётся как единая школьная и в дальнейшем федеральная платформа. Универсальное ядро `Classroom Core` управляет организациями, школами, педагогами, ученическими местами без электронной почты, классами, заданиями, проектами, сдачами, проверкой, безопасностью, подписками и аудитом. Предметные среды подключаются как независимые модули.
+ASA Lab создаётся как единая школьная и в дальнейшем многопользовательская платформа. Универсальное ядро `Classroom Core` управляет организациями, школами, педагогами, ученическими местами без обязательной электронной почты, классами, заданиями, проектами, сдачами, проверкой, комментариями, оценками, достижениями, безопасностью и аудитом. Предметные среды подключаются как независимые модули.
 
-Первый производственный модуль — **виртуальная лаборатория электроники**. В архитектуру заранее заложены будущие модули 3D-моделирования, подготовки файлов для 3D-печати, 2D-робототехники, шахмат, шашек, рисования, черчения и других дисциплин.
+Первый крупный предметный модуль — **виртуальная лаборатория электроники**. В платформу заранее заложены Scratch-подобное блочное программирование, 3D-моделирование и подготовка к печати, виртуальная робототехника, шахматы и шашки, рисование, черчение и другие дисциплины.
+
+## Главное определение
+
+> Один безопасный вход, единые классы, задания, проекты, submissions, комментарии, оценки и достижения — множество независимых учебных модулей через Module SDK.
+
+ASA Lab — не один редактор и не набор несвязанных сайтов. Это образовательная workspace platform, где ребёнок входит в единый кабинет, получает задания и выполняет их в разных учебных средах, а педагог проверяет работы через единый процесс.
+
+## Продуктовая документация
+
+- [`docs/product/PRODUCT_BLUEPRINT.md`](docs/product/PRODUCT_BLUEPRINT.md) — полное определение конечной платформы;
+- [`docs/product/CAPABILITY_MAP.yaml`](docs/product/CAPABILITY_MAP.yaml) — машиночитаемые capability IDs, зависимости и релизные slices;
+- [`docs/product/CAPABILITY_MAP.md`](docs/product/CAPABILITY_MAP.md) — визуальная карта возможностей;
+- [`docs/product/CLASSROOM_CORE_SPEC.md`](docs/product/CLASSROOM_CORE_SPEC.md) — классы, StudentSeat, задания, submissions и кабинеты;
+- [`docs/product/MODULE_PLATFORM_SPEC.md`](docs/product/MODULE_PLATFORM_SPEC.md) — подключение предметных редакторов;
+- [`docs/product/ASSESSMENT_REWARDS_SPEC.md`](docs/product/ASSESSMENT_REWARDS_SPEC.md) — комментарии, проверка, оценки, badges и certificates.
+
+## Полный образовательный цикл
+
+```text
+Teacher creates classroom
+→ issues StudentSeats
+→ child logs in without email
+→ teacher assigns activity
+→ child opens subject module
+→ project autosaves
+→ child submits immutable version
+→ automated checks run
+→ teacher comments and reviews
+→ work is accepted or returned
+→ grade and badge are issued
+→ progress updates in both dashboards
+```
+
+## Подключаемые модули
+
+```text
+Classroom Core
+├── Electronics Laboratory
+├── Block Coding / Scratch-like Environment
+├── 3D Modelling and Printer Export
+├── Virtual Robotics
+├── Chess and Checkers
+├── Drawing and Drafting
+├── Programming
+└── Future Learning Modules
+```
+
+Classroom Core не знает внутренние типы предметов. Электроника, sprites, шахматные ходы и 3D meshes существуют только внутри соответствующих модулей.
 
 ## Архитектурное решение
 
@@ -13,50 +61,47 @@ Modular Monolith Control Plane
 + Isolated Compute Plane
 + Versioned Module SDK
 + PostgreSQL multi-tenancy
-+ Immutable project versions
++ Immutable project versions and submissions
 + Transactional outbox
 + Browser-first Rust/WASM simulation core
 + Entitlement-based commercial model
 + Strict rules for AI coding agents
++ Product capability graph
 + Versioned project knowledge graph
 + Executable test registry
 ```
 
 Микросервисы не создаются для каждого CRUD-модуля. С первого дня отдельно изолируются только опасные или тяжёлые вычисления: компиляция, автопроверка, серверная симуляция, preview/render/export и будущие 3D- и robotics-задачи.
 
-## Почему именно так
+## Карты системы
 
-Такой фундамент даёт школе быстрый и управляемый старт, но не блокирует рост до сети школ, региона и федеральной платформы. Классы, права, проекты и сдачи остаются транзакционно целостными; вычислительные worker-пулы масштабируются независимо; предметные модули подключаются через стабильный контракт, а не встраиваются в Classroom Core условными операторами.
-
-## Карта проекта
-
-Карта является обязательной частью репозитория, а не отдельной презентацией:
-
-- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — обзорные Mermaid-графы в GitHub;
+- [`docs/product/CAPABILITY_MAP.md`](docs/product/CAPABILITY_MAP.md) — что должна уметь конечная платформа;
+- [`docs/product/CAPABILITY_MAP.yaml`](docs/product/CAPABILITY_MAP.yaml) — capability graph для Issues и агентов;
+- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — архитектура, задачи и текущий фокус;
 - [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивный Obsidian-подобный граф;
-- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — машиночитаемый источник истины;
-- [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — откуда coding-агент берёт задачи;
-- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — связь задач, проверок и quality gates;
-- [`docs/architecture/structurizr/workspace.dsl`](docs/architecture/structurizr/workspace.dsl) — C4 architecture model as code.
-
-Каждый архитектурный PR обязан обновлять карту. После Bootstrap к ней добавляется автоматически генерируемый Nx project graph фактических зависимостей кода.
+- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — машиночитаемая карта реализации;
+- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — связь задач и проверок;
+- [`docs/project-map/nx-project-graph.json`](docs/project-map/nx-project-graph.json) — фактические зависимости кода;
+- [`docs/architecture/structurizr/workspace.dsl`](docs/architecture/structurizr/workspace.dsl) — C4 architecture as code.
 
 ## Управление coding-агентами
 
-- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — точный цикл ORIENT → PLAN → IMPLEMENT → VERIFY → UPDATE MAP → PR;
-- [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — уровни и правила тестирования;
-- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — стабильные test IDs, команды, фазы и владельцы;
-- [`tools/validate_test_catalog.py`](tools/validate_test_catalog.py) — проверка целостности реестра тестов.
+- [`AGENTS.md`](AGENTS.md) — обязательные продуктовые и архитектурные правила;
+- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — цикл ORIENT → PLAN → IMPLEMENT → VERIFY → UPDATE MAP → PR;
+- [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — стратегия тестирования;
+- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — стабильные test IDs и команды.
 
-Бот не выбирает работу самостоятельно. Он читает `current_focus`, `execution_queue`, зависимости задачи и связанные test IDs. В конце каждой сессии бот обязан назвать `NEXT_ALLOWED_TASK` и дать точную `NEXT_COMMAND`.
+Каждая продуктовая Issue обязана ссылаться на capability IDs. Чат может уточнять реализацию, но не меняет молча capability, зависимость, релизную границу или смысл Issue.
 
-## Текущая очередь
+## Релизная последовательность
 
-1. Завершить governance Issue №9 внутри Architecture Foundation PR №1.
-2. Получить зелёный Architecture CI.
-3. Проверить и объединить [Architecture Foundation PR №1](https://github.com/spikeal8-maker/asa-lab/pull/1).
-4. Передать coding-агенту только [Issue №2 — TASK-BOOT-001](https://github.com/spikeal8-maker/asa-lab/issues/2).
-5. Последующие задачи брать строго из `execution_queue` в `project-map.yaml`.
+1. Platform foundation: organization, identity, safety and operations.
+2. Teacher Portal: вход, кабинет и классы.
+3. Child Access: StudentSeat и кабинет ребёнка.
+4. Universal Projects and Assignments: module registry, проекты, версии и submission.
+5. Review and Assessment: комментарии, rubric, оценки, badges и progress.
+6. Electronics: редактор, симуляция и полный учебный цикл.
+7. Additional Modules: block coding, 3D, robotics, chess, drawing.
 
 ## Целевой масштаб
 
@@ -68,26 +113,7 @@ Modular Monolith Control Plane
 | L3 | регион | 50 000 |
 | L4 | федеральный контур | 200 000 |
 
-Это planning targets, а не обещание производительности одного сервера. Каждый переход подтверждается нагрузочными тестами, проверкой изоляции данных и восстановлением резервной копии.
-
-## Основные документы
-
-1. [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — первая задача coding-агенту.
-2. [`AGENTS.md`](AGENTS.md) — обязательные архитектурные правила.
-3. [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — регламент управления агентом.
-4. [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — карта системы и текущий фокус.
-5. [`docs/project-map/TASK_SYSTEM.md`](docs/project-map/TASK_SYSTEM.md) — правила очереди задач.
-6. [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — карта тестов и quality gates.
-7. [`docs/testing/TEST_STRATEGY.md`](docs/testing/TEST_STRATEGY.md) — стратегия тестирования.
-8. [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — исполняемый каталог тестов.
-9. [`docs/architecture/ARCHITECTURE_BASELINE.md`](docs/architecture/ARCHITECTURE_BASELINE.md) — целевая архитектура платформы.
-10. [`docs/architecture/CAPACITY_AND_SLO.md`](docs/architecture/CAPACITY_AND_SLO.md) — нагрузочная модель и SLO.
-11. [`docs/architecture/DATA_SECURITY_AND_TENANCY.md`](docs/architecture/DATA_SECURITY_AND_TENANCY.md) — мультитенантность, хранение и защита детских данных.
-12. [`docs/architecture/ADMIN_AND_COMMERCIAL.md`](docs/architecture/ADMIN_AND_COMMERCIAL.md) — административная и коммерческая модель.
-13. [`docs/architecture/AI_DELIVERY_GOVERNANCE.md`](docs/architecture/AI_DELIVERY_GOVERNANCE.md) — процесс разработки ботами.
-14. [`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) — принятые ADR и условия пересмотра.
-15. [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — последовательность реализации.
-16. [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила изменения системы и оформления Pull Request.
+Это planning targets, а не обещание производительности одного сервера. Каждый переход подтверждается нагрузочными тестами, tenant isolation и восстановлением резервной копии.
 
 ## Главные инварианты
 
@@ -96,31 +122,26 @@ Modular Monolith Control Plane
 - Детский контент закрыт по умолчанию.
 - Каждая tenant-owned сущность имеет `tenant_id`.
 - Авторизация выполняется сервером.
-- Сохранённые `ProjectVersion` и отправленные `Submission` неизменяемы.
+- `ProjectVersion` и отправленный `Submission` неизменяемы.
 - Недоверенный пользовательский код не выполняется в Core API.
-- Критические события публикуются через transactional outbox.
+- Hidden tests не передаются в browser.
 - Платные функции определяются entitlement и quota, а не boolean-флагами.
 - Форматы проектов версионируются и мигрируются.
-- Изменение архитектурной границы требует ADR.
-- Изменение структуры, зависимости или статуса задачи требует обновления project map.
-- Каждая рабочая задача имеет обязательные test IDs и фактический отчёт.
+- Изменение capability сначала фиксируется в Product Blueprint и Capability Map.
+- Каждая задача имеет пользовательский flow, capability IDs, non-goals и test IDs.
 
 ## Планируемая структура кода
 
 ```text
 apps/          web, admin, api, realtime, dispatcher, workers
 packages/      contracts, domain kernel, authz, database, eventing, Module SDK
-contexts/      bounded contexts Classroom Core
-modules/       electronics, затем 3D, robotics, chess и другие предметы
+contexts/      identity, organization, classroom, projects, activities, assessment
+modules/       electronics, block coding, 3D, robotics, chess, drawing
 crates/        Rust/WASM simulation kernels
-infra/         локальная, школьная и облачная поставка
-schemas/       OpenAPI, JSON Schema и event contracts
-tests/         unit, integration, contract, security, load, simulation golden tests
+infra/         local, school and cloud deployment
+schemas/       OpenAPI, JSON Schema, events and module contracts
+tests/         unit, integration, authz, E2E, load and simulation golden
 ```
-
-## Статус
-
-Репозиторий находится на стадии утверждения архитектурного фундамента. Реализация бизнес-функций не должна начинаться до принятия Architecture Foundation PR и прохождения Bootstrap quality gates.
 
 ## Правовой статус
 
