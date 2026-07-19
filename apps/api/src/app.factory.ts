@@ -18,7 +18,8 @@ export interface ApiFactoryOptions {
 }
 
 function defaultPool(): pg.Pool | null {
-  const url = process.env['APP_DATABASE_URL'] ?? process.env['DATABASE_URL'];
+  // Runtime-role URL only: there is deliberately no DATABASE_URL fallback.
+  const url = process.env['APP_DATABASE_URL'];
   return url ? new pg.Pool({ connectionString: url, max: 10 }) : null;
 }
 

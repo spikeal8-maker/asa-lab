@@ -1,13 +1,18 @@
 import type pg from 'pg';
 import { withTenantContext } from '@asa-lab/database';
 import type { Classroom } from '../domain/classroom.js';
-import type { ClassroomRepositoryPort, CreateClassroomInput } from '../application/ports.js';
+import type {
+  ClassroomRepositoryPort,
+  CreateClassroomInput,
+  CreateWithOwnerResult,
+} from '../application/ports.js';
 
 interface ClassroomRow {
   id: string;
   title: string;
   status: string;
   created_at: string;
+  request_fingerprint?: string | null;
 }
 
 function toClassroom(row: ClassroomRow): Classroom {
@@ -16,17 +21,19 @@ function toClassroom(row: ClassroomRow): Classroom {
 
 /** PostgreSQL classroom repository. All statements run inside a tenant-scoped
  * transaction (SET LOCAL app.tenant_id), which both satisfies FORCE RLS and
- * guarantees the context clears before the connection returns to the pool. */
+ * guarantees the context clears before the connection returns to the pool.
+ * Concurrency: the partial unique index on (tenant_id, created_by,
+ * idempotency_key) makes the insert race-safe; the loser of the race reads the
+ * committed row and compares fingerprints. */
 export class PgClassroomRepository implements ClassroomRepositoryPort {
   constructor(private readonly pool: pg.Pool) {}
 
-  async createWithOwner(
-    input: CreateClassroomInput,
-  ): Promise<{ classroom: Classroom; created: boolean }> {
+  async createWithOwner(input: CreateClassroomInput): Promise<CreateWithOwnerResult> {
     return withTenantContext(this.pool, input.tenantId, async (client) => {
       const inserted = await client.query(
-        `INSERT INTO classrooms (tenant_id, school_id, academic_period_id, title, created_by, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO classrooms
+           (tenant_id, school_id, academic_period_id, title, created_by, idempotency_key, request_fingerprint)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (tenant_id, created_by, idempotency_key) WHERE idempotency_key IS NOT NULL
          DO NOTHING
          RETURNING id, title, status, created_at`,
@@ -37,15 +44,20 @@ export class PgClassroomRepository implements ClassroomRepositoryPort {
           input.title,
           input.teacherId,
           input.idempotencyKey,
+          input.requestFingerprint,
         ],
       );
       if (inserted.rows.length === 0) {
         const existing = await client.query(
-          `SELECT id, title, status, created_at FROM classrooms
+          `SELECT id, title, status, created_at, request_fingerprint FROM classrooms
             WHERE tenant_id = $1 AND created_by = $2 AND idempotency_key = $3`,
           [input.tenantId, input.teacherId, input.idempotencyKey],
         );
-        return { classroom: toClassroom(existing.rows[0] as ClassroomRow), created: false };
+        const row = existing.rows[0] as ClassroomRow;
+        if (row.request_fingerprint !== input.requestFingerprint) {
+          return { kind: 'conflict' };
+        }
+        return { kind: 'existing', classroom: toClassroom(row) };
       }
       const classroom = toClassroom(inserted.rows[0] as ClassroomRow);
       await client.query(
@@ -58,7 +70,7 @@ export class PgClassroomRepository implements ClassroomRepositoryPort {
          VALUES ($1, $2, 'classroom', $3, 'classroom.created', $4)`,
         [input.tenantId, input.teacherId, classroom.id, JSON.stringify({ title: classroom.title })],
       );
-      return { classroom, created: true };
+      return { kind: 'created', classroom };
     });
   }
 

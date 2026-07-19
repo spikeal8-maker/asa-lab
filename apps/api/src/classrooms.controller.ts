@@ -14,6 +14,7 @@ import type { SessionContext, SessionUseCase } from '@asa-lab/identity';
 import type { GetTeachingContextUseCase } from '@asa-lab/organization';
 import type { Classroom, CreateClassroomUseCase, ListClassroomsUseCase } from '@asa-lab/classroom';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
@@ -50,35 +51,47 @@ export class ClassroomsController {
   async create(
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
-    @Body() body: Record<string, unknown> | undefined,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() rawBody: unknown,
+    @Headers('idempotency-key') idempotencyHeader: string | undefined,
   ): Promise<{ classroom: Classroom; created: boolean }> {
     const context = await this.requireContext(request);
-    // The tenant context comes from the session only; any client-supplied
-    // tenant identifier is rejected outright.
-    if (body && ('tenant_id' in body || 'tenantId' in body)) {
+    // The tenant context comes exclusively from the session: any
+    // client-supplied tenant identifier is rejected before shape checking so
+    // the error is explicit.
+    if (isPlainObject(rawBody) && ('tenant_id' in rawBody || 'tenantId' in rawBody)) {
       throw new HttpException(
         error('validation_error', 'tenant is derived from the session and must not be sent'),
         400,
       );
     }
-    const teaching = await this.teachingContext.execute(context.tenantId, context.schoolId);
-    if (!teaching) {
-      throw new HttpException(error('no_active_period', 'no active academic period'), 409);
+    const shape = checkBodyShape(rawBody, ['title']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
     }
-    const key =
-      typeof idempotencyKey === 'string' && idempotencyKey.trim().length > 0
-        ? idempotencyKey.trim().slice(0, 128)
-        : null;
+    const keyCheck = checkIdempotencyKey(idempotencyHeader);
+    if (!keyCheck.ok) {
+      throw new HttpException(error('invalid_idempotency_key', keyCheck.message), 400);
+    }
+    const teaching = await this.teachingContext.execute(context.tenantId, context.schoolId);
+    if (!teaching.ok) {
+      const message =
+        teaching.code === 'no_school_assigned'
+          ? 'the teacher has no school assigned'
+          : 'no active academic period for the teacher school';
+      throw new HttpException(error(teaching.code, message), 409);
+    }
     const result = await this.createUseCase.execute({
       tenantId: context.tenantId,
-      schoolId: teaching.schoolId,
-      academicPeriodId: teaching.academicPeriodId,
+      schoolId: teaching.context.schoolId,
+      academicPeriodId: teaching.context.academicPeriodId,
       teacherId: context.userId,
-      title: body?.['title'],
-      idempotencyKey: key,
+      title: shape.body['title'],
+      idempotencyKey: keyCheck.key,
     });
     if (!result.ok) {
+      if (result.code === 'idempotency_conflict') {
+        throw new HttpException(error(result.code, result.message), 409);
+      }
       throw new HttpException(error(result.code, result.message), 400);
     }
     reply.code(result.created ? 201 : 200);

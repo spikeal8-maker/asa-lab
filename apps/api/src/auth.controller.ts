@@ -12,6 +12,7 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { LoginUseCase, SessionUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { checkBodyShape } from './validation.js';
 
 interface PublicUser {
   id: string;
@@ -34,13 +35,17 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(
-    @Body() body: Record<string, unknown> | undefined,
+    @Body() rawBody: unknown,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ user: PublicUser }> {
+    const shape = checkBodyShape(rawBody, ['workspace', 'email', 'password']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
     const result = await this.loginUseCase.execute({
-      workspace: body?.['workspace'],
-      email: body?.['email'],
-      password: body?.['password'],
+      workspace: shape.body['workspace'],
+      email: shape.body['email'],
+      password: shape.body['password'],
     });
     if (!result.ok) {
       if (result.code === 'validation_error') {

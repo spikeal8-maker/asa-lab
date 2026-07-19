@@ -7,16 +7,14 @@ import type {
   UserDirectoryPort,
 } from '../application/ports.js';
 
-/** PostgreSQL adapters for the identity ports. Every tenant-owned query
- * carries an explicit tenant predicate. */
+/** PostgreSQL adapters for the identity ports. The runtime role has no direct
+ * grants on tenants/users/sessions: every identity operation goes through the
+ * narrow SECURITY DEFINER auth_* functions installed by the migration. */
 export class PgTenantLocator implements TenantLocatorPort {
   constructor(private readonly pool: pg.Pool) {}
 
   async findTenantIdBySlug(slug: string): Promise<string | null> {
-    const result = await this.pool.query(
-      `SELECT id FROM tenants WHERE workspace_slug = $1 AND status = 'active'`,
-      [slug],
-    );
+    const result = await this.pool.query(`SELECT auth_lookup_tenant_id($1) AS id`, [slug]);
     return result.rows[0]?.id ?? null;
   }
 }
@@ -30,9 +28,7 @@ export class PgUserDirectory implements UserDirectoryPort {
   ): Promise<SessionUser | null> {
     const result = await this.pool.query(
       `SELECT id, email, display_name, school_id, password_hash
-         FROM users
-        WHERE tenant_id = $1 AND lower(email) = $2 AND role = 'teacher' AND status = 'active'
-        LIMIT 1`,
+         FROM auth_find_active_teacher($1, $2)`,
       [tenantId, emailLower],
     );
     const row = result.rows[0];
@@ -58,28 +54,22 @@ export class PgSessionStore implements SessionStorePort {
     tokenHash: string,
     ttlHours: number,
   ): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO sessions (tenant_id, user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3, now() + ($4 || ' hours')::interval)`,
-      [tenantId, userId, tokenHash, String(ttlHours)],
-    );
+    await this.pool.query(`SELECT auth_create_session($1, $2, $3, $4)`, [
+      tenantId,
+      userId,
+      tokenHash,
+      ttlHours,
+    ]);
   }
 
   async revoke(tokenHash: string): Promise<void> {
-    await this.pool.query(
-      `UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL`,
-      [tokenHash],
-    );
+    await this.pool.query(`SELECT auth_revoke_session($1)`, [tokenHash]);
   }
 
   async resolve(tokenHash: string): Promise<SessionContext | null> {
     const result = await this.pool.query(
-      `SELECT s.tenant_id, s.user_id, u.email, u.display_name, u.school_id
-         FROM sessions s
-         JOIN users u ON u.tenant_id = s.tenant_id AND u.id = s.user_id
-        WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()
-          AND u.status = 'active'
-        LIMIT 1`,
+      `SELECT tenant_id, user_id, email, display_name, school_id
+         FROM auth_resolve_session($1)`,
       [tokenHash],
     );
     const row = result.rows[0];
