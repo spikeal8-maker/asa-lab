@@ -1,309 +1,162 @@
 # Стратегия тестирования ASA Lab
 
-Тестирование является частью каждой executable Issue. Источник команд — [`test-catalog.yaml`](test-catalog.yaml); последовательность этапов — [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md).
+Тестирование является частью каждой executable task, а не отдельным этапом после разработки.
 
 ## 1. Источники истины
 
-Каждый стабильный test ID содержит:
-
-- ID;
-- suite/level;
-- command;
-- `required_for`;
-- timeout;
-- owner;
-- expected artifacts.
-
-PR перечисляет фактический статус каждого обязательного test ID.
-
-## 2. Статусы
-
 ```text
-PASS       команда реально выполнена, exit code 0
-FAIL       команда реально выполнена, exit code non-zero
-BLOCKED    обязательная среда отсутствует
-NOT_RUN    команда не запускалась
+docs/delivery/EXECUTION_MANIFEST.yaml  test profiles каждой canonical task
+docs/testing/test-catalog.yaml         стабильные test IDs и команды
+docs/project-map/QUALITY_MAP.md        визуальное представление gates
+GitHub Issue                            acceptance текущего user flow
 ```
 
-`BLOCKED` и `NOT_RUN` не закрывают exit gate.
+`tools/validate_delivery_program.py` разворачивает profiles manifest и требует точного совпадения с `required_for` test catalog. После начала task нельзя удалить test ID ради зелёного результата.
+
+## 2. Что означает phase_available
+
+`phase_available` — архитектурный горизонт, в котором тест применим. Это **не execution order**.
+
+Порядок задач задаётся `delivery_stage` в Execution Manifest. Например, Electronics Alpha может использовать Phase 5 tests раньше полного StudentSeat workflow, потому что Technical Alpha является отдельным delivery track.
 
 ## 3. Уровни
 
 | Уровень | Назначение |
 |---|---|
-| Governance | Product/Development/Project/Quality maps и validators |
-| Static | format, lint, types, build, Nx boundaries |
-| Unit | framework-independent domain/application logic |
-| Contract | OpenAPI, JSON Schema, events и Module SDK |
-| Integration | PostgreSQL, repositories, migrations и use cases |
-| Authorization | tenant/class/project/student denial matrix |
-| E2E | основной user flow в реальном browser |
-| Security | secrets, dependency advisories/licenses, credentials, ports |
-| Accessibility | keyboard, focus, semantics, contrast, reduced motion |
-| Simulation | electronics schema, netlist, golden and native/WASM parity |
-| Load | school CCU and burst profiles after functional pilot |
-| Recovery | backup/restore after persistent pilot data exists |
+| Governance | Product, capability, execution manifest, project map, catalog |
+| Static | format, lint, strict types, build, boundaries |
+| Unit | domain rules and deterministic algorithms |
+| Contract | OpenAPI, JSON Schema, Module SDK, events/jobs |
+| Integration | PostgreSQL, repositories, migrations, application use cases |
+| Authorization | tenant/class/project/student negative matrix and RLS |
+| E2E | critical user flow through browser/API/DB |
+| Security | secrets, advisories, licenses, credentials, port safety |
+| Accessibility | keyboard, semantics, focus, contrast, reduced motion |
+| Simulation | native/WASM golden and parity |
+| Load/Recovery | measured school scale and restore drills |
 
-## 4. Пирамида
+## 4. Test profiles
 
-```text
-               Load / Recovery
-          Security / Accessibility
-                 E2E
-       Integration / Contract / Authz
-                  Unit
-       Static / Governance validators
-```
+Canonical profiles are machine-readable in `EXECUTION_MANIFEST.yaml`:
 
-Основной объём находится в unit/integration/contracts. E2E подтверждает один ключевой flow текущей Issue.
+- `product_docs`;
+- `code_common`;
+- `tenant_storage`;
+- `module_runtime`;
+- `assessment_common`;
+- `electronics_kernel`.
 
-## 5. Общий gate product task
+Каждая task добавляет к profiles свои task-specific tests. Итоговый набор должен **точно** совпадать с `required_for`.
 
-По применимости:
+## 5. Общий минимум product task
 
-1. `TST-MAP-001`;
-2. `TST-CAPABILITY-MAP-001`;
-3. `TST-DEVELOPMENT-PROGRAM-001`;
-4. format/lint/type/build;
-5. Nx boundaries;
-6. OpenAPI/JSON Schema;
-7. unit;
-8. migrations/integration;
-9. tenant/authz/RLS;
-10. secret/dependency/license;
-11. port/startup safety;
-12. accessibility;
-13. automated browser E2E;
-14. module/simulation-specific gates.
+По manifest и применимости:
 
-Точный набор определяется `required_for`.
+1. map/capability/program validation;
+2. format/lint/type/build/boundaries;
+3. contracts;
+4. unit/integration;
+5. migration;
+6. tenant/authz/RLS;
+7. secret/dependency/license;
+8. canonical ports and clean startup;
+9. accessibility;
+10. automated browser E2E;
+11. simulation golden/parity для Electronics;
+12. map/Nx evidence.
 
-## 6. Stage gates
+Неприменимость не определяется устно: она выражается отсутствием test ID в manifest profile/task entry до начала реализации.
 
-### Product Documentation
+## 6. Пирамида
 
 ```text
-architecture
-project map
-capability map
-release dependency ordering
-development program
-port policy
-test catalog
-links/YAML
+        Load / Recovery / extended Security
+               Critical browser E2E
+          Integration / Authz / Contract
+                    Unit
+          Static and governance gates
 ```
 
-### Teacher Portal
+E2E покрывает ключевой пользовательский flow, а не все комбинации полей.
 
-```text
-login/session
-classroom transaction
-owner membership
-AuditEvent
-runtime DB role/RLS
-idempotency
-canonical ports
-clean-session startup
-accessibility
-Playwright login→class→reload→logout
-```
-
-### Universal Project Shell
-
-```text
-Module Registry v0.1
-ProjectDraft persistence
-optimistic conflict
-immutable checkpoint/digest
-tenant/owner isolation
-create→save→reload→checkpoint E2E
-```
-
-### Checkers Lite
-
-```text
-schema fixtures
-move rules
-diagnostics
-save/reload
-preview
-no Core subject imports
-browser E2E
-```
-
-### Electronics Alpha
-
-```text
-CircuitDocument schema
-connectivity/netlist
-diagnostics
-native golden tests
-WASM parity
-save/reload
-browser E2E
-```
-
-### StudentSeat
-
-```text
-seat lifecycle
-Argon2id credential
-one-time plaintext handling
-CSV import/idempotency
-rate limit/lockout
-session revocation
-child E2E
-```
-
-### Assignment/Submission
-
-```text
-immutable ActivityVersion
-assignment audience/transitions
-starter project idempotency
-final sync
-immutable ProjectVersion
-SubmissionAttempt exact reference
-teacher queue E2E
-```
-
-### Review/Grade/Badge
-
-```text
-version-safe comments
-anchors/visibility
-request changes/resubmit
-attempt comparison
-rubric/grade revision audit
-badge evidence
-full E2E
-```
-
-### Full Electronics Classroom
-
-```text
-electronics ActivityVersion
-public deterministic checks
-immutable circuit submission
-anchored review
-revision/grade/badge
-complete browser E2E
-```
-
-## 7. Test data isolation
+## 7. Test data
 
 - Production data не копируются без обезличивания.
-- Integration/E2E используют synthetic tenants.
-- Для DB suites используется `TEST_DATABASE_URL`.
-- Test runner отказывается работать на dev/production DB без explicit test marker.
-- Suite выполняет cleanup или isolated database/schema.
-- Минимум два tenant для отрицательной матрицы.
-- Child credentials, session tokens и project content не попадают в snapshots/logs.
-- Time/UUID/randomness контролируются, когда требуется determinism.
+- Integration/E2E используют synthetic tenants, teachers, StudentSeats и projects.
+- `TEST_DATABASE_URL` отделён от development/production и имеет test marker/guard.
+- Минимум два tenants используются для отрицательных сценариев.
+- Credentials, tokens и child content отсутствуют в snapshots/artifacts.
+- Suite выполняет cleanup или работает в изолированной test database/schema.
+- UUID/time/randomness контролируются там, где нужна детерминированность.
 
-## 8. Browser E2E
+## 8. UI evidence
 
-- Использует same-origin server `127.0.0.1:4612`.
-- Не использует `3000`, `3100`, `5173`.
-- Не завершает чужие процессы.
-- Сохраняет Playwright report и screenshot.
-- Manual browser smoke не заменяет E2E.
-- Flow проверяет видимый результат, а не только HTTP status.
+Каждая UI task предоставляет:
 
-## 9. Accessibility
+- automated Playwright flow;
+- screenshot основного состояния;
+- screenshot error/diagnostic state при применимости;
+- accessibility report;
+- canonical demo URL;
+- occupied-port safety report.
 
-Для критического UI пути:
+Manual browser smoke не заменяет E2E. Screenshot не заменяет assertion.
 
-- labels/names;
-- keyboard navigation;
-- visible focus;
-- dialog initial focus;
-- focus trap/restore;
-- Escape;
-- error announcements;
-- contrast;
-- reduced motion;
-- responsive viewport.
+## 9. Результаты
 
-Accessibility test включён в обязательный gate UI-задач.
+```text
+TST-PORTAL-API-001 PASS duration=4.2s
+TST-E2E-PORTAL-001 FAIL assertion="classroom card missing" artifact=...
+TST-STARTUP-001 BLOCKED reason="4610 occupied by unknown process"
+TST-LOAD-L1-001 NOT_RUN reason="not required by current task"
+```
 
-## 10. Security
+- PASS — команда выполнена, exit 0;
+- FAIL — команда выполнена, non-zero;
+- BLOCKED — обязательная среда отсутствует;
+- NOT_RUN — команда не запускалась.
 
-- dependency gate проверяет advisories и licenses, а не только inventory;
-- secret scan не заменяет review credential flows;
-- API не получает admin DB URL;
-- runtime role and grants проверяются SQL tests;
-- RLS threat model формулируется честно;
-- tenant/client-provided IDs проверяются отрицательно;
-- hidden tests не передаются в browser;
-- occupied-port safety test подтверждает, что чужой процесс не завершается.
+`BLOCKED` и `NOT_RUN` не закрывают gate.
 
-## 11. Simulation
-
-Electronics tests делятся на:
-
-- schema/fixture compatibility;
-- connectivity/netlist;
-- deterministic native golden;
-- WASM parity;
-- diagnostic anchors;
-- editor E2E.
-
-Unsupported topology должна вернуть diagnostic. Fake numerical success запрещён.
-
-## 12. Добавление теста
-
-Новый постоянный test:
-
-1. получает стабильный ID;
-2. добавляется в `test-catalog.yaml`;
-3. связывается с task через `required_for`;
-4. отображается в Quality Map;
-5. имеет реальную command и artifacts;
-6. существует до начала реализации, если это exit criterion.
-
-После начала task нельзя удалять или сокращать обязательные test IDs ради зелёного gate.
-
-## 13. Local-first verification
-
-Пока GitHub-hosted jobs заблокированы внешним billing state, source of truth — локальный запуск:
+## 10. Единый запуск
 
 ```bash
 python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-Отчёт привязывается к commit SHA и публикуется в PR.
+Runner:
 
-Local-first не означает:
+- поддерживает многочастные IDs вроде `TASK-PROJECT-SHELL-001`;
+- выбирает все tests по `required_for`;
+- передаёт `ASA_TASK_ID` и `ASA_TEST_ID` дочерним validators;
+- фиксирует commit SHA, branch и working-tree state;
+- возвращает exit 0 только при полном PASS.
 
-- skip tests;
-- fake PASS;
-- перенос падающего теста без изменения Issue/Maps;
-- автоматический merge.
+## 11. Map evidence
 
-## 14. Evidence
-
-Перед Ready for review product PR содержит:
-
-```text
-commit SHA
-full task runner output
-exact demo URLs
-port report
-Playwright report
-screenshots
-migration/contract/security reports
-clean working tree
-statement that next capability is absent
-```
-
-## 15. Текущая стадия
+Product-code PR обязан обновить или подтвердить:
 
 ```text
-TASK-PRODUCT-DOC-001 in_review
-→ validators and task gate must PASS
-→ merge PR 21
-→ TASK-PORTAL-001 ready
+project-map.yaml
+PROJECT_MAP.md
+QUALITY_MAP.md
+nx-project-graph.json
 ```
 
-PR №22 остаётся frozen до принятия Product/Development Program.
+В task PR карта показывает `in_review`; после merge выполняется map-only transition `done → next ready → current_focus next`.
+
+## 12. Local-first verification
+
+GitHub-hosted Actions сейчас информационны из-за account billing blocker. Обязательный gate — фактический локальный task runner с commit SHA. Это не разрешает ослаблять tests.
+
+## 13. Добавление или удаление теста
+
+Новый test получает стабильный ID. Изменение exit gate синхронно обновляет:
+
+- Execution Manifest;
+- test catalog;
+- Quality Map;
+- текущую Issue;
+- при необходимости Project Map.
+
+Security/authz/compatibility test нельзя удалить только потому, что он падает.
