@@ -12,7 +12,7 @@ returned exit code 0. The process exit code is 0 only when every selected
 mandatory test is PASS.
 
 Usage:
-    python tools/run_task_tests.py --task TASK-CI-001
+    python tools/run_task_tests.py --task TASK-PORTAL-001
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
-TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+-[0-9]{3}$")
+TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
 OUTPUT_TAIL_LINES = 20
 # EX_CONFIG (sysexits.h): a command uses this to signal that a required
 # environment is unavailable, which the runner records as BLOCKED.
@@ -92,7 +92,7 @@ def tail(text: str) -> str:
     return "\n".join(lines[-OUTPUT_TAIL_LINES:])
 
 
-def run_test(test: dict[str, Any]) -> dict[str, Any]:
+def run_test(test: dict[str, Any], task_id: str) -> dict[str, Any]:
     test_id = str(test.get("id"))
     command = str(test.get("command", "")).strip()
     timeout = test.get("timeout_seconds")
@@ -119,17 +119,15 @@ def run_test(test: dict[str, Any]) -> dict[str, Any]:
         record["reason"] = f"cannot tokenize command: {exc}"
         return record
 
-    # Decide real availability with the OS resolver so a genuinely missing tool
-    # (e.g. docker) is BLOCKED, while a present Windows script (pnpm.CMD) is run.
     executable = parts[0] if parts else ""
     if shutil.which(executable) is None:
         record["state"] = "BLOCKED"
         record["reason"] = f"executable not available: {executable}"
         return record
 
-    # On Windows, pnpm/eslint are .CMD scripts that require a shell to launch.
     on_windows = os.name == "nt"
     run_target: Any = command if on_windows else parts
+    child_env = {**os.environ, "ASA_TASK_ID": task_id, "ASA_TEST_ID": test_id}
 
     start = time.monotonic()
     try:
@@ -140,6 +138,7 @@ def run_test(test: dict[str, Any]) -> dict[str, Any]:
             capture_output=True,
             timeout=timeout_value,
             shell=on_windows,
+            env=child_env,
         )
     except FileNotFoundError:
         record["state"] = "BLOCKED"
@@ -159,8 +158,6 @@ def run_test(test: dict[str, Any]) -> dict[str, Any]:
     if completed.returncode == 0:
         record["state"] = "PASS"
     elif completed.returncode == BLOCKED_EXIT_CODE:
-        # EX_CONFIG: the command ran and reported that a required environment
-        # (e.g. a live database or Docker runtime) is unavailable.
         record["state"] = "BLOCKED"
         first_stderr_line = next(
             (line for line in completed.stderr.splitlines() if line.strip()), ""
@@ -216,7 +213,7 @@ def print_report(report: dict[str, Any]) -> None:
     for item in report["results"]:
         exit_code = item["exit_code"] if item["exit_code"] is not None else "-"
         line = (
-            f"  {item['id']:<18} {item['state']:<8} "
+            f"  {item['id']:<32} {item['state']:<8} "
             f"exit={exit_code} duration={item['duration_s']}s"
         )
         if item["reason"]:
@@ -233,7 +230,7 @@ def print_report(report: dict[str, Any]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--task", required=True, help="Task id, e.g. TASK-CI-001")
+    parser.add_argument("--task", required=True, help="Task id, e.g. TASK-PORTAL-001")
     parser.add_argument("--json", help="Optional path to write the machine-readable report")
     arguments = parser.parse_args()
 
@@ -244,7 +241,7 @@ def main() -> int:
 
     catalog = load_catalog()
     selected = select_tests(catalog, task_id)
-    results = [run_test(test) for test in selected]
+    results = [run_test(test, task_id) for test in selected]
     report = build_report(task_id, results)
     print_report(report)
 
