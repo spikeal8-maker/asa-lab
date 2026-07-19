@@ -1,47 +1,52 @@
 # Карта качества и тестов ASA Lab
 
-Эта карта дополняет основную карту проекта. Она показывает, как coding-агент, задачи и Pull Requests связаны с обязательными проверками.
+Эта карта дополняет Product Capability Map и Project Map. Она показывает, чем доказывается готовность каждой задачи и пользовательского сценария.
+
+## 1. Контур управления качеством
 
 ```mermaid
 flowchart LR
-    OWNER[Владелец проекта]
-    AGENT[Coding-агент]
-    RUNBOOK[BOT_RUNBOOK]
-    MAP[project-map.yaml]
+    PRODUCT[Product Blueprint]
+    CAP[Capability Map]
+    PROJECT[Project Map]
     ISSUE[GitHub Issue]
+    RUNBOOK[BOT_RUNBOOK]
     CATALOG[test-catalog.yaml]
-    PR[Draft Pull Request]
-    CI[GitHub Actions]
-    REPORT[Фактический test report]
+    AGENT[Coding Agent]
+    PR[Draft PR]
+    REPORT[Test Report]
+    OWNER[Owner Review]
 
-    OWNER -->|определяет ready task| MAP
-    MAP -->|current_focus и dependencies| AGENT
-    RUNBOOK -->|рабочий алгоритм| AGENT
-    ISSUE -->|scope и acceptance| AGENT
-    CATALOG -->|test IDs и commands| AGENT
-    AGENT -->|код + тесты + карта| PR
-    PR --> CI
-    CI --> REPORT
-    REPORT -->|PASS| OWNER
-    OWNER -->|merge| MAP
+    PRODUCT --> AGENT
+    CAP --> AGENT
+    PROJECT --> AGENT
+    ISSUE --> AGENT
+    RUNBOOK --> AGENT
+    CATALOG --> AGENT
+    AGENT --> PR
+    PR --> REPORT
+    REPORT --> OWNER
 ```
 
-## Тестовые уровни
+## 2. Тестовые уровни
 
 ```mermaid
 flowchart TB
-    STATIC[Static and architecture]
+    PRODUCT[Product and capability validation]
+    STATIC[Static architecture and types]
     UNIT[Unit]
     CONTRACT[Contract]
-    INTEGRATION[Integration]
-    AUTHZ[Authorization matrix]
-    E2E[E2E user flows]
-    SECURITY[Security]
+    INTEGRATION[PostgreSQL and module integration]
+    AUTHZ[Tenant and authorization matrix]
+    E2E[Automated browser user flow]
+    SECURITY[Security and privacy]
     GOLDEN[Simulation golden]
+    ACCESS[Accessibility]
     LOAD[Load]
     RECOVERY[Recovery]
     RELEASE[Release gate]
 
+    PRODUCT --> STATIC
     STATIC --> UNIT
     STATIC --> CONTRACT
     UNIT --> INTEGRATION
@@ -49,97 +54,196 @@ flowchart TB
     INTEGRATION --> AUTHZ
     AUTHZ --> E2E
     E2E --> SECURITY
-    E2E --> GOLDEN
+    E2E --> ACCESS
     SECURITY --> LOAD
     GOLDEN --> LOAD
     LOAD --> RECOVERY
     RECOVERY --> RELEASE
 ```
 
-## Связь ближайших задач и проверок
+## 3. Активная последовательность задач и gates
 
 ```mermaid
 flowchart LR
-    CI[TASK-CI-001]
-    ARCH[TASK-ARCH-001]
-    GOV[TASK-GOV-001]
-    BOOT[TASK-BOOT-001]
-    ENV[TASK-ENV-001]
-    TEN[TASK-TEN-001]
-    CLS[TASK-CLS-001]
+    DOC[TASK-PRODUCT-DOC-001]
+    MVP[TASK-MVP-001]
     SEAT[TASK-SEAT-001]
     MOD[TASK-MOD-001]
     ACT[TASK-ACT-001]
+    REVIEW[TASK-REVIEW-001]
     ELEC[TASK-ELEC-001]
 
-    A1[TST-ARCH-001]
-    M1[TST-MAP-001]
-    C1[TST-CATALOG-001]
-    F1[TST-FORMAT-001]
-    L1[TST-LINT-001]
-    TY1[TST-TYPE-001]
-    B1[TST-BOUNDARY-001]
-    CT1[TST-CONTRACT-001]
-    U1[TST-UNIT-001]
-    CS1[TST-COMPOSE-STRUCTURE-001]
-    ME1[TST-MIGRATION-EMBEDDED-001]
-    CO1[TST-COMPOSE-001]
-    DB1[TST-MIGRATION-001]
-    T1[TST-TENANT-001]
-    AZ1[TST-AUTHZ-001]
-    EC1[TST-E2E-CLS-001]
-    ES1[TST-E2E-SEAT-001]
-    MO1[TST-MODULE-001]
-    EA1[TST-E2E-ACT-001]
-    SG1[TST-SIM-GOLDEN-001]
-    EE1[TST-E2E-ELEC-001]
+    CAP[TST-CAPABILITY-MAP-001]
+    MAP[TST-MAP-001]
+    CAT[TST-CATALOG-001]
+    ARCH[TST-ARCH-001]
+    CONTRACT[TST-CONTRACT-001]
+    UNIT[TST-UNIT-001]
+    RLS[TST-RLS-001]
+    AUTHZ[TST-AUTHZ-001]
+    E2EMVP[TST-E2E-MVP-001]
+    E2ESEAT[TST-E2E-SEAT-001]
+    MODULE[TST-MODULE-001]
+    E2EACT[TST-E2E-ACT-001]
+    E2EREVIEW[TST-E2E-REVIEW-001]
+    GOLDEN[TST-SIM-GOLDEN-001]
+    E2EELEC[TST-E2E-ELEC-001]
 
-    CI --> A1
-    CI --> M1
-    CI --> C1
-    ARCH --> A1
-    ARCH --> M1
-    GOV --> A1
-    GOV --> M1
-    GOV --> C1
+    DOC --> ARCH
+    DOC --> MAP
+    DOC --> CAP
+    DOC --> CAT
 
-    BOOT --> A1
-    BOOT --> M1
-    BOOT --> C1
-    BOOT --> F1
-    BOOT --> L1
-    BOOT --> TY1
-    BOOT --> B1
-    BOOT --> CT1
-    BOOT --> U1
-    BOOT --> CS1
-    BOOT --> ME1
+    MVP --> CAP
+    MVP --> CONTRACT
+    MVP --> UNIT
+    MVP --> RLS
+    MVP --> AUTHZ
+    MVP --> E2EMVP
 
-    ENV --> CO1
-    ENV --> DB1
+    SEAT --> CAP
+    SEAT --> RLS
+    SEAT --> AUTHZ
+    SEAT --> E2ESEAT
 
-    TEN --> T1
-    TEN --> DB1
-    TEN --> AZ1
-    CLS --> AZ1
-    CLS --> EC1
-    SEAT --> AZ1
-    SEAT --> ES1
-    MOD --> B1
-    MOD --> MO1
-    ACT --> AZ1
-    ACT --> EA1
-    ELEC --> B1
-    ELEC --> SG1
-    ELEC --> EE1
+    MOD --> CAP
+    MOD --> MODULE
+
+    ACT --> CAP
+    ACT --> AUTHZ
+    ACT --> E2EACT
+
+    REVIEW --> CAP
+    REVIEW --> AUTHZ
+    REVIEW --> E2EREVIEW
+
+    ELEC --> CAP
+    ELEC --> GOLDEN
+    ELEC --> E2EELEC
 ```
 
-## Правила
+## 4. Product documentation gate
 
-- Основная карта отвечает на вопрос «что строим и в каком порядке».
+`TASK-PRODUCT-DOC-001` завершена только когда:
+
+- `PRODUCT_BLUEPRINT.md` существует и не противоречит architecture baseline;
+- `CAPABILITY_MAP.yaml` парсится;
+- capability IDs уникальны;
+- dependencies существуют и не содержат циклов;
+- каждый capability входит в release slice;
+- Classroom Core, Module Platform и Assessment спецификации существуют;
+- AGENTS.md делает продуктовые документы нормативными;
+- Project Map и README содержат актуальные ссылки.
+
+Команда:
+
+```text
+python tools/run_task_tests.py --task TASK-PRODUCT-DOC-001
+```
+
+## 5. Teacher Portal gate
+
+`TASK-MVP-001` должна доказать:
+
+```text
+site opens
+→ teacher login
+→ dashboard rendered
+→ empty classroom state
+→ classroom created
+→ owner membership created
+→ AuditEvent created
+→ page reload
+→ classroom remains
+→ logout
+```
+
+Дополнительно:
+
+- tenant isolation через runtime DB role и RLS;
+- server-derived tenant context;
+- idempotency;
+- automated Playwright E2E со screenshot;
+- React/Vite и NestJS/Fastify baseline;
+- accessibility critical path.
+
+## 6. StudentSeat gate
+
+`TASK-SEAT-001` должна доказать:
+
+```text
+teacher creates seats
+→ prints/downloads access cards
+→ child logs in without email
+→ sees own class and assignments
+→ reset revokes old session
+→ another child cannot access the seat
+```
+
+## 7. Module and project gate
+
+`TASK-MOD-001` должна доказать:
+
+- два dummy modules зарегистрированы;
+- Classroom Core не меняется при подключении второго модуля;
+- project schemas versioned;
+- autosave/checkpoint/version lifecycle работает;
+- old fixture migration проходит;
+- Nx boundaries запрещают предметные imports в Core.
+
+## 8. Assignment and submission gate
+
+`TASK-ACT-001` должна доказать:
+
+```text
+teacher publishes ActivityVersion
+→ assigns class
+→ child opens starter project
+→ works and saves
+→ submits immutable ProjectVersion
+→ teacher sees exact attempt
+```
+
+## 9. Review and rewards gate
+
+`TASK-REVIEW-001` должна доказать:
+
+```text
+teacher opens submission
+→ leaves anchored comment
+→ requests changes
+→ child resubmits
+→ teacher accepts
+→ fills rubric
+→ grade finalized
+→ badge awarded
+→ progress updated
+```
+
+## 10. Electronics gate
+
+`TASK-ELEC-001` должна доказать не только editor, но полный образовательный цикл:
+
+```text
+teacher assigns circuit task
+→ child builds source resistor LED circuit
+→ save and reload
+→ submit
+→ deterministic checks
+→ teacher viewer and comment
+→ accepted result
+```
+
+## 11. Правила
+
+- Product Blueprint отвечает на вопрос «зачем и для кого строим».
+- Capability Map отвечает на вопрос «что должна уметь платформа и какие зависимости обязательны».
+- Project Map отвечает на вопрос «что реализуем сейчас и в каком порядке».
 - Эта карта отвечает на вопрос «чем доказываем готовность».
-- `test-catalog.yaml` является источником истины для test IDs и команд.
-- Изменение задачи, которое меняет критерии готовности, должно обновить каталог тестов и эту карту в том же PR.
+- `test-catalog.yaml` является единственным источником test IDs и команд.
+- Product Issue без capability IDs не получает статус `ready`.
+- Изменение capability, user flow или exit gate обновляет Product/Project/Quality maps в том же PR.
 - `PASS` допускается только при фактически запущенной команде.
-- `NOT_RUN` и `BLOCKED` отображаются явно и не позволяют закрыть обязательный exit gate.
-- Текущий режим — local-first verification: обязательный gate доказывается локальным запуском `python tools/run_task_tests.py --task <TASK-ID>`; узел `GitHub Actions` информационен, пока действует внешний billing-blocker.
+- `NOT_RUN` и `BLOCKED` не закрывают обязательный exit gate.
+- Ручной browser smoke не заменяет автоматизированный E2E, если E2E является критерием.
+- Текущий режим local-first: `python tools/run_task_tests.py --task <TASK-ID>`; GitHub Actions остаётся информационным до отдельного решения.
