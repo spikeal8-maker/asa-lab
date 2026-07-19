@@ -26,7 +26,6 @@
       "@asa-lab/contracts": ["packages/contracts/src/index.ts"],
       "@asa-lab/domain-kernel": ["packages/domain-kernel/src/index.ts"],
       "@asa-lab/authz": ["packages/authz/src/index.ts"],
-      "@asa-lab/database": ["packages/database/src/index.ts"],
       "@asa-lab/eventing": ["packages/eventing/src/index.ts"],
       "@asa-lab/module-sdk": ["packages/module-sdk/src/index.ts"],
       "@asa-lab/ui-kit": ["packages/ui-kit/src/index.ts"],

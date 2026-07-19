@@ -13,7 +13,7 @@
     "format:check": "prettier --check .",
     "lint": "nx run-many -t lint --all",
     "typecheck": "nx run-many -t typecheck --all",
-    "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.ts\"",
+    "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.{ts,tsx}\"",
     "contracts:check": "node tools/validate-contracts.mjs",
     "compose:check": "node tools/validate-compose.mjs",
     "test": "vitest run",
@@ -24,7 +24,12 @@
     "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
     "security:secrets": "node tools/secret-scan.mjs",
     "security:dependencies": "node tools/dependency-inventory.mjs",
-    "graph:report": "nx graph --file=docs/project-map/nx-project-graph.json"
+    "graph:report": "nx graph --file=docs/project-map/nx-project-graph.json",
+    "db:seed:dev": "node tools/seed-dev.mjs",
+    "dev": "node tools/dev.mjs",
+    "test:rls": "vitest run tests/mvp/rls.spec.ts",
+    "test:api": "vitest run tests/mvp/api.spec.ts",
+    "e2e:mvp": "playwright test"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
@@ -33,22 +38,37 @@
     "@nx/eslint": "20.3.0",
     "@nx/eslint-plugin": "20.3.0",
     "@nx/js": "20.3.0",
+    "@playwright/test": "1.49.1",
     "@types/node": "^22.10.5",
+    "@types/pg": "8.11.10",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "@vitejs/plugin-react": "4.3.4",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "eslint": "^9.18.0",
     "nx": "20.3.0",
     "prettier": "^3.4.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0",
+    "vite": "6.0.7",
     "vitest": "^2.1.8",
     "yaml": "^2.7.0"
   },
   "dependencies": {
+    "@fastify/cookie": "11.0.1",
+    "@fastify/static": "8.0.3",
+    "@nestjs/common": "11.1.6",
+    "@nestjs/core": "11.1.6",
+    "@nestjs/platform-fastify": "11.1.6",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.57.2",
     "@opentelemetry/sdk-node": "0.57.2",
     "fastify": "^5.2.1",
-    "pg": "8.13.1"
+    "pg": "8.13.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.1"
   }
 }

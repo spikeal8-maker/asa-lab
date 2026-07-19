@@ -48,3 +48,6 @@ test-results/
 
 # Python bytecode
 __pycache__/
+
+# Playwright output
+reports/playwright/
