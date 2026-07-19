@@ -17,9 +17,11 @@ MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 STRATEGY_PATH = ROOT / "docs/testing/TEST_STRATEGY.md"
 RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
 QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
+DEVELOPMENT_PROGRAM_PATH = ROOT / "docs/delivery/DEVELOPMENT_PROGRAM_V1.md"
+PORT_POLICY_PATH = ROOT / "docs/delivery/LOCAL_PORT_POLICY.md"
 
 TEST_ID_PATTERN = re.compile(r"^TST-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
-TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+-[0-9]{3}$")
+TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
 PHASE_ID_PATTERN = re.compile(r"^PHASE-(?:[0-9]|1[0-2])$")
 REQUIRED_TEST_FIELDS = {
     "id",
@@ -181,7 +183,13 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
 
 
 def validate_documents(catalog: Any, errors: list[str]) -> None:
-    required_files = (STRATEGY_PATH, RUNBOOK_PATH, QUALITY_MAP_PATH)
+    required_files = (
+        STRATEGY_PATH,
+        RUNBOOK_PATH,
+        QUALITY_MAP_PATH,
+        DEVELOPMENT_PROGRAM_PATH,
+        PORT_POLICY_PATH,
+    )
     for path in required_files:
         if not path.is_file():
             errors.append(f"Missing required file: {path.relative_to(ROOT)}")
@@ -202,7 +210,16 @@ def validate_documents(catalog: Any, errors: list[str]) -> None:
         errors.append("TEST_STRATEGY.md must reference test-catalog.yaml")
     if "test-catalog.yaml" not in runbook:
         errors.append("BOT_RUNBOOK.md must reference test-catalog.yaml")
-    for required_id in ("TST-ARCH-001", "TST-MAP-001", "TST-CATALOG-001"):
+    if "DEVELOPMENT_PROGRAM_V1.md" not in runbook:
+        errors.append("BOT_RUNBOOK.md must reference DEVELOPMENT_PROGRAM_V1.md")
+    if "LOCAL_PORT_POLICY.md" not in runbook:
+        errors.append("BOT_RUNBOOK.md must reference LOCAL_PORT_POLICY.md")
+    for required_id in (
+        "TST-ARCH-001",
+        "TST-MAP-001",
+        "TST-CATALOG-001",
+        "TST-DEVELOPMENT-PROGRAM-001",
+    ):
         if required_id not in test_ids:
             errors.append(f"Missing governance test: {required_id}")
         if required_id not in quality_map:
