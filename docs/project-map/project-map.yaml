@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-map_version: 2026.07.19-1
+map_version: 2026.07.19-2
 project:
   id: asa-lab
   name: ASA Lab
@@ -92,7 +92,7 @@ nodes:
   - {id: TASK-ARCH-001, label: Принять Architecture Foundation PR, kind: task, layer: delivery, status: done, summary: PR №1 объединён в main (merge d93899b)., phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/pull/1}
   - {id: TASK-BOOT-001, label: Bootstrap monorepo, kind: task, layer: delivery, status: done, summary: "pnpm+Nx foundation в PR 14 - все обязательные Bootstrap-тесты PASS, 0 FAIL; readiness 503, runnable API (serve + HTTP smoke), safe-by-default OTel, pg migration runner (apply доказан на встроенном Postgres через TST-MIGRATION-EMBEDDED-001), compose структура через TST-COMPOSE-STRUCTURE-001; реальные Docker/Postgres smoke вынесены в TASK-ENV-001", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
   - {id: TASK-ENV-001, label: Local Integration Environment, kind: task, layer: delivery, status: deprecated, summary: "Реальная локальная среда: PostgreSQL, Redis, MinIO, Compose CLI; закрывает TST-COMPOSE-001 и внешний TST-MIGRATION-001", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/15}
-  - {id: TASK-TEN-001, label: Tenant context vertical slice, kind: task, layer: delivery, status: in_progress, summary: Первый пользовательский срез - педагог входит и создаёт класс (локальный PostgreSQL)., phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
+  - {id: TASK-TEN-001, label: Tenant context vertical slice, kind: task, layer: delivery, status: in_review, summary: "Первый пользовательский срез в draft PR: login-сессия, создание класса, reload-persist, cross-tenant deny, immutable AuditEvent; gate 5/5 PASS + браузерный E2E", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/3}
   - {id: TASK-CLS-001, label: Педагог создаёт класс, kind: task, layer: delivery, status: blocked, summary: Первый Classroom use case end-to-end., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/4}
   - {id: TASK-SEAT-001, label: StudentSeat import and login, kind: task, layer: delivery, status: blocked, summary: Импорт мест и вход ребёнка без email., phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
   - {id: TASK-MOD-001, label: Module SDK and Project envelope, kind: task, layer: delivery, status: blocked, summary: Два модуля без предметных imports в Classroom., phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/5}

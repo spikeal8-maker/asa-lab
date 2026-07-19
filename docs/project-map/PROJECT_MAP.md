@@ -20,7 +20,7 @@ TASK-BOOT-001    done — pnpm+Nx foundation (PR №14 merged, 1f8414b)
 TASK-ENV-001     deprecated — среда deferred (PR №16 closed); локального
                    PostgreSQL достаточно для продуктовой разработки
         ↓
-TASK-TEN-001     ← текущий фокус (in_progress): первый пользовательский срез —
+TASK-TEN-001     ← текущий фокус (in_review): первый пользовательский срез —
                    педагог входит, создаёт класс, класс виден после reload
         ↓
 TASK-CLS-001     педагог создаёт класс
