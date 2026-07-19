@@ -173,9 +173,17 @@ def validate_releases(
                 )
             covered.add(str(capability_id))
 
-    uncovered = sorted(set(capabilities) - covered)
+    required_coverage = {
+        capability_id
+        for capability_id, capability in capabilities.items()
+        if capability.get("target") in {"foundation", "mvp"}
+    }
+    uncovered = sorted(required_coverage - covered)
     if uncovered:
-        errors.append("Capabilities missing from release slices: " + ", ".join(uncovered))
+        errors.append(
+            "Foundation/MVP capabilities missing from release slices: "
+            + ", ".join(uncovered)
+        )
 
 
 def main() -> int:
