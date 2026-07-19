@@ -9,14 +9,16 @@
 1. более поздняя принятая ADR;
 2. `docs/product/PRODUCT_BLUEPRINT.md` — конечный продукт и пользовательские инварианты;
 3. `docs/product/CAPABILITY_MAP.yaml` — capability IDs и release dependencies;
-4. `docs/delivery/EXECUTION_MANIFEST.yaml` — машиночитаемые task order, Issues, branches, stages, ports, tests и map nodes;
-5. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md` — человекочитаемая программа Product Alpha и School Pilot;
-6. `docs/delivery/LOCAL_PORT_POLICY.md` — локальные порты и безопасный запуск;
-7. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные архитектурные документы;
-8. исполняемые contracts: OpenAPI, JSON Schema, migrations и event schemas;
+4. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные архитектурные документы;
+5. принятые исполняемые contracts: OpenAPI, JSON Schema, migrations и event schemas;
+6. `docs/delivery/EXECUTION_MANIFEST.yaml` — task order, Issues, branches, delivery stages, architecture horizons, ports, tests и map nodes;
+7. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md` — человекочитаемая программа Product Alpha и School Pilot;
+8. `docs/delivery/LOCAL_PORT_POLICY.md` — локальные порты и безопасный запуск;
 9. `docs/project-map/project-map.yaml` — текущее состояние, current focus и dependency graph;
 10. GitHub Issue текущей задачи — исполнимый scope одного user flow;
 11. `docs/testing/test-catalog.yaml` — команды обязательных test IDs.
+
+Execution Manifest управляет доставкой, но не может отменить ADR, Product/Capability contract, architecture baseline или уже принятый executable contract. Такое изменение сначала оформляется нормативно.
 
 Чат может запустить работу или уточнить формулировку, но не меняет task ID, capability, dependency, branch, scope, port, test ID или exit gate.
 
