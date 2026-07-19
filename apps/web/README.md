@@ -1,5 +1,4 @@
 # web
 
-Student and teacher experience shell.
-
-Foundation skeleton (TASK-BOOT-001). Business behaviour is added in later phase tasks.
+Teacher portal SPA (React + Vite). Talks to the API on the same origin
+(`/api/*`); in dev the Vite server proxies to `http://127.0.0.1:3000`.

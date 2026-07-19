@@ -6,13 +6,17 @@
   "tags": ["type:app", "scope:app"],
   "targets": {
     "build": {
-      "command": "tsc -p apps/web/tsconfig.json"
+      "command": "vite build -c apps/web/vite.config.ts",
+      "outputs": ["{workspaceRoot}/apps/web/dist"]
     },
     "typecheck": {
       "command": "tsc -p apps/web/tsconfig.json --noEmit"
     },
     "lint": {
       "command": "eslint apps/web/src"
+    },
+    "serve": {
+      "command": "vite -c apps/web/vite.config.ts"
     }
   }
 }
