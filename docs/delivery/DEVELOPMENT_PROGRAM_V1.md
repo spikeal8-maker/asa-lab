@@ -1,204 +1,122 @@
 # ASA Lab — Development Program v1
 
-**Статус:** каноническая программа реализации Product Alpha и первого школьного пилота.  
-**Epic:** [Issue №23 — ASA Lab Product Alpha → School Pilot](https://github.com/spikeal8-maker/asa-lab/issues/23).  
-**Портовая политика:** [`LOCAL_PORT_POLICY.md`](LOCAL_PORT_POLICY.md).  
-**Продуктовая цель:** [`../product/PRODUCT_BLUEPRINT.md`](../product/PRODUCT_BLUEPRINT.md).
+**Статус:** каноническая программа Product Alpha и первого School Pilot.  
+**Машиночитаемый контракт:** [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml).  
+**Epic:** [Issue №23](https://github.com/spikeal8-maker/asa-lab/issues/23).  
+**Порты:** [`LOCAL_PORT_POLICY.md`](LOCAL_PORT_POLICY.md).  
+**Продукт:** [`../product/PRODUCT_BLUEPRINT.md`](../product/PRODUCT_BLUEPRINT.md).
 
-## 1. Назначение документа
+## 1. Назначение
 
-Этот документ отвечает не на вопрос «какой когда-нибудь будет ASA Lab», а на вопрос:
+Этот документ отвечает на вопрос:
 
-> **Как из текущего репозитория последовательно получить работающий сайт, универсальные проекты, простой reference module, электронную лабораторию и затем полный школьный учебный цикл.**
+> Как из текущего репозитория последовательно получить работающий сайт, универсальные проекты, два независимых учебных модуля и полный школьный цикл электроники.
 
-Документ обязателен для coding-агентов. Он устраняет управление через длинную переписку между владельцем, консультантом и ботом.
+Статические task metadata, точная очередь, branches, dependencies, test profiles и map nodes хранятся в `EXECUTION_MANIFEST.yaml`. Этот Markdown объясняет путь человеку.
 
-Владелец выдаёт агенту короткую команду:
+Владелец выдаёт одну команду:
 
 ```text
-Открой current_focus в docs/project-map/project-map.yaml и выполни связанную GitHub Issue строго по DEVELOPMENT_PROGRAM_V1.md.
+Прочитай current_focus и соответствующий entry в EXECUTION_MANIFEST.yaml. Открой указанную Issue и выполни только её.
 ```
 
-Всё остальное агент берёт из GitHub.
+## 2. Delivery stage и architecture horizon
 
-## 2. Конечный результат системы
+Это разные понятия:
 
-ASA Lab должна стать единой образовательной платформой:
+- **delivery stage** — строгий порядок, в котором бот выполняет задачи;
+- **architecture horizon** — архитектурный контур, к которому относится результат.
+
+Technical Alpha намеренно доказывает Project Shell и Electronics раньше полного StudentSeat/Assignment workflow. Поэтому architecture horizon может быть не монотонным. Это не конфликт и не разрешение перескакивать очередь.
+
+Единственный execution order:
 
 ```text
-Organization / School
-→ Teacher and Child Identity
-→ Classroom
-→ Universal Project
-→ Subject Module
-→ Assignment
-→ Immutable Submission
-→ Review and Comment
-→ Grade and Badge
-→ Progress
+TASK-PRODUCT-DOC-001
+→ TASK-PORTAL-001
+→ TASK-PROJECT-SHELL-001
+→ TASK-CHECKERS-LITE-001
+→ TASK-ELECTRONICS-ALPHA-001
+→ TASK-SEAT-001
+→ TASK-ACT-001
+→ TASK-REVIEW-001
+→ TASK-ELEC-001
 ```
 
-Предметные модули:
+## 3. Конечный результат v1
 
 ```text
-Electronics
-Block Coding / Scratch-like
-3D
-Virtual Robotics
-Checkers / Chess
-Drawing / Drafting
-Programming
-Future modules
+teacher login
+→ classroom
+→ universal project
+→ Checkers Lite and Electronics Alpha
+→ child login without email
+→ assignment
+→ immutable submission
+→ anchored comment and revision
+→ grade and badge
+→ complete Electronics classroom cycle
 ```
 
 Главный инвариант:
 
-> Один Classroom Core, один Project lifecycle, один Submission/Review lifecycle — множество независимых предметных редакторов.
+> Один Classroom Core, один Project lifecycle, один Submission/Review lifecycle — множество независимых subject modules.
 
-Classroom Core не знает, что такое резистор, шашечная фигура, sprite или 3D mesh.
+Classroom/Project Core не знает types резисторов, шашечных фигур, Scratch blocks или 3D objects.
 
-## 3. Текущее состояние на момент программы
+## 4. Два delivery tracks
 
-### Сохранённый фундамент
-
-В `main` уже существует:
-
-- pnpm + Nx monorepo;
-- TypeScript strict;
-- PostgreSQL migration runner;
-- OpenAPI/JSON Schema validation;
-- Fastify/NestJS-compatible API foundation;
-- React/Vite foundation в продуктовой ветке;
-- OpenTelemetry foundation;
-- architecture boundaries;
-- project map и test catalog;
-- local-first verification.
-
-### Активные Pull Requests
-
-- PR №21 — Product Blueprint, Capability Map и эта Development Program;
-- PR №22 — Teacher Portal v0.1, который должен быть стабилизирован после merge PR №21.
-
-### Что не требуется строить повторно
-
-- ещё один monorepo;
-- новую CI-платформу;
-- Docker/WSL setup;
-- Redis/MinIO до реального использования;
-- новый framework ради framework;
-- дополнительную архитектурную документацию без связи с этапом.
-
-## 4. Два контура поставки
-
-Разработка разделена на два последовательных контура.
-
-## 4.1. Technical Product Alpha
-
-Цель — быстро получить демонстрируемый продукт и доказать модульную архитектуру.
+### Technical Product Alpha
 
 ```text
-Product docs
-→ Teacher Portal
+Teacher Portal
 → Universal Project Shell
 → Checkers Lite reference module
 → Electronics Alpha
 ```
 
-После Technical Alpha педагог уже может:
+После Alpha педагог может войти, создать класс, создать/сохранить проект и использовать два модуля. Electronics — приоритетный предметный результат; Checkers Lite — маленькое доказательство Module SDK.
 
-- войти;
-- создать класс;
-- создать универсальный проект;
-- открыть Checkers Lite;
-- открыть Electronics Alpha;
-- сохранить и повторно открыть работу;
-- получить детерминированный результат электронной схемы.
-
-## 4.2. School Pilot
-
-Цель — превратить технический продукт в образовательный процесс.
+### School Pilot
 
 ```text
 StudentSeat
-→ Assignment and Submission
+→ Assignment and Immutable Submission
 → Comments Review Grade Badge
 → Full Electronics Classroom Cycle
 ```
 
-После School Pilot школа может провести первый полный урок:
+После Pilot школа проводит полный урок от выдачи детского доступа до оценки электронной работы.
+
+## 5. Общие правила
+
+### Одна Issue — один flow
+
+Нельзя смешивать текущий flow, следующую capability, инфраструктурный redesign, unrelated refactoring и будущие роли/страницы.
+
+### Одна задача — одна branch — один PR
 
 ```text
-teacher creates class
-→ issues child access
-→ assigns electronics task
-→ child logs in
-→ builds circuit
-→ submits version
-→ teacher comments
-→ child corrects
-→ teacher accepts and grades
-→ badge and progress appear
-```
-
-## 5. Общие правила выполнения
-
-## 5.1. Одна Issue — один пользовательский flow
-
-Executable Issue должна содержать один наблюдаемый результат.
-
-Запрещено объединять в одной задаче:
-
-- текущий пользовательский flow;
-- следующую capability;
-- инфраструктурный redesign;
-- unrelated refactoring;
-- будущие роли/страницы.
-
-## 5.2. Одна задача — одна ветка — один PR
-
-```text
-ready Issue
-→ task branch
+ready
 → in_progress
-→ Draft PR
-→ tests/review
+→ Draft PR / in_review
+→ full gate
 → merge
+→ map transition
 → done
-→ next task ready
+→ next ready
+→ stop
 ```
 
-Следующую задачу нельзя начинать в том же PR или той же рабочей сессии после завершения текущей.
+### Scope freeze
 
-## 5.3. Scope freeze
+После `in_progress` разрешены только defects/security/contracts/migrations/tests текущего flow и review feedback. Новая идея создаёт будущую Issue после merge.
 
-После перехода task в `in_progress` scope заморожен.
+### Пользовательская ценность
 
-Допустимы только:
+Нельзя останавливать product flow ради Docker, CI, Kubernetes, Redis/MinIO, deployment или scale design, если текущая Issue это не использует.
 
-- исправление дефекта внутри принятого flow;
-- исправление security-проблемы данных, уже обрабатываемых задачей;
-- необходимые contract/migration/test изменения;
-- review comments по текущему scope.
-
-Новая идея создаёт следующую Issue. Она не добавляется в текущий task через чат.
-
-## 5.4. Пользовательская ценность имеет приоритет
-
-Инфраструктурная работа допустима только если без неё невозможно выполнить обязательный пользовательский flow или test ID.
-
-Запрещено останавливать продукт ради:
-
-- Docker polish;
-- CI polish;
-- Kubernetes;
-- Redis/MinIO, если код их не использует;
-- server deployment design;
-- federal-scale optimization до измерений;
-- дополнительной governance-системы.
-
-## 5.5. Канонические порты
-
-Все этапы соблюдают [`LOCAL_PORT_POLICY.md`](LOCAL_PORT_POLICY.md):
+### Порты
 
 ```text
 Web  127.0.0.1:4610
@@ -206,163 +124,84 @@ API  127.0.0.1:4611
 E2E  127.0.0.1:4612
 ```
 
-Запрещены `3000`, `3100`, `5173`.
+Запрещены `3000`, `3100`, `5173`. Занятый порт даёт `BLOCKED`; чужой процесс не завершается.
 
-## 5.6. Источники истины для агента
+### Чтение
 
-Для каждой задачи агент читает:
+Агент читает:
 
-1. текущую GitHub Issue;
-2. этот документ — только раздел текущего этапа и общие правила;
-3. перечисленные в Issue capability entries;
-4. явно указанные в Issue разделы профильной спецификации;
-5. AGENTS.md и BOT_RUNBOOK;
-6. test IDs текущей задачи.
+1. `AGENTS.md`;
+2. current task entry из `EXECUTION_MANIFEST.yaml`;
+3. текущую Issue;
+4. только `read` links из manifest;
+5. test catalog entries текущей задачи.
 
-Агент не обязан каждый раз перечитывать тысячи строк всей продуктовой документации, если Issue содержит точные ссылки.
+Перечитывать всю документацию на каждой задаче не требуется.
 
 ## 6. Этап 0 — Product Documentation Acceptance
 
-### Task
+**Task:** `TASK-PRODUCT-DOC-001`, Issue №19, PR №21.  
+**Delivery stage:** `STAGE-0-PRODUCT-DEFINITION`.  
+**Architecture horizon:** `PHASE-0`.
 
-`TASK-PRODUCT-DOC-001`, Issue №19, PR №21.
+Результат:
 
-### Результат
-
-В `main` находятся:
-
-- Product Blueprint;
+- Product Blueprint и детальные specs;
 - Capability Map;
-- Classroom Core Spec;
-- Module Platform Spec;
-- Assessment/Rewards Spec;
-- Development Program v1;
-- Local Port Policy;
-- согласованные Issues и Project Map.
+- Execution Manifest;
+- Development Program;
+- Port Policy;
+- executable Issues;
+- Project/Quality maps;
+- validators.
 
-### Exit gate
-
-- architecture validator PASS;
-- project map validator PASS;
-- capability map validator PASS;
-- test catalog validator PASS;
-- Product Doc task runner PASS;
-- PR №21 merged.
-
-### После merge
-
-- `TASK-PRODUCT-DOC-001 → done`;
-- `TASK-PORTAL-001 → ready`;
-- `current_focus → TASK-PORTAL-001`.
+Exit: все manifest tests PASS, PR №21 merged, обязательный map transition переводит Portal в `ready`.
 
 ## 7. Этап 1 — Teacher Portal v0.1
 
-### Task
-
-[Issue №18 — TASK-PORTAL-001](https://github.com/spikeal8-maker/asa-lab/issues/18), существующий PR №22.
-
-### Наблюдаемый flow
+**Task:** [Issue №18 — TASK-PORTAL-001](https://github.com/spikeal8-maker/asa-lab/issues/18), PR №22.  
+**Delivery stage:** `STAGE-1-TEACHER-PORTAL`.  
+**Architecture horizon:** `PHASE-1`.
 
 ```text
 open site
-→ teacher login
-→ «Мои классы»
+→ login
+→ My Classrooms empty state
 → create classroom
-→ classroom card
-→ reload
+→ card visible
+→ reload persists
 → logout
 ```
 
-### Что сохраняется
+Сохраняется существующий React/Vite + NestJS/Fastify код. Исправления выполняются только по Issue №18: rebase, canonical ports, dependency security, DB-role separation, request validation, idempotency, clean startup, test isolation, accessibility, regressions и boundaries.
 
-- React/Vite frontend;
-- NestJS/Fastify API;
-- identity/organization/classroom contexts;
-- PostgreSQL;
-- session cookie;
-- classroom + owner membership + AuditEvent;
-- RLS defense-in-depth;
-- Playwright flow.
-
-### Что обязательно исправляется
-
-Полный список находится в Issue №18. Ключевые блокеры:
-
-- rebase на merged Product Docs;
-- dependency security;
-- полный test gate;
-- separation admin/runtime/test DB URLs;
-- reproducible `pnpm dev`;
-- canonical ports;
-- runtime validation;
-- idempotency conflict semantics;
-- test database isolation;
-- accessibility;
-- health/request-id/telemetry regression;
-- context boundaries.
-
-### Demo
-
-```text
-http://127.0.0.1:4610
-```
-
-### Exit
-
-Teacher Portal работает из чистой PowerShell-сессии; PR №22 merged.
+Exit: сайт запускается из чистой PowerShell-сессии, полный manifest gate PASS, PR №22 merged.
 
 ## 8. Этап 2 — Universal Project Shell
 
-### Task
-
-[Issue №24 — TASK-PROJECT-SHELL-001](https://github.com/spikeal8-maker/asa-lab/issues/24).
-
-### Наблюдаемый flow
+**Task:** [Issue №24 — TASK-PROJECT-SHELL-001](https://github.com/spikeal8-maker/asa-lab/issues/24).  
+**Delivery stage:** `STAGE-2-PROJECT-SHELL`.  
+**Architecture horizon:** `PHASE-3`.
 
 ```text
-teacher opens Projects
-→ creates project
-→ chooses module
-→ edits minimal payload
-→ saves
-→ reload restores draft
-→ creates immutable checkpoint
+Projects empty state
+→ create project
+→ choose module
+→ save draft
+→ reload restores
+→ optimistic conflict protected
+→ immutable checkpoint
 ```
 
-### Обязательный результат
+Результат: Module Registry v0.1, Project envelope, PostgreSQL `jsonb` draft, row version, immutable ProjectVersion/digest, module host, cards и blank-canvas technical module.
 
-- Module Registry v0.1;
-- Project envelope;
-- ProjectDraft in PostgreSQL jsonb;
-- optimistic row version;
-- immutable ProjectVersion + digest;
-- module host;
-- project list/cards;
-- blank-canvas technical module.
-
-### Не входит
-
-- children;
-- assignments;
-- checkers/electronics subject logic;
-- S3/Redis/MinIO;
-- advanced autosave infrastructure.
-
-### Exit
-
-Universal Project lifecycle proven by E2E and checkpoint test.
+Не входят children, assignments, subject logic, Redis/MinIO/S3 и advanced autosave.
 
 ## 9. Этап 3 — Checkers Lite
 
-### Task
-
-[Issue №25 — TASK-CHECKERS-LITE-001](https://github.com/spikeal8-maker/asa-lab/issues/25).
-
-### Зачем
-
-Маленький reference module проверяет реальную расширяемость Module SDK до начала более сложной электроники.
-
-### Наблюдаемый flow
+**Task:** [Issue №25 — TASK-CHECKERS-LITE-001](https://github.com/spikeal8-maker/asa-lab/issues/25).  
+**Delivery stage:** `STAGE-3-CHECKERS-LITE`.  
+**Architecture horizon:** `PHASE-3`.
 
 ```text
 create Checkers project
@@ -373,26 +212,13 @@ create Checkers project
 → preview
 ```
 
-### Не входит
-
-- AI;
-- multiplayer;
-- rating;
-- tournament;
-- full chess engine;
-- assignments/grades.
-
-### Exit
-
-Checkers module добавлен без изменений предметной логики в Classroom/Project Core.
+Цель — доказать, что module подключается без правок Classroom/Project Core. Не входят AI, multiplayer, tournament, rating, chat, full engine, assignments и grades.
 
 ## 10. Этап 4 — Electronics Alpha
 
-### Task
-
-[Issue №26 — TASK-ELECTRONICS-ALPHA-001](https://github.com/spikeal8-maker/asa-lab/issues/26).
-
-### Наблюдаемый flow
+**Task:** [Issue №26 — TASK-ELECTRONICS-ALPHA-001](https://github.com/spikeal8-maker/asa-lab/issues/26).  
+**Delivery stage:** `STAGE-4-ELECTRONICS-ALPHA`.  
+**Architecture horizon:** `PHASE-5`.
 
 ```text
 create Electronics project
@@ -400,219 +226,164 @@ create Electronics project
 → connect wires
 → set values
 → validate/netlist
-→ calculate DC current
+→ deterministic DC calculation
 → LED on/off/overcurrent
 → save/reload
 ```
 
-### Обязательный результат
+Результат: CircuitDocument v1, React editor, connectivity resolver, normalized netlist, minimal Rust native/WASM series-loop solver, diagnostics и preview.
 
-- CircuitDocument v1 JSON Schema;
-- source/resistor/LED/wire manifests;
-- React editor;
-- connectivity resolver;
-- deterministic normalized netlist;
-- minimal Rust native + WASM solver;
-- structured diagnostics;
-- preview;
-- project integration.
-
-### Не входит
-
-- breadboard;
-- transient;
-- Arduino;
-- instruments;
-- large catalog;
-- assignment/review;
-- advanced autograding.
-
-### Exit
-
-Работающая схема и native/WASM parity подтверждены E2E/golden artifacts.
+Не входят breadboard, transient, Arduino, instruments, large catalog, assignments и advanced autograding.
 
 ## 11. Этап 5 — StudentSeat and Child Dashboard
 
-### Task
-
-[Issue №7 — TASK-SEAT-001](https://github.com/spikeal8-maker/asa-lab/issues/7).
-
-### Наблюдаемый flow
+**Task:** [Issue №7 — TASK-SEAT-001](https://github.com/spikeal8-maker/asa-lab/issues/7).  
+**Delivery stage:** `STAGE-5-STUDENT-SEAT`.  
+**Architecture horizon:** `PHASE-2`.
 
 ```text
-teacher creates seat/card
+teacher creates/imports seat
+→ one-time access card
 → child login without email
-→ child dashboard
-→ class visible
-→ own Alpha project opens
+→ child dashboard/class/project
 → credential reset
 → old session denied
 ```
 
-### Exit
-
-Child access безопасен, printable и не требует email.
+Exit: детский доступ безопасен, printable и не требует email.
 
 ## 12. Этап 6 — Assignment and Immutable Submission
 
-### Task
-
-[Issue №8 — TASK-ACT-001](https://github.com/spikeal8-maker/asa-lab/issues/8).
-
-### Наблюдаемый flow
+**Task:** [Issue №8 — TASK-ACT-001](https://github.com/spikeal8-maker/asa-lab/issues/8).  
+**Delivery stage:** `STAGE-6-ASSIGNMENT-SUBMISSION`.  
+**Architecture horizon:** `PHASE-3`.
 
 ```text
-teacher publishes ActivityVersion
-→ assigns class
+publish ActivityVersion
+→ assign classroom
 → child opens starter project
-→ works/saves
-→ submits immutable ProjectVersion
+→ work/save
+→ submit immutable ProjectVersion
 → teacher queue shows exact attempt
 ```
 
-### Exit
-
-Assignment/Submission cycle работает минимум на одном Alpha module.
+Exit: assignment/submission cycle работает минимум на одном Alpha module.
 
 ## 13. Этап 7 — Comments, Review, Grade and Badge
 
-### Task
-
-[Issue №20 — TASK-REVIEW-001](https://github.com/spikeal8-maker/asa-lab/issues/20).
-
-### Наблюдаемый flow
+**Task:** [Issue №20 — TASK-REVIEW-001](https://github.com/spikeal8-maker/asa-lab/issues/20).  
+**Delivery stage:** `STAGE-7-REVIEW-ASSESSMENT`.  
+**Architecture horizon:** `PHASE-4`.
 
 ```text
-teacher opens attempt
+open exact attempt
 → anchored comment
-→ requests changes
-→ child resubmits
-→ teacher accepts
+→ request changes
+→ resubmit
+→ compare
+→ accept
 → rubric/grade
-→ badge
-→ dashboards update
+→ badge/progress
 ```
 
-### Exit
-
-Полный предметно-независимый assessment flow подтверждён E2E.
+Exit: предметно-независимый assessment flow подтверждён E2E.
 
 ## 14. Этап 8 — Full Electronics Classroom Cycle
 
-### Task
-
-[Issue №6 — TASK-ELEC-001](https://github.com/spikeal8-maker/asa-lab/issues/6).
-
-### Наблюдаемый flow
+**Task:** [Issue №6 — TASK-ELEC-001](https://github.com/spikeal8-maker/asa-lab/issues/6).  
+**Delivery stage:** `STAGE-8-ELECTRONICS-CLASSROOM`.  
+**Architecture horizon:** `PHASE-5`.
 
 ```text
-teacher assigns electronics activity
+assign electronics activity
 → child builds circuit
 → public checks
 → immutable submission
 → anchored review
 → revision
-→ grade and electronics badge
+→ accept/grade/badge
 ```
 
-### Exit
+Exit: Electronics проходит полный Classroom lifecycle без circuit-specific logic в Core.
 
-Электронная лаборатория проходит весь Classroom lifecycle без circuit-specific logic в Core.
+## 15. Обязательный map protocol
 
-## 15. Что идёт после v1 программы
+`EXECUTION_MANIFEST.yaml` содержит `map_protocol` и `map_nodes` каждого task.
 
-После Stage 8 владелец создаёт новые отдельные Issues для:
+### Start
 
-- Electronics Advanced: breadboard, transient, instruments;
-- Arduino and code compilation;
-- Scratch-like block coding;
-- 3D modelling/print export;
-- virtual robotics;
-- full chess/checkers learning tools;
-- drawing/drafting;
-- analytics/admin/commercial scale.
+- task → `in_progress`;
+- current focus остаётся task;
+- реальные implementation nodes → `in_progress`.
 
-Ни один из этих элементов не добавляется в задачи v1 молча.
+### Draft PR
 
-## 16. Обязательная демонстрационная точка каждого этапа
+- task → `in_review`;
+- next task остаётся `blocked`;
+- Project Map, Quality Map, test catalog и Nx graph отражают diff.
 
-Перед переводом PR из Draft в Ready агент обязан предоставить:
+### After merge
 
-1. точную локальную команду запуска;
-2. URL на каноническом порту;
-3. автоматизированный E2E;
+- task → `done`;
+- next task → `ready` после dependency check;
+- current focus → next task;
+- map-only transition validators PASS;
+- агент останавливается.
+
+## 16. Evidence каждого этапа
+
+Перед Ready:
+
+1. точная команда запуска;
+2. canonical demo URL;
+3. automated E2E;
 4. screenshot основного состояния;
-5. screenshot error/diagnostic state, если применимо;
-6. test report с commit SHA;
+5. screenshot error/diagnostic при применимости;
+6. task runner report с commit SHA;
 7. clean working tree;
-8. отсутствие следующей capability в diff.
+8. map/Nx updates;
+9. отсутствие следующей capability в diff.
 
-## 17. Формат промежуточного отчёта
-
-Агент обновляет пользователя после каждого завершённого внутреннего milestone, а не после каждой команды.
-
-```text
-MILESTONE: Technical Alpha 2 / Database and API
-STATUS: completed | blocked
-VISIBLE_RESULT: что уже можно открыть или проверить
-FILES_CHANGED: укрупнённо
-TESTS:
-  ... PASS|FAIL|BLOCKED
-DEMO_URLS:
-SCREENSHOTS:
-BLOCKERS:
-NEXT_INTERNAL_MILESTONE:
-```
-
-Промежуточный отчёт не меняет task scope.
-
-## 18. Финальный BOT_RUNBOOK report
+## 17. Отчёт
 
 ```text
 MILESTONE:
 TASK:
 ISSUE:
 STATUS:
+VISIBLE_RESULT:
 CAPABILITIES:
 USER_FLOW:
   ... PASS|FAIL|BLOCKED
 PORTS:
-  web: 127.0.0.1:4610
-  api: 127.0.0.1:4611
-  e2e: 127.0.0.1:4612
 BRANCH:
 COMMITS:
 FILES_CHANGED:
 MAP_NODES_CHANGED:
 TESTS_RUN:
 ARTIFACTS:
+DEMO_URLS:
+SCREENSHOTS:
 BLOCKERS:
 RESIDUAL_RISKS:
+WORKING_TREE:
 NEXT_ALLOWED_TASK:
 NEXT_COMMAND:
 ```
 
-## 19. Короткая команда владельца агенту
+## 18. Успех программы
 
-Для текущей задачи:
-
-```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, docs/delivery/DEVELOPMENT_PROGRAM_V1.md и current_focus из docs/project-map/project-map.yaml. Открой связанную GitHub Issue и выполни только её. Следующую задачу не начинай.
-```
-
-Эта команда достаточна. Если агент просит переопределить scope через чат, он должен быть возвращён к Issue и карте.
-
-## 20. Критерий успешности программы v1
-
-Программа завершена, когда на одном локальном сайте ASA Lab:
+Программа v1 завершена, когда на одном локальном сайте:
 
 - педагог входит и управляет классом;
 - ребёнок входит без email;
 - оба используют единый Project Shell;
-- Checkers Lite и Electronics подключены как независимые модули;
+- Checkers Lite и Electronics являются независимыми modules;
 - педагог назначает Electronics activity;
 - ребёнок сохраняет и сдаёт immutable version;
-- педагог оставляет anchored comment, возвращает и принимает работу;
-- grade и badge отображаются;
-- все данные tenant/class/student isolated;
-- весь поток подтверждён автоматизированным browser E2E.
+- педагог комментирует, возвращает, принимает и оценивает;
+- badge/progress отображаются;
+- tenant/class/student isolation подтверждена;
+- весь поток проходит automated browser E2E.
+
+После v1 advanced Electronics, Arduino, Scratch-like block coding, 3D, robotics и другие модули получают отдельные Issues.
