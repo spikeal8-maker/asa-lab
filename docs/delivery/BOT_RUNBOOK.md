@@ -1,24 +1,26 @@
 # BOT_RUNBOOK — управление coding-агентами ASA Lab
 
-Этот документ задаёт обязательный рабочий цикл для Codex и других coding-агентов. Агент не выбирает произвольную работу и не начинает следующую задачу до подтверждения exit gate текущей.
+Этот документ задаёт обязательный рабочий цикл для Codex и других coding-агентов. Агент не выбирает произвольную работу, не переопределяет продукт через чат и не начинает следующую задачу до подтверждения exit gate текущей.
 
 ## 1. Источники истины
 
 Порядок приоритета:
 
-1. принятая ADR;
+1. более поздняя принятая ADR;
 2. `AGENTS.md`;
-3. `docs/project-map/project-map.yaml`;
-4. GitHub Issue текущей задачи;
-5. OpenAPI, JSON Schema, migrations и event contracts;
-6. `docs/testing/test-catalog.yaml`;
-7. остальные документы.
+3. `docs/product/PRODUCT_BLUEPRINT.md`;
+4. `docs/product/CAPABILITY_MAP.yaml`;
+5. детальная продуктовая спецификация затронутого контура;
+6. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные архитектурные документы;
+7. OpenAPI, JSON Schema, migrations и event contracts;
+8. `docs/project-map/project-map.yaml`;
+9. GitHub Issue текущей задачи;
+10. `docs/testing/test-catalog.yaml`;
+11. остальные документы.
 
-Конфликт не разрешается догадкой. Агент прекращает изменение, описывает конфликт и предлагает ADR или корректировку Issue.
+Конфликт не разрешается догадкой. Агент прекращает изменения и описывает точное противоречие. Сообщение в чате может уточнять выполнение, но не меняет молча capability, release boundary, Issue scope, архитектурный baseline или критерий готовности.
 
-## 2. Что делать сразу после clone
-
-Агент сначала проводит ориентацию, а не пишет код.
+## 2. Что делать сразу после clone или новой сессии
 
 ```bash
 git remote -v
@@ -27,184 +29,259 @@ git fetch --all --prune
 git branch --all
 ```
 
-После этого агент обязан определить состояние архитектурного PR №1.
+Затем агент обязан:
 
-- Пока PR №1 не объединён и Architecture CI не зелёный, Issue №2 остаётся `blocked`.
-- В этом состоянии разрешены только проверка локальной копии, чтение документов и исправление архитектурного PR.
-- Реализация Bootstrap, Classroom или Electronics запрещена.
+1. определить `project.current_focus`;
+2. найти первую активную задачу в `execution_queue`;
+3. проверить статус задачи и все `depends_on`;
+4. открыть связанную GitHub Issue;
+5. прочитать Product Blueprint;
+6. найти capability IDs Issue в Capability Map;
+7. проверить зависимости capabilities;
+8. прочитать профильную продуктовую спецификацию;
+9. прочитать связанные ADR, contracts и test IDs;
+10. убедиться, что локальная ветка создана от актуального `main`.
 
 ## 3. Алгоритм выбора задачи
 
-1. Прочитать `project.current_focus` и `execution_queue` в `project-map.yaml`.
-2. Выбрать первую задачу, статус которой **не `done` и не `deprecated`**: `current_focus` имеет приоритет; иначе — первый такой `kind: task` по порядку `execution_queue`. Задачи `done`/`deprecated` в выборе не участвуют и в активной очереди не перечисляются.
-3. Проверить все связи `depends_on`.
-4. Открыть связанную GitHub Issue.
-5. Убедиться, что в Issue есть результат, scope, запреты, критерии и команды проверки.
-6. Если хотя бы одна зависимость не `done`, сообщить `BLOCKED` и не писать код.
-7. Если задача `ready`, создать указанную task-ветку и перевести задачу в `in_progress` в том же PR.
+1. `current_focus` имеет приоритет.
+2. Задача должна иметь `kind: task` и статус `ready`, `in_progress` или `in_review` для продолжения уже начатой работы.
+3. Задачи `done`, `deprecated`, `planned` и `blocked` не берутся в работу.
+4. Все зависимости `depends_on` должны иметь статус `done`.
+5. Продуктовая Issue обязана перечислять `CAPABILITIES`.
+6. Capability dependencies должны быть покрыты завершёнными задачами или входить в явно утверждённый вертикальный slice.
+7. Issue должна содержать наблюдаемый user flow, scope, non-goals, acceptance criteria и test IDs.
+8. Если условия не выполнены, агент сообщает `BLOCKED` и не пишет код.
 
-Агент не может самовольно взять `planned`, `blocked` или более позднюю задачу.
+## 4. Статусы и Pull Requests
 
-### Статус результата и переходы
+- `ready` — задача нормативно подготовлена и зависимости завершены.
+- `in_progress` — один агент реализует задачу.
+- `in_review` — открыт Pull Request.
+- `done` — PR merged и exit gate подтверждён.
+- `deprecated` — задача сохранена только для истории.
 
-- **Draft Pull Request** разрешён, когда каждый обязательный test ID документирован с фактическим `PASS`, `FAIL` или `BLOCKED` (с точной причиной).
-- **Ready for review** и **merge** требуют подтверждённого exit gate: все обязательные тесты задачи фактически `PASS`.
-- `BLOCKED` никогда не считается `PASS` и не закрывает exit gate. Тест, требующий отсутствующего runtime, переносится задаче-владельцу этого runtime, а не помечается пройденным.
+Draft PR разрешён при честно документированных `PASS`, `FAIL`, `BLOCKED` и `NOT_RUN`. Ready for review и merge требуют выполнения exit gate: все обязательные test IDs имеют фактический `PASS`.
 
-## 4. Рабочий цикл одной задачи
+`BLOCKED` никогда не считается `PASS`. Нельзя переносить обязательный тест другой задаче только ради зелёного отчёта без изменения Product/Project/Quality maps и Issue.
+
+## 5. Рабочий цикл одной задачи
 
 ```text
 ORIENT
-  → PLAN
-  → IMPLEMENT
-  → VERIFY
-  → UPDATE MAP
-  → OPEN DRAFT PR
-  → REVIEW
-  → MERGE
-  → CLOSE TASK
-  → UNBLOCK NEXT
+→ CAPABILITY CHECK
+→ PLAN
+→ IMPLEMENT
+→ VERIFY
+→ UPDATE PRODUCT/PROJECT/QUALITY MAPS
+→ OPEN DRAFT PR
+→ REVIEW
+→ MERGE
+→ CLOSE TASK
+→ UNBLOCK NEXT
 ```
 
 ### ORIENT
 
-Прочитать обязательные документы, Issue, связанные ADR и test IDs.
+Определить repository state, task, Issue, capabilities, зависимости и normative documents.
+
+### CAPABILITY CHECK
+
+До изменения кода агент выводит:
+
+```text
+CAPABILITIES:
+- CAP-...
+
+DEPENDENCIES:
+- CAP-... done|included|blocked
+
+USER_FLOW:
+...
+
+NON_GOALS:
+...
+```
+
+Если Issue и Capability Map противоречат друг другу, работа останавливается.
 
 ### PLAN
 
-До изменения кода вывести:
+План до 25 строк для обычного вертикального slice. Он содержит:
 
 - task ID и Issue;
-- зависимости и их статус;
+- capability IDs;
+- наблюдаемый user flow;
+- bounded contexts;
 - разрешённые файлы;
-- запрещённый scope;
-- контракты, данные и миграции;
-- tenant/authz/audit impact;
+- non-goals;
+- tenant/authz/audit boundaries;
+- API/schema/migration impact;
+- UX states;
 - обязательные test IDs;
 - план коммитов;
 - критерий остановки.
 
+План не должен превращаться в отдельный многодневный проект по инфраструктуре, если инфраструктура не является пользовательским блокером текущей Issue.
+
 ### IMPLEMENT
 
-Реализовать только один вертикальный срез. Нельзя параллельно добавлять последующие функции.
+Реализуется один вертикальный пользовательский slice. Нельзя:
+
+- параллельно начинать следующую capability;
+- добавлять лишние роли и страницы;
+- переписывать CI или deployment без связи с user flow;
+- делать инфраструктурную полировку вместо продукта;
+- размещать предметную логику в Classroom Core;
+- обходить принятый technological baseline без ADR.
 
 ### VERIFY
 
-Выполнить все тесты, обязательные для задачи и её фазы. Нельзя писать `PASS`, если команда не запускалась.
+Выполняются все test IDs текущей задачи. `PASS` записывается только после фактического запуска команды.
 
-### UPDATE MAP
+Для продуктового slice обязательны по применимости:
 
-В том же PR:
+- unit;
+- contracts;
+- PostgreSQL integration;
+- tenant/authz/RLS negative tests;
+- automated browser E2E;
+- accessibility critical path;
+- security and secret checks;
+- production build.
 
-- обновить статус task-узла;
-- добавить новые реальные узлы и связи;
-- обновить paths;
-- обновить Mermaid/C4/Nx views при применимости;
-- запустить `validate_project_map.py`.
+Manual browser smoke не заменяет automated E2E, если E2E указан в Issue.
+
+### UPDATE MAPS
+
+В том же PR обновляются при необходимости:
+
+- `docs/product/CAPABILITY_MAP.yaml` — только если меняется capability или release slice;
+- `docs/project-map/project-map.yaml` — task/status/dependencies/architecture nodes;
+- `docs/project-map/PROJECT_MAP.md`;
+- `docs/project-map/QUALITY_MAP.md`;
+- `docs/testing/test-catalog.yaml`;
+- C4 и Nx graph при архитектурных/кодовых изменениях.
+
+Если scope не менялся, Capability Map не редактируется ради косметики.
 
 ### OPEN DRAFT PR
 
-PR должен ссылаться на Issue, task ID, test IDs и содержать реальные результаты команд.
+PR обязан ссылаться на:
+
+- GitHub Issue;
+- TASK-ID;
+- capability IDs;
+- user flow;
+- non-goals;
+- affected contexts;
+- data/API/events;
+- tenant/authz/audit impact;
+- test IDs и фактические результаты;
+- screenshots/Playwright report для UI;
+- rollout/rollback;
+- map changes;
+- NEXT_ALLOWED_TASK.
 
 ### CLOSE TASK
 
-Статус `done` устанавливается только после merge и подтверждённого exit gate. После этого следующая задача может стать `ready`.
+После merge:
 
-## 5. Стандартный отчёт агента
+1. TASK → `done`;
+2. документируется merge SHA;
+3. следующая задача становится `ready`, если все зависимости завершены;
+4. `current_focus` переносится на следующую задачу;
+5. Issue закрывается как completed.
 
-В конце каждой рабочей сессии агент обязан вывести:
+## 6. Стандартный отчёт агента
 
 ```text
 TASK: TASK-...
 ISSUE: #...
 STATUS: blocked | in_progress | in_review | done
+CAPABILITIES: CAP-..., CAP-...
+USER_FLOW:
+  ... PASS|FAIL|BLOCKED
 BRANCH: ...
 COMMITS: ...
 FILES_CHANGED: ...
 MAP_NODES_CHANGED: ...
 TESTS_RUN:
-  TST-... PASS|FAIL|NOT_RUN
+  TST-... PASS|FAIL|NOT_RUN|BLOCKED
+ARTIFACTS: ...
 BLOCKERS: ...
 RESIDUAL_RISKS: ...
 NEXT_ALLOWED_TASK: TASK-... | none
-NEXT_COMMAND: точная команда следующему агенту
+NEXT_COMMAND: точная короткая команда следующему агенту
 ```
 
-## 6. Команда ориентации для текущей локальной папки
+Отчёт начинается с пользовательского результата, а не с перечня установленных инструментов.
 
-Передайте агенту следующий текст:
+## 7. Управление владельцем проекта
 
-```text
-Работай только в текущей локальной копии репозитория spikeal8-maker/asa-lab.
+Владелец управляет направлением через:
 
-Сначала ничего не реализуй. Проведи ORIENT-проход:
-1. выполни git status --short --branch, git remote -v, git fetch --all --prune и git branch --all;
-2. прочитай AGENTS.md, START_HERE_FOR_AI.md, docs/delivery/BOT_RUNBOOK.md, docs/project-map/TASK_SYSTEM.md, docs/project-map/project-map.yaml и docs/testing/test-catalog.yaml;
-3. определи current_focus, первую задачу execution_queue и все её зависимости;
-4. проверь, объединён ли PR #1 и зелёный ли Architecture CI;
-5. выполни только доступные сейчас валидаторы;
-6. не начинай Issue #2, пока PR #1 не merged и его обязательные checks не successful;
-7. выведи стандартный отчёт BOT_RUNBOOK с NEXT_ALLOWED_TASK и точной NEXT_COMMAND.
+1. Product Blueprint и Capability Map;
+2. Project Map и статус задачи;
+3. GitHub Issue;
+4. принятие/отклонение PR;
+5. ADR при изменении архитектуры.
 
-Не изменяй файлы до завершения ориентации.
-```
+Нельзя регулировать разработку только устным сообщением, если оно меняет scope. Сначала обновляются нормативные документы и Issue, затем агент продолжает работу.
 
-## 7. Команда запуска Bootstrap после разблокировки
+## 8. Local-first verification
 
-Применяется только после merge PR №1 и зелёного Architecture CI:
-
-```text
-Работай в текущей локальной копии spikeal8-maker/asa-lab.
-Синхронизируй main через git fetch --all --prune, git checkout main и git pull --ff-only.
-Выполни только Issue #2 / TASK-BOOT-001 по BOT_RUNBOOK.
-Создай ветку agent/task-boot-001-bootstrap.
-Не реализуй пользователей, классы, StudentSeat, задания, биллинг или электронику.
-Перед кодом выведи PLAN с обязательными test IDs.
-После реализации выполни все проверки Issue #2 и test-catalog.yaml, обнови project-map.yaml и Nx graph, затем открой draft PR и выведи стандартный отчёт.
-```
-
-## 8. Правила регулирования владельцем проекта
-
-Владелец проекта управляет разработкой через четыре операции:
-
-1. изменить статус task-узла в `project-map.yaml`;
-2. уточнить связанную GitHub Issue;
-3. принять или отклонить Pull Request;
-4. утвердить ADR при изменении архитектуры.
-
-Нельзя регулировать работу только устной командой, не обновив Issue или карту. Иначе следующий агент получит устаревшую модель проекта.
-
-## 9. Local-first verification (текущий режим)
-
-Проект использует **local-first verification** до появления отдельной необходимости в managed CI.
-
-Причина: GitHub-hosted runners недоступны из-за внешнего billing-blocker аккаунта (job не стартует, `steps_count = 0`, аннотация «The job was not started because recent account payments have failed or your spending limit needs to be increased»). Платный биллинг GitHub и self-hosted runner на текущем этапе не подключаются.
-
-Правила текущего режима:
-
-- обязательный quality gate задачи — это её тесты из `docs/testing/test-catalog.yaml`, фактически выполненные локально;
-- GitHub Actions не является обязательным exit gate; его результат считается информационным;
-- ни один валидатор не отключается и критерии `PASS` не ослабляются;
-- `NOT_RUN` и `BLOCKED` не считаются `PASS` и не позволяют закрыть gate;
-- фактические результаты (с commit SHA) публикуются в связанном Pull Request и Issue.
-
-### Единая команда запуска тестов задачи
-
-Все обязательные тесты текущей задачи запускаются одной командой через раннер `tools/run_task_tests.py`, который читает `docs/testing/test-catalog.yaml`:
-
-```bash
-python tools/run_task_tests.py --task TASK-CI-001
-```
-
-Раннер выбирает тесты, у которых `required_for` содержит указанную задачу, реально выполняет их команды и печатает отчёт, привязанный к commit SHA. Код возврата `0` только если все обязательные тесты имеют фактический `PASS`.
-
-### Локальный fallback-процесс
-
-Когда managed CI недоступен, разработчик или агент обязан перед push выполнить локально:
+Проект использует local-first verification, пока managed CI недоступен.
 
 ```bash
 python -m compileall -q tools
 python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-Push и отчёт в PR допускаются только после фактического `GATE: PASS`. Возврат к managed CI (self-hosted или иному) оформляется отдельным решением владельца и обновлением этого документа.
+Правила:
+
+- test runner читает `docs/testing/test-catalog.yaml`;
+- GitHub Actions пока информационен;
+- критерии `PASS` не ослабляются;
+- `NOT_RUN` и `BLOCKED` не закрывают exit gate;
+- отчёт привязан к commit SHA;
+- рабочее дерево должно быть чистым на финальном прогоне;
+- результаты публикуются в PR и Issue.
+
+## 9. Ограничение токенов и времени
+
+Агент обязан сохранять фокус на пользовательском результате.
+
+Запрещено без отдельной Issue:
+
+- бесконечно совершенствовать локальные установщики;
+- добавлять проверки, не связанные с текущим риском;
+- переписывать уже зелёную инфраструктуру;
+- создавать новые задачи, чтобы избежать реализации user flow;
+- повторять полную диагностику после каждого локального сбоя.
+
+При тестовом сбое:
+
+1. остановить параллельные прогоны;
+2. назвать одну наблюдаемую причину;
+3. исправить её;
+4. повторить соответствующий тест;
+5. вернуться к основному user flow.
+
+## 10. Текущая каноническая последовательность
+
+Источник истины — `project-map.yaml`, но продуктовая логика следующая:
+
+```text
+Product Blueprint and Capability Map
+→ Teacher Portal
+→ StudentSeat and Child Dashboard
+→ Module Registry and Universal Projects
+→ Assignment and Immutable Submission
+→ Review Comments Assessment Rewards
+→ First Electronics Learning Cycle
+→ Simulation Arduino Instruments
+→ Additional Modules
+```
+
+Следующая задача не начинается до merge и exit gate предыдущей.
