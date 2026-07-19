@@ -1,319 +1,384 @@
 # ASA Lab — Capability Map
 
-Человекочитаемое представление [`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml). Машиночитаемый YAML является источником истины для capability IDs, зависимостей и целевых релизов.
+Человекочитаемое представление [`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml). YAML является источником capability IDs, dependencies и release slices. Практическая task-очередь находится в [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md).
 
-## 1. Определение системы
+## 1. Главное определение
 
 ```mermaid
 flowchart TB
     ASA[ASA Lab]
     ORG[Organization and Identity]
-    CLASS[Classroom Core]
-    LEARN[Learning Content and Assignments]
-    PROJ[Projects and Submissions]
-    ASSESS[Review Assessment Rewards]
-    MOD[Module Platform]
-    OPS[Administration Safety Operations]
+    CLASS[Classroom]
+    PROJECT[Universal Project Shell]
+    MODULES[Subject Modules]
+    LEARNING[Assignments and Submissions]
+    REVIEW[Comments Grade Badge]
+    OPS[Safety and Operations]
 
     ASA --> ORG
     ASA --> CLASS
-    ASA --> LEARN
-    ASA --> PROJ
-    ASA --> ASSESS
-    ASA --> MOD
+    ASA --> PROJECT
+    ASA --> MODULES
+    ASA --> LEARNING
+    ASA --> REVIEW
     ASA --> OPS
 ```
 
-ASA Lab — это образовательная workspace platform. Классы, задания, версии, комментарии, оценки и достижения принадлежат платформе. Электроника, блочное программирование, 3D, робототехника и шахматы являются подключаемыми предметными средами.
+> Один Classroom Core, один Project lifecycle и один Submission/Review lifecycle — множество независимых предметных модулей.
 
-## 2. Пользовательский контур
-
-```mermaid
-flowchart LR
-    T[Педагог]
-    S[Ученик]
-    A[Администратор школы]
-
-    TD[Teacher Dashboard]
-    SD[Student Dashboard]
-    AD[Admin Console]
-
-    C[Classroom Core]
-    ASS[Assignments]
-    P[Projects]
-    R[Review and Grades]
-
-    T --> TD
-    S --> SD
-    A --> AD
-    TD --> C
-    SD --> C
-    C --> ASS
-    ASS --> P
-    P --> R
-    R --> TD
-    R --> SD
-```
-
-## 3. Жизненный цикл обучения
+## 2. Исполнимая последовательность возможностей
 
 ```mermaid
 flowchart LR
-    C1[Teacher creates class]
-    C2[Teacher issues StudentSeats]
-    C3[Teacher assigns activity]
-    C4[Student opens module]
-    C5[Autosave and versions]
-    C6[Submit immutable version]
-    C7[Automatic checks]
-    C8[Teacher comments]
-    C9[Return or accept]
-    C10[Grade and badge]
-    C11[Progress updated]
+    R0[RELEASE-0 Foundation]
+    R1[RELEASE-1 Teacher Portal]
+    R2[RELEASE-2 Project Shell]
+    R3[RELEASE-3 Checkers Lite]
+    R4[RELEASE-4 Electronics Alpha]
+    R5[RELEASE-5 Child Access]
+    R6[RELEASE-6 Assignment Submission]
+    R7[RELEASE-7 Review Grade Badge]
+    R8[RELEASE-8 Electronics Classroom]
+    R9[RELEASE-9 Product Expansion]
+    R10[RELEASE-10 Additional Modules]
+    R11[RELEASE-11 Multi-school Scale]
 
-    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9 --> C10 --> C11
-    C9 -->|changes requested| C4
+    R0 --> R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7 --> R8 --> R9 --> R10 --> R11
 ```
 
-## 4. Classroom capabilities
+Dependency capability обязана находиться в том же или более раннем release. Это проверяет `tools/validate_capability_map.py`.
+
+## 3. RELEASE-0 — Foundation
 
 ```mermaid
-flowchart TB
+flowchart LR
     ORG[CAP-ORG]
     ID[CAP-IDENTITY]
-    CLS[CAP-CLASSROOM]
-    SEAT[CAP-STUDENT-SEAT]
-    TD[CAP-TEACHER-DASHBOARD]
-    SD[CAP-STUDENT-DASHBOARD]
-    NOTIF[CAP-NOTIFICATIONS]
+    SAFE[CAP-SAFETY]
+    OPS[CAP-OPERATIONS]
 
     ORG --> ID
-    ORG --> CLS
-    ID --> CLS
-    CLS --> SEAT
-    CLS --> TD
-    SEAT --> SD
-    CLS --> NOTIF
+    ORG --> SAFE
+    ID --> SAFE
+    ORG --> OPS
+    SAFE --> OPS
 ```
 
-## 5. Задания, проекты и проверка
+Результат:
+
+- organizations/tenants;
+- adult identity;
+- session and tenant context;
+- safety/audit baseline;
+- reproducible local operation.
+
+## 4. RELEASE-1 — Teacher Portal
 
 ```mermaid
 flowchart LR
-    CONTENT[CAP-CONTENT]
-    MODULES[CAP-MODULE-REGISTRY]
+    ORG[CAP-ORG]
+    ID[CAP-IDENTITY]
+    CLASS[CAP-CLASSROOM]
+    PORTAL[CAP-PORTAL-BASIC]
+
+    ORG --> CLASS
+    ID --> CLASS
+    ID --> PORTAL
+    CLASS --> PORTAL
+```
+
+Flow:
+
+```text
+teacher login
+→ «Мои классы»
+→ create classroom
+→ reload
+→ logout
+```
+
+`CAP-PORTAL-BASIC` не зависит от Assignments или Review. Расширенный dashboard находится в более позднем release.
+
+## 5. RELEASE-2 — Universal Project Shell
+
+```mermaid
+flowchart LR
+    ID[CAP-IDENTITY]
+    REG[CAP-MODULE-REGISTRY]
+    PROJECT[CAP-PROJECT-SHELL]
+
+    ID --> REG
+    REG --> PROJECT
+    ID --> PROJECT
+```
+
+Flow:
+
+```text
+create project
+→ select module
+→ save ProjectDraft
+→ reload
+→ immutable ProjectVersion checkpoint
+```
+
+Минимальный Module Registry содержит manifest, schemas, editor/viewer routes, validator и preview provider. Worker infrastructure, export и general autograding не требуются.
+
+## 6. RELEASE-3 — Checkers Lite Reference Module
+
+```mermaid
+flowchart LR
+    REG[CAP-MODULE-REGISTRY]
+    PROJECT[CAP-PROJECT-SHELL]
+    CHECKERS[CAP-CHECKERS-LITE]
+
+    REG --> CHECKERS
+    PROJECT --> CHECKERS
+```
+
+Checkers Lite доказывает расширяемость:
+
+```text
+8×8 board
+→ one legal move
+→ validation
+→ save/reload
+→ preview
+```
+
+Это не приоритетный предметный продукт и не полный chess engine.
+
+## 7. RELEASE-4 — Electronics Alpha
+
+```mermaid
+flowchart LR
+    REG[CAP-MODULE-REGISTRY]
+    PROJECT[CAP-PROJECT-SHELL]
+    ELEC[CAP-ELECTRONICS-ALPHA]
+
+    REG --> ELEC
+    PROJECT --> ELEC
+```
+
+Flow:
+
+```text
+source + resistor + LED + wire
+→ connectivity/netlist
+→ simple deterministic DC calculation
+→ diagnostics
+→ save/reload
+```
+
+Electronics Alpha не зависит от general Autograding. Breadboard, transient, Arduino и instruments относятся к `CAP-ELECTRONICS-ADVANCED`.
+
+## 8. RELEASE-5 — Child Access
+
+```mermaid
+flowchart LR
+    ID[CAP-IDENTITY]
+    CLASS[CAP-CLASSROOM]
+    PROJECT[CAP-PROJECT-SHELL]
+    SEAT[CAP-STUDENT-SEAT]
+    DASH[CAP-STUDENT-DASHBOARD]
+
+    ID --> SEAT
+    CLASS --> SEAT
+    SEAT --> DASH
+    PROJECT --> DASH
+```
+
+Flow:
+
+```text
+teacher issues card
+→ child login without email
+→ own class and project
+→ credential reset
+→ old session denied
+```
+
+## 9. RELEASE-6 — Assignment and Submission
+
+```mermaid
+flowchart LR
+    CONTENT[CAP-CONTENT-LITE]
+    CLASS[CAP-CLASSROOM]
+    PROJECT[CAP-PROJECT-SHELL]
+    SEAT[CAP-STUDENT-SEAT]
     ASSIGN[CAP-ASSIGNMENTS]
-    PROJECTS[CAP-PROJECTS]
-    SUBMIT[CAP-SUBMISSIONS]
+    SUB[CAP-SUBMISSIONS]
+
+    CONTENT --> ASSIGN
+    CLASS --> ASSIGN
+    PROJECT --> ASSIGN
+    ASSIGN --> SUB
+    PROJECT --> SUB
+    SEAT --> SUB
+```
+
+`CAP-CONTENT-LITE` содержит только:
+
+```text
+ActivityTemplate
+→ immutable ActivityVersion
+```
+
+Full Program/Course/Unit/Lesson authoring относится к `CAP-CONTENT-ADVANCED`.
+
+## 10. RELEASE-7 — Review, Grade and Badge
+
+```mermaid
+flowchart LR
+    SUB[CAP-SUBMISSIONS]
     COMMENTS[CAP-COMMENTS]
     REVIEW[CAP-REVIEW]
-    AUTO[CAP-AUTOGRADING]
     ASSESS[CAP-ASSESSMENT]
     REWARD[CAP-REWARDS]
     PROGRESS[CAP-PROGRESS]
 
-    CONTENT --> ASSIGN
-    MODULES --> ASSIGN
-    MODULES --> PROJECTS
-    ASSIGN --> SUBMIT
-    PROJECTS --> SUBMIT
-    SUBMIT --> COMMENTS
+    SUB --> COMMENTS
     COMMENTS --> REVIEW
-    PROJECTS --> AUTO
-    AUTO --> ASSESS
+    SUB --> REVIEW
     REVIEW --> ASSESS
     ASSESS --> REWARD
     ASSESS --> PROGRESS
     REWARD --> PROGRESS
 ```
 
-## 6. Предметные модули
+Flow:
 
-```mermaid
-flowchart TB
-    SDK[CAP-MODULE-REGISTRY]
-    P[CAP-PROJECTS]
-    G[CAP-AUTOGRADING]
-
-    E[CAP-ELECTRONICS]
-    B[CAP-BLOCK-CODING]
-    D[CAP-THREE-D]
-    R[CAP-ROBOTICS]
-    C[CAP-CHESS]
-    DR[CAP-DRAWING]
-
-    SDK --> E
-    SDK --> B
-    SDK --> D
-    SDK --> R
-    SDK --> C
-    SDK --> DR
-    P --> E
-    P --> B
-    P --> D
-    P --> R
-    P --> C
-    P --> DR
-    G --> E
-    G --> R
+```text
+anchored comment
+→ request changes
+→ resubmit
+→ compare
+→ accept
+→ rubric/grade
+→ badge/progress
 ```
 
-## 7. Релизная последовательность
+## 11. RELEASE-8 — Full Electronics Classroom Cycle
 
 ```mermaid
 flowchart LR
-    R0[RELEASE-0 Foundation]
-    R1[RELEASE-1 Teacher Portal]
-    R2[RELEASE-2 Child Access]
-    R3[RELEASE-3 Project Assignment Cycle]
-    R4[RELEASE-4 Review Assessment Rewards]
-    R5[RELEASE-5 Electronics]
-    R6[RELEASE-6 Additional Modules]
+    ALPHA[CAP-ELECTRONICS-ALPHA]
+    ASSIGN[CAP-ASSIGNMENTS]
+    SUB[CAP-SUBMISSIONS]
+    REVIEW[CAP-REVIEW]
+    ASSESS[CAP-ASSESSMENT]
+    FULL[CAP-ELECTRONICS-CLASSROOM]
 
-    R0 --> R1 --> R2 --> R3 --> R4 --> R5 --> R6
+    ALPHA --> FULL
+    ASSIGN --> FULL
+    SUB --> FULL
+    REVIEW --> FULL
+    ASSESS --> FULL
 ```
 
-### RELEASE-0 — Foundation
-
-- organization and tenancy;
-- adult identity;
-- safety baseline;
-- operations baseline.
-
-### RELEASE-1 — Teacher Portal
-
-- login;
-- teacher dashboard;
-- classroom lifecycle;
-- basic notifications.
-
-### RELEASE-2 — Child Access
-
-- StudentSeat;
-- class code/QR;
-- student dashboard;
-- child login without email.
-
-### RELEASE-3 — Universal project and assignment cycle
-
-- Module Registry;
-- Project envelope;
-- autosave and immutable versions;
-- activity and assignment;
-- submission attempt.
-
-### RELEASE-4 — Review, assessment and rewards
-
-- comments and annotations;
-- review queue;
-- rubric;
-- grade;
-- badge;
-- progress.
-
-### RELEASE-5 — Electronics
-
-- circuit editor;
-- simulation;
-- autograding;
-- complete classroom workflow.
-
-### RELEASE-6 — Additional modules
-
-- block coding;
-- 3D;
-- robotics;
-- chess/checkers;
-- drawing/drafting.
-
-## 8. Карта кабинета педагога
-
-```mermaid
-flowchart TB
-    HOME[Главная]
-    CLASSES[Классы]
-    CLASS[Страница класса]
-    ROSTER[Ученики и группы]
-    ASSIGNMENTS[Задания]
-    REVIEW[Очередь проверки]
-    GRADEBOOK[Оценки]
-    REWARDS[Достижения]
-    ANALYTICS[Аналитика]
-    SETTINGS[Настройки]
-
-    HOME --> CLASSES
-    CLASSES --> CLASS
-    CLASS --> ROSTER
-    CLASS --> ASSIGNMENTS
-    CLASS --> REVIEW
-    CLASS --> GRADEBOOK
-    CLASS --> REWARDS
-    CLASS --> ANALYTICS
-    CLASS --> SETTINGS
-```
-
-## 9. Карта кабинета ученика
-
-```mermaid
-flowchart TB
-    SHOME[Главная]
-    SCLASSES[Мои классы]
-    STASKS[Мои задания]
-    SPROJECTS[Мои проекты]
-    SFEEDBACK[Комментарии и результаты]
-    SBADGES[Достижения]
-    SPORTFOLIO[Портфолио]
-
-    SHOME --> SCLASSES
-    SHOME --> STASKS
-    SHOME --> SPROJECTS
-    SHOME --> SFEEDBACK
-    SHOME --> SBADGES
-    SHOME --> SPORTFOLIO
-```
-
-## 10. Карта проверки работы
-
-```mermaid
-flowchart TB
-    QUEUE[Review Queue]
-    VIEW[Module Viewer]
-    AUTO[Automatic Results]
-    DIFF[Attempt Diff]
-    COMMENT[Comments and Anchors]
-    RUBRIC[Rubric]
-    DECISION[Decision]
-    GRADE[Grade]
-    BADGE[Badge]
-
-    QUEUE --> VIEW
-    VIEW --> AUTO
-    VIEW --> DIFF
-    VIEW --> COMMENT
-    VIEW --> RUBRIC
-    RUBRIC --> DECISION
-    COMMENT --> DECISION
-    AUTO --> DECISION
-    DECISION --> GRADE
-    DECISION --> BADGE
-```
-
-## 11. Правило использования capability IDs
-
-Каждая продуктовая Issue должна содержать раздел:
+Flow:
 
 ```text
-CAPABILITIES:
-- CAP-...
-- CAP-...
+teacher assigns circuit
+→ child builds and submits
+→ teacher comments
+→ child corrects
+→ accept/grade/badge
 ```
 
-Каждый PR должен указать:
+## 12. Expansion after the first pilot
 
-- какие capabilities реализует;
-- какие не реализует;
-- какие зависимости capabilities подтверждены;
-- какие пользовательские flows изменены;
-- какие карты обновлены.
+### Product Expansion
 
-Новый capability сначала добавляется в `CAPABILITY_MAP.yaml`, затем в Issue. Чат не является источником нового scope.
+- `CAP-NOTIFICATIONS`;
+- `CAP-TEACHER-DASHBOARD`;
+- `CAP-CONTENT-ADVANCED`;
+- `CAP-AUTOGRADING`;
+- `CAP-ELECTRONICS-ADVANCED`;
+- `CAP-BLOCK-CODING`;
+- `CAP-ANALYTICS`;
+- `CAP-ADMIN`.
+
+### Additional Modules
+
+- `CAP-THREE-D`;
+- `CAP-ROBOTICS`;
+- `CAP-CHESS`;
+- `CAP-DRAWING`.
+
+### Scale
+
+- `CAP-ENTITLEMENTS`.
+
+Эти capabilities не добавляются в задачи Product Alpha/School Pilot через чат.
+
+## 13. Teacher and Child experiences
+
+```mermaid
+flowchart TB
+    T[Teacher]
+    C[Child]
+    TP[Teacher Portal]
+    CD[Child Dashboard]
+    CLASS[Classroom]
+    PROJECT[Projects]
+    ASSIGN[Assignments]
+    REVIEW[Review and Grade]
+
+    T --> TP
+    C --> CD
+    TP --> CLASS
+    TP --> PROJECT
+    TP --> ASSIGN
+    TP --> REVIEW
+    CD --> CLASS
+    CD --> PROJECT
+    CD --> ASSIGN
+    CD --> REVIEW
+```
+
+## 14. Module boundary
+
+```mermaid
+flowchart LR
+    CLASS[Classroom Core]
+    PROJECT[Project Core]
+    SDK[Module SDK]
+    CHECKERS[Checkers Lite]
+    ELEC[Electronics]
+    FUTURE[Future modules]
+
+    CLASS --> PROJECT
+    PROJECT --> SDK
+    SDK --> CHECKERS
+    SDK --> ELEC
+    SDK --> FUTURE
+```
+
+Core знает universal envelope и lifecycle. Subject payload остаётся внутри модуля.
+
+## 15. Правило для Issues и PR
+
+Каждая executable Issue перечисляет:
+
+```text
+CAPABILITIES
+USER_FLOW
+DEPENDENCIES
+SCOPE
+NON_GOALS
+PORTS
+TEST IDs
+ACCEPTANCE
+```
+
+Каждый PR указывает:
+
+- какие capabilities реализованы;
+- какой flow доказан;
+- какие non-goals отсутствуют;
+- какие dependencies подтверждены;
+- какие карты и contracts обновлены;
+- какие тесты фактически PASS.
+
+Новый capability сначала добавляется в YAML и Development Program, затем в Issue. Чат не создаёт новый scope.
