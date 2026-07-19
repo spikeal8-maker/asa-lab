@@ -1,370 +1,301 @@
 # Карта проекта ASA Lab
 
-Эта страница — человекочитаемое представление [`project-map.yaml`](project-map.yaml). Она отвечает на вопросы:
+Человекочитаемое представление [`project-map.yaml`](project-map.yaml).
 
-1. какую конечную образовательную систему мы строим;
-2. из каких контуров она состоит;
-3. какие задачи и capabilities зависят друг от друга;
-4. какая задача активна;
-5. что coding-агент должен делать следующим.
+Дополнительные источники:
 
-Продуктовая карта возможностей находится в [`../product/CAPABILITY_MAP.md`](../product/CAPABILITY_MAP.md), а её машиночитаемый источник — [`../product/CAPABILITY_MAP.yaml`](../product/CAPABILITY_MAP.yaml). Для Obsidian-подобного режима архитектуры и задач откройте [`viewer.html`](viewer.html). Карта проверок находится в [`QUALITY_MAP.md`](QUALITY_MAP.md).
+- [`../product/PRODUCT_BLUEPRINT.md`](../product/PRODUCT_BLUEPRINT.md) — конечный продукт;
+- [`../product/CAPABILITY_MAP.md`](../product/CAPABILITY_MAP.md) — capabilities;
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — последовательность реализации;
+- [`../delivery/LOCAL_PORT_POLICY.md`](../delivery/LOCAL_PORT_POLICY.md) — локальные порты;
+- [`QUALITY_MAP.md`](QUALITY_MAP.md) — чем подтверждается готовность;
+- [`viewer.html`](viewer.html) — интерактивный Obsidian-подобный граф.
 
-## Текущий фокус
+## 1. Текущий фокус
 
 ```text
-TASK-CI-001            done
-TASK-GOV-001           done
-TASK-ARCH-001          done
-TASK-BOOT-001          done
-TASK-ENV-001           deprecated
-TASK-TEN-001           deprecated
-TASK-CLS-001           deprecated
+Foundation                         done
         ↓
-TASK-PRODUCT-DOC-001   ← текущий фокус: Product Blueprint и Capability Map
+TASK-PRODUCT-DOC-001              in_review — Issue 19 / PR 21
         ↓
-TASK-MVP-001           Teacher Portal v0.1
+TASK-PORTAL-001                   blocked — Issue 18 / PR 22
         ↓
-TASK-SEAT-001          StudentSeat и кабинет ребёнка
+TASK-PROJECT-SHELL-001            blocked — Issue 24
         ↓
-TASK-MOD-001           Module Registry и универсальные проекты
+TASK-CHECKERS-LITE-001            blocked — Issue 25
         ↓
-TASK-ACT-001           Задания и immutable submissions
+TASK-ELECTRONICS-ALPHA-001        blocked — Issue 26
         ↓
-TASK-REVIEW-001        Комментарии, review, оценки и badges
+TASK-SEAT-001                     blocked — Issue 7
         ↓
-TASK-ELEC-001          Первый полный electronics learning cycle
+TASK-ACT-001                      blocked — Issue 8
+        ↓
+TASK-REVIEW-001                   blocked — Issue 20
+        ↓
+TASK-ELEC-001                     blocked — Issue 6
 ```
 
-Текущая задача: [Issue №19 — Product Blueprint and Capability Map](https://github.com/spikeal8-maker/asa-lab/issues/19). Следующая продуктовая задача после принятия документации: [Issue №18 — Teacher Portal v0.1](https://github.com/spikeal8-maker/asa-lab/issues/18).
+Current focus берётся только из `project-map.yaml`. Бот не выбирает более позднюю задачу.
 
-## 1. Определение платформы
+## 2. Конечная система
 
 ```mermaid
 flowchart TB
-    ASA["ASA Lab"]
+    ASA[ASA Lab]
 
-    subgraph EXPERIENCE["Experience Plane"]
-        WEB["Teacher and Student Web/PWA"]
-        ADMIN["School and Platform Admin"]
-        SITE["Public Site"]
+    subgraph USERS[Users]
+        TEACHER[Teacher]
+        CHILD[Child]
+        ADMIN[School Admin]
+        METHODIST[Methodist]
     end
 
-    subgraph CORE["Modular Monolith Control Plane"]
-        ORG["Organization"]
-        ID["Identity and StudentSeat"]
-        CLASS["Classroom"]
-        CONTENT["Learning Content"]
-        PROJECTS["Projects and Versions"]
-        ASSIGN["Assignments"]
-        ASSESS["Review Assessment Rewards"]
-        REG["Module Registry"]
-        NOTIFY["Notifications"]
-        SAFE["Safety and Audit"]
-        BILL["Entitlements and Billing"]
+    subgraph EXPERIENCE[Experience]
+        WEB[Teacher and Child Web/PWA]
+        ADMINUI[Admin Console]
+        MODULEHOST[Subject Module Host]
     end
 
-    subgraph COMPUTE["Isolated Compute Plane"]
-        COMPILE["Compiler Workers"]
-        SIM["Simulation Workers"]
-        GRADE["Autograder Workers"]
-        RENDER["Render Workers"]
-        PHYSICS["Robotics Physics Workers"]
+    subgraph CORE[Classroom and Learning Core]
+        ORG[Organization]
+        ID[Identity and StudentSeat]
+        CLASS[Classroom]
+        CONTENT[ActivityVersion]
+        PROJECT[Universal Projects]
+        ASSIGN[Assignments]
+        REVIEW[Submission Review Grade Badge]
+        REGISTRY[Module Registry]
+        SAFE[Safety and Audit]
     end
 
-    subgraph DATA["Data and Integration"]
-        PG[(PostgreSQL)]
-        REDIS[(Redis)]
-        S3[(S3-compatible Storage)]
-        OUTBOX["Transactional Outbox"]
-        QUEUE["Job Queue"]
-        OTEL["OpenTelemetry"]
+    subgraph MODULES[Subject Modules]
+        BLANK[Blank Canvas Technical]
+        CHECKERS[Checkers Lite]
+        ELEC[Electronics]
+        BLOCKS[Block Coding]
+        D3[3D]
+        ROBOT[Robotics]
+        DRAW[Drawing]
     end
 
-    subgraph MODULES["Subject Modules through Module SDK"]
-        ELEC["Electronics"]
-        BLOCKS["Block Coding"]
-        THREE["3D"]
-        ROBOT["Robotics"]
-        CHESS["Chess and Checkers"]
-        DRAW["Drawing and Drafting"]
-    end
-
-    ASA --> EXPERIENCE
-    ASA --> CORE
-    ASA --> COMPUTE
-    ASA --> MODULES
-    EXPERIENCE --> CORE
-    CORE --> PG
-    CORE --> REDIS
-    CORE --> S3
-    CORE --> OUTBOX
-    OUTBOX --> QUEUE
-    QUEUE --> COMPUTE
-    MODULES --> REG
-    ELEC --> COMPILE
-    ELEC --> SIM
-    ELEC --> GRADE
-    BLOCKS --> GRADE
-    THREE --> RENDER
-    ROBOT --> PHYSICS
-    CHESS --> GRADE
-    DRAW --> RENDER
-    EXPERIENCE -. telemetry .-> OTEL
-    CORE -. telemetry .-> OTEL
-    COMPUTE -. telemetry .-> OTEL
+    TEACHER --> WEB
+    CHILD --> WEB
+    ADMIN --> ADMINUI
+    METHODIST --> ADMINUI
+    WEB --> CORE
+    ADMINUI --> CORE
+    WEB --> MODULEHOST
+    MODULEHOST --> REGISTRY
+    REGISTRY --> MODULES
+    ORG --> ID
+    ID --> CLASS
+    CLASS --> ASSIGN
+    CONTENT --> ASSIGN
+    REGISTRY --> PROJECT
+    ASSIGN --> PROJECT
+    PROJECT --> REVIEW
+    SAFE --> CORE
 ```
 
-## 2. Основной образовательный цикл
+## 3. Главный образовательный цикл
 
 ```mermaid
 flowchart LR
     C1[Teacher creates classroom]
-    C2[Teacher issues StudentSeats]
+    C2[Teacher issues StudentSeat]
     C3[Teacher assigns ActivityVersion]
-    C4[Student opens subject module]
-    C5[Project autosave and checkpoints]
-    C6[Submit immutable ProjectVersion]
+    C4[Child opens subject module]
+    C5[Project autosave]
+    C6[Immutable submission]
     C7[Automatic checks]
-    C8[Teacher review and comments]
-    C9[Return or accept]
-    C10[Rubric grade and badge]
-    C11[Progress updated]
+    C8[Teacher comment]
+    C9[Changes requested]
+    C10[Child resubmits]
+    C11[Accept grade badge]
+    C12[Progress updated]
 
-    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9 --> C10 --> C11
-    C9 -->|changes requested| C4
+    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9 --> C10 --> C11 --> C12
 ```
 
-## 3. Classroom Core
-
-```mermaid
-flowchart LR
-    ORG["Tenant / School / Period"]
-    ID["User / StudentSeat / Session"]
-    CLS["Classroom / Membership / Group"]
-    ACT["ActivityVersion / Assignment"]
-    PRJ["Project / ProjectVersion"]
-    SUB["SubmissionAttempt"]
-    REV["Review / Comment / Rubric"]
-    RESULT["Grade / Badge / Progress"]
-    MOD["ModuleManifest"]
-
-    ORG --> CLS
-    ID --> CLS
-    CLS --> ACT
-    ACT --> PRJ
-    PRJ --> SUB
-    SUB --> REV
-    REV --> RESULT
-    MOD --> PRJ
-```
-
-Classroom Core владеет образовательным процессом, но не предметным payload. Электроника, sprites, шахматные ходы и 3D meshes остаются внутри соответствующих модулей.
-
-## 4. Кабинет педагога
+## 4. Два delivery tracks
 
 ```mermaid
 flowchart TB
-    HOME["Главная"]
-    CLASSES["Классы"]
-    CLASS["Страница класса"]
-    ROSTER["Ученики и группы"]
-    ASSIGNMENTS["Задания"]
-    REVIEW["Очередь проверки"]
-    GRADEBOOK["Оценки"]
-    REWARDS["Достижения"]
-    ANALYTICS["Аналитика"]
-    SETTINGS["Настройки и соучителя"]
+    PROGRAM[Product Alpha to School Pilot]
 
-    HOME --> CLASSES
-    CLASSES --> CLASS
-    CLASS --> ROSTER
-    CLASS --> ASSIGNMENTS
-    CLASS --> REVIEW
-    CLASS --> GRADEBOOK
-    CLASS --> REWARDS
-    CLASS --> ANALYTICS
-    CLASS --> SETTINGS
+    subgraph TECH[Technical Product Alpha]
+        PORTAL[Teacher Portal]
+        PSHELL[Universal Project Shell]
+        CHECKERS[Checkers Lite]
+        EALPHA[Electronics Alpha]
+        PORTAL --> PSHELL --> CHECKERS --> EALPHA
+    end
+
+    subgraph PILOT[School Pilot]
+        SEAT[StudentSeat]
+        ACT[Assignment and Submission]
+        REV[Comments Review Grade Badge]
+        EFULL[Full Electronics Classroom Cycle]
+        SEAT --> ACT --> REV --> EFULL
+    end
+
+    PROGRAM --> TECH
+    TECH --> PILOT
 ```
 
-## 5. Кабинет ученика
+Technical Alpha даёт работающий продукт до полной школьной workflow. School Pilot подключает детей, задания и оценивание.
 
-```mermaid
-flowchart TB
-    SHOME["Главная"]
-    SCLASS["Мои классы"]
-    STASK["Мои задания"]
-    SPROJECT["Мои проекты"]
-    SFEEDBACK["Комментарии и результаты"]
-    SREWARD["Достижения"]
-    SPORTFOLIO["Портфолио"]
+## 5. Результат каждого этапа
 
-    SHOME --> SCLASS
-    SHOME --> STASK
-    SHOME --> SPROJECT
-    SHOME --> SFEEDBACK
-    SHOME --> SREWARD
-    SHOME --> SPORTFOLIO
-```
+| Этап | Что можно открыть и показать |
+|---|---|
+| Product Docs | В GitHub видна одна очередь, Issues, capability и quality maps |
+| Teacher Portal | Педагог входит, создаёт класс, reload сохраняет класс |
+| Project Shell | Педагог создаёт project, выбирает module, сохраняет draft и checkpoint |
+| Checkers Lite | Доска, legal move, validation, save/reload и preview |
+| Electronics Alpha | Source/resistor/LED/wire, netlist, DC calculation и diagnostics |
+| StudentSeat | Учитель выдаёт карточку, ребёнок входит без email и открывает свой проект |
+| Assignment | Учитель назначает, ребёнок сдаёт immutable version, очередь показывает попытку |
+| Review | Comment, return, resubmit, rubric, grade, badge |
+| Electronics Classroom | Полный электронный учебный цикл внутри класса |
 
-## 6. Предметные среды
-
-```mermaid
-flowchart TB
-    SDK["Versioned Module SDK"]
-    SDK --> E["Electronics"]
-    SDK --> B["Block Coding"]
-    SDK --> D3["3D Modelling"]
-    SDK --> R["Virtual Robotics"]
-    SDK --> C["Chess and Checkers"]
-    SDK --> G["Drawing and Drafting"]
-
-    E --> EW["Simulation Compile Autograding"]
-    B --> BW["Runtime and Project Checks"]
-    D3 --> DW["Preview Export Slicing"]
-    R --> RW["Physics Replay Goal Checks"]
-    C --> CW["Move Validation and Analysis"]
-    G --> GW["Preview Export Rubric Evidence"]
-```
-
-## 7. Проверка работы
+## 6. Module/Project boundary
 
 ```mermaid
 flowchart LR
-    QUEUE["Review Queue"]
-    VIEWER["Module Viewer"]
-    AUTO["Automatic Results"]
-    DIFF["Attempt Diff"]
-    COMMENT["Anchored Comments"]
-    RUBRIC["Rubric"]
-    DECISION["Accept or Changes Requested"]
-    GRADE["Grade"]
-    BADGE["Badge"]
-    PROGRESS["Progress"]
+    CORE[Classroom Core]
+    PROJECT[Project Core]
+    SDK[Module SDK]
+    CHECKERS[Checkers payload]
+    ELECTRONICS[CircuitDocument]
 
-    QUEUE --> VIEWER
-    VIEWER --> AUTO
-    VIEWER --> DIFF
-    VIEWER --> COMMENT
-    AUTO --> RUBRIC
-    COMMENT --> RUBRIC
-    RUBRIC --> DECISION
-    DECISION --> GRADE
-    DECISION --> BADGE
-    GRADE --> PROGRESS
-    BADGE --> PROGRESS
+    CORE --> PROJECT
+    PROJECT --> SDK
+    SDK --> CHECKERS
+    SDK --> ELECTRONICS
 ```
 
-## 8. Продуктовая релизная карта
+Classroom/Project Core знают:
+
+```text
+moduleKey
+moduleVersion
+schemaVersion
+ProjectDraft
+ProjectVersion
+preview
+diagnostics envelope
+```
+
+Они не знают:
+
+```text
+resistor
+wire
+LED
+checker piece
+sprite
+3D mesh
+```
+
+## 7. Канонические порты
+
+| Server | URL |
+|---|---|
+| Web development | `http://127.0.0.1:4610` |
+| API development | `http://127.0.0.1:4611` |
+| Same-origin E2E | `http://127.0.0.1:4612` |
+
+Запрещены `3000`, `3100`, `5173`. Занятый порт не является разрешением остановить чужой процесс.
+
+## 8. Управление coding-агентом
 
 ```mermaid
 flowchart LR
-    P0["Foundation"]
-    P1["Teacher Portal"]
-    P2["Child Access"]
-    P3["Modules Projects Assignments"]
-    P4["Review Assessment Rewards"]
-    P5["Electronics"]
-    P6["Simulation and Arduino"]
-    P7["Additional Modules"]
-    P8["Pilot Hardening"]
-    P9["Commercial and Multi-school"]
+    OWNER[Owner]
+    MAP[project-map.yaml]
+    PROGRAM[Development Program]
+    ISSUE[Executable Issue]
+    CATALOG[Test Catalog]
+    AGENT[Coding Agent]
+    PR[One Draft PR]
+    EVIDENCE[Demo Tests Screenshots]
 
-    P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9
-```
-
-### Foundation
-
-Репозиторий, architecture rules, migrations, contracts, identity/tenant foundation.
-
-### Teacher Portal
-
-Вход педагога, React-кабинет, classroom lifecycle, owner membership, RLS и audit.
-
-### Child Access
-
-StudentSeat, карточки/QR, вход без email, Student Dashboard.
-
-### Modules, Projects and Assignments
-
-Module Registry, Project envelope, immutable versions, ActivityVersion, Assignment и SubmissionAttempt.
-
-### Review, Assessment and Rewards
-
-Комментарии, module anchors, changes requested, rubric, grade, badge и progress.
-
-### Electronics
-
-Редактор схем, save/reload, assignment submission, teacher viewer и basic autograding.
-
-### Simulation and Arduino
-
-Rust/WASM simulation, instruments, compiler workers и Arduino runtime.
-
-### Additional Modules
-
-Scratch-подобное блочное программирование, 3D, робототехника, шахматы, шашки, рисование и черчение.
-
-## 9. Управление coding-агентами
-
-```mermaid
-flowchart LR
-    PRODUCT["Product Blueprint"]
-    CAP["Capability Map"]
-    PROJECT["Project Map"]
-    ISSUE["GitHub Issue"]
-    RUNBOOK["BOT_RUNBOOK"]
-    TESTS["Test Catalog"]
-    AGENT["Coding Agent"]
-    PR["Draft PR"]
-    REPORT["Test Report"]
-
-    PRODUCT --> AGENT
-    CAP --> AGENT
-    PROJECT --> AGENT
+    OWNER --> MAP
+    MAP --> AGENT
+    PROGRAM --> AGENT
     ISSUE --> AGENT
-    RUNBOOK --> AGENT
-    TESTS --> AGENT
+    CATALOG --> AGENT
     AGENT --> PR
-    PR --> REPORT
+    PR --> EVIDENCE
+    EVIDENCE --> OWNER
 ```
 
-Рабочий цикл:
+Владелец не пересказывает задачу вручную. Достаточно команды:
+
+```text
+Прочитай current_focus, Development Program и связанную Issue. Выполни только её.
+```
+
+## 9. Обязательный цикл задачи
 
 ```text
 ORIENT
-→ verify capability IDs and dependencies
-→ PLAN user flow and non-goals
-→ IMPLEMENT one vertical slice
-→ VERIFY
-→ UPDATE capability/project/quality maps
+→ confirm current_focus and dependency
+→ read exact Issue and referenced sections
+→ CAPABILITY CHECK
+→ PLAN up to 25 lines
+→ IMPLEMENT one user flow
+→ VERIFY all required test IDs
+→ UPDATE maps
 → DRAFT PR
-→ REVIEW
-→ MERGE
-→ NEXT TASK
+→ evidence and review
+→ merge
+→ next task ready
 ```
 
-## 10. Карты, работающие вместе
+## 10. Scope freeze
 
-| Карта | Отвечает на вопрос | Источник истины |
-|---|---|---|
-| Product Capability Map | Что должна уметь конечная платформа | `docs/product/CAPABILITY_MAP.yaml` |
-| Project Knowledge Graph | Что реализуем сейчас и какие задачи зависят друг от друга | `project-map.yaml` |
-| Quality Map | Чем доказывается готовность | `QUALITY_MAP.md` + `test-catalog.yaml` |
-| C4 Architecture Model | Как устроены системы и deployment | `docs/architecture/structurizr/workspace.dsl` |
-| Nx Project Graph | Как фактически зависит код | `nx-project-graph.json` |
+После начала task запрещено добавлять:
 
-## 11. Обязательное правило актуальности
+- следующую capability;
+- unrelated infrastructure;
+- новый framework;
+- Docker/Redis/MinIO без фактического использования;
+- дополнительную большую документацию;
+- будущие роли, страницы или модули.
 
-Карта меняется в том же Pull Request, если PR:
+Новая идея оформляется новой Issue после текущего merge.
 
-- добавляет или меняет capability;
-- меняет пользовательский flow;
-- добавляет приложение, bounded context, worker, data store или предметный модуль;
-- меняет архитектурную зависимость;
-- добавляет ADR, фазу, task, test registry или exit gate;
-- начинает, блокирует, завершает или заменяет задачу;
-- переносит ответственность между модулями;
-- меняет путь нормативного документа.
+## 11. Evidence before merge
 
-Задача не получает статус `done`, пока её user flow, capability boundary, exit gate и test IDs не подтверждены фактическими командами.
+Каждый product PR содержит:
+
+```text
+MILESTONE
+USER_FLOW with PASS/FAIL/BLOCKED
+DEMO_URLS
+PORTS
+Playwright report
+screenshots
+contract/migration/security reports
+all required test IDs
+commit SHA
+clean working tree
+NEXT_ALLOWED_TASK
+```
+
+`NOT_RUN` и `BLOCKED` не закрывают exit gate. Manual smoke не заменяет automated E2E.
+
+## 12. Карты, работающие вместе
+
+| Карта | Вопрос |
+|---|---|
+| Product Blueprint | Зачем и для кого строим? |
+| Capability Map | Что должна уметь платформа? |
+| Development Program | В каком практическом порядке реализуем? |
+| Project Map | Какая задача активна и от чего зависит? |
+| Quality Map | Чем доказываем готовность? |
+| Nx Graph | Как фактический код зависит от кода? |
+
+Машиночитаемым источником задач и статусов остаётся `project-map.yaml`.
