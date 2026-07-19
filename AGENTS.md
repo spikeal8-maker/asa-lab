@@ -1,4 +1,4 @@
-# AGENTS.md — обязательные правила ASA Lab
+# AGENTS.md — обязательный контракт coding-агента ASA Lab
 
 Этот файл обязателен для Codex, других coding-агентов и разработчиков. Нарушение правила с severity `error` блокирует merge.
 
@@ -8,50 +8,70 @@
 
 1. более поздняя принятая ADR;
 2. `docs/product/PRODUCT_BLUEPRINT.md` — конечный продукт и пользовательские инварианты;
-3. `docs/product/CAPABILITY_MAP.yaml` — capability IDs и зависимости;
-4. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md` — практическая последовательность Product Alpha и School Pilot;
-5. `docs/delivery/LOCAL_PORT_POLICY.md` — локальные порты и правила безопасного запуска;
-6. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные архитектурные документы;
-7. исполняемые contracts: OpenAPI, JSON Schema, migrations и event schemas;
-8. `docs/project-map/project-map.yaml` — current focus, tasks, dependencies и statuses;
-9. GitHub Issue текущей задачи;
-10. `docs/testing/test-catalog.yaml` — test IDs и команды;
-11. критерии приёмки текущей Issue.
+3. `docs/product/CAPABILITY_MAP.yaml` — capability IDs и release dependencies;
+4. `docs/delivery/EXECUTION_MANIFEST.yaml` — машиночитаемые task order, Issues, branches, stages, ports, tests и map nodes;
+5. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md` — человекочитаемая программа Product Alpha и School Pilot;
+6. `docs/delivery/LOCAL_PORT_POLICY.md` — локальные порты и безопасный запуск;
+7. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные архитектурные документы;
+8. исполняемые contracts: OpenAPI, JSON Schema, migrations и event schemas;
+9. `docs/project-map/project-map.yaml` — текущее состояние, current focus и dependency graph;
+10. GitHub Issue текущей задачи — исполнимый scope одного user flow;
+11. `docs/testing/test-catalog.yaml` — команды обязательных test IDs.
 
-Сообщение в чате может уточнить выполнение, но не меняет task ID, capability, dependency, scope, ports, test IDs или exit gate.
+Чат может запустить работу или уточнить формулировку, но не меняет task ID, capability, dependency, branch, scope, port, test ID или exit gate.
 
-Конфликт не разрешается молча. Агент останавливается, указывает два конфликтующих источника и ожидает исправления нормативного документа, Issue или ADR.
+При конфликте агент:
 
-## 2. Перед изменением кода
+1. прекращает изменения;
+2. называет два конфликтующих источника;
+3. не выбирает один из них догадкой;
+4. ждёт правки нормативного файла, карты, Issue или ADR.
+
+## 2. Как определяется текущая задача
 
 Агент обязан:
 
-1. выполнить git orientation;
-2. прочитать `project.current_focus`;
-3. найти task node и связанную GitHub Issue;
+1. выполнить `git fetch --all --prune` и проверить рабочее дерево;
+2. прочитать `project.current_focus` в `project-map.yaml`;
+3. найти тот же task в `EXECUTION_MANIFEST.yaml`;
 4. проверить task status и все `depends_on`;
-5. определить существующую ветку/PR задачи;
-6. прочитать раздел текущего этапа в `DEVELOPMENT_PROGRAM_V1.md`;
-7. прочитать перечисленные в Issue capability entries;
-8. прочитать только явно указанные Issue разделы профильных спецификаций;
-9. определить один наблюдаемый user flow;
-10. перечислить non-goals;
-11. определить bounded contexts;
-12. определить tenant boundary и authorization policies;
-13. определить AuditEvents;
-14. определить API/schema/migration impact;
-15. определить UX states;
-16. перечислить обязательные test IDs;
-17. указать канонические порты;
-18. ограничить список изменяемых файлов;
-19. вывести PLAN максимум на 25 строк;
-20. назвать stop criterion.
+5. открыть указанную в manifest GitHub Issue;
+6. продолжить указанную branch/PR либо создать branch из manifest;
+7. прочитать только entry текущей задачи, раздел программы и ссылки `read` из manifest;
+8. получить test IDs только из manifest + `test-catalog.yaml`.
 
-Агент не обязан каждый раз перечитывать всю продуктовую документацию. Issue должна указывать точные разделы и capability IDs.
+Работа разрешена, если:
 
-## 3. Одна задача — один пользовательский flow
+```text
+TASK-ID = current_focus
+status = ready | in_progress | in_review
+all depends_on = done
+Issue open
+branch соответствует manifest
+```
 
-Одна executable Issue реализует один наблюдаемый вертикальный сценарий.
+Задачи `planned`, `blocked`, `done` и `deprecated` не выполняются. Более поздняя задача не выбирается даже при блокировке current focus.
+
+## 3. Первый отчёт до кода
+
+```text
+TASK:
+ISSUE:
+MILESTONE:
+DELIVERY_STAGE:
+ARCHITECTURE_HORIZON:
+CAPABILITIES:
+DEPENDENCIES:
+USER_FLOW:
+NON_GOALS:
+PORTS:
+PLAN: максимум 25 строк
+STOP_CRITERION:
+```
+
+`delivery_stage` задаёт порядок исполнения. `architecture_horizon` — только архитектурная группировка и может идти не по порядку Product Alpha.
+
+## 4. Одна задача — один user flow
 
 ```text
 one task
@@ -59,143 +79,108 @@ one task
 → one Draft PR
 → one exit gate
 → merge
-→ next task
+→ mandatory map transition
+→ next task ready
+→ stop
 ```
-
-Запрещено в одном task:
-
-- начинать следующую capability;
-- добавлять будущие роли и страницы;
-- выполнять unrelated refactoring;
-- проектировать deployment, который не нужен текущему flow;
-- смешивать product feature и инфраструктурную программу;
-- открывать второй competing PR.
-
-Следующая задача не начинается в той же сессии после merge текущей.
-
-## 4. Scope freeze
 
 После перехода задачи в `in_progress` scope заморожен.
 
 Разрешены только:
 
-- исправления дефектов текущего user flow;
-- security fixes данных, которые уже обрабатывает задача;
-- необходимые contracts/migrations/tests;
+- исправления дефектов текущего flow;
+- security fixes данных текущего flow;
+- необходимые contracts, migrations и tests;
 - review feedback текущего PR.
 
-Новая идея сначала оформляется новой GitHub Issue и добавляется в карту после merge текущего task.
+Запрещены:
 
-## 5. Канонические порты
+- следующая capability;
+- дополнительные роли и страницы;
+- unrelated refactoring;
+- новый framework;
+- Docker/Redis/MinIO/CI polish без прямой необходимости;
+- новая большая документационная программа;
+- изменение канонических портов;
+- второй competing PR.
 
-По умолчанию:
+Новая идея оформляется новой Issue после merge текущего task.
 
-```text
-Web  127.0.0.1:4610
-API  127.0.0.1:4611
-E2E  127.0.0.1:4612
-```
+## 5. Обязательный map protocol
 
-Запрещены first-party runtime defaults:
+Статические task contracts находятся в `EXECUTION_MANIFEST.yaml`. Динамическое состояние находится в `project-map.yaml`.
 
-```text
-3000
-3100
-5173
-```
+### При начале
 
-Если порт занят:
+- current task → `in_progress`;
+- `current_focus` остаётся текущим task;
+- реально затронутые `map_nodes` → `in_progress`;
+- `PROJECT_MAP.md` отражает текущий stage.
 
-- не завершать процесс по номеру порта;
-- не использовать `taskkill`/`Stop-Process` для неизвестного PID;
-- не выбирать другой порт молча;
-- вывести точный `BLOCKED`;
-- остановить текущий запуск.
+### В Draft PR
 
-Все dev/test servers слушают только `127.0.0.1`, пока отдельная deployment Issue не утверждает другое.
+- current task → `in_review`;
+- реальные nodes, paths и edges обновлены;
+- `QUALITY_MAP.md` и test catalog совпадают с manifest;
+- `nx-project-graph.json` регенерирован при изменении структуры кода;
+- следующая задача остаётся `blocked`.
+
+### После merge
+
+Обязателен map-only transition commit или маленький PR:
+
+- merged task → `done`;
+- next task → `ready`, только если dependencies `done`;
+- `current_focus` → `next_task`;
+- соответствующий delivery stage и implementation nodes обновлены;
+- `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
+- validators PASS;
+- агент останавливается.
+
+Следующая задача не реализуется в той же сессии.
 
 ## 6. Архитектура
 
 - Control Plane — строгий modular monolith.
-- Compute Plane — отдельные worker-процессы только для тяжёлых/недоверенных вычислений.
 - `apps/api` и `apps/web` — composition roots/adapters.
 - Business logic находится в bounded contexts.
-- Classroom Core не знает types электроники, шашек, block coding, 3D или robotics.
-- Subject modules подключаются только через Module SDK/public contracts.
-- Прямые cross-context imports внутренних файлов запрещены.
-- Прямые cross-context writes в чужие таблицы запрещены.
-- Новый микросервис требует ADR и измеримого основания.
-- Redis, S3/MinIO и queues не вводятся до задачи, которая реально использует их.
+- Domain не импортирует NestJS/Fastify/HTTP, PostgreSQL client/ORM, React/UI, Redis или object-storage SDK.
+- Cross-context interaction идёт через public ports/contracts и package root.
+- Прямые cross-context imports внутренних файлов и writes в чужие таблицы запрещены.
+- Classroom/Project Core не знает типов электроники, шашек, block coding, 3D или robotics.
+- Subject modules подключаются только через Module SDK.
+- Redis, S3/MinIO, queues и новые services не вводятся до Issue, которая их реально использует.
 
-## 7. Структура bounded context
-
-```text
-<context>/
-  domain/
-  application/
-  infrastructure/
-  presentation/
-  testing/
-  index.ts
-```
-
-`domain` не импортирует:
-
-- NestJS/Fastify/HTTP;
-- PostgreSQL client/ORM;
-- React/UI;
-- Redis;
-- object storage SDK;
-- subject module internals другого context.
-
-Cross-context interaction идёт через public ports/contracts и package root.
-
-## 8. Мультитенантность
+## 7. Мультитенантность и идентичность
 
 - Каждая tenant-owned таблица содержит `tenant_id NOT NULL`.
-- Tenant определяется только validated session/request context.
+- Tenant определяется validated session/request context.
 - `tenantId`/`tenant_id` из body/query/header не является доверенным.
-- Каждый repository method содержит tenant predicate.
-- Tenant lineage защищается composite `(tenant_id, parent_id)` constraints.
-- RLS применяется как defense-in-depth на критических таблицах.
+- Tenant lineage защищается composite constraints.
+- Критические таблицы имеют cross-tenant negative tests; RLS используется как defense-in-depth.
 - Runtime DB role не superuser, не owner и без `BYPASSRLS`.
 - API использует только `APP_DATABASE_URL`.
-- `DATABASE_URL` доступен только migrations/seed/admin tools.
-- Automated tests используют отдельный `TEST_DATABASE_URL` и guard от dev/production DB.
-- Каждая функция с tenant-owned data имеет cross-tenant negative test.
-
-RLS не объявляется защитой от полного компрометирования runtime DB credentials, если роль сама может устанавливать tenant GUC. Threat model должен быть сформулирован честно.
-
-## 9. Идентичность и дети
-
-- StudentSeat не требует email.
-- Открытые student credentials показываются только при выпуске/reset.
-- Открытые credentials не сохраняются и не логируются.
-- Child credentials хранятся как versioned Argon2id hash.
-- Adult passwords хранятся как versioned memory-hard hash.
+- Migrations/seed/admin tools используют `DATABASE_URL`.
+- Tests используют отдельный `TEST_DATABASE_URL` с guard от dev/production DB.
+- Компрометация runtime DB credentials не объявляется решённой одной GUC-based RLS policy.
+- Adult passwords и child credentials хранятся как versioned memory-hard hashes.
 - Session token генерируется CSPRNG; в БД хранится только hash.
-- Reset credential отзывает старые sessions.
-- Реальное ФИО не показывается другим детям.
-- Детские проекты закрыты по умолчанию.
-- Прямые личные сообщения между детьми отсутствуют в v1.
-- Credential guessing имеет rate limit/backoff/lockout.
+- Детские credentials, tokens и project content не логируются.
 
-## 10. Проекты и Module SDK
+## 8. Проекты и модули
 
 - `Project` — изменяемый контейнер.
-- `ProjectDraft` сохраняется идемпотентно и защищён optimistic version.
+- `ProjectDraft` использует optimistic version.
 - `ProjectVersion` неизменяема и имеет digest.
 - `SubmissionAttempt` ссылается на точную `ProjectVersion`.
 - Project envelope содержит `moduleKey`, `moduleVersion`, `schemaVersion`.
 - Несовместимое schema change требует version bump, JSON Schema, migrator и fixture.
-- Старые проекты должны открываться после релиза.
 - Classroom/Project Core не содержит subject-specific fields или `if moduleKey === ...`.
-- Первый Project Shell хранит небольшие payloads в PostgreSQL `jsonb`; object storage вводится после измеренной необходимости.
-- Полный snapshot не отправляется на каждое действие; дальнейший operation journal вводится отдельной задачей.
+- Ранний Project Shell хранит небольшие payloads в PostgreSQL `jsonb`; object storage вводится после измеренной необходимости.
 
-## 11. Электроника
+## 9. Electronics Alpha
 
-Electronics Alpha ограничена Issue №26:
+Без отдельной Issue разрешены только:
 
 ```text
 DC source
@@ -210,215 +195,80 @@ structured diagnostics
 save/reload
 ```
 
-Без отдельной Issue запрещены:
+Запрещены breadboard realism, transient, Arduino, instruments, large catalog, SPICE и advanced hidden autograding. Unsupported topology возвращает diagnostic, не fake numerical success.
 
-- breadboard realism;
-- transient simulation;
-- Arduino;
-- PWM/ADC/UART;
-- oscilloscopes/instruments;
-- large component catalog;
-- SPICE compatibility;
-- advanced hidden autograding.
+## 10. Порты
 
-Unsupported topology возвращает явный diagnostic, а не fake numerical success.
+```text
+Web  127.0.0.1:4610
+API  127.0.0.1:4611
+E2E  127.0.0.1:4612
+```
 
-## 12. Недоверенный код и workers
+Запрещены `3000`, `3100`, `5173`.
 
-- Пользовательский код не выполняется в Core API/realtime процессе.
-- Worker job имеет idempotency key, timeout, resource profile и input digest.
-- Worker без внешней сети по умолчанию.
-- Worker не получает общие production credentials.
-- Filesystem read-only, workspace временный.
-- CPU/RAM/PIDs/time/output ограничены.
-- Duplicate event/job delivery безопасна.
+Если порт занят:
 
-Эти правила не являются основанием преждевременно создавать worker infrastructure до соответствующей Issue.
+- не завершать процесс;
+- не использовать `taskkill`/`Stop-Process` для неизвестного PID;
+- не выбирать другой порт молча;
+- вывести точный `BLOCKED` и остановить запуск.
 
-## 13. API, БД и события
+## 11. API, dependencies и UX
 
-- Изменение HTTP API обновляет OpenAPI и contract tests.
-- Изменение module/project payload обновляет JSON Schema и fixtures.
-- Runtime request validation должна соответствовать contracts.
-- Additional properties отклоняются, если schema запрещает их.
-- Malformed body возвращает 400, не 500.
-- Критическое событие записывается в outbox в той же транзакции, когда outbox уже входит в текущую задачу.
+- HTTP API обновляет OpenAPI и contract tests.
+- Runtime validation соответствует contracts; malformed body → 400.
+- Additional properties отклоняются, если schema их запрещает.
+- Idempotency key не обрезается молча; тот же key с другим payload → conflict.
 - Administrative mutation создаёт immutable AuditEvent.
-- Status transition проверяется application use case.
-- Idempotency key валидируется; silent truncation запрещён.
-- Повтор того же key с другим payload возвращает conflict.
-- Миграция имеет forward-fix/rollback guidance.
+- Dependency добавляется только по текущей Issue и закрепляется в lockfile.
+- High/critical advisories и запрещённые licenses блокируют merge либо требуют явного owner exception.
+- UI по применимости имеет loading, empty, validation error, network error, success, conflict, retry, keyboard navigation, focus management, reduced motion и responsive layout.
+- Manual browser smoke не заменяет automated E2E.
 
-## 14. Технологический baseline
+## 12. Тесты
 
-- Monorepo: pnpm workspaces + Nx.
-- TypeScript strict, без `any` для обхода contracts.
-- Web: React + Vite/PWA.
-- API: NestJS с Fastify adapter; domain framework-independent.
-- Database: PostgreSQL 16+ и явные SQL migrations.
-- Contracts: OpenAPI 3.1.x и JSON Schema 2020-12.
-- Observability: OpenTelemetry, disabled network export by default.
-- Electronics compute core: Rust stable, native tests и WASM browser build.
-- Browser E2E: Playwright.
-
-Замена требует ADR.
-
-## 15. Dependencies и supply chain
-
-- Dependency добавляется только при прямой необходимости текущей Issue.
-- Версия закрепляется в project/lockfile.
-- Известные high/critical advisories блокируют merge либо требуют документированного исключения владельца.
-- License gate обязателен.
-- Dependency inventory, который только считает пакеты, не считается security gate.
-- Downloaded executable нельзя запускать без закреплённой версии и verification, если такая загрузка входит в отдельную утверждённую задачу.
-
-## 16. Запреты
-
-- Нельзя создавать placeholder или fake success.
-- Нельзя оставлять критический TODO в merged code.
-- Нельзя disable/skip test ради зелёного результата.
-- Нельзя записывать PASS, если команда не запускалась.
-- Нельзя удалять `required_for` после начала задачи для сокращения gate.
-- Нельзя объявлять manual smoke автоматизированным E2E.
-- Нельзя логировать password, session token, child credential, signed URL или детский project content.
-- Нельзя менять архитектуру или scope только потому, что агенту так удобнее.
-- Нельзя выполнять `planned`, `blocked`, `done` или `deprecated` задачу.
-- Нельзя возвращаться к Docker/Redis/MinIO/CI polish без current Issue.
-- Нельзя использовать запрещённые порты.
-- Нельзя завершать чужие процессы.
-
-## 17. Обязательные UX states
-
-Для UI flow по применимости:
-
-- loading;
-- empty;
-- validation error;
-- server/network error;
-- success;
-- conflict;
-- retry;
-- keyboard navigation;
-- visible focus;
-- modal focus management;
-- reduced motion;
-- responsive desktop/mobile layout.
-
-Automated accessibility critical path обязателен для UI-задач.
-
-## 18. Тесты
-
-Стабильные test IDs и команды хранятся только в `docs/testing/test-catalog.yaml`.
-
-Единая команда:
+Источник истины — `docs/testing/test-catalog.yaml`. Состав тестов каждой canonical task вычисляется из профилей `EXECUTION_MANIFEST.yaml` и обязан точно совпадать с `required_for`.
 
 ```bash
 python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-Статусы:
-
-- PASS — команда выполнена и exit code 0;
-- FAIL — команда выполнена и упала;
+- PASS — фактический exit 0;
+- FAIL — фактический non-zero;
 - BLOCKED — обязательная среда отсутствует;
 - NOT_RUN — команда не запускалась.
 
-BLOCKED/NOT_RUN не закрывают exit gate.
+`BLOCKED` и `NOT_RUN` не закрывают exit gate. Удалять test ID из `required_for` после начала задачи запрещено.
 
-Каждый product task по применимости имеет:
-
-- map/capability/program validation;
-- format/lint/type/build/boundaries;
-- contracts;
-- unit/integration;
-- migration;
-- tenant/authz/RLS;
-- secret/dependency/license;
-- port/startup safety;
-- accessibility;
-- automated browser E2E;
-- simulation golden/parity для Electronics.
-
-## 19. Definition of Done
+## 13. Definition of Done
 
 Task готова, когда:
 
-1. реализован полный user flow Issue;
+1. полный user flow Issue реализован;
 2. non-goals отсутствуют в diff;
-3. capabilities реализованы только в заявленной границе;
-4. contracts и migrations согласованы;
-5. tenant/authz/audit requirements выполнены;
-6. idempotency/retry/conflict обработаны;
-7. UX states и accessibility подтверждены;
-8. все required test IDs фактически PASS;
-9. automated E2E и screenshots существуют;
-10. canonical ports подтверждены;
-11. clean-session startup подтверждён;
-12. dependency/security gate PASS;
-13. старые данные/fixtures совместимы;
-14. Project/Quality/Nx maps обновлены;
-15. PR merged;
-16. task → done и Issue → completed;
-17. next task только разблокирована, но не начата.
+3. contracts/migrations/security согласованы;
+4. все manifest test IDs фактически PASS;
+5. automated E2E и screenshots существуют;
+6. canonical ports и clean-session startup подтверждены;
+7. dependency/security gate PASS;
+8. `project-map.yaml`, `PROJECT_MAP.md`, `QUALITY_MAP.md` и Nx graph обновлены;
+9. PR merged;
+10. обязательный post-merge map transition выполнен;
+11. task/Issue → done/completed;
+12. next task только разблокирована, но не начата.
 
-## 20. Формат PR
-
-PR обязан указать:
-
-- Milestone, TASK-ID, Issue и capability IDs;
-- user flow с PASS/FAIL/BLOCKED;
-- non-goals;
-- affected contexts;
-- API/data/events;
-- tenant/authz/audit impact;
-- ports;
-- map/Nx impact;
-- test IDs и фактические результаты;
-- demo URLs;
-- screenshots/artifacts;
-- rollout/rollback;
-- known limitations;
-- `NEXT_ALLOWED_TASK`.
-
-Один task — один PR.
-
-## 21. Карты и программа
-
-- Product definition: `docs/product/PRODUCT_BLUEPRINT.md`.
-- Capability graph: `docs/product/CAPABILITY_MAP.yaml`.
-- Practical execution: `docs/delivery/DEVELOPMENT_PROGRAM_V1.md`.
-- Ports: `docs/delivery/LOCAL_PORT_POLICY.md`.
-- Task graph/current focus: `docs/project-map/project-map.yaml`.
-- Quality graph: `docs/project-map/QUALITY_MAP.md`.
-- Test registry: `docs/testing/test-catalog.yaml`.
-- Actual code graph: `docs/project-map/nx-project-graph.json`.
-
-Изменение user flow, task dependency, port, test gate или capability выполняется в нормативном PR до product code.
-
-## 22. Отчёт агента
-
-Промежуточный milestone:
-
-```text
-MILESTONE:
-STATUS:
-VISIBLE_RESULT:
-TESTS:
-DEMO_URLS:
-SCREENSHOTS:
-BLOCKERS:
-NEXT_INTERNAL_MILESTONE:
-```
-
-Финальный отчёт:
+## 14. Формат отчёта
 
 ```text
 MILESTONE:
 TASK:
 ISSUE:
 STATUS:
+VISIBLE_RESULT:
 CAPABILITIES:
 USER_FLOW:
+  ... PASS|FAIL|BLOCKED
 PORTS:
 BRANCH:
 COMMITS:
@@ -427,6 +277,7 @@ MAP_NODES_CHANGED:
 TESTS_RUN:
 ARTIFACTS:
 DEMO_URLS:
+SCREENSHOTS:
 BLOCKERS:
 RESIDUAL_RISKS:
 WORKING_TREE:
@@ -434,20 +285,4 @@ NEXT_ALLOWED_TASK:
 NEXT_COMMAND:
 ```
 
-Отчёт начинается с пользовательского результата, не с перечня установленных инструментов.
-
-## 23. Каноническая очередь v1
-
-```text
-TASK-PRODUCT-DOC-001
-→ TASK-PORTAL-001
-→ TASK-PROJECT-SHELL-001
-→ TASK-CHECKERS-LITE-001
-→ TASK-ELECTRONICS-ALPHA-001
-→ TASK-SEAT-001
-→ TASK-ACT-001
-→ TASK-REVIEW-001
-→ TASK-ELEC-001
-```
-
-Очередь не меняется устной командой.
+Отчёт начинается с видимого пользовательского результата, а не с установленных инструментов.
