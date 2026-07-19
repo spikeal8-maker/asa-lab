@@ -1,6 +1,8 @@
 # api
 
-Control Plane API foundation (modular monolith host). Exposes only `/health/live`
-and `/health/ready` plus request-id/trace context in the Bootstrap iteration.
+Control Plane composition root: NestJS (Fastify adapter) wiring the identity,
+organization and classroom bounded contexts to PostgreSQL. Serves the built
+teacher portal SPA from `apps/web/dist` on the same origin.
 
-Foundation skeleton (TASK-BOOT-001). Business modules are added in later phase tasks.
+Endpoints: `/health/live`, `/health/ready`, `POST /api/auth/login`,
+`POST /api/auth/logout`, `GET /api/auth/me`, `GET|POST /api/classrooms`.

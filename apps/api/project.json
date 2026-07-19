@@ -5,11 +5,17 @@
   "sourceRoot": "apps/api/src",
   "tags": ["type:app", "scope:app"],
   "targets": {
-    "build": { "command": "tsc -p apps/api/tsconfig.json" },
-    "typecheck": { "command": "tsc -p apps/api/tsconfig.json --noEmit" },
-    "lint": { "command": "eslint apps/api/src" },
+    "build": {
+      "command": "tsc -p apps/api/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p apps/api/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint apps/api/src"
+    },
     "serve": {
-      "command": "node apps/api/dist/server.js",
+      "command": "node apps/api/dist/main.js",
       "dependsOn": ["build"]
     }
   }

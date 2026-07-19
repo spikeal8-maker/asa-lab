@@ -1,2 +1,1 @@
-export { buildApp, evaluateReadiness } from './app.js';
-export type { LiveResponse, ReadyResponse, DependencyState } from './app.js';
+export { createApiApp, type ApiFactoryOptions } from './app.factory.js';
