@@ -183,7 +183,11 @@ importers:
 
   contexts/identity: {}
 
-  contexts/organization: {}
+  contexts/organization:
+    dependencies:
+      '@asa-lab/database':
+        specifier: workspace:*
+        version: link:../../packages/database
 
   packages/database: {}
 
