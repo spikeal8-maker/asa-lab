@@ -1,46 +1,36 @@
 # START_HERE_FOR_AI — вход coding-агента в ASA Lab
 
-## 1. Миссия
+## Миссия
 
 ASA Lab — единая образовательная платформа:
 
 ```text
-teacher and child identity
-→ classrooms
-→ universal projects
-→ subject modules
-→ assignments
-→ immutable submissions
-→ comments/review
+teacher/child identity
+→ classroom
+→ universal project
+→ subject module
+→ assignment
+→ immutable submission
+→ review/comment
 → grade/badge/progress
 ```
 
-Приоритетный предметный модуль — Electronics. Checkers Lite используется только как маленький reference module для проверки Module SDK.
+Приоритетный предметный результат — Electronics. Checkers Lite является только маленьким reference module для проверки Module SDK.
 
-## 2. Не выбирай задачу самостоятельно
+## Не выбирай задачу самостоятельно
 
-Текущая задача определяется только:
-
-```text
-docs/project-map/project-map.yaml
-project.current_focus
-```
-
-Порядок разработки определяется:
+Текущая задача определяется четырьмя связанными источниками:
 
 ```text
-docs/delivery/DEVELOPMENT_PROGRAM_V1.md
+docs/project-map/project-map.yaml        current_focus и status
+docs/delivery/EXECUTION_MANIFEST.yaml   Issue, branch, stage, dependencies, ports, tests
+docs/delivery/DEVELOPMENT_PROGRAM_V1.md человекочитаемый путь
+tекущая GitHub Issue                     исполнимый scope одного user flow
 ```
 
-Канонические локальные порты определяются:
+Чат не меняет task, capability, dependency, branch, scope, port или test gate.
 
-```text
-docs/delivery/LOCAL_PORT_POLICY.md
-```
-
-Чат не меняет current focus, capability, dependency, scope, ports или test gate.
-
-## 3. Первые действия
+## Первые действия
 
 ```bash
 git remote -v
@@ -52,50 +42,17 @@ git branch --all
 Затем:
 
 1. прочитай `AGENTS.md`;
-2. прочитай `project.current_focus` и task node;
-3. открой связанную GitHub Issue;
+2. прочитай `project.current_focus`;
+3. найди entry того же task в `EXECUTION_MANIFEST.yaml`;
 4. проверь status и все `depends_on`;
-5. найди существующую branch/PR задачи;
-6. прочитай раздел текущего этапа в `DEVELOPMENT_PROGRAM_V1.md`;
-7. прочитай перечисленные Issue capability entries;
-8. прочитай только явно указанные Issue разделы профильных specs;
-9. прочитай required test IDs;
-10. проверь port policy.
+5. открой Issue и branch из manifest;
+6. прочитай только manifest `read` links и раздел текущего этапа;
+7. выведи CAPABILITY CHECK и PLAN максимум на 25 строк;
+8. реализуй только текущий user flow.
 
-Не нужно перечитывать все документы полностью, если Issue указывает точные разделы.
+Если task `blocked`, `planned`, `done` или `deprecated`, код не писать. Если current focus нельзя продолжить, сообщить `BLOCKED`, а не выбирать следующую задачу.
 
-## 4. Разрешённая работа
-
-Работа разрешена только если:
-
-- task совпадает с current focus; или продолжается уже открытый PR этого task;
-- task status `ready`, `in_progress` или `in_review`;
-- dependencies `done`;
-- Issue содержит user flow, scope, non-goals, ports, acceptance и tests.
-
-Если task `blocked`, `planned`, `done` или `deprecated`, код не писать.
-
-## 5. Обязательный первый отчёт
-
-```text
-TASK:
-ISSUE:
-MILESTONE:
-CAPABILITIES:
-DEPENDENCIES:
-USER_FLOW:
-NON_GOALS:
-PORTS:
-  web: 127.0.0.1:4610
-  api: 127.0.0.1:4611
-  e2e: 127.0.0.1:4612
-PLAN: максимум 25 строк
-STOP_CRITERION:
-```
-
-При конфликте остановись и назови конфликтующие документы. Не разрешай его догадкой.
-
-## 6. Каноническая программа v1
+## Каноническая очередь
 
 ```text
 TASK-PRODUCT-DOC-001
@@ -109,41 +66,9 @@ TASK-PRODUCT-DOC-001
 → TASK-ELEC-001
 ```
 
-### Technical Product Alpha
+`delivery_stage` задаёт эту очередь. `architecture_horizon` в manifest — информационная группировка, а не порядок исполнения.
 
-```text
-Teacher Portal
-→ Project Shell
-→ Checkers Lite
-→ Electronics Alpha
-```
-
-### School Pilot
-
-```text
-StudentSeat
-→ Assignment/Submission
-→ Review/Grade/Badge
-→ Full Electronics Classroom Cycle
-```
-
-Следующую задачу нельзя начинать до merge текущей.
-
-## 7. Scope freeze
-
-После начала task запрещено добавлять:
-
-- следующую capability;
-- дополнительные роли/страницы;
-- unrelated refactoring;
-- Docker/Redis/MinIO/CI polish без фактической необходимости;
-- новый framework;
-- большую документационную программу;
-- advanced/future module features.
-
-Новая идея оформляется новой Issue после merge текущего PR.
-
-## 8. Порты
+## Порты
 
 ```text
 Web  127.0.0.1:4610
@@ -151,109 +76,65 @@ API  127.0.0.1:4611
 E2E  127.0.0.1:4612
 ```
 
-Запрещены:
+Запрещены `3000`, `3100`, `5173`. Занятый порт даёт `BLOCKED`; чужой процесс не останавливать.
+
+## Обязательный первый отчёт
 
 ```text
-3000
-3100
-5173
+TASK:
+ISSUE:
+MILESTONE:
+DELIVERY_STAGE:
+ARCHITECTURE_HORIZON:
+CAPABILITIES:
+DEPENDENCIES:
+USER_FLOW:
+NON_GOALS:
+PORTS:
+PLAN:
+STOP_CRITERION:
 ```
 
-Если порт занят:
-
-- не kill процесс;
-- не менять порт молча;
-- вывести BLOCKED;
-- остановить запуск.
-
-## 9. Реализация
-
-Один task должен завершиться полным вертикальным flow:
+## Рабочий цикл
 
 ```text
-domain/application
-→ migration/repository
-→ API
-→ UI
-→ automated E2E
-→ artifacts/maps
+ORIENT
+→ manifest/Issue check
+→ PLAN
+→ IMPLEMENT one vertical flow
+→ VERIFY manifest test IDs
+→ UPDATE project/quality/Nx maps
+→ Draft PR
+→ evidence/review
+→ merge
+→ mandatory map-only transition
+→ next task ready
+→ stop
 ```
 
-`apps/api` и `apps/web` — adapters. Domain не импортирует framework, PostgreSQL client или React.
-
-Classroom/Project Core не импортируют subject module internals.
-
-## 10. Проверка
-
-Единая команда:
+## Проверка
 
 ```bash
 python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-Дополнительно выполнить команды Issue.
+`PASS` существует только после фактического exit 0. `BLOCKED` и `NOT_RUN` не разрешают Ready/merge. Manual browser smoke не заменяет automated E2E.
 
-Статусы:
+## Map transition
 
-- PASS — фактически выполнено успешно;
-- FAIL — фактически выполнено и упало;
-- BLOCKED — обязательная среда отсутствует;
-- NOT_RUN — не запускалось.
+В task PR карта показывает task `in_review`. После merge обязательно:
 
-BLOCKED и NOT_RUN не позволяют Ready/merge.
+- task → `done`;
+- next task → `ready`;
+- `current_focus` → next task;
+- `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
+- validators PASS;
+- агент останавливается.
 
-Manual browser smoke не заменяет automated E2E.
-
-## 11. Этапная отчётность
-
-После завершённого внутреннего milestone:
+## Команда владельца
 
 ```text
-MILESTONE:
-STATUS:
-VISIBLE_RESULT:
-TESTS:
-DEMO_URLS:
-SCREENSHOTS:
-BLOCKERS:
-NEXT_INTERNAL_MILESTONE:
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
 ```
 
-Не сообщай каждую низкоуровневую команду. Показывай проверенный результат.
-
-## 12. Draft PR
-
-Один task — один Draft PR.
-
-PR содержит:
-
-- Issue/TASK/Milestone;
-- capabilities;
-- user flow;
-- non-goals;
-- affected contexts;
-- API/data/migrations;
-- tenant/authz/audit impact;
-- ports;
-- test results;
-- demo URLs;
-- screenshots/artifacts;
-- map/Nx changes;
-- `NEXT_ALLOWED_TASK`.
-
-## 13. После merge
-
-1. task → `done`;
-2. Issue → completed;
-3. next task → `ready`, если dependencies done;
-4. current focus → next task;
-5. остановись;
-6. next task не реализуй в этой сессии.
-
-## 14. Короткая команда владельца
-
-```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, docs/delivery/DEVELOPMENT_PROGRAM_V1.md и current_focus из docs/project-map/project-map.yaml. Открой связанную GitHub Issue и выполни только её. Следующую задачу не начинай.
-```
-
-Этой команды достаточно. Всё ТЗ находится в GitHub.
+Этой команды достаточно. Полное ТЗ находится в GitHub.
