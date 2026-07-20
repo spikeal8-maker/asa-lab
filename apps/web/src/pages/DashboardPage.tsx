@@ -65,6 +65,9 @@ export function DashboardPage({
 
   return (
     <div className="shell">
+      <a className="skip-link" href="#classes">
+        Перейти к содержанию
+      </a>
       <header className="topbar">
         <span className="brand">ASA Lab</span>
         <nav aria-label="Основная навигация">
@@ -86,7 +89,7 @@ export function DashboardPage({
         </div>
       </header>
 
-      <main id="classes" className="content" aria-busy={list.kind === 'loading'}>
+      <main id="classes" className="content" tabIndex={-1} aria-busy={list.kind === 'loading'}>
         <div className="content-head">
           <h1>Мои классы</h1>
           <button
