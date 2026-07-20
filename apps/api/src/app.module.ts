@@ -22,12 +22,18 @@ import { TOKENS } from './tokens.js';
 @Module({})
 export class AppModule {
   static forPool(pool: pg.Pool | null): DynamicModule {
-    const requirePool = (): pg.Pool => {
-      if (!pool) {
-        throw new Error('database unavailable: APP_DATABASE_URL is not configured');
-      }
-      return pool;
-    };
+    // A health-only application is intentionally constructible without a pool
+    // so readiness can report 503 rather than crashing the process. The real
+    // executable still fails closed before startup when APP_DATABASE_URL is
+    // absent; this branch exists for health probes and regression tests.
+    if (pool === null) {
+      return {
+        module: AppModule,
+        controllers: [HealthController],
+        providers: [{ provide: TOKENS.pool, useValue: null }],
+      };
+    }
+
     return {
       module: AppModule,
       controllers: [HealthController, AuthController, ClassroomsController],
@@ -37,26 +43,26 @@ export class AppModule {
           provide: TOKENS.loginUseCase,
           useFactory: () =>
             new LoginUseCase(
-              new PgTenantLocator(requirePool()),
-              new PgUserDirectory(requirePool()),
-              new PgSessionStore(requirePool()),
+              new PgTenantLocator(pool),
+              new PgUserDirectory(pool),
+              new PgSessionStore(pool),
             ),
         },
         {
           provide: TOKENS.sessionUseCase,
-          useFactory: () => new SessionUseCase(new PgSessionStore(requirePool())),
+          useFactory: () => new SessionUseCase(new PgSessionStore(pool)),
         },
         {
           provide: TOKENS.teachingContextUseCase,
-          useFactory: () => new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
+          useFactory: () => new GetTeachingContextUseCase(new PgTeachingContext(pool)),
         },
         {
           provide: TOKENS.createClassroomUseCase,
-          useFactory: () => new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () => new CreateClassroomUseCase(new PgClassroomRepository(pool)),
         },
         {
           provide: TOKENS.listClassroomsUseCase,
-          useFactory: () => new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () => new ListClassroomsUseCase(new PgClassroomRepository(pool)),
         },
       ],
     };
