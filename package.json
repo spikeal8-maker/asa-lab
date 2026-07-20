@@ -29,6 +29,7 @@
     "dev": "node tools/dev.mjs",
     "test:rls": "vitest run tests/portal/rls.spec.ts",
     "e2e:portal": "playwright test e2e/teacher-portal.spec.ts",
+    "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:ports": "node tools/check-ports.mjs",
     "test:startup": "node tools/check-startup.mjs",
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
