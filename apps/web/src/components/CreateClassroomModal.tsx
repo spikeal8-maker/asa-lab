@@ -1,6 +1,6 @@
 import {
-  useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -38,13 +38,19 @@ export function CreateClassroomModal({
   // create a duplicate classroom.
   const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const fallback = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const returnTarget = returnFocusRef.current ?? fallback;
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    const focusInput = (): void => inputRef.current?.focus({ preventScroll: true });
+
+    // Focus synchronously before paint, then once more on the next frame. The
+    // second attempt makes focus deterministic in React StrictMode and after a
+    // browser restores focus during the opening click event.
+    focusInput();
+    const frame = window.requestAnimationFrame(focusInput);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.requestAnimationFrame(() => returnTarget?.focus());
+      window.queueMicrotask(() => returnTarget?.focus({ preventScroll: true }));
     };
   }, [returnFocusRef]);
 
