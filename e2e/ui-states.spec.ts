@@ -69,6 +69,28 @@ test('create dialog exposes validation and idempotency conflict states', async (
   await expect(dialog.getByRole('alert')).toContainText('Запрос уже был использован');
 });
 
+test('create dialog exposes a server-error state without closing', async ({ page }) => {
+  await login(page);
+  await page.route('**/api/classrooms', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { code: 'internal', message: 'unexpected failure' } }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.getByRole('button', { name: 'Создать класс' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Создать класс' });
+  await page.getByLabel('Название класса').fill('Ошибка сервера');
+  await dialog.getByRole('button', { name: 'Создать' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Ошибка сервера');
+  await expect(dialog).toBeVisible();
+});
+
 test('classroom loading failure can be retried', async ({ page }) => {
   let failNextList = true;
   await page.route('**/api/classrooms', async (route) => {
