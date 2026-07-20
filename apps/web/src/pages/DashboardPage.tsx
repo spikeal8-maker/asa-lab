@@ -20,6 +20,7 @@ export function DashboardPage({
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const createButtonRef = useRef<HTMLButtonElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
 
   const reload = useCallback(async () => {
     setList({ kind: 'loading' });
@@ -65,7 +66,15 @@ export function DashboardPage({
 
   return (
     <div className="shell">
-      <a className="skip-link" href="#classes">
+      <a
+        className="skip-link"
+        href="#classes"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus({ preventScroll: true });
+          mainRef.current?.scrollIntoView({ block: 'start' });
+        }}
+      >
         Перейти к содержанию
       </a>
       <header className="topbar">
@@ -89,7 +98,13 @@ export function DashboardPage({
         </div>
       </header>
 
-      <main id="classes" className="content" tabIndex={-1} aria-busy={list.kind === 'loading'}>
+      <main
+        ref={mainRef}
+        id="classes"
+        className="content"
+        tabIndex={-1}
+        aria-busy={list.kind === 'loading'}
+      >
         <div className="content-head">
           <h1>Мои классы</h1>
           <button
