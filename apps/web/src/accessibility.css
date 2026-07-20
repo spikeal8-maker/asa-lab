@@ -10,6 +10,26 @@
   border: 0;
 }
 
+.skip-link {
+  position: fixed;
+  z-index: 2000;
+  top: 8px;
+  left: 8px;
+  padding: 0.65rem 0.9rem;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary-dark);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-150%);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .notice-error {
   margin-top: 1rem;
   padding: 0.6rem 0.9rem;
