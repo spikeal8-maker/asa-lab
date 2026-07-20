@@ -6,7 +6,6 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
-  type RefObject,
 } from 'react';
 import { api, type Classroom } from '../api';
 
@@ -22,11 +21,9 @@ const FOCUSABLE_SELECTOR = [
 export function CreateClassroomModal({
   onClose,
   onCreated,
-  returnFocusRef,
 }: {
   onClose: () => void;
   onCreated: (classroom: Classroom, created: boolean) => void;
-  returnFocusRef: RefObject<HTMLButtonElement>;
 }): JSX.Element {
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,20 +36,21 @@ export function CreateClassroomModal({
   const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
 
   useLayoutEffect(() => {
-    const fallback = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const returnTarget = returnFocusRef.current ?? fallback;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const focusInput = (): void => inputRef.current?.focus({ preventScroll: true });
 
-    // Focus synchronously before paint, then once more on the next frame. The
-    // second attempt makes focus deterministic in React StrictMode and after a
-    // browser restores focus during the opening click event.
+    // Focus synchronously before paint, then once more on the next frame. No
+    // focus restoration is performed from this cleanup: React StrictMode runs
+    // mount cleanups during its development probe and would otherwise steal
+    // focus back from the dialog. The parent restores focus when it closes.
     focusInput();
     const frame = window.requestAnimationFrame(focusInput);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.queueMicrotask(() => returnTarget?.focus({ preventScroll: true }));
+      document.body.style.overflow = previousOverflow;
     };
-  }, [returnFocusRef]);
+  }, []);
 
   function close(): void {
     if (!busy) onClose();
