@@ -9,29 +9,41 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import pg from 'pg';
 import { AppModule } from './app.module.js';
+import { isAllowedMutationOrigin } from './origin-policy.js';
 
 export interface ApiFactoryOptions {
-  /** Injected pool (tests); otherwise built from APP_DATABASE_URL/DATABASE_URL. */
+  /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
   readonly pool?: pg.Pool | null;
   /** Directory with the built web SPA; defaults to apps/web/dist. */
   readonly webDist?: string | null;
+  /** Canonical browser origin allowed to call mutation endpoints. */
+  readonly allowedWebOrigin?: string;
 }
 
 function defaultPool(): pg.Pool | null {
-  // Runtime-role URL only: there is deliberately no DATABASE_URL fallback.
   const url = process.env['APP_DATABASE_URL'];
   return url ? new pg.Pool({ connectionString: url, max: 10 }) : null;
 }
 
+function defaultWebOrigin(): string {
+  const explicit = process.env['ASA_WEB_ORIGIN'];
+  if (explicit) {
+    return explicit;
+  }
+  const port = process.env['ASA_WEB_PORT'] ?? '4610';
+  return `http://127.0.0.1:${port}`;
+}
+
 /**
  * Build the NestJS (Fastify adapter) application: API + health + built SPA.
- * Mutating requests pass an explicit same-origin check (plus SameSite=Lax
- * session cookies) as CSRF protection.
+ * Mutating browser requests pass an explicit canonical-origin check in
+ * addition to the HttpOnly SameSite session cookie.
  */
 export async function createApiApp(
   options: ApiFactoryOptions = {},
 ): Promise<NestFastifyApplication> {
   const pool = options.pool !== undefined ? options.pool : defaultPool();
+  const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
   const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forPool(pool), adapter, {
     logger: ['error', 'warn'],
@@ -48,26 +60,21 @@ export async function createApiApp(
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
       return;
     }
-    // Explicit same-origin enforcement for mutations.
-    const origin = request.headers.origin;
-    if (!origin) {
-      return;
-    }
-    try {
-      const parsed = new URL(origin);
-      const sameHost = parsed.host === request.headers.host;
-      const devLoopback =
-        process.env['NODE_ENV'] !== 'production' &&
-        (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost');
-      if (!sameHost && !devLoopback) {
-        await reply
-          .code(403)
-          .send({ error: { code: 'origin_forbidden', message: 'cross-origin request rejected' } });
-      }
-    } catch {
+
+    const allowed = isAllowedMutationOrigin({
+      origin: request.headers.origin,
+      requestHost: request.headers.host,
+      requestProtocol: request.protocol,
+      allowedWebOrigin,
+      secFetchSite:
+        typeof request.headers['sec-fetch-site'] === 'string'
+          ? request.headers['sec-fetch-site']
+          : undefined,
+    });
+    if (!allowed) {
       await reply
         .code(403)
-        .send({ error: { code: 'origin_forbidden', message: 'invalid origin header' } });
+        .send({ error: { code: 'origin_forbidden', message: 'request origin is not allowed' } });
     }
   });
 
@@ -76,8 +83,8 @@ export async function createApiApp(
   if (webDist && existsSync(join(webDist, 'index.html'))) {
     await fastify.register(fastifyStatic, { root: webDist, wildcard: false });
     const indexHtml = readFileSync(join(webDist, 'index.html'), 'utf8');
-    // SPA fallback as a lowest-priority wildcard route (Nest owns the real
-    // not-found handler); API/health misses still return JSON 404.
+    // SPA fallback as a lowest-priority wildcard route. API/health misses stay
+    // JSON 404 responses rather than accidentally returning index.html.
     fastify.get('/*', async (request, reply) => {
       const url = request.raw.url ?? '/';
       if (url.startsWith('/api') || url.startsWith('/health')) {
