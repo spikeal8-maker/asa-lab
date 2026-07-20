@@ -72,7 +72,7 @@ export async function createApiApp(
           : undefined,
     });
     if (!allowed) {
-      await reply
+      return reply
         .code(403)
         .send({ error: { code: 'origin_forbidden', message: 'request origin is not allowed' } });
     }
