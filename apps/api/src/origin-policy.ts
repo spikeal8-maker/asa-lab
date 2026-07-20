@@ -6,6 +6,8 @@ export interface MutationOriginInput {
   readonly secFetchSite?: string | undefined;
 }
 
+const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
+
 function normalizeOrigin(value: string): string | null {
   try {
     const parsed = new URL(value);
@@ -23,6 +25,35 @@ function normalizeOrigin(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Resolve the only browser origin trusted by the local API. */
+export function resolveCanonicalWebOrigin(
+  rawPort: string | undefined,
+  explicitOrigin?: string | undefined,
+): string {
+  const source = rawPort?.trim() || '4610';
+  const port = Number.parseInt(source, 10);
+  if (
+    !Number.isInteger(port) ||
+    String(port) !== source ||
+    port < 1024 ||
+    port > 65535 ||
+    FORBIDDEN_PORTS.has(port)
+  ) {
+    throw new Error(`ASA_WEB_PORT is invalid or forbidden: ${source}`);
+  }
+
+  const expected = `http://127.0.0.1:${port}`;
+  if (explicitOrigin !== undefined && explicitOrigin.trim() !== '') {
+    const normalized = normalizeOrigin(explicitOrigin.trim());
+    if (normalized !== expected) {
+      throw new Error(
+        `ASA_WEB_ORIGIN must exactly match the canonical Web origin ${expected}; got ${explicitOrigin}`,
+      );
+    }
+  }
+  return expected;
 }
 
 /**
