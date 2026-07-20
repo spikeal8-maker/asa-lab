@@ -23,6 +23,23 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+test('session-check failure is explicit and can be retried', async ({ page }) => {
+  let failNext = true;
+  await page.route('**/api/auth/me', async (route) => {
+    if (failNext) {
+      failNext = false;
+      await route.abort('failed');
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto('/');
+  await expect(page.getByRole('alert')).toContainText('Не удалось проверить активную сессию');
+  await page.getByRole('button', { name: 'Повторить' }).click();
+  await expect(page.getByLabel('Workspace')).toBeVisible();
+});
+
 test('create dialog exposes validation and idempotency conflict states', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: 'Создать класс' }).click();
