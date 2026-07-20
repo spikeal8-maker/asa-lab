@@ -38,7 +38,7 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
 
   const card = page.getByTestId('classroom-card').filter({ hasText: '8А Робототехника' });
   await expect(card).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('создан');
+  await expect(page.getByText('Класс «8А Робототехника» создан.')).toBeVisible();
 
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.screenshot({ path: 'e2e/artifacts/portal-desktop.png', fullPage: true });
