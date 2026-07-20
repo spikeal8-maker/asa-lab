@@ -52,6 +52,11 @@ export async function launchApiRuntime(options: ApiRuntimeOptions = {}): Promise
     throw error;
   }
 
+  if (app === null) {
+    await telemetry.shutdown();
+    throw new Error('API application was not created');
+  }
+  const runningApp = app;
   let stopPromise: Promise<void> | null = null;
   return {
     host,
@@ -60,7 +65,7 @@ export async function launchApiRuntime(options: ApiRuntimeOptions = {}): Promise
       if (stopPromise === null) {
         stopPromise = (async () => {
           try {
-            await app.close();
+            await runningApp.close();
           } finally {
             await telemetry.shutdown();
           }
