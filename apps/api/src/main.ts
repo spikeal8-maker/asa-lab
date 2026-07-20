@@ -1,6 +1,5 @@
 import 'reflect-metadata';
-import { createTelemetry } from '@asa-lab/observability';
-import { createApiApp } from './app.factory.js';
+import { launchApiRuntime } from './runtime.js';
 
 const HOST = process.env['API_HOST'] ?? '127.0.0.1';
 const PORT = Number.parseInt(process.env['API_PORT'] ?? '4611', 10);
@@ -10,29 +9,34 @@ async function run(): Promise<void> {
   // Admin (DATABASE_URL) and test (TEST_DATABASE_URL) URLs are never used.
   if (!process.env['APP_DATABASE_URL']) {
     process.stderr.write('APP_DATABASE_URL is required; the API refuses to start without it\n');
-    process.exit(78);
+    process.exitCode = 78;
+    return;
   }
-  // Telemetry stays disabled by default: nothing leaves the process unless an
-  // OTLP endpoint is configured explicitly for ASA Lab.
-  const telemetry = createTelemetry({ serviceName: 'asa-lab-api', mode: 'disabled' });
-  telemetry.start();
-  const app = await createApiApp();
+
+  const runtime = await launchApiRuntime({ host: HOST, port: PORT });
+  let shutdownStarted = false;
   const shutdown = (signal: string): void => {
-    void (async () => {
-      try {
-        await app.close();
-      } finally {
-        await telemetry.shutdown();
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    void runtime
+      .stop(signal)
+      .then(() => {
         process.stdout.write(`api stopped on ${signal}\n`);
-        process.exit(0);
-      }
-    })();
+        process.exitCode = 0;
+      })
+      .catch((error: unknown) => {
+        process.stderr.write(`api shutdown failed on ${signal}: ${String(error)}\n`);
+        process.exitCode = 1;
+      });
   };
+
   process.once('SIGINT', () => shutdown('SIGINT'));
   process.once('SIGTERM', () => shutdown('SIGTERM'));
-  await app.listen({ port: PORT, host: HOST });
-  process.stdout.write(`ASA Lab API:  http://${HOST}:${PORT}\n`);
-  process.stdout.write(`Teacher portal (built SPA, if present): http://${HOST}:${PORT}/\n`);
+
+  process.stdout.write(`ASA Lab API:  http://${runtime.host}:${runtime.port}\n`);
+  process.stdout.write(
+    `Teacher portal (built SPA, if present): http://${runtime.host}:${runtime.port}/\n`,
+  );
 }
 
 run().catch((error: unknown) => {
