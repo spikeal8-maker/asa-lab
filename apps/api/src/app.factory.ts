@@ -9,7 +9,7 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import pg from 'pg';
 import { AppModule } from './app.module.js';
-import { isAllowedMutationOrigin } from './origin-policy.js';
+import { isAllowedMutationOrigin, resolveCanonicalWebOrigin } from './origin-policy.js';
 
 export interface ApiFactoryOptions {
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
@@ -26,12 +26,10 @@ function defaultPool(): pg.Pool | null {
 }
 
 function defaultWebOrigin(): string {
-  const explicit = process.env['ASA_WEB_ORIGIN'];
-  if (explicit) {
-    return explicit;
-  }
-  const port = process.env['ASA_WEB_PORT'] ?? '4610';
-  return `http://127.0.0.1:${port}`;
+  return resolveCanonicalWebOrigin(
+    process.env['ASA_WEB_PORT'],
+    process.env['ASA_WEB_ORIGIN'],
+  );
 }
 
 /**
