@@ -37,6 +37,15 @@ export function DashboardPage({
     void reload();
   }, [reload]);
 
+  function restoreCreateButtonFocus(): void {
+    window.requestAnimationFrame(() => createButtonRef.current?.focus({ preventScroll: true }));
+  }
+
+  function closeModal(): void {
+    setModalOpen(false);
+    restoreCreateButtonFocus();
+  }
+
   async function logout(): Promise<void> {
     if (logoutBusy) return;
     setLogoutBusy(true);
@@ -146,8 +155,7 @@ export function DashboardPage({
 
       {modalOpen ? (
         <CreateClassroomModal
-          returnFocusRef={createButtonRef}
-          onClose={() => setModalOpen(false)}
+          onClose={closeModal}
           onCreated={(classroom, created) => {
             setModalOpen(false);
             setNotice(
@@ -155,6 +163,7 @@ export function DashboardPage({
                 ? `Класс «${classroom.title}» создан.`
                 : `Класс «${classroom.title}» уже существует.`,
             );
+            restoreCreateButtonFocus();
             void reload();
           }}
         />
