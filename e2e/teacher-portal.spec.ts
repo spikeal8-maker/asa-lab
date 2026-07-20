@@ -31,7 +31,8 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   await expect(page.getByText('Классов пока нет.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Создать класс' }).click();
+  const createButton = page.getByRole('button', { name: 'Создать класс' });
+  await createButton.click();
   await expect(page.getByLabel('Название класса')).toBeFocused();
   await page.getByLabel('Название класса').fill('8А Робототехника');
   await page.getByRole('dialog').getByRole('button', { name: 'Создать' }).click();
@@ -39,6 +40,7 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   const card = page.getByTestId('classroom-card').filter({ hasText: '8А Робототехника' });
   await expect(card).toBeVisible();
   await expect(page.getByText('Класс «8А Робототехника» создан.')).toBeVisible();
+  await expect(createButton).toBeFocused();
 
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.screenshot({ path: 'e2e/artifacts/portal-desktop.png', fullPage: true });
