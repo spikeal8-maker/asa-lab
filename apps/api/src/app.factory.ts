@@ -96,7 +96,8 @@ export async function createApiApp(
   }
 
   if (pool) {
-    app.enableShutdownHooks();
+    // The runtime launcher owns SIGINT/SIGTERM. Registering Nest shutdown hooks
+    // here as well would call app.close twice for the same signal.
     fastify.addHook('onClose', async () => {
       await pool.end();
     });
