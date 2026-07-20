@@ -39,4 +39,33 @@ describe('API application factory', () => {
     expect(ready.statusCode).toBe(200);
     expect(ready.json()).toEqual({ status: 'ready', dependencies: { database: 'up' } });
   });
+
+  it('rejects the unrelated local project origin before any database query', async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    const pool = {
+      query,
+      end: vi.fn(async () => undefined),
+    } as unknown as pg.Pool;
+    const app = await createApiApp({
+      pool,
+      webDist: null,
+      allowedWebOrigin: 'http://127.0.0.1:4610',
+    });
+    apps.push(app);
+    const fastify = app.getHttpAdapter().getInstance();
+
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        host: '127.0.0.1:4611',
+        origin: 'http://127.0.0.1:5173',
+        'content-type': 'application/json',
+      },
+      payload: { workspace: 'school-1580', email: 'teacher@example.test', password: 'x' },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe('origin_forbidden');
+    expect(query).not.toHaveBeenCalled();
+  });
 });
