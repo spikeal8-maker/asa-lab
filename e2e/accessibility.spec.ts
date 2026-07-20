@@ -23,6 +23,15 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+test('skip link moves keyboard focus to the dashboard content', async ({ page }) => {
+  await login(page);
+  await page.keyboard.press('Tab');
+  const skip = page.getByRole('link', { name: 'Перейти к содержанию' });
+  await expect(skip).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main#classes')).toBeFocused();
+});
+
 test('dialog supports initial focus, focus trap, Escape and focus restoration', async ({ page }) => {
   await login(page);
 
