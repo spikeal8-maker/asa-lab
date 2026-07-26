@@ -303,3 +303,18 @@ label {
     grid-template-columns: 1fr;
   }
 }
+
+.form-error[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.skeleton {
+    animation: none;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

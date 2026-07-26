@@ -42,32 +42,45 @@ export async function createApiApp(
   const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
   await fastify.register(fastifyCookie);
 
+  // Strict browser-origin policy for state-changing requests: only the API
+  // origin itself (built SPA) or the explicitly configured dev web origin are
+  // accepted. Anything else — other loopback ports, malformed or cross-site
+  // origins, or a missing Origin header — is rejected (fail closed). This is
+  // deliberately not CORS: no cross-origin is ever allowed.
+  const webOrigin = process.env['ASA_WEB_ORIGIN'] ?? 'http://127.0.0.1:4610';
   fastify.addHook('onRequest', async (request, reply) => {
     void reply.header('x-request-id', request.id);
     const method = request.method;
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
       return;
     }
-    // Explicit same-origin enforcement for mutations.
+    const forbid = async (message: string): Promise<void> => {
+      await reply.code(403).send({ error: { code: 'origin_forbidden', message } });
+    };
     const origin = request.headers.origin;
     if (!origin) {
+      await forbid('state-changing requests require an Origin header');
       return;
     }
+    let parsed: URL;
     try {
-      const parsed = new URL(origin);
-      const sameHost = parsed.host === request.headers.host;
-      const devLoopback =
-        process.env['NODE_ENV'] !== 'production' &&
-        (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost');
-      if (!sameHost && !devLoopback) {
-        await reply
-          .code(403)
-          .send({ error: { code: 'origin_forbidden', message: 'cross-origin request rejected' } });
-      }
+      parsed = new URL(origin);
     } catch {
-      await reply
-        .code(403)
-        .send({ error: { code: 'origin_forbidden', message: 'invalid origin header' } });
+      await forbid('malformed Origin header');
+      return;
+    }
+    const sameOrigin =
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      parsed.host === request.headers.host;
+    let allowedWebOrigin = false;
+    try {
+      const allowed = new URL(webOrigin);
+      allowedWebOrigin = parsed.protocol === allowed.protocol && parsed.host === allowed.host;
+    } catch {
+      allowedWebOrigin = false;
+    }
+    if (!sameOrigin && !allowedWebOrigin) {
+      await forbid('cross-origin request rejected');
     }
   });
 

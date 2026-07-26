@@ -3,9 +3,9 @@ import { mkdirSync } from 'node:fs';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
-/** TST-MVP-E2E-001: real browser flow —
- * login → empty state → create classroom → card visible → reload → card
- * remains → logout. Saves a dashboard screenshot artifact. */
+/** TST-E2E-PORTAL-001: real browser flow on the isolated test DB —
+ * login → empty state → keyboard-friendly modal → create classroom → card →
+ * reload persists → logout, with desktop and mobile screenshot artifacts. */
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
@@ -19,7 +19,9 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-test('teacher logs in, creates a classroom and it survives reload', async ({ page }) => {
+test('teacher logs in, creates a classroom via an accessible modal and it survives reload', async ({
+  page,
+}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
 
@@ -31,15 +33,32 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   await expect(page.getByText('Классов пока нет.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Создать класс' }).click();
-  await page.getByLabel('Название класса').fill('8А Робототехника');
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать' }).click();
+  // Open the dialog: initial focus is on the title input.
+  const openButton = page.getByRole('button', { name: 'Создать класс' });
+  await openButton.click();
+  const dialog = page.getByRole('dialog', { name: 'Создать класс' });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel('Название класса')).toBeFocused();
+
+  // Escape closes the dialog and focus returns to the opener.
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(openButton).toBeFocused();
+
+  // Reopen with the keyboard and create.
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Название класса')).toBeFocused();
+  await page.keyboard.type('8А Робототехника');
+  await dialog.getByRole('button', { name: 'Создать' }).click();
 
   const card = page.getByTestId('classroom-card').filter({ hasText: '8А Робототехника' });
   await expect(card).toBeVisible();
 
   mkdirSync('e2e/artifacts', { recursive: true });
-  await page.screenshot({ path: 'e2e/artifacts/dashboard.png', fullPage: true });
+  await page.screenshot({ path: 'e2e/artifacts/dashboard-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.screenshot({ path: 'e2e/artifacts/dashboard-mobile.png', fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 800 });
 
   await page.reload();
   await expect(

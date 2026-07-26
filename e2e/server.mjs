@@ -18,9 +18,14 @@ if (!new URL(appTestUrl).pathname.endsWith('_test')) {
   console.error('APP_TEST_DATABASE_URL must target an isolated *_test database');
   process.exit(78);
 }
-process.env.API_PORT = String(port);
-process.env.API_HOST = '127.0.0.1';
 process.env.APP_DATABASE_URL = appTestUrl;
 delete process.env.DATABASE_URL;
 delete process.env.TEST_DATABASE_URL;
-await import('../apps/api/dist/main.js');
+const { startApi } = await import('../apps/api/dist/main.js');
+const runtime = await startApi({ port, host: '127.0.0.1' });
+console.log(`e2e API ready on http://127.0.0.1:${port}`);
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    void runtime.close().then(() => process.exit(0));
+  });
+}

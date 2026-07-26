@@ -8,7 +8,7 @@
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import net from 'node:net';
-import { rmSync, existsSync } from 'node:fs';
+import { rmSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
 
 const WEB_PORT = 4610;
 const API_PORT = 4611;
@@ -45,7 +45,7 @@ console.log('apps/api/dist removed; starting the real `pnpm dev` in pwsh -NoProf
 
 const child = spawn('pwsh', ['-NoProfile', '-Command', 'pnpm dev'], {
   env: { ...process.env },
-  stdio: ['ignore', 'pipe', 'pipe'],
+  stdio: ['pipe', 'pipe', 'pipe'],
 });
 let output = '';
 child.stdout.on('data', (c) => {

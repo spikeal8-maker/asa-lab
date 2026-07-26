@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type pg from 'pg';
 import { testAdminPool, testAppPool, seedTeacher, type SeededTeacher } from './helpers';
-import { buildTestApp, fastifyOf, type NestApp } from './app';
+import { buildTestApp, fastifyOf, inject, type NestApp } from './app';
 
 /** TST-PORTAL-API-001: teacher portal API happy paths plus idempotency
  * semantics on the runtime role over the isolated test database. */
@@ -11,7 +11,7 @@ let runtime: pg.Pool;
 let app: NestApp;
 
 async function login(teacher: SeededTeacher): Promise<string> {
-  const response = await fastifyOf(app).inject({
+  const response = await inject(app, {
     method: 'POST',
     url: '/api/auth/login',
     payload: { workspace: teacher.workspace, email: teacher.email, password: teacher.password },
@@ -37,7 +37,7 @@ afterAll(async () => {
 describe('auth', () => {
   it('logs in with an HttpOnly SameSite=Lax cookie, resolves me and logs out', async () => {
     const teacher = await seedTeacher(admin, 'api-auth');
-    const response = await fastifyOf(app).inject({
+    const response = await inject(app, {
       method: 'POST',
       url: '/api/auth/login',
       payload: { workspace: teacher.workspace, email: teacher.email, password: teacher.password },
@@ -47,7 +47,7 @@ describe('auth', () => {
     expect(cookie?.httpOnly).toBe(true);
     expect(String(cookie?.sameSite).toLowerCase()).toBe('lax');
 
-    const me = await fastifyOf(app).inject({
+    const me = await inject(app, {
       method: 'GET',
       url: '/api/auth/me',
       cookies: { asa_session: cookie?.value ?? '' },
@@ -55,7 +55,7 @@ describe('auth', () => {
     expect(me.statusCode).toBe(200);
     expect(me.json().user.email).toBe(teacher.email);
 
-    const out = await fastifyOf(app).inject({
+    const out = await inject(app, {
       method: 'POST',
       url: '/api/auth/logout',
       cookies: { asa_session: cookie?.value ?? '' },
@@ -68,7 +68,7 @@ describe('classrooms', () => {
   it('creates a classroom atomically with owner membership and one audit event', async () => {
     const teacher = await seedTeacher(admin, 'api-create');
     const token = await login(teacher);
-    const created = await fastifyOf(app).inject({
+    const created = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -99,7 +99,7 @@ describe('classrooms', () => {
     );
     expect(audit.rows).toEqual([{ action: 'classroom.created', actor_user_id: teacher.teacherId }]);
 
-    const list = await fastifyOf(app).inject({
+    const list = await inject(app, {
       method: 'GET',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -110,7 +110,7 @@ describe('classrooms', () => {
   it('requires a valid Idempotency-Key: missing, empty and oversized are 400', async () => {
     const teacher = await seedTeacher(admin, 'api-key');
     const token = await login(teacher);
-    const missing = await fastifyOf(app).inject({
+    const missing = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -118,7 +118,7 @@ describe('classrooms', () => {
     });
     expect(missing.statusCode).toBe(400);
     expect(missing.json().error.code).toBe('invalid_idempotency_key');
-    const oversized = await fastifyOf(app).inject({
+    const oversized = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -137,14 +137,14 @@ describe('classrooms', () => {
     const teacher = await seedTeacher(admin, 'api-idem');
     const token = await login(teacher);
     const key = `key-${Date.now()}`;
-    const first = await fastifyOf(app).inject({
+    const first = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
       headers: { 'idempotency-key': key },
       payload: { title: 'Повторяемый' },
     });
-    const second = await fastifyOf(app).inject({
+    const second = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -169,7 +169,7 @@ describe('classrooms', () => {
     const teacher = await seedTeacher(admin, 'api-conflict');
     const token = await login(teacher);
     const key = `key-${Date.now()}`;
-    const first = await fastifyOf(app).inject({
+    const first = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -177,7 +177,7 @@ describe('classrooms', () => {
       payload: { title: 'A' },
     });
     expect(first.statusCode).toBe(201);
-    const second = await fastifyOf(app).inject({
+    const second = await inject(app, {
       method: 'POST',
       url: '/api/classrooms',
       cookies: { asa_session: token },
@@ -193,7 +193,7 @@ describe('classrooms', () => {
     const token = await login(teacher);
     const key = `key-race-${Date.now()}`;
     const request = () =>
-      fastifyOf(app).inject({
+      inject(app, {
         method: 'POST',
         url: '/api/classrooms',
         cookies: { asa_session: token },

@@ -8,7 +8,7 @@
 // never terminated (LOCAL_PORT_POLICY).
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { apiChildEnv, webChildEnv } from './child-env.mjs';
 
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
@@ -103,7 +103,36 @@ startWithEnv(
   webChildEnv(process.env),
 );
 
-process.on('SIGINT', () => children.forEach((c) => c.kill('SIGINT')));
+let shuttingDown = false;
+function shutdownAll() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  for (const child of children) {
+    if (child.exitCode === null) child.kill();
+  }
+}
+process.on('SIGINT', shutdownAll);
+process.on('SIGTERM', shutdownAll);
+// Graceful programmatic stop for automated harnesses: creating the stop file
+// asks the orchestrator to shut the whole dev tree down without any
+// force-kill. (stdin cannot be used: package-manager shims close it early.)
+const STOP_FILE = '.asa-dev-stop';
+try {
+  if (existsSync(STOP_FILE)) unlinkSync(STOP_FILE);
+} catch {
+  /* ignore */
+}
+const stopWatcher = setInterval(() => {
+  if (existsSync(STOP_FILE)) {
+    try {
+      unlinkSync(STOP_FILE);
+    } catch {
+      /* ignore */
+    }
+    shutdownAll();
+  }
+}, 500);
+stopWatcher.unref();
 
 console.log('');
 console.log('ASA Lab dev environment (LOCAL_PORT_POLICY):');

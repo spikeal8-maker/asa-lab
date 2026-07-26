@@ -87,6 +87,27 @@ describe('login use case', () => {
     expect(result).toEqual({ ok: false, code: 'validation_error' });
   });
 
+  it('normalizes workspace and email (trim + lowercase) before lookup', async () => {
+    const { usecase, stored } = fakes();
+    const result = await usecase.execute({
+      workspace: '  SCHOOL-1580  ',
+      email: '  T@X.RU ',
+      password: 'pw-1',
+    });
+    expect(result.ok).toBe(true);
+    expect(stored).toHaveLength(1);
+  });
+
+  it('does not trim the password', async () => {
+    const { usecase } = fakes();
+    const result = await usecase.execute({
+      workspace: 'school-1580',
+      email: 't@x.ru',
+      password: ' pw-1 ',
+    });
+    expect(result).toEqual({ ok: false, code: 'invalid_credentials' });
+  });
+
   it('rejects a wrong password', async () => {
     const { usecase } = fakes();
     const result = await usecase.execute({

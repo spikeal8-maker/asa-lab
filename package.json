@@ -34,10 +34,12 @@
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
     "test:authz": "vitest run tests/portal/authz.spec.ts",
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
-    "db:test:provision": "node tools/provision-test-db.mjs"
+    "db:test:provision": "node tools/provision-test-db.mjs",
+    "test:a11y": "playwright test e2e/a11y.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
+    "@axe-core/playwright": "4.10.2",
     "@electric-sql/pglite": "0.2.17",
     "@eslint/js": "^9.18.0",
     "@nx/eslint": "20.3.0",

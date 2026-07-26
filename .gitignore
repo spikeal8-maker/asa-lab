@@ -51,3 +51,6 @@ __pycache__/
 
 # Playwright output
 reports/playwright/
+
+# dev orchestrator graceful stop marker
+.asa-dev-stop

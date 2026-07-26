@@ -30,19 +30,25 @@ export class LoginUseCase {
     email: unknown;
     password: unknown;
   }): Promise<LoginResult> {
+    // Normalize identifiers before validation and lookup: workspace and email
+    // are case-insensitive locators. The password is used verbatim (no trim)
+    // and is never logged.
+    const workspace =
+      typeof input.workspace === 'string' ? input.workspace.trim().toLowerCase() : input.workspace;
+    const email = typeof input.email === 'string' ? normalizeEmail(input.email) : input.email;
     if (
-      !isValidWorkspace(input.workspace) ||
-      !isValidEmail(input.email) ||
+      !isValidWorkspace(workspace) ||
+      !isValidEmail(email) ||
       typeof input.password !== 'string' ||
       input.password.length === 0
     ) {
       return { ok: false, code: 'validation_error' };
     }
-    const tenantId = await this.tenants.findTenantIdBySlug(input.workspace.trim());
+    const tenantId = await this.tenants.findTenantIdBySlug(workspace);
     if (tenantId === null) {
       return { ok: false, code: 'invalid_credentials' };
     }
-    const user = await this.users.findActiveTeacherByEmail(tenantId, normalizeEmail(input.email));
+    const user = await this.users.findActiveTeacherByEmail(tenantId, email);
     if (user === null || !verifyPassword(input.password, user.passwordHash)) {
       return { ok: false, code: 'invalid_credentials' };
     }
