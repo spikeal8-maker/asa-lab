@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Classroom, type PublicUser } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 
-type ListState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; items: Classroom[] };
+type ListState =
+  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
 
 export function DashboardPage({
   user,
@@ -14,17 +15,20 @@ export function DashboardPage({
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [logoutError, setLogoutError] = useState(false);
-  const shellRef = useRef<HTMLDivElement>(null);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [logoutBusy, setLogoutBusy] = useState(false);
   const createButtonRef = useRef<HTMLButtonElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
 
   const reload = useCallback(async () => {
     setList({ kind: 'loading' });
     const result = await api.listClassrooms();
     if (result.ok) {
       setList({ kind: 'ready', items: result.data.items });
+    } else if (result.status === 0) {
+      setList({ kind: 'error', message: 'Сервер недоступен. Проверьте соединение.' });
     } else {
-      setList({ kind: 'error' });
+      setList({ kind: 'error', message: 'Не удалось загрузить классы.' });
     }
   }, []);
 
@@ -32,133 +36,154 @@ export function DashboardPage({
     void reload();
   }, [reload]);
 
-  // While the dialog is open the background must be inert for keyboard and
-  // assistive tech; the dialog itself lives outside this subtree.
-  useEffect(() => {
-    const shell = shellRef.current;
-    if (!shell) {
-      return;
-    }
-    if (modalOpen) {
-      shell.setAttribute('inert', '');
-      shell.setAttribute('aria-hidden', 'true');
-    } else {
-      shell.removeAttribute('inert');
-      shell.removeAttribute('aria-hidden');
-    }
-  }, [modalOpen]);
+  function restoreCreateButtonFocus(): void {
+    window.requestAnimationFrame(() => createButtonRef.current?.focus({ preventScroll: true }));
+  }
 
   function closeModal(): void {
     setModalOpen(false);
-    // Focus returns to the control that opened the dialog.
-    requestAnimationFrame(() => createButtonRef.current?.focus());
+    restoreCreateButtonFocus();
   }
 
   async function logout(): Promise<void> {
-    setLogoutError(false);
+    if (logoutBusy) return;
+    setLogoutBusy(true);
+    setLogoutError(null);
     const result = await api.logout();
+    setLogoutBusy(false);
     if (result.ok) {
       onLoggedOut();
-    } else {
-      // An unconfirmed server-side logout must not be presented as success.
-      setLogoutError(true);
+      return;
     }
+    setLogoutError(
+      result.status === 0
+        ? 'Не удалось связаться с сервером. Сессия не завершена.'
+        : 'Не удалось завершить сессию. Попробуйте ещё раз.',
+    );
   }
 
   return (
-    <>
-      <div className="shell" ref={shellRef}>
-        <header className="topbar">
-          <span className="brand">ASA Lab</span>
-          <nav aria-label="Основная навигация">
-            <a href="#classes" className="nav-link nav-active" aria-current="page">
-              Классы
-            </a>
-          </nav>
-          <div className="topbar-user">
-            <span className="user-name">{user.displayName}</span>
-            <button type="button" className="btn-ghost" onClick={() => void logout()}>
-              Выйти
-            </button>
-          </div>
-        </header>
+    <div className="shell">
+      <a
+        className="skip-link"
+        href="#classes"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus({ preventScroll: true });
+          mainRef.current?.scrollIntoView({ block: 'start' });
+        }}
+      >
+        Перейти к содержанию
+      </a>
+      <header className="topbar">
+        <span className="brand">ASA Lab</span>
+        <nav aria-label="Основная навигация">
+          <a href="#classes" className="nav-link nav-active" aria-current="page">
+            Классы
+          </a>
+        </nav>
+        <div className="topbar-user">
+          <span className="user-name">{user.displayName}</span>
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={logoutBusy}
+            aria-busy={logoutBusy}
+            onClick={() => void logout()}
+          >
+            {logoutBusy ? 'Выходим…' : 'Выйти'}
+          </button>
+        </div>
+      </header>
 
-        <main id="classes" className="content">
-          <div className="content-head">
-            <h1>Мои классы</h1>
-            <button
-              type="button"
-              ref={createButtonRef}
-              className="btn-primary"
-              onClick={() => setModalOpen(true)}
-            >
-              Создать класс
-            </button>
-          </div>
+      <main
+        ref={mainRef}
+        id="classes"
+        className="content"
+        tabIndex={-1}
+        aria-busy={list.kind === 'loading'}
+      >
+        <div className="content-head">
+          <h1>Мои классы</h1>
+          <button
+            ref={createButtonRef}
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setNotice(null);
+              setModalOpen(true);
+            }}
+          >
+            Создать класс
+          </button>
+        </div>
 
-          {logoutError ? (
-            <p className="form-error" role="alert">
-              Не удалось завершить сеанс на сервере. Попробуйте выйти ещё раз.
-            </p>
-          ) : null}
+        {logoutError ? (
+          <p className="notice-error" role="alert">
+            {logoutError}
+          </p>
+        ) : null}
 
-          {notice ? (
-            <p className="notice-success" role="status">
-              {notice}
-            </p>
-          ) : null}
+        {notice ? (
+          <p className="notice-success" role="status" aria-live="polite">
+            {notice}
+          </p>
+        ) : null}
 
-          {list.kind === 'loading' ? (
+        {list.kind === 'loading' ? (
+          <section aria-label="Загрузка классов" role="status" aria-live="polite">
+            <span className="sr-only">Загружаем список классов…</span>
             <div className="card-grid" aria-hidden="true">
               <div className="card skeleton" />
               <div className="card skeleton" />
               <div className="card skeleton" />
             </div>
-          ) : null}
+          </section>
+        ) : null}
 
-          {list.kind === 'error' ? (
-            <div className="empty-state" role="alert">
-              <p>Не удалось загрузить классы.</p>
-              <button type="button" className="btn-secondary" onClick={() => void reload()}>
-                Повторить
-              </button>
-            </div>
-          ) : null}
+        {list.kind === 'error' ? (
+          <div className="empty-state" role="alert">
+            <p>{list.message}</p>
+            <button type="button" className="btn-secondary" onClick={() => void reload()}>
+              Повторить
+            </button>
+          </div>
+        ) : null}
 
-          {list.kind === 'ready' && list.items.length === 0 ? (
-            <div className="empty-state">
-              <p>Классов пока нет.</p>
-              <p className="muted">Создайте первый класс, чтобы начать работу.</p>
-            </div>
-          ) : null}
+        {list.kind === 'ready' && list.items.length === 0 ? (
+          <div className="empty-state">
+            <p>Классов пока нет.</p>
+            <p className="muted">Создайте первый класс, чтобы начать работу.</p>
+          </div>
+        ) : null}
 
-          {list.kind === 'ready' && list.items.length > 0 ? (
-            <ul className="card-grid" data-testid="classroom-grid">
-              {list.items.map((classroom) => (
-                <li key={classroom.id} className="card" data-testid="classroom-card">
-                  <h2>{classroom.title}</h2>
-                  <p className="muted">Активный класс</p>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </main>
-      </div>
+        {list.kind === 'ready' && list.items.length > 0 ? (
+          <ul className="card-grid" data-testid="classroom-grid" aria-label="Мои классы">
+            {list.items.map((classroom) => (
+              <li key={classroom.id} className="card" data-testid="classroom-card">
+                <h2>{classroom.title}</h2>
+                <p className="muted">Активный класс</p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </main>
 
       {modalOpen ? (
         <CreateClassroomModal
           onClose={closeModal}
           onCreated={(classroom, created) => {
-            closeModal();
+            setModalOpen(false);
             setNotice(
               created
                 ? `Класс «${classroom.title}» создан.`
                 : `Класс «${classroom.title}» уже существует.`,
             );
+            restoreCreateButtonFocus();
             void reload();
           }}
         />
       ) : null}
-    </>
+    </div>
   );
 }

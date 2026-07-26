@@ -1,0 +1,99 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 2000;
+  top: 8px;
+  left: 8px;
+  padding: 0.65rem 0.9rem;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary-hover);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-150%);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.notice-error {
+  margin-top: 1rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgba(179, 38, 30, 0.25);
+  border-radius: 8px;
+  background: #fff1f0;
+  color: var(--danger);
+}
+
+.modal-backdrop {
+  z-index: 1000;
+  overscroll-behavior: contain;
+}
+
+.modal {
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .card.skeleton {
+    animation: none;
+    background-position: 0 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .topbar nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .content-head {
+    align-items: stretch;
+  }
+
+  .content-head .btn-primary {
+    width: 100%;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions .btn-primary,
+  .modal-actions .btn-secondary {
+    width: 100%;
+  }
+}

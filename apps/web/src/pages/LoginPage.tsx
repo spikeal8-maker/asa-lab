@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { api, type PublicUser } from '../api';
 
 export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => void }): JSX.Element {
@@ -7,12 +7,15 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorId = useId();
+  const workspaceRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
     if (!workspace.trim() || !email.trim() || !password) {
       setError('Заполните workspace, email и пароль.');
+      workspaceRef.current?.focus();
       return;
     }
     setBusy(true);
@@ -29,21 +32,27 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
     } else {
       setError('Ошибка сервера. Попробуйте ещё раз.');
     }
+    workspaceRef.current?.focus();
   }
 
   return (
     <div className="page-center">
-      <main className="login-card">
+      <main className="login-card" aria-busy={busy}>
         <h1 className="brand">ASA Lab</h1>
         <p className="subtitle">Кабинет педагога</p>
         <form onSubmit={(event) => void submit(event)} noValidate>
           <label htmlFor="workspace">Workspace</label>
           <input
+            ref={workspaceRef}
+            autoFocus
             id="workspace"
             name="workspace"
             autoComplete="organization"
             placeholder="school-1580"
             value={workspace}
+            disabled={busy}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? errorId : undefined}
             onChange={(event) => setWorkspace(event.target.value)}
           />
           <label htmlFor="email">Email</label>
@@ -54,6 +63,9 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
             autoComplete="username"
             placeholder="teacher@school-1580.local"
             value={email}
+            disabled={busy}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? errorId : undefined}
             onChange={(event) => setEmail(event.target.value)}
           />
           <label htmlFor="password">Пароль</label>
@@ -63,10 +75,13 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
             type="password"
             autoComplete="current-password"
             value={password}
+            disabled={busy}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? errorId : undefined}
             onChange={(event) => setPassword(event.target.value)}
           />
           {error ? (
-            <p className="form-error" role="alert">
+            <p id={errorId} className="form-error" role="alert">
               {error}
             </p>
           ) : null}

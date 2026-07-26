@@ -22,12 +22,17 @@ import { TOKENS } from './tokens.js';
 @Module({})
 export class AppModule {
   static forPool(pool: pg.Pool | null): DynamicModule {
-    const requirePool = (): pg.Pool => {
-      if (!pool) {
-        throw new Error('database unavailable: APP_DATABASE_URL is not configured');
-      }
-      return pool;
-    };
+    // Without a pool the app still constructs (health-only mode): data
+    // adapters receive a stand-in that fails loudly the moment a query is
+    // actually attempted, instead of breaking dependency injection at boot.
+    const unavailablePool = new Proxy({} as pg.Pool, {
+      get() {
+        return () => {
+          throw new Error('database unavailable: APP_DATABASE_URL is not configured');
+        };
+      },
+    });
+    const requirePool = (): pg.Pool => pool ?? unavailablePool;
     return {
       module: AppModule,
       controllers: [HealthController, AuthController, ClassroomsController],

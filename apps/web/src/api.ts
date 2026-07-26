@@ -25,11 +25,17 @@ export type ApiResult<T> =
 
 async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   let response: Response;
+  // A JSON content-type is only declared when a body is actually sent: an
+  // empty body with that header is rejected by the server's strict parser.
+  const headers: Record<string, string> = {
+    ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
   try {
     response = await fetch(path, {
       credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
       ...init,
+      headers,
     });
   } catch {
     return { ok: false, status: 0, error: { code: 'network', message: 'сервер недоступен' } };
