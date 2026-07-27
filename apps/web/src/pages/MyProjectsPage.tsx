@@ -23,8 +23,8 @@ export function MyProjectsPage({
     void load();
   }, [load]);
 
+  // tabIndex makes this landmark a valid skip-link target.
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- skip-link target
     <main className="portal-content" id="main-content" tabIndex={-1}>
       <section className="portal-hero">
         <div>
