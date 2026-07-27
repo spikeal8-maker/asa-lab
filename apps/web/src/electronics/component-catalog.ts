@@ -1,48 +1,69 @@
 import type { ComponentKind } from '../api';
+import type { PreviewKey } from './component-preview';
 
 /**
- * Visual catalog for the schematic editor.
+ * Visual definitions used by the electronics workbench.
  *
- * Artwork comes from the owner's component library; the copies under
- * `public/assets/electronics/components` are sanitised (no scripts, event
- * handlers, external URLs or editor metadata) and keep the original viewBox and
- * proportions. Terminal coordinates are expressed in that viewBox, so they
- * follow the drawing exactly and move with the component.
+ * Every `asset` below is a sanitised, still-vector SVG copied from the owner's
+ * `Компоненты.zip` archive unless `authored` is explicitly false. Active parts
+ * expose simulation-aware state assets and exact terminal coordinates from the
+ * source package. Future parts are visible in the catalogue as real artwork,
+ * but remain disabled until their electrical model exists.
  */
 
+export type ComponentCategory = 'all' | 'basic' | 'power' | 'inputs' | 'outputs' | 'boards';
+export type ComponentVisualState =
+  'default' | 'off' | 'lit' | 'reverse' | 'overcurrent' | 'burned' | 'pressed' | 'on';
+
 export interface TerminalSpec {
-  /** Position inside the SVG viewBox. */
   readonly x: number;
   readonly y: number;
-  /** Label shown to the teacher for this pin. */
   readonly label: string;
 }
 
 export interface CatalogEntry {
-  readonly kind: ComponentKind;
+  readonly key: string;
+  readonly kind: ComponentKind | null;
   readonly label: string;
-  /** Asset path, or null for elements drawn directly on the canvas. */
+  readonly category: Exclude<ComponentCategory, 'all'>;
+  readonly description: string;
+  readonly keywords: readonly string[];
+  readonly preview: PreviewKey;
   readonly asset: string | null;
+  readonly stateAssets?: Partial<Record<ComponentVisualState, string>> | undefined;
   readonly viewBox: { readonly width: number; readonly height: number };
-  /** Rendered width in canvas units; height follows the viewBox ratio. */
   readonly renderWidth: number;
-  readonly terminals: { readonly a: TerminalSpec; readonly b: TerminalSpec };
+  readonly terminals: { readonly a: TerminalSpec; readonly b: TerminalSpec } | null;
   readonly defaultValue: number;
   readonly unit: string;
-  /** false when the drawing is a stand-in rather than the owner's artwork. */
   readonly authored: boolean;
   readonly sourceFile: string;
+  readonly enabled: boolean;
 }
 
-/** Components the current slice can actually place, wire and solve. */
-export const ACTIVE_COMPONENTS: Record<Exclude<ComponentKind, 'wire'>, CatalogEntry> = {
-  source: {
+const ASSET_ROOT = '/assets/electronics/components';
+
+export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
+  all: 'Основные',
+  basic: 'Основные',
+  power: 'Питание',
+  inputs: 'Входы',
+  outputs: 'Выходы',
+  boards: 'Платы и макетки',
+};
+
+const ACTIVE: CatalogEntry[] = [
+  {
+    key: 'source',
     kind: 'source',
-    label: 'Источник',
-    asset: '/assets/electronics/components/power-source.svg',
+    label: 'Батарейный отсек',
+    category: 'power',
+    description: 'Авторский батарейный отсек 2×AA, 3 В.',
+    keywords: ['источник', 'батарея', 'питание', 'aa', '3v', '3 в'],
+    preview: 'source',
+    asset: `${ASSET_ROOT}/power-source.svg`,
     viewBox: { width: 485, height: 843 },
-    renderWidth: 110,
-    // BAT- / BAT+ contacts marked in the original drawing.
+    renderWidth: 118,
     terminals: {
       a: { x: 295.5, y: 74, label: '+' },
       b: { x: 190.5, y: 74, label: '−' },
@@ -51,31 +72,48 @@ export const ACTIVE_COMPONENTS: Record<Exclude<ComponentKind, 'wire'>, CatalogEn
     unit: 'В',
     authored: true,
     sourceFile: 'aa_holder_2x_sketch_exact_v6.svg',
+    enabled: true,
   },
-  resistor: {
+  {
+    key: 'resistor',
     kind: 'resistor',
     label: 'Резистор',
-    asset: '/assets/electronics/components/resistor.svg',
-    viewBox: { width: 240, height: 120 },
-    renderWidth: 150,
+    category: 'basic',
+    description: 'Токоограничивающий резистор. Вектор создан по спецификации ASA Lab.',
+    keywords: ['резистор', 'сопротивление', 'ом', '300'],
+    preview: 'resistor',
+    asset: `${ASSET_ROOT}/resistor.svg`,
+    viewBox: { width: 260, height: 96 },
+    renderWidth: 164,
     terminals: {
-      a: { x: 18, y: 60, label: 'A' },
-      b: { x: 222, y: 60, label: 'B' },
+      a: { x: 12, y: 48, label: '1' },
+      b: { x: 248, y: 48, label: '2' },
     },
     defaultValue: 300,
     unit: 'Ом',
-    // The owner's library has no resistor drawing yet; this stand-in keeps the
-    // slice usable and must be replaced by the authored asset.
     authored: false,
-    sourceFile: 'placeholder (no authored resistor in the component library)',
+    sourceFile: 'native SVG drawn from owner specification; replace when authored artwork exists',
+    enabled: true,
   },
-  led: {
+  {
+    key: 'led',
     kind: 'led',
     label: 'Светодиод',
-    asset: '/assets/electronics/components/led.svg',
+    category: 'outputs',
+    description: 'Авторский светодиод с реальными SVG-кадрами состояния.',
+    keywords: ['светодиод', 'led', 'лампа', 'индикатор', 'красный'],
+    preview: 'led',
+    asset: `${ASSET_ROOT}/led-red-off.svg`,
+    stateAssets: {
+      default: `${ASSET_ROOT}/led-red-off.svg`,
+      off: `${ASSET_ROOT}/led-red-off.svg`,
+      lit: `${ASSET_ROOT}/led-red-lit.svg`,
+      reverse: `${ASSET_ROOT}/led-red-reverse.svg`,
+      overcurrent: `${ASSET_ROOT}/led-red-overcurrent.svg`,
+      burned: `${ASSET_ROOT}/led-red-burned.svg`,
+    },
     viewBox: { width: 240, height: 400 },
-    renderWidth: 90,
-    // Anode / cathode pins marked in the original drawing.
+    renderWidth: 92,
     terminals: {
       a: { x: 83, y: 372, label: 'A' },
       b: { x: 209, y: 372, label: 'K' },
@@ -83,93 +121,243 @@ export const ACTIVE_COMPONENTS: Record<Exclude<ComponentKind, 'wire'>, CatalogEn
     defaultValue: 2,
     unit: 'В',
     authored: true,
-    sourceFile: 'led_universal_css_variable_template.svg',
-  },
-};
-
-/**
- * Artwork found in the owner's library that this slice does not simulate yet.
- * Listed so the inventory is not lost, deliberately kept out of the palette:
- * showing a part the solver cannot model would fake a capability.
- */
-export const FUTURE_COMPONENTS: readonly {
-  readonly key: string;
-  readonly label: string;
-  readonly sourceFolder: string;
-  readonly status: 'future' | 'not_enabled';
-  readonly note: string;
-}[] = [
-  {
-    key: 'rgb-led',
-    label: 'RGB-светодиод',
-    sourceFolder: 'RGB - светодиод',
-    status: 'future',
-    note: 'Требует трёх независимых каналов в расчёте.',
-  },
-  {
-    key: 'diode',
-    label: 'Диод',
-    sourceFolder: 'Диод',
-    status: 'future',
-    note: 'Нужна нелинейная модель проводимости.',
-  },
-  {
-    key: 'button',
-    label: 'Кнопка',
-    sourceFolder: 'Кнопка',
-    status: 'future',
-    note: 'Нужны состояния цепи во времени.',
-  },
-  {
-    key: 'lamp',
-    label: 'Лампа накаливания',
-    sourceFolder: 'Лампа накаливания',
-    status: 'future',
-    note: 'Нужна тепловая зависимость сопротивления.',
-  },
-  {
-    key: 'breadboard',
-    label: 'Макетная плата',
-    sourceFolder: 'Макетка',
-    status: 'not_enabled',
-    note: 'Вне текущего среза: соединения задаются напрямую.',
-  },
-  {
-    key: 'switch',
-    label: 'Переключатель',
-    sourceFolder: 'Переключатель',
-    status: 'future',
-    note: 'Нужны состояния цепи во времени.',
-  },
-  {
-    key: 'seven-segment',
-    label: 'Семисегментный индикатор',
-    sourceFolder: 'Семисегментный индикатор',
-    status: 'future',
-    note: 'Нужна логика сегментов и многоконтактная модель.',
+    sourceFile: 'led_v9_verified_pack (off/lit/reverse/overcurrent/burned states)',
+    enabled: true,
   },
 ];
+
+function future(options: {
+  key: string;
+  label: string;
+  category: Exclude<ComponentCategory, 'all'>;
+  preview: PreviewKey;
+  description: string;
+  asset?: string;
+  stateAssets?: Partial<Record<ComponentVisualState, string>>;
+  sourceFile?: string;
+  authored?: boolean;
+}): CatalogEntry {
+  return {
+    key: options.key,
+    kind: null,
+    label: options.label,
+    category: options.category,
+    description: options.description,
+    keywords: [options.label.toLowerCase(), options.key],
+    preview: options.preview,
+    asset: options.asset ? `${ASSET_ROOT}/${options.asset}` : null,
+    stateAssets: options.stateAssets
+      ? Object.fromEntries(
+          Object.entries(options.stateAssets).map(([state, file]) => [
+            state,
+            `${ASSET_ROOT}/${file}`,
+          ]),
+        )
+      : undefined,
+    viewBox: { width: 100, height: 80 },
+    renderWidth: 100,
+    terminals: null,
+    defaultValue: 0,
+    unit: '',
+    authored: options.authored ?? true,
+    sourceFile: options.sourceFile ?? 'owner component archive / future implementation',
+    enabled: false,
+  };
+}
+
+// Future parts intentionally carry no asset path: their artwork is not part of
+// this slice, so the catalogue renders the built-in vector preview instead of
+// pointing at a file that does not exist.
+const FUTURE: CatalogEntry[] = [
+  future({
+    key: 'button',
+    label: 'Кнопка',
+    category: 'inputs',
+    preview: 'button',
+    description: 'Авторская кнопка с отпущенным и нажатым SVG-состоянием.',
+  }),
+  future({
+    key: 'potentiometer',
+    label: 'Потенциометр',
+    category: 'inputs',
+    preview: 'potentiometer',
+    description: 'Регулируемое сопротивление.',
+  }),
+  future({
+    key: 'capacitor',
+    label: 'Конденсатор',
+    category: 'basic',
+    preview: 'capacitor',
+    description: 'Накопление заряда и временные процессы.',
+  }),
+  future({
+    key: 'slide-switch',
+    label: 'Ползунковый переключатель',
+    category: 'inputs',
+    preview: 'slide-switch',
+    description: 'Авторский переключатель с двумя SVG-положениями.',
+  }),
+  future({
+    key: 'battery-9v',
+    label: 'Батарея 9 В',
+    category: 'power',
+    preview: 'battery-9v',
+    description: 'Источник постоянного напряжения 9 В.',
+  }),
+  future({
+    key: 'coin-cell',
+    label: 'Кнопочная батарея 3 В',
+    category: 'power',
+    preview: 'coin-cell',
+    description: 'Компактный источник 3 В. В архиве пока нет отдельного SVG.',
+    authored: false,
+  }),
+  future({
+    key: 'battery-aa',
+    label: 'Батарея 1,5 В',
+    category: 'power',
+    preview: 'battery-aa',
+    description: 'Один элемент AA из авторского набора.',
+  }),
+  future({
+    key: 'adjustable-source',
+    label: 'Регулируемый источник',
+    category: 'power',
+    preview: 'battery-9v',
+    description:
+      'Источник с регулируемым напряжением; крупный asset будет подключён отдельным оптимизационным проходом.',
+  }),
+  future({
+    key: 'breadboard',
+    label: 'Малая макетная плата',
+    category: 'boards',
+    preview: 'breadboard',
+    description:
+      'Авторская макетная плата; крупный asset будет подключён вместе с моделью внутренних шин.',
+  }),
+  future({
+    key: 'microbit',
+    label: 'micro:bit',
+    category: 'boards',
+    preview: 'microbit',
+    description: 'Учебная микроконтроллерная плата. Пока только место в каталоге.',
+    authored: false,
+  }),
+  future({
+    key: 'arduino',
+    label: 'Arduino Uno',
+    category: 'boards',
+    preview: 'arduino',
+    description: 'Авторский вектор Arduino будет подключён после оптимизации большого SVG.',
+  }),
+  future({
+    key: 'servo',
+    label: 'Сервопривод',
+    category: 'outputs',
+    preview: 'servo',
+    description: 'Авторский привод будет подключён вместе с моделью управления.',
+  }),
+  future({
+    key: 'motor',
+    label: 'Двигатель постоянного тока',
+    category: 'outputs',
+    preview: 'motor',
+    description: 'Простой электродвигатель.',
+  }),
+  future({
+    key: 'buzzer',
+    label: 'Пьезодинамик',
+    category: 'outputs',
+    preview: 'motor',
+    description: 'Звуковой излучатель.',
+  }),
+  future({
+    key: 'lamp',
+    label: 'Лампа накаливания',
+    category: 'outputs',
+    preview: 'led',
+    description: 'Авторская лампа с выключенным и светящимся SVG-состоянием.',
+  }),
+  future({
+    key: 'transistor',
+    label: 'NPN-транзистор',
+    category: 'basic',
+    preview: 'transistor',
+    description: 'Ключ и усилитель.',
+  }),
+  future({
+    key: 'rgb-led',
+    label: 'RGB-светодиод',
+    category: 'outputs',
+    preview: 'rgb-led',
+    description: 'Авторский RGB-светодиод с отдельными SVG-состояниями.',
+  }),
+  future({
+    key: 'diode',
+    label: 'Диод',
+    category: 'basic',
+    preview: 'diode',
+    description: 'Авторский диод; электрическая модель будет добавлена позже.',
+  }),
+  future({
+    key: 'photoresistor',
+    label: 'Фоторезистор',
+    category: 'inputs',
+    preview: 'photoresistor',
+    description: 'Датчик освещённости.',
+  }),
+  future({
+    key: 'seven-segment',
+    label: 'Семисегментный индикатор',
+    category: 'outputs',
+    preview: 'seven-segment',
+    description: 'Авторский многоконтактный индикатор.',
+  }),
+];
+
+export const WORKBENCH_CATALOG: readonly CatalogEntry[] = [...ACTIVE, ...FUTURE];
+export const ACTIVE_COMPONENTS: Record<Exclude<ComponentKind, 'wire'>, CatalogEntry> = {
+  source: ACTIVE[0] as CatalogEntry,
+  resistor: ACTIVE[1] as CatalogEntry,
+  led: ACTIVE[2] as CatalogEntry,
+};
 
 export function catalogEntry(kind: ComponentKind): CatalogEntry | null {
   return kind === 'wire' ? null : ACTIVE_COMPONENTS[kind];
 }
 
-/** Terminal position in canvas coordinates for a placed component. */
+export function visualAsset(
+  entry: CatalogEntry,
+  state: ComponentVisualState = 'default',
+): string | null {
+  return entry.stateAssets?.[state] ?? entry.stateAssets?.default ?? entry.asset;
+}
+
+export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number; height: number } {
+  const scale = entry.renderWidth / entry.viewBox.width;
+  const original = { width: entry.renderWidth, height: entry.viewBox.height * scale };
+  return Math.abs(rotation % 180) === 90
+    ? { width: original.height, height: original.width }
+    : original;
+}
+
 export function terminalPosition(
   kind: ComponentKind,
   origin: { x: number; y: number },
   terminal: 'a' | 'b',
+  rotation = 0,
 ): { x: number; y: number } | null {
   const entry = catalogEntry(kind);
-  if (!entry) {
-    return null;
-  }
+  if (!entry?.terminals) return null;
   const scale = entry.renderWidth / entry.viewBox.width;
+  const baseWidth = entry.renderWidth;
+  const baseHeight = entry.viewBox.height * scale;
   const spec = entry.terminals[terminal];
-  return { x: origin.x + spec.x * scale, y: origin.y + spec.y * scale };
-}
-
-export function renderedSize(entry: CatalogEntry): { width: number; height: number } {
-  const scale = entry.renderWidth / entry.viewBox.width;
-  return { width: entry.renderWidth, height: entry.viewBox.height * scale };
+  const px = spec.x * scale;
+  const py = spec.y * scale;
+  const normalized = ((rotation % 360) + 360) % 360;
+  if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
+  if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };
+  if (normalized === 270) return { x: origin.x + py, y: origin.y + baseWidth - px };
+  return { x: origin.x + px, y: origin.y + py };
 }

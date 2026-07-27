@@ -15,9 +15,12 @@ export interface Classroom {
   createdAt: string;
 }
 
+export type ProjectScope = 'personal' | 'classroom';
+
 export interface Project {
   id: string;
-  classroomId: string;
+  scope: ProjectScope;
+  classroomId: string | null;
   moduleKey: string;
   title: string;
   status: string;
@@ -45,12 +48,15 @@ export interface SchematicComponent {
   kind: ComponentKind;
   position: { x: number; y: number };
   value: number;
+  rotation?: 0 | 90 | 180 | 270;
 }
 
 export interface SchematicConnection {
   id: string;
   from: { componentId: string; terminal: 'a' | 'b' };
   to: { componentId: string; terminal: 'a' | 'b' };
+  color?: string;
+  vertices?: { x: number; y: number }[];
 }
 
 export interface SchematicDocument {
@@ -90,18 +96,12 @@ export type ApiResult<T> =
 
 async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   let response: Response;
-  // A JSON content-type is only declared when a body is actually sent: an
-  // empty body with that header is rejected by the server's strict parser.
   const headers: Record<string, string> = {
     ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
     ...((init?.headers as Record<string, string> | undefined) ?? {}),
   };
   try {
-    response = await fetch(path, {
-      credentials: 'same-origin',
-      ...init,
-      headers,
-    });
+    response = await fetch(path, { credentials: 'same-origin', ...init, headers });
   } catch {
     return { ok: false, status: 0, error: { code: 'network', message: 'сервер недоступен' } };
   }
@@ -111,13 +111,24 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
   } catch {
     body = null;
   }
-  if (response.ok) {
-    return { ok: true, status: response.status, data: body as T };
-  }
+  if (response.ok) return { ok: true, status: response.status, data: body as T };
   const error =
     (body as { error?: ApiError } | null)?.error ??
     ({ code: 'server_error', message: 'ошибка сервера' } satisfies ApiError);
   return { ok: false, status: response.status, error };
+}
+
+export interface ProjectListOptions {
+  scope?: ProjectScope;
+  classroomId?: string;
+}
+
+export interface CreateProjectOptions {
+  scope: ProjectScope;
+  classroomId?: string | null | undefined;
+  title: string;
+  module: 'electronics';
+  idempotencyKey: string;
 }
 
 export const api = {
@@ -129,13 +140,28 @@ export const api = {
     }),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
-  listProjects: (classroomId: string) =>
-    call<{ items: Project[] }>(`/api/projects?classroomId=${encodeURIComponent(classroomId)}`),
-  createProject: (classroomId: string, title: string, idempotencyKey: string) =>
+  listProjects: (options: ProjectListOptions = {}) => {
+    const query = new URLSearchParams();
+    if (options.scope) query.set('scope', options.scope);
+    if (options.classroomId) query.set('classroomId', options.classroomId);
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    return call<{ items: Project[] }>(`/api/projects${suffix}`);
+  },
+  createProject: (options: CreateProjectOptions) =>
     call<{ project: Project; created: boolean }>('/api/projects', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-      body: JSON.stringify({ classroomId, module: 'electronics', title }),
+      headers: { 'idempotency-key': options.idempotencyKey },
+      body: JSON.stringify({
+        scope: options.scope,
+        classroomId: options.classroomId ?? null,
+        module: options.module,
+        title: options.title,
+      }),
+    }),
+  renameProject: (projectId: string, title: string) =>
+    call<{ project: Project }>(`/api/projects/${encodeURIComponent(projectId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
     }),
   openProject: (projectId: string) =>
     call<{
@@ -157,7 +183,7 @@ export const api = {
   createClassroom: (title: string, idempotencyKey: string) =>
     call<{ classroom: Classroom; created: boolean }>('/api/classrooms', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+      headers: { 'idempotency-key': idempotencyKey },
       body: JSON.stringify({ title }),
     }),
 };

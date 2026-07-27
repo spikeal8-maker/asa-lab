@@ -9,8 +9,8 @@ export const TOKENS = {
   createProjectUseCase: 'CREATE_PROJECT_USECASE',
   listProjectsUseCase: 'LIST_PROJECTS_USECASE',
   openProjectUseCase: 'OPEN_PROJECT_USECASE',
+  renameProjectUseCase: 'RENAME_PROJECT_USECASE',
   saveDraftUseCase: 'SAVE_DRAFT_USECASE',
   createCheckpointUseCase: 'CREATE_CHECKPOINT_USECASE',
 } as const;
-
 export const SESSION_COOKIE = 'asa_session';

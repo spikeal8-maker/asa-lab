@@ -118,6 +118,7 @@ describe('runtime role hardening', () => {
       'project_versions:SELECT',
       'projects:INSERT',
       'projects:SELECT',
+      'projects:UPDATE',
       'schools:SELECT',
     ]);
     const sequences = await runtime.query(

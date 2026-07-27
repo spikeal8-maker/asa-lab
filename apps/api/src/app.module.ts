@@ -19,6 +19,7 @@ import {
   ListProjectsUseCase,
   OpenProjectUseCase,
   PgProjectRepository,
+  RenameProjectUseCase,
   SaveDraftUseCase,
 } from '@asa-lab/projects';
 import { EMPTY_DOCUMENT, parseElectronicsDocument } from '@asa-lab/electronics';
@@ -28,13 +29,9 @@ import { ClassroomsController } from './classrooms.controller.js';
 import { HealthController } from './health.controller.js';
 import { TOKENS } from './tokens.js';
 
-/** Composition root: wires context use cases to PostgreSQL adapters. */
 @Module({})
 export class AppModule {
   static forPool(pool: pg.Pool | null): DynamicModule {
-    // Without a pool the app still constructs (health-only mode): data
-    // adapters receive a stand-in that fails loudly the moment a query is
-    // actually attempted, instead of breaking dependency injection at boot.
     const unavailablePool = new Proxy({} as pg.Pool, {
       get() {
         return () => {
@@ -43,6 +40,7 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
+    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     return {
       module: AppModule,
       controllers: [HealthController, AuthController, ClassroomsController, ProjectsController],
@@ -71,21 +69,24 @@ export class AppModule {
         },
         {
           provide: TOKENS.createProjectUseCase,
-          useFactory: () =>
-            new CreateProjectUseCase(new PgProjectRepository(requirePool()), EMPTY_DOCUMENT),
+          useFactory: () => new CreateProjectUseCase(projectRepository(), EMPTY_DOCUMENT),
         },
         {
           provide: TOKENS.listProjectsUseCase,
-          useFactory: () => new ListProjectsUseCase(new PgProjectRepository(requirePool())),
+          useFactory: () => new ListProjectsUseCase(projectRepository()),
         },
         {
           provide: TOKENS.openProjectUseCase,
-          useFactory: () => new OpenProjectUseCase(new PgProjectRepository(requirePool())),
+          useFactory: () => new OpenProjectUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.renameProjectUseCase,
+          useFactory: () => new RenameProjectUseCase(projectRepository()),
         },
         {
           provide: TOKENS.saveDraftUseCase,
           useFactory: () =>
-            new SaveDraftUseCase(new PgProjectRepository(requirePool()), (value) => {
+            new SaveDraftUseCase(projectRepository(), (value: unknown) => {
               const parsed = parseElectronicsDocument(value);
               return parsed.ok
                 ? { ok: true, document: parsed.document }
@@ -94,7 +95,7 @@ export class AppModule {
         },
         {
           provide: TOKENS.createCheckpointUseCase,
-          useFactory: () => new CreateCheckpointUseCase(new PgProjectRepository(requirePool())),
+          useFactory: () => new CreateCheckpointUseCase(projectRepository()),
         },
         {
           provide: TOKENS.listClassroomsUseCase,

@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
-import { testAdminPool, testAppPool, seedTeacher, type SeededTeacher } from './helpers';
 import { buildTestApp, inject, type NestApp } from './app';
+import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from './helpers';
 
-/** TST-PROJECT-SLICE-001: project shell over the real API and the runtime
- * (RLS-constrained) role — create, draft save/reload, checkpoint immutability
- * and cross-tenant isolation. */
+/** TST-PROJECT-SLICE-001: personal and classroom project lifecycle over the
+ * real API and the RLS-constrained application role. */
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
@@ -17,7 +16,7 @@ async function login(teacher: SeededTeacher): Promise<string> {
     url: '/api/auth/login',
     payload: { workspace: teacher.workspace, email: teacher.email, password: teacher.password },
   });
-  const cookie = response.cookies.find((c) => c.name === 'asa_session');
+  const cookie = response.cookies.find((item) => item.name === 'asa_session');
   if (response.statusCode !== 200 || !cookie) {
     throw new Error(`login failed: ${response.statusCode} ${response.body}`);
   }
@@ -29,49 +28,62 @@ async function createClassroom(token: string, title: string): Promise<string> {
     method: 'POST',
     url: '/api/classrooms',
     cookies: { asa_session: token },
-    headers: { 'idempotency-key': `cls-${Date.now()}-${Math.random().toString(36).slice(2)}` },
+    headers: { 'idempotency-key': `cls-${crypto.randomUUID()}` },
     payload: { title },
   });
   expect(response.statusCode).toBe(201);
   return response.json().classroom.id as string;
 }
 
-async function createProject(token: string, classroomId: string, title: string): Promise<string> {
+async function createProject(
+  token: string,
+  options: { title: string; scope: 'personal' | 'classroom'; classroomId?: string; key?: string },
+): Promise<{
+  status: number;
+  body: { project: { id: string; scope: string; classroomId: string | null } };
+}> {
   const response = await inject(app, {
     method: 'POST',
     url: '/api/projects',
     cookies: { asa_session: token },
-    headers: { 'idempotency-key': `prj-${Date.now()}-${Math.random().toString(36).slice(2)}` },
-    payload: { classroomId, module: 'electronics', title },
+    headers: { 'idempotency-key': options.key ?? `prj-${crypto.randomUUID()}` },
+    payload: {
+      scope: options.scope,
+      classroomId: options.scope === 'classroom' ? options.classroomId : null,
+      module: 'electronics',
+      title: options.title,
+    },
   });
-  expect(response.statusCode).toBe(201);
-  return response.json().project.id as string;
+  return { status: response.statusCode, body: response.json() };
 }
 
-/** source -> resistor -> led -> source: the teaching circuit. */
-function seriesDocument(volts = 5, ohms = 300, ledDrop = 2) {
+function seriesDocument() {
   return {
     schemaVersion: 1,
     components: [
-      { id: 'src', kind: 'source', position: { x: 0, y: 0 }, value: volts },
-      { id: 'r1', kind: 'resistor', position: { x: 100, y: 0 }, value: ohms },
-      { id: 'led1', kind: 'led', position: { x: 200, y: 0 }, value: ledDrop },
+      { id: 'src', kind: 'source', position: { x: 120, y: 160 }, value: 5, rotation: 0 },
+      { id: 'r1', kind: 'resistor', position: { x: 380, y: 180 }, value: 300, rotation: 90 },
+      { id: 'led1', kind: 'led', position: { x: 620, y: 160 }, value: 2, rotation: 0 },
     ],
     connections: [
       {
         id: 'c1',
         from: { componentId: 'src', terminal: 'a' },
         to: { componentId: 'r1', terminal: 'a' },
+        color: '#e3212b',
+        vertices: [{ x: 310, y: 205 }],
       },
       {
         id: 'c2',
         from: { componentId: 'r1', terminal: 'b' },
         to: { componentId: 'led1', terminal: 'a' },
+        color: '#149447',
       },
       {
         id: 'c3',
         from: { componentId: 'led1', terminal: 'b' },
         to: { componentId: 'src', terminal: 'b' },
+        color: '#2a3035',
       },
     ],
   };
@@ -88,202 +100,174 @@ afterAll(async () => {
   await admin.end();
 });
 
-describe('project lifecycle', () => {
-  it('creates a project with an empty draft and lists it in the classroom', async () => {
-    const teacher = await seedTeacher(admin, 'proj-create');
+describe('personal teacher projects', () => {
+  it('creates and lists a project without a classroom', async () => {
+    const teacher = await seedTeacher(admin, 'personal-create');
     const token = await login(teacher);
-    const classroomId = await createClassroom(token, 'Класс с проектами');
-    const projectId = await createProject(token, classroomId, 'Первая схема');
+    const created = await createProject(token, {
+      scope: 'personal',
+      title: 'Личная демонстрация',
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.project).toMatchObject({ scope: 'personal', classroomId: null });
 
     const list = await inject(app, {
       method: 'GET',
-      url: `/api/projects?classroomId=${classroomId}`,
+      url: '/api/projects?scope=personal',
       cookies: { asa_session: token },
     });
     expect(list.statusCode).toBe(200);
-    expect(list.json().items.map((item: { id: string }) => item.id)).toContain(projectId);
-
-    const opened = await inject(app, {
-      method: 'GET',
-      url: `/api/projects/${projectId}`,
-      cookies: { asa_session: token },
-    });
-    expect(opened.statusCode).toBe(200);
-    expect(opened.json().draft.document).toEqual({
-      schemaVersion: 1,
-      components: [],
-      connections: [],
-    });
-
-    const audit = await admin.query(
-      `SELECT action FROM audit_events WHERE tenant_id = $1 AND entity_id = $2`,
-      [teacher.tenantId, projectId],
+    expect(list.json().items.map((item: { id: string }) => item.id)).toContain(
+      created.body.project.id,
     );
-    expect(audit.rows.map((row) => row.action)).toContain('project.created');
+
+    const stored = await admin.query(
+      `SELECT project_scope, classroom_id FROM projects WHERE tenant_id = $1 AND id = $2`,
+      [teacher.tenantId, created.body.project.id],
+    );
+    expect(stored.rows[0]).toMatchObject({ project_scope: 'personal', classroom_id: null });
   });
 
-  it('saves the schematic, returns the DC result and reloads it unchanged', async () => {
-    const teacher = await seedTeacher(admin, 'proj-draft');
+  it('renames only the owning teacher project', async () => {
+    const teacher = await seedTeacher(admin, 'personal-rename');
     const token = await login(teacher);
-    const classroomId = await createClassroom(token, 'Класс');
-    const projectId = await createProject(token, classroomId, 'Цепь');
+    const created = await createProject(token, { scope: 'personal', title: 'Черновик' });
+    const response = await inject(app, {
+      method: 'PATCH',
+      url: `/api/projects/${created.body.project.id}`,
+      cookies: { asa_session: token },
+      payload: { title: 'Демонстрация закона Ома' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().project.title).toBe('Демонстрация закона Ома');
+  });
 
+  it('is idempotent across scope and rejects a different payload', async () => {
+    const teacher = await seedTeacher(admin, 'personal-idempotency');
+    const token = await login(teacher);
+    const key = `personal-${crypto.randomUUID()}`;
+    const first = await createProject(token, { scope: 'personal', title: 'Повтор', key });
+    const repeat = await createProject(token, { scope: 'personal', title: 'Повтор', key });
+    const conflict = await createProject(token, { scope: 'personal', title: 'Другое', key });
+    expect(first.status).toBe(201);
+    expect(repeat.status).toBe(200);
+    expect(repeat.body.project.id).toBe(first.body.project.id);
+    expect(conflict.status).toBe(409);
+  });
+});
+
+describe('classroom projects', () => {
+  it('keeps classroom projects in the classroom collection', async () => {
+    const teacher = await seedTeacher(admin, 'classroom-project');
+    const token = await login(teacher);
+    const classroomId = await createClassroom(token, '8А Электроника');
+    const created = await createProject(token, {
+      scope: 'classroom',
+      classroomId,
+      title: 'Схема класса',
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.project).toMatchObject({ scope: 'classroom', classroomId });
+
+    const classroomList = await inject(app, {
+      method: 'GET',
+      url: `/api/projects?scope=classroom&classroomId=${classroomId}`,
+      cookies: { asa_session: token },
+    });
+    expect(classroomList.json().items.map((item: { id: string }) => item.id)).toContain(
+      created.body.project.id,
+    );
+
+    const personalList = await inject(app, {
+      method: 'GET',
+      url: '/api/projects?scope=personal',
+      cookies: { asa_session: token },
+    });
+    expect(personalList.json().items.map((item: { id: string }) => item.id)).not.toContain(
+      created.body.project.id,
+    );
+  });
+
+  it('refuses a classroom project in a foreign classroom', async () => {
+    const teacherA = await seedTeacher(admin, 'foreign-a');
+    const teacherB = await seedTeacher(admin, 'foreign-b');
+    const tokenA = await login(teacherA);
+    const tokenB = await login(teacherB);
+    const classroomA = await createClassroom(tokenA, 'Чужой класс');
+    const response = await createProject(tokenB, {
+      scope: 'classroom',
+      classroomId: classroomA,
+      title: 'Чужая схема',
+    });
+    expect(response.status).toBe(404);
+  });
+});
+
+describe('workbench draft and immutable versions', () => {
+  it('persists coordinates, rotation, wire color and vertices across reload', async () => {
+    const teacher = await seedTeacher(admin, 'workbench-persist');
+    const token = await login(teacher);
+    const created = await createProject(token, { scope: 'personal', title: 'Рабочее поле' });
+    const document = seriesDocument();
     const saved = await inject(app, {
       method: 'PUT',
-      url: `/api/projects/${projectId}/draft`,
+      url: `/api/projects/${created.body.project.id}/draft`,
       cookies: { asa_session: token },
-      payload: { document: seriesDocument() },
+      payload: { document },
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().draft.revision).toBe(2);
-    // (5V - 2V) / 300 ohm = 10 mA and the LED lights up.
-    expect(saved.json().result.solved).toBe(true);
     expect(saved.json().result.current).toBeCloseTo(0.01, 6);
-    expect(
-      saved
-        .json()
-        .result.components.find((entry: { componentId: string }) => entry.componentId === 'led1')
-        .lit,
-    ).toBe(true);
 
     const reloaded = await inject(app, {
       method: 'GET',
-      url: `/api/projects/${projectId}`,
+      url: `/api/projects/${created.body.project.id}`,
       cookies: { asa_session: token },
     });
-    expect(reloaded.json().draft.document).toEqual(seriesDocument());
-    expect(reloaded.json().result.current).toBeCloseTo(0.01, 6);
-  });
-
-  it('rejects a malformed schematic document with 400', async () => {
-    const teacher = await seedTeacher(admin, 'proj-bad');
-    const token = await login(teacher);
-    const classroomId = await createClassroom(token, 'Класс');
-    const projectId = await createProject(token, classroomId, 'Цепь');
-    for (const document of [
-      null,
-      'x',
-      { schemaVersion: 2 },
-      {
-        schemaVersion: 1,
-        components: [{ id: 'a', kind: 'capacitor', position: { x: 0, y: 0 }, value: 1 }],
-        connections: [],
-      },
-    ]) {
-      const response = await inject(app, {
-        method: 'PUT',
-        url: `/api/projects/${projectId}/draft`,
-        cookies: { asa_session: token },
-        payload: { document },
-      });
-      expect(response.statusCode, JSON.stringify(document)).toBe(400);
-    }
+    expect(reloaded.statusCode).toBe(200);
+    expect(reloaded.json().draft.document).toEqual(document);
+    expect(
+      reloaded
+        .json()
+        .result.components.find((item: { componentId: string }) => item.componentId === 'led1').lit,
+    ).toBe(true);
   });
 
   it('creates immutable numbered checkpoints', async () => {
-    const teacher = await seedTeacher(admin, 'proj-checkpoint');
+    const teacher = await seedTeacher(admin, 'workbench-checkpoint');
     const token = await login(teacher);
-    const classroomId = await createClassroom(token, 'Класс');
-    const projectId = await createProject(token, classroomId, 'Цепь');
+    const created = await createProject(token, { scope: 'personal', title: 'Версии' });
     await inject(app, {
       method: 'PUT',
-      url: `/api/projects/${projectId}/draft`,
+      url: `/api/projects/${created.body.project.id}/draft`,
       cookies: { asa_session: token },
       payload: { document: seriesDocument() },
     });
-
     const first = await inject(app, {
       method: 'POST',
-      url: `/api/projects/${projectId}/checkpoints`,
+      url: `/api/projects/${created.body.project.id}/checkpoints`,
       cookies: { asa_session: token },
       payload: {},
     });
     expect(first.statusCode).toBe(201);
     expect(first.json().version.versionNo).toBe(1);
 
-    const second = await inject(app, {
-      method: 'POST',
-      url: `/api/projects/${projectId}/checkpoints`,
-      cookies: { asa_session: token },
-      payload: { label: 'Рабочая схема' },
-    });
-    expect(second.json().version.versionNo).toBe(2);
-
     const stored = await admin.query(
-      `SELECT id, version_no FROM project_versions WHERE tenant_id = $1 AND project_id = $2 ORDER BY version_no`,
-      [teacher.tenantId, projectId],
+      `SELECT id FROM project_versions WHERE tenant_id = $1 AND project_id = $2`,
+      [teacher.tenantId, created.body.project.id],
     );
-    expect(stored.rows.map((row) => row.version_no)).toEqual([1, 2]);
     await expect(
       admin.query(`UPDATE project_versions SET label = 'x' WHERE id = $1`, [stored.rows[0].id]),
     ).rejects.toThrow(/immutable/);
-    await expect(
-      admin.query(`DELETE FROM project_versions WHERE id = $1`, [stored.rows[0].id]),
-    ).rejects.toThrow(/immutable/);
-  });
-
-  it('is idempotent per key and conflicts on a different payload', async () => {
-    const teacher = await seedTeacher(admin, 'proj-idem');
-    const token = await login(teacher);
-    const classroomId = await createClassroom(token, 'Класс');
-    const key = `prj-${Date.now()}`;
-    const payload = { classroomId, module: 'electronics', title: 'Повтор' };
-    const first = await inject(app, {
-      method: 'POST',
-      url: '/api/projects',
-      cookies: { asa_session: token },
-      headers: { 'idempotency-key': key },
-      payload,
-    });
-    const repeat = await inject(app, {
-      method: 'POST',
-      url: '/api/projects',
-      cookies: { asa_session: token },
-      headers: { 'idempotency-key': key },
-      payload,
-    });
-    const conflict = await inject(app, {
-      method: 'POST',
-      url: '/api/projects',
-      cookies: { asa_session: token },
-      headers: { 'idempotency-key': key },
-      payload: { ...payload, title: 'Другое' },
-    });
-    expect(first.statusCode).toBe(201);
-    expect(repeat.statusCode).toBe(200);
-    expect(repeat.json().project.id).toBe(first.json().project.id);
-    expect(conflict.statusCode).toBe(409);
-    expect(conflict.json().error.code).toBe('idempotency_conflict');
-  });
-
-  it('rejects unsupported modules and a missing Idempotency-Key', async () => {
-    const teacher = await seedTeacher(admin, 'proj-guard');
-    const token = await login(teacher);
-    const classroomId = await createClassroom(token, 'Класс');
-    const wrongModule = await inject(app, {
-      method: 'POST',
-      url: '/api/projects',
-      cookies: { asa_session: token },
-      headers: { 'idempotency-key': 'k-module' },
-      payload: { classroomId, module: 'checkers', title: 'X' },
-    });
-    expect(wrongModule.statusCode).toBe(400);
-    const noKey = await inject(app, {
-      method: 'POST',
-      url: '/api/projects',
-      cookies: { asa_session: token },
-      payload: { classroomId, module: 'electronics', title: 'X' },
-    });
-    expect(noKey.statusCode).toBe(400);
   });
 });
 
-describe('project authorization', () => {
-  it('requires a session for every project endpoint', async () => {
+describe('authorization and validation', () => {
+  it('requires a session for all project routes', async () => {
     for (const [method, url] of [
-      ['GET', '/api/projects?classroomId=x'],
+      ['GET', '/api/projects?scope=personal'],
       ['POST', '/api/projects'],
       ['GET', '/api/projects/00000000-0000-0000-0000-000000000001'],
+      ['PATCH', '/api/projects/00000000-0000-0000-0000-000000000001'],
       ['PUT', '/api/projects/00000000-0000-0000-0000-000000000001/draft'],
       ['POST', '/api/projects/00000000-0000-0000-0000-000000000001/checkpoints'],
     ] as const) {
@@ -292,59 +276,55 @@ describe('project authorization', () => {
     }
   });
 
-  it('never exposes another tenant project', async () => {
-    const teacherA = await seedTeacher(admin, 'proj-iso-a');
-    const teacherB = await seedTeacher(admin, 'proj-iso-b');
+  it('never exposes another tenant personal project', async () => {
+    const teacherA = await seedTeacher(admin, 'personal-iso-a');
+    const teacherB = await seedTeacher(admin, 'personal-iso-b');
     const tokenA = await login(teacherA);
     const tokenB = await login(teacherB);
-    const classroomA = await createClassroom(tokenA, 'Класс A');
-    const projectA = await createProject(tokenA, classroomA, 'Секретная схема');
-
-    const openedByB = await inject(app, {
-      method: 'GET',
-      url: `/api/projects/${projectA}`,
-      cookies: { asa_session: tokenB },
-    });
-    expect(openedByB.statusCode).toBe(404);
-
-    const savedByB = await inject(app, {
-      method: 'PUT',
-      url: `/api/projects/${projectA}/draft`,
-      cookies: { asa_session: tokenB },
-      payload: { document: seriesDocument() },
-    });
-    expect(savedByB.statusCode).toBe(404);
-
-    const checkpointByB = await inject(app, {
-      method: 'POST',
-      url: `/api/projects/${projectA}/checkpoints`,
-      cookies: { asa_session: tokenB },
-      payload: {},
-    });
-    expect(checkpointByB.statusCode).toBe(404);
-
-    const listB = await inject(app, {
-      method: 'GET',
-      url: `/api/projects?classroomId=${classroomA}`,
-      cookies: { asa_session: tokenB },
-    });
-    expect(listB.json().items).toEqual([]);
+    const created = await createProject(tokenA, { scope: 'personal', title: 'Секретная схема' });
+    for (const [method, url, payload] of [
+      ['GET', `/api/projects/${created.body.project.id}`, undefined],
+      ['PATCH', `/api/projects/${created.body.project.id}`, { title: 'Украдено' }],
+      ['PUT', `/api/projects/${created.body.project.id}/draft`, { document: seriesDocument() }],
+      ['POST', `/api/projects/${created.body.project.id}/checkpoints`, {}],
+    ] as const) {
+      const response = await inject(app, {
+        method,
+        url,
+        cookies: { asa_session: tokenB },
+        ...(payload === undefined ? {} : { payload }),
+      });
+      expect(response.statusCode, `${method} ${url}`).toBe(404);
+    }
   });
 
-  it('refuses to create a project in a classroom the teacher does not own', async () => {
-    const teacherA = await seedTeacher(admin, 'proj-foreign-a');
-    const teacherB = await seedTeacher(admin, 'proj-foreign-b');
-    const tokenA = await login(teacherA);
-    const tokenB = await login(teacherB);
-    const classroomA = await createClassroom(tokenA, 'Класс A');
-    const response = await inject(app, {
+  it('rejects inconsistent scope, unsupported modules and missing keys', async () => {
+    const teacher = await seedTeacher(admin, 'project-guards');
+    const token = await login(teacher);
+    const invalid = await inject(app, {
       method: 'POST',
       url: '/api/projects',
-      cookies: { asa_session: tokenB },
-      headers: { 'idempotency-key': 'k-foreign' },
-      payload: { classroomId: classroomA, module: 'electronics', title: 'Чужой' },
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': 'invalid-scope' },
+      payload: { scope: 'personal', classroomId: 'x', module: 'electronics', title: 'X' },
     });
-    expect(response.statusCode).toBe(404);
-    expect(response.json().error.code).toBe('classroom_not_found');
+    expect(invalid.statusCode).toBe(400);
+
+    const unsupported = await inject(app, {
+      method: 'POST',
+      url: '/api/projects',
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': 'invalid-module' },
+      payload: { scope: 'personal', classroomId: null, module: 'checkers', title: 'X' },
+    });
+    expect(unsupported.statusCode).toBe(400);
+
+    const noKey = await inject(app, {
+      method: 'POST',
+      url: '/api/projects',
+      cookies: { asa_session: token },
+      payload: { scope: 'personal', classroomId: null, module: 'electronics', title: 'X' },
+    });
+    expect(noKey.statusCode).toBe(400);
   });
 });

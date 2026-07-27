@@ -3,27 +3,21 @@ import { api, type Project } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { CircuitIcon, PlusIcon } from '../electronics/workbench-icons';
 
-export function ProjectsPage({
-  classroomId,
-  classroomTitle,
-  onBack,
+export function MyProjectsPage({
   onOpenProject,
 }: {
-  classroomId: string;
-  classroomTitle: string;
-  onBack: () => void;
   onOpenProject: (projectId: string) => void;
 }): JSX.Element {
   const [items, setItems] = useState<Project[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
-    setFailed(false);
-    const response = await api.listProjects({ scope: 'classroom', classroomId });
-    if (response.ok) setItems(response.data.items);
-    else setFailed(true);
-  }, [classroomId]);
+    setError(null);
+    const result = await api.listProjects({ scope: 'personal' });
+    if (result.ok) setItems(result.data.items);
+    else setError(result.status === 0 ? 'Сервер недоступен.' : 'Не удалось загрузить проекты.');
+  }, []);
 
   useEffect(() => {
     void load();
@@ -31,30 +25,31 @@ export function ProjectsPage({
 
   return (
     <main className="portal-content" id="main-content">
-      <button type="button" className="portal-back" onClick={onBack}>
-        ← К классам
-      </button>
-      <section className="portal-hero compact">
+      <section className="portal-hero">
         <div>
-          <p className="portal-eyebrow">Проекты класса</p>
-          <h1>{classroomTitle}</h1>
-          <p>Шаблоны и демонстрации, привязанные к этому классу.</p>
+          <p className="portal-eyebrow">Личная мастерская педагога</p>
+          <h1>Мои проекты</h1>
+          <p>
+            Создавайте демонстрации, экспериментируйте и готовьте будущие задания независимо от
+            классов.
+          </p>
         </div>
         <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
-          <PlusIcon /> Создать проект
+          <PlusIcon /> Создать
         </button>
       </section>
 
-      {failed ? (
+      {error ? (
         <div className="portal-empty" role="alert">
-          <p>Не удалось загрузить проекты.</p>
+          <p>{error}</p>
           <button className="btn-secondary" onClick={() => void load()}>
             Повторить
           </button>
         </div>
       ) : null}
-      {items === null && !failed ? (
-        <div className="project-gallery loading">
+      {items === null && !error ? (
+        <div className="project-gallery loading" aria-label="Загрузка проектов">
+          <div />
           <div />
           <div />
         </div>
@@ -64,30 +59,30 @@ export function ProjectsPage({
           <span className="portal-empty-icon">
             <CircuitIcon />
           </span>
-          <h2>В классе пока нет проектов</h2>
-          <p>Создайте демонстрацию или будущий шаблон задания.</p>
+          <h2>Создайте первый проект</h2>
+          <p>Начните с электронной схемы. Класс для личной работы не требуется.</p>
           <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
             <PlusIcon /> Создать проект
           </button>
         </section>
       ) : null}
       {items && items.length > 0 ? (
-        <ul className="project-gallery" data-testid="project-grid">
+        <ul className="project-gallery" data-testid="personal-project-grid">
           {items.map((project) => (
-            <li key={project.id} className="project-gallery-card" data-testid="project-card">
+            <li key={project.id} className="project-gallery-card">
               <button
                 type="button"
                 className="project-preview"
                 onClick={() => onOpenProject(project.id)}
               >
-                <span className="project-preview-grid">
+                <span className="project-preview-grid" aria-hidden="true">
                   <CircuitIcon />
                 </span>
               </button>
               <div className="project-card-meta">
                 <div>
                   <h2>{project.title}</h2>
-                  <p>Электроника · {classroomTitle}</p>
+                  <p>Электроника · личный проект</p>
                 </div>
                 <button
                   type="button"
@@ -104,8 +99,7 @@ export function ProjectsPage({
 
       {creating ? (
         <CreateProjectModal
-          scope="classroom"
-          classroomId={classroomId}
+          scope="personal"
           onClose={() => setCreating(false)}
           onCreated={(project) => {
             setCreating(false);
