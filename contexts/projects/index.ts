@@ -1,6 +1,5 @@
 export {
   isProjectScope,
-  isSupportedModuleKey,
   isValidCheckpointLabel,
   isValidProjectTitle,
   type Project,
@@ -9,8 +8,10 @@ export {
   type ProjectVersion,
 } from './domain/project.js';
 export type {
+  CreatableProjectModule,
   CreateProjectInput,
   CreateProjectResult,
+  ModuleCatalogPort,
   ProjectListFilter,
   ProjectRepositoryPort,
   SaveDraftInput,
