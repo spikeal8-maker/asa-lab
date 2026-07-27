@@ -66,6 +66,7 @@ export async function launchApiRuntime(options: ApiRuntimeOptions = {}): Promise
       throw new AggregateError(
         [startupError, ...cleanupErrors],
         'API startup failed and cleanup also reported errors',
+        { cause: startupError },
       );
     }
     throw startupError;

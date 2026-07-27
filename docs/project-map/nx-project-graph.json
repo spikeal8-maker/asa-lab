@@ -6,6 +6,53 @@
         "type": "lib",
         "data": {
           "root": "packages/domain-kernel",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/domain-kernel/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/domain-kernel/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/domain-kernel/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "domain-kernel",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -14,53 +61,6 @@
             "type:lib",
             "scope:shared"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/domain-kernel/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/domain-kernel/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/domain-kernel/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -69,8 +69,57 @@
         "type": "lib",
         "data": {
           "root": "packages/observability",
-          "sourceRoot": "packages/observability/src",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/observability/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/observability/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/observability/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "observability",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/observability/src",
           "tags": [
             "npm:private",
             "type:lib",
@@ -80,63 +129,17 @@
             "targetGroups": {},
             "js": {
               "packageName": "@asa-lab/observability",
+              "packageVersion": "0.0.0",
               "packageExports": {
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
                 }
-              }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
             }
           },
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/observability/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/observability/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/observability/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
           "implicitDependencies": []
         }
       },
@@ -145,8 +148,57 @@
         "type": "lib",
         "data": {
           "root": "contexts/organization",
-          "sourceRoot": "contexts/organization",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/organization/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/organization/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/organization"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "organization",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/organization",
           "tags": [
             "npm:private",
             "type:lib",
@@ -157,63 +209,17 @@
             "targetGroups": {},
             "js": {
               "packageName": "@asa-lab/organization",
+              "packageVersion": "0.0.0",
               "packageExports": {
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
                 }
-              }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
             }
           },
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/organization/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/organization/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint contexts/organization"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
           "implicitDependencies": []
         }
       },
@@ -222,6 +228,53 @@
         "type": "app",
         "data": {
           "root": "apps/realtime-gateway",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/realtime-gateway/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/realtime-gateway/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint apps/realtime-gateway/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "realtime-gateway",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "application",
@@ -230,53 +283,6 @@
             "type:app",
             "scope:app"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/realtime-gateway/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/realtime-gateway/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint apps/realtime-gateway/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -285,6 +291,53 @@
         "type": "app",
         "data": {
           "root": "apps/job-dispatcher",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/job-dispatcher/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/job-dispatcher/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint apps/job-dispatcher/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "job-dispatcher",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "application",
@@ -293,53 +346,6 @@
             "type:app",
             "scope:app"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/job-dispatcher/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/job-dispatcher/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint apps/job-dispatcher/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -348,6 +354,53 @@
         "type": "lib",
         "data": {
           "root": "packages/module-sdk",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/module-sdk/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/module-sdk/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/module-sdk/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "module-sdk",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -356,53 +409,6 @@
             "type:lib",
             "scope:shared"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/module-sdk/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/module-sdk/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/module-sdk/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -411,6 +417,53 @@
         "type": "app",
         "data": {
           "root": "apps/worker-runtime",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/worker-runtime/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/worker-runtime/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint apps/worker-runtime/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "worker-runtime",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "application",
@@ -419,53 +472,6 @@
             "type:app",
             "scope:app"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/worker-runtime/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/worker-runtime/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint apps/worker-runtime/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -474,8 +480,57 @@
         "type": "lib",
         "data": {
           "root": "contexts/classroom",
-          "sourceRoot": "contexts/classroom",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/classroom/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/classroom/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/classroom"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "classroom",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/classroom",
           "tags": [
             "npm:private",
             "type:lib",
@@ -486,63 +541,17 @@
             "targetGroups": {},
             "js": {
               "packageName": "@asa-lab/classroom",
+              "packageVersion": "0.0.0",
               "packageExports": {
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
                 }
-              }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
             }
           },
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/classroom/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/classroom/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint contexts/classroom"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
           "implicitDependencies": []
         }
       },
@@ -551,6 +560,53 @@
         "type": "lib",
         "data": {
           "root": "packages/contracts",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/contracts/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/contracts/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/contracts/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "contracts",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -559,53 +615,6 @@
             "type:lib",
             "scope:contract"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/contracts/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/contracts/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/contracts/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -614,8 +623,57 @@
         "type": "lib",
         "data": {
           "root": "packages/database",
-          "sourceRoot": "packages/database/src",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/database/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/database/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/database/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "database",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/database/src",
           "tags": [
             "npm:private",
             "type:lib",
@@ -625,63 +683,17 @@
             "targetGroups": {},
             "js": {
               "packageName": "@asa-lab/database",
+              "packageVersion": "0.0.0",
               "packageExports": {
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
                 }
-              }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
             }
           },
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/database/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/database/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/database/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
           "implicitDependencies": []
         }
       },
@@ -690,6 +702,53 @@
         "type": "lib",
         "data": {
           "root": "packages/eventing",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/eventing/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/eventing/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/eventing/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "eventing",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -698,53 +757,6 @@
             "type:lib",
             "scope:shared"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/eventing/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/eventing/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/eventing/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -753,8 +765,57 @@
         "type": "lib",
         "data": {
           "root": "contexts/identity",
-          "sourceRoot": "contexts/identity",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/identity/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/identity/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/identity"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "identity",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/identity",
           "tags": [
             "npm:private",
             "type:lib",
@@ -765,63 +826,17 @@
             "targetGroups": {},
             "js": {
               "packageName": "@asa-lab/identity",
+              "packageVersion": "0.0.0",
               "packageExports": {
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
                 }
-              }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
             }
           },
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/identity/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/identity/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint contexts/identity"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
           "implicitDependencies": []
         }
       },
@@ -830,6 +845,53 @@
         "type": "lib",
         "data": {
           "root": "packages/test-kit",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/test-kit/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/test-kit/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/test-kit/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "test-kit",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -838,53 +900,6 @@
             "type:lib",
             "scope:shared"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/test-kit/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/test-kit/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/test-kit/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -893,6 +908,53 @@
         "type": "lib",
         "data": {
           "root": "packages/ui-kit",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/ui-kit/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/ui-kit/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/ui-kit/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "ui-kit",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -901,53 +963,6 @@
             "type:lib",
             "scope:shared"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/ui-kit/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/ui-kit/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/ui-kit/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -956,6 +971,53 @@
         "type": "lib",
         "data": {
           "root": "packages/authz",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/authz/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/authz/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/authz/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "authz",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
@@ -964,53 +1026,6 @@
             "type:lib",
             "scope:shared"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/authz/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p packages/authz/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint packages/authz/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -1019,6 +1034,53 @@
         "type": "app",
         "data": {
           "root": "apps/admin",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/admin/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/admin/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint apps/admin/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
           "name": "admin",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "application",
@@ -1027,53 +1089,6 @@
             "type:app",
             "scope:app"
           ],
-          "targets": {
-            "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/admin/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true
-            },
-            "typecheck": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/admin/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true
-            },
-            "lint": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint apps/admin/src"
-              },
-              "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
-            }
-          },
           "implicitDependencies": []
         }
       },
@@ -1082,27 +1097,8 @@
         "type": "app",
         "data": {
           "root": "apps/api",
-          "sourceRoot": "apps/api/src",
-          "name": "api",
-          "tags": [
-            "npm:private",
-            "type:app",
-            "scope:app"
-          ],
-          "metadata": {
-            "targetGroups": {},
-            "js": {
-              "packageName": "@asa-lab/api"
-            }
-          },
           "targets": {
             "build": {
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p apps/api/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true,
               "dependsOn": [
                 "^build"
               ],
@@ -1110,15 +1106,15 @@
                 "production",
                 "^production"
               ],
-              "cache": true
-            },
-            "typecheck": {
+              "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "tsc -p apps/api/tsconfig.json --noEmit"
+                "command": "tsc -p apps/api/tsconfig.json"
               },
               "configurations": {},
-              "parallelism": true,
+              "parallelism": true
+            },
+            "typecheck": {
               "dependsOn": [
                 "^build"
               ],
@@ -1126,20 +1122,26 @@
                 "default",
                 "^default"
               ],
-              "cache": true
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/api/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
             },
             "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
               "executor": "nx:run-commands",
               "options": {
                 "command": "eslint apps/api/src"
               },
               "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
+              "parallelism": true
             },
             "serve": {
               "dependsOn": [
@@ -1153,18 +1155,10 @@
               "parallelism": true
             }
           },
+          "name": "api",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "application",
-          "implicitDependencies": []
-        }
-      },
-      "web": {
-        "name": "web",
-        "type": "app",
-        "data": {
-          "root": "apps/web",
-          "sourceRoot": "apps/web/src",
-          "name": "web",
+          "sourceRoot": "apps/api/src",
           "tags": [
             "npm:private",
             "type:app",
@@ -1173,20 +1167,21 @@
           "metadata": {
             "targetGroups": {},
             "js": {
-              "packageName": "@asa-lab/web"
+              "packageName": "@asa-lab/api",
+              "packageVersion": "0.0.0",
+              "isInPackageManagerWorkspaces": true
             }
           },
+          "implicitDependencies": []
+        }
+      },
+      "web": {
+        "name": "web",
+        "type": "app",
+        "data": {
+          "root": "apps/web",
           "targets": {
             "build": {
-              "outputs": [
-                "{workspaceRoot}/apps/web/dist"
-              ],
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "vite build -c apps/web/vite.config.ts"
-              },
-              "configurations": {},
-              "parallelism": true,
               "dependsOn": [
                 "^build"
               ],
@@ -1194,15 +1189,18 @@
                 "production",
                 "^production"
               ],
-              "cache": true
-            },
-            "typecheck": {
+              "cache": true,
               "executor": "nx:run-commands",
+              "outputs": [
+                "{workspaceRoot}/apps/web/dist"
+              ],
               "options": {
-                "command": "tsc -p apps/web/tsconfig.json --noEmit"
+                "command": "vite build -c apps/web/vite.config.ts"
               },
               "configurations": {},
-              "parallelism": true,
+              "parallelism": true
+            },
+            "typecheck": {
               "dependsOn": [
                 "^build"
               ],
@@ -1210,20 +1208,26 @@
                 "default",
                 "^default"
               ],
-              "cache": true
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p apps/web/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
             },
             "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
               "executor": "nx:run-commands",
               "options": {
                 "command": "eslint apps/web/src"
               },
               "configurations": {},
-              "parallelism": true,
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true
+              "parallelism": true
             },
             "serve": {
               "executor": "nx:run-commands",
@@ -1234,8 +1238,23 @@
               "parallelism": true
             }
           },
+          "name": "web",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "application",
+          "sourceRoot": "apps/web/src",
+          "tags": [
+            "npm:private",
+            "type:app",
+            "scope:app"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/web",
+              "packageVersion": "0.0.0",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
           "implicitDependencies": []
         }
       }

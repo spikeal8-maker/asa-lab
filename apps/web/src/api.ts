@@ -40,7 +40,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
   } catch {
     return { ok: false, status: 0, error: { code: 'network', message: 'сервер недоступен' } };
   }
-  let body: unknown = null;
+  let body: unknown;
   try {
     body = await response.json();
   } catch {
