@@ -6,10 +6,13 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+const organizationCodeField = 'Код организации';
+const teacherEmailField = 'Email педагога';
+
 async function login(page: Page): Promise<void> {
   await page.goto('/');
-  await page.getByLabel('Workspace').fill(teacher.workspace);
-  await page.getByLabel('Email').fill(teacher.email);
+  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
+  await page.getByLabel(teacherEmailField).fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);
   await page.getByRole('button', { name: 'Войти' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
@@ -95,8 +98,8 @@ test('critical controls have names and reduced motion disables skeleton animatio
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
-  await expect(page.getByLabel('Workspace')).toBeVisible();
-  await expect(page.getByLabel('Email')).toBeVisible();
+  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
+  await expect(page.getByLabel(teacherEmailField)).toBeVisible();
   await expect(page.getByLabel('Пароль')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Войти' })).toBeVisible();
 
