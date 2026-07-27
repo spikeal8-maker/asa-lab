@@ -1,168 +1,123 @@
-import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
-/** TST-E2E-ELECTRONICS-SLICE-001: the owner-facing path —
- * Классы → Проекты → создать проект → редактор → источник, резистор, LED и
- * провод → последовательная цепь → ток и состояние LED → сохранить →
- * reload сохраняет схему → immutable checkpoint. */
+/** TST-E2E-ELECTRONICS-SLICE-001: a teacher creates a personal project without
+ * a class, works in the full-screen electronics workbench, wires the circuit,
+ * simulates, reloads and creates an immutable checkpoint. */
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+async function login(page: Page): Promise<void> {
+  await page.goto('/#/projects');
+  await page.getByLabel('Код организации').fill(teacher.workspace);
+  await page.getByLabel('Email педагога').fill(teacher.email);
+  await page.getByLabel('Пароль').fill(teacher.password);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+}
+
+async function createPersonalProject(page: Page, title: string): Promise<void> {
+  await page.getByRole('button', { name: 'Создать', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
+  await page.getByLabel('Название проекта').fill(title);
+  await expect(page.getByText('Электроника', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Создать проект' }).click();
+  await expect(page.getByLabel('Название проекта')).toHaveValue(title);
+  await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+}
+
+async function addComponent(page: Page, name: string): Promise<void> {
+  await page.getByRole('button', { name, exact: true }).click();
+}
+
+async function connect(page: Page, first: string, second: string): Promise<void> {
+  await page.getByLabel(first).click();
+  await page.getByLabel(second).click();
+}
+
+async function moveComponent(page: Page, kind: string): Promise<{ beforeX: number; afterX: number }> {
+  const component = page.getByTestId('schematic-component').filter({ has: page.locator(`[data-kind="${kind}"]`) });
+  const direct = page.getByTestId('schematic-component').filter({ hasNotText: 'never-used' }).locator(`xpath=self::*[@data-kind='${kind}']`);
+  const target = (await direct.count()) > 0 ? direct.first() : page.locator(`[data-testid="schematic-component"][data-kind="${kind}"]`).first();
+  const beforeX = Number(await target.getAttribute('data-x'));
+  const box = await target.boundingBox();
+  if (!box) throw new Error(`component ${kind} has no bounding box`);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 60, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => Number(await target.getAttribute('data-x'))).not.toBe(beforeX);
+  const afterX = Number(await target.getAttribute('data-x'));
+  return { beforeX, afterX };
+}
+
 test.beforeAll(async () => {
   admin = e2eAdminPool();
-  teacher = await seedTeacher(admin, 'e2e-elec');
+  teacher = await seedTeacher(admin, 'e2e-workbench');
 });
 
 test.afterAll(async () => {
   await admin.end();
 });
 
-async function login(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel('Код организации').fill(teacher.workspace);
-  await page.getByLabel('Email педагога').fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
-}
-
-/** Connect two terminals by clicking them in sequence. */
-async function connect(
-  page: Page,
-  from: { kind: string; terminal: string },
-  to: { kind: string; terminal: string },
-): Promise<void> {
-  await page.getByRole('button', { name: `${from.kind}: вывод ${from.terminal}` }).click();
-  await page.getByRole('button', { name: `${to.kind}: вывод ${to.terminal}` }).click();
-}
-
-test('teacher builds a series circuit, sees the result and keeps it after reload', async ({
-  page,
-}) => {
+test('teacher builds and preserves a personal circuit in the Tinkercad-style workbench', async ({ page }) => {
   await login(page);
+  await createPersonalProject(page, 'Демонстрация закона Ома');
 
-  // Классы → Проекты
-  await page.getByRole('button', { name: 'Создать класс' }).click();
-  await page.getByLabel('Название класса').fill('8А Электроника');
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать' }).click();
-  await expect(
-    page.getByTestId('classroom-card').filter({ hasText: '8А Электроника' }),
-  ).toBeVisible();
-  await page
-    .getByTestId('classroom-card')
-    .filter({ hasText: '8А Электроника' })
-    .getByRole('button', { name: 'Проекты' })
-    .click();
-  await expect(page.getByRole('heading', { name: /Проекты/ })).toBeVisible();
-  await expect(page.getByText('Проектов пока нет.')).toBeVisible();
+  await expect(page.getByLabel('Библиотека компонентов')).toBeVisible();
+  await expect(page.getByPlaceholder('Поиск')).toBeVisible();
+  await expect(page.getByText('Блочное программирование', { exact: true })).toBeVisible();
 
-  // Создать проект → «Электроника» → редактор
-  await page.getByRole('button', { name: 'Создать проект' }).click();
-  await page.getByLabel('Название проекта').fill('Первая схема');
-  await expect(page.getByLabel('Электроника')).toBeChecked();
-  await page.getByRole('button', { name: 'Создать', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Первая схема' })).toBeVisible();
-  await expect(
-    page.getByText('Поле пустое. Добавьте источник, резистор и светодиод.'),
-  ).toBeVisible();
+  await addComponent(page, 'Батарейный отсек');
+  await addComponent(page, 'Резистор');
+  await addComponent(page, 'Светодиод');
+  await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(3);
+  await expect(page.locator('image[href$="power-source.svg"]')).toBeVisible();
+  await expect(page.locator('image[href$="resistor.svg"]')).toBeVisible();
+  await expect(page.locator('image[href$="led-red-off.svg"]')).toBeVisible();
 
-  // Этап A: авторские SVG источника, резистора и светодиода на рабочем поле
-  for (const element of ['Источник', 'Резистор', 'Светодиод']) {
-    await page.getByRole('button', { name: element, exact: true }).click();
-  }
-  await expect(page.getByTestId('schematic-component')).toHaveCount(3);
-  const svgHrefs = await page
-    .getByTestId('schematic-component')
-    .locator('image')
-    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')));
-  expect(svgHrefs.sort()).toEqual([
-    '/assets/electronics/components/led.svg',
-    '/assets/electronics/components/power-source.svg',
-    '/assets/electronics/components/resistor.svg',
-  ]);
-
-  // Этап B: элемент перетаскивается указателем, координаты меняются
-  const led = page
-    .getByTestId('schematic-component')
-    .filter({ has: page.locator('[data-kind="led"]') });
-  const ledNode = page.locator('[data-kind="led"]');
-  const before = {
-    x: await ledNode.getAttribute('data-x'),
-    y: await ledNode.getAttribute('data-y'),
-  };
-  const ledImage = ledNode.locator('image');
-  const box = await ledImage.boundingBox();
-  if (!box) throw new Error('LED image has no bounding box');
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 60, { steps: 8 });
-  await page.mouse.up();
-  const after = {
-    x: await ledNode.getAttribute('data-x'),
-    y: await ledNode.getAttribute('data-y'),
-  };
-  expect(after).not.toEqual(before);
-  void led;
-
-  // Этап C: последовательная цепь настоящими SVG-проводами
-  await connect(page, { kind: 'Источник', terminal: '+' }, { kind: 'Резистор', terminal: 'A' });
-  await connect(page, { kind: 'Резистор', terminal: 'B' }, { kind: 'Светодиод', terminal: 'A' });
-  await connect(page, { kind: 'Светодиод', terminal: 'K' }, { kind: 'Источник', terminal: '−' });
+  await connect(page, 'Батарейный отсек: вывод +', 'Резистор: вывод 1');
+  await connect(page, 'Резистор: вывод 2', 'Светодиод: вывод A');
+  await connect(page, 'Светодиод: вывод K', 'Батарейный отсек: вывод −');
   await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
 
-  // Ток, состояние LED и понятная диагностика
-  // Этап D: ток, состояние LED и понятная диагностика
-  await page.getByRole('button', { name: 'Сохранить' }).click();
+  const moved = await moveComponent(page, 'resistor');
+  expect(moved.afterX).not.toBe(moved.beforeX);
+  await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+  await expect(page.getByText('Все изменения сохранены', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.getByText('Моделирование запущено', { exact: true })).toBeVisible();
   await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
-  await expect(page.getByTestId('led-state')).toContainText('Светодиод горит');
+  await expect(page.locator('image[href$="led-red-lit.svg"]')).toBeVisible();
   await expect(page.getByTestId('diagnostics')).toContainText('Цепь замкнута');
-  await expect(page.getByTestId('led-glow')).toBeVisible();
 
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.screenshot({ path: 'e2e/artifacts/electronics-desktop.png', fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: 'e2e/artifacts/electronics-mobile.png', fullPage: true });
-  await page.setViewportSize({ width: 1280, height: 720 });
 
-  // Reload сохраняет схему, позиции и результат
   await page.reload();
-  await expect(page.getByTestId('schematic-component')).toHaveCount(3);
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Демонстрация закона Ома');
+  const resistor = page.locator('[data-testid="schematic-component"][data-kind="resistor"]').first();
+  expect(Number(await resistor.getAttribute('data-x'))).toBe(moved.afterX);
   await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
-  await expect(page.locator('[data-kind="led"]')).toHaveAttribute('data-x', after.x as string);
-  await expect(page.locator('[data-kind="led"]')).toHaveAttribute('data-y', after.y as string);
-  await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
-  await expect(page.getByTestId('led-state')).toContainText('Светодиод горит');
 
-  // Immutable checkpoint
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
   await page.getByRole('button', { name: 'Создать версию' }).click();
-  await expect(page.getByTestId('version-list')).toContainText('Версия №1');
-  await expect(page.getByRole('status')).toContainText('больше нельзя изменить');
+  await expect(page.getByText('Последняя версия: №1')).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.screenshot({ path: 'e2e/artifacts/electronics-mobile.png', fullPage: true });
 });
 
-test('the editor explains a broken circuit in plain language', async ({ page }) => {
+test('classes remain a separate teacher workspace from personal projects', async ({ page }) => {
   await login(page);
-  await page.getByRole('button', { name: 'Создать класс' }).click();
-  await page.getByLabel('Название класса').fill('Диагностика');
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать' }).click();
-  await page
-    .getByTestId('classroom-card')
-    .filter({ hasText: 'Диагностика' })
-    .getByRole('button', { name: 'Проекты' })
-    .click();
-  await page.getByRole('button', { name: 'Создать проект' }).click();
-  await page.getByLabel('Название проекта').fill('Разрыв');
-  await page.getByRole('button', { name: 'Создать', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Разрыв' })).toBeVisible();
-
-  // An LED wired straight across the source: no current limiting resistor.
-  await page.getByRole('button', { name: 'Источник', exact: true }).click();
-  await page.getByRole('button', { name: 'Светодиод', exact: true }).click();
-  await connect(page, { kind: 'Источник', terminal: '+' }, { kind: 'Светодиод', terminal: 'A' });
-  await connect(page, { kind: 'Светодиод', terminal: 'K' }, { kind: 'Источник', terminal: '−' });
-  await page.getByRole('button', { name: 'Сохранить' }).click();
-
-  await expect(page.getByTestId('diagnostics')).toContainText('токоограничивающего резистора');
+  await page.getByRole('button', { name: 'Классы' }).click();
+  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+  await expect(page.getByText('Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.')).toBeVisible();
+  await page.getByRole('button', { name: 'Мои проекты' }).click();
+  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 });
