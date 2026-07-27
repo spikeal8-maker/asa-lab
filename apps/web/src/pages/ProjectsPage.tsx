@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, type Project } from '../api';
+import { CreateProjectModal } from '../components/CreateProjectModal';
+import { CircuitIcon, PlusIcon } from '../electronics/workbench-icons';
 
 export function ProjectsPage({
   classroomId,
@@ -15,134 +17,59 @@ export function ProjectsPage({
   const [items, setItems] = useState<Project[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setFailed(false);
-    const response = await api.listProjects(classroomId);
-    if (response.ok) {
-      setItems(response.data.items);
-    } else {
-      setFailed(true);
-    }
+    const response = await api.listProjects({ scope: 'classroom', classroomId });
+    if (response.ok) setItems(response.data.items);
+    else setFailed(true);
   }, [classroomId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function submit(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    const trimmed = title.trim();
-    if (!trimmed) {
-      setError('Введите название проекта.');
-      return;
-    }
-    setBusy(true);
-    const response = await api.createProject(classroomId, trimmed, crypto.randomUUID());
-    setBusy(false);
-    if (response.ok) {
-      setCreating(false);
-      setTitle('');
-      setError(null);
-      onOpenProject(response.data.project.id);
-      return;
-    }
-    setError(response.error.message || 'Не удалось создать проект.');
-  }
+  useEffect(() => { void load(); }, [load]);
 
   return (
-    <main className="content">
-      <div className="content-head">
+    <main className="portal-content" id="main-content">
+      <button type="button" className="portal-back" onClick={onBack}>← К классам</button>
+      <section className="portal-hero compact">
         <div>
-          <button type="button" className="btn-ghost" onClick={onBack}>
-            ← Классы
-          </button>
-          <h1>Проекты · {classroomTitle}</h1>
+          <p className="portal-eyebrow">Проекты класса</p>
+          <h1>{classroomTitle}</h1>
+          <p>Шаблоны и демонстрации, привязанные к этому классу.</p>
         </div>
-        <button type="button" className="btn-primary" onClick={() => setCreating(true)}>
-          Создать проект
-        </button>
-      </div>
+        <button type="button" className="portal-create-button" onClick={() => setCreating(true)}><PlusIcon /> Создать проект</button>
+      </section>
 
-      {creating ? (
-        <form className="inline-form" onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="project-title">Название проекта</label>
-          <input
-            id="project-title"
-            value={title}
-            autoFocus
-            maxLength={255}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <fieldset className="module-choice">
-            <legend>Тип проекта</legend>
-            <label htmlFor="module-electronics">
-              <input
-                id="module-electronics"
-                type="radio"
-                name="module"
-                value="electronics"
-                defaultChecked
-              />
-              Электроника
-            </label>
-          </fieldset>
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setCreating(false)}
-              disabled={busy}
-            >
-              Отмена
-            </button>
-            <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'Создаём…' : 'Создать'}
-            </button>
-          </div>
-        </form>
+      {failed ? <div className="portal-empty" role="alert"><p>Не удалось загрузить проекты.</p><button className="btn-secondary" onClick={() => void load()}>Повторить</button></div> : null}
+      {items === null && !failed ? <div className="project-gallery loading"><div/><div/></div> : null}
+      {items?.length === 0 ? (
+        <section className="portal-empty project-empty">
+          <span className="portal-empty-icon"><CircuitIcon /></span>
+          <h2>В классе пока нет проектов</h2>
+          <p>Создайте демонстрацию или будущий шаблон задания.</p>
+          <button type="button" className="portal-create-button" onClick={() => setCreating(true)}><PlusIcon /> Создать проект</button>
+        </section>
       ) : null}
-
-      {failed ? (
-        <div className="empty-state" role="alert">
-          <p>Не удалось загрузить проекты.</p>
-          <button type="button" className="btn-secondary" onClick={() => void load()}>
-            Повторить
-          </button>
-        </div>
-      ) : null}
-
-      {items && items.length === 0 && !failed ? (
-        <div className="empty-state">
-          <p>Проектов пока нет.</p>
-          <p className="muted">Создайте проект «Электроника», чтобы собрать первую схему.</p>
-        </div>
-      ) : null}
-
       {items && items.length > 0 ? (
-        <ul className="card-grid" data-testid="project-grid">
-          {items.map((item) => (
-            <li key={item.id} className="card" data-testid="project-card">
-              <h2>{item.title}</h2>
-              <p className="muted">Электроника</p>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => onOpenProject(item.id)}
-              >
-                Открыть редактор
-              </button>
+        <ul className="project-gallery" data-testid="project-grid">
+          {items.map((project) => (
+            <li key={project.id} className="project-gallery-card" data-testid="project-card">
+              <button type="button" className="project-preview" onClick={() => onOpenProject(project.id)}><span className="project-preview-grid"><CircuitIcon /></span></button>
+              <div className="project-card-meta">
+                <div><h2>{project.title}</h2><p>Электроника · {classroomTitle}</p></div>
+                <button type="button" className="btn-secondary" onClick={() => onOpenProject(project.id)}>Открыть</button>
+              </div>
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {creating ? (
+        <CreateProjectModal
+          scope="classroom"
+          classroomId={classroomId}
+          onClose={() => setCreating(false)}
+          onCreated={(project) => { setCreating(false); onOpenProject(project.id); }}
+        />
       ) : null}
     </main>
   );
