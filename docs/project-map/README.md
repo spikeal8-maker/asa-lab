@@ -57,3 +57,5 @@ python tools/validate_delivery_program.py
 ```
 
 Проверки контролируют узлы, связи, task cycles, current focus, exact queue, manifest dependencies, Issues, test profiles, ports и обязательные map artifacts при product-code changes.
+
+Текущий focus — `TASK-ELECTRONICS-SLICE-001` (Electronics Project Slice): проект, редактор схемы, DC-результат и immutable checkpoint. Project Shell входит в этот срез.

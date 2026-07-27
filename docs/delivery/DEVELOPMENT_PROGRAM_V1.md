@@ -27,7 +27,7 @@
 - **delivery stage** — строгий порядок, в котором бот выполняет задачи;
 - **architecture horizon** — архитектурный контур, к которому относится результат.
 
-Technical Alpha намеренно доказывает Project Shell и Electronics раньше полного StudentSeat/Assignment workflow. Поэтому architecture horizon может быть не монотонным. Это не конфликт и не разрешение перескакивать очередь.
+Technical Alpha намеренно доказывает Electronics Project Slice (Project Shell внутри него) раньше полного StudentSeat/Assignment workflow. Поэтому architecture horizon может быть не монотонным. Это не конфликт и не разрешение перескакивать очередь.
 
 Единственный execution order:
 
@@ -70,7 +70,7 @@ Classroom/Project Core не знает types резисторов, шашечн�
 
 ```text
 Teacher Portal
-→ Universal Project Shell
+→ Electronics Project Slice
 → Checkers Lite reference module
 → Electronics Alpha
 ```
@@ -177,23 +177,20 @@ open site
 
 Exit: сайт запускается из чистой PowerShell-сессии, полный manifest gate PASS, PR №22 merged.
 
-## 8. Этап 2 — Universal Project Shell
+## 8. Этап 2 — Electronics Project Slice
 
-**Task:** [Issue №24 — TASK-PROJECT-SHELL-001](https://github.com/spikeal8-maker/asa-lab/issues/24).  
+**Task:** [Issue №33 — TASK-ELECTRONICS-SLICE-001](https://github.com/spikeal8-maker/asa-lab/issues/33).  
 **Delivery stage:** `STAGE-2-PROJECT-SHELL`.  
 **Architecture horizon:** `PHASE-3`.
 
 ```text
-Projects empty state
-→ create project
-→ choose module
-→ save draft
-→ reload restores
-→ optimistic conflict protected
-→ immutable checkpoint
+Классы → Проекты → создать проект → «Электроника» → редактор
+→ источник, резистор, LED и провод → последовательная цепь
+→ ток, состояние LED и понятная диагностика
+→ сохранить draft → reload сохраняет схему → immutable checkpoint
 ```
 
-Результат: Module Registry v0.1, Project envelope, PostgreSQL `jsonb` draft, row version, immutable ProjectVersion/digest, module host, cards и blank-canvas technical module.
+Результат: Project envelope (Project, ProjectDraft в `jsonb`, immutable ProjectVersion) и предметный ElectronicsDocument в одном вертикальном срезе: canvas-редактор, netlist, простой DC-расчёт и диагностика. Project Shell реализуется внутри этого этапа, отдельной задачей не выделяется.
 
 Не входят children, assignments, subject logic, Redis/MinIO/S3 и advanced autosave.
 
@@ -377,7 +374,7 @@ NEXT_COMMAND:
 
 - педагог входит и управляет классом;
 - ребёнок входит без email;
-- оба используют единый Project Shell;
+- оба используют единый Project envelope из Electronics Project Slice;
 - Checkers Lite и Electronics являются независимыми modules;
 - педагог назначает Electronics activity;
 - ребёнок сохраняет и сдаёт immutable version;
