@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type PublicUser } from './api';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -78,6 +79,7 @@ function viewFromHash(): View {
 
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
+  const [registering, setRegistering] = useState(false);
   const [view, setViewState] = useState<View>(() => viewFromHash());
 
   const setView = useCallback((next: View) => {
@@ -129,8 +131,21 @@ export function App(): JSX.Element {
     );
   }
   if (session.kind === 'anonymous') {
+    if (registering) {
+      return (
+        <RegisterPage
+          onRegistered={() => {
+            setRegistering(false);
+            setView({ kind: 'my-projects' });
+            void checkSession();
+          }}
+          onBackToLogin={() => setRegistering(false)}
+        />
+      );
+    }
     return (
       <LoginPage
+        onCreateAccount={() => setRegistering(true)}
         onLoggedIn={(user) => {
           setSession({ kind: 'authenticated', user });
           setView({ kind: 'my-projects' });

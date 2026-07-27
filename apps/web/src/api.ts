@@ -152,10 +152,28 @@ export interface CreateProjectOptions {
 
 export const api = {
   me: () => call<{ user: PublicUser }>('/api/auth/me'),
-  login: (workspace: string, email: string, password: string) =>
+  /** Personal sign-in: email and password only, no organization code. */
+  login: (email: string, password: string) =>
+    call<{ user: PublicUser }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  /** Compatible path for accounts that still sign in through an organization. */
+  loginWithWorkspace: (workspace: string, email: string, password: string) =>
     call<{ user: PublicUser }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ workspace, email, password }),
+    }),
+  register: (input: {
+    email: string;
+    password: string;
+    displayName: string;
+    birthDate: string;
+    country: string;
+  }) =>
+    call<{ account: { id: string; email: string } }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
     }),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
