@@ -5,7 +5,9 @@ import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
 import { JoinClassPage } from './pages/JoinClassPage';
+import { JoinPendingPage } from './pages/JoinPendingPage';
 import { NextStagePage } from './pages/NextStagePage';
+import { forgetJoinIntent, readJoinIntent, rememberJoinIntent } from './join-intent';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -24,16 +26,34 @@ type SessionState =
 /**
  * Public screens before a session exists.
  *
- * Each of the three intentions goes straight to the screen that serves it:
- * no chooser stands between a person and the form they came for.
+ * Each of the three intentions goes straight to the screen that serves it, and
+ * each one is a real address: `#/sign-in`, `#/sign-up`, `#/join-class` survive
+ * a refresh and answer to Back and Forward like any other page.
  */
 type PublicView =
   | { kind: 'entry' }
-  | { kind: 'login'; intro?: string }
+  | { kind: 'login' }
   | { kind: 'organization-login' }
   | { kind: 'register' }
   | { kind: 'join-class' }
   | { kind: 'next-stage'; title: string; explanation: string };
+
+const PUBLIC_ROUTES: { readonly path: string; readonly view: PublicView }[] = [
+  { path: '/sign-in', view: { kind: 'login' } },
+  { path: '/sign-up', view: { kind: 'register' } },
+  { path: '/join-class', view: { kind: 'join-class' } },
+  { path: '/organization-sign-in', view: { kind: 'organization-login' } },
+];
+
+function publicViewToHash(view: PublicView): string {
+  const match = PUBLIC_ROUTES.find((route) => route.view.kind === view.kind);
+  return match ? `#${match.path}` : '#/';
+}
+
+function publicViewFromHash(): PublicView {
+  const path = window.location.hash.replace(/^#/, '').split('?')[0] ?? '';
+  return PUBLIC_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'entry' };
+}
 
 const STUDENT_ACCOUNT_STAGE = {
   title: 'Ученический аккаунт — следующий этап',
@@ -110,8 +130,10 @@ function viewFromHash(): View {
 
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
-  const [publicView, setPublicView] = useState<PublicView>({ kind: 'entry' });
+  const [publicViewState, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
   const [view, setViewState] = useState<View>(() => viewFromHash());
+  // Survives sign-in and refresh, so a resolved class is never silently lost.
+  const [joinIntent, setJoinIntent] = useState(() => readJoinIntent());
 
   const setView = useCallback((next: View) => {
     setViewState(next);
@@ -119,8 +141,17 @@ export function App(): JSX.Element {
     if (window.location.hash !== hash) window.history.pushState(null, '', hash);
   }, []);
 
+  const setPublicView = useCallback((next: PublicView) => {
+    setPublicViewState(next);
+    const hash = publicViewToHash(next);
+    if (window.location.hash !== hash) window.history.pushState(null, '', hash);
+  }, []);
+
   useEffect(() => {
-    const sync = (): void => setViewState(viewFromHash());
+    const sync = (): void => {
+      setViewState(viewFromHash());
+      setPublicViewState(publicViewFromHash());
+    };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
@@ -162,8 +193,10 @@ export function App(): JSX.Element {
     );
   }
   if (session.kind === 'anonymous') {
+    const publicView = publicViewState;
     const signedIn = (payload: SessionPayload): void => {
       setSession({ kind: 'authenticated', session: payload });
+      // The pending class, if any, is answered by the authenticated branch.
       setPublicView({ kind: 'entry' });
       setView({ kind: 'my-projects' });
     };
@@ -183,12 +216,11 @@ export function App(): JSX.Element {
       return (
         <JoinClassPage
           onBack={() => setPublicView({ kind: 'entry' })}
-          onAccountPath={(preview) =>
-            setPublicView({
-              kind: 'login',
-              intro: `После входа вы сможете присоединиться к классу «${preview.title}».`,
-            })
-          }
+          onAccountPath={(preview) => {
+            rememberJoinIntent(preview);
+            setJoinIntent(readJoinIntent());
+            setPublicView({ kind: 'login' });
+          }}
           onHandlePath={(preview) => setPublicView({ kind: 'next-stage', ...seatStage(preview) })}
         />
       );
@@ -233,7 +265,24 @@ export function App(): JSX.Element {
         onClassCode={() => setPublicView({ kind: 'join-class' })}
         onOrganizationLogin={() => setPublicView({ kind: 'organization-login' })}
         onBack={() => setPublicView({ kind: 'entry' })}
-        {...(publicView.intro === undefined ? {} : { intro: publicView.intro })}
+        {...(joinIntent === null
+          ? {}
+          : { intro: `После входа мы вернёмся к классу «${joinIntent.title}».` })}
+      />
+    );
+  }
+
+  // A class was resolved before signing in: answer it before anything else,
+  // and say plainly that joining is not built yet instead of pretending.
+  if (joinIntent !== null) {
+    return (
+      <JoinPendingPage
+        intent={joinIntent}
+        onContinue={() => {
+          forgetJoinIntent();
+          setJoinIntent(null);
+          setView({ kind: 'my-projects' });
+        }}
       />
     );
   }

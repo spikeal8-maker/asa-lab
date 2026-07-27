@@ -13,11 +13,13 @@ import {
 import { GetTeachingContextUseCase, PgTeachingContext } from '@asa-lab/organization';
 import {
   CreateClassroomUseCase,
+  IssueJoinCodeUseCase,
   ListClassroomsUseCase,
   PgClassroomRepository,
   PgJoinCodeDirectory,
   ResolveJoinCodeUseCase,
 } from '@asa-lab/classroom';
+import { EnvJoinCodePepper } from './join-code-pepper.js';
 import {
   CreateCheckpointUseCase,
   CreateProjectUseCase,
@@ -183,7 +185,19 @@ export class AppModule {
         },
         {
           provide: TOKENS.resolveJoinCodeUseCase,
-          useFactory: () => new ResolveJoinCodeUseCase(new PgJoinCodeDirectory(requirePool())),
+          useFactory: () =>
+            new ResolveJoinCodeUseCase(
+              new PgJoinCodeDirectory(requirePool()),
+              new EnvJoinCodePepper(),
+            ),
+        },
+        {
+          provide: TOKENS.issueJoinCodeUseCase,
+          useFactory: () =>
+            new IssueJoinCodeUseCase(
+              new PgJoinCodeDirectory(requirePool()),
+              new EnvJoinCodePepper(),
+            ),
         },
       ],
     };

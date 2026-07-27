@@ -22,6 +22,13 @@ export class JoinClassController {
    * Attempts per client address, refilled every window. Codes are short, so an
    * unlimited endpoint would let a caller sweep the code space; the limit is
    * deliberately generous for a classroom where everyone types at once.
+   *
+   * TEMPORARY — local and pilot safeguard only. The counter lives in this
+   * process, so it does not survive a restart and does not add up across
+   * instances, and `request.ip` is only trustworthy while the API is reached
+   * directly. A public deployment needs a shared limiter (Redis or the edge)
+   * and an explicit trusted-proxy configuration before this endpoint is
+   * exposed; see the C1.1 PR notes.
    */
   private static readonly WINDOW_MS = 60_000;
   private static readonly MAX_ATTEMPTS = 30;
@@ -62,6 +69,15 @@ export class JoinClassController {
     }
     const result = await this.resolveUseCase.execute(shape.body['code']);
     if (!result.ok) {
+      if (result.code === 'unavailable') {
+        throw new HttpException(
+          error(
+            'join_codes_unavailable',
+            'вход по коду класса временно недоступен на этом сервере',
+          ),
+          503,
+        );
+      }
       // A malformed code and an unknown code get the same answer: the endpoint
       // must not tell a caller which codes exist.
       throw new HttpException(

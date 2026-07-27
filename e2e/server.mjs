@@ -19,6 +19,10 @@ if (!new URL(appTestUrl).pathname.endsWith('_test')) {
   process.exit(78);
 }
 process.env.APP_DATABASE_URL = appTestUrl;
+if (!process.env.ASA_JOIN_CODE_PEPPER) {
+  const { resolveJoinCodePepper } = await import('../tools/local-secrets.mjs');
+  process.env.ASA_JOIN_CODE_PEPPER = resolveJoinCodePepper();
+}
 delete process.env.DATABASE_URL;
 delete process.env.TEST_DATABASE_URL;
 const { startApi } = await import('../apps/api/dist/main.js');

@@ -8,7 +8,12 @@ export type NestApp = Awaited<ReturnType<typeof createApiApp>>;
  * must carry an explicitly allowed Origin header). */
 export const WEB_ORIGIN = 'http://127.0.0.1:4610';
 
+/** Fixed pepper for the suites, so a digest computed in a test matches the
+ * one the API stores. A deployment uses a real secret from the environment. */
+export const TEST_JOIN_CODE_PEPPER = 'asa-lab-test-pepper-0123456789abcdef';
+
 export async function buildTestApp(pool: pg.Pool): Promise<NestApp> {
+  process.env['ASA_JOIN_CODE_PEPPER'] ??= TEST_JOIN_CODE_PEPPER;
   return createApiApp({ pool, webDist: null });
 }
 

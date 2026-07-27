@@ -77,4 +77,11 @@ if (!process.env.APP_DATABASE_URL) {
   process.env.APP_DATABASE_URL = resolveLocalDatabaseUrl();
 }
 
+// Class-code digests need a server-side pepper; it is created locally on first
+// use and, like the database password, never printed.
+if (!process.env.ASA_JOIN_CODE_PEPPER) {
+  const { resolveJoinCodePepper } = await import('./local-secrets.mjs');
+  process.env.ASA_JOIN_CODE_PEPPER = resolveJoinCodePepper();
+}
+
 await import('./dev.mjs');

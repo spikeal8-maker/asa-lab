@@ -103,12 +103,19 @@ describe('adult registration', () => {
     expect(account.rows[0].country).toBe('RU');
 
     const workspaces = await admin.query(
-      `SELECT w.kind, m.role, m.user_id FROM workspace_memberships m
+      `SELECT w.kind, m.role FROM workspace_memberships m
          JOIN workspaces w ON w.id = m.workspace_id
         WHERE m.account_id = $1`,
       [accountId],
     );
-    expect(workspaces.rows).toEqual([{ kind: 'personal', role: 'owner', user_id: null }]);
+    expect(workspaces.rows).toEqual([{ kind: 'personal', role: 'owner' }]);
+
+    // A personal workspace never depends on a tenant-scoped user existing.
+    const links = await admin.query(
+      `SELECT count(*)::int AS n FROM legacy_user_account_links WHERE account_id = $1`,
+      [accountId],
+    );
+    expect(links.rows[0].n).toBe(0);
 
     const grants = await admin.query(
       `SELECT capability, state FROM capability_grants WHERE account_id = $1 ORDER BY capability`,
@@ -291,9 +298,18 @@ describe('sign-in', () => {
       [teacher.tenantId],
     );
     await admin.query(
-      `INSERT INTO workspace_memberships (account_id, workspace_id, role, user_id)
-       VALUES ($1, $2, 'owner', $3)`,
-      [accountId, workspace.rows[0].id, teacher.teacherId],
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role) VALUES ($1, $2, 'owner')`,
+      [accountId, workspace.rows[0].id],
+    );
+    const principal = await admin.query(
+      `INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id`,
+      [accountId],
+    );
+    // The legacy execution identity lives in its own link table now.
+    await admin.query(
+      `INSERT INTO legacy_user_account_links (tenant_id, user_id, account_id, principal_id)
+       VALUES ($1, $2, $3, $4)`,
+      [teacher.tenantId, teacher.teacherId, accountId, principal.rows[0].id],
     );
 
     for (const identifier of [email, username, username.toUpperCase()]) {
@@ -382,9 +398,17 @@ describe('capabilities decide who reaches the classroom API', () => {
       [teacher.tenantId],
     );
     await admin.query(
-      `INSERT INTO workspace_memberships (account_id, workspace_id, role, user_id)
-       VALUES ($1, $2, 'owner', $3)`,
-      [accountId, workspace.rows[0].id, teacher.teacherId],
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role) VALUES ($1, $2, 'owner')`,
+      [accountId, workspace.rows[0].id],
+    );
+    const principal = await admin.query(
+      `INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id`,
+      [accountId],
+    );
+    await admin.query(
+      `INSERT INTO legacy_user_account_links (tenant_id, user_id, account_id, principal_id)
+       VALUES ($1, $2, $3, $4)`,
+      [teacher.tenantId, teacher.teacherId, accountId, principal.rows[0].id],
     );
     for (const grant of capabilities) {
       await admin.query(

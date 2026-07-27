@@ -12,7 +12,12 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { AccountDirectoryPort, SessionContext, SessionUseCase } from '@asa-lab/identity';
 import type { GetTeachingContextUseCase } from '@asa-lab/organization';
-import type { Classroom, CreateClassroomUseCase, ListClassroomsUseCase } from '@asa-lab/classroom';
+import type {
+  Classroom,
+  CreateClassroomUseCase,
+  IssueJoinCodeUseCase,
+  ListClassroomsUseCase,
+} from '@asa-lab/classroom';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 
@@ -29,6 +34,7 @@ export class ClassroomsController {
     private readonly teachingContext: GetTeachingContextUseCase,
     @Inject(TOKENS.createClassroomUseCase) private readonly createUseCase: CreateClassroomUseCase,
     @Inject(TOKENS.listClassroomsUseCase) private readonly listUseCase: ListClassroomsUseCase,
+    @Inject(TOKENS.issueJoinCodeUseCase) private readonly issueJoinCode: IssueJoinCodeUseCase,
   ) {}
 
   private async requireContext(request: FastifyRequest): Promise<SessionContext> {
@@ -79,7 +85,7 @@ export class ClassroomsController {
     @Res({ passthrough: true }) reply: FastifyReply,
     @Body() rawBody: unknown,
     @Headers('idempotency-key') idempotencyHeader: string | undefined,
-  ): Promise<{ classroom: Classroom; created: boolean }> {
+  ): Promise<{ classroom: Classroom; created: boolean; joinCode?: string }> {
     const context = await this.requireEducator(request);
     // The tenant context comes exclusively from the session: any
     // client-supplied tenant identifier is rejected before shape checking so
@@ -121,6 +127,17 @@ export class ClassroomsController {
       throw new HttpException(error(result.code, result.message), 400);
     }
     reply.code(result.created ? 201 : 200);
-    return { classroom: result.classroom, created: result.created };
+    if (!result.created) {
+      // A repeated request must not rotate a code the teacher already shared.
+      return { classroom: result.classroom, created: false };
+    }
+    // The code is shown once, here, to the teacher who created the class; only
+    // its digest is stored, so it can never be read back.
+    const issued = await this.issueJoinCode.execute(context.tenantId, result.classroom.id);
+    return {
+      classroom: result.classroom,
+      created: true,
+      ...(issued.ok ? { joinCode: issued.code } : {}),
+    };
   }
 }

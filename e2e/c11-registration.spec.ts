@@ -1,14 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { createHmac } from 'node:crypto';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher } from './seed';
+import { resolveJoinCodePepper } from '../tools/local-secrets.mjs';
 
 /**
  * C1.1 owner-review evidence for the simplified entry.
  *
- * Six screens: the public page with three unambiguous actions, the universal
- * sign-in, the age-aware sign-up entry, class-code entry, the resolved class
- * with its two identity paths, and the separate legacy organization sign-in.
+ * Seven screens: the public page, the universal sign-in (with refresh and
+ * Back), the age-aware sign-up entry, class-code entry, the resolved class,
+ * the account path that keeps the pending class after sign-in, and the
+ * separate legacy organization sign-in.
  *
  * Public registration stays behind a feature flag that is off until
  * principal-aware sessions exist, so sign-up proves the honest answer rather
@@ -18,17 +21,31 @@ import { e2eAdminPool, seedTeacher } from './seed';
 let admin: pg.Pool;
 let classCode: string;
 let classTitle: string;
+let teacher: Awaited<ReturnType<typeof seedTeacher>>;
 
 test.beforeAll(async () => {
   admin = e2eAdminPool();
-  const teacher = await seedTeacher(admin, 'join');
+  teacher = await seedTeacher(admin, 'join');
   classTitle = '7Б Робототехника';
   const classroom = await admin.query(
     `INSERT INTO classrooms (tenant_id, school_id, academic_period_id, title, created_by)
-     VALUES ($1, $2, $3, $4, $5) RETURNING join_code`,
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
     [teacher.tenantId, teacher.schoolId, teacher.periodId, classTitle, teacher.teacherId],
   );
-  classCode = classroom.rows[0].join_code as string;
+  // The code is generated here the way the application does and stored only as
+  // a keyed digest, exactly like a code a teacher would be shown once.
+  // A fresh code per run: only one digest may be active for a class at a time.
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  classCode = Array.from(
+    { length: 8 },
+    () => alphabet[Math.floor(Math.random() * alphabet.length)],
+  ).join('');
+  const digest = createHmac('sha256', resolveJoinCodePepper()).update(classCode).digest('hex');
+  await admin.query(`SELECT classroom_issue_join_code($1, $2, $3)`, [
+    teacher.tenantId,
+    classroom.rows[0].id,
+    digest,
+  ]);
   mkdirSync('e2e/artifacts/c11', { recursive: true });
 });
 
@@ -54,26 +71,44 @@ test('the public page offers three unambiguous actions', async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
-test('sign-in is one universal form reached in a single step', async ({ page }) => {
+test('public screens are real addresses that survive refresh and Back', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('entry-sign-in').click();
-
+  await expect(page).toHaveURL(/#\/sign-in$/);
   await expect(page.getByLabel('Email или имя пользователя')).toBeVisible();
-  await expect(page.getByLabel('Пароль')).toBeVisible();
-  await expect(page.getByLabel('Код организации')).toHaveCount(0);
-  await expect(page.getByText('Email педагога')).toHaveCount(0);
   await page.screenshot({ path: 'e2e/artifacts/c11/2-universal-sign-in.png' });
 
-  // Legacy organization sign-in stays a secondary link on its own screen.
+  // Refresh keeps the same screen.
+  await page.reload();
+  await expect(page).toHaveURL(/#\/sign-in$/);
+  await expect(page.getByLabel('Email или имя пользователя')).toBeVisible();
+  await page.screenshot({ path: 'e2e/artifacts/c11/2b-sign-in-after-refresh.png' });
+
+  // Back returns to the public page, Forward comes back to sign-in.
+  await page.goBack();
+  await expect(page.getByTestId('entry-sign-in')).toBeVisible();
+  await page.goForward();
+  await expect(page.getByLabel('Email или имя пользователя')).toBeVisible();
+
+  // Every public screen is deep-linkable.
+  for (const [path, testId] of [
+    ['#/sign-up', 'sign-up-age'],
+    ['#/join-class', 'class-code'],
+  ] as const) {
+    await page.goto(`/${path}`);
+    await expect(page.getByTestId(testId)).toBeVisible();
+  }
+
+  await page.goto('/#/sign-in');
   await page.getByRole('button', { name: 'Вход для ранее подключённой организации' }).click();
+  await expect(page).toHaveURL(/#\/organization-sign-in$/);
   await expect(page.getByLabel('Код организации')).toBeVisible();
   await expect(page.getByText('Временный совместимый путь')).toBeVisible();
-  await page.screenshot({ path: 'e2e/artifacts/c11/6-organization-sign-in.png' });
+  await page.screenshot({ path: 'e2e/artifacts/c11/7-organization-sign-in.png' });
 });
 
 test('sign-up starts with age policy, not with an account type', async ({ page }) => {
-  await page.goto('/');
-  await page.getByTestId('entry-sign-up').click();
+  await page.goto('/#/sign-up');
 
   await expect(page.getByTestId('sign-up-age')).toBeVisible();
   await expect(page.getByLabel('Страна')).toBeVisible();
@@ -109,18 +144,19 @@ test('a class code resolves to the class and two ways to identify', async ({ pag
 
   await page.goto('/');
   await page.getByTestId('entry-class-code').click();
+  await expect(page).toHaveURL(/#\/join-class$/);
   await expect(page.getByTestId('class-code')).toBeVisible();
   await page.screenshot({ path: 'e2e/artifacts/c11/4-class-code.png' });
 
   // An unknown code is refused without revealing which codes exist.
-  await page.getByTestId('class-code').fill('ZZZZZZ');
+  await page.getByTestId('class-code').fill('ZZZZZZZZ');
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.getByTestId('class-code-error')).toContainText('не найден');
 
   // Spaces, dashes and case are normalized away.
   await page
     .getByTestId('class-code')
-    .fill(` ${classCode.slice(0, 3).toLowerCase()}-${classCode.slice(3)} `);
+    .fill(` ${classCode.slice(0, 4).toLowerCase()}-${classCode.slice(4)} `);
   await page.getByRole('button', { name: 'Продолжить' }).click();
 
   await expect(page.getByTestId('class-preview-title')).toHaveText(classTitle);
@@ -128,10 +164,35 @@ test('a class code resolves to the class and two ways to identify', async ({ pag
   await expect(page.getByTestId('join-with-handle')).toHaveText('Педагог выдал мне имя для входа');
   await page.screenshot({ path: 'e2e/artifacts/c11/5-class-preview.png' });
 
-  // The account path leads to the same universal sign-in, carrying the class.
+  expect(pageErrors).toEqual([]);
+});
+
+test('the account path keeps the class through sign-in and says what is real', async ({ page }) => {
+  await page.goto('/#/join-class');
+  await page.getByTestId('class-code').fill(classCode);
+  await page.getByRole('button', { name: 'Продолжить' }).click();
   await page.getByTestId('join-with-account').click();
-  await expect(page.getByLabel('Email или имя пользователя')).toBeVisible();
+
+  // The pending class is named on the sign-in screen and survives a refresh.
+  await expect(page.getByTestId('sign-in-intro')).toContainText(classTitle);
+  await page.reload();
   await expect(page.getByTestId('sign-in-intro')).toContainText(classTitle);
 
-  expect(pageErrors).toEqual([]);
+  // Signing in answers the class instead of dropping into the project hub.
+  await page.getByRole('button', { name: 'Вход для ранее подключённой организации' }).click();
+  await page.getByLabel('Код организации').fill(teacher.workspace);
+  await page.getByLabel('Email').fill(teacher.email);
+  await page.getByLabel('Пароль').fill(teacher.password);
+  await page.getByRole('button', { name: 'Войти через организацию' }).click();
+
+  await expect(page.getByTestId('join-pending')).toBeVisible();
+  await expect(page.getByTestId('join-pending-title')).toHaveText(classTitle);
+  await expect(page.getByText('следующем этапе')).toBeVisible();
+  await page.screenshot({ path: 'e2e/artifacts/c11/6-account-path-join-pending.png' });
+
+  // Continuing clears the intent; the class is not promised twice.
+  await page.getByTestId('join-pending-continue').click();
+  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('join-pending')).toHaveCount(0);
 });

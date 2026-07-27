@@ -37,6 +37,7 @@
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "test:account-identity": "vitest run tests/portal/account-identity.spec.ts",
     "test:join-class": "vitest run tests/portal/join-class-api.spec.ts",
+    "test:identity-integrity": "vitest run tests/portal/identity-integrity.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
     "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",
     "test:visual-system": "node tools/validate-visual-system.mjs",

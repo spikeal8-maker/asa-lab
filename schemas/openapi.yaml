@@ -116,7 +116,9 @@ paths:
               properties:
                 code:
                   type: string
-                  description: Spaces, dashes and case are normalized away.
+                  description: >-
+                    Spaces, dashes and case are normalized away. Only a keyed
+                    digest is stored, so a code cannot be read back later.
       responses:
         '200':
           description: Class preview
@@ -458,7 +460,7 @@ components:
             properties:
               capability:
                 type: string
-                enum: [creator, educator, guardian, platform_admin]
+                enum: [creator, educator, registered_student, guardian, platform_admin]
               state:
                 type: string
                 enum: [provisional, verified, suspended, revoked]
@@ -479,7 +481,7 @@ components:
                 type: string
               role:
                 type: string
-                enum: [owner, educator, school_admin]
+                enum: [owner, member, educator, school_admin, billing_admin, moderator]
     CreateClassroomRequest:
       type: object
       additionalProperties: false
@@ -512,6 +514,11 @@ components:
           $ref: '#/components/schemas/Classroom'
         created:
           type: boolean
+        joinCode:
+          type: string
+          description: >-
+            The class code, shown exactly once on creation. Only its keyed
+            digest is stored; issuing a new code revokes the previous one.
     ClassroomCollection:
       type: object
       additionalProperties: false

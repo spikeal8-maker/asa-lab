@@ -356,6 +356,17 @@ tests:
     owner: identity-and-classroom
     artifacts: [junit, api-report]
 
+  - id: TST-IDENTITY-INTEGRITY-001
+    title: Principal subject capability and visibility sets and legacy account link integrity
+    suite: integration
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm test:identity-integrity
+    timeout_seconds: 900
+    owner: identity-and-classroom
+    artifacts: [junit, api-report]
+
   - id: TST-E2E-PORTAL-001
     title: Teacher login classroom reload and logout
     suite: e2e
