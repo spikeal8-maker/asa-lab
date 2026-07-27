@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Validate ASA Lab's Tinkercad parity product contract.
+"""Validate ASA Lab's Tinkercad parity and target-platform contracts.
 
 This validator is intentionally product-facing: coding agents must not silently
-remove capabilities, reference unknown dependencies, or introduce undocumented
-deviations.
+remove capabilities, reference unknown dependencies, introduce undocumented
+deviations, or bypass the non-destructive identity/workspace transition plan.
 """
 
 from __future__ import annotations
@@ -20,6 +20,9 @@ MATRIX_PATH = ROOT / "docs/product/TINKERCAD_PARITY_MATRIX.yaml"
 SPEC_PATH = ROOT / "docs/product/TINKERCAD_PARITY_SPEC.md"
 PROGRAM_PATH = ROOT / "docs/delivery/TINKERCAD_PARITY_PROGRAM.md"
 DEVIATIONS_PATH = ROOT / "docs/product/TINKERCAD_PARITY_DEVIATIONS.yaml"
+TARGET_BLUEPRINT_PATH = ROOT / "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md"
+TARGET_MATRIX_PATH = ROOT / "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml"
+TRANSITION_PLAN_PATH = ROOT / "docs/architecture/ASA_IDENTITY_WORKSPACE_TRANSITION_PLAN.md"
 
 
 def fail(message: str) -> None:
@@ -174,6 +177,139 @@ def validate_deviations(data: dict[str, Any]) -> tuple[int, int]:
     return len(decisions), len(pending)
 
 
+def _ids(items: Any, label: str) -> list[str]:
+    if not isinstance(items, list) or not items:
+        fail(f"target blueprint {label} must be a non-empty list")
+    result: list[str] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            fail(f"target blueprint {label} entries must have string ids")
+        result.append(item["id"])
+    if len(result) != len(set(result)):
+        fail(f"target blueprint {label} ids must be unique")
+    return result
+
+
+def validate_target_blueprint(data: dict[str, Any]) -> tuple[int, int, int, int]:
+    if data.get("status") != "normative":
+        fail("target blueprint status must be normative")
+    if data.get("supersedes_conflicting_assumptions") is not True:
+        fail("target blueprint must supersede conflicting assumptions")
+
+    sources = data.get("sources")
+    if not isinstance(sources, list) or not all(isinstance(item, str) for item in sources):
+        fail("target blueprint sources must be a string list")
+    for source in sources:
+        if not (ROOT / source).is_file():
+            fail(f"target blueprint references missing source: {source}")
+
+    principal_ids = set(_ids(data.get("principals"), "principals"))
+    required_principals = {"account", "student_seat", "service"}
+    missing = sorted(required_principals - principal_ids)
+    if missing:
+        fail(f"target blueprint misses principals: {missing}")
+
+    workspace_items = data.get("workspace_kinds")
+    workspace_ids = set(_ids(workspace_items, "workspace_kinds"))
+    if workspace_ids != {"personal", "organization"}:
+        fail("target blueprint workspace kinds must be personal and organization")
+    personal = next(item for item in workspace_items if item["id"] == "personal")
+    if personal.get("exactly_one_per_account") is not True or personal.get("backed_by_tenant") is not True:
+        fail("personal workspace must be exactly one per account and backed by tenant")
+
+    capabilities = data.get("capabilities")
+    if not isinstance(capabilities, dict):
+        fail("target blueprint capabilities must be an object")
+    required_global = {"creator", "educator", "registered_student", "guardian", "platform_admin"}
+    required_scoped = {"owner", "educator", "school_admin"}
+    global_caps = set(capabilities.get("global", []))
+    scoped_roles = set(capabilities.get("workspace_roles", []))
+    if missing := sorted(required_global - global_caps):
+        fail(f"target blueprint misses global capabilities: {missing}")
+    if missing := sorted(required_scoped - scoped_roles):
+        fail(f"target blueprint misses workspace roles: {missing}")
+    if "school_admin" in global_caps:
+        fail("school_admin must be scoped, not global")
+
+    policies = data.get("policies")
+    if not isinstance(policies, dict):
+        fail("target blueprint policies must be an object")
+    if policies.get("educator_self_attestation_min_age") != 18:
+        fail("educator self-attestation minimum age must be 18")
+    if policies.get("educator_age_policy_source") != "server":
+        fail("educator age policy must be server-derived")
+    if policies.get("public_project_default_visibility") != "private":
+        fail("new projects must be private by default")
+    if policies.get("student_seat_pin_default") != "off":
+        fail("StudentSeat PIN must default to off in parity v1")
+
+    invariants = set(data.get("project_invariants", []))
+    required_invariants = {
+        "personal_project_does_not_require_classroom",
+        "project_owner_is_principal",
+        "project_version_is_immutable",
+        "publish_references_project_version",
+        "assignment_work_is_never_public_automatically",
+        "core_has_no_subject_switches",
+    }
+    if missing := sorted(required_invariants - invariants):
+        fail(f"target blueprint misses project invariants: {missing}")
+
+    migration_items = data.get("migration_stages")
+    migration_ids = _ids(migration_items, "migration_stages")
+    known_migrations = set(migration_ids)
+    for stage in migration_items:
+        dependencies = stage.get("depends_on")
+        if not isinstance(dependencies, list):
+            fail(f"{stage['id']}: depends_on must be a list")
+        unknown = sorted(set(dependencies) - known_migrations)
+        if unknown:
+            fail(f"{stage['id']}: unknown migration dependencies {unknown}")
+        if stage["id"] in dependencies:
+            fail(f"{stage['id']}: self-dependency is forbidden")
+        if stage.get("destructive") and stage["id"] != "MIG-ID-08":
+            fail(f"{stage['id']}: destructive migration is forbidden before MIG-ID-08")
+    destructive = next((item for item in migration_items if item["id"] == "MIG-ID-08"), None)
+    if not destructive or destructive.get("owner_approval_required") is not True:
+        fail("MIG-ID-08 must require owner approval")
+    if int(destructive.get("minimum_stable_release_gates", 0)) < 2:
+        fail("MIG-ID-08 requires at least two stable release gates")
+
+    release_items = data.get("releases")
+    release_ids = _ids(release_items, "releases")
+    known_releases = set(release_ids)
+    for release in release_items:
+        dependencies = release.get("depends_on")
+        if not isinstance(dependencies, list):
+            fail(f"{release['id']}: depends_on must be a list")
+        unknown = sorted(set(dependencies) - known_releases)
+        if unknown:
+            fail(f"{release['id']}: unknown release dependencies {unknown}")
+        if release.get("owner_review") is not True:
+            fail(f"{release['id']}: owner_review must be true")
+
+    forbidden = set(data.get("forbidden_shortcuts", []))
+    required_forbidden = {
+        "rename_tenant_users_to_accounts_in_place",
+        "destructive_identity_migration_before_cutover",
+        "disable_rls_for_migration",
+        "trust_client_role",
+        "trust_client_tenant_or_workspace",
+        "require_classroom_for_personal_project",
+        "merge_account_and_studentseat",
+        "merge_global_capability_and_scoped_role",
+        "shared_undifferentiated_account_seat_sessions",
+        "mutable_published_version",
+        "subject_switch_in_platform_core",
+        "second_unrelated_audit_log",
+        "visual_acceptance_from_test_count_only",
+    }
+    if missing := sorted(required_forbidden - forbidden):
+        fail(f"target blueprint misses forbidden shortcuts: {missing}")
+
+    return len(principal_ids), len(workspace_ids), len(migration_ids), len(release_ids)
+
+
 def main() -> int:
     try:
         require_text(
@@ -199,8 +335,34 @@ def main() -> int:
                 "TASK-PARITY-600",
             ],
         )
+        require_text(
+            TARGET_BLUEPRINT_PATH,
+            [
+                "## 4. Principal model",
+                "## 5. Capabilities, memberships и active context",
+                "## 6. Workspace model и сохранение tenant isolation",
+                "## 10. Universal Project and Module Platform",
+                "## 11. Classroom target",
+                "## 16. Неразрушающий переход",
+                "## 18. Anti-regression rules for coding agents",
+            ],
+        )
+        require_text(
+            TRANSITION_PLAN_PATH,
+            [
+                "## 3. Запрещённые migration shortcuts",
+                "## 5. Migration stages",
+                "### MIG-ID-03 — backfill existing teacher",
+                "## 7. RLS transition",
+                "## 9. Rollback strategy",
+                "## 13. Exit gate for identity cutover",
+            ],
+        )
         capability_count, surface_count, release_count = validate_matrix(load_yaml(MATRIX_PATH))
         decision_count, pending_count = validate_deviations(load_yaml(DEVIATIONS_PATH))
+        principal_count, workspace_count, migration_count, target_release_count = validate_target_blueprint(
+            load_yaml(TARGET_MATRIX_PATH)
+        )
     except (OSError, ValueError, yaml.YAMLError) as error:
         print(f"Tinkercad parity contract FAIL: {error}", file=sys.stderr)
         return 1
@@ -208,7 +370,9 @@ def main() -> int:
     print(
         "Tinkercad parity contract PASS "
         f"(capabilities={capability_count}, surfaces={surface_count}, releases={release_count}, "
-        f"acceptedDeviations={decision_count}, pendingDeviations={pending_count})"
+        f"acceptedDeviations={decision_count}, pendingDeviations={pending_count}, "
+        f"principals={principal_count}, workspaces={workspace_count}, "
+        f"migrationStages={migration_count}, targetReleases={target_release_count})"
     )
     return 0
 
