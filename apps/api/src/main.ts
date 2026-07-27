@@ -1,81 +1,64 @@
 import 'reflect-metadata';
-import { createTelemetry } from '@asa-lab/observability';
-import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createApiApp } from './app.factory.js';
-
-export interface TelemetryLike {
-  start(): void;
-  shutdown(): Promise<void>;
-}
+import {
+  launchApiRuntime,
+  type TelemetryLifecycle,
+  type ApiRuntime as LaunchedApiRuntime,
+} from './runtime.js';
 
 export interface ApiRuntime {
-  app: NestFastifyApplication;
   /** Graceful stop: HTTP server + pool first, telemetry last. Idempotent. */
   close(): Promise<void>;
 }
 
 export interface StartApiOptions {
-  telemetry?: TelemetryLike;
+  telemetry?: TelemetryLifecycle;
   port?: number;
   host?: string;
 }
 
 /**
- * Start the API with a correct lifecycle contract:
- * - fail closed without APP_DATABASE_URL;
- * - telemetry starts BEFORE the instrumented app modules are constructed;
- * - a startup error still shuts telemetry down;
- * - close() stops the app first, then telemetry, and is idempotent.
+ * Production-facing startup wrapper.
+ *
+ * The runtime-role URL is mandatory. All lifecycle behavior is delegated to
+ * `launchApiRuntime`, so production startup and lifecycle tests exercise the
+ * same implementation rather than two similar copies.
  */
 export async function startApi(options: StartApiOptions = {}): Promise<ApiRuntime> {
   if (!process.env['APP_DATABASE_URL']) {
     throw new Error('APP_DATABASE_URL is required; the API refuses to start without it');
   }
-  const telemetry =
-    options.telemetry ?? createTelemetry({ serviceName: 'asa-lab-api', mode: 'disabled' });
-  telemetry.start();
-  let app: NestFastifyApplication;
-  try {
-    app = await createApiApp();
-    await app.listen({
-      port: options.port ?? Number.parseInt(process.env['API_PORT'] ?? '4611', 10),
-      host: options.host ?? process.env['API_HOST'] ?? '127.0.0.1',
-    });
-  } catch (startupError) {
-    await telemetry.shutdown();
-    throw startupError;
-  }
-  let closed = false;
-  const close = async (): Promise<void> => {
-    if (closed) {
-      return;
-    }
-    closed = true;
-    try {
-      await app.close();
-    } finally {
-      await telemetry.shutdown();
-    }
+
+  const runtimeOptions = {
+    host: options.host ?? process.env['API_HOST'] ?? '127.0.0.1',
+    port: options.port ?? Number.parseInt(process.env['API_PORT'] ?? '4611', 10),
+    ...(options.telemetry ? { telemetry: options.telemetry } : {}),
   };
-  return { app, close };
+  const runtime: LaunchedApiRuntime = await launchApiRuntime(runtimeOptions);
+  return { close: () => runtime.stop() };
 }
 
 /* c8 ignore start */
 if (require.main === module) {
-  const HOST = process.env['API_HOST'] ?? '127.0.0.1';
-  const PORT = Number.parseInt(process.env['API_PORT'] ?? '4611', 10);
-  startApi({ host: HOST, port: PORT })
+  const host = process.env['API_HOST'] ?? '127.0.0.1';
+  const port = Number.parseInt(process.env['API_PORT'] ?? '4611', 10);
+  startApi({ host, port })
     .then((runtime) => {
       const shutdown = (signal: string): void => {
-        void runtime.close().then(() => {
-          process.stdout.write(`api stopped on ${signal}\n`);
-          process.exit(0);
-        });
+        void runtime
+          .close()
+          .then(() => {
+            process.stdout.write(`api stopped on ${signal}\n`);
+            process.exit(0);
+          })
+          .catch((error: unknown) => {
+            process.stderr.write(`api shutdown failed on ${signal}: ${String(error)}\n`);
+            process.exit(1);
+          });
       };
       process.once('SIGINT', () => shutdown('SIGINT'));
       process.once('SIGTERM', () => shutdown('SIGTERM'));
-      process.stdout.write(`ASA Lab API:  http://${HOST}:${PORT}\n`);
-      process.stdout.write(`Teacher portal (built SPA, if present): http://${HOST}:${PORT}/\n`);
+      process.stdout.write(`ASA Lab API:  http://${host}:${port}\n`);
+      process.stdout.write(`Teacher portal (built SPA, if present): http://${host}:${port}/\n`);
     })
     .catch((error: unknown) => {
       const message = String(error instanceof Error ? error.message : error);
