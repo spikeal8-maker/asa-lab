@@ -30,14 +30,22 @@ export interface SaveDraftInput {
   readonly document: unknown;
 }
 
-/** Minimal module contract consumed by Project Core during project creation.
- * Subject payload details remain outside the projects context. */
-export interface CreatableProjectModule {
+export type ProjectDocumentValidation =
+  | { readonly ok: true; readonly document: unknown }
+  | { readonly ok: false; readonly message: string };
+
+/** Subject-neutral contract consumed by Project Core. */
+export interface ProjectModule {
   readonly moduleKey: string;
+  validateDocument(value: unknown): ProjectDocumentValidation;
+}
+
+export interface CreatableProjectModule extends ProjectModule {
   createEmptyProject(): unknown;
 }
 
 export interface ModuleCatalogPort {
+  get(moduleKey: string): ProjectModule | null;
   getCreatable(moduleKey: string): CreatableProjectModule | null;
 }
 
