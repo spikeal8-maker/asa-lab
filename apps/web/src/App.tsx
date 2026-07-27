@@ -4,9 +4,10 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
-import { SchematicEditor } from './pages/SchematicEditor';
 import { PortalHeader, type PortalSection } from './components/PortalHeader';
+import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import './electronics/portal.css';
+import './modules/project-hub.css';
 
 type SessionState =
   | { kind: 'checking' }
@@ -102,16 +103,26 @@ export function App(): JSX.Element {
     else setSession({ kind: 'error' });
   }, []);
 
-  useEffect(() => { void checkSession(); }, [checkSession]);
+  useEffect(() => {
+    void checkSession();
+  }, [checkSession]);
 
-  if (session.kind === 'checking') return <div className="page-center" role="status" aria-live="polite">Загрузка…</div>;
+  if (session.kind === 'checking') {
+    return (
+      <div className="page-center" role="status" aria-live="polite">
+        Загрузка…
+      </div>
+    );
+  }
   if (session.kind === 'error') {
     return (
       <main className="page-center">
         <section className="login-card" role="alert">
           <h1 className="brand">ASA Lab</h1>
           <p>Не удалось проверить активную сессию.</p>
-          <button type="button" className="btn-primary" onClick={() => void checkSession()}>Повторить</button>
+          <button type="button" className="btn-primary" onClick={() => void checkSession()}>
+            Повторить
+          </button>
         </section>
       </main>
     );
@@ -128,17 +139,28 @@ export function App(): JSX.Element {
   }
 
   if (view.kind === 'editor') {
-    return <SchematicEditor projectId={view.projectId} onBack={() => setView(view.returnTo)} user={session.user} />;
+    return (
+      <ModuleEditorHost
+        projectId={view.projectId}
+        onBack={() => setView(view.returnTo)}
+        user={session.user}
+      />
+    );
   }
 
-  const active: PortalSection = view.kind === 'classrooms' || view.kind === 'classroom-projects' ? 'classes' : 'projects';
+  const active: PortalSection =
+    view.kind === 'classrooms' || view.kind === 'classroom-projects' ? 'classes' : 'projects';
   return (
     <div className="portal-shell">
-      <a className="skip-link" href="#main-content">Перейти к содержанию</a>
+      <a className="skip-link" href="#main-content">
+        Перейти к содержанию
+      </a>
       <PortalHeader
         user={session.user}
         active={active}
-        onNavigate={(section) => setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' })}
+        onNavigate={(section) =>
+          setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' })
+        }
         onLoggedOut={() => {
           setView({ kind: 'my-projects' });
           setSession({ kind: 'anonymous' });
