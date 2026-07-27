@@ -8,13 +8,14 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errorId = useId();
+  const workspaceHintId = useId();
   const workspaceRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
     if (!workspace.trim() || !email.trim() || !password) {
-      setError('Заполните workspace, email и пароль.');
+      setError('Заполните код организации, email и пароль.');
       workspaceRef.current?.focus();
       return;
     }
@@ -26,7 +27,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
       return;
     }
     if (result.status === 400 || result.status === 401) {
-      setError('Неверный workspace, email или пароль.');
+      setError('Неверный код организации, email или пароль.');
     } else if (result.status === 0) {
       setError('Сервер недоступен. Попробуйте ещё раз.');
     } else {
@@ -39,29 +40,32 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => vo
     <div className="page-center">
       <main className="login-card" aria-busy={busy}>
         <h1 className="brand">ASA Lab</h1>
-        <p className="subtitle">Кабинет педагога</p>
+        <p className="subtitle">Вход для педагога</p>
         <form onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="workspace">Workspace</label>
+          <label htmlFor="workspace">Код организации</label>
           <input
             ref={workspaceRef}
             autoFocus
             id="workspace"
             name="workspace"
             autoComplete="organization"
-            placeholder="school-1580"
+            placeholder="Введите код вашей организации"
             value={workspace}
             disabled={busy}
             aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? errorId : undefined}
+            aria-describedby={`${workspaceHintId}${error ? ` ${errorId}` : ''}`}
             onChange={(event) => setWorkspace(event.target.value)}
           />
-          <label htmlFor="email">Email</label>
+          <p id={workspaceHintId} className="field-hint">
+            Код выдаёт администратор школы или образовательной организации.
+          </p>
+          <label htmlFor="email">Email педагога</label>
           <input
             id="email"
             name="email"
             type="email"
             autoComplete="username"
-            placeholder="teacher@school-1580.local"
+            placeholder="teacher@example.ru"
             value={email}
             disabled={busy}
             aria-invalid={error ? 'true' : undefined}
