@@ -1,10 +1,10 @@
 schema_version: 1.0.0
-map_version: 2026.07.27-1
+map_version: 2026.07.27-2
 project:
   id: asa-lab
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
-  current_focus: TASK-PORTAL-001
+  current_focus: TASK-ELECTRONICS-SLICE-001
   source_of_truth: docs/project-map/project-map.yaml
 status_definitions:
   planned: Зафиксировано в плане, но ещё не готово к работе.
@@ -43,10 +43,10 @@ nodes:
 
   - {id: PLANE-CONTROL, label: Modular Monolith Control Plane, kind: plane, layer: architecture, status: planned, summary: "Транзакционно целостное образовательное ядро bounded contexts."}
   - {id: CTX-IDENTITY, label: Identity, kind: bounded_context, layer: control, status: in_progress, summary: "Adult accounts, StudentSeat, credentials и sessions.", path: contexts/identity}
-  - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: in_progress, summary: "Tenant, organization, school, period и TenantPlacement.", path: contexts/organization}
+  - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: done, summary: "Tenant, organization, school, period и TenantPlacement.", path: contexts/organization}
   - {id: CTX-CLASSROOM, label: Classroom, kind: bounded_context, layer: control, status: in_progress, summary: "Classroom, memberships, roster, groups и Safe Mode.", path: contexts/classroom}
   - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: planned, summary: "ActivityTemplate и immutable ActivityVersion.", path: contexts/content}
-  - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: planned, summary: "Universal Project, draft, checkpoint и immutable ProjectVersion.", path: contexts/projects}
+  - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: in_progress, summary: "Universal Project, draft, checkpoint и immutable ProjectVersion.", path: contexts/projects}
   - {id: CTX-ACTIVITIES, label: Assignments, kind: bounded_context, layer: control, status: planned, summary: "Assignment, audience, deadlines, policies и AssignmentWork.", path: contexts/activities}
   - {id: CTX-ASSESSMENT, label: Assessment, kind: bounded_context, layer: control, status: planned, summary: "Submission, comments, review, rubric, grade, badge и progress.", path: contexts/assessment}
   - {id: CTX-MODULES, label: Module Registry, kind: bounded_context, layer: control, status: planned, summary: "Module SDK, manifests, schemas, providers и compatibility.", path: contexts/modules}
@@ -71,8 +71,8 @@ nodes:
   - {id: SDK-MODULE, label: Module SDK, kind: sdk, layer: modules, status: planned, summary: "Версионированный контракт subject modules и универсального project lifecycle.", path: packages/module-sdk}
   - {id: MOD-BLANK, label: Blank Canvas Technical Module, kind: subject_module, layer: modules, status: planned, summary: "Технический module для проверки Project Shell; не является продуктовым предметом.", path: modules/blank-canvas}
   - {id: MOD-CHECKERS-LITE, label: Checkers Lite, kind: subject_module, layer: modules, status: blocked, summary: "Reference module: board, one legal move, validation, save/reload и preview.", path: modules/checkers-lite}
-  - {id: MOD-ELECTRONICS, label: Electronics Alpha, kind: subject_module, layer: modules, status: blocked, summary: "Source, resistor, LED, wire, netlist, DC calculation и diagnostics.", path: modules/electronics}
-  - {id: MOD-BLOCKS, label: Блочное программирование, kind: subject_module, layer: modules, status: planned, summary: "Scratch-подобные sprites, stage, blocks и безопасные проекты.", path: modules/block-coding}
+  - {id: MOD-ELECTRONICS, label: Electronics Alpha, kind: subject_module, layer: modules, status: in_progress, summary: "Source, resistor, LED, wire, netlist, DC calculation и diagnostics.", path: modules/electronics}
+  - {id: MOD-BLOCKS, label: Блочное программирование, kind: subject_module, layer: modules, status: in_progress, summary: "Scratch-подобные sprites, stage, blocks и безопасные проекты.", path: modules/block-coding}
   - {id: MOD-3D, label: 3D-моделирование, kind: subject_module, layer: modules, status: planned, summary: "Scene graph и подготовка к 3D-печати.", path: modules/3d}
   - {id: MOD-ROBOTICS, label: Виртуальная робототехника, kind: subject_module, layer: modules, status: planned, summary: "Robot, world, sensors, physics и programming.", path: modules/robotics}
   - {id: MOD-CHESS, label: Chess and Checkers Advanced, kind: subject_module, layer: modules, status: planned, summary: "Полные позиции, партии, задачи и анализ после reference module.", path: modules/chess}
@@ -101,9 +101,9 @@ nodes:
   - {id: TRACK-SCHOOL-PILOT, label: School Pilot, kind: delivery_track, layer: delivery, status: planned, summary: "StudentSeat, assignments, review и полный electronics classroom cycle."}
 
   - {id: PHASE-0, label: Phase 0 Foundation and Product Definition, kind: roadmap_phase, layer: roadmap, status: done, summary: "Foundation merged; Product Blueprint and Development Program are in review."}
-  - {id: PHASE-1, label: Phase 1 Teacher Portal, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Teacher login, dashboard and classroom create/list."}
+  - {id: PHASE-1, label: Phase 1 Teacher Portal, kind: roadmap_phase, layer: roadmap, status: done, summary: "Teacher login, dashboard and classroom create/list."}
   - {id: PHASE-2, label: Phase 2 Child Access, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and Child Dashboard."}
-  - {id: PHASE-3, label: Phase 3 Modules Projects Assignments, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Project Shell, modules, ActivityVersion, Assignment and Submission."}
+  - {id: PHASE-3, label: Phase 3 Modules Projects Assignments, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Project Shell, modules, ActivityVersion, Assignment and Submission."}
   - {id: PHASE-4, label: Phase 4 Review Assessment Rewards, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Comments, review, rubrics, grades, badges and progress."}
   - {id: PHASE-5, label: Phase 5 Electronics, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Electronics Alpha and full classroom integration."}
   - {id: PHASE-6, label: Phase 6 Simulation Core, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Extended Rust/WASM solver and golden suites."}
@@ -125,8 +125,8 @@ nodes:
   - {id: TASK-MOD-001, label: Legacy Module and Project Task, kind: task, layer: delivery, status: deprecated, summary: "Разделено на Project Shell, Checkers Lite и Electronics Alpha.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/5}
 
   - {id: TASK-PRODUCT-DOC-001, label: Product Blueprint and Development Program, kind: task, layer: delivery, status: done, summary: "Product specs, capability map, execution path and port policy in PR 21.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}
-  - {id: TASK-PORTAL-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: in_review, summary: "Stabilize PR 22: login, classes, security, full gate and canonical ports.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
-  - {id: TASK-PROJECT-SHELL-001, label: Universal Project Shell, kind: task, layer: delivery, status: blocked, summary: "Module Registry v0.1, ProjectDraft save/reload and immutable checkpoint.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/24}
+  - {id: TASK-PORTAL-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: done, summary: "Stabilize PR 22: login, classes, security, full gate and canonical ports.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
+  - {id: TASK-ELECTRONICS-SLICE-001, label: Electronics Project Slice, kind: task, layer: delivery, status: in_progress, summary: "Проект и ProjectDraft, редактор схемы, netlist, простой DC-расчёт, диагностика и immutable checkpoint. Project Shell реализуется внутри этого среза.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/33}
   - {id: TASK-CHECKERS-LITE-001, label: Checkers Lite Reference Module, kind: task, layer: delivery, status: blocked, summary: "8x8 board, one legal move, validation, save/reload and preview.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/25}
   - {id: TASK-ELECTRONICS-ALPHA-001, label: Electronics Alpha, kind: task, layer: delivery, status: blocked, summary: "Source, resistor, LED, wire, netlist, Rust/WASM DC and diagnostics.", phase: PHASE-5, issue: https://github.com/spikeal8-maker/asa-lab/issues/26}
   - {id: TASK-SEAT-001, label: StudentSeat and Child Dashboard, kind: task, layer: delivery, status: blocked, summary: "Teacher issues child access; child logs in without email and opens own project.", phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
@@ -253,7 +253,7 @@ edges:
   - {from: PROGRAM-ALPHA-001, to: TRACK-TECH-ALPHA, type: contains}
   - {from: PROGRAM-ALPHA-001, to: TRACK-SCHOOL-PILOT, type: contains}
   - {from: TRACK-TECH-ALPHA, to: TASK-PORTAL-001, type: contains}
-  - {from: TRACK-TECH-ALPHA, to: TASK-PROJECT-SHELL-001, type: contains}
+  - {from: TRACK-TECH-ALPHA, to: TASK-ELECTRONICS-SLICE-001, type: contains}
   - {from: TRACK-TECH-ALPHA, to: TASK-CHECKERS-LITE-001, type: contains}
   - {from: TRACK-TECH-ALPHA, to: TASK-ELECTRONICS-ALPHA-001, type: contains}
   - {from: TRACK-SCHOOL-PILOT, to: TASK-SEAT-001, type: contains}
@@ -279,12 +279,12 @@ edges:
   - {from: TASK-BOOT-001, to: TASK-ARCH-001, type: depends_on}
   - {from: TASK-PRODUCT-DOC-001, to: TASK-BOOT-001, type: depends_on}
   - {from: TASK-PORTAL-001, to: TASK-PRODUCT-DOC-001, type: depends_on}
-  - {from: TASK-PROJECT-SHELL-001, to: TASK-PORTAL-001, type: depends_on}
-  - {from: TASK-CHECKERS-LITE-001, to: TASK-PROJECT-SHELL-001, type: depends_on}
+  - {from: TASK-ELECTRONICS-SLICE-001, to: TASK-PORTAL-001, type: depends_on}
+  - {from: TASK-CHECKERS-LITE-001, to: TASK-ELECTRONICS-SLICE-001, type: depends_on}
   - {from: TASK-ELECTRONICS-ALPHA-001, to: TASK-CHECKERS-LITE-001, type: depends_on}
   - {from: TASK-SEAT-001, to: TASK-ELECTRONICS-ALPHA-001, type: depends_on}
   - {from: TASK-ACT-001, to: TASK-SEAT-001, type: depends_on}
-  - {from: TASK-ACT-001, to: TASK-PROJECT-SHELL-001, type: depends_on}
+  - {from: TASK-ACT-001, to: TASK-ELECTRONICS-SLICE-001, type: depends_on}
   - {from: TASK-REVIEW-001, to: TASK-ACT-001, type: depends_on}
   - {from: TASK-ELEC-001, to: TASK-REVIEW-001, type: depends_on}
   - {from: TASK-ELEC-001, to: TASK-ELECTRONICS-ALPHA-001, type: depends_on}
@@ -297,7 +297,7 @@ edges:
   - {from: TASK-PRODUCT-DOC-001, to: DOC-DEVELOPMENT-PROGRAM, type: implements}
   - {from: TASK-PRODUCT-DOC-001, to: DOC-PORT-POLICY, type: implements}
   - {from: TASK-PORTAL-001, to: PHASE-1, type: implements}
-  - {from: TASK-PROJECT-SHELL-001, to: PHASE-3, type: implements}
+  - {from: TASK-ELECTRONICS-SLICE-001, to: PHASE-3, type: implements}
   - {from: TASK-CHECKERS-LITE-001, to: MOD-CHECKERS-LITE, type: implements}
   - {from: TASK-ELECTRONICS-ALPHA-001, to: MOD-ELECTRONICS, type: implements}
   - {from: TASK-SEAT-001, to: PHASE-2, type: implements}
@@ -313,7 +313,7 @@ edges:
 execution_queue:
   - {position: 1, task_id: TASK-PRODUCT-DOC-001, instruction: "Validate and merge Product Blueprint, Development Program, Port Policy and canonical Issues.", gate: "All Product Doc test IDs PASS and PR 21 merged."}
   - {position: 2, task_id: TASK-PORTAL-001, instruction: "Rebase and stabilize PR 22 strictly by Issue 18 on ports 4610/4611/4612.", gate: "Teacher login, classroom create/reload/logout, full security/quality gate and Playwright PASS."}
-  - {position: 3, task_id: TASK-PROJECT-SHELL-001, instruction: "Implement Module Registry v0.1 and universal Project draft/checkpoint lifecycle.", gate: "Create/save/reload/checkpoint E2E PASS without subject logic in Core."}
+  - {position: 3, task_id: TASK-ELECTRONICS-SLICE-001, instruction: "Deliver the Electronics vertical slice: project, draft, schematic editor, DC result and immutable checkpoint.", gate: "Owner builds a circuit in the browser, sees current and LED state, reloads it and creates a checkpoint."}
   - {position: 4, task_id: TASK-CHECKERS-LITE-001, instruction: "Implement small Checkers Lite reference module.", gate: "Board, legal move, validation, save/reload and preview E2E PASS."}
   - {position: 5, task_id: TASK-ELECTRONICS-ALPHA-001, instruction: "Implement Electronics Alpha with source, resistor, LED, wire and DC solver.", gate: "Editor, netlist, diagnostics, native/WASM parity and E2E PASS."}
   - {position: 6, task_id: TASK-SEAT-001, instruction: "Implement StudentSeat, child login and Child Dashboard.", gate: "Child enters without email, sees class/project and old session is revoked after reset."}

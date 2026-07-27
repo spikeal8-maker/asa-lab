@@ -14,15 +14,15 @@
 
 Только `delivery_stage` из Execution Manifest и `execution_queue` из `project-map.yaml`.
 
-`architecture_horizon`/`phase` — архитектурная группировка, не execution order. Technical Alpha намеренно проверяет Project Shell и Electronics до полного StudentSeat/Assignment workflow.
+`architecture_horizon`/`phase` — архитектурная группировка, не execution order. Technical Alpha намеренно проверяет Electronics Project Slice (внутри него — Project Shell) до полного StudentSeat/Assignment workflow.
 
 ## 2. Текущий фокус и очередь
 
 ```mermaid
 flowchart LR
     DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>done]
-    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>in_review]
-    PROJECT[3 Project Shell<br/>TASK-PROJECT-SHELL-001<br/>blocked]
+    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>done]
+    PROJECT[3 Electronics Project Slice<br/>TASK-ELECTRONICS-SLICE-001<br/>in_progress]
     CHECKERS[4 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
     EALPHA[5 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]
     SEAT[6 StudentSeat<br/>TASK-SEAT-001<br/>blocked]
@@ -43,7 +43,7 @@ flowchart TB
 
     subgraph TECH[Technical Product Alpha]
         P1[Teacher Portal]
-        P2[Universal Project Shell]
+        P2[Electronics Project Slice]
         P3[Checkers Lite]
         P4[Electronics Alpha]
         P1 --> P2 --> P3 --> P4
@@ -172,7 +172,7 @@ Core не знает `resistor`, `wire`, `LED`, checker piece, sprite или 3D 
 |---|---|
 | Product Definition | Одна очередь, Issues, maps и validators |
 | Teacher Portal | Login, classroom create/list, reload, logout |
-| Project Shell | Create project, save/reload, immutable checkpoint |
+| Electronics Project Slice | Create project, build a circuit, see the DC result, save/reload, immutable checkpoint |
 | Checkers Lite | Board, legal move, diagnostic, preview |
 | Electronics Alpha | Source/resistor/LED/wire, netlist, DC result |
 | StudentSeat | Child credential, login without email, own dashboard |

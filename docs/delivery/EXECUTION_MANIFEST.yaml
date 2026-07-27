@@ -130,7 +130,7 @@ tasks:
     delivery_stage: STAGE-1-TEACHER-PORTAL
     architecture_horizon: PHASE-1
     depends_on: [TASK-PRODUCT-DOC-001]
-    next_task: TASK-PROJECT-SHELL-001
+    next_task: TASK-ELECTRONICS-SLICE-001
     capabilities: [CAP-ORG, CAP-IDENTITY, CAP-CLASSROOM, CAP-PORTAL-BASIC, CAP-SAFETY, CAP-OPERATIONS]
     visible_result: Teacher opens the site, logs in, creates a classroom, reloads it and logs out.
     read:
@@ -144,26 +144,25 @@ tasks:
     artifacts: [playwright-report, portal-screenshot, startup-report, authorization-matrix]
 
   - position: 3
-    task_id: TASK-PROJECT-SHELL-001
-    issue: https://github.com/spikeal8-maker/asa-lab/issues/24
-    branch: agent/task-project-shell-001
+    task_id: TASK-ELECTRONICS-SLICE-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/33
+    branch: agent/task-electronics-slice-001
     milestone: Technical Alpha 2
     track: technical-alpha
     delivery_stage: STAGE-2-PROJECT-SHELL
     architecture_horizon: PHASE-3
     depends_on: [TASK-PORTAL-001]
     next_task: TASK-CHECKERS-LITE-001
-    capabilities: [CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-IDENTITY, CAP-CLASSROOM, CAP-SAFETY]
-    visible_result: Teacher creates a module project, saves a draft, reloads it and creates an immutable checkpoint.
+    capabilities: [CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-ELECTRONICS-CORE, CAP-IDENTITY, CAP-CLASSROOM, CAP-SAFETY]
+    visible_result: Teacher creates an electronics project, builds a series circuit, sees current and LED state, reloads the schematic and creates an immutable checkpoint.
     read:
       - AGENTS.md
       - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 2 — Universal Project Shell'
-      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
       - 'docs/product/MODULE_PLATFORM_SPEC.md :: Project envelope'
-    test_profiles: [code_common, tenant_storage, module_runtime]
-    task_tests: [TST-PROJECT-SHELL-001, TST-E2E-PROJECT-SHELL-001]
-    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-3, CTX-PROJECTS, CTX-MODULES, SDK-MODULE, MOD-BLANK, APP-WEB, DATA-PG]
-    artifacts: [project-document, checkpoint-report, playwright-report, project-shell-screenshot]
+    test_profiles: [code_common, tenant_storage]
+    task_tests: [TST-PROJECT-SLICE-001, TST-ELECTRONICS-SOLVER-001, TST-E2E-ELECTRONICS-SLICE-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-3, CTX-PROJECTS, MOD-ELECTRONICS, APP-WEB, DATA-PG]
+    artifacts: [project-document, checkpoint-report, playwright-report, electronics-slice-screenshot]
 
   - position: 4
     task_id: TASK-CHECKERS-LITE-001
@@ -173,14 +172,13 @@ tasks:
     track: technical-alpha
     delivery_stage: STAGE-3-CHECKERS-LITE
     architecture_horizon: PHASE-3
-    depends_on: [TASK-PROJECT-SHELL-001]
+    depends_on: [TASK-ELECTRONICS-SLICE-001]
     next_task: TASK-ELECTRONICS-ALPHA-001
     capabilities: [CAP-CHECKERS-LITE, CAP-MODULE-REGISTRY, CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-SAFETY]
     visible_result: Teacher opens an 8x8 board, makes one legal move, sees validation, saves, reloads and sees a preview.
     read:
       - AGENTS.md
       - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 3 — Checkers Lite'
-      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
       - 'docs/product/MODULE_PLATFORM_SPEC.md :: Checkers Lite'
     test_profiles: [code_common, module_runtime]
     task_tests: [TST-CHECKERS-SCHEMA-001, TST-CHECKERS-RULES-001, TST-E2E-CHECKERS-LITE-001]
@@ -203,7 +201,6 @@ tasks:
       - AGENTS.md
       - 'docs/delivery/DEVELOPMENT_PROGRAM_V1.md :: Этап 4 — Electronics Alpha'
       - 'docs/product/MODULE_PLATFORM_SPEC.md :: Electronics Alpha'
-      - 'docs/product/MODULE_PLATFORM_SPEC.md :: Module SDK v0.1 — Technical Product Alpha'
     test_profiles: [code_common, module_runtime, electronics_kernel]
     task_tests: [TST-E2E-ELECTRONICS-ALPHA-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-5, MOD-ELECTRONICS, SDK-MODULE, APP-WEB]
@@ -239,7 +236,7 @@ tasks:
     track: school-pilot
     delivery_stage: STAGE-6-ASSIGNMENT-SUBMISSION
     architecture_horizon: PHASE-3
-    depends_on: [TASK-SEAT-001, TASK-PROJECT-SHELL-001]
+    depends_on: [TASK-SEAT-001, TASK-ELECTRONICS-SLICE-001]
     next_task: TASK-REVIEW-001
     capabilities: [CAP-CONTENT-LITE, CAP-ASSIGNMENTS, CAP-PROJECTS, CAP-SUBMISSIONS, CAP-CLASSROOM, CAP-STUDENT-DASHBOARD, CAP-NOTIFICATIONS]
     visible_result: Teacher assigns an immutable activity; child works and submits an exact ProjectVersion; teacher sees the attempt.
