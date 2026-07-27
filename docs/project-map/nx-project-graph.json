@@ -286,6 +286,86 @@
           "implicitDependencies": []
         }
       },
+      "electronics": {
+        "name": "electronics",
+        "type": "lib",
+        "data": {
+          "root": "contexts/electronics",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/electronics/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/electronics/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/electronics"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "electronics",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/electronics",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:core",
+            "context:electronics"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/electronics",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "implicitDependencies": []
+        }
+      },
       "job-dispatcher": {
         "name": "job-dispatcher",
         "type": "app",
@@ -840,6 +920,86 @@
           "implicitDependencies": []
         }
       },
+      "projects": {
+        "name": "projects",
+        "type": "lib",
+        "data": {
+          "root": "contexts/projects",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/projects/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/projects/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/projects"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "projects",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/projects",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:core",
+            "context:projects"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/projects",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "implicitDependencies": []
+        }
+      },
       "test-kit": {
         "name": "test-kit",
         "type": "lib",
@@ -1270,6 +1430,7 @@
         }
       ],
       "realtime-gateway": [],
+      "electronics": [],
       "job-dispatcher": [],
       "module-sdk": [],
       "worker-runtime": [],
@@ -1284,6 +1445,13 @@
       "database": [],
       "eventing": [],
       "identity": [],
+      "projects": [
+        {
+          "source": "projects",
+          "target": "database",
+          "type": "static"
+        }
+      ],
       "test-kit": [],
       "ui-kit": [],
       "authz": [],
@@ -1312,6 +1480,16 @@
         {
           "source": "api",
           "target": "organization",
+          "type": "static"
+        },
+        {
+          "source": "api",
+          "target": "projects",
+          "type": "static"
+        },
+        {
+          "source": "api",
+          "target": "electronics",
           "type": "static"
         }
       ],

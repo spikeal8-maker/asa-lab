@@ -373,7 +373,7 @@ tests:
     level: system
     phase_available: PHASE-3
     required_for: [TASK-ELECTRONICS-SLICE-001]
-    command: pnpm test:project-shell
+    command: pnpm test:project-slice
     timeout_seconds: 1200
     owner: project-platform
     artifacts: [junit, project-fixtures, checkpoint-report]
@@ -395,7 +395,7 @@ tests:
     level: system
     phase_available: PHASE-3
     required_for: [TASK-ELECTRONICS-SLICE-001]
-    command: pnpm e2e:project-shell
+    command: pnpm e2e:electronics
     timeout_seconds: 1500
     owner: project-platform
     artifacts: [playwright-report, screenshots, project-document]

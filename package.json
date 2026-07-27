@@ -37,7 +37,10 @@
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
     "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",
-    "portal:m4:check": "node tools/validate-portal-evidence.mjs"
+    "portal:m4:check": "node tools/validate-portal-evidence.mjs",
+    "test:electronics": "vitest run contexts/electronics/testing",
+    "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts",
+    "e2e:electronics": "playwright test e2e/electronics-slice.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

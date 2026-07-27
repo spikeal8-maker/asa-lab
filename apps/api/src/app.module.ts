@@ -13,7 +13,17 @@ import {
   ListClassroomsUseCase,
   PgClassroomRepository,
 } from '@asa-lab/classroom';
+import {
+  CreateCheckpointUseCase,
+  CreateProjectUseCase,
+  ListProjectsUseCase,
+  OpenProjectUseCase,
+  PgProjectRepository,
+  SaveDraftUseCase,
+} from '@asa-lab/projects';
+import { EMPTY_DOCUMENT, parseElectronicsDocument } from '@asa-lab/electronics';
 import { AuthController } from './auth.controller.js';
+import { ProjectsController } from './projects.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { HealthController } from './health.controller.js';
 import { TOKENS } from './tokens.js';
@@ -35,7 +45,7 @@ export class AppModule {
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, ClassroomsController],
+      controllers: [HealthController, AuthController, ClassroomsController, ProjectsController],
       providers: [
         { provide: TOKENS.pool, useValue: pool },
         {
@@ -58,6 +68,33 @@ export class AppModule {
         {
           provide: TOKENS.createClassroomUseCase,
           useFactory: () => new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
+        },
+        {
+          provide: TOKENS.createProjectUseCase,
+          useFactory: () =>
+            new CreateProjectUseCase(new PgProjectRepository(requirePool()), EMPTY_DOCUMENT),
+        },
+        {
+          provide: TOKENS.listProjectsUseCase,
+          useFactory: () => new ListProjectsUseCase(new PgProjectRepository(requirePool())),
+        },
+        {
+          provide: TOKENS.openProjectUseCase,
+          useFactory: () => new OpenProjectUseCase(new PgProjectRepository(requirePool())),
+        },
+        {
+          provide: TOKENS.saveDraftUseCase,
+          useFactory: () =>
+            new SaveDraftUseCase(new PgProjectRepository(requirePool()), (value) => {
+              const parsed = parseElectronicsDocument(value);
+              return parsed.ok
+                ? { ok: true, document: parsed.document }
+                : { ok: false, message: parsed.message };
+            }),
+        },
+        {
+          provide: TOKENS.createCheckpointUseCase,
+          useFactory: () => new CreateCheckpointUseCase(new PgProjectRepository(requirePool())),
         },
         {
           provide: TOKENS.listClassroomsUseCase,

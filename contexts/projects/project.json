@@ -1,0 +1,18 @@
+{
+  "name": "projects",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "contexts/projects",
+  "tags": ["type:lib", "scope:core", "context:projects"],
+  "targets": {
+    "build": {
+      "command": "tsc -p contexts/projects/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p contexts/projects/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint contexts/projects"
+    }
+  }
+}

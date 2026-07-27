@@ -137,6 +137,9 @@ importers:
       '@asa-lab/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@asa-lab/electronics':
+        specifier: workspace:*
+        version: link:../../contexts/electronics
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
@@ -146,6 +149,9 @@ importers:
       '@asa-lab/organization':
         specifier: workspace:*
         version: link:../../contexts/organization
+      '@asa-lab/projects':
+        specifier: workspace:*
+        version: link:../../contexts/projects
       '@fastify/cookie':
         specifier: 11.0.1
         version: 11.0.1
@@ -189,9 +195,17 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
 
+  contexts/electronics: {}
+
   contexts/identity: {}
 
   contexts/organization:
+    dependencies:
+      '@asa-lab/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+
+  contexts/projects:
     dependencies:
       '@asa-lab/database':
         specifier: workspace:*

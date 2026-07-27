@@ -8,9 +8,11 @@ type ListState =
 export function DashboardPage({
   user,
   onLoggedOut,
+  onOpenProjects,
 }: {
   user: PublicUser;
   onLoggedOut: () => void;
+  onOpenProjects: (classroomId: string, classroomTitle: string) => void;
 }): JSX.Element {
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
@@ -163,6 +165,13 @@ export function DashboardPage({
               <li key={classroom.id} className="card" data-testid="classroom-card">
                 <h2>{classroom.title}</h2>
                 <p className="muted">Активный класс</p>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => onOpenProjects(classroom.id, classroom.title)}
+                >
+                  Проекты
+                </button>
               </li>
             ))}
           </ul>

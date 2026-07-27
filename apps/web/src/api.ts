@@ -15,6 +15,71 @@ export interface Classroom {
   createdAt: string;
 }
 
+export interface Project {
+  id: string;
+  classroomId: string;
+  moduleKey: string;
+  title: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface ProjectDraft {
+  projectId: string;
+  document: SchematicDocument;
+  revision: number;
+  updatedAt: string;
+}
+
+export interface ProjectVersion {
+  id: string;
+  versionNo: number;
+  label: string | null;
+  createdAt: string;
+}
+
+export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+
+export interface SchematicComponent {
+  id: string;
+  kind: ComponentKind;
+  position: { x: number; y: number };
+  value: number;
+}
+
+export interface SchematicConnection {
+  id: string;
+  from: { componentId: string; terminal: 'a' | 'b' };
+  to: { componentId: string; terminal: 'a' | 'b' };
+}
+
+export interface SchematicDocument {
+  schemaVersion: 1;
+  components: SchematicComponent[];
+  connections: SchematicConnection[];
+}
+
+export interface Diagnostic {
+  code: string;
+  severity: 'info' | 'warning' | 'error';
+  message: string;
+  componentIds?: string[];
+}
+
+export interface ComponentResult {
+  componentId: string;
+  voltageDrop: number;
+  current: number;
+  lit?: boolean;
+}
+
+export interface SolveResult {
+  solved: boolean;
+  current: number;
+  components: ComponentResult[];
+  diagnostics: Diagnostic[];
+}
+
 export interface ApiError {
   code: string;
   message: string;
@@ -64,6 +129,31 @@ export const api = {
     }),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
+  listProjects: (classroomId: string) =>
+    call<{ items: Project[] }>(`/api/projects?classroomId=${encodeURIComponent(classroomId)}`),
+  createProject: (classroomId: string, title: string, idempotencyKey: string) =>
+    call<{ project: Project; created: boolean }>('/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+      body: JSON.stringify({ classroomId, module: 'electronics', title }),
+    }),
+  openProject: (projectId: string) =>
+    call<{
+      project: Project;
+      draft: ProjectDraft;
+      versions: ProjectVersion[];
+      result: SolveResult | null;
+    }>(`/api/projects/${encodeURIComponent(projectId)}`),
+  saveDraft: (projectId: string, document: SchematicDocument) =>
+    call<{ draft: ProjectDraft; result: SolveResult | null }>(
+      `/api/projects/${encodeURIComponent(projectId)}/draft`,
+      { method: 'PUT', body: JSON.stringify({ document }) },
+    ),
+  createCheckpoint: (projectId: string, label?: string) =>
+    call<{ version: ProjectVersion }>(
+      `/api/projects/${encodeURIComponent(projectId)}/checkpoints`,
+      { method: 'POST', body: JSON.stringify(label ? { label } : {}) },
+    ),
   createClassroom: (title: string, idempotencyKey: string) =>
     call<{ classroom: Classroom; created: boolean }>('/api/classrooms', {
       method: 'POST',
