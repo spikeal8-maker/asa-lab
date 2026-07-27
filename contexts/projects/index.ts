@@ -12,7 +12,9 @@ export type {
   CreateProjectInput,
   CreateProjectResult,
   ModuleCatalogPort,
+  ProjectDocumentValidation,
   ProjectListFilter,
+  ProjectModule,
   ProjectRepositoryPort,
   SaveDraftInput,
 } from './application/ports.js';
@@ -24,7 +26,6 @@ export {
   RenameProjectUseCase,
   SaveDraftUseCase,
   projectRequestFingerprint,
-  type DocumentValidator,
   type ProjectErrorCode,
   type UseCaseResult,
 } from './application/project.usecases.js';
