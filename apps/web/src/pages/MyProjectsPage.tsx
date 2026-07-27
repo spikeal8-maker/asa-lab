@@ -24,7 +24,8 @@ export function MyProjectsPage({
   }, [load]);
 
   return (
-    <main className="portal-content" id="main-content">
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- skip-link target
+    <main className="portal-content" id="main-content" tabIndex={-1}>
       <section className="portal-hero">
         <div>
           <p className="portal-eyebrow">Личная мастерская педагога</p>

@@ -31,10 +31,14 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.getByLabel('Пароль').fill(teacher.password);
   await page.getByRole('button', { name: 'Войти' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
-  await expect(page.getByText('Классов пока нет.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 
-  const createButton = page.getByRole('button', { name: 'Создать класс' });
+  // Classes live in their own section of the project-first workbench.
+  await page.getByRole('button', { name: 'Классы' }).click();
+  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Создайте первый класс' })).toBeVisible();
+
+  const createButton = page.getByRole('button', { name: 'Создать класс' }).first();
   await createButton.click();
   await expect(page.getByLabel('Название класса')).toBeFocused();
   await page.getByLabel('Название класса').fill('8А Робототехника');
@@ -49,6 +53,7 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.screenshot({ path: 'e2e/artifacts/portal-desktop.png', fullPage: true });
 
   await page.reload();
+  await page.getByRole('button', { name: 'Классы' }).click();
   await expect(
     page.getByTestId('classroom-card').filter({ hasText: '8А Робототехника' }),
   ).toBeVisible();

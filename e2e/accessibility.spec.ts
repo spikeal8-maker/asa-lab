@@ -15,7 +15,7 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel(teacherEmailField).fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);
   await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 }
 
 async function expectNoWcagViolations(page: Page): Promise<void> {
@@ -39,6 +39,12 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+/** Classes are a separate area in the project-first workbench. */
+async function openClasses(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Классы' }).click();
+  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+}
+
 test('login page passes automated WCAG A/AA checks', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
@@ -49,7 +55,8 @@ test('dashboard and create dialog pass automated WCAG A/AA checks', async ({ pag
   await login(page);
   await expectNoWcagViolations(page);
 
-  await page.getByRole('button', { name: 'Создать класс' }).click();
+  await openClasses(page);
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Создать класс' })).toBeVisible();
   await expectNoWcagViolations(page);
 });
@@ -60,7 +67,7 @@ test('skip link moves keyboard focus to the dashboard content', async ({ page })
   const skip = page.getByRole('link', { name: 'Перейти к содержанию' });
   await expect(skip).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('main#classes')).toBeFocused();
+  await expect(page.locator('main#main-content')).toBeFocused();
 });
 
 test('dialog supports initial focus, focus trap, Escape and focus restoration', async ({
@@ -68,7 +75,8 @@ test('dialog supports initial focus, focus trap, Escape and focus restoration', 
 }) => {
   await login(page);
 
-  const trigger = page.getByRole('button', { name: 'Создать класс' });
+  await openClasses(page);
+  const trigger = page.getByRole('button', { name: 'Создать класс' }).first();
   await trigger.focus();
   await page.keyboard.press('Enter');
 
