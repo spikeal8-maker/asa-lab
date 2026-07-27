@@ -560,3 +560,102 @@ label {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Schematic working area --- */
+.canvas-wrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+}
+
+.schematic-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.canvas-grid {
+  fill: #fbfcfe;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.placed image {
+  cursor: grab;
+}
+
+.placed-selected image {
+  outline: 2px solid var(--primary);
+}
+
+.terminal-dot {
+  fill: #ffffff;
+  stroke: var(--muted);
+  stroke-width: 3;
+  cursor: crosshair;
+}
+
+.terminal-dot:hover {
+  stroke: var(--primary);
+}
+
+.terminal-dot-active {
+  fill: rgba(36, 86, 214, 0.2);
+  stroke: var(--primary);
+  stroke-width: 4;
+}
+
+.terminal-dot:focus-visible {
+  outline: 3px solid rgba(36, 86, 214, 0.45);
+}
+
+.wire {
+  fill: none;
+  stroke: #2f3d4c;
+  stroke-width: 5;
+  stroke-linecap: round;
+  cursor: pointer;
+}
+
+.wire:hover {
+  stroke: var(--primary);
+}
+
+.wire-selected {
+  stroke: var(--primary);
+  stroke-dasharray: 10 6;
+}
+
+.led-glow {
+  fill: rgba(255, 196, 0, 0.55);
+  filter: blur(6px);
+}
+
+.wire-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.canvas-empty {
+  position: absolute;
+  top: 45%;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.palette-hint {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-glow {
+    filter: none;
+  }
+}

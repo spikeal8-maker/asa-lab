@@ -32,8 +32,8 @@ async function login(page: Page): Promise<void> {
 /** Connect two terminals by clicking them in sequence. */
 async function connect(
   page: Page,
-  from: { kind: string; terminal: 'A' | 'B' },
-  to: { kind: string; terminal: 'A' | 'B' },
+  from: { kind: string; terminal: string },
+  to: { kind: string; terminal: string },
 ): Promise<void> {
   await page.getByRole('button', { name: `${from.kind}: вывод ${from.terminal}` }).click();
   await page.getByRole('button', { name: `${to.kind}: вывод ${to.terminal}` }).click();
@@ -66,26 +66,60 @@ test('teacher builds a series circuit, sees the result and keeps it after reload
   await page.getByRole('button', { name: 'Создать', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Первая схема' })).toBeVisible();
   await expect(
-    page.getByText('Схема пустая. Добавьте источник, резистор и светодиод.'),
+    page.getByText('Поле пустое. Добавьте источник, резистор и светодиод.'),
   ).toBeVisible();
 
-  // Источник, резистор, LED и провод
-  for (const element of ['Источник', 'Резистор', 'Светодиод', 'Провод']) {
+  // Этап A: авторские SVG источника, резистора и светодиода на рабочем поле
+  for (const element of ['Источник', 'Резистор', 'Светодиод']) {
     await page.getByRole('button', { name: element, exact: true }).click();
   }
-  await expect(page.getByTestId('schematic-component')).toHaveCount(4);
+  await expect(page.getByTestId('schematic-component')).toHaveCount(3);
+  const svgHrefs = await page
+    .getByTestId('schematic-component')
+    .locator('image')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')));
+  expect(svgHrefs.sort()).toEqual([
+    '/assets/electronics/components/led.svg',
+    '/assets/electronics/components/power-source.svg',
+    '/assets/electronics/components/resistor.svg',
+  ]);
 
-  // Последовательная цепь: источник → резистор → светодиод → провод → источник
-  await connect(page, { kind: 'Источник', terminal: 'A' }, { kind: 'Резистор', terminal: 'A' });
+  // Этап B: элемент перетаскивается указателем, координаты меняются
+  const led = page
+    .getByTestId('schematic-component')
+    .filter({ has: page.locator('[data-kind="led"]') });
+  const ledNode = page.locator('[data-kind="led"]');
+  const before = {
+    x: await ledNode.getAttribute('data-x'),
+    y: await ledNode.getAttribute('data-y'),
+  };
+  const ledImage = ledNode.locator('image');
+  const box = await ledImage.boundingBox();
+  if (!box) throw new Error('LED image has no bounding box');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 60, { steps: 8 });
+  await page.mouse.up();
+  const after = {
+    x: await ledNode.getAttribute('data-x'),
+    y: await ledNode.getAttribute('data-y'),
+  };
+  expect(after).not.toEqual(before);
+  void led;
+
+  // Этап C: последовательная цепь настоящими SVG-проводами
+  await connect(page, { kind: 'Источник', terminal: '+' }, { kind: 'Резистор', terminal: 'A' });
   await connect(page, { kind: 'Резистор', terminal: 'B' }, { kind: 'Светодиод', terminal: 'A' });
-  await connect(page, { kind: 'Светодиод', terminal: 'B' }, { kind: 'Провод', terminal: 'A' });
-  await connect(page, { kind: 'Провод', terminal: 'B' }, { kind: 'Источник', terminal: 'B' });
+  await connect(page, { kind: 'Светодиод', terminal: 'K' }, { kind: 'Источник', terminal: '−' });
+  await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
 
   // Ток, состояние LED и понятная диагностика
+  // Этап D: ток, состояние LED и понятная диагностика
   await page.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(page.getByTestId('current-reading')).toContainText('10.0 мА');
+  await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
   await expect(page.getByTestId('led-state')).toContainText('Светодиод горит');
   await expect(page.getByTestId('diagnostics')).toContainText('Цепь замкнута');
+  await expect(page.getByTestId('led-glow')).toBeVisible();
 
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.screenshot({ path: 'e2e/artifacts/electronics-desktop.png', fullPage: true });
@@ -93,10 +127,13 @@ test('teacher builds a series circuit, sees the result and keeps it after reload
   await page.screenshot({ path: 'e2e/artifacts/electronics-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  // Reload сохраняет схему и результат
+  // Reload сохраняет схему, позиции и результат
   await page.reload();
-  await expect(page.getByTestId('schematic-component')).toHaveCount(4);
-  await expect(page.getByTestId('current-reading')).toContainText('10.0 мА');
+  await expect(page.getByTestId('schematic-component')).toHaveCount(3);
+  await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
+  await expect(page.locator('[data-kind="led"]')).toHaveAttribute('data-x', after.x as string);
+  await expect(page.locator('[data-kind="led"]')).toHaveAttribute('data-y', after.y as string);
+  await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
   await expect(page.getByTestId('led-state')).toContainText('Светодиод горит');
 
   // Immutable checkpoint
@@ -123,8 +160,8 @@ test('the editor explains a broken circuit in plain language', async ({ page }) 
   // An LED wired straight across the source: no current limiting resistor.
   await page.getByRole('button', { name: 'Источник', exact: true }).click();
   await page.getByRole('button', { name: 'Светодиод', exact: true }).click();
-  await connect(page, { kind: 'Источник', terminal: 'A' }, { kind: 'Светодиод', terminal: 'A' });
-  await connect(page, { kind: 'Светодиод', terminal: 'B' }, { kind: 'Источник', terminal: 'B' });
+  await connect(page, { kind: 'Источник', terminal: '+' }, { kind: 'Светодиод', terminal: 'A' });
+  await connect(page, { kind: 'Светодиод', terminal: 'K' }, { kind: 'Источник', terminal: '−' });
   await page.getByRole('button', { name: 'Сохранить' }).click();
 
   await expect(page.getByTestId('diagnostics')).toContainText('токоограничивающего резистора');

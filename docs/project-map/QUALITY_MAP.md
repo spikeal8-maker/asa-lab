@@ -144,6 +144,8 @@ site opens
 
 ## 5. Electronics Project Slice gate
 
+Визуальная часть среза доказывается browser E2E: авторские SVG на рабочем поле, перетаскивание с сохранением координат, SVG-провода, ток и состояние светодиода, immutable checkpoint.
+
 Profiles: `code_common + tenant_storage + module_runtime`.
 
 Task tests:

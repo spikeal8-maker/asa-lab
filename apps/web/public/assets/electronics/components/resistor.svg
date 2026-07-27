@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="resistor-title resistor-desc" data-component="resistor" data-authored="false">
+  <title id="resistor-title">Резистор</title>
+  <desc id="resistor-desc">Временный чертёж резистора в стиле лабораторных компонентов: корпус с цветовыми кольцами и двумя металлическими выводами. Заменяется авторским SVG, когда он появится.</desc>
+  <defs>
+    <style><![CDATA[
+      .lead { stroke: #9aa4ad; stroke-width: 7; stroke-linecap: round; fill: none; }
+      .body { fill: #d8c9a3; stroke: #6f6350; stroke-width: 3; }
+      .band { stroke-width: 0; }
+      .connection-pin { opacity: 0; pointer-events: all; }
+    ]]></style>
+  </defs>
+
+  <path class="lead" d="M18 60 H62" />
+  <path class="lead" d="M178 60 H222" />
+
+  <rect class="body" x="62" y="28" width="116" height="64" rx="18" />
+  <rect class="band" x="80" y="28" width="12" height="64" fill="#8b5a2b" />
+  <rect class="band" x="102" y="28" width="12" height="64" fill="#111418" />
+  <rect class="band" x="124" y="28" width="12" height="64" fill="#c9302c" />
+  <rect class="band" x="152" y="28" width="10" height="64" fill="#c8a02c" />
+
+  <circle class="connection-pin" data-pin-id="a" data-pin-name="A" cx="18" cy="60" r="12" fill="#00aaff" />
+  <circle class="connection-pin" data-pin-id="b" data-pin-name="B" cx="222" cy="60" r="12" fill="#00aaff" />
+</svg>

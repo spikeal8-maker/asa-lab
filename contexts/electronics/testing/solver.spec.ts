@@ -104,6 +104,7 @@ describe('DC solver golden cases', () => {
     expect(led?.lit).toBe(true);
     expect(resistor?.voltageDrop).toBeCloseTo(3, 6);
     expect(led?.voltageDrop).toBeCloseTo(2, 6);
+    expect(result.diagnostics.map((d) => d.code)).toEqual(['circuit_ok']);
     expect(result.diagnostics.every((d) => d.severity === 'info')).toBe(true);
   });
 

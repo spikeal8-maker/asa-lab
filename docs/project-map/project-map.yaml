@@ -46,7 +46,7 @@ nodes:
   - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: done, summary: "Tenant, organization, school, period и TenantPlacement.", path: contexts/organization}
   - {id: CTX-CLASSROOM, label: Classroom, kind: bounded_context, layer: control, status: in_progress, summary: "Classroom, memberships, roster, groups и Safe Mode.", path: contexts/classroom}
   - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: planned, summary: "ActivityTemplate и immutable ActivityVersion.", path: contexts/content}
-  - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: in_progress, summary: "Universal Project, draft, checkpoint и immutable ProjectVersion.", path: contexts/projects}
+  - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: in_progress, summary: "Project, draft и immutable ProjectVersion для electronics-среза; универсальный Module SDK ещё не реализован.", path: contexts/projects}
   - {id: CTX-ACTIVITIES, label: Assignments, kind: bounded_context, layer: control, status: planned, summary: "Assignment, audience, deadlines, policies и AssignmentWork.", path: contexts/activities}
   - {id: CTX-ASSESSMENT, label: Assessment, kind: bounded_context, layer: control, status: planned, summary: "Submission, comments, review, rubric, grade, badge и progress.", path: contexts/assessment}
   - {id: CTX-MODULES, label: Module Registry, kind: bounded_context, layer: control, status: planned, summary: "Module SDK, manifests, schemas, providers и compatibility.", path: contexts/modules}
@@ -72,7 +72,7 @@ nodes:
   - {id: MOD-BLANK, label: Blank Canvas Technical Module, kind: subject_module, layer: modules, status: planned, summary: "Технический module для проверки Project Shell; не является продуктовым предметом.", path: modules/blank-canvas}
   - {id: MOD-CHECKERS-LITE, label: Checkers Lite, kind: subject_module, layer: modules, status: blocked, summary: "Reference module: board, one legal move, validation, save/reload и preview.", path: modules/checkers-lite}
   - {id: MOD-ELECTRONICS, label: Electronics Alpha, kind: subject_module, layer: modules, status: in_progress, summary: "Source, resistor, LED, wire, netlist, DC calculation и diagnostics.", path: modules/electronics}
-  - {id: MOD-BLOCKS, label: Блочное программирование, kind: subject_module, layer: modules, status: in_progress, summary: "Scratch-подобные sprites, stage, blocks и безопасные проекты.", path: modules/block-coding}
+  - {id: MOD-BLOCKS, label: Блочное программирование, kind: subject_module, layer: modules, status: planned, summary: "Scratch-подобные sprites, stage, blocks и безопасные проекты.", path: modules/block-coding}
   - {id: MOD-3D, label: 3D-моделирование, kind: subject_module, layer: modules, status: planned, summary: "Scene graph и подготовка к 3D-печати.", path: modules/3d}
   - {id: MOD-ROBOTICS, label: Виртуальная робототехника, kind: subject_module, layer: modules, status: planned, summary: "Robot, world, sensors, physics и programming.", path: modules/robotics}
   - {id: MOD-CHESS, label: Chess and Checkers Advanced, kind: subject_module, layer: modules, status: planned, summary: "Полные позиции, партии, задачи и анализ после reference module.", path: modules/chess}

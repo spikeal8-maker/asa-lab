@@ -172,7 +172,7 @@ Core не знает `resistor`, `wire`, `LED`, checker piece, sprite или 3D 
 |---|---|
 | Product Definition | Одна очередь, Issues, maps и validators |
 | Teacher Portal | Login, classroom create/list, reload, logout |
-| Electronics Project Slice | Create project, build a circuit, see the DC result, save/reload, immutable checkpoint |
+| Electronics Project Slice | Create project, build a circuit from the owner’s SVG components, see the DC result, save/reload, immutable checkpoint |
 | Checkers Lite | Board, legal move, diagnostic, preview |
 | Electronics Alpha | Source/resistor/LED/wire, netlist, DC result |
 | StudentSeat | Child credential, login without email, own dashboard |

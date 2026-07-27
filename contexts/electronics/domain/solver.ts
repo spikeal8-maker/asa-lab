@@ -8,6 +8,7 @@ import { buildNetlist, terminalKey } from './netlist.js';
  */
 
 export type DiagnosticCode =
+  | 'circuit_ok'
   | 'no_source'
   | 'multiple_sources'
   | 'open_circuit'
@@ -263,7 +264,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
 
   if (diagnostics.length === 0) {
     diagnostics.push({
-      code: 'led_no_resistor',
+      code: 'circuit_ok',
       severity: 'info',
       message: `Цепь замкнута. Ток ${(current * 1000).toFixed(1)} мА.`,
     });

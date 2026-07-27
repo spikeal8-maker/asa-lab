@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import {
   api,
   type ComponentKind,
@@ -8,28 +8,26 @@ import {
   type SchematicDocument,
   type SolveResult,
 } from '../api';
+import {
+  ACTIVE_COMPONENTS,
+  catalogEntry,
+  renderedSize,
+  terminalPosition,
+} from '../electronics/component-catalog';
 
-const PALETTE: { kind: ComponentKind; label: string; defaultValue: number; unit: string }[] = [
-  { kind: 'source', label: 'Источник', defaultValue: 5, unit: 'В' },
-  { kind: 'resistor', label: 'Резистор', defaultValue: 300, unit: 'Ом' },
-  { kind: 'led', label: 'Светодиод', defaultValue: 2, unit: 'В' },
-  { kind: 'wire', label: 'Провод', defaultValue: 0, unit: '' },
-];
+const PALETTE = Object.values(ACTIVE_COMPONENTS);
+const CANVAS = { width: 900, height: 520 };
 
-const KIND_LABEL: Record<ComponentKind, string> = {
-  source: 'Источник',
-  resistor: 'Резистор',
-  led: 'Светодиод',
-  wire: 'Провод',
-};
-
-function unitOf(kind: ComponentKind): string {
-  return PALETTE.find((entry) => entry.kind === kind)?.unit ?? '';
-}
-
-interface TerminalSelection {
+interface TerminalRef {
   componentId: string;
   terminal: 'a' | 'b';
+}
+
+interface DragState {
+  componentId: string;
+  offsetX: number;
+  offsetY: number;
+  pointerId: number;
 }
 
 export function SchematicEditor({
@@ -44,10 +42,13 @@ export function SchematicEditor({
   const [result, setResult] = useState<SolveResult | null>(null);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [pendingTerminal, setPendingTerminal] = useState<TerminalSelection | null>(null);
+  const [selectedWire, setSelectedWire] = useState<string | null>(null);
+  const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const canvasRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<DragState | null>(null);
   const counter = useRef(0);
 
   const load = useCallback(async () => {
@@ -73,19 +74,19 @@ export function SchematicEditor({
     return `${prefix}-${Date.now().toString(36)}-${counter.current}`;
   }
 
-  function addComponent(kind: ComponentKind): void {
+  function addComponent(kind: Exclude<ComponentKind, 'wire'>): void {
     if (!document) return;
-    const defaults = PALETTE.find((entry) => entry.kind === kind);
-    const index = document.components.length;
+    const entry = ACTIVE_COMPONENTS[kind];
+    const index = document.components.filter((item) => item.kind !== 'wire').length;
     const component: SchematicComponent = {
       id: nextId(kind),
       kind,
-      position: { x: 60 + (index % 4) * 150, y: 60 + Math.floor(index / 4) * 110 },
-      value: defaults?.defaultValue ?? 0,
+      position: { x: 60 + (index % 3) * 260, y: 50 + Math.floor(index / 3) * 210 },
+      value: entry.defaultValue,
     };
     setDocument({ ...document, components: [...document.components, component] });
     setSelected(component.id);
-    setNotice(`${KIND_LABEL[kind]} добавлен. Соедините выводы, чтобы замкнуть цепь.`);
+    setNotice(`${entry.label} добавлен на поле. Соедините выводы, чтобы замкнуть цепь.`);
   }
 
   function removeComponent(componentId: string): void {
@@ -111,12 +112,68 @@ export function SchematicEditor({
     });
   }
 
-  /** Two clicks on terminals create a connection between them. */
+  /** Canvas coordinates for a pointer event, independent of CSS scaling. */
+  function toCanvasPoint(event: PointerEvent): { x: number; y: number } {
+    const svg = canvasRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * CANVAS.width,
+      y: ((event.clientY - rect.top) / rect.height) * CANVAS.height,
+    };
+  }
+
+  function startDrag(event: PointerEvent, component: SchematicComponent): void {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const point = toCanvasPoint(event);
+    dragRef.current = {
+      componentId: component.id,
+      offsetX: point.x - component.position.x,
+      offsetY: point.y - component.position.y,
+      pointerId: event.pointerId,
+    };
+    setSelected(component.id);
+    event.preventDefault();
+  }
+
+  function moveDrag(event: PointerEvent): void {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !document) return;
+    const point = toCanvasPoint(event);
+    const dragged = document.components.find((item) => item.id === drag.componentId);
+    const entry = dragged ? catalogEntry(dragged.kind) : null;
+    const size = entry ? renderedSize(entry) : { width: 0, height: 0 };
+    // Keep the whole drawing (plus a small margin) inside the working area.
+    const margin = 12;
+    const x = Math.max(
+      margin,
+      Math.min(CANVAS.width - size.width - margin, point.x - drag.offsetX),
+    );
+    const y = Math.max(
+      margin,
+      Math.min(CANVAS.height - size.height - margin, point.y - drag.offsetY),
+    );
+    setDocument({
+      ...document,
+      components: document.components.map((component) =>
+        component.id === drag.componentId ? { ...component, position: { x, y } } : component,
+      ),
+    });
+  }
+
+  function endDrag(event: PointerEvent): void {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null;
+      setNotice('Положение изменено. Сохраните, чтобы запомнить его.');
+    }
+  }
+
+  /** Two terminal activations (mouse or keyboard) create a wire between them. */
   function clickTerminal(componentId: string, terminal: 'a' | 'b'): void {
     if (!document) return;
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
-      setNotice('Выберите второй вывод, чтобы соединить.');
+      setNotice('Выберите второй вывод, чтобы протянуть провод.');
       return;
     }
     if (pendingTerminal.componentId === componentId && pendingTerminal.terminal === terminal) {
@@ -125,13 +182,13 @@ export function SchematicEditor({
       return;
     }
     const connection = {
-      id: nextId('conn'),
+      id: nextId('wire'),
       from: { ...pendingTerminal },
       to: { componentId, terminal },
     };
     setDocument({ ...document, connections: [...document.connections, connection] });
     setPendingTerminal(null);
-    setNotice('Соединение добавлено.');
+    setNotice('Провод протянут.');
   }
 
   function removeConnection(connectionId: string): void {
@@ -140,6 +197,8 @@ export function SchematicEditor({
       ...document,
       connections: document.connections.filter((connection) => connection.id !== connectionId),
     });
+    setSelectedWire(null);
+    setNotice('Провод удалён.');
   }
 
   async function save(): Promise<void> {
@@ -156,12 +215,14 @@ export function SchematicEditor({
   }
 
   async function checkpoint(): Promise<void> {
+    if (!document) return;
     setBusy(true);
-    const saved = await api.saveDraft(projectId, document as SchematicDocument);
+    const saved = await api.saveDraft(projectId, document);
     const response = saved.ok ? await api.createCheckpoint(projectId) : null;
     setBusy(false);
     if (response?.ok) {
       setVersions([response.data.version, ...versions]);
+      if (saved.ok) setResult(saved.data.result);
       setNotice(`Создана версия №${response.data.version.versionNo}. Её больше нельзя изменить.`);
     } else {
       setNotice('Не удалось создать версию.');
@@ -197,6 +258,9 @@ export function SchematicEditor({
   }
 
   const selectedComponent = document.components.find((component) => component.id === selected);
+  const selectedEntry = selectedComponent ? catalogEntry(selectedComponent.kind) : null;
+  const placed = document.components.filter((component) => component.kind !== 'wire');
+  const leds = placed.filter((component) => component.kind === 'led');
 
   return (
     <main className="content editor">
@@ -241,90 +305,145 @@ export function SchematicEditor({
               key={entry.kind}
               type="button"
               className="btn-secondary palette-button"
-              onClick={() => addComponent(entry.kind)}
+              onClick={() => addComponent(entry.kind as Exclude<ComponentKind, 'wire'>)}
             >
               {entry.label}
             </button>
           ))}
+          <p className="muted palette-hint">Провод появляется, когда вы соединяете два вывода.</p>
         </section>
 
-        <section className="canvas" aria-label="Схема" data-testid="schematic-canvas">
-          <h2 className="sr-only">Схема</h2>
-          {document.components.length === 0 ? (
-            <p className="muted">Схема пустая. Добавьте источник, резистор и светодиод.</p>
-          ) : null}
-          <ul className="component-list">
-            {document.components.map((component) => {
+        <section className="canvas-wrap" aria-label="Схема">
+          <svg
+            ref={canvasRef}
+            className="schematic-canvas"
+            data-testid="schematic-canvas"
+            viewBox={`0 0 ${CANVAS.width} ${CANVAS.height}`}
+            preserveAspectRatio="xMidYMid meet"
+            aria-label="Рабочее поле схемы"
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          >
+            <rect className="canvas-grid" x="0" y="0" width={CANVAS.width} height={CANVAS.height} />
+
+            {/* Wires sit under the parts so terminals stay clickable. */}
+            <g data-testid="wire-layer">
+              {document.connections.map((connection) => {
+                const from = document.components.find(
+                  (item) => item.id === connection.from.componentId,
+                );
+                const to = document.components.find(
+                  (item) => item.id === connection.to.componentId,
+                );
+                if (!from || !to) return null;
+                const start = terminalPosition(from.kind, from.position, connection.from.terminal);
+                const end = terminalPosition(to.kind, to.position, connection.to.terminal);
+                if (!start || !end) return null;
+                const midX = (start.x + end.x) / 2;
+                return (
+                  <path
+                    key={connection.id}
+                    data-testid="schematic-wire"
+                    className={`wire${selectedWire === connection.id ? ' wire-selected' : ''}`}
+                    d={`M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`}
+                    onClick={() => setSelectedWire(connection.id)}
+                    aria-label="Провод: нажмите, чтобы выбрать"
+                  />
+                );
+              })}
+            </g>
+
+            {placed.map((component) => {
+              const entry = catalogEntry(component.kind);
+              if (!entry || !entry.asset) return null;
+              const size = renderedSize(entry);
+              const scale = size.width / entry.viewBox.width;
               const measured = resultByComponent.get(component.id);
+              const lit = component.kind === 'led' && measured?.lit === true;
               return (
-                <li
+                <g
                   key={component.id}
-                  className={`component-card${selected === component.id ? ' selected' : ''}`}
+                  className={`placed${selected === component.id ? ' placed-selected' : ''}`}
                   data-testid="schematic-component"
                   data-kind={component.kind}
+                  data-x={Math.round(component.position.x)}
+                  data-y={Math.round(component.position.y)}
+                  transform={`translate(${component.position.x} ${component.position.y})`}
                 >
-                  <button
-                    type="button"
-                    className="component-title"
-                    onClick={() => setSelected(component.id)}
-                    aria-pressed={selected === component.id}
+                  {lit ? (
+                    <circle
+                      className="led-glow"
+                      data-testid="led-glow"
+                      cx={((entry.terminals.a.x + entry.terminals.b.x) / 2) * scale}
+                      cy={size.height * 0.34}
+                      r={size.width * 0.42}
+                    />
+                  ) : null}
+                  <image
+                    href={entry.asset}
+                    width={size.width}
+                    height={size.height}
+                    style={
+                      component.kind === 'led'
+                        ? ({ '--led-intensity': lit ? 1 : 0 } as Record<string, string | number>)
+                        : undefined
+                    }
+                    onPointerDown={(event) => startDrag(event, component)}
                   >
-                    {KIND_LABEL[component.kind]}
-                    {component.kind === 'wire'
-                      ? ''
-                      : ` · ${component.value} ${unitOf(component.kind)}`}
-                  </button>
-                  <div className="terminals">
-                    {(['a', 'b'] as const).map((terminal) => (
-                      <button
+                    <title>
+                      {entry.label}
+                      {entry.unit ? ` · ${component.value} ${entry.unit}` : ''}
+                    </title>
+                  </image>
+                  {(['a', 'b'] as const).map((terminal) => {
+                    const spec = entry.terminals[terminal];
+                    const active =
+                      pendingTerminal?.componentId === component.id &&
+                      pendingTerminal.terminal === terminal;
+                    return (
+                      <circle
                         key={terminal}
-                        type="button"
-                        className={`terminal${
-                          pendingTerminal?.componentId === component.id &&
-                          pendingTerminal.terminal === terminal
-                            ? ' terminal-active'
-                            : ''
-                        }`}
+                        className={`terminal-dot${active ? ' terminal-dot-active' : ''}`}
+                        data-testid="terminal-dot"
+                        cx={spec.x * scale}
+                        cy={spec.y * scale}
+                        r={12}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`${entry.label}: вывод ${spec.label}`}
                         onClick={() => clickTerminal(component.id, terminal)}
-                        aria-label={`${KIND_LABEL[component.kind]}: вывод ${terminal.toUpperCase()}`}
-                      >
-                        {terminal.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                  {component.kind === 'led' && measured ? (
-                    <p className="led-state" data-testid="led-state">
-                      Светодиод {measured.lit ? 'горит' : 'не горит'}
-                    </p>
-                  ) : null}
-                  {measured && component.kind !== 'led' ? (
-                    <p className="muted">Падение {measured.voltageDrop} В</p>
-                  ) : null}
-                </li>
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            clickTerminal(component.id, terminal);
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                </g>
               );
             })}
-          </ul>
+          </svg>
 
-          {document.connections.length > 0 ? (
-            <>
-              <h3>Соединения</h3>
-              <ul className="connection-list">
-                {document.connections.map((connection) => (
-                  <li key={connection.id}>
-                    {connection.from.componentId}:{connection.from.terminal.toUpperCase()} →{' '}
-                    {connection.to.componentId}:{connection.to.terminal.toUpperCase()}
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => removeConnection(connection.id)}
-                      aria-label={`Удалить соединение ${connection.id}`}
-                    >
-                      Удалить
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
+          {placed.length === 0 ? (
+            <p className="muted canvas-empty">
+              Поле пустое. Добавьте источник, резистор и светодиод.
+            </p>
+          ) : null}
+
+          {selectedWire ? (
+            <div className="wire-actions">
+              <span>Провод выбран.</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => removeConnection(selectedWire)}
+              >
+                Удалить провод
+              </button>
+            </div>
           ) : null}
         </section>
 
@@ -333,6 +452,13 @@ export function SchematicEditor({
           <p className="reading" data-testid="current-reading">
             Ток: {result?.solved ? `${(result.current * 1000).toFixed(1)} мА` : '—'}
           </p>
+          {leds.length > 0 ? (
+            <p className="led-state" data-testid="led-state">
+              {leds.every((component) => resultByComponent.get(component.id)?.lit)
+                ? 'Светодиод горит'
+                : 'Светодиод не горит'}
+            </p>
+          ) : null}
           <ul className="diagnostics" data-testid="diagnostics">
             {(result?.diagnostics ?? []).map((diagnostic, index) => (
               <li
@@ -344,10 +470,10 @@ export function SchematicEditor({
             ))}
           </ul>
 
-          {selectedComponent && selectedComponent.kind !== 'wire' ? (
+          {selectedComponent && selectedEntry ? (
             <div className="parameter">
               <label htmlFor="component-value">
-                {KIND_LABEL[selectedComponent.kind]} · значение ({unitOf(selectedComponent.kind)})
+                {selectedEntry.label} · значение ({selectedEntry.unit})
               </label>
               <input
                 id="component-value"
