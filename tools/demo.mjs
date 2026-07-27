@@ -43,7 +43,9 @@ function resolveLocalDatabaseUrl() {
   const user = typeof credential?.user === 'string' ? credential.user.trim() : '';
   const password = typeof credential?.password === 'string' ? credential.password : '';
   if (!user || !password) {
-    blocked('local demo runtime credential is incomplete; ask the coding bot to provision it again.');
+    blocked(
+      'local demo runtime credential is incomplete; ask the coding bot to provision it again.',
+    );
   }
 
   const host = process.env.ASA_LOCAL_DB_HOST?.trim() || '127.0.0.1';
