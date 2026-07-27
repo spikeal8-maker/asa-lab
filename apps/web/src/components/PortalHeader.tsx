@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, type PublicUser } from '../api';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import { ClassesIcon, FolderIcon, UserIcon } from '../electronics/workbench-icons';
 
 export type PortalSection = 'projects' | 'classes';
@@ -34,14 +35,13 @@ export function PortalHeader({
   return (
     <>
       <header className="portal-header">
-        <button type="button" className="portal-brand" onClick={() => onNavigate('projects')}>
-          <span className="portal-brand-mark" aria-hidden="true">
-            <span>A</span>
-            <span>S</span>
-            <span>A</span>
-            <span>LAB</span>
-          </span>
-          <span>ASA Lab</span>
+        <button
+          type="button"
+          className="portal-brand"
+          onClick={() => onNavigate('projects')}
+          aria-label="ASA Lab — открыть мои проекты"
+        >
+          <AsaLabWordmark />
         </button>
         <nav className="portal-nav" aria-label="Основная навигация">
           <button

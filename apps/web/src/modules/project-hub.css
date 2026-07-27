@@ -26,7 +26,7 @@
 }
 
 .project-hub-card {
-  border-top: 4px solid var(--module-accent, #168fc8);
+  border-top: 4px solid var(--module-accent, var(--asa-cyan-600));
 }
 
 .project-module-preview {
@@ -34,10 +34,10 @@
   display: grid;
   place-items: center;
   gap: 9px;
-  color: var(--module-accent, #168fc8);
+  color: var(--asa-ink-700);
   background: linear-gradient(
     145deg,
-    color-mix(in srgb, var(--module-accent, #168fc8) 11%, white),
+    color-mix(in srgb, var(--module-accent, var(--asa-cyan-600)) 11%, white),
     #f8fafc 62%
   );
 }
@@ -46,7 +46,7 @@
   content: '';
   position: absolute;
   inset: 12px;
-  border: 1px solid color-mix(in srgb, var(--module-accent, #168fc8) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--module-accent, var(--asa-cyan-600)) 22%, transparent);
   border-radius: 9px;
   pointer-events: none;
 }

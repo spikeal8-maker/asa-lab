@@ -6,6 +6,7 @@ import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { PortalHeader, type PortalSection } from './components/PortalHeader';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
+import './brand/brand.css';
 import './electronics/portal.css';
 import './modules/project-hub.css';
 

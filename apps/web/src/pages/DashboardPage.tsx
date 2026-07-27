@@ -20,9 +20,9 @@ export function DashboardPage({
     setList({ kind: 'loading' });
     const result = await api.listClassrooms();
     if (result.ok) setList({ kind: 'ready', items: result.data.items });
-    else if (result.status === 0)
+    else if (result.status === 0) {
       setList({ kind: 'error', message: 'Сервер недоступен. Проверьте соединение.' });
-    else setList({ kind: 'error', message: 'Не удалось загрузить классы.' });
+    } else setList({ kind: 'error', message: 'Не удалось загрузить классы.' });
   }, []);
 
   useEffect(() => {
@@ -43,9 +43,9 @@ export function DashboardPage({
     >
       <section className="portal-hero">
         <div>
-          <p className="portal-eyebrow">Учебные группы</p>
+          <p className="portal-eyebrow">Учебные пространства</p>
           <h1>Мои классы</h1>
-          <p>Управляйте классами отдельно от личной мастерской и будущих предметных проектов.</p>
+          <p>Управляйте учениками, проектами и будущими заданиями отдельно от личной мастерской.</p>
         </div>
         <button
           ref={createButtonRef}
@@ -97,19 +97,25 @@ export function DashboardPage({
         <ul className="classroom-gallery" data-testid="classroom-grid" aria-label="Мои классы">
           {list.items.map((classroom) => (
             <li key={classroom.id} className="classroom-gallery-card" data-testid="classroom-card">
-              <div className="classroom-card-icon">
-                <ClassesIcon />
+              <div className="classroom-card-heading">
+                <span className="classroom-card-icon" aria-hidden="true">
+                  <ClassesIcon />
+                </span>
+                <div className="classroom-card-copy">
+                  <h2>{classroom.title}</h2>
+                  <p>Активный класс</p>
+                </div>
               </div>
-              <div className="classroom-card-copy">
-                <h2>{classroom.title}</h2>
-                <p>Активный класс</p>
+              <div className="classroom-card-summary" aria-label="Состояние класса">
+                <span>Проекты</span>
+                <span>Ученики и задания — следующий этап</span>
               </div>
               <button
                 type="button"
-                className="btn-secondary"
+                className="classroom-open-button"
                 onClick={() => onOpenProjects(classroom.id, classroom.title)}
               >
-                Открыть проекты класса
+                Открыть класс
               </button>
             </li>
           ))}

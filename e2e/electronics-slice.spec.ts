@@ -23,8 +23,14 @@ async function createPersonalProject(page: Page, title: string): Promise<void> {
   await page.getByRole('button', { name: 'Создать', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
   await page.getByLabel('Название проекта').fill(title);
-  await expect(page.getByText('Электроника', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Создать проект' }).click();
+  // The registry-driven chooser lists every environment; only Electronics is creatable.
+  const electronics = page.locator('.module-tile', { hasText: 'Электроника' });
+  await expect(electronics).toBeVisible();
+  // Future environments are listed but cannot be chosen yet.
+  await expect(page.locator('.module-tile', { hasText: 'Блочное программирование' })).toBeVisible();
+  await electronics.locator('input[value="electronics"]').check();
+  // The page keeps its own action, so submit inside the dialog.
+  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByLabel('Название проекта')).toHaveValue(title);
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
 }
@@ -73,7 +79,6 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 
   await expect(page.getByLabel('Библиотека компонентов')).toBeVisible();
   await expect(page.getByPlaceholder('Поиск')).toBeVisible();
-  await expect(page.getByText('Блочное программирование', { exact: true })).toBeVisible();
 
   await addComponent(page, 'Батарейный отсек');
   await addComponent(page, 'Резистор');
@@ -128,6 +133,6 @@ test('classes remain a separate teacher workspace from personal projects', async
       'Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.',
     ),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Мои проекты' }).click();
+  await page.getByRole('button', { name: 'Мои проекты' }).first().click();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 });

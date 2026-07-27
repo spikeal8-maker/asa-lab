@@ -37,6 +37,7 @@
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
     "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",
+    "test:visual-system": "node tools/validate-visual-system.mjs",
     "portal:m4:check": "node tools/validate-portal-evidence.mjs",
     "test:electronics": "vitest run contexts/electronics/testing",
     "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts",

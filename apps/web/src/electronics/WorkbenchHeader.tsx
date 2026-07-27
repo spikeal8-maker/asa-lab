@@ -1,4 +1,5 @@
 import type { PublicUser } from '../api';
+import { AsaLabMark } from '../brand/AsaLabBrand';
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -68,26 +69,27 @@ export function WorkbenchHeader({
           >
             <ArrowLeftIcon />
           </button>
-          <button type="button" className="workbench-brand" onClick={onBack} aria-label="ASA Lab">
-            <span className="workbench-brand-grid" aria-hidden="true">
-              <span>A</span>
-              <span>S</span>
-              <span>A</span>
-              <span>LAB</span>
-            </span>
+          <button
+            type="button"
+            className="workbench-brand"
+            onClick={onBack}
+            aria-label="ASA Lab — вернуться к проектам"
+            title="ASA Lab"
+          >
+            <AsaLabMark title="ASA Lab" />
           </button>
           <input
             className="workbench-title-input"
             value={c.projectTitle}
             aria-label="Название проекта"
             maxLength={255}
-            onChange={(e) => c.setProjectTitle(e.target.value)}
+            onChange={(event) => c.setProjectTitle(event.target.value)}
             onBlur={() => void c.renameProject()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-              if (e.key === 'Escape') {
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+              if (event.key === 'Escape') {
                 c.setProjectTitle(c.project?.title ?? '');
-                e.currentTarget.blur();
+                event.currentTarget.blur();
               }
             }}
           />
@@ -140,7 +142,7 @@ export function WorkbenchHeader({
             <span style={{ background: c.activeWireColor }} />
             <select
               value={c.activeWireColor}
-              onChange={(e) => c.setWireColor(e.target.value)}
+              onChange={(event) => c.setWireColor(event.target.value)}
               aria-label="Цвет провода"
             >
               {WIRE_COLORS.map((color) => (
