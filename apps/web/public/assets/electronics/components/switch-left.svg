@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 10" version="1.1" preserveAspectRatio="xMidYMid meet" data-asa-source="slide_switch_spdt_3pin_left.svg">
+<title>Slide switch SPDT 3 pin — left</title>
+<desc>Slide switch in left position.</desc>
+<defs>
+<linearGradient id="housingGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#66676b" /><stop offset="100%" stop-color="#45464a" /></linearGradient>
+<linearGradient id="slotGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#1b1c20" /><stop offset="100%" stop-color="#262930" /></linearGradient>
+<linearGradient id="sliderGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#949496" /><stop offset="100%" stop-color="#666669" /></linearGradient>
+<linearGradient id="pinGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#eeeeee" /><stop offset="100%" stop-color="#a1a1a1" /></linearGradient>
+</defs>
+<g fill="url(#pinGrad)" stroke="#8d8d8d" stroke-width="0.08">
+<rect x="6.06" y="5.75" width="0.80" height="3.55" rx="0.30" />
+<rect x="8.60" y="5.75" width="0.80" height="3.55" rx="0.30" />
+<rect x="11.14" y="5.75" width="0.80" height="3.55" rx="0.30" />
+</g>
+<path d="M2.15,1.20 h13.70 l0.45,0.45 v4.10 l-0.45,0.45 h-13.70 l-0.45,-0.45 v-4.10 z" fill="url(#housingGrad)" stroke="#515257" stroke-width="0.12" />
+<rect x="4.55" y="2.10" width="8.90" height="2.55" rx="0.20" fill="url(#slotGrad)" />
+<g transform="translate(0 0)">
+<rect x="4.92" y="2.38" width="2.95" height="2.00" rx="0.25" fill="url(#sliderGrad)" stroke="#5f5f62" stroke-width="0.08" />
+<g stroke="#4d4d50" stroke-width="0.12">
+<line x1="5.50" y1="2.50" x2="5.50" y2="4.25" />
+<line x1="5.96" y1="2.50" x2="5.96" y2="4.25" />
+<line x1="6.42" y1="2.50" x2="6.42" y2="4.25" />
+<line x1="6.88" y1="2.50" x2="6.88" y2="4.25" />
+</g>
+</g>
+</svg>
