@@ -38,20 +38,24 @@ async function connect(page: Page, first: string, second: string): Promise<void>
   await page.getByLabel(second).click();
 }
 
-async function moveComponent(page: Page, kind: string): Promise<{ beforeX: number; afterX: number }> {
-  const component = page.getByTestId('schematic-component').filter({ has: page.locator(`[data-kind="${kind}"]`) });
-  const direct = page.getByTestId('schematic-component').filter({ hasNotText: 'never-used' }).locator(`xpath=self::*[@data-kind='${kind}']`);
-  const target = (await direct.count()) > 0 ? direct.first() : page.locator(`[data-testid="schematic-component"][data-kind="${kind}"]`).first();
+async function moveComponent(
+  page: Page,
+  kind: string,
+): Promise<{ beforeX: number; afterX: number }> {
+  const target = page
+    .locator(`[data-testid="schematic-component"][data-kind="${kind}"]`)
+    .first();
   const beforeX = Number(await target.getAttribute('data-x'));
   const box = await target.boundingBox();
   if (!box) throw new Error(`component ${kind} has no bounding box`);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 60, { steps: 8 });
+  await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2 + 60, {
+    steps: 8,
+  });
   await page.mouse.up();
   await expect.poll(async () => Number(await target.getAttribute('data-x'))).not.toBe(beforeX);
-  const afterX = Number(await target.getAttribute('data-x'));
-  return { beforeX, afterX };
+  return { beforeX, afterX: Number(await target.getAttribute('data-x')) };
 }
 
 test.beforeAll(async () => {
@@ -63,7 +67,9 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-test('teacher builds and preserves a personal circuit in the Tinkercad-style workbench', async ({ page }) => {
+test('teacher builds and preserves a personal circuit in the Tinkercad-style workbench', async ({
+  page,
+}) => {
   await login(page);
   await createPersonalProject(page, 'Демонстрация закона Ома');
 
@@ -90,7 +96,7 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
   await expect(page.getByText('Все изменения сохранены', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
-  await expect(page.getByText('Моделирование запущено', { exact: true })).toBeVisible();
+  await expect(page.locator('.workbench-stage-status')).toContainText('Моделирование запущено');
   await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
   await expect(page.locator('image[href$="led-red-lit.svg"]')).toBeVisible();
   await expect(page.getByTestId('diagnostics')).toContainText('Цепь замкнута');
@@ -100,7 +106,9 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 
   await page.reload();
   await expect(page.getByLabel('Название проекта')).toHaveValue('Демонстрация закона Ома');
-  const resistor = page.locator('[data-testid="schematic-component"][data-kind="resistor"]').first();
+  const resistor = page
+    .locator('[data-testid="schematic-component"][data-kind="resistor"]')
+    .first();
   expect(Number(await resistor.getAttribute('data-x'))).toBe(moved.afterX);
   await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
 
@@ -109,7 +117,7 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
   await page.getByRole('button', { name: 'Создать версию' }).click();
   await expect(page.getByText('Последняя версия: №1')).toBeVisible();
 
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'e2e/artifacts/electronics-mobile.png', fullPage: true });
 });
 
@@ -117,7 +125,11 @@ test('classes remain a separate teacher workspace from personal projects', async
   await login(page);
   await page.getByRole('button', { name: 'Классы' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
-  await expect(page.getByText('Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.')).toBeVisible();
+  await expect(
+    page.getByText(
+      'Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.',
+    ),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Мои проекты' }).click();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 });
