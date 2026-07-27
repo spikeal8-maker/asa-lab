@@ -42,7 +42,8 @@
     "test:electronics": "vitest run contexts/electronics/testing",
     "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts",
     "e2e:electronics": "playwright test e2e/electronics-slice.spec.ts",
-    "test:electronics-assets": "vitest run tests/electronics/assets.spec.ts"
+    "test:electronics-assets": "vitest run tests/electronics/assets.spec.ts",
+    "test:live-portal": "playwright test e2e/live-check.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
