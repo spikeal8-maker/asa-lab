@@ -1,3 +1,5 @@
+@import './visual-system.css';
+
 :root {
   --asa-ink-900: #0b3558;
   --asa-ink-700: #185272;
