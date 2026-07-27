@@ -17,6 +17,7 @@ import {
 import type {
   CreateProjectInput,
   ModuleCatalogPort,
+  ProjectDocumentValidation,
   ProjectRepositoryPort,
 } from '../application/ports';
 
@@ -71,16 +72,24 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
   return { port, creates };
 }
 
-function catalog(emptyDocument: unknown = { schemaVersion: 1, components: [], connections: [] }): ModuleCatalogPort {
+function catalog(
+  emptyDocument: unknown = { schemaVersion: 1, components: [], connections: [] },
+  validateDocument: (value: unknown) => ProjectDocumentValidation = (value) => ({
+    ok: true,
+    document: value,
+  }),
+): ModuleCatalogPort {
+  const module = {
+    moduleKey: 'electronics',
+    createEmptyProject: () => emptyDocument,
+    validateDocument,
+  };
   return {
-    getCreatable: (moduleKey) =>
-      moduleKey === 'electronics'
-        ? { moduleKey: 'electronics', createEmptyProject: () => emptyDocument }
-        : null,
+    get: (moduleKey) => (moduleKey === 'electronics' ? module : null),
+    getCreatable: (moduleKey) => (moduleKey === 'electronics' ? module : null),
   };
 }
 
-const okValidator = (value: unknown) => ({ ok: true as const, document: value });
 const personalInput = {
   tenantId: 't1',
   scope: 'personal' as const,
@@ -199,17 +208,18 @@ describe('list, rename, draft and checkpoint', () => {
     ).toMatchObject({ ok: false, code: 'validation_error' });
   });
 
-  it('validates and saves a subject document', async () => {
+  it('asks the project module to validate a draft before saving', async () => {
     const { port } = repo();
+    const invalidCatalog = catalog({}, () => ({ ok: false, message: 'bad document' }));
     expect(
-      await new SaveDraftUseCase(port, () => ({ ok: false, message: 'bad document' })).execute({
+      await new SaveDraftUseCase(port, invalidCatalog).execute({
         tenantId: 't1',
         projectId: 'p1',
         teacherId: 'u1',
         document: {},
       }),
     ).toMatchObject({ ok: false, code: 'validation_error' });
-    const saved = await new SaveDraftUseCase(port, okValidator).execute({
+    const saved = await new SaveDraftUseCase(port, catalog()).execute({
       tenantId: 't1',
       projectId: 'p1',
       teacherId: 'u1',
@@ -249,7 +259,7 @@ describe('list, rename, draft and checkpoint', () => {
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });
     expect(
-      await new SaveDraftUseCase(port, okValidator).execute({
+      await new SaveDraftUseCase(port, catalog()).execute({
         tenantId: 't1',
         projectId: 'ghost',
         teacherId: 'u1',
