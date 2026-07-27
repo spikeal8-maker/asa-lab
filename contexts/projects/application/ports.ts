@@ -30,11 +30,36 @@ export interface SaveDraftInput {
   readonly document: unknown;
 }
 
+/** Minimal module contract consumed by Project Core during project creation.
+ * Subject payload details remain outside the projects context. */
+export interface CreatableProjectModule {
+  readonly moduleKey: string;
+  createEmptyProject(): unknown;
+}
+
+export interface ModuleCatalogPort {
+  getCreatable(moduleKey: string): CreatableProjectModule | null;
+}
+
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
   listForTeacher(tenantId: string, teacherId: string, filter: ProjectListFilter): Promise<Project[]>;
-  load(tenantId: string, projectId: string, teacherId: string): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
-  rename(tenantId: string, projectId: string, teacherId: string, title: string): Promise<Project | null>;
+  load(
+    tenantId: string,
+    projectId: string,
+    teacherId: string,
+  ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
+  rename(
+    tenantId: string,
+    projectId: string,
+    teacherId: string,
+    title: string,
+  ): Promise<Project | null>;
   saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null>;
-  createCheckpoint(tenantId: string, projectId: string, teacherId: string, label: string | null): Promise<ProjectVersion | null>;
+  createCheckpoint(
+    tenantId: string,
+    projectId: string,
+    teacherId: string,
+    label: string | null,
+  ): Promise<ProjectVersion | null>;
 }
