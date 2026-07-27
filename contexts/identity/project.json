@@ -3,7 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "contexts/identity",
-  "tags": ["type:lib", "scope:core"],
+  "tags": ["type:lib", "scope:core", "context:identity"],
   "targets": {
     "build": {
       "command": "tsc -p contexts/identity/tsconfig.json"

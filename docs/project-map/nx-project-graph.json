@@ -150,7 +150,8 @@
           "tags": [
             "npm:private",
             "type:lib",
-            "scope:core"
+            "scope:core",
+            "context:organization"
           ],
           "metadata": {
             "targetGroups": {},
@@ -478,7 +479,8 @@
           "tags": [
             "npm:private",
             "type:lib",
-            "scope:core"
+            "scope:core",
+            "context:classroom"
           ],
           "metadata": {
             "targetGroups": {},
@@ -756,7 +758,8 @@
           "tags": [
             "npm:private",
             "type:lib",
-            "scope:core"
+            "scope:core",
+            "context:identity"
           ],
           "metadata": {
             "targetGroups": {},
@@ -1240,7 +1243,13 @@
     "dependencies": {
       "domain-kernel": [],
       "observability": [],
-      "organization": [],
+      "organization": [
+        {
+          "source": "organization",
+          "target": "database",
+          "type": "static"
+        }
+      ],
       "realtime-gateway": [],
       "job-dispatcher": [],
       "module-sdk": [],

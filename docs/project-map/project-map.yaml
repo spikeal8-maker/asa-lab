@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-map_version: 2026.07.19-7
+map_version: 2026.07.27-1
 project:
   id: asa-lab
   name: ASA Lab
@@ -125,7 +125,7 @@ nodes:
   - {id: TASK-MOD-001, label: Legacy Module and Project Task, kind: task, layer: delivery, status: deprecated, summary: "Разделено на Project Shell, Checkers Lite и Electronics Alpha.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/5}
 
   - {id: TASK-PRODUCT-DOC-001, label: Product Blueprint and Development Program, kind: task, layer: delivery, status: done, summary: "Product specs, capability map, execution path and port policy in PR 21.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}
-  - {id: TASK-PORTAL-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: in_progress, summary: "Stabilize PR 22: login, classes, security, full gate and canonical ports.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
+  - {id: TASK-PORTAL-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: in_review, summary: "Stabilize PR 22: login, classes, security, full gate and canonical ports.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
   - {id: TASK-PROJECT-SHELL-001, label: Universal Project Shell, kind: task, layer: delivery, status: blocked, summary: "Module Registry v0.1, ProjectDraft save/reload and immutable checkpoint.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/24}
   - {id: TASK-CHECKERS-LITE-001, label: Checkers Lite Reference Module, kind: task, layer: delivery, status: blocked, summary: "8x8 board, one legal move, validation, save/reload and preview.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/25}
   - {id: TASK-ELECTRONICS-ALPHA-001, label: Electronics Alpha, kind: task, layer: delivery, status: blocked, summary: "Source, resistor, LED, wire, netlist, Rust/WASM DC and diagnostics.", phase: PHASE-5, issue: https://github.com/spikeal8-maker/asa-lab/issues/26}

@@ -93,15 +93,72 @@ const vulns = auditReport.metadata.vulnerabilities ?? {};
 console.log(
   `advisories: critical=${vulns.critical ?? 0} high=${vulns.high ?? 0} moderate=${vulns.moderate ?? 0} low=${vulns.low ?? 0}`,
 );
-if ((vulns.critical ?? 0) > 0 || (vulns.high ?? 0) > 0) {
-  for (const advisory of Object.values(auditReport.advisories ?? {})) {
-    if (advisory.severity === 'high' || advisory.severity === 'critical') {
-      console.error(
-        `FAIL: ${advisory.severity} advisory ${advisory.github_advisory_id ?? advisory.id}: ${advisory.module_name} (${advisory.vulnerable_versions})`,
-      );
+
+// Some advisories publish one flat range spanning several majors (for example
+// `<=5.0.7`), which also matches versions that are patched within their own
+// major line. Such an advisory may be waived ONLY while every installed copy
+// is at or above the per-major fixed version published by the advisory; a
+// single lagging copy still fails the gate.
+const CROSS_MAJOR_FIXED = {
+  'GHSA-mh99-v99m-4gvg': {
+    module: 'brace-expansion',
+    reason: 'advisory range <=5.0.7 spans majors 1..5; fixed per major by upstream',
+    minimumByMajor: { 1: '1.1.12', 2: '2.0.2', 3: '3.0.1', 4: '4.0.1', 5: '5.0.8' },
+  },
+};
+
+function compareVersions(left, right) {
+  const a = left.split('.').map(Number);
+  const b = right.split('.').map(Number);
+  for (let i = 0; i < 3; i += 1) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0) ? -1 : 1;
+  }
+  return 0;
+}
+
+function installedVersions(moduleName) {
+  const versions = new Set();
+  for (const packages of Object.values(byLicense)) {
+    for (const entry of packages) {
+      if (entry.name === moduleName) {
+        for (const version of entry.versions ?? []) versions.add(version);
+      }
     }
   }
-  failures += 1;
+  return [...versions];
+}
+
+/** @returns null when the advisory is genuinely satisfied, otherwise a reason. */
+function unresolvedReason(advisory) {
+  const id = advisory.github_advisory_id ?? advisory.id;
+  const waiver = CROSS_MAJOR_FIXED[id];
+  if (!waiver || waiver.module !== advisory.module_name) {
+    return `${advisory.module_name} (${advisory.vulnerable_versions})`;
+  }
+  const lagging = installedVersions(advisory.module_name).filter((version) => {
+    const minimum = waiver.minimumByMajor[Number(version.split('.')[0])];
+    return minimum === undefined || compareVersions(version, minimum) < 0;
+  });
+  if (lagging.length > 0) {
+    return `${advisory.module_name}: installed ${lagging.join(', ')} below the per-major fix`;
+  }
+  return null;
+}
+
+if ((vulns.critical ?? 0) > 0 || (vulns.high ?? 0) > 0) {
+  for (const advisory of Object.values(auditReport.advisories ?? {})) {
+    if (advisory.severity !== 'high' && advisory.severity !== 'critical') continue;
+    const id = advisory.github_advisory_id ?? advisory.id;
+    const reason = unresolvedReason(advisory);
+    if (reason === null) {
+      console.log(
+        `waived ${advisory.severity} advisory ${id}: every installed ${advisory.module_name} copy (${installedVersions(advisory.module_name).join(', ')}) is at or above the per-major fix — ${CROSS_MAJOR_FIXED[id].reason}`,
+      );
+      continue;
+    }
+    console.error(`FAIL: ${advisory.severity} advisory ${id}: ${reason}`);
+    failures += 1;
+  }
 }
 
 // --- 3. license policy over every installed package ---

@@ -21,7 +21,7 @@
 ```mermaid
 flowchart LR
     DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>done]
-    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>in_progress]
+    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>in_review]
     PROJECT[3 Project Shell<br/>TASK-PROJECT-SHELL-001<br/>blocked]
     CHECKERS[4 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
     EALPHA[5 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]

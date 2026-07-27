@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { TelemetryHandle } from '@asa-lab/observability';
+import type { TelemetryLifecycle } from './runtime.js';
 import { launchApiRuntime, type ApiApplication } from './runtime.js';
 
-function fakeTelemetry(events: string[]): TelemetryHandle {
+function fakeTelemetry(events: string[]): TelemetryLifecycle {
   return {
-    mode: 'disabled',
-    networkExport: false,
     start: vi.fn(() => events.push('telemetry:start')),
     shutdown: vi.fn(async () => {
       events.push('telemetry:shutdown');
@@ -68,6 +66,34 @@ describe('API runtime lifecycle', () => {
     await expect(
       launchApiRuntime({ telemetry: fakeTelemetry(events), createApp: async () => app }),
     ).rejects.toThrow('port unavailable');
+    expect(events).toEqual(['telemetry:start', 'app:listen', 'app:close', 'telemetry:shutdown']);
+  });
+
+  it('preserves startup and cleanup errors when both fail', async () => {
+    const events: string[] = [];
+    const app: ApiApplication = {
+      listen: vi.fn(async () => {
+        events.push('app:listen');
+        throw new Error('listen failed');
+      }),
+      close: vi.fn(async () => {
+        events.push('app:close');
+        throw new Error('cleanup failed');
+      }),
+    };
+
+    let thrown: unknown;
+    try {
+      await launchApiRuntime({ telemetry: fakeTelemetry(events), createApp: async () => app });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(AggregateError);
+    const aggregate = thrown as AggregateError;
+    expect(aggregate.errors.map((error) => String(error))).toEqual([
+      'Error: listen failed',
+      'Error: cleanup failed',
+    ]);
     expect(events).toEqual(['telemetry:start', 'app:listen', 'app:close', 'telemetry:shutdown']);
   });
 
