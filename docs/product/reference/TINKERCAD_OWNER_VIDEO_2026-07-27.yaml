@@ -1,13 +1,15 @@
 schema_version: 1.0.0
 evidence_id: tinkercad-owner-video-2026-07-27
 source:
-  kind: private_owner_video
+  kind: owner_reference_video
   duration_seconds: 300.516667
   resolution: 1920x1080
   fps: 60
   frame_count: 18031
-  contains_personal_data: true
-  repository_storage: prohibited
+  contains_personal_data: false
+  contains_synthetic_test_data: true
+  repository_storage: permitted_private_repo
+  public_redistribution: owner_approval_required
 analysis:
   all_frames_scene_indexed: true
   transition_frames: 278
