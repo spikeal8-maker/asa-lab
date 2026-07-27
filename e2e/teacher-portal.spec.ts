@@ -10,6 +10,9 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+const organizationCodeField = 'Код организации';
+const teacherEmailField = 'Email педагога';
+
 test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'e2e');
@@ -23,8 +26,8 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
 
-  await page.getByLabel('Workspace').fill(teacher.workspace);
-  await page.getByLabel('Email').fill(teacher.email);
+  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
+  await page.getByLabel(teacherEmailField).fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);
   await page.getByRole('button', { name: 'Войти' }).click();
 
@@ -55,5 +58,5 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.setViewportSize({ width: 1280, height: 800 });
 
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await expect(page.getByLabel('Workspace')).toBeVisible();
+  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
 });
