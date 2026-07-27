@@ -3,9 +3,27 @@
 
 export interface PublicUser {
   id: string;
-  role: string;
   displayName: string;
   email: string;
+}
+
+export interface CapabilityRef {
+  capability: string;
+  state: string;
+}
+
+export interface WorkspaceRef {
+  workspaceId: string;
+  kind: string;
+  title: string;
+  role: string;
+}
+
+/** The server states capabilities and workspaces; the client never claims a role. */
+export interface SessionPayload {
+  user: PublicUser;
+  capabilities: CapabilityRef[];
+  workspaces: WorkspaceRef[];
 }
 
 export interface Classroom {
@@ -106,6 +124,8 @@ export interface SolveResult {
 export interface ApiError {
   code: string;
   message: string;
+  /** Routes the server offers instead of a dead end (see age routing). */
+  routes?: string[];
 }
 
 export type ApiResult<T> =
@@ -151,22 +171,27 @@ export interface CreateProjectOptions {
 }
 
 export const api = {
-  me: () => call<{ user: PublicUser }>('/api/auth/me'),
+  me: () => call<SessionPayload>('/api/auth/me'),
   /** Personal sign-in: email and password only, no organization code. */
   login: (email: string, password: string) =>
-    call<{ user: PublicUser }>('/api/auth/login', {
+    call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
-  /** Compatible path for accounts that still sign in through an organization. */
+  /** Legacy path kept for accounts that still sign in through an organization. */
   loginWithWorkspace: (workspace: string, email: string, password: string) =>
-    call<{ user: PublicUser }>('/api/auth/login', {
+    call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ workspace, email, password }),
     }),
+  usernameAvailable: (username: string) =>
+    call<{ available: boolean }>(
+      `/api/auth/username-available?username=${encodeURIComponent(username)}`,
+    ),
   register: (input: {
     email: string;
     password: string;
+    username: string;
     displayName: string;
     birthDate: string;
     country: string;

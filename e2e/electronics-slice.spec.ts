@@ -12,10 +12,13 @@ let teacher: SeededTeacher;
 
 async function login(page: Page): Promise<void> {
   await page.goto('/#/projects');
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  await page.getByTestId('entry-school-educator').click();
+  await page.getByRole('button', { name: 'Войти через организацию' }).click();
   await page.getByLabel('Код организации').fill(teacher.workspace);
-  await page.getByLabel('Email педагога').fill(teacher.email);
+  await page.getByLabel('Email').fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Войти через организацию' }).click();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 }
 

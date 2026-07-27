@@ -54,3 +54,6 @@ reports/playwright/
 
 # dev orchestrator graceful stop marker
 .asa-dev-stop
+
+# Google Drive sync conflict copies quarantined out of the build
+.drive-conflicts/

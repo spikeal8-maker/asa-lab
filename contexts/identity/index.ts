@@ -26,7 +26,10 @@ export {
   isValidPassword,
   maySelfAttestEducator,
   parseBirthDate,
-  usernameFromEmail,
+  isValidUsername,
+  routeForMinor,
+  suggestUsername,
+  type MinorRoute,
 } from './domain/age-policy.js';
 export type {
   AccountDirectoryPort,

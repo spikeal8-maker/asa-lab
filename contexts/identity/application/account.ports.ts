@@ -29,6 +29,7 @@ export interface AccountProfile {
 }
 
 export interface RegisterAccountInput {
+  /** Pseudonym chosen by the account holder; never derived from the email. */
   readonly email: string;
   readonly passwordHash: string;
   readonly displayName: string;
@@ -42,7 +43,6 @@ export interface RegisteredAccount {
   readonly accountId: string;
   readonly workspaceId: string;
   readonly tenantId: string;
-  readonly userId: string;
 }
 
 export interface AccountDirectoryPort {
@@ -51,4 +51,7 @@ export interface AccountDirectoryPort {
   workspaces(accountId: string): Promise<WorkspaceRef[]>;
   capabilities(accountId: string): Promise<CapabilityRef[]>;
   profile(accountId: string): Promise<AccountProfile | null>;
+  isUsernameAvailable(username: string): Promise<boolean>;
+  /** Account behind a legacy tenant-scoped session, if the session maps to one. */
+  accountForUser(tenantId: string, userId: string): Promise<string | null>;
 }

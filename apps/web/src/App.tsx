@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type PublicUser } from './api';
+import { api, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
+import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
+import { ContextChooserPage, type EntryContext } from './pages/ContextChooserPage';
+import { NextStagePage } from './pages/NextStagePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -14,8 +18,32 @@ import './modules/project-hub.css';
 type SessionState =
   | { kind: 'checking' }
   | { kind: 'anonymous' }
-  | { kind: 'authenticated'; user: PublicUser }
+  | { kind: 'authenticated'; session: SessionPayload }
   | { kind: 'error' };
+
+/**
+ * Public screens before a session exists. The visitor states an intent, then
+ * picks a context; only after that does a form appear.
+ */
+type PublicView =
+  | { kind: 'entry' }
+  | { kind: 'chooser'; intent: 'create-account' | 'sign-in' }
+  | { kind: 'login' }
+  | { kind: 'organization-login' }
+  | { kind: 'register' }
+  | { kind: 'next-stage'; title: string; explanation: string };
+
+const CLASS_CODE_STAGE = {
+  title: 'Вход по коду класса',
+  explanation:
+    'Код выдаёт педагог. Экран входа по коду появится на следующем этапе — сейчас ученики работают в классе через педагога.',
+} as const;
+
+const STUDENT_ACCOUNT_STAGE = {
+  title: 'Ученический аккаунт — следующий этап',
+  explanation:
+    'Собственный аккаунт ученика с согласием родителя готовится. Пока в класс заходят по коду, который выдаёт педагог.',
+} as const;
 
 type View =
   | { kind: 'my-projects' }
@@ -79,7 +107,7 @@ function viewFromHash(): View {
 
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
-  const [registering, setRegistering] = useState(false);
+  const [publicView, setPublicView] = useState<PublicView>({ kind: 'entry' });
   const [view, setViewState] = useState<View>(() => viewFromHash());
 
   const setView = useCallback((next: View) => {
@@ -101,7 +129,7 @@ export function App(): JSX.Element {
   const checkSession = useCallback(async () => {
     setSession({ kind: 'checking' });
     const result = await api.me();
-    if (result.ok) setSession({ kind: 'authenticated', user: result.data.user });
+    if (result.ok) setSession({ kind: 'authenticated', session: result.data });
     else if (result.status === 401) setSession({ kind: 'anonymous' });
     else setSession({ kind: 'error' });
   }, []);
@@ -131,49 +159,120 @@ export function App(): JSX.Element {
     );
   }
   if (session.kind === 'anonymous') {
-    if (registering) {
+    const signedIn = (payload: SessionPayload): void => {
+      setSession({ kind: 'authenticated', session: payload });
+      setPublicView({ kind: 'entry' });
+      setView({ kind: 'my-projects' });
+    };
+
+    if (publicView.kind === 'entry') {
+      return (
+        <PublicEntryPage
+          onChoose={(intent: PublicIntent) => {
+            if (intent === 'join-class') {
+              setPublicView({ kind: 'next-stage', ...CLASS_CODE_STAGE });
+              return;
+            }
+            setPublicView({ kind: 'chooser', intent });
+          }}
+        />
+      );
+    }
+    if (publicView.kind === 'chooser') {
+      const intent = publicView.intent;
+      return (
+        <ContextChooserPage
+          intent={intent}
+          onBack={() => setPublicView({ kind: 'entry' })}
+          onChoose={(context: EntryContext) => {
+            if (context === 'school-class-code') {
+              setPublicView({ kind: 'next-stage', ...CLASS_CODE_STAGE });
+              return;
+            }
+            if (context === 'school-registered-student') {
+              setPublicView(
+                intent === 'create-account'
+                  ? { kind: 'next-stage', ...STUDENT_ACCOUNT_STAGE }
+                  : { kind: 'login' },
+              );
+              return;
+            }
+            setPublicView(intent === 'create-account' ? { kind: 'register' } : { kind: 'login' });
+          }}
+        />
+      );
+    }
+    if (publicView.kind === 'organization-login') {
+      return (
+        <OrganizationLoginPage
+          onSignedIn={signedIn}
+          onBack={() => setPublicView({ kind: 'login' })}
+        />
+      );
+    }
+    if (publicView.kind === 'register') {
       return (
         <RegisterPage
           onRegistered={() => {
-            setRegistering(false);
+            setPublicView({ kind: 'entry' });
             setView({ kind: 'my-projects' });
             void checkSession();
           }}
-          onBackToLogin={() => setRegistering(false)}
+          onBackToLogin={() => setPublicView({ kind: 'login' })}
+          onClassCode={() => setPublicView({ kind: 'next-stage', ...CLASS_CODE_STAGE })}
+          onStudentNextStage={() => setPublicView({ kind: 'next-stage', ...STUDENT_ACCOUNT_STAGE })}
+        />
+      );
+    }
+    if (publicView.kind === 'next-stage') {
+      return (
+        <NextStagePage
+          title={publicView.title}
+          explanation={publicView.explanation}
+          onSignIn={() => setPublicView({ kind: 'login' })}
+          onBack={() => setPublicView({ kind: 'entry' })}
         />
       );
     }
     return (
       <LoginPage
-        onCreateAccount={() => setRegistering(true)}
-        onLoggedIn={(user) => {
-          setSession({ kind: 'authenticated', user });
-          setView({ kind: 'my-projects' });
-        }}
+        onSignedIn={signedIn}
+        onCreateAccount={() => setPublicView({ kind: 'register' })}
+        onOrganizationLogin={() => setPublicView({ kind: 'organization-login' })}
+        onBack={() => setPublicView({ kind: 'entry' })}
       />
     );
   }
+
+  const canTeach = session.session.capabilities.some(
+    (entry) =>
+      entry.capability === 'educator' &&
+      (entry.state === 'verified' || entry.state === 'provisional'),
+  );
 
   if (view.kind === 'editor') {
     return (
       <ModuleEditorHost
         projectId={view.projectId}
         onBack={() => setView(view.returnTo)}
-        user={session.user}
+        user={session.session.user}
       />
     );
   }
 
   const active: PortalSection =
-    view.kind === 'classrooms' || view.kind === 'classroom-projects' ? 'classes' : 'projects';
+    canTeach && (view.kind === 'classrooms' || view.kind === 'classroom-projects')
+      ? 'classes'
+      : 'projects';
   return (
     <div className="portal-shell">
       <a className="skip-link" href="#main-content">
         Перейти к содержанию
       </a>
       <PortalHeader
-        user={session.user}
+        user={session.session.user}
         active={active}
+        canTeach={canTeach}
         onNavigate={(section) =>
           setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' })
         }
@@ -182,21 +281,21 @@ export function App(): JSX.Element {
           setSession({ kind: 'anonymous' });
         }}
       />
-      {view.kind === 'my-projects' ? (
+      {view.kind === 'my-projects' || !canTeach ? (
         <MyProjectsPage
           onOpenProject={(projectId) =>
             setView({ kind: 'editor', projectId, returnTo: { kind: 'my-projects' } })
           }
         />
       ) : null}
-      {view.kind === 'classrooms' ? (
+      {view.kind === 'classrooms' && canTeach ? (
         <DashboardPage
           onOpenProjects={(classroomId, classroomTitle) =>
             setView({ kind: 'classroom-projects', classroomId, classroomTitle })
           }
         />
       ) : null}
-      {view.kind === 'classroom-projects' ? (
+      {view.kind === 'classroom-projects' && canTeach ? (
         <ProjectsPage
           classroomId={view.classroomId}
           classroomTitle={view.classroomTitle}

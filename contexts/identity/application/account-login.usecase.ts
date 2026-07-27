@@ -1,7 +1,7 @@
 import { verifyPassword } from '../domain/password.js';
 import { createSessionToken, hashSessionToken } from '../domain/session-token.js';
 import { isValidEmail, normalizeEmail } from '../domain/validation.js';
-import type { AccountDirectoryPort, WorkspaceRef } from './account.ports.js';
+import type { AccountDirectoryPort, CapabilityRef, WorkspaceRef } from './account.ports.js';
 import type { SessionStorePort } from './ports.js';
 
 export type AccountLoginResult =
@@ -11,18 +11,22 @@ export type AccountLoginResult =
       readonly accountId: string;
       readonly workspace: WorkspaceRef;
       readonly workspaces: readonly WorkspaceRef[];
+      readonly capabilities: readonly CapabilityRef[];
     }
   | {
       readonly ok: false;
-      readonly code: 'validation_error' | 'invalid_credentials' | 'no_workspace';
+      readonly code: 'validation_error' | 'invalid_credentials' | 'context_unavailable';
     };
 
 const SESSION_TTL_HOURS = 12;
 
 /**
- * Sign in with email and password only. No organization code is required: the
- * server resolves the workspaces the account may act in and starts the session
- * in the personal one by default.
+ * Sign in with email and password only — no organization code.
+ *
+ * The server answers with the capabilities and workspaces it granted; the
+ * client never states a role. A workspace whose membership has no
+ * tenant-scoped user cannot carry a legacy session yet, so that case is
+ * reported honestly instead of fabricating a teacher record.
  */
 export class AccountLoginUseCase {
   constructor(
@@ -40,9 +44,12 @@ export class AccountLoginUseCase {
       return { ok: false, code: 'invalid_credentials' };
     }
     const workspaces = await this.accounts.workspaces(account.id);
-    const active = workspaces.find((workspace) => workspace.kind === 'personal') ?? workspaces[0];
+    const capabilities = await this.accounts.capabilities(account.id);
+    const active = workspaces.find((workspace) => workspace.userId !== null);
     if (!active || active.userId === null) {
-      return { ok: false, code: 'no_workspace' };
+      // Personal workspaces have no tenant-scoped user by design; a session for
+      // them needs principal-aware sessions (sessions_v2).
+      return { ok: false, code: 'context_unavailable' };
     }
     const token = createSessionToken();
     await this.sessions.create(
@@ -51,6 +58,6 @@ export class AccountLoginUseCase {
       hashSessionToken(token),
       SESSION_TTL_HOURS,
     );
-    return { ok: true, token, accountId: account.id, workspace: active, workspaces };
+    return { ok: true, token, accountId: account.id, workspace: active, workspaces, capabilities };
   }
 }

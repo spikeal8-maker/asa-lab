@@ -35,7 +35,7 @@ export class PgAccountDirectory implements AccountDirectoryPort {
   ): Promise<RegisteredAccount | { readonly conflict: true }> {
     try {
       const result = await this.pool.query(
-        `SELECT account_id, workspace_id, tenant_id, user_id
+        `SELECT account_id, workspace_id, tenant_id
            FROM auth_register_account($1, $2, $3, $4, $5::date, $6, $7)`,
         [
           input.email,
@@ -52,7 +52,6 @@ export class PgAccountDirectory implements AccountDirectoryPort {
         accountId: row.account_id,
         workspaceId: row.workspace_id,
         tenantId: row.tenant_id,
-        userId: row.user_id,
       };
     } catch (error) {
       // unique_violation: the email or username is already taken.
@@ -88,6 +87,21 @@ export class PgAccountDirectory implements AccountDirectoryPort {
       state: row.state,
       policyVersion: row.policy_version,
     }));
+  }
+
+  async isUsernameAvailable(username: string): Promise<boolean> {
+    const result = await this.pool.query(`SELECT auth_username_available($1) AS available`, [
+      username,
+    ]);
+    return result.rows[0]?.available === true;
+  }
+
+  async accountForUser(tenantId: string, userId: string): Promise<string | null> {
+    const result = await this.pool.query(`SELECT account_id FROM auth_account_for_user($1, $2)`, [
+      tenantId,
+      userId,
+    ]);
+    return result.rows[0]?.account_id ?? null;
   }
 
   async profile(accountId: string): Promise<AccountProfile | null> {

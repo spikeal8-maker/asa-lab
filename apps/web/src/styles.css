@@ -674,3 +674,146 @@ label {
   background: #fff;
   font: inherit;
 }
+
+/* ---------------------------------------------------------------- public entry
+   The doors a visitor sees before any form: an intent, then a context. */
+
+.entry-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: 0 12px 32px rgba(23, 33, 45, 0.08);
+}
+
+.entry-card-wide {
+  max-width: 620px;
+}
+
+.entry-brand {
+  font-size: 1.5rem;
+}
+
+.entry-back {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding-left: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.entry-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+.entry-action {
+  width: 100%;
+  margin-top: 0;
+  padding: 0.7rem 1.2rem;
+  font-weight: 600;
+}
+
+.entry-group {
+  margin-top: 1.75rem;
+}
+
+.entry-group h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.entry-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  .entry-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+.entry-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+}
+
+.entry-option:hover {
+  border-color: var(--primary);
+}
+
+.entry-option-title {
+  font-weight: 600;
+}
+
+.entry-option-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.entry-routes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.next-stage-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.next-stage-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* Legacy organization sign-in stays reachable, but never as the main form. */
+.legacy-note {
+  margin: 1.5rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.legacy-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.legacy-banner {
+  margin: 0 0 0.5rem;
+}
+
+.link-button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}

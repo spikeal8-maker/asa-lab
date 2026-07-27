@@ -334,6 +334,17 @@ tests:
     owner: identity-and-classroom
     artifacts: [junit, api-report]
 
+  - id: TST-ACCOUNT-IDENTITY-001
+    title: Global account personal workspace capabilities and legacy organization login
+    suite: integration
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm test:account-identity
+    timeout_seconds: 900
+    owner: identity-and-classroom
+    artifacts: [junit, api-report]
+
   - id: TST-E2E-PORTAL-001
     title: Teacher login classroom reload and logout
     suite: e2e

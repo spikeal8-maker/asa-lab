@@ -28,10 +28,13 @@ test('portal, chooser and module states load without console or page errors', as
   });
 
   await page.goto('/');
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  await page.getByTestId('entry-school-educator').click();
+  await page.getByRole('button', { name: 'Войти через организацию' }).click();
   await page.getByLabel('Код организации').fill(teacher.workspace);
-  await page.getByLabel('Email педагога').fill(teacher.email);
+  await page.getByLabel('Email').fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Войти через организацию' }).click();
 
   // My projects loads
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();

@@ -53,11 +53,45 @@ export function isValidPassword(value: unknown): value is string {
   return typeof value === 'string' && value.length >= 10 && value.length <= 200;
 }
 
-export function isValidDisplayName(value: unknown): value is string {
+/** Display name is optional: a pseudonym is enough to use ASA Lab. */
+export function isValidDisplayName(value: unknown): value is string | undefined {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
   return typeof value === 'string' && value.trim().length >= 2 && value.trim().length <= 255;
 }
 
-/** Usernames are derived from the email when the client does not send one. */
+/**
+ * Username is a separate pseudonym. Real names are never required and the
+ * value is never derived from the email address.
+ */
+export function isValidUsername(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[a-z0-9](?:[a-z0-9._-]{1,38})[a-z0-9]$/.test(value.trim().toLowerCase())
+  );
+}
+
+/** A random pseudonym proposal that carries no personal data. */
+export function suggestUsername(): string {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
+  let suffix = '';
+  for (let index = 0; index < 8; index += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `user-${suffix}`;
+}
+
+/**
+ * Where a person should go when they are too young for an adult account.
+ * A refusal without a next step is a dead end, so the policy names the route.
+ */
+export type MinorRoute = 'class_code' | 'student_account_next_stage';
+
+export function routeForMinor(): readonly MinorRoute[] {
+  return ['class_code', 'student_account_next_stage'];
+}
+
 export function usernameFromEmail(email: string): string {
   const base = email.split('@')[0] ?? 'user';
   const cleaned = base

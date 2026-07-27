@@ -8,11 +8,14 @@ export type PortalSection = 'projects' | 'classes';
 export function PortalHeader({
   user,
   active,
+  canTeach,
   onNavigate,
   onLoggedOut,
 }: {
   user: PublicUser;
   active: PortalSection;
+  /** Classes exist for educators only; the server decides who is one. */
+  canTeach: boolean;
   onNavigate: (section: PortalSection) => void;
   onLoggedOut: () => void;
 }): JSX.Element {
@@ -52,14 +55,16 @@ export function PortalHeader({
             <FolderIcon />
             Мои проекты
           </button>
-          <button
-            type="button"
-            className={active === 'classes' ? 'portal-nav-item active' : 'portal-nav-item'}
-            onClick={() => onNavigate('classes')}
-          >
-            <ClassesIcon />
-            Классы
-          </button>
+          {canTeach ? (
+            <button
+              type="button"
+              className={active === 'classes' ? 'portal-nav-item active' : 'portal-nav-item'}
+              onClick={() => onNavigate('classes')}
+            >
+              <ClassesIcon />
+              Классы
+            </button>
+          ) : null}
           <span
             className="portal-nav-item disabled"
             aria-disabled="true"

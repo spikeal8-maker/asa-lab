@@ -6,25 +6,35 @@ import {
   HttpException,
   Inject,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type {
   AccountDirectoryPort,
+  SessionContext,
   AccountLoginUseCase,
   LoginUseCase,
   RegisterAccountUseCase,
   SessionUseCase,
 } from '@asa-lab/identity';
+import { isEligibleAdult, parseBirthDate, routeForMinor } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import { isPublicRegistrationEnabled } from './feature-flags.js';
 
 interface PublicUser {
   id: string;
-  role: 'teacher';
   displayName: string;
   email: string;
+}
+
+interface SessionPayload {
+  user: PublicUser;
+  /** Capabilities the server granted; the client never states a role. */
+  capabilities: { capability: string; state: string }[];
+  workspaces: { workspaceId: string; kind: string; title: string; role: string }[];
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -53,7 +63,13 @@ export class AuthController {
     });
   }
 
-  /** Adult self-registration: one account, one Personal Workspace, signed in. */
+  /**
+   * Adult self-registration into a Personal Workspace.
+   *
+   * Disabled by default: the mutation waits for principal-aware sessions.
+   * The endpoint still answers honestly so the interface can explain the
+   * state instead of failing silently.
+   */
   @Post('register')
   @HttpCode(201)
   async register(
@@ -63,6 +79,7 @@ export class AuthController {
     const shape = checkBodyShape(rawBody, [
       'email',
       'password',
+      'username',
       'displayName',
       'birthDate',
       'country',
@@ -70,20 +87,49 @@ export class AuthController {
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
     }
+    // Age routing answers before the flag: a minor must always be told where
+    // to go, whether or not adult registration happens to be open.
+    const birthDate = parseBirthDate(shape.body['birthDate']);
+    if (birthDate !== null && !isEligibleAdult(birthDate)) {
+      throw new HttpException(
+        {
+          error: {
+            code: 'age_routed',
+            message: 'личный аккаунт доступен с 18 лет — ученики заходят по коду класса',
+            routes: routeForMinor(),
+          },
+        },
+        422,
+      );
+    }
+    if (!isPublicRegistrationEnabled()) {
+      throw new HttpException(
+        error(
+          'registration_disabled',
+          'публичная регистрация откроется на следующем этапе; сейчас доступен вход по коду класса или через организацию',
+        ),
+        503,
+      );
+    }
     const result = await this.registerUseCase.execute({
       email: shape.body['email'],
       password: shape.body['password'],
+      username: shape.body['username'],
       displayName: shape.body['displayName'],
       birthDate: shape.body['birthDate'],
       country: shape.body['country'],
     });
     if (!result.ok) {
-      const status =
-        result.code === 'email_taken' ? 409 : result.code === 'age_restricted' ? 422 : 400;
+      if (result.code === 'age_routed') {
+        // Not a dead end: the answer names where this person should go.
+        throw new HttpException(
+          { error: { code: result.code, message: result.message, routes: result.routes } },
+          422,
+        );
+      }
+      const status = result.code === 'email_taken' || result.code === 'username_taken' ? 409 : 400;
       throw new HttpException(error(result.code, result.message), status);
     }
-    // Registration signs the account in immediately; the pilot policy allows
-    // work before email verification, and the state stays explicit.
     const login = await this.accountLoginUseCase.execute({
       email: result.email,
       password: shape.body['password'],
@@ -94,12 +140,23 @@ export class AuthController {
     return { account: { id: result.account.accountId, email: result.email } };
   }
 
+  /** Is this pseudonym free? Usernames are never derived from the email. */
+  @Get('username-available')
+  async usernameAvailable(
+    @Query('username') username: string | undefined,
+  ): Promise<{ available: boolean }> {
+    if (typeof username !== 'string' || username.trim().length < 3) {
+      return { available: false };
+    }
+    return { available: await this.accounts.isUsernameAvailable(username.trim().toLowerCase()) };
+  }
+
   @Post('login')
   @HttpCode(200)
   async login(
     @Body() rawBody: unknown,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<{ user: PublicUser }> {
+  ): Promise<SessionPayload> {
     const shape = checkBodyShape(rawBody, ['workspace', 'email', 'password']);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
@@ -111,6 +168,15 @@ export class AuthController {
         password: shape.body['password'],
       });
       if (!account.ok) {
+        if (account.code === 'context_unavailable') {
+          throw new HttpException(
+            error(
+              'context_unavailable',
+              'для этого аккаунта ещё нет рабочего контекста; вход откроется вместе со следующим этапом',
+            ),
+            503,
+          );
+        }
         if (account.code === 'validation_error') {
           throw new HttpException(
             error('validation_error', 'email and password are required'),
@@ -124,10 +190,19 @@ export class AuthController {
       return {
         user: {
           id: account.accountId,
-          role: 'teacher',
           displayName: profile?.displayName ?? (shape.body['email'] as string),
           email: profile?.email ?? (shape.body['email'] as string),
         },
+        capabilities: account.capabilities.map((entry) => ({
+          capability: entry.capability,
+          state: entry.state,
+        })),
+        workspaces: account.workspaces.map((entry) => ({
+          workspaceId: entry.workspaceId,
+          kind: entry.kind,
+          title: entry.title,
+          role: entry.role,
+        })),
       };
     }
     const result = await this.loginUseCase.execute({
@@ -155,13 +230,39 @@ export class AuthController {
       maxAge: 12 * 60 * 60,
     });
     const { context } = result;
+    return this.sessionPayload(context);
+  }
+
+  /**
+   * Session answer: identity plus server-granted capabilities and workspaces.
+   *
+   * A session that maps to no account comes from the tenant-scoped `users`
+   * table, whose CHECK constraint admits `role = 'teacher'` only. The educator
+   * capability reported for it is therefore read from the database schema, not
+   * assumed by the client and not written into the answer by the browser.
+   */
+  private async sessionPayload(context: SessionContext): Promise<SessionPayload> {
+    const accountId = await this.accounts.accountForUser(context.tenantId, context.userId);
+    const capabilities = accountId
+      ? await this.accounts.capabilities(accountId)
+      : [{ capability: 'educator', state: 'verified' }];
+    const workspaces = accountId ? await this.accounts.workspaces(accountId) : [];
     return {
       user: {
         id: context.userId,
-        role: 'teacher',
         displayName: context.displayName,
         email: context.email,
       },
+      capabilities: capabilities.map((entry) => ({
+        capability: entry.capability,
+        state: entry.state,
+      })),
+      workspaces: workspaces.map((entry) => ({
+        workspaceId: entry.workspaceId,
+        kind: entry.kind,
+        title: entry.title,
+        role: entry.role,
+      })),
     };
   }
 
@@ -177,18 +278,11 @@ export class AuthController {
   }
 
   @Get('me')
-  async me(@Req() request: FastifyRequest): Promise<{ user: PublicUser }> {
+  async me(@Req() request: FastifyRequest): Promise<SessionPayload> {
     const context = await this.sessionUseCase.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) {
       throw new HttpException(error('unauthorized', 'no active session'), 401);
     }
-    return {
-      user: {
-        id: context.userId,
-        role: 'teacher',
-        displayName: context.displayName,
-        email: context.email,
-      },
-    };
+    return this.sessionPayload(context);
   }
 }

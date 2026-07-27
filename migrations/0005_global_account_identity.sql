@@ -7,8 +7,14 @@
 --
 -- A workspace reuses the existing tenant boundary, so row-level security and
 -- the restricted runtime role keep working unchanged. In the product a
--- workspace is called Personal Workspace or Organization Workspace; the school
--- is never required for personal projects.
+-- workspace is called Personal Workspace or Organization Workspace.
+--
+-- A Personal Workspace is NOT a school: registration never fabricates a
+-- `schools` row, an `academic_periods` row or a `users(role='teacher')` row.
+-- An account is a creator; educator capability is a separate audited grant.
+-- Because a legacy session still needs a tenant-scoped user, public
+-- registration stays behind a feature flag until principal-aware sessions
+-- (sessions_v2) exist.
 
 CREATE TABLE IF NOT EXISTS accounts (
     id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -106,8 +112,12 @@ SELECT DISTINCT ON (lower(u.email)) u.email, u.password_hash, DATE '1990-01-01',
  WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE lower(a.email) = lower(u.email))
  ORDER BY lower(u.email), u.created_at;
 
+-- Usernames are pseudonyms: never derived from the email, because that would
+-- leak the address and collide across domains.
 INSERT INTO profiles (account_id, username, display_name)
-SELECT a.id, split_part(a.email, '@', 1), COALESCE(u.display_name, split_part(a.email, '@', 1))
+SELECT a.id,
+       'edu-' || substr(replace(a.id::text, '-', ''), 1, 10),
+       COALESCE(u.display_name, 'edu-' || substr(replace(a.id::text, '-', ''), 1, 10))
   FROM accounts a
   JOIN LATERAL (
         SELECT display_name FROM users WHERE lower(email) = lower(a.email) ORDER BY created_at LIMIT 1
@@ -161,10 +171,13 @@ ALTER TABLE principals            ENABLE ROW LEVEL SECURITY;
 /**
  * Register an adult account with its Personal Workspace.
  *
- * One transaction creates the tenant that backs the workspace, the workspace
- * itself, the account, profile, principal, creator capability, the
- * tenant-scoped user the rest of the system already understands and the
- * membership that binds them. The educator capability is NOT granted here.
+ * Creates exactly the identity: account, profile, principal, the creator
+ * capability, the tenant that backs the workspace and the workspace itself.
+ *
+ * It deliberately does NOT create a school, an academic period or a
+ * tenant-scoped `users` row. A Personal Workspace is not a school and an
+ * account is not a teacher; masking a creator as a teacher for legacy session
+ * compatibility would hand out authority the server never granted.
  */
 CREATE OR REPLACE FUNCTION auth_register_account(
     p_email          varchar,
@@ -175,14 +188,12 @@ CREATE OR REPLACE FUNCTION auth_register_account(
     p_country        varchar,
     p_policy_version varchar
 )
-RETURNS TABLE (account_id uuid, workspace_id uuid, tenant_id uuid, user_id uuid)
+RETURNS TABLE (account_id uuid, workspace_id uuid, tenant_id uuid)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
     v_account   uuid;
     v_tenant    uuid;
     v_workspace uuid;
-    v_school    uuid;
-    v_user      uuid;
     v_slug      varchar(64);
 BEGIN
     INSERT INTO public.accounts (email, password_hash, birth_date, country)
@@ -190,7 +201,7 @@ BEGIN
     RETURNING id INTO v_account;
 
     INSERT INTO public.profiles (account_id, username, display_name)
-    VALUES (v_account, p_username, p_display_name);
+    VALUES (v_account, p_username, COALESCE(NULLIF(p_display_name, ''), p_username));
 
     INSERT INTO public.principals (kind, account_id) VALUES ('account', v_account);
 
@@ -199,34 +210,47 @@ BEGIN
 
     v_slug := 'personal-' || pg_catalog.replace(v_account::text, '-', '');
     INSERT INTO public.tenants (workspace_slug, title)
-    VALUES (v_slug, p_display_name)
+    VALUES (v_slug, COALESCE(NULLIF(p_display_name, ''), p_username))
     RETURNING id INTO v_tenant;
     INSERT INTO public.tenant_placements (tenant_id, mode) VALUES (v_tenant, 'SHARED_CLUSTER');
 
     INSERT INTO public.workspaces (tenant_id, kind, title)
-    VALUES (v_tenant, 'personal', p_display_name)
+    VALUES (v_tenant, 'personal', COALESCE(NULLIF(p_display_name, ''), p_username))
     RETURNING id INTO v_workspace;
 
-    -- The personal workspace still needs a school and an active period so that
-    -- classroom-scoped features keep their tenant lineage intact.
-    INSERT INTO public.schools (tenant_id, title) VALUES (v_tenant, p_display_name)
-    RETURNING id INTO v_school;
-    INSERT INTO public.academic_periods (tenant_id, school_id, title, starts_on, ends_on, is_active)
-    VALUES (v_tenant, v_school, 'Личное пространство', CURRENT_DATE, CURRENT_DATE + 365, true);
-
-    INSERT INTO public.users (tenant_id, school_id, role, email, display_name, password_hash)
-    VALUES (v_tenant, v_school, 'teacher', lower(p_email), p_display_name, p_password_hash)
-    RETURNING id INTO v_user;
-
+    -- No user_id: this membership belongs to an account, not to a teacher.
     INSERT INTO public.workspace_memberships (account_id, workspace_id, role, user_id)
-    VALUES (v_account, v_workspace, 'owner', v_user);
+    VALUES (v_account, v_workspace, 'owner', NULL);
 
+    -- actor_user_id stays NULL: the actor is an account principal, and the
+    -- composite foreign key is not enforced when the column is NULL.
     INSERT INTO public.audit_events (tenant_id, actor_user_id, entity_type, entity_id, action, payload_json)
-    VALUES (v_tenant, v_user, 'account', v_account, 'account.registered',
+    VALUES (v_tenant, NULL, 'account', v_account, 'account.registered',
             pg_catalog.jsonb_build_object('workspaceKind', 'personal', 'policyVersion', p_policy_version));
 
-    RETURN QUERY SELECT v_account, v_workspace, v_tenant, v_user;
+    RETURN QUERY SELECT v_account, v_workspace, v_tenant;
 END;
+$$;
+
+/** Username availability check for the registration form. */
+CREATE OR REPLACE FUNCTION auth_username_available(p_username varchar)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT NOT EXISTS (SELECT 1 FROM public.profiles WHERE lower(username) = lower(p_username));
+$$;
+
+/**
+ * Resolve the account behind a legacy tenant-scoped session, so capability
+ * checks can run for sessions that still come from `users`.
+ */
+CREATE OR REPLACE FUNCTION auth_account_for_user(p_tenant_id uuid, p_user_id uuid)
+RETURNS TABLE (account_id uuid)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT m.account_id
+      FROM public.workspace_memberships m
+      JOIN public.workspaces w ON w.id = m.workspace_id
+     WHERE w.tenant_id = p_tenant_id AND m.user_id = p_user_id
+     LIMIT 1;
 $$;
 
 /** Look up an account for password verification (global, workspace-free). */
@@ -279,11 +303,15 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 $$;
 
 REVOKE ALL ON FUNCTION auth_register_account(varchar, text, varchar, varchar, date, varchar, varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION auth_username_available(varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION auth_account_for_user(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_find_account(varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_account_workspaces(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_account_capabilities(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_account_profile(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION auth_register_account(varchar, text, varchar, varchar, date, varchar, varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION auth_username_available(varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION auth_account_for_user(uuid, uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_find_account(varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_account_workspaces(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_account_capabilities(uuid) TO asalab_app;

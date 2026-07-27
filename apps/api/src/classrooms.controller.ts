@@ -10,7 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { SessionContext, SessionUseCase } from '@asa-lab/identity';
+import type { AccountDirectoryPort, SessionContext, SessionUseCase } from '@asa-lab/identity';
 import type { GetTeachingContextUseCase } from '@asa-lab/organization';
 import type { Classroom, CreateClassroomUseCase, ListClassroomsUseCase } from '@asa-lab/classroom';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -24,6 +24,7 @@ function error(code: string, message: string): { error: { code: string; message:
 export class ClassroomsController {
   constructor(
     @Inject(TOKENS.sessionUseCase) private readonly sessionUseCase: SessionUseCase,
+    @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.teachingContextUseCase)
     private readonly teachingContext: GetTeachingContextUseCase,
     @Inject(TOKENS.createClassroomUseCase) private readonly createUseCase: CreateClassroomUseCase,
@@ -38,11 +39,36 @@ export class ClassroomsController {
     return context;
   }
 
+  /**
+   * Classes belong to educators. An account only reaches them once the server
+   * granted the educator capability; a plain creator is refused.
+   *
+   * Sessions that predate the account model come from `users`, whose schema
+   * constraint already limits them to teachers, so they stay allowed while the
+   * legacy path exists.
+   */
+  private async requireEducator(request: FastifyRequest): Promise<SessionContext> {
+    const context = await this.requireContext(request);
+    const accountId = await this.accounts.accountForUser(context.tenantId, context.userId);
+    if (accountId === null) {
+      return context;
+    }
+    const capabilities = await this.accounts.capabilities(accountId);
+    const educator = capabilities.find((entry) => entry.capability === 'educator');
+    if (!educator || (educator.state !== 'verified' && educator.state !== 'provisional')) {
+      throw new HttpException(
+        error('educator_required', 'классы доступны после подтверждения роли педагога'),
+        403,
+      );
+    }
+    return context;
+  }
+
   @Get()
   async list(
     @Req() request: FastifyRequest,
   ): Promise<{ items: Classroom[]; meta: { total: number } }> {
-    const context = await this.requireContext(request);
+    const context = await this.requireEducator(request);
     const items = await this.listUseCase.execute(context.tenantId, context.userId);
     return { items, meta: { total: items.length } };
   }
@@ -54,7 +80,7 @@ export class ClassroomsController {
     @Body() rawBody: unknown,
     @Headers('idempotency-key') idempotencyHeader: string | undefined,
   ): Promise<{ classroom: Classroom; created: boolean }> {
-    const context = await this.requireContext(request);
+    const context = await this.requireEducator(request);
     // The tenant context comes exclusively from the session: any
     // client-supplied tenant identifier is rejected before shape checking so
     // the error is explicit.

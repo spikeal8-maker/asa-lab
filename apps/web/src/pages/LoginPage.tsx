@@ -1,76 +1,71 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
-import { api, type PublicUser } from '../api';
+import { api, type SessionPayload } from '../api';
 
+/**
+ * Ordinary sign-in: an email address and a password.
+ *
+ * No organization code and no teacher wording — the account is just an
+ * account, and the server decides what it may do.
+ */
 export function LoginPage({
-  onLoggedIn,
+  onSignedIn,
   onCreateAccount,
+  onOrganizationLogin,
+  onBack,
 }: {
-  onLoggedIn: (user: PublicUser) => void;
+  onSignedIn: (session: SessionPayload) => void;
   onCreateAccount: () => void;
+  onOrganizationLogin: () => void;
+  onBack: () => void;
 }): JSX.Element {
-  const [workspace, setWorkspace] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errorId = useId();
-  const workspaceHintId = useId();
-  const workspaceRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
     if (!email.trim() || !password) {
-      setError('Заполните код организации, email и пароль.');
-      workspaceRef.current?.focus();
+      setError('Введите email и пароль.');
+      emailRef.current?.focus();
       return;
     }
     setBusy(true);
-    // Personal accounts sign in without an organization; the code stays
-    // available for accounts that still belong to a school workspace.
-    const result = workspace.trim()
-      ? await api.loginWithWorkspace(workspace.trim(), email.trim(), password)
-      : await api.login(email.trim(), password);
+    const result = await api.login(email.trim(), password);
     setBusy(false);
     if (result.ok) {
-      onLoggedIn(result.data.user);
+      onSignedIn(result.data);
       return;
     }
-    if (result.status === 400 || result.status === 401) {
-      setError('Неверный код организации, email или пароль.');
+    if (result.status === 503) {
+      setError(result.error.message);
+    } else if (result.status === 400 || result.status === 401) {
+      setError('Неверный email или пароль.');
     } else if (result.status === 0) {
       setError('Сервер недоступен. Попробуйте ещё раз.');
     } else {
       setError('Ошибка сервера. Попробуйте ещё раз.');
     }
-    workspaceRef.current?.focus();
+    emailRef.current?.focus();
   }
 
   return (
     <div className="page-center">
       <main className="login-card" aria-busy={busy}>
+        <button type="button" className="btn-ghost entry-back" onClick={onBack}>
+          ← Назад
+        </button>
         <h1 className="brand">ASA Lab</h1>
         <p className="subtitle">Вход</p>
         <form onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="workspace">Код организации (необязательно)</label>
-          <input
-            ref={workspaceRef}
-            id="workspace"
-            name="workspace"
-            autoComplete="organization"
-            value={workspace}
-            disabled={busy}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={`${workspaceHintId}${error ? ` ${errorId}` : ''}`}
-            onChange={(event) => setWorkspace(event.target.value)}
-          />
-          <p id={workspaceHintId} className="field-hint">
-            Нужен только для входа в рабочее пространство школы. Личный аккаунт входит по email.
-          </p>
-          <label htmlFor="email">Email педагога</label>
+          <label htmlFor="email">Email</label>
           <input
             id="email"
             name="email"
+            ref={emailRef}
             autoFocus
             type="email"
             autoComplete="username"
@@ -92,11 +87,9 @@ export function LoginPage({
             aria-describedby={error ? errorId : undefined}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {error ? (
-            <p id={errorId} className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
+          <p id={errorId} className="form-error" role="alert" hidden={!error}>
+            {error}
+          </p>
           <button type="submit" className="btn-primary" disabled={busy}>
             {busy ? 'Входим…' : 'Войти'}
           </button>
@@ -104,6 +97,13 @@ export function LoginPage({
             Создать аккаунт
           </button>
         </form>
+
+        <p className="legacy-note">
+          <button type="button" className="link-button" onClick={onOrganizationLogin}>
+            Войти через организацию
+          </button>
+          <span className="legacy-hint">Временный путь для школ, подключённых по коду.</span>
+        </p>
       </main>
     </div>
   );
