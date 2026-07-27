@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import YAML from 'yaml';
+import { parse as parseYaml } from 'yaml';
 
 const ROOT = resolve(process.cwd());
 const REPORT_DIR = join(ROOT, 'reports');
@@ -52,23 +52,29 @@ for (const relativePath of [
 }
 
 const mapPath = join(ROOT, 'docs/project-map/project-map.yaml');
-const map = YAML.parse(readFileSync(mapPath, 'utf8'));
+const map = parseYaml(readFileSync(mapPath, 'utf8'));
 if (map?.project?.current_focus !== 'TASK-PORTAL-001') {
-  errors.push(`project.current_focus must be TASK-PORTAL-001, got ${String(map?.project?.current_focus)}`);
+  errors.push(
+    `project.current_focus must be TASK-PORTAL-001, got ${String(map?.project?.current_focus)}`,
+  );
 }
-const portalNode = map?.nodes?.find?.((node) => node.id === 'TASK-PORTAL-001');
+const portalNode = Array.isArray(map?.nodes)
+  ? map.nodes.find((node) => node.id === 'TASK-PORTAL-001')
+  : undefined;
 if (!portalNode || !['in_progress', 'in_review'].includes(portalNode.status)) {
-  errors.push(`TASK-PORTAL-001 status must be in_progress or in_review before merge`);
+  errors.push('TASK-PORTAL-001 status must be in_progress or in_review before merge');
 }
 
 const catalogPath = join(ROOT, 'docs/testing/test-catalog.yaml');
-const catalog = YAML.parse(readFileSync(catalogPath, 'utf8'));
+const catalog = parseYaml(readFileSync(catalogPath, 'utf8'));
 const actualTests = (catalog?.tests ?? [])
   .filter((test) => (test.required_for ?? []).includes('TASK-PORTAL-001'))
   .map((test) => test.id)
   .sort();
 if (JSON.stringify(actualTests) !== JSON.stringify(EXPECTED_TESTS)) {
-  errors.push(`TASK-PORTAL-001 exact gate mismatch: expected ${EXPECTED_TESTS.join(', ')}, got ${actualTests.join(', ')}`);
+  errors.push(
+    `TASK-PORTAL-001 exact gate mismatch: expected ${EXPECTED_TESTS.join(', ')}, got ${actualTests.join(', ')}`,
+  );
 }
 
 evidence.currentFocus = map?.project?.current_focus;
@@ -88,11 +94,10 @@ for (const target of ['identity', 'organization', 'classroom']) {
 }
 
 try {
-  const changed = execFileSync(
-    'git',
-    ['diff', '--name-only', 'origin/main...HEAD'],
-    { cwd: ROOT, encoding: 'utf8' },
-  )
+  const changed = execFileSync('git', ['diff', '--name-only', 'origin/main...HEAD'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
     .split(/\r?\n/)
     .filter(Boolean);
   const requiredMapFiles = [
@@ -106,7 +111,9 @@ try {
   }
   evidence.changedFiles = changed;
 } catch (error) {
-  errors.push(`unable to inspect git diff: ${error instanceof Error ? error.message : String(error)}`);
+  errors.push(
+    `unable to inspect git diff: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }
 
 const report = {
