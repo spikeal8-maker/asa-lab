@@ -48,12 +48,13 @@ export class AppModule {
     const projectModules: ModuleCatalogPort = {
       getCreatable: (moduleKey) => {
         const entry = moduleRegistry.getCreatable(moduleKey);
-        if (!entry?.provider) {
+        const provider = entry?.provider;
+        if (!entry || !provider) {
           return null;
         }
         return {
           moduleKey: entry.manifest.moduleKey,
-          createEmptyProject: () => entry.provider?.createEmptyProject(),
+          createEmptyProject: () => provider.createEmptyProject(),
         };
       },
     };
