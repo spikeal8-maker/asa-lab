@@ -1,8 +1,8 @@
 # Tinkercad owner-video evidence — 2026-07-27
 
-**Status:** private reference evidence for the ASA Lab parity programme.  
+**Status:** owner-provided reference evidence for the ASA Lab parity programme.  
 **Source:** owner-provided screen recording, 300.516667 seconds, 1920×1080, 60 fps, 18,031 frames.  
-**Privacy:** the source contains account, class and learner identifiers. The raw video and unredacted screenshots must not be committed to the repository.
+**Data classification:** every account, class and learner identifier visible in the recording is synthetic test data supplied by the owner. Storage in the private ASA Lab repository or project evidence storage is permitted. Public redistribution still requires owner approval because the recording captures a third-party product interface.
 
 ## Method
 
