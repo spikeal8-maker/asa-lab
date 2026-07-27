@@ -6,9 +6,10 @@
 //                      checksums) without any database connection. Exit 0 on
 //                      success.
 //   --apply            Apply pending migrations to the database in DATABASE_URL.
-//   --smoke (default)  Apply pending migrations, then verify a second run
-//                      applies nothing (idempotency). Used by the migration
-//                      smoke test.
+//   --smoke (default)  Apply pending migrations to the ISOLATED test database
+//                      (TEST_DATABASE_URL, name must end in _test), then verify
+//                      a second run applies nothing (idempotency). The smoke
+//                      never touches the development database.
 //
 // When a database is required but DATABASE_URL is unset, the runner exits with
 // code 78 (EX_CONFIG) so the task runner records the test as BLOCKED — an
@@ -169,12 +170,30 @@ function runCheck() {
 }
 
 async function runApply(smoke) {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error(
-      'BLOCKED: DATABASE_URL is not set; a live PostgreSQL is required to apply migrations.',
-    );
-    return EX_CONFIG;
+  let databaseUrl;
+  if (smoke) {
+    databaseUrl = process.env.TEST_DATABASE_URL;
+    if (!databaseUrl) {
+      console.error(
+        'BLOCKED: TEST_DATABASE_URL is not set; the migration smoke runs only against the isolated test database.',
+      );
+      return EX_CONFIG;
+    }
+    const dbName = new URL(databaseUrl).pathname.replace(/^\//, '');
+    if (!dbName.endsWith('_test')) {
+      console.error(
+        `BLOCKED: TEST_DATABASE_URL must point to an isolated *_test database, got "${dbName}"; refusing to touch it.`,
+      );
+      return EX_CONFIG;
+    }
+  } else {
+    databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      console.error(
+        'BLOCKED: DATABASE_URL is not set; a live PostgreSQL is required to apply migrations.',
+      );
+      return EX_CONFIG;
+    }
   }
   const firstPass = await applyMigrations(databaseUrl);
   console.log(`Applied ${firstPass} migration(s).`);

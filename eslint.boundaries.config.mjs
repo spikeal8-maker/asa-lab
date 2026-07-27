@@ -18,7 +18,7 @@ export default tseslint.config(
     ],
   },
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: { parser: tseslint.parser },
     plugins: { '@nx': nxPlugin },
     rules: {

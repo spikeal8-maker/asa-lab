@@ -3,10 +3,12 @@
   "compilerOptions": {
     "composite": false,
     "incremental": false,
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": ["node"]
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "**/*.spec.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

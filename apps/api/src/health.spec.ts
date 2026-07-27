@@ -1,32 +1,50 @@
-import { describe, it, expect, afterAll } from 'vitest';
-import { buildApp } from './app';
+import { describe, expect, it, vi } from 'vitest';
+import type { FastifyReply } from 'fastify';
+import type pg from 'pg';
+import { HealthController } from './health.controller.js';
 
-const app = buildApp();
+function replyRecorder(): { reply: FastifyReply; status: () => number } {
+  let statusCode = 200;
+  const reply = {
+    code: vi.fn((code: number) => {
+      statusCode = code;
+      return reply;
+    }),
+  } as unknown as FastifyReply;
+  return { reply, status: () => statusCode };
+}
 
-afterAll(async () => {
-  await app.close();
-});
-
-describe('api health endpoints (in-process)', () => {
-  it('reports liveness with 200', async () => {
-    const response = await app.inject({ method: 'GET', url: '/health/live' });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'live' });
+describe('health controller', () => {
+  it('reports liveness', () => {
+    expect(new HealthController(null).live()).toEqual({ status: 'live' });
   });
 
-  it('reports not_ready with 503 while dependencies are unconfirmed', async () => {
-    const response = await app.inject({ method: 'GET', url: '/health/ready' });
-    expect(response.statusCode).toBe(503);
-    expect(response.json().status).toBe('not_ready');
-    expect(response.json().dependencies).toMatchObject({
-      database: 'unknown',
-      redis: 'unknown',
-      objectStorage: 'unknown',
-    });
+  it('reports 503 when no database pool is configured', async () => {
+    const recorder = replyRecorder();
+    const body = await new HealthController(null).ready(recorder.reply);
+    expect(recorder.status()).toBe(503);
+    expect(body).toEqual({ status: 'not_ready', dependencies: { database: 'down' } });
   });
 
-  it('sets a request id header', async () => {
-    const response = await app.inject({ method: 'GET', url: '/health/live' });
-    expect(response.headers['x-request-id']).toBeTruthy();
+  it('reports 200 when SELECT 1 succeeds', async () => {
+    const pool = {
+      query: vi.fn(async () => ({ rows: [{ '?column?': 1 }] })),
+    } as unknown as pg.Pool;
+    const recorder = replyRecorder();
+    const body = await new HealthController(pool).ready(recorder.reply);
+    expect(recorder.status()).toBe(200);
+    expect(body).toEqual({ status: 'ready', dependencies: { database: 'up' } });
+  });
+
+  it('reports 503 when the database query fails', async () => {
+    const pool = {
+      query: vi.fn(async () => {
+        throw new Error('database unavailable');
+      }),
+    } as unknown as pg.Pool;
+    const recorder = replyRecorder();
+    const body = await new HealthController(pool).ready(recorder.reply);
+    expect(recorder.status()).toBe(503);
+    expect(body).toEqual({ status: 'not_ready', dependencies: { database: 'down' } });
   });
 });

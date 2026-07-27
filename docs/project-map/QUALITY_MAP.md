@@ -264,6 +264,8 @@ nx-project-graph.json
 
 `TST-DEVELOPMENT-PROGRAM-001` проверяет наличие map artifacts в product-code diff.
 
+Текущее состояние: `TASK-PORTAL-001` — `in_review` (Draft PR №22, ветка `agent/task-mvp-001-teacher-portal`), гейт — 21 обязательный test ID из Issue №18, подтверждённый локальным прогоном `python tools/run_task_tests.py --task TASK-PORTAL-001`.
+
 В Draft PR task имеет `in_review`, next task остаётся `blocked`. После merge отдельный map transition переводит current task в `done`, next в `ready` и сдвигает `current_focus`.
 
 ## 13. Правила результата

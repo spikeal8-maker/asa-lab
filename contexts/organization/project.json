@@ -1,0 +1,18 @@
+{
+  "name": "organization",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "contexts/organization",
+  "tags": ["type:lib", "scope:core", "context:organization"],
+  "targets": {
+    "build": {
+      "command": "tsc -p contexts/organization/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p contexts/organization/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint contexts/organization"
+    }
+  }
+}
