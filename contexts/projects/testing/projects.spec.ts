@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   isProjectScope,
-  isSupportedModuleKey,
   isValidCheckpointLabel,
   isValidProjectTitle,
   type Project,
@@ -15,7 +14,11 @@ import {
   SaveDraftUseCase,
   projectRequestFingerprint,
 } from '../application/project.usecases';
-import type { CreateProjectInput, ProjectRepositoryPort } from '../application/ports';
+import type {
+  CreateProjectInput,
+  ModuleCatalogPort,
+  ProjectRepositoryPort,
+} from '../application/ports';
 
 const personalProject: Project = {
   id: 'p1',
@@ -68,6 +71,15 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
   return { port, creates };
 }
 
+function catalog(emptyDocument: unknown = { schemaVersion: 1, components: [], connections: [] }): ModuleCatalogPort {
+  return {
+    getCreatable: (moduleKey) =>
+      moduleKey === 'electronics'
+        ? { moduleKey: 'electronics', createEmptyProject: () => emptyDocument }
+        : null,
+  };
+}
+
 const okValidator = (value: unknown) => ({ ok: true as const, document: value });
 const personalInput = {
   tenantId: 't1',
@@ -81,24 +93,22 @@ const personalInput = {
 const classroomInput = { ...personalInput, scope: 'classroom' as const, classroomId: 'c1' };
 
 describe('project domain rules', () => {
-  it('validates titles, scopes, module keys and checkpoint labels', () => {
+  it('validates titles, scopes and checkpoint labels without knowing subject modules', () => {
     expect(isValidProjectTitle('Схема 1')).toBe(true);
     expect(isValidProjectTitle('  ')).toBe(false);
     expect(isProjectScope('personal')).toBe(true);
     expect(isProjectScope('classroom')).toBe(true);
     expect(isProjectScope('global')).toBe(false);
-    expect(isSupportedModuleKey('electronics')).toBe(true);
-    expect(isSupportedModuleKey('checkers')).toBe(false);
     expect(isValidCheckpointLabel(undefined)).toBe(true);
     expect(isValidCheckpointLabel('x'.repeat(256))).toBe(false);
   });
 });
 
 describe('create project', () => {
-  it('creates a personal project without a classroom', async () => {
+  it('creates a personal project from the module provider without a classroom', async () => {
     const { port, creates } = repo();
     const empty = { schemaVersion: 1, components: [], connections: [] };
-    const result = await new CreateProjectUseCase(port, empty).execute(personalInput);
+    const result = await new CreateProjectUseCase(port, catalog(empty)).execute(personalInput);
     expect(result.ok && result.value.created).toBe(true);
     expect(creates[0]).toMatchObject({ scope: 'personal', classroomId: null, initialDocument: empty });
     expect(creates[0]?.requestFingerprint).toBe(
@@ -113,7 +123,7 @@ describe('create project', () => {
 
   it('requires classroomId only for classroom projects', async () => {
     const { port, creates } = repo();
-    const usecase = new CreateProjectUseCase(port, {});
+    const usecase = new CreateProjectUseCase(port, catalog());
     expect((await usecase.execute(classroomInput)).ok).toBe(true);
     expect(creates[0]).toMatchObject({ scope: 'classroom', classroomId: 'c1' });
     expect(await usecase.execute({ ...classroomInput, classroomId: null })).toMatchObject({
@@ -126,16 +136,16 @@ describe('create project', () => {
     });
   });
 
-  it('rejects unsupported modules and empty titles', async () => {
+  it('rejects modules that are not creatable in the registry and empty titles', async () => {
     const { port } = repo();
-    const usecase = new CreateProjectUseCase(port, {});
+    const usecase = new CreateProjectUseCase(port, catalog());
     expect((await usecase.execute({ ...personalInput, moduleKey: 'checkers' })).ok).toBe(false);
     expect((await usecase.execute({ ...personalInput, title: '' })).ok).toBe(false);
   });
 
   it('is idempotent and conflicts on a different payload', async () => {
     const { port } = repo();
-    const usecase = new CreateProjectUseCase(port, {});
+    const usecase = new CreateProjectUseCase(port, catalog());
     const first = await usecase.execute(personalInput);
     const repeat = await usecase.execute(personalInput);
     const conflict = await usecase.execute({ ...personalInput, title: 'Другая' });
