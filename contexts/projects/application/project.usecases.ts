@@ -33,10 +33,6 @@ export function projectRequestFingerprint(input: {
   return createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
 
-export type DocumentValidator = (value: unknown) =>
-  | { readonly ok: true; readonly document: unknown }
-  | { readonly ok: false; readonly message: string };
-
 export class CreateProjectUseCase {
   constructor(
     private readonly repository: ProjectRepositoryPort,
@@ -186,7 +182,7 @@ export class RenameProjectUseCase {
 export class SaveDraftUseCase {
   constructor(
     private readonly repository: ProjectRepositoryPort,
-    private readonly validateDocument: DocumentValidator,
+    private readonly modules: ModuleCatalogPort,
   ) {}
 
   async execute(input: {
@@ -195,7 +191,15 @@ export class SaveDraftUseCase {
     teacherId: string;
     document: unknown;
   }): Promise<UseCaseResult<ProjectDraft>> {
-    const parsed = this.validateDocument(input.document);
+    const loaded = await this.repository.load(input.tenantId, input.projectId, input.teacherId);
+    if (!loaded) {
+      return fail('project_not_found', 'project not found');
+    }
+    const module = this.modules.get(loaded.project.moduleKey);
+    if (!module) {
+      return fail('validation_error', `module "${loaded.project.moduleKey}" is not registered`);
+    }
+    const parsed = module.validateDocument(input.document);
     if (!parsed.ok) {
       return fail('validation_error', parsed.message);
     }
