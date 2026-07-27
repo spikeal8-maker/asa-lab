@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-register_version: 2026.07.27-1
+register_version: 2026.07.27-2
 source_of_truth: docs/product/TINKERCAD_PARITY_SPEC.md
 
 allowed_reasons:
@@ -18,6 +18,15 @@ decisions:
     owner_decision: accepted
     target_release: P0
     test: No Tinkercad or Autodesk brand assets are included in the repository.
+
+  - id: DEV-AUTH-001
+    surface: identity_and_onboarding
+    reference_behavior: Tinkercad first routes visitors through separate school/personal and educator/student choices and then hands account creation to Autodesk Account.
+    asa_behavior: ASA Lab uses three direct intentions — universal Account sign-in, native Account creation, and class-code entry. Educator is enabled later as a server capability of the same Account; registered students use universal sign-in; StudentSeat uses the class-code route.
+    reason: owner_approved_post_parity_improvement
+    owner_decision: accepted
+    target_release: R1
+    test: Public-entry E2E shows exactly Sign in, Create account, and Sign in with class code; no client-side educator/account-type chooser exists.
 
   - id: DEV-SAFETY-001
     surface: community
