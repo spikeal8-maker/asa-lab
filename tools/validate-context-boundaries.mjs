@@ -12,6 +12,7 @@
  */
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import ts from 'typescript';
 
 const ROOT = resolve(process.cwd());
 const CONTEXTS = ['identity', 'organization', 'classroom'];
@@ -45,17 +46,36 @@ function walk(directory) {
   return files;
 }
 
-function importsOf(source) {
-  const imports = [];
-  const patterns = [
-    /(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g,
-    /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-    /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ];
-  for (const pattern of patterns) {
-    for (const match of source.matchAll(pattern)) imports.push(match[1]);
+function importsOf(file, source) {
+  const sourceFile = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const imports = new Set();
+
+  function addLiteral(node) {
+    if (node && ts.isStringLiteralLike(node)) imports.add(node.text);
   }
-  return [...new Set(imports)];
+
+  function visit(node) {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      addLiteral(node.moduleSpecifier);
+    } else if (ts.isImportEqualsDeclaration(node)) {
+      const reference = node.moduleReference;
+      if (ts.isExternalModuleReference(reference)) addLiteral(reference.expression);
+    } else if (ts.isCallExpression(node) && node.arguments.length === 1) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+      if (isDynamicImport || isRequire) addLiteral(node.arguments[0]);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return [...imports];
 }
 
 function contextOfResolvedPath(path) {
@@ -85,13 +105,16 @@ for (const context of CONTEXTS) {
   contextSummary[context] = { files: files.length, imports: 0 };
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
-    const imports = importsOf(source);
+    const imports = importsOf(file, source);
     contextSummary[context].imports += imports.length;
     checkedFiles.push(asRepoPath(file));
 
     for (const specifier of imports) {
       for (const other of CONTEXTS) {
-        if (other !== context && (specifier === `@asa-lab/${other}` || specifier.startsWith(`@asa-lab/${other}/`))) {
+        if (
+          other !== context &&
+          (specifier === `@asa-lab/${other}` || specifier.startsWith(`@asa-lab/${other}/`))
+        ) {
           errors.push(`${asRepoPath(file)} imports bounded context ${other} via ${specifier}`);
         }
       }
@@ -105,8 +128,13 @@ for (const context of CONTEXTS) {
       }
 
       const normalized = asRepoPath(file);
-      if (normalized.includes(`/domain/`) && DOMAIN_FORBIDDEN.some((pattern) => pattern.test(specifier))) {
-        errors.push(`${normalized} domain layer imports forbidden framework/transport package ${specifier}`);
+      if (
+        normalized.includes('/domain/') &&
+        DOMAIN_FORBIDDEN.some((pattern) => pattern.test(specifier))
+      ) {
+        errors.push(
+          `${normalized} domain layer imports forbidden framework/transport package ${specifier}`,
+        );
       }
     }
   }
@@ -120,11 +148,15 @@ try {
     const tags = nodes?.[context]?.data?.tags;
     const expectedTag = `context:${context}`;
     if (!Array.isArray(tags) || !tags.includes(expectedTag)) {
-      errors.push(`nx-project-graph.json is stale: node ${context} lacks ${expectedTag}; run pnpm graph:report`);
+      errors.push(
+        `nx-project-graph.json is stale: node ${context} lacks ${expectedTag}; run pnpm graph:report`,
+      );
     }
   }
 } catch (error) {
-  errors.push(`cannot validate nx-project-graph.json: ${error instanceof Error ? error.message : String(error)}`);
+  errors.push(
+    `cannot validate nx-project-graph.json: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }
 
 const report = {
