@@ -61,8 +61,14 @@ if (map?.project?.current_focus !== 'TASK-PORTAL-001') {
 const portalNode = Array.isArray(map?.nodes)
   ? map.nodes.find((node) => node.id === 'TASK-PORTAL-001')
   : undefined;
-if (!portalNode || !['in_progress', 'in_review'].includes(portalNode.status)) {
-  errors.push('TASK-PORTAL-001 status must be in_progress or in_review before merge');
+const nextNode = Array.isArray(map?.nodes)
+  ? map.nodes.find((node) => node.id === 'TASK-PROJECT-SHELL-001')
+  : undefined;
+if (!portalNode || portalNode.status !== 'in_review') {
+  errors.push('TASK-PORTAL-001 status must be in_review for final owner review');
+}
+if (!nextNode || nextNode.status !== 'blocked') {
+  errors.push('TASK-PROJECT-SHELL-001 must remain blocked before Portal merge');
 }
 
 const catalogPath = join(ROOT, 'docs/testing/test-catalog.yaml');
@@ -79,6 +85,7 @@ if (JSON.stringify(actualTests) !== JSON.stringify(EXPECTED_TESTS)) {
 
 evidence.currentFocus = map?.project?.current_focus;
 evidence.taskStatus = portalNode?.status;
+evidence.nextTaskStatus = nextNode?.status;
 evidence.testIds = actualTests;
 
 const graphPath = join(ROOT, 'docs/project-map/nx-project-graph.json');
