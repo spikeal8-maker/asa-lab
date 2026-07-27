@@ -1,14 +1,14 @@
-import type { Project, ProjectDraft, ProjectVersion } from '../domain/project.js';
+import type { Project, ProjectDraft, ProjectScope, ProjectVersion } from '../domain/project.js';
 
 export interface CreateProjectInput {
   readonly tenantId: string;
-  readonly classroomId: string;
+  readonly scope: ProjectScope;
+  readonly classroomId: string | null;
   readonly teacherId: string;
   readonly moduleKey: string;
   readonly title: string;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
-  /** Initial subject document stored in the draft. */
   readonly initialDocument: unknown;
 }
 
@@ -17,6 +17,11 @@ export type CreateProjectResult =
   | { readonly kind: 'existing'; readonly project: Project }
   | { readonly kind: 'conflict' }
   | { readonly kind: 'classroom_not_found' };
+
+export interface ProjectListFilter {
+  readonly scope?: ProjectScope;
+  readonly classroomId?: string;
+}
 
 export interface SaveDraftInput {
   readonly tenantId: string;
@@ -27,17 +32,9 @@ export interface SaveDraftInput {
 
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
-  listForClassroom(tenantId: string, classroomId: string, teacherId: string): Promise<Project[]>;
-  load(
-    tenantId: string,
-    projectId: string,
-    teacherId: string,
-  ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
+  listForTeacher(tenantId: string, teacherId: string, filter: ProjectListFilter): Promise<Project[]>;
+  load(tenantId: string, projectId: string, teacherId: string): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
+  rename(tenantId: string, projectId: string, teacherId: string, title: string): Promise<Project | null>;
   saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null>;
-  createCheckpoint(
-    tenantId: string,
-    projectId: string,
-    teacherId: string,
-    label: string | null,
-  ): Promise<ProjectVersion | null>;
+  createCheckpoint(tenantId: string, projectId: string, teacherId: string, label: string | null): Promise<ProjectVersion | null>;
 }
