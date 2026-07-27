@@ -9,9 +9,12 @@
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { apiChildEnv, webChildEnv } from './child-env.mjs';
 
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
+const STOP_FILE = '.asa-dev-stop';
+const SHUTDOWN_TIMEOUT_MS = 15000;
 
 function resolvePort(variable, fallback) {
   const raw = process.env[variable];
@@ -39,6 +42,14 @@ function loadDotEnvLocal() {
   }
 }
 
+function removeStopFile() {
+  try {
+    if (existsSync(STOP_FILE)) unlinkSync(STOP_FILE);
+  } catch {
+    // A stale stop marker is non-fatal; the watcher will retry cleanup.
+  }
+}
+
 async function assertPortFree(port, name) {
   await new Promise((resolvePromise) => {
     const probe = net
@@ -51,6 +62,21 @@ async function assertPortFree(port, name) {
       })
       .once('listening', () => probe.close(resolvePromise))
       .listen(port, '127.0.0.1');
+  });
+}
+
+function waitForExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolvePromise) => {
+    const onExit = () => {
+      clearTimeout(timer);
+      resolvePromise(true);
+    };
+    const timer = setTimeout(() => {
+      child.off('exit', onExit);
+      resolvePromise(false);
+    }, timeoutMs);
+    child.once('exit', onExit);
   });
 }
 
@@ -78,59 +104,106 @@ if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
 
-const children = [];
-function startWithEnv(name, command, args, env) {
-  const child = spawn(command, args, {
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    env,
-  });
-  children.push(child);
-  child.on('exit', (code) => {
-    console.log(`${name} exited (${code ?? 'signal'})`);
-    for (const other of children) {
-      if (other !== child && other.exitCode === null) other.kill();
-    }
-    process.exit(code ?? 0);
-  });
+const viteBin = resolve('node_modules/vite/bin/vite.js');
+if (!existsSync(viteBin)) {
+  console.error(`Vite executable is missing: ${viteBin}. Run pnpm install.`);
+  process.exit(78);
 }
 
-startWithEnv('api', 'node', ['apps/api/dist/main.js'], apiChildEnv(process.env, API_PORT));
-startWithEnv(
+// Long-lived children are launched as the actual Node processes, not through
+// cmd.exe/pnpm shell wrappers. On Windows a wrapper can die while leaving Vite
+// or the API orphaned and still holding ports 4610/4611.
+const children = [];
+let shuttingDown = false;
+let shutdownPromise = null;
+let stopWatcher = null;
+
+function startNodeChild(name, script, args, env) {
+  const child = spawn(process.execPath, [script, ...args], {
+    stdio: 'inherit',
+    shell: false,
+    windowsHide: true,
+    env,
+  });
+  children.push({ name, child });
+
+  child.once('error', (error) => {
+    console.error(`${name} failed to start: ${String(error)}`);
+    if (!shuttingDown) void shutdownAll(`${name} start error`, 1);
+  });
+  child.once('exit', (code, signal) => {
+    console.log(`${name} exited (${code ?? signal ?? 'unknown'})`);
+    if (!shuttingDown) void shutdownAll(`${name} exited unexpectedly`, code ?? 1);
+  });
+  return child;
+}
+
+async function shutdownAll(reason = 'requested', requestedExitCode = 0) {
+  if (shutdownPromise !== null) return shutdownPromise;
+  shuttingDown = true;
+  if (stopWatcher !== null) clearInterval(stopWatcher);
+
+  shutdownPromise = (async () => {
+    console.log(`Stopping ASA Lab dev environment (${reason})...`);
+    const live = children.filter(
+      ({ child }) => child.exitCode === null && child.signalCode === null,
+    );
+
+    for (const { child } of live) child.kill();
+    const results = await Promise.all(
+      live.map(async ({ name, child }) => ({
+        name,
+        child,
+        exited: await waitForExit(child, SHUTDOWN_TIMEOUT_MS),
+      })),
+    );
+
+    const survivors = results.filter(({ exited }) => !exited);
+    let exitCode = requestedExitCode;
+    if (survivors.length > 0) {
+      exitCode = 1;
+      console.error(
+        `FAIL: tracked ASA Lab child process(es) did not stop: ${survivors.map(({ name }) => name).join(', ')}`,
+      );
+      // Emergency cleanup is limited to PIDs spawned and tracked by this
+      // orchestrator. It must never be the path that makes TST-STARTUP-001 pass.
+      for (const { child } of survivors) {
+        if (!child.pid) continue;
+        if (process.platform === 'win32') {
+          spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { encoding: 'utf8' });
+        } else {
+          child.kill('SIGKILL');
+        }
+      }
+    }
+
+    removeStopFile();
+    console.log(
+      exitCode === 0
+        ? 'ASA Lab dev environment stopped cleanly.'
+        : 'ASA Lab dev environment stopped with cleanup errors.',
+    );
+    process.exit(exitCode);
+  })();
+  return shutdownPromise;
+}
+
+startNodeChild('api', resolve('apps/api/dist/main.js'), [], apiChildEnv(process.env, API_PORT));
+startNodeChild(
   'web',
-  'pnpm',
-  ['exec', 'vite', '-c', 'apps/web/vite.config.ts'],
+  viteBin,
+  ['-c', resolve('apps/web/vite.config.ts')],
   webChildEnv(process.env),
 );
 
-let shuttingDown = false;
-function shutdownAll() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  for (const child of children) {
-    if (child.exitCode === null) child.kill();
-  }
-}
-process.on('SIGINT', shutdownAll);
-process.on('SIGTERM', shutdownAll);
+process.on('SIGINT', () => void shutdownAll('SIGINT', 0));
+process.on('SIGTERM', () => void shutdownAll('SIGTERM', 0));
+
 // Graceful programmatic stop for automated harnesses: creating the stop file
-// asks the orchestrator to shut the whole dev tree down without any
-// force-kill. (stdin cannot be used: package-manager shims close it early.)
-const STOP_FILE = '.asa-dev-stop';
-try {
-  if (existsSync(STOP_FILE)) unlinkSync(STOP_FILE);
-} catch {
-  /* ignore */
-}
-const stopWatcher = setInterval(() => {
-  if (existsSync(STOP_FILE)) {
-    try {
-      unlinkSync(STOP_FILE);
-    } catch {
-      /* ignore */
-    }
-    shutdownAll();
-  }
+// asks the orchestrator to stop its direct child processes and wait for them.
+removeStopFile();
+stopWatcher = setInterval(() => {
+  if (existsSync(STOP_FILE)) void shutdownAll('stop file', 0);
 }, 500);
 stopWatcher.unref();
 
