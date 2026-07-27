@@ -9,5 +9,8 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "dependencies": {
+    "@asa-lab/module-sdk": "workspace:*"
   }
 }
