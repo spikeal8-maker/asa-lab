@@ -1,0 +1,131 @@
+schema_version: 1.0.0
+evidence_id: tinkercad-registration-student-video-2026-07-27
+source:
+  kind: owner_reference_video
+  file: 2026-07-27 20-32-36.mp4
+  duration_seconds: 530.233333
+  resolution: 1920x1080
+  fps: 60
+  frame_count: 31814
+  contains_personal_data: false
+  contains_synthetic_test_data: true
+  repository_storage: permitted_private_repo
+  public_redistribution: owner_approval_required
+analysis:
+  periodic_samples: 531
+  sample_interval_seconds: 1
+  full_resolution_keyframes: 56
+  functional_clips: 5
+  reviewed_at: 2026-07-27
+verified_surfaces:
+- id: CONTEXTUAL-ENTRY
+  time: 00:18-00:50
+  status: verified
+  controls:
+  - educator
+  - student_class_code
+  - student_account
+  - personal_account
+  - sign_in
+- id: PERSONAL-REGISTRATION-METHODS
+  time: 00:50-00:55
+  status: verified
+  controls:
+  - native
+  - google
+  - apple
+  - additional_methods
+- id: AGE-REGISTRATION
+  time: 00:55-01:15
+  status: verified
+  fields:
+  - country_region
+  - date_of_birth
+- id: CREDENTIAL-REGISTRATION
+  time: 01:15-03:41
+  status: verified
+  fields:
+  - username
+  - password
+  behaviour:
+  - password_requirements
+  - username_availability_error
+  - captcha
+- id: PENDING-CHILD-APPROVAL
+  time: 03:41-04:45
+  status: verified
+  states:
+  - restricted
+  - 14_day_deadline
+  approval_paths:
+  - educator_class
+  - guardian_email
+- id: GUARDIAN-EMAIL-APPROVAL
+  time: 04:45-05:32
+  status: verified
+  behaviour:
+  - approval_email
+  - guardian_account_required
+  - manual_signout_if_child_logged_in
+- id: REGISTERED-STUDENT-CLASS-JOIN
+  time: 06:37-07:06
+  status: verified
+  steps:
+  - enter_code
+  - confirm_account_and_class
+  - join
+- id: STUDENT-CLASS-LIST
+  time: 07:06-07:10
+  status: verified
+  controls:
+  - view_class
+  - join_another_class
+  - transfer_projects
+- id: STUDENT-CLASS-ACTIVITY
+  time: 07:10-07:40
+  status: verified
+  state: no_activities
+- id: STUDENT-BADGES
+  time: 07:40-07:56
+  status: verified
+- id: STUDENT-PROFILE
+  time: 07:56-08:06
+  status: verified
+  controls:
+  - module_tabs
+  - filters
+  - sort
+  - grid_list
+- id: STUDENT-PROFILE-SETTINGS
+  time: 08:06-08:43
+  status: verified
+  controls:
+  - safe_mode
+  - private_username
+  - display_name
+  - bio
+  - signout_all_devices
+- id: STUDENT-CREATOR-HOME
+  time: 08:43-08:50
+  status: verified
+  modules:
+  - 3d
+  - circuits
+  - codeblocks
+implementation_priority:
+- public_entry_router
+- native_age_aware_registration
+- pending_approval_and_consent
+- registered_student_class_join
+- student_creator_portal
+- badges_profile_and_session_security
+unknowns:
+- educator_onboarding_and_verification
+- organization_creation
+- teacher_class_creation
+- nickname_studentseat_after_class_code
+- guardian_approval_completion
+- jurisdiction_age_thresholds
+- billing
+- assignment_submission_review
+- publication_remix_community
