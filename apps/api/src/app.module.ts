@@ -21,9 +21,11 @@ import {
   PgProjectRepository,
   RenameProjectUseCase,
   SaveDraftUseCase,
+  type CreatableProjectModule,
   type ModuleCatalogPort,
+  type ProjectModule,
 } from '@asa-lab/projects';
-import { parseElectronicsDocument } from '@asa-lab/electronics';
+import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { HealthController } from './health.controller.js';
@@ -31,6 +33,27 @@ import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { TOKENS } from './tokens.js';
+
+function validationMessage(entry: RegisteredModule, value: unknown): {
+  readonly ok: true;
+  readonly document: unknown;
+} | {
+  readonly ok: false;
+  readonly message: string;
+} {
+  const provider = entry.provider;
+  if (!provider) {
+    return { ok: false, message: `module "${entry.manifest.moduleKey}" has no provider` };
+  }
+  const result = provider.validate(value);
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
+    };
+  }
+  return { ok: true, document: result.payload };
+}
 
 @Module({})
 export class AppModule {
@@ -45,17 +68,26 @@ export class AppModule {
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
     const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
+    const toProjectModule = (entry: RegisteredModule): ProjectModule => ({
+      moduleKey: entry.manifest.moduleKey,
+      validateDocument: (value) => validationMessage(entry, value),
+    });
     const projectModules: ModuleCatalogPort = {
+      get: (moduleKey) => {
+        const entry = moduleRegistry.get(moduleKey);
+        return entry?.provider ? toProjectModule(entry) : null;
+      },
       getCreatable: (moduleKey) => {
         const entry = moduleRegistry.getCreatable(moduleKey);
         const provider = entry?.provider;
         if (!entry || !provider) {
           return null;
         }
-        return {
-          moduleKey: entry.manifest.moduleKey,
+        const module: CreatableProjectModule = {
+          ...toProjectModule(entry),
           createEmptyProject: () => provider.createEmptyProject(),
         };
+        return module;
       },
     };
 
@@ -110,13 +142,7 @@ export class AppModule {
         },
         {
           provide: TOKENS.saveDraftUseCase,
-          useFactory: () =>
-            new SaveDraftUseCase(projectRepository(), (value: unknown) => {
-              const parsed = parseElectronicsDocument(value);
-              return parsed.ok
-                ? { ok: true, document: parsed.document }
-                : { ok: false, message: parsed.message };
-            }),
+          useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.createCheckpointUseCase,
