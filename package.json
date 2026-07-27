@@ -13,7 +13,7 @@
     "format:check": "prettier --check .",
     "lint": "nx run-many -t lint --all",
     "typecheck": "nx run-many -t typecheck --all",
-    "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.{ts,tsx}\"",
+    "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.{ts,tsx}\" && node tools/validate-context-boundaries.mjs",
     "contracts:check": "node tools/validate-contracts.mjs",
     "compose:check": "node tools/validate-compose.mjs",
     "test": "vitest run",
@@ -35,7 +35,8 @@
     "test:authz": "vitest run tests/portal/authz.spec.ts",
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
-    "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts"
+    "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",
+    "portal:m4:check": "node tools/validate-portal-evidence.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
