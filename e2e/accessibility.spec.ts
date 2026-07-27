@@ -1,17 +1,30 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
-async function login(page: import('@playwright/test').Page): Promise<void> {
+async function login(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByLabel('Workspace').fill(teacher.workspace);
   await page.getByLabel('Email').fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);
   await page.getByRole('button', { name: 'Войти' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+}
+
+async function expectNoWcagViolations(page: Page): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(
+    results.violations,
+    results.violations
+      .map((violation) => `${violation.id}: ${violation.help} (${violation.nodes.length} node(s))`)
+      .join('\n'),
+  ).toEqual([]);
 }
 
 test.beforeAll(async () => {
@@ -21,6 +34,21 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await admin.end();
+});
+
+test('login page passes automated WCAG A/AA checks', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
+  await expectNoWcagViolations(page);
+});
+
+test('dashboard and create dialog pass automated WCAG A/AA checks', async ({ page }) => {
+  await login(page);
+  await expectNoWcagViolations(page);
+
+  await page.getByRole('button', { name: 'Создать класс' }).click();
+  await expect(page.getByRole('dialog', { name: 'Создать класс' })).toBeVisible();
+  await expectNoWcagViolations(page);
 });
 
 test('skip link moves keyboard focus to the dashboard content', async ({ page }) => {
