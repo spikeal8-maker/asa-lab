@@ -131,7 +131,7 @@ export class AuthController {
       throw new HttpException(error(result.code, result.message), status);
     }
     const login = await this.accountLoginUseCase.execute({
-      email: result.email,
+      identifier: result.email,
       password: shape.body['password'],
     });
     if (login.ok) {
@@ -157,14 +157,16 @@ export class AuthController {
     @Body() rawBody: unknown,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    const shape = checkBodyShape(rawBody, ['workspace', 'email', 'password']);
+    const shape = checkBodyShape(rawBody, ['workspace', 'identifier', 'email', 'password']);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
     }
-    // No organization code: sign in against the global account identity.
+    // No organization code: sign in against the global account identity. The
+    // identifier is an email address or a username; `email` stays accepted so
+    // the legacy organization form keeps its own field name.
     if (shape.body['workspace'] === undefined) {
       const account = await this.accountLoginUseCase.execute({
-        email: shape.body['email'],
+        identifier: shape.body['identifier'] ?? shape.body['email'],
         password: shape.body['password'],
       });
       if (!account.ok) {
@@ -179,19 +181,23 @@ export class AuthController {
         }
         if (account.code === 'validation_error') {
           throw new HttpException(
-            error('validation_error', 'email and password are required'),
+            error('validation_error', 'identifier and password are required'),
             400,
           );
         }
-        throw new HttpException(error('invalid_credentials', 'invalid email or password'), 401);
+        throw new HttpException(
+          error('invalid_credentials', 'invalid email, username or password'),
+          401,
+        );
       }
       this.setSessionCookie(reply, account.token);
       const profile = await this.accounts.profile(account.accountId);
+      const identifier = (shape.body['identifier'] ?? shape.body['email']) as string;
       return {
         user: {
           id: account.accountId,
-          displayName: profile?.displayName ?? (shape.body['email'] as string),
-          email: profile?.email ?? (shape.body['email'] as string),
+          displayName: profile?.displayName ?? identifier,
+          email: profile?.email ?? identifier,
         },
         capabilities: account.capabilities.map((entry) => ({
           capability: entry.capability,

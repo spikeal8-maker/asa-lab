@@ -39,7 +39,7 @@ test('session-check failure is explicit and can be retried', async ({ page }) =>
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('Не удалось проверить активную сессию');
   await page.getByRole('button', { name: 'Повторить' }).click();
-  await expect(page.getByRole('button', { name: 'Присоединиться к классу' })).toBeVisible();
+  await expect(page.getByTestId('entry-class-code')).toBeVisible();
 });
 
 test('create dialog exposes validation and idempotency conflict states', async ({ page }) => {

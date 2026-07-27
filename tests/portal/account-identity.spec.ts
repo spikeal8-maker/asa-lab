@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type pg from 'pg';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
+import { hashPassword } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject, type NestApp } from './app';
 
 /**
@@ -265,6 +266,53 @@ describe('sign-in', () => {
     expect(login.statusCode).toBe(503);
     expect(login.json().error.code).toBe('context_unavailable');
     expect(login.cookies.find((entry) => entry.name === 'asa_session')).toBeUndefined();
+  });
+
+  it('accepts the username as well as the email, with one form and no role', async () => {
+    const teacher = await seedTeacher(admin, 'universal');
+    const password = 'sufficiently-long-password';
+    const username = `pseudo-${Date.now()}`.toLowerCase();
+    const email = `universal-${Date.now()}@test.local`;
+
+    // An account linked to a tenant user, the way sessions_v2 will link them.
+    const account = await admin.query(
+      `INSERT INTO accounts (email, password_hash, birth_date, country)
+       VALUES ($1, $2, DATE '1990-01-01', 'RU') RETURNING id`,
+      [email, hashPassword(password)],
+    );
+    const accountId = account.rows[0].id as string;
+    await admin.query(
+      `INSERT INTO profiles (account_id, username, display_name) VALUES ($1, $2, 'Тестовый аккаунт')`,
+      [accountId, username],
+    );
+    const workspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id, kind, title) VALUES ($1, 'organization', 'Тест')
+       ON CONFLICT (tenant_id) DO UPDATE SET title = EXCLUDED.title RETURNING id`,
+      [teacher.tenantId],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role, user_id)
+       VALUES ($1, $2, 'owner', $3)`,
+      [accountId, workspace.rows[0].id, teacher.teacherId],
+    );
+
+    for (const identifier of [email, username, username.toUpperCase()]) {
+      const login = await inject(app, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { identifier, password },
+      });
+      expect(login.statusCode, identifier).toBe(200);
+      expect(login.json().user.role).toBeUndefined();
+      expect(login.cookies.find((entry) => entry.name === 'asa_session')?.httpOnly).toBe(true);
+    }
+
+    const wrong = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { identifier: username, password: 'wrong-password-value' },
+    });
+    expect(wrong.statusCode).toBe(401);
   });
 
   it('rejects a wrong password with the credential contract', async () => {

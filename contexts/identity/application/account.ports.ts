@@ -47,6 +47,8 @@ export interface RegisteredAccount {
 
 export interface AccountDirectoryPort {
   findByEmail(emailLower: string): Promise<AccountRecord | null>;
+  /** Universal sign-in also accepts the pseudonym instead of the address. */
+  findByUsername(usernameLower: string): Promise<AccountRecord | null>;
   register(input: RegisterAccountInput): Promise<RegisteredAccount | { readonly conflict: true }>;
   workspaces(accountId: string): Promise<WorkspaceRef[]>;
   capabilities(accountId: string): Promise<CapabilityRef[]>;

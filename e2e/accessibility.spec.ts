@@ -43,17 +43,23 @@ test('public entry passes automated WCAG A/AA checks', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
   await expectNoWcagViolations(page);
 
-  // The contextual chooser and the sign-in form are separate screens.
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'В школе' })).toBeVisible();
+  // Each public intention opens its own screen; all of them must be clean.
+  await page.getByTestId('entry-sign-in').click();
+  await expect(page.getByLabel('Email или имя пользователя')).toBeVisible();
   await expectNoWcagViolations(page);
 
-  await page.getByTestId('entry-school-educator').click();
-  await expect(page.getByLabel('Email')).toBeVisible();
-  await expectNoWcagViolations(page);
-
-  await page.getByRole('button', { name: 'Войти через организацию' }).click();
+  await page.getByRole('button', { name: 'Вход для ранее подключённой организации' }).click();
   await expect(page.getByLabel('Код организации')).toBeVisible();
+  await expectNoWcagViolations(page);
+
+  await page.goto('/');
+  await page.getByTestId('entry-class-code').click();
+  await expect(page.getByTestId('class-code')).toBeVisible();
+  await expectNoWcagViolations(page);
+
+  await page.goto('/');
+  await page.getByTestId('entry-sign-up').click();
+  await expect(page.getByTestId('sign-up-age')).toBeVisible();
   await expectNoWcagViolations(page);
 });
 
@@ -112,9 +118,9 @@ test('critical controls have names and reduced motion disables skeleton animatio
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
-  await expect(page.getByRole('button', { name: 'Создать аккаунт' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Присоединиться к классу' })).toBeVisible();
+  await expect(page.getByTestId('entry-sign-in')).toBeVisible();
+  await expect(page.getByTestId('entry-sign-up')).toBeVisible();
+  await expect(page.getByTestId('entry-class-code')).toBeVisible();
 
   const animationName = await page.evaluate(() => {
     const probe = document.createElement('div');

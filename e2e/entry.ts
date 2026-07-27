@@ -2,15 +2,13 @@ import { expect, type Page } from '@playwright/test';
 import type { SeededTeacher } from './seed';
 
 /**
- * Walks the public entry the way a person does: state an intent, pick a
- * context, and only then meet a form. Schools onboarded by an organization
- * code take the separate legacy link at the end of the ordinary sign-in.
+ * Walks the public entry the way a person does: one intention, one screen.
+ * Schools onboarded by an organization code take the secondary link at the
+ * bottom of the ordinary sign-in.
  */
 export async function signInThroughOrganization(page: Page, teacher: SeededTeacher): Promise<void> {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await page.getByTestId('entry-school-educator').click();
-  await page.getByRole('button', { name: 'Войти через организацию' }).click();
+  await openSignIn(page);
+  await page.getByRole('button', { name: 'Вход для ранее подключённой организации' }).click();
 
   await page.getByLabel('Код организации').fill(teacher.workspace);
   await page.getByLabel('Email').fill(teacher.email);
@@ -19,10 +17,9 @@ export async function signInThroughOrganization(page: Page, teacher: SeededTeach
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
 }
 
-/** Opens the ordinary email-and-password form without signing in. */
+/** Opens the universal sign-in without signing in. */
 export async function openSignIn(page: Page): Promise<void> {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await page.getByTestId('entry-school-educator').click();
-  await expect(page.getByLabel('Email')).toBeVisible();
+  await page.getByTestId('entry-sign-in').click();
+  await expect(page.getByLabel('Email или имя пользователя')).toBeVisible();
 }

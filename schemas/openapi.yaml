@@ -101,10 +101,53 @@ paths:
                 properties:
                   available:
                     type: boolean
+  /api/join-class/resolve:
+    post:
+      operationId: postJoinClassResolve
+      summary: Resolve a class code into a preview; creates no session and no membership
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  description: Spaces, dashes and case are normalized away.
+      responses:
+        '200':
+          description: Class preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomPreviewEnvelope'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: >-
+            No class for this code. A malformed code gets the same answer, so
+            the endpoint cannot be used to enumerate classes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many attempts from this client
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/auth/login:
     post:
       operationId: postAuthLogin
-      summary: Sign in with email and password; workspace is the legacy organization path
+      summary: Universal sign-in by email or username; workspace is the legacy organization path
       requestBody:
         required: true
         content:
@@ -288,8 +331,15 @@ components:
     LoginRequest:
       type: object
       additionalProperties: false
-      required: [email, password]
+      required: [password]
+      description: >-
+        Universal sign-in sends `identifier` (an email address or a username).
+        `email` stays accepted for the legacy organization form.
       properties:
+        identifier:
+          type: string
+          description: Email address or username of the account signing in.
+          minLength: 1
         workspace:
           type: string
           description: >-
@@ -303,6 +353,23 @@ components:
         password:
           type: string
           minLength: 1
+    ClassroomPreviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [classroom]
+      properties:
+        classroom:
+          type: object
+          additionalProperties: false
+          required: [id, title, educatorDisplayName]
+          properties:
+            id:
+              type: string
+              format: uuid
+            title:
+              type: string
+            educatorDisplayName:
+              type: string
     RegisterRequest:
       type: object
       additionalProperties: false

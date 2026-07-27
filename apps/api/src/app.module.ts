@@ -15,6 +15,8 @@ import {
   CreateClassroomUseCase,
   ListClassroomsUseCase,
   PgClassroomRepository,
+  PgJoinCodeDirectory,
+  ResolveJoinCodeUseCase,
 } from '@asa-lab/classroom';
 import {
   CreateCheckpointUseCase,
@@ -31,6 +33,7 @@ import {
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
+import { JoinClassController } from './join-class.controller.js';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
@@ -106,6 +109,7 @@ export class AppModule {
         HealthController,
         AuthController,
         ClassroomsController,
+        JoinClassController,
         ModulesController,
         ProjectsController,
       ],
@@ -176,6 +180,10 @@ export class AppModule {
         {
           provide: TOKENS.listClassroomsUseCase,
           useFactory: () => new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
+        },
+        {
+          provide: TOKENS.resolveJoinCodeUseCase,
+          useFactory: () => new ResolveJoinCodeUseCase(new PgJoinCodeDirectory(requirePool())),
         },
       ],
     };

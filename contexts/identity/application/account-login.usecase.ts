@@ -1,6 +1,7 @@
 import { verifyPassword } from '../domain/password.js';
 import { createSessionToken, hashSessionToken } from '../domain/session-token.js';
 import { isValidEmail, normalizeEmail } from '../domain/validation.js';
+import { isValidUsername } from '../domain/age-policy.js';
 import type { AccountDirectoryPort, CapabilityRef, WorkspaceRef } from './account.ports.js';
 import type { SessionStorePort } from './ports.js';
 
@@ -21,12 +22,12 @@ export type AccountLoginResult =
 const SESSION_TTL_HOURS = 12;
 
 /**
- * Sign in with email and password only — no organization code.
+ * The one sign-in every account uses: an email address or a pseudonym, and a
+ * password. No organization code, and no role asked before the answer.
  *
- * The server answers with the capabilities and workspaces it granted; the
- * client never states a role. A workspace whose membership has no
- * tenant-scoped user cannot carry a legacy session yet, so that case is
- * reported honestly instead of fabricating a teacher record.
+ * The server states the capabilities and workspaces it granted. A workspace
+ * whose membership has no tenant-scoped user cannot carry a legacy session
+ * yet, so that case is reported honestly instead of fabricating a teacher.
  */
 export class AccountLoginUseCase {
   constructor(
@@ -34,12 +35,28 @@ export class AccountLoginUseCase {
     private readonly sessions: SessionStorePort,
   ) {}
 
-  async execute(input: { email: unknown; password: unknown }): Promise<AccountLoginResult> {
-    const email = typeof input.email === 'string' ? normalizeEmail(input.email) : input.email;
-    if (!isValidEmail(email) || typeof input.password !== 'string' || input.password.length === 0) {
+  async execute(input: { identifier: unknown; password: unknown }): Promise<AccountLoginResult> {
+    if (
+      typeof input.identifier !== 'string' ||
+      input.identifier.trim().length === 0 ||
+      typeof input.password !== 'string' ||
+      input.password.length === 0
+    ) {
       return { ok: false, code: 'validation_error' };
     }
-    const account = await this.accounts.findByEmail(email);
+    const identifier = input.identifier.trim();
+    // A value with an @ is treated as an address; anything else as a pseudonym.
+    const looksLikeEmail = identifier.includes('@');
+    if (looksLikeEmail && !isValidEmail(normalizeEmail(identifier))) {
+      return { ok: false, code: 'validation_error' };
+    }
+    if (!looksLikeEmail && !isValidUsername(identifier)) {
+      return { ok: false, code: 'validation_error' };
+    }
+
+    const account = looksLikeEmail
+      ? await this.accounts.findByEmail(normalizeEmail(identifier))
+      : await this.accounts.findByUsername(identifier.toLowerCase());
     if (account === null || !verifyPassword(input.password, account.passwordHash)) {
       return { ok: false, code: 'invalid_credentials' };
     }

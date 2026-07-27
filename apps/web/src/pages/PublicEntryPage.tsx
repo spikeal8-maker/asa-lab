@@ -1,8 +1,10 @@
 /**
- * Public entry. Three doors, nothing else: the visitor states what they want
- * to do before any form asks who they are.
+ * Public entry: three intentions, in the words a visitor already uses.
+ *
+ * Nothing here asks who someone is — an account is one thing, and what it may
+ * do is decided by the server after sign-in.
  */
-export type PublicIntent = 'create-account' | 'sign-in' | 'join-class';
+export type PublicIntent = 'sign-in' | 'sign-up' | 'class-code';
 
 export function PublicEntryPage({
   onChoose,
@@ -19,24 +21,36 @@ export function PublicEntryPage({
           <button
             type="button"
             className="btn-primary entry-action"
-            onClick={() => onChoose('create-account')}
-          >
-            Создать аккаунт
-          </button>
-          <button
-            type="button"
-            className="btn-secondary entry-action"
+            data-testid="entry-sign-in"
             onClick={() => onChoose('sign-in')}
           >
             Войти
           </button>
+          <span className="entry-action-hint">Для всех, у кого уже есть аккаунт ASA Lab.</span>
+
           <button
             type="button"
             className="btn-secondary entry-action"
-            onClick={() => onChoose('join-class')}
+            data-testid="entry-sign-up"
+            onClick={() => onChoose('sign-up')}
           >
-            Присоединиться к классу
+            Создать аккаунт
           </button>
+          <span className="entry-action-hint">
+            Для личных проектов. Педагогические возможности включаются после регистрации.
+          </span>
+
+          <button
+            type="button"
+            className="btn-secondary entry-action"
+            data-testid="entry-class-code"
+            onClick={() => onChoose('class-code')}
+          >
+            Войти по коду класса
+          </button>
+          <span className="entry-action-hint">
+            Для ученика, которому педагог выдал код класса или имя для входа.
+          </span>
         </div>
       </main>
     </div>

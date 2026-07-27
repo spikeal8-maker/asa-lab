@@ -12,9 +12,8 @@ let teacher: SeededTeacher;
 
 async function login(page: Page): Promise<void> {
   await page.goto('/#/projects');
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await page.getByTestId('entry-school-educator').click();
-  await page.getByRole('button', { name: 'Войти через организацию' }).click();
+  await page.getByTestId('entry-sign-in').click();
+  await page.getByRole('button', { name: 'Вход для ранее подключённой организации' }).click();
   await page.getByLabel('Код организации').fill(teacher.workspace);
   await page.getByLabel('Email').fill(teacher.email);
   await page.getByLabel('Пароль').fill(teacher.password);

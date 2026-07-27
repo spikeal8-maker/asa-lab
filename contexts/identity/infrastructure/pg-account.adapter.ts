@@ -30,6 +30,23 @@ export class PgAccountDirectory implements AccountDirectoryPort {
       : null;
   }
 
+  async findByUsername(usernameLower: string): Promise<AccountRecord | null> {
+    const result = await this.pool.query(
+      `SELECT id, email, password_hash, email_verification_state
+         FROM auth_find_account_by_username($1)`,
+      [usernameLower],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          id: row.id,
+          email: row.email,
+          passwordHash: row.password_hash,
+          emailVerificationState: row.email_verification_state,
+        }
+      : null;
+  }
+
   async register(
     input: RegisterAccountInput,
   ): Promise<RegisteredAccount | { readonly conflict: true }> {

@@ -53,5 +53,5 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.setViewportSize({ width: 1280, height: 800 });
 
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await expect(page.getByRole('button', { name: 'Присоединиться к классу' })).toBeVisible();
+  await expect(page.getByTestId('entry-class-code')).toBeVisible();
 });

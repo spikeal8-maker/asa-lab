@@ -817,3 +817,53 @@ label {
   font-weight: 600;
   text-decoration: underline;
 }
+
+/* Entry hints sit under their action, so each door explains itself. */
+.entry-action-hint {
+  display: block;
+  margin: -0.15rem 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.entry-intro {
+  margin-bottom: 0.75rem;
+}
+
+.login-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.link-muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* The resolved class, shown before anyone is asked to identify themselves. */
+.class-preview {
+  margin: 0 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.class-preview dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.class-preview dd {
+  margin: 0.1rem 0 0.6rem;
+  font-weight: 600;
+}
+
+.class-preview dd:last-child {
+  margin-bottom: 0;
+}

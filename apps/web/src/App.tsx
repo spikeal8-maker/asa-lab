@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type SessionPayload } from './api';
+import { api, type ClassroomPreview, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
-import { ContextChooserPage, type EntryContext } from './pages/ContextChooserPage';
+import { JoinClassPage } from './pages/JoinClassPage';
 import { NextStagePage } from './pages/NextStagePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
@@ -22,28 +22,31 @@ type SessionState =
   | { kind: 'error' };
 
 /**
- * Public screens before a session exists. The visitor states an intent, then
- * picks a context; only after that does a form appear.
+ * Public screens before a session exists.
+ *
+ * Each of the three intentions goes straight to the screen that serves it:
+ * no chooser stands between a person and the form they came for.
  */
 type PublicView =
   | { kind: 'entry' }
-  | { kind: 'chooser'; intent: 'create-account' | 'sign-in' }
-  | { kind: 'login' }
+  | { kind: 'login'; intro?: string }
   | { kind: 'organization-login' }
   | { kind: 'register' }
+  | { kind: 'join-class' }
   | { kind: 'next-stage'; title: string; explanation: string };
-
-const CLASS_CODE_STAGE = {
-  title: 'Вход по коду класса',
-  explanation:
-    'Код выдаёт педагог. Экран входа по коду появится на следующем этапе — сейчас ученики работают в классе через педагога.',
-} as const;
 
 const STUDENT_ACCOUNT_STAGE = {
   title: 'Ученический аккаунт — следующий этап',
   explanation:
-    'Собственный аккаунт ученика с согласием родителя готовится. Пока в класс заходят по коду, который выдаёт педагог.',
+    'Постоянный аккаунт ученика с Safe Mode и подтверждением родителя или педагога готовится. Пока в класс заходят по коду и имени, которые выдаёт педагог.',
 } as const;
+
+function seatStage(preview: ClassroomPreview): { title: string; explanation: string } {
+  return {
+    title: 'Вход по имени от педагога',
+    explanation: `Класс «${preview.title}» найден. Вход по выданному педагогом имени появится вместе с ученическими местами; пока в класс заходят через педагога.`,
+  };
+}
 
 type View =
   | { kind: 'my-projects' }
@@ -169,36 +172,24 @@ export function App(): JSX.Element {
       return (
         <PublicEntryPage
           onChoose={(intent: PublicIntent) => {
-            if (intent === 'join-class') {
-              setPublicView({ kind: 'next-stage', ...CLASS_CODE_STAGE });
-              return;
-            }
-            setPublicView({ kind: 'chooser', intent });
+            if (intent === 'sign-up') setPublicView({ kind: 'register' });
+            else if (intent === 'class-code') setPublicView({ kind: 'join-class' });
+            else setPublicView({ kind: 'login' });
           }}
         />
       );
     }
-    if (publicView.kind === 'chooser') {
-      const intent = publicView.intent;
+    if (publicView.kind === 'join-class') {
       return (
-        <ContextChooserPage
-          intent={intent}
+        <JoinClassPage
           onBack={() => setPublicView({ kind: 'entry' })}
-          onChoose={(context: EntryContext) => {
-            if (context === 'school-class-code') {
-              setPublicView({ kind: 'next-stage', ...CLASS_CODE_STAGE });
-              return;
-            }
-            if (context === 'school-registered-student') {
-              setPublicView(
-                intent === 'create-account'
-                  ? { kind: 'next-stage', ...STUDENT_ACCOUNT_STAGE }
-                  : { kind: 'login' },
-              );
-              return;
-            }
-            setPublicView(intent === 'create-account' ? { kind: 'register' } : { kind: 'login' });
-          }}
+          onAccountPath={(preview) =>
+            setPublicView({
+              kind: 'login',
+              intro: `После входа вы сможете присоединиться к классу «${preview.title}».`,
+            })
+          }
+          onHandlePath={(preview) => setPublicView({ kind: 'next-stage', ...seatStage(preview) })}
         />
       );
     }
@@ -218,8 +209,9 @@ export function App(): JSX.Element {
             setView({ kind: 'my-projects' });
             void checkSession();
           }}
+          onBack={() => setPublicView({ kind: 'entry' })}
           onBackToLogin={() => setPublicView({ kind: 'login' })}
-          onClassCode={() => setPublicView({ kind: 'next-stage', ...CLASS_CODE_STAGE })}
+          onClassCode={() => setPublicView({ kind: 'join-class' })}
           onStudentNextStage={() => setPublicView({ kind: 'next-stage', ...STUDENT_ACCOUNT_STAGE })}
         />
       );
@@ -238,8 +230,10 @@ export function App(): JSX.Element {
       <LoginPage
         onSignedIn={signedIn}
         onCreateAccount={() => setPublicView({ kind: 'register' })}
+        onClassCode={() => setPublicView({ kind: 'join-class' })}
         onOrganizationLogin={() => setPublicView({ kind: 'organization-login' })}
         onBack={() => setPublicView({ kind: 'entry' })}
+        {...(publicView.intro === undefined ? {} : { intro: publicView.intro })}
       />
     );
   }

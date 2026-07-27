@@ -26,6 +26,13 @@ export interface SessionPayload {
   workspaces: WorkspaceRef[];
 }
 
+/** What a visitor sees about a class before identifying themselves. */
+export interface ClassroomPreview {
+  id: string;
+  title: string;
+  educatorDisplayName: string;
+}
+
 export interface Classroom {
   id: string;
   title: string;
@@ -172,11 +179,11 @@ export interface CreateProjectOptions {
 
 export const api = {
   me: () => call<SessionPayload>('/api/auth/me'),
-  /** Personal sign-in: email and password only, no organization code. */
-  login: (email: string, password: string) =>
+  /** The one sign-in: an email address or a username, plus a password. */
+  login: (identifier: string, password: string) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     }),
   /** Legacy path kept for accounts that still sign in through an organization. */
   loginWithWorkspace: (workspace: string, email: string, password: string) =>
@@ -201,6 +208,12 @@ export const api = {
       body: JSON.stringify(input),
     }),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  /** Resolves a class code into a preview; creates nothing. */
+  resolveClassCode: (code: string) =>
+    call<{ classroom: ClassroomPreview }>('/api/join-class/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
   listProjects: (options: ProjectListOptions = {}) => {
