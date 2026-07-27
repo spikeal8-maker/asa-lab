@@ -30,6 +30,25 @@ export interface SaveDraftInput {
   readonly document: unknown;
 }
 
+export type ProjectDocumentValidation =
+  | { readonly ok: true; readonly document: unknown }
+  | { readonly ok: false; readonly message: string };
+
+/** Subject-neutral contract consumed by Project Core. */
+export interface ProjectModule {
+  readonly moduleKey: string;
+  validateDocument(value: unknown): ProjectDocumentValidation;
+}
+
+export interface CreatableProjectModule extends ProjectModule {
+  createEmptyProject(): unknown;
+}
+
+export interface ModuleCatalogPort {
+  get(moduleKey: string): ProjectModule | null;
+  getCreatable(moduleKey: string): CreatableProjectModule | null;
+}
+
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
   listForTeacher(

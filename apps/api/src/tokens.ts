@@ -1,6 +1,7 @@
 /** Injection tokens for the composition root. */
 export const TOKENS = {
   pool: 'PG_POOL',
+  moduleRegistry: 'MODULE_REGISTRY',
   loginUseCase: 'LOGIN_USECASE',
   sessionUseCase: 'SESSION_USECASE',
   teachingContextUseCase: 'TEACHING_CONTEXT_USECASE',

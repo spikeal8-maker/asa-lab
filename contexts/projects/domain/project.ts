@@ -37,12 +37,6 @@ export function isValidProjectTitle(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length >= 1 && value.trim().length <= 255;
 }
 
-/** Only the electronics module is executable in this slice. Other module cards
- * may be shown as planned, but the API must not create a fake unsupported project. */
-export function isSupportedModuleKey(value: unknown): value is 'electronics' {
-  return value === 'electronics';
-}
-
 export function isValidCheckpointLabel(value: unknown): value is string | undefined {
   return value === undefined || (typeof value === 'string' && value.trim().length <= 255);
 }

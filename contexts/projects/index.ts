@@ -1,6 +1,5 @@
 export {
   isProjectScope,
-  isSupportedModuleKey,
   isValidCheckpointLabel,
   isValidProjectTitle,
   type Project,
@@ -9,9 +8,13 @@ export {
   type ProjectVersion,
 } from './domain/project.js';
 export type {
+  CreatableProjectModule,
   CreateProjectInput,
   CreateProjectResult,
+  ModuleCatalogPort,
+  ProjectDocumentValidation,
   ProjectListFilter,
+  ProjectModule,
   ProjectRepositoryPort,
   SaveDraftInput,
 } from './application/ports.js';
@@ -23,7 +26,6 @@ export {
   RenameProjectUseCase,
   SaveDraftUseCase,
   projectRequestFingerprint,
-  type DocumentValidator,
   type ProjectErrorCode,
   type UseCaseResult,
 } from './application/project.usecases.js';

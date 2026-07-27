@@ -27,6 +27,23 @@ export interface Project {
   createdAt: string;
 }
 
+export interface ModuleSummary {
+  moduleKey: string;
+  moduleVersion: string;
+  displayName: string;
+  shortDescription: string;
+  projectType: string;
+  schemaVersion: number;
+  editorRoute: string;
+  viewerRoute: string;
+  safeModeSupported: boolean;
+  availability: 'active' | 'coming_soon' | 'disabled';
+  previewKind: 'schematic' | 'board' | 'stage' | 'scene' | 'drawing' | 'summary';
+  iconKey: string;
+  categories: string[];
+  creatable: boolean;
+}
+
 export interface ProjectDraft {
   projectId: string;
   document: SchematicDocument;
@@ -111,7 +128,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
   } catch {
     body = null;
   }
-  if (response.ok) return { ok: true, status: response.status, data: body as T };
+  if (response.ok) {
+    return { ok: true, status: response.status, data: body as T };
+  }
   const error =
     (body as { error?: ApiError } | null)?.error ??
     ({ code: 'server_error', message: 'ошибка сервера' } satisfies ApiError);
@@ -127,7 +146,7 @@ export interface CreateProjectOptions {
   scope: ProjectScope;
   classroomId?: string | null | undefined;
   title: string;
-  module: 'electronics';
+  module: string;
   idempotencyKey: string;
 }
 
@@ -139,6 +158,7 @@ export const api = {
       body: JSON.stringify({ workspace, email, password }),
     }),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
   listProjects: (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();

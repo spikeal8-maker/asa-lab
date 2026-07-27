@@ -17,3 +17,4 @@ export {
   type DiagnosticSeverity,
   type SolveResult,
 } from './domain/solver.js';
+export { ELECTRONICS_MODULE } from './module.js';

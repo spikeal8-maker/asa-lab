@@ -13,7 +13,6 @@ import {
 import { snap, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
-/** Bounding box of a placed component in stage coordinates. */
 function boxOf(component: SchematicComponent): {
   x: number;
   y: number;
@@ -41,8 +40,8 @@ function overlaps(
 
 /**
  * Find a free spot near the requested centre. Dropping every new part on the
- * exact centre would stack them on top of each other, hiding the artwork and
- * making the top one swallow every drag.
+ * exact centre stacks them on one point, hides the artwork and lets the topmost
+ * element swallow every drag.
  */
 function freePosition(
   document: SchematicDocument,
@@ -62,9 +61,7 @@ function freePosition(
         y: snap(start.y + ring * step),
       };
       const box = { ...candidate, ...size };
-      if (!taken.some((other) => overlaps(box, other, gap))) {
-        return candidate;
-      }
+      if (!taken.some((other) => overlaps(box, other, gap))) return candidate;
     }
   }
   return { x: snap(start.x), y: snap(start.y) };

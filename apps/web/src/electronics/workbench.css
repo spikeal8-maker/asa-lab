@@ -181,7 +181,7 @@
 .workbench-tool:hover:not(:disabled),
 .workbench-tool.active {
   background: #eef4f7;
-  color: #0f6f9c;
+  color: #167da9;
 }
 .workbench-tool.danger:hover:not(:disabled) {
   color: #b63c35;
@@ -222,7 +222,7 @@
 .workbench-wire-color svg {
   width: 15px;
   margin-left: 8px;
-  color: #55606d;
+  color: #657783;
 }
 .workbench-pill {
   display: inline-flex;
@@ -300,7 +300,7 @@
 }
 .workbench-selection-box {
   fill: rgba(20, 148, 201, 0.04);
-  stroke: #0f6f9c;
+  stroke: #1596ce;
   stroke-width: 2.2;
   stroke-dasharray: 7 5;
   filter: url(#asa-selection-shadow);
@@ -322,7 +322,7 @@
 }
 .workbench-terminal:hover .workbench-terminal-dot,
 .workbench-terminal.pending .workbench-terminal-dot {
-  fill: #0f6f9c;
+  fill: #1596ce;
   stroke: #fff;
   stroke-width: 2.5;
 }
@@ -386,7 +386,7 @@
   justify-items: center;
   max-width: 420px;
   text-align: center;
-  color: #55606d;
+  color: #657784;
   pointer-events: none;
 }
 .workbench-empty-stage svg {
@@ -436,7 +436,7 @@
 .workbench-stage-controls span {
   padding: 7px 5px;
   font-size: 10px;
-  color: #55606d;
+  color: #667782;
 }
 .workbench-stage-status {
   position: absolute;
@@ -448,7 +448,7 @@
   padding: 6px 10px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.9);
-  color: #55606d;
+  color: #61717c;
   font-size: 11px;
 }
 .simulation-dot {
@@ -522,7 +522,7 @@
 }
 .workbench-library-heading span {
   font-size: 10px;
-  color: #55606d;
+  color: #60717d;
 }
 .workbench-library-heading select {
   width: 100%;

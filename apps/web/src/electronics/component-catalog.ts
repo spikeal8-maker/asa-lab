@@ -165,9 +165,6 @@ function future(options: {
   };
 }
 
-// Future parts intentionally carry no asset path: their artwork is not part of
-// this slice, so the catalogue renders the built-in vector preview instead of
-// pointing at a file that does not exist.
 const FUTURE: CatalogEntry[] = [
   future({
     key: 'button',
@@ -175,6 +172,8 @@ const FUTURE: CatalogEntry[] = [
     category: 'inputs',
     preview: 'button',
     description: 'Авторская кнопка с отпущенным и нажатым SVG-состоянием.',
+    asset: 'button-up.svg',
+    stateAssets: { default: 'button-up.svg', pressed: 'button-down.svg' },
   }),
   future({
     key: 'potentiometer',
@@ -182,6 +181,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'inputs',
     preview: 'potentiometer',
     description: 'Регулируемое сопротивление.',
+    asset: 'potentiometer.svg',
   }),
   future({
     key: 'capacitor',
@@ -189,6 +189,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'basic',
     preview: 'capacitor',
     description: 'Накопление заряда и временные процессы.',
+    asset: 'capacitor.svg',
   }),
   future({
     key: 'slide-switch',
@@ -196,6 +197,8 @@ const FUTURE: CatalogEntry[] = [
     category: 'inputs',
     preview: 'slide-switch',
     description: 'Авторский переключатель с двумя SVG-положениями.',
+    asset: 'switch-left.svg',
+    stateAssets: { default: 'switch-left.svg', on: 'switch-right.svg' },
   }),
   future({
     key: 'battery-9v',
@@ -203,6 +206,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'power',
     preview: 'battery-9v',
     description: 'Источник постоянного напряжения 9 В.',
+    asset: 'battery-9v.svg',
   }),
   future({
     key: 'coin-cell',
@@ -218,6 +222,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'power',
     preview: 'battery-aa',
     description: 'Один элемент AA из авторского набора.',
+    asset: 'battery-aa.svg',
   }),
   future({
     key: 'adjustable-source',
@@ -263,6 +268,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'outputs',
     preview: 'motor',
     description: 'Простой электродвигатель.',
+    asset: 'motor.svg',
   }),
   future({
     key: 'buzzer',
@@ -270,6 +276,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'outputs',
     preview: 'motor',
     description: 'Звуковой излучатель.',
+    asset: 'buzzer.svg',
   }),
   future({
     key: 'lamp',
@@ -277,6 +284,8 @@ const FUTURE: CatalogEntry[] = [
     category: 'outputs',
     preview: 'led',
     description: 'Авторская лампа с выключенным и светящимся SVG-состоянием.',
+    asset: 'lamp-off.svg',
+    stateAssets: { default: 'lamp-off.svg', on: 'lamp-on.svg' },
   }),
   future({
     key: 'transistor',
@@ -284,6 +293,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'basic',
     preview: 'transistor',
     description: 'Ключ и усилитель.',
+    asset: 'transistor.svg',
   }),
   future({
     key: 'rgb-led',
@@ -291,6 +301,8 @@ const FUTURE: CatalogEntry[] = [
     category: 'outputs',
     preview: 'rgb-led',
     description: 'Авторский RGB-светодиод с отдельными SVG-состояниями.',
+    asset: 'rgb-led-off.svg',
+    stateAssets: { default: 'rgb-led-off.svg', lit: 'rgb-led-lit.svg' },
   }),
   future({
     key: 'diode',
@@ -298,6 +310,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'basic',
     preview: 'diode',
     description: 'Авторский диод; электрическая модель будет добавлена позже.',
+    asset: 'diode.svg',
   }),
   future({
     key: 'photoresistor',
@@ -305,6 +318,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'inputs',
     preview: 'photoresistor',
     description: 'Датчик освещённости.',
+    asset: 'photoresistor.svg',
   }),
   future({
     key: 'seven-segment',
@@ -312,6 +326,7 @@ const FUTURE: CatalogEntry[] = [
     category: 'outputs',
     preview: 'seven-segment',
     description: 'Авторский многоконтактный индикатор.',
+    asset: 'seven-segment.svg',
   }),
 ];
 

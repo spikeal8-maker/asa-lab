@@ -143,6 +143,9 @@ importers:
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
       '@asa-lab/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -195,7 +198,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
 
-  contexts/electronics: {}
+  contexts/electronics:
+    dependencies:
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
 
   contexts/identity: {}
 
@@ -212,6 +219,8 @@ importers:
         version: link:../../packages/database
 
   packages/database: {}
+
+  packages/module-sdk: {}
 
   packages/observability:
     dependencies:

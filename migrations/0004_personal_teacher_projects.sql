@@ -17,6 +17,6 @@ CREATE INDEX IF NOT EXISTS projects_teacher_personal_idx
 CREATE INDEX IF NOT EXISTS projects_teacher_scope_idx
   ON projects (tenant_id, created_by, project_scope, status, created_at DESC);
 
--- The workbench can rename a project, so the runtime role needs UPDATE on the
--- title column set; nothing else is opened up and RLS still applies.
+-- The workbench can rename a project, so the runtime role needs UPDATE;
+-- nothing else is opened up and RLS still applies.
 GRANT UPDATE ON projects TO asalab_app;

@@ -4,9 +4,10 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
-import { SchematicEditor } from './pages/SchematicEditor';
 import { PortalHeader, type PortalSection } from './components/PortalHeader';
+import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import './electronics/portal.css';
+import './modules/project-hub.css';
 
 type SessionState =
   | { kind: 'checking' }
@@ -106,12 +107,13 @@ export function App(): JSX.Element {
     void checkSession();
   }, [checkSession]);
 
-  if (session.kind === 'checking')
+  if (session.kind === 'checking') {
     return (
       <div className="page-center" role="status" aria-live="polite">
         Загрузка…
       </div>
     );
+  }
   if (session.kind === 'error') {
     return (
       <main className="page-center">
@@ -138,7 +140,7 @@ export function App(): JSX.Element {
 
   if (view.kind === 'editor') {
     return (
-      <SchematicEditor
+      <ModuleEditorHost
         projectId={view.projectId}
         onBack={() => setView(view.returnTo)}
         user={session.user}

@@ -57,7 +57,7 @@
 }
 .portal-brand-mark span:nth-child(4),
 .workbench-brand-grid span:nth-child(4) {
-  background: #0f6f9c;
+  background: #158fc6;
   font-size: 5px;
 }
 .portal-nav {
@@ -154,12 +154,12 @@
 .portal-hero p {
   max-width: 670px;
   margin: 9px 0 0;
-  color: #55606d;
+  color: #637383;
   font-size: 16px;
   line-height: 1.55;
 }
 .portal-eyebrow {
-  color: #0f6f9c !important;
+  color: #1681b8 !important;
   font-size: 12px !important;
   font-weight: 800;
   letter-spacing: 0.09em;
@@ -174,13 +174,13 @@
   padding: 0 19px;
   border: 0;
   border-radius: 7px;
-  background: #0f6f9c;
+  background: #168fc8;
   color: #fff;
   font-weight: 750;
   box-shadow: 0 5px 14px rgba(22, 143, 200, 0.18);
 }
 .portal-create-button:hover {
-  background: #0b5a80;
+  background: #107bac;
 }
 .portal-create-button svg {
   width: 18px;
@@ -493,18 +493,5 @@
   }
   .classroom-gallery-card .btn-secondary {
     grid-column: 1/-1;
-  }
-}
-
-/* The disabled "coming soon" nav item pushes the header past a phone viewport;
-   the two real destinations stay reachable. */
-@media (max-width: 640px) {
-  .portal-nav-item.disabled {
-    display: none;
-  }
-
-  .portal-nav {
-    flex-wrap: wrap;
-    min-width: 0;
   }
 }

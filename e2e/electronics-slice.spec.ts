@@ -24,13 +24,7 @@ async function createPersonalProject(page: Page, title: string): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
   await page.getByLabel('Название проекта').fill(title);
   await expect(page.getByText('Электроника', { exact: true })).toBeVisible();
-  // Future environments are visible in the dialog but cannot be chosen yet.
-  await expect(page.getByText('Блочное программирование', { exact: true })).toBeVisible();
-  // The page keeps its own "Создать проект" button, so submit inside the dialog.
-  await page
-    .getByLabel('Что вы хотите создать?')
-    .getByRole('button', { name: 'Создать проект' })
-    .click();
+  await page.getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByLabel('Название проекта')).toHaveValue(title);
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
 }
@@ -50,9 +44,7 @@ async function moveComponent(
 ): Promise<{ beforeX: number; afterX: number }> {
   const target = page.locator(`[data-testid="schematic-component"][data-kind="${kind}"]`).first();
   const beforeX = Number(await target.getAttribute('data-x'));
-  // Drag the interactive part itself: the outer group also spans the selection
-  // frame, so its centre is not guaranteed to sit on the draggable artwork.
-  const box = await target.locator('.workbench-part').boundingBox();
+  const box = await target.boundingBox();
   if (!box) throw new Error(`component ${kind} has no bounding box`);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -81,6 +73,7 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 
   await expect(page.getByLabel('Библиотека компонентов')).toBeVisible();
   await expect(page.getByPlaceholder('Поиск')).toBeVisible();
+  await expect(page.getByText('Блочное программирование', { exact: true })).toBeVisible();
 
   await addComponent(page, 'Батарейный отсек');
   await addComponent(page, 'Резистор');
