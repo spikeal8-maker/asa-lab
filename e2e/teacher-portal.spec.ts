@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { signInThroughOrganization } from './entry';
 
 /** TST-E2E-PORTAL-001: real browser flow —
  * login → empty state → create classroom → card visible → reload → card
@@ -9,9 +10,6 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
-
-const organizationCodeField = 'Код организации';
-const teacherEmailField = 'Email педагога';
 
 test.beforeAll(async () => {
   admin = e2eAdminPool();
@@ -23,15 +21,7 @@ test.afterAll(async () => {
 });
 
 test('teacher logs in, creates a classroom and it survives reload', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
-
-  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
-  await page.getByLabel(teacherEmailField).fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await signInThroughOrganization(page, teacher);
 
   // Classes live in their own section of the project-first workbench.
   await page.getByRole('button', { name: 'Классы' }).click();
@@ -63,5 +53,5 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.setViewportSize({ width: 1280, height: 800 });
 
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
+  await expect(page.getByTestId('entry-sign-in')).toBeVisible();
 });

@@ -47,6 +47,54 @@ export interface SeededTeacher {
 
 let n = 0;
 
+/**
+ * The identity every existing teacher has after the migration backfill.
+ *
+ * A fixture seeded by hand skips that backfill, so it does it here: without an
+ * account, a principal and the bridge between them, a teacher session has no
+ * ActiveContext — exactly as it would in a database the migration never ran on.
+ */
+async function linkTeacherAccount(
+  admin: pg.Pool,
+  teacher: { tenantId: string; teacherId: string; email: string; password: string; label: string },
+): Promise<void> {
+  const account = await admin.query(
+    `INSERT INTO accounts (email, password_hash, birth_date, country)
+     VALUES ($1, $2, DATE '1990-01-01', 'RU') RETURNING id`,
+    [teacher.email, hashPassword(teacher.password)],
+  );
+  const accountId = account.rows[0].id as string;
+  await admin.query(
+    `INSERT INTO profiles (account_id, username, display_name) VALUES ($1, $2, $3)`,
+    [accountId, `edu-${accountId.replace(/-/g, '').slice(0, 12)}`, `Педагог ${teacher.label}`],
+  );
+  const principal = await admin.query(
+    `INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id`,
+    [accountId],
+  );
+  await admin.query(
+    `INSERT INTO capability_grants (account_id, capability, state, policy_version)
+     VALUES ($1, 'creator', 'verified', 'asa-lab-2026-07'),
+            ($1, 'educator', 'verified', 'asa-lab-2026-07')`,
+    [accountId],
+  );
+  const workspace = await admin.query(
+    `INSERT INTO workspaces (tenant_id, kind, title) VALUES ($1, 'organization', $2)
+     ON CONFLICT (tenant_id) DO UPDATE SET title = EXCLUDED.title RETURNING id`,
+    [teacher.tenantId, `Школа ${teacher.label}`],
+  );
+  await admin.query(
+    `INSERT INTO workspace_memberships (account_id, workspace_id, role)
+     VALUES ($1, $2, 'educator') ON CONFLICT (account_id, workspace_id) DO NOTHING`,
+    [accountId, workspace.rows[0].id],
+  );
+  await admin.query(
+    `INSERT INTO legacy_user_account_links (tenant_id, user_id, account_id, principal_id)
+     VALUES ($1, $2, $3, $4)`,
+    [teacher.tenantId, teacher.teacherId, accountId, principal.rows[0].id],
+  );
+}
+
 export async function seedTeacher(
   admin: pg.Pool,
   label: string,
@@ -84,12 +132,14 @@ export async function seedTeacher(
      VALUES ($1, $2, 'teacher', $3, $4, $5) RETURNING id`,
     [tenantId, withSchool ? schoolId : null, email, `Педагог ${label}`, hashPassword(password)],
   );
+  const teacherId = teacher.rows[0].id as string;
+  await linkTeacherAccount(admin, { tenantId, teacherId, email, password, label });
   return {
     tenantId,
     workspace,
     schoolId,
     periodId: period.rows[0].id as string,
-    teacherId: teacher.rows[0].id as string,
+    teacherId,
     email,
     password,
   };

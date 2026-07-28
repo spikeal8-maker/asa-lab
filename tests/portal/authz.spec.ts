@@ -38,13 +38,27 @@ afterAll(async () => {
 describe('authentication negatives', () => {
   it('anonymous requests are rejected with 401', async () => {
     for (const [method, url] of [
-      ['GET', '/api/auth/me'],
       ['GET', '/api/classrooms'],
       ['POST', '/api/classrooms'],
     ] as const) {
       const response = await inject(app, { method, url });
       expect(response.statusCode).toBe(401);
     }
+  });
+
+  it('answers "nobody is signed in" without a cookie, and 401 for a bad one', async () => {
+    // A visitor who presents no credential has not failed at anything; a
+    // credential that no longer resolves has.
+    const anonymous = await inject(app, { method: 'GET', url: '/api/auth/me' });
+    expect(anonymous.statusCode).toBe(200);
+    expect(anonymous.json()).toEqual({ authenticated: false });
+
+    const stale = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: 'no-such-token' },
+    });
+    expect(stale.statusCode).toBe(401);
   });
 
   it('a revoked session stops working immediately', async () => {

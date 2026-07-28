@@ -108,7 +108,9 @@ export function MyProjectsPage({
     <main className="portal-content project-hub" id="main-content" tabIndex={-1}>
       <section className="portal-hero">
         <div>
-          <p className="portal-eyebrow">Личная мастерская педагога</p>
+          {/* An account is not a teacher by default, so the workshop is
+              simply personal. */}
+          <p className="portal-eyebrow">Личная мастерская</p>
           <h1>Мои проекты</h1>
           <p>
             Создавайте демонстрации во всех доступных средах, сохраняйте версии и готовьте будущие

@@ -334,6 +334,28 @@ tests:
     owner: identity-and-classroom
     artifacts: [junit, api-report]
 
+  - id: TST-ACCOUNT-VERTICAL-001
+    title: Account registration session personal workspace and project ownership
+    suite: integration
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm test:account-vertical
+    timeout_seconds: 900
+    owner: identity-and-classroom
+    artifacts: [junit, api-report]
+
+  - id: TST-E2E-ACCOUNT-VERTICAL-001
+    title: Sign up sign in create project and find it again in the browser
+    suite: e2e
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm e2e:account-vertical
+    timeout_seconds: 1500
+    owner: experience-and-classroom
+    artifacts: [playwright-report, screenshots]
+
   - id: TST-E2E-PORTAL-001
     title: Teacher login classroom reload and logout
     suite: e2e

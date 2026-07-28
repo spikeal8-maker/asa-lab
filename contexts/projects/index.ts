@@ -8,6 +8,7 @@ export {
   type ProjectVersion,
 } from './domain/project.js';
 export type {
+  ProjectActor,
   CreatableProjectModule,
   CreateProjectInput,
   CreateProjectResult,

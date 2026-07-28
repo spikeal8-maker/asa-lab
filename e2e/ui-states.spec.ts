@@ -1,20 +1,13 @@
 import { test, expect } from '@playwright/test';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { signInThroughOrganization } from './entry';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
-const organizationCodeField = 'Код организации';
-const teacherEmailField = 'Email педагога';
-
 async function login(page: import('@playwright/test').Page): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
-  await page.getByLabel(teacherEmailField).fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await signInThroughOrganization(page, teacher);
 }
 
 test.beforeAll(async () => {
@@ -46,7 +39,7 @@ test('session-check failure is explicit and can be retried', async ({ page }) =>
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('Не удалось проверить активную сессию');
   await page.getByRole('button', { name: 'Повторить' }).click();
-  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
+  await expect(page.getByTestId('entry-sign-in')).toBeVisible();
 });
 
 test('create dialog exposes validation and idempotency conflict states', async ({ page }) => {

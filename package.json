@@ -35,6 +35,8 @@
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
     "test:authz": "vitest run tests/portal/authz.spec.ts",
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
+    "test:account-vertical": "vitest run tests/portal/account-vertical.spec.ts",
+    "e2e:account-vertical": "playwright test e2e/account-vertical.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
     "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",
     "test:visual-system": "node tools/validate-visual-system.mjs",

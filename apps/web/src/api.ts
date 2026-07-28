@@ -3,9 +3,32 @@
 
 export interface PublicUser {
   id: string;
-  role: string;
   displayName: string;
   email: string;
+}
+
+export interface CapabilityRef {
+  capability: string;
+  state: string;
+}
+
+export interface WorkspaceRef {
+  workspaceId: string;
+  kind: string;
+  title: string;
+  role: string;
+}
+
+/**
+ * What the server says about the current session. Capabilities and workspaces
+ * are the server's answer; the client never states a role.
+ */
+export interface SessionPayload {
+  authenticated: true;
+  user: PublicUser;
+  capabilities: CapabilityRef[];
+  workspaces: WorkspaceRef[];
+  activeWorkspace: { workspaceId: string; kind: string };
 }
 
 export interface Classroom {
@@ -106,6 +129,8 @@ export interface SolveResult {
 export interface ApiError {
   code: string;
   message: string;
+  /** Routes the server offers instead of a dead end (see age routing). */
+  routes?: string[];
 }
 
 export type ApiResult<T> =
@@ -151,12 +176,36 @@ export interface CreateProjectOptions {
 }
 
 export const api = {
-  me: () => call<{ user: PublicUser }>('/api/auth/me'),
-  login: (workspace: string, email: string, password: string) =>
-    call<{ user: PublicUser }>('/api/auth/login', {
+  me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
+  /** The one sign-in: an email address or a username, and a password. */
+  login: (identifier: string, password: string) =>
+    call<SessionPayload>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier, password }),
+    }),
+  /** Legacy path for schools onboarded before accounts existed. */
+  loginWithWorkspace: (workspace: string, email: string, password: string) =>
+    call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ workspace, email, password }),
     }),
+  /** Registration signs the new account in; the answer is a session. */
+  register: (input: {
+    email: string;
+    password: string;
+    username: string;
+    displayName: string;
+    birthDate: string;
+    country: string;
+  }) =>
+    call<SessionPayload>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  usernameAvailable: (username: string) =>
+    call<{ available: boolean }>(
+      `/api/auth/username-available?username=${encodeURIComponent(username)}`,
+    ),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),

@@ -2,20 +2,13 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { signInThroughOrganization } from './entry';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
-const organizationCodeField = 'Код организации';
-const teacherEmailField = 'Email педагога';
-
 async function login(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
-  await page.getByLabel(teacherEmailField).fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await signInThroughOrganization(page, teacher);
 }
 
 async function expectNoWcagViolations(page: Page): Promise<void> {
@@ -106,10 +99,8 @@ test('critical controls have names and reduced motion disables skeleton animatio
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
-  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
-  await expect(page.getByLabel(teacherEmailField)).toBeVisible();
-  await expect(page.getByLabel('Пароль')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Войти' })).toBeVisible();
+  await expect(page.getByTestId('entry-sign-in')).toBeVisible();
+  await expect(page.getByTestId('entry-sign-up')).toBeVisible();
 
   const animationName = await page.evaluate(() => {
     const probe = document.createElement('div');

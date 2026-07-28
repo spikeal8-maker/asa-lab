@@ -38,10 +38,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
+  /api/auth/register:
+    post:
+      operationId: postAuthRegister
+      summary: Adult self-registration; creates the account and signs it in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionEnvelope'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email or username already taken; nothing was written
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Below the adult age; the answer names the routes to take instead
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutedErrorResponse'
+  /api/auth/username-available:
+    get:
+      operationId: getAuthUsernameAvailable
+      summary: Is this username free (usernames are never derived from the email)
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability answer
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [available]
+                properties:
+                  available:
+                    type: boolean
   /api/auth/login:
     post:
       operationId: postAuthLogin
-      summary: Teacher login (sets an HttpOnly SameSite session cookie)
+      summary: Sign in by email or username; workspace is the legacy organization path
       requestBody:
         required: true
         content:
@@ -54,7 +111,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserEnvelope'
+                $ref: '#/components/schemas/SessionEnvelope'
         '400':
           description: Validation error
           content:
@@ -89,11 +146,15 @@ paths:
       summary: Current session user
       responses:
         '200':
-          description: Active session
+          description: >-
+            The current session, or authenticated=false when the visitor
+            presented no cookie at all.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserEnvelope'
+                oneOf:
+                  - $ref: '#/components/schemas/SessionEnvelope'
+                  - $ref: '#/components/schemas/AnonymousEnvelope'
         '401':
           description: No active session
           content:
@@ -219,8 +280,14 @@ components:
     LoginRequest:
       type: object
       additionalProperties: false
-      required: [workspace, email, password]
+      required: [password]
+      description: >-
+        The universal sign-in sends identifier — an email address or a
+        username. workspace and email belong to the legacy organization form.
       properties:
+        identifier:
+          type: string
+          minLength: 1
         workspace:
           type: string
           description: Tenant locator (slug); used only during authentication.
@@ -232,26 +299,121 @@ components:
         password:
           type: string
           minLength: 1
-    UserEnvelope:
+    RegisterRequest:
       type: object
       additionalProperties: false
-      required: [user]
+      required: [email, password, username, birthDate, country]
       properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 10
+        username:
+          type: string
+          description: Pseudonym chosen by the account holder; never derived from the email.
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+          description: Optional; a real first or last name is never required.
+          maxLength: 255
+        birthDate:
+          type: string
+          format: date
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+    RoutedErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, routes]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            routes:
+              type: array
+              items:
+                type: string
+                enum: [class_code, student_account_next_stage]
+    AnonymousEnvelope:
+      type: object
+      additionalProperties: false
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+    SessionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [authenticated, user, capabilities, workspaces, activeWorkspace]
+      properties:
+        authenticated:
+          type: boolean
         user:
           type: object
           additionalProperties: false
-          required: [id, role, displayName, email]
+          required: [id, displayName, email]
           properties:
             id:
               type: string
               format: uuid
-            role:
-              type: string
-              enum: [teacher]
             displayName:
               type: string
             email:
               type: string
+        capabilities:
+          type: array
+          description: Granted by the server only; the client never states a role.
+          items:
+            type: object
+            additionalProperties: false
+            required: [capability, state]
+            properties:
+              capability:
+                type: string
+                enum: [creator, educator, registered_student, guardian, platform_admin]
+              state:
+                type: string
+                enum: [provisional, verified, suspended, revoked]
+        workspaces:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [workspaceId, kind, title, role]
+            properties:
+              workspaceId:
+                type: string
+                format: uuid
+              kind:
+                type: string
+                enum: [personal, organization]
+              title:
+                type: string
+              role:
+                type: string
+                enum: [owner, member, educator, school_admin, billing_admin, moderator]
+        activeWorkspace:
+          type: object
+          additionalProperties: false
+          required: [workspaceId, kind]
+          properties:
+            workspaceId:
+              type: string
+              format: uuid
+            kind:
+              type: string
+              enum: [personal, organization]
     CreateClassroomRequest:
       type: object
       additionalProperties: false

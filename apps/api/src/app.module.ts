@@ -2,7 +2,12 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import type pg from 'pg';
 import {
   LoginUseCase,
+  AccountLoginUseCase,
+  ActiveContextUseCase,
+  PgAccountDirectory,
   PgSessionStore,
+  PgSessionV2Store,
+  RegisterAccountUseCase,
   PgTenantLocator,
   PgUserDirectory,
   SessionUseCase,
@@ -121,6 +126,31 @@ export class AppModule {
         {
           provide: TOKENS.sessionUseCase,
           useFactory: () => new SessionUseCase(new PgSessionStore(requirePool())),
+        },
+        {
+          provide: TOKENS.accountDirectory,
+          useFactory: () => new PgAccountDirectory(requirePool()),
+        },
+        {
+          provide: TOKENS.activeContextUseCase,
+          useFactory: () =>
+            new ActiveContextUseCase(
+              new PgSessionV2Store(requirePool()),
+              new PgSessionStore(requirePool()),
+              new PgAccountDirectory(requirePool()),
+            ),
+        },
+        {
+          provide: TOKENS.registerAccountUseCase,
+          useFactory: () => new RegisterAccountUseCase(new PgAccountDirectory(requirePool())),
+        },
+        {
+          provide: TOKENS.accountLoginUseCase,
+          useFactory: () =>
+            new AccountLoginUseCase(
+              new PgAccountDirectory(requirePool()),
+              new PgSessionV2Store(requirePool()),
+            ),
         },
         {
           provide: TOKENS.teachingContextUseCase,
