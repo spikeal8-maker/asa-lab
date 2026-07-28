@@ -77,11 +77,37 @@ if (!process.env.APP_DATABASE_URL) {
   process.env.APP_DATABASE_URL = resolveLocalDatabaseUrl();
 }
 
-// Class-code digests need a server-side pepper; it is created locally on first
-// use and, like the database password, never printed.
+/**
+ * Class-code digests need a server-side pepper. It is created locally on first
+ * use and, like the database password, never printed.
+ *
+ * If the secret is gone while codes still exist, a fresh one is NOT generated:
+ * every stored digest was computed with the old key, so a new secret would
+ * quietly turn every class code a teacher already handed out into "not found".
+ * The demo says so instead and leaves the choice — restore the secret, or
+ * revoke and re-issue the codes — to a person.
+ */
 if (!process.env.ASA_JOIN_CODE_PEPPER) {
-  const { resolveJoinCodePepper } = await import('./local-secrets.mjs');
-  process.env.ASA_JOIN_CODE_PEPPER = resolveJoinCodePepper();
+  const { joinCodePepperExists, resolveJoinCodePepper } = await import('./local-secrets.mjs');
+  let activeCodes = 0;
+  if (!joinCodePepperExists()) {
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool({ connectionString: process.env.APP_DATABASE_URL, max: 1 });
+    try {
+      const result = await pool.query(`SELECT classroom_active_join_code_count() AS n`);
+      activeCodes = result.rows[0]?.n ?? 0;
+    } catch {
+      // A database without the class-code layer yet has no codes to protect.
+      activeCodes = 0;
+    } finally {
+      await pool.end();
+    }
+  }
+  try {
+    process.env.ASA_JOIN_CODE_PEPPER = resolveJoinCodePepper({ create: activeCodes === 0 });
+  } catch (error) {
+    blocked(error instanceof Error ? error.message : String(error));
+  }
 }
 
 await import('./dev.mjs');
