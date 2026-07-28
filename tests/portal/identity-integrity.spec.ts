@@ -104,6 +104,14 @@ describe('normative capability and visibility sets', () => {
     await expect(
       admin.query(`UPDATE profiles SET visibility = 'unlisted' WHERE account_id = $1`, [accountId]),
     ).rejects.toMatchObject({ code: '23514' });
+
+    // The old column is kept as a deprecated bridge, not renamed in place.
+    const deprecated = await admin.query(
+      `SELECT col_description('profiles'::regclass,
+              (SELECT ordinal_position FROM information_schema.columns
+                WHERE table_name = 'profiles' AND column_name = 'privacy')) AS note`,
+    );
+    expect(deprecated.rows[0].note).toContain('Deprecated');
   });
 
   it('keeps workspace roles to the normative set', async () => {
@@ -137,12 +145,50 @@ describe('normative capability and visibility sets', () => {
 });
 
 describe('legacy execution identity', () => {
-  it('is a link table, not a column on membership', async () => {
+  it('is read from the link table, while the old column stays a deprecated bridge', async () => {
+    // The compatibility column is still there on purpose — removing it needs
+    // its own owner-approved destructive migration — but nothing reads it.
     const column = await admin.query(
       `SELECT column_name FROM information_schema.columns
         WHERE table_name = 'workspace_memberships' AND column_name = 'user_id'`,
     );
-    expect(column.rows).toHaveLength(0);
+    expect(column.rows).toHaveLength(1);
+
+    const comment = await admin.query(
+      `SELECT col_description('workspace_memberships'::regclass,
+              (SELECT ordinal_position FROM information_schema.columns
+                WHERE table_name = 'workspace_memberships' AND column_name = 'user_id')) AS note`,
+    );
+    expect(comment.rows[0].note).toContain('Deprecated');
+
+    // The resolver answers from the link table even when the deprecated column
+    // disagrees, so the bridge has one authority and not two.
+    const teacher = await seedTeacher(admin, 'link-authority');
+    const accountId = await newAccount('link-authority');
+    const principal = await admin.query(
+      `INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id`,
+      [accountId],
+    );
+    const workspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id, kind, title) VALUES ($1, 'organization', 'Тест')
+       ON CONFLICT (tenant_id) DO UPDATE SET title = EXCLUDED.title RETURNING id`,
+      [teacher.tenantId],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role, user_id)
+       VALUES ($1, $2, 'educator', NULL)`,
+      [accountId, workspace.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO legacy_user_account_links (tenant_id, user_id, account_id, principal_id)
+       VALUES ($1, $2, $3, $4)`,
+      [teacher.tenantId, teacher.teacherId, accountId, principal.rows[0].id],
+    );
+    const resolved = await admin.query(`SELECT account_id FROM auth_account_for_user($1, $2)`, [
+      teacher.tenantId,
+      teacher.teacherId,
+    ]);
+    expect(resolved.rows[0].account_id).toBe(accountId);
   });
 
   it('enforces composite tenant integrity on the linked user', async () => {

@@ -49,15 +49,30 @@ async function register(payload: Record<string, unknown>) {
   return inject(app, { method: 'POST', url: '/api/auth/register', payload });
 }
 
-/** Registration is flag-gated; the tests state which side of the flag they run on. */
+/**
+ * Registration is closed twice over: the feature flag, and the explicit
+ * acknowledgement that principal-aware sessions do not exist yet. These tests
+ * open both on purpose, to describe what a registration will create once the
+ * session foundation lands. TST-REGISTRATION-ATOMICITY-001 covers the closed
+ * state, which is what a demo and a deployment actually run.
+ */
 async function withRegistrationEnabled<T>(body: () => Promise<T>): Promise<T> {
-  const previous = process.env['ASA_PUBLIC_REGISTRATION'];
+  const previous = {
+    flag: process.env['ASA_PUBLIC_REGISTRATION'],
+    override: process.env['ASA_ALLOW_REGISTRATION_WITHOUT_SESSIONS_V2'],
+  };
   process.env['ASA_PUBLIC_REGISTRATION'] = 'on';
+  process.env['ASA_ALLOW_REGISTRATION_WITHOUT_SESSIONS_V2'] = 'on';
   try {
     return await body();
   } finally {
-    if (previous === undefined) delete process.env['ASA_PUBLIC_REGISTRATION'];
-    else process.env['ASA_PUBLIC_REGISTRATION'] = previous;
+    for (const [key, value] of [
+      ['ASA_PUBLIC_REGISTRATION', previous.flag],
+      ['ASA_ALLOW_REGISTRATION_WITHOUT_SESSIONS_V2', previous.override],
+    ] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 }
 

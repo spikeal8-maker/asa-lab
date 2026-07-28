@@ -367,6 +367,39 @@ tests:
     owner: identity-and-classroom
     artifacts: [junit, api-report]
 
+  - id: TST-REGISTRATION-ATOMICITY-001
+    title: Registration writes a whole identity or nothing at all
+    suite: integration
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm test:registration-atomicity
+    timeout_seconds: 900
+    owner: identity-and-classroom
+    artifacts: [junit, api-report]
+
+  - id: TST-PERSONAL-WORKSPACE-BACKFILL-001
+    title: Each account gains exactly one personal workspace and keeps its organization
+    suite: integration
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm test:personal-workspace
+    timeout_seconds: 900
+    owner: identity-and-classroom
+    artifacts: [junit, api-report]
+
+  - id: TST-E2E-C11-001
+    title: Public entry sign-in sign-up class code preview and join intent in the browser
+    suite: e2e
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PORTAL-001]
+    command: pnpm test:c11-identity
+    timeout_seconds: 1500
+    owner: experience-and-classroom
+    artifacts: [playwright-report, screenshots]
+
   - id: TST-E2E-PORTAL-001
     title: Teacher login classroom reload and logout
     suite: e2e

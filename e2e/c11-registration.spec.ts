@@ -190,6 +190,18 @@ test('the account path keeps the class through sign-in and says what is real', a
   await expect(page.getByText('следующем этапе')).toBeVisible();
   await page.screenshot({ path: 'e2e/artifacts/c11/6-account-path-join-pending.png' });
 
+  // What the browser kept is an opaque token, never a classroom identifier.
+  const stored = await page.evaluate(() => window.sessionStorage.getItem('asa.join-intent'));
+  expect(stored).not.toBeNull();
+  const intent = JSON.parse(stored ?? '{}') as Record<string, unknown>;
+  expect(typeof intent['joinIntentToken']).toBe('string');
+  expect(Object.keys(intent).sort()).toEqual(['educatorDisplayName', 'joinIntentToken', 'title']);
+
+  // The pending class survives a refresh of the signed-in page.
+  await page.reload();
+  await expect(page.getByTestId('join-pending-title')).toHaveText(classTitle);
+  await page.screenshot({ path: 'e2e/artifacts/c11/6b-join-pending-after-refresh.png' });
+
   // Continuing clears the intent; the class is not promised twice.
   await page.getByTestId('join-pending-continue').click();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();

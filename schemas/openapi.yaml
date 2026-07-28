@@ -74,7 +74,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/RoutedErrorResponse'
         '503':
-          description: Public registration is disabled by feature flag
+          description: >-
+            Registration is closed — by feature flag, or because
+            principal-aware sessions do not exist yet. Nothing is written.
           content:
             application/json:
               schema:
@@ -121,7 +123,7 @@ paths:
                     digest is stored, so a code cannot be read back later.
       responses:
         '200':
-          description: Class preview
+          description: Class preview and an opaque join-intent token
           content:
             application/json:
               schema:
@@ -142,6 +144,48 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Too many attempts from this client
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/join-class/intent:
+    post:
+      operationId: postJoinClassIntent
+      summary: Describe the class behind a join-intent token; creates nothing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [joinIntentToken]
+              properties:
+                joinIntentToken:
+                  type: string
+      responses:
+        '200':
+          description: The class the token stands for
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinIntentEnvelope'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: >-
+            The token is invalid, expired, or its class code has been rotated
+            or revoked. A forged token gets the same answer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: The class-code subsystem has no server secret
           content:
             application/json:
               schema:
@@ -359,15 +403,35 @@ components:
       type: object
       additionalProperties: false
       required: [classroom]
+      description: >-
+        No classroom identifier is returned. The browser carries an opaque,
+        signed, short-lived token instead, so a stored value cannot be edited
+        into a different class.
       properties:
         classroom:
           type: object
           additionalProperties: false
-          required: [id, title, educatorDisplayName]
+          required: [title, educatorDisplayName, joinIntentToken]
           properties:
-            id:
+            title:
               type: string
-              format: uuid
+            educatorDisplayName:
+              type: string
+            joinIntentToken:
+              type: string
+              description: >-
+                Signed by the server, valid for 15 minutes, and bound to the
+                class-code version it was issued from.
+    JoinIntentEnvelope:
+      type: object
+      additionalProperties: false
+      required: [classroom]
+      properties:
+        classroom:
+          type: object
+          additionalProperties: false
+          required: [title, educatorDisplayName]
+          properties:
             title:
               type: string
             educatorDisplayName:
@@ -514,11 +578,6 @@ components:
           $ref: '#/components/schemas/Classroom'
         created:
           type: boolean
-        joinCode:
-          type: string
-          description: >-
-            The class code, shown exactly once on creation. Only its keyed
-            digest is stored; issuing a new code revokes the previous one.
     ClassroomCollection:
       type: object
       additionalProperties: false

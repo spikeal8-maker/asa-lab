@@ -139,7 +139,17 @@ tasks:
       - 'docs/product/CLASSROOM_CORE_SPEC.md :: Создание класса'
       - docs/architecture/DATA_SECURITY_AND_TENANCY.md
     test_profiles: [code_common, tenant_storage]
-    task_tests: [TST-PORTAL-API-001, TST-E2E-PORTAL-001]
+    task_tests:
+      [
+        TST-PORTAL-API-001,
+        TST-E2E-PORTAL-001,
+        TST-ACCOUNT-IDENTITY-001,
+        TST-IDENTITY-INTEGRITY-001,
+        TST-REGISTRATION-ATOMICITY-001,
+        TST-PERSONAL-WORKSPACE-BACKFILL-001,
+        TST-JOIN-CODE-001,
+        TST-E2E-C11-001,
+      ]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-1, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-CLASSROOM, DATA-PG]
     artifacts: [playwright-report, portal-screenshot, startup-report, authorization-matrix]
 

@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 /**
- * Issues (or rotates) the class code of a local demo classroom.
+ * LOCAL / TEST ONLY — issues (or rotates) the class code of a demo classroom.
+ *
+ * This is provisioning for a developer machine, not a product surface. The
+ * teacher-facing experience for showing, rotating and revoking a class code
+ * belongs to its own milestone; nothing in the running application issues a
+ * code today.
  *
  * A class code is a locator a teacher hands out, not a credential, so it is
  * printed here for the owner to type into the demo. Only its keyed digest is
