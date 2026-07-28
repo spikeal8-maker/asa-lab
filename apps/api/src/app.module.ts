@@ -18,8 +18,9 @@ import {
   PgClassroomRepository,
   PgJoinCodeDirectory,
   ResolveJoinCodeUseCase,
+  DescribeJoinIntentUseCase,
 } from '@asa-lab/classroom';
-import { EnvJoinCodePepper } from './join-code-pepper.js';
+import { EnvJoinCodeSecret } from './join-code-secret.js';
 import {
   CreateCheckpointUseCase,
   CreateProjectUseCase,
@@ -188,7 +189,15 @@ export class AppModule {
           useFactory: () =>
             new ResolveJoinCodeUseCase(
               new PgJoinCodeDirectory(requirePool()),
-              new EnvJoinCodePepper(),
+              new EnvJoinCodeSecret(),
+            ),
+        },
+        {
+          provide: TOKENS.describeJoinIntentUseCase,
+          useFactory: () =>
+            new DescribeJoinIntentUseCase(
+              new PgJoinCodeDirectory(requirePool()),
+              new EnvJoinCodeSecret(),
             ),
         },
         {
@@ -196,7 +205,7 @@ export class AppModule {
           useFactory: () =>
             new IssueJoinCodeUseCase(
               new PgJoinCodeDirectory(requirePool()),
-              new EnvJoinCodePepper(),
+              new EnvJoinCodeSecret(),
             ),
         },
       ],

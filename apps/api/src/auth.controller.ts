@@ -22,7 +22,7 @@ import type {
 import { isEligibleAdult, parseBirthDate, routeForMinor } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
-import { isPublicRegistrationEnabled } from './feature-flags.js';
+import { registrationAvailability } from './feature-flags.js';
 
 interface PublicUser {
   id: string;
@@ -66,9 +66,11 @@ export class AuthController {
   /**
    * Adult self-registration into a Personal Workspace.
    *
-   * Disabled by default: the mutation waits for principal-aware sessions.
-   * The endpoint still answers honestly so the interface can explain the
-   * state instead of failing silently.
+   * Closed until principal-aware sessions exist. The check happens before any
+   * database work, so a refusal leaves nothing behind: no account, no
+   * workspace, no profile, no principal, no audit event and no cookie. A
+   * half-created identity would be worse than no registration at all, because
+   * it could be signed up for and never signed into.
    */
   @Post('register')
   @HttpCode(201)
@@ -88,7 +90,8 @@ export class AuthController {
       throw new HttpException(error('validation_error', shape.message), 400);
     }
     // Age routing answers before the flag: a minor must always be told where
-    // to go, whether or not adult registration happens to be open.
+    // to go, whether or not adult registration happens to be open. It reads
+    // the submitted date only and writes nothing.
     const birthDate = parseBirthDate(shape.body['birthDate']);
     if (birthDate !== null && !isEligibleAdult(birthDate)) {
       throw new HttpException(
@@ -102,14 +105,10 @@ export class AuthController {
         422,
       );
     }
-    if (!isPublicRegistrationEnabled()) {
-      throw new HttpException(
-        error(
-          'registration_disabled',
-          'публичная регистрация откроется на следующем этапе; сейчас доступен вход по коду класса или через организацию',
-        ),
-        503,
-      );
+    const availability = registrationAvailability();
+    if (!availability.available) {
+      // Nothing has been written at this point, and nothing will be.
+      throw new HttpException(error(availability.code, availability.message), 503);
     }
     const result = await this.registerUseCase.execute({
       email: shape.body['email'],

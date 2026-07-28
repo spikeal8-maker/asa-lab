@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, HttpException, Inject, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import type { ResolveJoinCodeUseCase } from '@asa-lab/classroom';
+import type { DescribeJoinIntentUseCase, ResolveJoinCodeUseCase } from '@asa-lab/classroom';
 import { TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 
@@ -12,9 +12,9 @@ function error(code: string, message: string): { error: { code: string; message:
  * Public class-code entry.
  *
  * Resolving a code answers "which class is this" and nothing else: no session,
- * no membership, no roster. The student still chooses on the next screen
- * whether they sign in with an account or with the login name their teacher
- * gave them.
+ * no membership, no roster, and no classroom identifier. What the browser gets
+ * back is a signed, short-lived join-intent token that only the server can
+ * read, so a page cannot claim a class it was never given.
  */
 @Controller('api/join-class')
 export class JoinClassController {
@@ -37,6 +37,8 @@ export class JoinClassController {
   constructor(
     @Inject(TOKENS.resolveJoinCodeUseCase)
     private readonly resolveUseCase: ResolveJoinCodeUseCase,
+    @Inject(TOKENS.describeJoinIntentUseCase)
+    private readonly describeUseCase: DescribeJoinIntentUseCase,
   ) {}
 
   private rateLimited(request: FastifyRequest): boolean {
@@ -51,12 +53,21 @@ export class JoinClassController {
     return entry.count > JoinClassController.MAX_ATTEMPTS;
   }
 
+  private unavailable(): never {
+    throw new HttpException(
+      error('join_codes_unavailable', 'вход по коду класса временно недоступен на этом сервере'),
+      503,
+    );
+  }
+
   @Post('resolve')
   @HttpCode(200)
   async resolve(
     @Body() rawBody: unknown,
     @Req() request: FastifyRequest,
-  ): Promise<{ classroom: { id: string; title: string; educatorDisplayName: string } }> {
+  ): Promise<{
+    classroom: { title: string; educatorDisplayName: string; joinIntentToken: string };
+  }> {
     const shape = checkBodyShape(rawBody, ['code']);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
@@ -69,15 +80,7 @@ export class JoinClassController {
     }
     const result = await this.resolveUseCase.execute(shape.body['code']);
     if (!result.ok) {
-      if (result.code === 'unavailable') {
-        throw new HttpException(
-          error(
-            'join_codes_unavailable',
-            'вход по коду класса временно недоступен на этом сервере',
-          ),
-          503,
-        );
-      }
+      if (result.code === 'unavailable') this.unavailable();
       // A malformed code and an unknown code get the same answer: the endpoint
       // must not tell a caller which codes exist.
       throw new HttpException(
@@ -87,10 +90,43 @@ export class JoinClassController {
     }
     return {
       classroom: {
-        id: result.preview.classroomId,
-        title: result.preview.title,
-        educatorDisplayName: result.preview.educatorDisplayName,
+        title: result.resolved.title,
+        educatorDisplayName: result.resolved.educatorDisplayName,
+        joinIntentToken: result.resolved.joinIntentToken,
       },
+    };
+  }
+
+  /**
+   * Describes the class behind a join-intent token.
+   *
+   * The server re-checks the signature, the lifetime and whether the class code
+   * it came from is still active, so a stored token cannot outlive a rotation
+   * and cannot be edited into another class. Describing is not joining:
+   * nothing is created here either.
+   */
+  @Post('intent')
+  @HttpCode(200)
+  async intent(
+    @Body() rawBody: unknown,
+  ): Promise<{ classroom: { title: string; educatorDisplayName: string } }> {
+    const shape = checkBodyShape(rawBody, ['joinIntentToken']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.describeUseCase.execute(shape.body['joinIntentToken']);
+    if (!result.ok) {
+      if (result.code === 'unavailable') this.unavailable();
+      throw new HttpException(
+        error(
+          'join_intent_invalid',
+          'ссылка на класс больше не действует — введите код класса заново',
+        ),
+        410,
+      );
+    }
+    return {
+      classroom: { title: result.title, educatorDisplayName: result.educatorDisplayName },
     };
   }
 }

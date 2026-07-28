@@ -1,5 +1,5 @@
 import { generateJoinCode, joinCodeDigest } from '../domain/join-code.js';
-import type { JoinCodeDirectoryPort, JoinCodePepperPort } from './join-code.ports.js';
+import type { JoinCodeDirectoryPort, JoinCodeSecretPort } from './join-code.ports.js';
 
 export type IssueJoinCodeResult =
   | { readonly ok: true; readonly code: string; readonly version: number }
@@ -8,23 +8,27 @@ export type IssueJoinCodeResult =
 /**
  * Issues (or rotates) the class code.
  *
- * The plaintext code is returned exactly once, to the teacher who asked for
- * it; only its keyed digest is stored, so it can never be read back later.
- * Issuing a new code revokes the previous one in the same step.
+ * The plaintext code is returned exactly once, to the caller who asked for it;
+ * only its keyed digest is stored, so it can never be read back. Issuing a new
+ * code revokes the previous one in the same step.
+ *
+ * C1.1 has no teacher-facing surface for this: the full issue/rotate/reveal
+ * experience belongs to R5. Today it is reached only by the local provisioning
+ * tool.
  */
 export class IssueJoinCodeUseCase {
   constructor(
     private readonly directory: JoinCodeDirectoryPort,
-    private readonly pepper: JoinCodePepperPort,
+    private readonly secrets: JoinCodeSecretPort,
   ) {}
 
   async execute(tenantId: string, classroomId: string): Promise<IssueJoinCodeResult> {
-    const pepper = this.pepper.pepper();
-    if (pepper === null) {
+    const secret = this.secrets.secret();
+    if (secret === null) {
       return { ok: false, reason: 'unavailable' };
     }
     const code = generateJoinCode();
-    const issued = await this.directory.issue(tenantId, classroomId, joinCodeDigest(code, pepper));
+    const issued = await this.directory.issue(tenantId, classroomId, joinCodeDigest(code, secret));
     return { ok: true, code, version: issued.version };
   }
 }

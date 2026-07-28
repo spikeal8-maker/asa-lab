@@ -36,15 +36,43 @@ export class PgJoinCodeDirectory implements JoinCodeDirectoryPort {
 
   async resolve(lookupDigest: string): Promise<ClassroomPreview | null> {
     const result = await this.pool.query(
-      `SELECT classroom_id, title, educator_display_name FROM classroom_resolve_join_digest($1)`,
+      `SELECT classroom_id, tenant_id, title, educator_display_name, code_version
+         FROM classroom_resolve_join_digest($1)`,
       [lookupDigest],
     );
-    const row = result.rows[0];
+    return this.toPreview(result.rows[0]);
+  }
+
+  async isVersionActive(classroomId: string, version: number): Promise<boolean> {
+    const result = await this.pool.query(
+      `SELECT classroom_join_code_version_active($1, $2) AS active`,
+      [classroomId, version],
+    );
+    return result.rows[0]?.active === true;
+  }
+
+  async previewById(classroomId: string): Promise<ClassroomPreview | null> {
+    const result = await this.pool.query(
+      `SELECT classroom_id, tenant_id, title, educator_display_name, code_version
+         FROM classroom_preview_by_id($1)`,
+      [classroomId],
+    );
+    return this.toPreview(result.rows[0]);
+  }
+
+  async activeCodeCount(): Promise<number> {
+    const result = await this.pool.query(`SELECT classroom_active_join_code_count() AS n`);
+    return result.rows[0]?.n ?? 0;
+  }
+
+  private toPreview(row: Record<string, unknown> | undefined): ClassroomPreview | null {
     return row
       ? {
-          classroomId: row.classroom_id,
-          title: row.title,
-          educatorDisplayName: row.educator_display_name,
+          classroomId: row['classroom_id'] as string,
+          tenantId: row['tenant_id'] as string,
+          title: row['title'] as string,
+          educatorDisplayName: row['educator_display_name'] as string,
+          codeVersion: row['code_version'] as number,
         }
       : null;
   }

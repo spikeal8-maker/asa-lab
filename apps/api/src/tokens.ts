@@ -12,6 +12,7 @@ export const TOKENS = {
   listClassroomsUseCase: 'LIST_CLASSROOMS_USECASE',
   resolveJoinCodeUseCase: 'RESOLVE_JOIN_CODE_USECASE',
   issueJoinCodeUseCase: 'ISSUE_JOIN_CODE_USECASE',
+  describeJoinIntentUseCase: 'DESCRIBE_JOIN_INTENT_USECASE',
   createProjectUseCase: 'CREATE_PROJECT_USECASE',
   listProjectsUseCase: 'LIST_PROJECTS_USECASE',
   openProjectUseCase: 'OPEN_PROJECT_USECASE',

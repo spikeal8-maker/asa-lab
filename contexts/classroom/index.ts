@@ -9,11 +9,22 @@ export type {
   ClassroomPreview,
   IssuedJoinCode,
   JoinCodeDirectoryPort,
-  JoinCodePepperPort,
+  JoinCodeSecretPort,
 } from './application/join-code.ports.js';
+export {
+  JOIN_INTENT_TTL_SECONDS,
+  issueJoinIntentToken,
+  verifyJoinIntentToken,
+  type JoinIntentClaims,
+} from './domain/join-intent.js';
+export {
+  DescribeJoinIntentUseCase,
+  type DescribeJoinIntentResult,
+} from './application/describe-join-intent.usecase.js';
 export {
   ResolveJoinCodeUseCase,
   type ResolveJoinCodeResult,
+  type ResolvedClass,
 } from './application/resolve-join-code.usecase.js';
 export {
   IssueJoinCodeUseCase,
