@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { api, type SessionPayload } from '../api';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
 /**
  * The universal Account sign-in.
@@ -65,7 +66,9 @@ export function LoginPage({
         <button type="button" className="btn-ghost entry-back" onClick={onBack}>
           ← Назад
         </button>
-        <h1 className="brand">ASA Lab</h1>
+        <h1 className="brand-heading">
+          <AsaLabWordmark />
+        </h1>
         <p className="subtitle">Вход</p>
         {intro ? (
           <p className="field-hint entry-intro" data-testid="sign-in-intro">

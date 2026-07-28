@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { api, type ClassroomPreview } from '../api';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
 /**
  * Class-code entry: the code first, then the class, then how to identify.
@@ -63,7 +64,9 @@ export function JoinClassPage({
           >
             ← Другой код
           </button>
-          <h1 className="brand">ASA Lab</h1>
+          <h1 className="brand-heading">
+            <AsaLabWordmark />
+          </h1>
           <p className="subtitle">Класс найден</p>
 
           <dl className="class-preview" data-testid="class-preview">
@@ -107,7 +110,9 @@ export function JoinClassPage({
         <button type="button" className="btn-ghost entry-back" onClick={onBack}>
           ← Назад
         </button>
-        <h1 className="brand">ASA Lab</h1>
+        <h1 className="brand-heading">
+          <AsaLabWordmark />
+        </h1>
         <p className="subtitle">Вход по коду класса</p>
         <form onSubmit={(event) => void submit(event)} noValidate>
           <label htmlFor="class-code">Код класса</label>

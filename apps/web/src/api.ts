@@ -26,11 +26,17 @@ export interface SessionPayload {
   workspaces: WorkspaceRef[];
 }
 
-/** What a visitor sees about a class before identifying themselves. */
+/**
+ * What a visitor sees about a class before identifying themselves.
+ *
+ * There is no classroom identifier here on purpose: the browser carries an
+ * opaque, signed, short-lived token instead, so a page cannot name a class it
+ * was never given.
+ */
 export interface ClassroomPreview {
-  id: string;
   title: string;
   educatorDisplayName: string;
+  joinIntentToken: string;
 }
 
 export interface Classroom {
@@ -208,11 +214,17 @@ export const api = {
       body: JSON.stringify(input),
     }),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
-  /** Resolves a class code into a preview; creates nothing. */
+  /** Resolves a class code into a preview and an intent token; creates nothing. */
   resolveClassCode: (code: string) =>
     call<{ classroom: ClassroomPreview }>('/api/join-class/resolve', {
       method: 'POST',
       body: JSON.stringify({ code }),
+    }),
+  /** Asks the server what a stored intent token stands for; creates nothing. */
+  describeJoinIntent: (joinIntentToken: string) =>
+    call<{ classroom: { title: string; educatorDisplayName: string } }>('/api/join-class/intent', {
+      method: 'POST',
+      body: JSON.stringify({ joinIntentToken }),
     }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),

@@ -7,11 +7,15 @@ import type { ClassroomPreview } from './api';
  * "после входа присоединитесь" and then quietly dropped into the project hub.
  * It lives in sessionStorage: the intent belongs to this tab and this visit,
  * not to the device.
+ *
+ * What is stored is the server's opaque token plus the two strings shown on
+ * screen — never a classroom identifier. The token is the only thing that
+ * names the class, and only the server can read it.
  */
 const KEY = 'asa.join-intent';
 
 export interface JoinIntent {
-  readonly classroomId: string;
+  readonly joinIntentToken: string;
   readonly title: string;
   readonly educatorDisplayName: string;
 }
@@ -21,7 +25,7 @@ export function rememberJoinIntent(preview: ClassroomPreview): void {
     window.sessionStorage.setItem(
       KEY,
       JSON.stringify({
-        classroomId: preview.id,
+        joinIntentToken: preview.joinIntentToken,
         title: preview.title,
         educatorDisplayName: preview.educatorDisplayName,
       }),
@@ -37,12 +41,12 @@ export function readJoinIntent(): JoinIntent | null {
     if (raw === null) return null;
     const parsed = JSON.parse(raw) as Partial<JoinIntent>;
     if (
-      typeof parsed.classroomId === 'string' &&
+      typeof parsed.joinIntentToken === 'string' &&
       typeof parsed.title === 'string' &&
       typeof parsed.educatorDisplayName === 'string'
     ) {
       return {
-        classroomId: parsed.classroomId,
+        joinIntentToken: parsed.joinIntentToken,
         title: parsed.title,
         educatorDisplayName: parsed.educatorDisplayName,
       };

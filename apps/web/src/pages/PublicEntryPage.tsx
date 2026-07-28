@@ -1,3 +1,4 @@
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 /**
  * Public entry: three intentions, in the words a visitor already uses.
  *
@@ -14,7 +15,9 @@ export function PublicEntryPage({
   return (
     <div className="page-center">
       <main className="entry-card">
-        <h1 className="brand entry-brand">ASA Lab</h1>
+        <h1 className="brand-heading">
+          <AsaLabWordmark />
+        </h1>
         <p className="subtitle">Творческая среда для школы и для себя</p>
 
         <div className="entry-actions">

@@ -867,3 +867,10 @@ label {
 .class-preview dd:last-child {
   margin-bottom: 0;
 }
+
+/* The wordmark is the page heading: one accepted mark, still an <h1>. */
+.brand-heading {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  line-height: 1;
+}

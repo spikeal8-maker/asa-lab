@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { api, type SessionPayload } from '../api';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
 /**
  * Legacy sign-in through an organization code.
@@ -51,7 +52,9 @@ export function OrganizationLoginPage({
         <button type="button" className="btn-ghost entry-back" onClick={onBack}>
           ← Назад
         </button>
-        <h1 className="brand">ASA Lab</h1>
+        <h1 className="brand-heading">
+          <AsaLabWordmark />
+        </h1>
         <p className="subtitle">Вход через организацию</p>
         <p className="legacy-hint legacy-banner">
           Временный совместимый путь для школ, подключённых по коду организации.

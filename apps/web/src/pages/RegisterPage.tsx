@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
 type Availability = 'idle' | 'checking' | 'free' | 'taken' | 'invalid';
 
@@ -123,7 +124,9 @@ export function RegisterPage({
         >
           ← Назад
         </button>
-        <h1 className="brand">ASA Lab</h1>
+        <h1 className="brand-heading">
+          <AsaLabWordmark />
+        </h1>
         <p className="subtitle">Создание аккаунта</p>
 
         {step === 'age' ? (

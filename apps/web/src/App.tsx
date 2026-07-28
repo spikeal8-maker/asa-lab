@@ -12,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { PortalHeader, type PortalSection } from './components/PortalHeader';
+import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import './brand/brand.css';
 import './electronics/portal.css';
@@ -183,7 +184,9 @@ export function App(): JSX.Element {
     return (
       <main className="page-center">
         <section className="login-card" role="alert">
-          <h1 className="brand">ASA Lab</h1>
+          <h1 className="brand-heading">
+            <AsaLabWordmark />
+          </h1>
           <p>Не удалось проверить активную сессию.</p>
           <button type="button" className="btn-primary" onClick={() => void checkSession()}>
             Повторить
