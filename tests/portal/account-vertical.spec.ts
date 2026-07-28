@@ -29,9 +29,11 @@ function adult(label: string) {
   return {
     email: `${id}@test.local`,
     password: 'sufficiently-long-password',
-    username: `pseudo${id}`
+    // Letters and digits only: a fixture username must always be valid, and
+    // slicing a label that contains dashes could leave one at the end.
+    username: `p${id}`
       .toLowerCase()
-      .replace(/[^a-z0-9._-]/g, '')
+      .replace(/[^a-z0-9]/g, '')
       .slice(0, 40),
     displayName: '',
     birthDate: '1990-05-17',
@@ -220,32 +222,25 @@ describe('an adult account owns its own work', () => {
     const first = adult('vertical-rollback');
     expect((await register(first)).statusCode).toBe(201);
 
-    const before = await admin.query(
-      `SELECT count(*)::int AS personal_tenants FROM tenants WHERE workspace_slug LIKE 'personal-%'`,
-    );
-
     // The username is taken, so this registration must leave nothing at all —
-    // no account, and no personal tenant or workspace stranded behind it.
+    // no account, and no tenant or workspace stranded behind it. Everything is
+    // counted by this candidate's own identifiers: the suites share a database
+    // and a global headcount would be somebody else's story.
     const second = { ...adult('vertical-rollback-2'), username: first.username };
     const response = await register(second);
     expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe('username_taken');
     expect(response.cookies).toHaveLength(0);
 
     const after = await admin.query(
       `SELECT (SELECT count(*)::int FROM accounts WHERE lower(email) = $1) AS accounts,
-              (SELECT count(*)::int FROM tenants WHERE workspace_slug LIKE 'personal-%')
-                AS personal_tenants,
-              (SELECT count(*)::int FROM workspaces w
-                WHERE w.kind = 'personal'
-                  AND NOT EXISTS (SELECT 1 FROM workspace_memberships m
-                                   WHERE m.workspace_id = w.id)) AS orphan_workspaces`,
-      [second.email.toLowerCase()],
+              (SELECT count(*)::int FROM tenants WHERE title = $2) AS tenants,
+              (SELECT count(*)::int FROM workspaces WHERE title = $2) AS workspaces`,
+      [second.email.toLowerCase(), second.username],
     );
-    expect(after.rows[0]).toEqual({
-      accounts: 0,
-      personal_tenants: before.rows[0].personal_tenants,
-      orphan_workspaces: 0,
-    });
+    // The workspace of the first registration carries the same title only if
+    // that one had this username — it does, so exactly one of each may exist.
+    expect(after.rows[0]).toEqual({ accounts: 0, tenants: 1, workspaces: 1 });
   });
 });
 
@@ -353,5 +348,152 @@ describe('the teacher who was here before accounts existed', () => {
     expect(projects.json().items.map((item: { title: string }) => item.title)).toContain(
       'Проект до аккаунтов',
     );
+  });
+});
+
+describe('a live session reflects a withdrawn permission', () => {
+  it('stops working when the account is suspended', async () => {
+    const payload = adult('vertical-suspend');
+    const token = cookieOf(await register(payload));
+    expect((await listPersonalProjects(token)).statusCode).toBe(200);
+
+    await admin.query(`UPDATE accounts SET status = 'suspended' WHERE lower(email) = $1`, [
+      payload.email.toLowerCase(),
+    ]);
+
+    // The token itself is untouched: it is the account behind it that no
+    // longer stands, so the answer is the same as for an unknown token.
+    expect((await listPersonalProjects(token)).statusCode).toBe(401);
+    const me = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: token },
+    });
+    expect(me.statusCode).toBe(401);
+
+    // And signing in again is refused while the account is suspended.
+    expect((await signIn(payload.username, payload.password)).statusCode).toBe(401);
+  });
+
+  it('stops working when the membership in the active workspace is removed', async () => {
+    const payload = adult('vertical-membership');
+    const token = cookieOf(await register(payload));
+    expect((await listPersonalProjects(token)).statusCode).toBe(200);
+
+    const account = await admin.query(`SELECT id FROM accounts WHERE lower(email) = $1`, [
+      payload.email.toLowerCase(),
+    ]);
+    await admin.query(`DELETE FROM workspace_memberships WHERE account_id = $1`, [
+      account.rows[0].id,
+    ]);
+
+    expect((await listPersonalProjects(token)).statusCode).toBe(401);
+    const me = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: token },
+    });
+    expect(me.statusCode).toBe(401);
+  });
+
+  it('keeps logout and an ordinary sign-in working', async () => {
+    const payload = adult('vertical-still-fine');
+    const first = cookieOf(await register(payload));
+    expect(
+      (
+        await inject(app, {
+          method: 'POST',
+          url: '/api/auth/logout',
+          cookies: { asa_session: first },
+        })
+      ).statusCode,
+    ).toBe(200);
+
+    const again = await signIn(payload.email, payload.password);
+    expect(again.statusCode).toBe(200);
+    expect((await listPersonalProjects(cookieOf(again))).statusCode).toBe(200);
+  });
+});
+
+describe('classes need an organization workspace, not just the capability', () => {
+  it('refuses an educator who is signed into their own personal workspace', async () => {
+    const teacher = await seedTeacher(admin, 'vertical-educator-personal');
+
+    // The seeded teacher already has the account identity the migration gives
+    // every existing teacher; they need a password on the account to use the
+    // universal sign-in, and a personal workspace to land in.
+    const account = await admin.query(
+      `UPDATE accounts SET password_hash = (SELECT password_hash FROM users WHERE id = $2)
+        WHERE lower(email) = $1 RETURNING id`,
+      [teacher.email.toLowerCase(), teacher.teacherId],
+    );
+    const accountId = account.rows[0].id as string;
+    const personalTenant = await admin.query(
+      `INSERT INTO tenants (workspace_slug, title) VALUES ($1, 'Личное пространство') RETURNING id`,
+      [`personal-${accountId.replace(/-/g, '').slice(0, 32)}`],
+    );
+    await admin.query(
+      `INSERT INTO tenant_placements (tenant_id, mode) VALUES ($1, 'SHARED_CLUSTER')`,
+      [personalTenant.rows[0].id],
+    );
+    const personalWorkspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id, kind, title) VALUES ($1, 'personal', 'Личное пространство')
+       RETURNING id`,
+      [personalTenant.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role) VALUES ($1, $2, 'owner')`,
+      [accountId, personalWorkspace.rows[0].id],
+    );
+
+    // Universal sign-in lands in the personal workspace.
+    const universal = await signIn(teacher.email, teacher.password);
+    expect(universal.statusCode).toBe(200);
+    expect(universal.json().activeWorkspace.kind).toBe('personal');
+    expect(
+      universal.json().capabilities.map((entry: { capability: string }) => entry.capability),
+    ).toContain('educator');
+
+    // The capability is there, the classes are not: this workspace has none.
+    const classes = await inject(app, {
+      method: 'GET',
+      url: '/api/classrooms',
+      cookies: { asa_session: cookieOf(universal) },
+    });
+    expect(classes.statusCode).toBe(403);
+    expect(classes.json().error.code).toBe('educator_required');
+
+    // The organization sign-in is how the same person reaches their classes.
+    const organization = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { workspace: teacher.workspace, email: teacher.email, password: teacher.password },
+    });
+    expect(organization.statusCode).toBe(200);
+    expect(organization.json().activeWorkspace.kind).toBe('organization');
+    const theirClasses = await inject(app, {
+      method: 'GET',
+      url: '/api/classrooms',
+      cookies: { asa_session: cookieOf(organization) },
+    });
+    expect(theirClasses.statusCode).toBe(200);
+  });
+});
+
+describe('a registration conflict names the identifier it collided on', () => {
+  it('answers username_taken when the username is the one already used', async () => {
+    const first = adult('vertical-conflict');
+    expect((await register(first)).statusCode).toBe(201);
+
+    const sameUsername = await register({
+      ...adult('vertical-conflict-2'),
+      username: first.username,
+    });
+    expect(sameUsername.statusCode).toBe(409);
+    expect(sameUsername.json().error.code).toBe('username_taken');
+
+    const sameEmail = await register({ ...adult('vertical-conflict-3'), email: first.email });
+    expect(sameEmail.statusCode).toBe(409);
+    expect(sameEmail.json().error.code).toBe('email_taken');
   });
 });

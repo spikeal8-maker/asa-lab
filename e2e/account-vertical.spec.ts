@@ -112,6 +112,54 @@ test('an adult creates an account, makes a project, and finds it after every sig
   expect(pageErrors, 'page errors during the scenario').toEqual([]);
 });
 
+test('an educator sees classes in the organization, and not in their own workspace', async ({
+  page,
+}) => {
+  const admin: pg.Pool = e2eAdminPool();
+  try {
+    const teacher = await seedTeacher(admin, 'vertical-e2e-personal');
+    // The universal sign-in needs the account password, and the account needs a
+    // personal workspace to land in — both of which the migration gives every
+    // existing teacher.
+    const account = await admin.query(
+      `UPDATE accounts SET password_hash = (SELECT password_hash FROM users WHERE id = $2)
+        WHERE lower(email) = $1 RETURNING id`,
+      [teacher.email.toLowerCase(), teacher.teacherId],
+    );
+    const accountId = account.rows[0].id as string;
+    const tenant = await admin.query(
+      `INSERT INTO tenants (workspace_slug, title) VALUES ($1, 'Личное пространство') RETURNING id`,
+      [`personal-${accountId.replace(/-/g, '').slice(0, 32)}`],
+    );
+    await admin.query(
+      `INSERT INTO tenant_placements (tenant_id, mode) VALUES ($1, 'SHARED_CLUSTER')`,
+      [tenant.rows[0].id],
+    );
+    const workspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id, kind, title) VALUES ($1, 'personal', 'Личное пространство')
+       RETURNING id`,
+      [tenant.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role) VALUES ($1, $2, 'owner')`,
+      [accountId, workspace.rows[0].id],
+    );
+
+    // Universal sign-in lands in the personal workspace: no classes here.
+    await signIn(page, teacher.email, teacher.password);
+    await expect(page.getByRole('button', { name: 'Классы' })).toHaveCount(0);
+    await page.screenshot({ path: `${ARTIFACTS}/10-educator-personal-no-classes.png` });
+
+    // The organization sign-in is how the same person reaches their classes.
+    await page.getByRole('button', { name: 'Выйти' }).click();
+    await signInThroughOrganization(page, teacher);
+    await expect(page.getByRole('button', { name: 'Классы' })).toBeVisible();
+    await page.screenshot({ path: `${ARTIFACTS}/11-educator-organization-classes.png` });
+  } finally {
+    await admin.end();
+  }
+});
+
 test('the teacher from before accounts keeps their classes and projects', async ({ page }) => {
   const admin: pg.Pool = e2eAdminPool();
   try {

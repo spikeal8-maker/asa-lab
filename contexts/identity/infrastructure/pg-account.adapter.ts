@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type {
   AccountDirectoryPort,
+  RegistrationConflict,
   AccountRecord,
   CapabilityRef,
   LinkedAccount,
@@ -20,9 +21,7 @@ import type {
 export class PgAccountDirectory implements AccountDirectoryPort {
   constructor(private readonly pool: pg.Pool) {}
 
-  async register(
-    input: RegisterAccountInput,
-  ): Promise<RegisteredAccount | { readonly conflict: true }> {
+  async register(input: RegisterAccountInput): Promise<RegisteredAccount | RegistrationConflict> {
     try {
       const result = await this.pool.query(
         `SELECT account_id, principal_id, workspace_id, tenant_id
@@ -48,9 +47,15 @@ export class PgAccountDirectory implements AccountDirectoryPort {
       };
     } catch (error) {
       // A duplicate email or username is a conflict, not a server failure; the
-      // whole statement rolled back, so nothing partial was written.
-      if ((error as { code?: string }).code === '23505') {
-        return { conflict: true };
+      // whole statement rolled back, so nothing partial was written. The unique
+      // index that rejected it says which of the two was taken, which matters
+      // when two people register at once and the availability check was fresh
+      // a moment ago.
+      const failure = error as { code?: string; constraint?: string };
+      if (failure.code === '23505') {
+        return {
+          conflict: failure.constraint === 'profiles_username_ci_idx' ? 'username' : 'email',
+        };
       }
       throw error;
     }

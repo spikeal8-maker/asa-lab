@@ -217,14 +217,21 @@ export function App(): JSX.Element {
   }
 
   /**
-   * Classes belong to educators. The server refuses the API to anyone else;
-   * hiding the tab keeps the interface honest about what this account can do.
+   * Classes belong to educators, and they live in an organization workspace.
+   *
+   * Both halves matter: the capability says this person teaches somewhere, the
+   * active workspace says whether *here* is that somewhere. A teacher signed
+   * into their own Personal Workspace has no classes to show — the classroom
+   * API would answer 403 — so the tab is absent rather than broken. Until a
+   * workspace switcher exists, the organization sign-in is how they get back
+   * to their classes.
    */
-  const canTeach = session.session.capabilities.some(
+  const isEducator = session.session.capabilities.some(
     (entry) =>
       entry.capability === 'educator' &&
       (entry.state === 'verified' || entry.state === 'provisional'),
   );
+  const canTeachHere = isEducator && session.session.activeWorkspace.kind === 'organization';
 
   if (view.kind === 'editor') {
     return (
@@ -237,7 +244,7 @@ export function App(): JSX.Element {
   }
 
   const active: PortalSection =
-    canTeach && (view.kind === 'classrooms' || view.kind === 'classroom-projects')
+    canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects')
       ? 'classes'
       : 'projects';
   return (
@@ -248,7 +255,7 @@ export function App(): JSX.Element {
       <PortalHeader
         user={session.session.user}
         active={active}
-        canTeach={canTeach}
+        canTeach={canTeachHere}
         onNavigate={(section) =>
           setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' })
         }
@@ -257,21 +264,21 @@ export function App(): JSX.Element {
           setSession({ kind: 'anonymous' });
         }}
       />
-      {view.kind === 'my-projects' || !canTeach ? (
+      {view.kind === 'my-projects' || !canTeachHere ? (
         <MyProjectsPage
           onOpenProject={(projectId) =>
             setView({ kind: 'editor', projectId, returnTo: { kind: 'my-projects' } })
           }
         />
       ) : null}
-      {view.kind === 'classrooms' && canTeach ? (
+      {view.kind === 'classrooms' && canTeachHere ? (
         <DashboardPage
           onOpenProjects={(classroomId, classroomTitle) =>
             setView({ kind: 'classroom-projects', classroomId, classroomTitle })
           }
         />
       ) : null}
-      {view.kind === 'classroom-projects' && canTeach ? (
+      {view.kind === 'classroom-projects' && canTeachHere ? (
         <ProjectsPage
           classroomId={view.classroomId}
           classroomTitle={view.classroomTitle}

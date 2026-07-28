@@ -38,6 +38,7 @@ export type {
   PersonalWorkspaceRef,
   RegisterAccountInput,
   RegisteredAccount,
+  RegistrationConflict,
   SessionV2StorePort,
   WorkspaceRef,
 } from './application/account.ports.js';

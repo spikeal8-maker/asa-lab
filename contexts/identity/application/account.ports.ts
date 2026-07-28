@@ -49,12 +49,15 @@ export interface LinkedAccount {
   readonly workspaceId: string;
 }
 
+/** Which identifier a registration collided on. */
+export type RegistrationConflict = { readonly conflict: 'email' | 'username' };
+
 export interface AccountDirectoryPort {
   /**
    * Creates the whole identity — account, profile, principal, capability,
    * workspace, membership, session and audit event — or none of it.
    */
-  register(input: RegisterAccountInput): Promise<RegisteredAccount | { readonly conflict: true }>;
+  register(input: RegisterAccountInput): Promise<RegisteredAccount | RegistrationConflict>;
   findByEmail(emailLower: string): Promise<AccountRecord | null>;
   findByUsername(usernameLower: string): Promise<AccountRecord | null>;
   isUsernameAvailable(username: string): Promise<boolean>;

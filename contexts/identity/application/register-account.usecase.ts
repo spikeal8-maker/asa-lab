@@ -121,7 +121,9 @@ export class RegisterAccountUseCase {
       ttlHours: SESSION_TTL_HOURS,
     });
     if ('conflict' in registered) {
-      return { ok: false, code: 'email_taken', message: 'аккаунт с таким email уже существует' };
+      return registered.conflict === 'username'
+        ? { ok: false, code: 'username_taken', message: 'это имя пользователя уже занято' }
+        : { ok: false, code: 'email_taken', message: 'аккаунт с таким email уже существует' };
     }
     return { ok: true, account: registered, email, token };
   }
