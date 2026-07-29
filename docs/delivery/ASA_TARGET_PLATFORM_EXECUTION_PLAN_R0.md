@@ -3,9 +3,23 @@
 **Статус:** `owner_review_required`  
 **Current gate:** `R0`  
 **Активация:** только после owner approval и merge PR №43.  
-**Product coding до активации:** запрещён.
+**Product coding до активации:** запрещён.  
+**Текущий parity claim:** `not_100_percent`.
 
 Подробный документ [`ASA_TARGET_PLATFORM_EXECUTION_PLAN.md`](ASA_TARGET_PLATFORM_EXECUTION_PLAN.md) сохраняет дизайн workstreams и release details. Этот файл является актуальным человекочитаемым статусом и должен совпадать с [`ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`](ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml).
+
+Полный интерфейсный и functional-parity scope:
+
+```text
+docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+docs/product/ASA_COMPLETE_INTERFACE_BLUEPRINT.md
+docs/product/ASA_VISUAL_PRODUCT_SYSTEM.md
+docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md
+docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+docs/product/ASA_ADMIN_CONSOLE_SPEC.md
+```
 
 ## 1. Главный принцип
 
@@ -13,6 +27,7 @@
 one accepted baseline
 → one canonical branch per release
 → one owner-facing PR
+→ product task references exact surface_id and capability_id
 → automated gate
 → live browser evidence
 → owner stop
@@ -24,6 +39,10 @@ one accepted baseline
 
 Тесты подтверждают техническое состояние. Визуальная и продуктовая приёмка владельцем выполняется отдельно.
 
+Наличие документа, mockup или unit test не означает, что функция реализована. Статусы `absent`, `partial`, `in_review` и `evidence_required` блокируют заявление 100% parity.
+
+Цель — независимая ASA Lab реализация с 100% functional parity согласованного reference scope. Чужой код, брендинг, логотипы, закрытые assets и пиксельная копия запрещены.
+
 ## 2. Конвергенция текущих веток
 
 Текущие полезные, но расходящиеся линии:
@@ -31,7 +50,7 @@ one accepted baseline
 ```text
 main        Teacher Portal foundation
 PR #34      Electronics / Project foundation candidate
-PR #43      target contract candidate
+PR #43      complete target/interface/parity contract candidate
 PR #35      transfer-only Electronics workbench
 PR #45      transfer-only Registry / Project Hub / Editor Host
 PR #47      transfer-only Visual Product System
@@ -48,20 +67,25 @@ PR #29      non-blocking Map UX candidate
 
 ```text
 1. Owner review PR #34 только как Electronics/Project foundation
-2. Owner принимает пять решений PR #43
-3. PR #43 один раз rebased на актуальный main
-4. R0 validators PASS
-5. PR #43 merged
-6. Один P1 integration PR из agent/parity-p1-visual-integration
-7. Доказанный transfer и закрытие PR #35/#45/#47
-8. Owner выбирает PR #59 ИЛИ PR #60
-9. Выбранная R1-линия один раз rebased на accepted baseline
-10. Вторая R1-линия закрывается superseded
+2. Исправить и фактически проверить PR #34
+3. Owner принимает и merge PR #34 либо требует пересмотра R0 source contract
+4. Owner принимает шесть решений PR #43
+5. Owner принимает complete interface and functional parity scope
+6. PR #43 один раз rebased на актуальный main
+7. 25 R0 validators PASS
+8. PR #43 merged
+9. R0A governance activation; R1 остаётся blocked
+10. Один P1 integration PR из agent/parity-p1-visual-integration
+11. Baseline preservation и доказанный transfer; закрытие PR #35/#45/#47
+12. Owner выбирает PR #59 ИЛИ PR #60
+13. Выбранная R1-линия один раз rebased на accepted baseline
+14. Вторая R1-линия закрывается superseded
+15. Только R0D отмечает R1 ready
 ```
 
 Новые product branches до шага 10 запрещены.
 
-## 3. Release R0 — Contract and one accepted baseline
+## 3. Release R0 — Contract, complete interface inventory and one accepted baseline
 
 **Issue:** №36  
 **Branch:** `assistant/tinkercad-parity-baseline`  
@@ -69,13 +93,24 @@ PR #29      non-blocking Map UX candidate
 
 ### Видимый результат
 
-Новой функции нет. Есть одна принятая точка старта, один target contract и отсутствие конкурирующих production-линий.
+Новой runtime-функции нет. Есть:
+
+- одна принятая точка старта;
+- одна строгая очередь R0–R10;
+- полный каталог public/creator/educator/learner/admin/editor страниц;
+- полный Electronics tools/component contract;
+- отдельные Student и Administration specs;
+- честный weighted functional-parity scope;
+- визуальный каталог для владельца;
+- отсутствие конкурирующих production-линий.
 
 ### Gate
 
-- owner принимает пять решений;
-- PR №34 принят или отклонён в ограниченном scope;
-- target/parity/diff/architecture/map/catalog validators PASS;
+- owner принимает шесть решений;
+- complete interface/parity scope принят;
+- current claim остаётся `not_100_percent`;
+- PR №34 принят и merged либо R0 contract пересмотрен;
+- target/parity/interfaces/diff/architecture/map/catalog validators PASS;
 - PR №43 не меняет product runtime или migrations;
 - существующие teacher/classes/projects/Electronics сохранены;
 - одна baseline commit в `main`;
@@ -91,16 +126,26 @@ PR #29      non-blocking Map UX candidate
 ### Видимый результат
 
 ```text
-register / login without workspace code
+public intention router
+→ register / login without workspace code
 → exactly one Personal Workspace
-→ profile/security/sessions
+→ profile/security/session management
+→ workspace switcher
 → audited educator capability
 → existing teacher compatibility
 ```
 
+### Основные поверхности
+
+```text
+PUB-002 PUB-003 PUB-004 PUB-008
+CRT-013 CRT-014 CRT-015
+EDU-001
+```
+
 ### Owner stops
 
-C1.1 public entry, C1.2 registration, C1.3 Personal Workspace, C1.4 educator grant, C1.5 account settings.
+C1.1 public entry, C1.2 registration, C1.3 Personal Workspace, C1.4 educator grant, C1.5 account/session/settings.
 
 ### Non-goals
 
@@ -117,14 +162,16 @@ Classroom/StudentSeat, publication, Electronics changes, destructive legacy clea
 
 ```text
 Account login
-→ Home
-→ recent projects
-→ Projects / Collections / Learning / Challenges / Help
-→ account menu
-→ workspace switcher
+→ Creator Home
+→ recent projects / continue work
+→ capability-aware navigation
+→ notifications / help
+→ account and workspace controls
 ```
 
 Classes виден только при server-issued educator capability. Existing Classes/Projects сохраняются как compatibility routes.
+
+Основные surfaces: `PUB-001`, `PUB-010`, `CRT-001`, `CRT-012`.
 
 ## 6. Release R3 — Module Registry, Project Hub and shared Editor Host
 
@@ -137,18 +184,20 @@ Classes виден только при server-issued educator capability. Existi
 
 ```text
 Projects
-→ search/filter/sort/grid-list/trash
+→ search/filter/sort/grid-list/archive/delete
 → Create
 → registry-driven module chooser
 → personal project without Classroom
 → shared Editor Host
-→ autosave/reload
-→ immutable checkpoint
+→ autosave/reload/conflict
+→ immutable checkpoint/version journal
 ```
 
 Core не содержит subject switch. PR №34/№45/№47 являются источниками для одной принятой integration-линии, а не отдельными продуктами.
 
-## 7. Release R4 — Electronics parity
+Основные surfaces: `CRT-002`, `CRT-003`, `CRT-004`, `EDT-001`.
+
+## 7. Release R4 — Complete Circuits and Electronics functional parity
 
 **Issue:** №63  
 **Branch:** `agent/r4-electronics-parity`  
@@ -159,15 +208,29 @@ Core не содержит subject switch. PR №34/№45/№47 являются
 
 ```text
 create Electronics project
-→ place owner SVG components
-→ connect terminals/wires
-→ edit properties
-→ run/stop deterministic simulation
-→ measurements/LED state/diagnostics
-→ save/reload/version
+→ component library and reference-derived component families
+→ breadboard/terminals/realistic connectivity where confirmed
+→ select/multi-select/move/rotate/duplicate/delete/undo/redo
+→ create/reconnect/route/recolour wires
+→ properties and diagnostics
+→ deterministic supported simulation
+→ multimeter / oscilloscope / confirmed instruments
+→ Arduino and micro:bit
+→ Blocks/Text/Mixed code modes where confirmed
+→ compile/run/serial monitor
+→ save/reload/version/preview
 ```
 
-Identity/Portal/Classroom semantics в R4 не перерабатываются.
+Неподдержанная модель всегда даёт diagnostic, а не fake numerical success.
+
+Полный milestone/tool/component contract:
+
+```text
+docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md
+```
+
+Identity/Portal/Classroom semantics в R4 не перерабатываются. Assignment/teacher/public contexts используют общий Editor Host, но закрываются в R5–R9.
 
 ## 8. Release R5 — Classroom, class code, StudentSeat and Safe Mode
 
@@ -180,11 +243,13 @@ Identity/Portal/Classroom semantics в R4 не перерабатываются.
 
 ```text
 educator creates class
+→ class overview/roster/settings/co-teachers
 → class code/link/QR
 → individual/bulk StudentSeats
-→ printable credentials
+→ printable one-time credentials
 → child login without email
-→ private learner project
+→ Learner Home and private learner project
+→ Safe Mode and class moderation
 ```
 
 StudentSeat session отдельна от Account session. Safe Mode блокирует public/social actions, но не private creation и classroom feedback.
@@ -200,12 +265,13 @@ StudentSeat session отдельна от Account session. Safe Mode блоки�
 
 ```text
 roster
+→ learner project gallery
 → learner portfolio
 → module tabs
-→ Project Viewer
+→ read-only Project Viewer
 → exact immutable version
-→ version history
-→ optional audited assistance mode
+→ version history / restore to copy
+→ optional visible audited assistance mode
 ```
 
 Read-only default. Restore creates copy. Teacher visibility не означает ownership.
@@ -222,16 +288,16 @@ Read-only default. Restore creates copy. Teacher visibility не означае�
 ```text
 private project
 → unlisted link
-→ publish immutable version
+→ publish exact immutable version
 → public page
 → Copy / Remix
-→ attribution
-→ unpublish / revoke
+→ attribution lineage
+→ revoke / unpublish
 ```
 
 StudentSeat и assignment work не публикуются. Public page не читает mutable draft.
 
-## 11. Release R8 — Profiles, Explore, Collections and moderation
+## 11. Release R8 — Profiles, Explore, Learning, Challenges, Collections and moderation
 
 **Issue:** №39  
 **Branch:** `agent/r8-explore-moderation`  
@@ -242,10 +308,11 @@ StudentSeat и assignment work не публикуются. Public page не ч�
 
 ```text
 published project
-→ profile / Explore
-→ search/filter
-→ like/bookmark/collection
-→ allowed public comment
+→ privacy-aware Profile / Explore
+→ search/filter/featured/recent/popular
+→ Collections/bookmarks/allowed interactions
+→ Learn/curriculum/projects
+→ Challenges/archive
 → report/moderation
 ```
 
@@ -262,20 +329,20 @@ StudentSeat public/social actions запрещены. PublicComment и education
 
 ```text
 teacher immutable activity starter
-→ assign
-→ isolated learner work
-→ progress
+→ assign to class/group/learner
+→ isolated AssignmentWork
+→ progress monitor
 → exact immutable submission
-→ anchored feedback
+→ anchored feedback to module object/code
 → request changes
-→ resubmit
-→ accept
-→ grade / badge
+→ learner revision and resubmit
+→ accept/incomplete/excuse
+→ rubric / grade / badge evidence
 ```
 
-Assignment work не становится public автоматически.
+Assignment work не становится public автоматически. Learner Home, submission receipt, feedback and badge surfaces обязательны.
 
-## 13. Release R10 — Multi-module proof and measured operations scale
+## 13. Release R10 — 3D, Codeblocks, Sim Lab, administration, mobile/integrations and measured scale
 
 **Issue:** №42  
 **Branch:** `agent/r10-multimodule-ops`  
@@ -284,9 +351,27 @@ Assignment work не становится public автоматически.
 
 ### Видимый результат
 
-Минимум Electronics, Blocks и Chess/Checkers или 3D проходят общий personal/publication/classroom lifecycle без subject branching в Core.
+```text
+3D Design
+  shapes/import/workplane/exact dimensions/group/hole/align/duplicate/ruler/export/AR
 
-Workers, object storage, realtime, quotas, dedicated placement и billing вводятся только из измеренной необходимости.
+Codeblocks
+  block workspace/run/generated 3D/version/export
+
+Sim Lab / robotics physics
+  materials/mass/friction/bounce/gravity/shake/connectors/motors/block control/traces
+
+Administration
+  school admin + platform admin + moderation + audit + support + policies + health + storage + incidents
+
+Mobile / integrations
+  touch/pen/AR and confirmed ecosystem integrations or explicit approved deviations
+
+All modules
+  same personal/project/version/publication/classroom/assignment lifecycle
+```
+
+Workers, object storage, realtime, quotas, dedicated placement и billing вводятся только из измеренной необходимости. Capacity claims подтверждаются измерением, а не прогнозом.
 
 ## 14. Owner decision
 
@@ -297,6 +382,7 @@ Workers, object storage, realtime, quotas, dedicated placement и billing вво
 3. Personal Project не требует Classroom.
 4. Account session и StudentSeat session различаются.
 5. Очередь R0–R10 и additive-only migration policy принимаются.
+6. Полный interface catalog и 100% functional-parity scope принимаются; literal source/brand/asset/pixel copy запрещён, а current claim остаётся `not_100_percent` до runtime/evidence.
 
 Краткий документ: [`R0_OWNER_DECISION.md`](R0_OWNER_DECISION.md).
 
@@ -306,14 +392,15 @@ Workers, object storage, realtime, quotas, dedicated placement и billing вво
 python tools/validate_r0.py
 ```
 
-Suite включает product diff gate, parity, target execution, architecture, project map и test catalog validators.
+Suite включает 25 gates: product diff, target references, six owner decisions, convergence, baseline preservation, parity, complete interfaces/admin/student/Electronics, target execution, architecture, project map, test catalog и live GitHub state.
 
-Полный PASS не заменяет owner approval.
+Полный PASS не заменяет owner approval и не означает, что описанные future surfaces уже реализованы.
 
 ## 16. Definition of Done
 
 Release не `done`, пока одновременно не выполнены:
 
+- every planned `surface_id` и `capability_id` текущего release закрыты;
 - user flow работает в live Chromium без mocks;
 - migrations проходят на empty и existing DB;
 - existing users/classes/projects preserved;
@@ -321,8 +408,11 @@ Release не `done`, пока одновременно не выполнены:
 - exact automated gate PASS;
 - accessibility PASS;
 - desktop/mobile screenshots captured;
+- `evidence_required` разрешены reference capture или owner decision;
 - owner explicitly accepts visible result;
 - maps/test catalog/evidence synchronized;
 - PR merged;
 - map transition выполнен;
 - next release только разблокирован, но не начат.
+
+100% functional parity всей программы заявляется только после выполнения completion rule в `ASA_TINKERCAD_100_PERCENT_SCOPE.yaml`, а не после одного R4 или одного Electronics demo.
