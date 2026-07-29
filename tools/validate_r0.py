@@ -13,6 +13,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATORS = (
+    "tools/validate_r0_diff.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
