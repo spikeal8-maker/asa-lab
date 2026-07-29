@@ -16,6 +16,7 @@ VALIDATORS = (
     "tools/validate_r0_diff.py",
     "tools/validate_r0_human_contract.py",
     "tools/validate_r0_owner_decision.py",
+    "tools/validate_r0_post_merge.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
@@ -54,6 +55,7 @@ def main() -> int:
     print("currentGate=R0")
     print("ownerDecisionFileValid=true")
     print("ownerDecisionRequired=true")
+    print("postMergeSequenceValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
