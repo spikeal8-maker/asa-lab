@@ -6,6 +6,7 @@ import {
 import {
   CATEGORY_LABELS,
   componentPhysicalSummary,
+  physicalEvidenceLabel,
   renderedSizeMillimetres,
   visualAsset,
   type ComponentCategory,
@@ -86,7 +87,7 @@ export function WorkbenchSidebars({
               {c.filteredCatalog.map((entry) => {
                 const disabled = !entry.enabled || c.simulationRunning;
                 const disabledReason = !entry.enabled
-                  ? `${entry.label}: модель и точная геометрия ещё проверяются`
+                  ? `${entry.label}: требуется SVG, terminal map, модель и reference-проверка`
                   : 'Остановите моделирование, чтобы добавить компонент';
                 return (
                   <button
@@ -103,16 +104,19 @@ export function WorkbenchSidebars({
                     }}
                     onClick={() => entry.kind && entry.kind !== 'wire' && c.addComponent(entry.kind)}
                     title={disabled ? disabledReason : `Добавить: ${entry.label}`}
+                    aria-describedby={`component-evidence-${entry.key}`}
                   >
                     <span className="workbench-catalog-art">
                       <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
                     </span>
                     <span>{entry.label}</span>
-                    <small>
-                      {entry.enabled
-                        ? componentPhysicalSummary(entry)
-                        : `Скоро · ${componentPhysicalSummary(entry)}`}
-                    </small>
+                    <small>{entry.enabled ? componentPhysicalSummary(entry) : `Скоро · ${componentPhysicalSummary(entry)}`}</small>
+                    <em
+                      id={`component-evidence-${entry.key}`}
+                      className={`workbench-evidence-badge ${entry.physical.evidence}`}
+                    >
+                      {physicalEvidenceLabel(entry)}
+                    </em>
                   </button>
                 );
               })}
@@ -154,21 +158,23 @@ export function WorkbenchSidebars({
                   <dd>{componentPhysicalSummary(c.selectedEntry)}</dd>
                 </div>
                 <div>
-                  <dt>На поле</dt>
+                  <dt>Envelope SVG</dt>
                   <dd>
                     {renderedSizeMillimetres(c.selectedEntry).width.toFixed(1)} ×{' '}
                     {renderedSizeMillimetres(c.selectedEntry).height.toFixed(1)} мм
                   </dd>
                 </div>
                 <div>
-                  <dt>Масштаб</dt>
-                  <dd>
-                    {c.selectedEntry.physical.evidence === 'owner_asset_calibrated'
-                      ? 'По авторскому asset'
-                      : c.selectedEntry.physical.evidence === 'manufacturer_typical'
-                        ? 'Типовой физический размер'
-                        : 'Требует reference-проверки'}
-                  </dd>
+                  <dt>Выводы</dt>
+                  <dd>{c.selectedEntry.terminals.length}</dd>
+                </div>
+                <div>
+                  <dt>Геометрия</dt>
+                  <dd>{physicalEvidenceLabel(c.selectedEntry)}</dd>
+                </div>
+                <div className="workbench-measurement-wide">
+                  <dt>Источник</dt>
+                  <dd>{c.selectedEntry.physical.source}</dd>
                 </div>
               </dl>
               <label>
@@ -207,7 +213,10 @@ export function WorkbenchSidebars({
               ) : null}
               {nonNominal ? (
                 <div className="workbench-model-warning" role="note">
-                  <strong>Legacy-номинал: {formatComponentValue(c.selectedComponent.kind, c.selectedComponent.value)}</strong>
+                  <strong>
+                    Legacy-номинал:{' '}
+                    {formatComponentValue(c.selectedComponent.kind, c.selectedComponent.value)}
+                  </strong>
                   <span>
                     Нативный номинал этого конкретного SVG-компонента —{' '}
                     {formatComponentValue(c.selectedComponent.kind, valueControl.defaultValue)}.
@@ -265,6 +274,20 @@ export function WorkbenchSidebars({
           ) : null}
           {c.selectedWire ? (
             <div className="workbench-inspector-body">
+              <dl className="workbench-measurements">
+                <div className="workbench-measurement-wide">
+                  <dt>Откуда</dt>
+                  <dd>
+                    {c.selectedWire.from.componentId}:{c.selectedWire.from.terminal}
+                  </dd>
+                </div>
+                <div className="workbench-measurement-wide">
+                  <dt>Куда</dt>
+                  <dd>
+                    {c.selectedWire.to.componentId}:{c.selectedWire.to.terminal}
+                  </dd>
+                </div>
+              </dl>
               <p>Цвет провода</p>
               <div className="workbench-wire-swatches">
                 {WIRE_COLORS.map((color) => (
