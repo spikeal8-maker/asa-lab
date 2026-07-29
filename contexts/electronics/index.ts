@@ -35,6 +35,7 @@ export {
   type BreadboardMountFailure,
   type BreadboardMountPlan,
   type BreadboardOccupancy,
+  type BreadboardOccupiedHoleFailure,
   type PlannedBreadboardMount,
   type PlanBreadboardMountOptions,
 } from './domain/breadboard-mount-planner.js';
@@ -83,15 +84,19 @@ export {
 } from './domain/component-properties.js';
 export {
   ACTIVE_NATIVE_COMPONENT_GEOMETRY,
+  NATIVE_ASSET_TERMINAL_EPSILON_MM,
   NATIVE_GEOMETRY_EPSILON_MM,
   NATIVE_GRID_PITCH_MM,
   calibratedAssetSizeMm,
+  calibratedAssetTerminalMm,
+  centeredAssetOriginMm,
   createAxialResistorGeometry,
   rotateNativePoint,
   rotatedEnvelopeMm,
   terminalDistanceMm,
   validateNativeComponentGeometry,
   type NativeAssetCalibration,
+  type NativeAssetTerminalAnchor,
   type NativeComponentGeometry,
   type NativeGeometryEvidence,
   type NativeGeometryValidation,
