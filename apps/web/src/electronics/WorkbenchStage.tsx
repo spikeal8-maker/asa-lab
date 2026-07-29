@@ -154,7 +154,7 @@ export function WorkbenchStage({
           .filter((component) => component.kind !== 'wire')
           .map((component) => {
             const entry = catalogEntry(component.kind);
-            if (!entry?.asset || !entry.terminals) return null;
+            if (!entry?.asset || entry.terminals.length === 0) return null;
             const baseSize = renderedSize(entry, 0);
             const boxSize = renderedSize(entry, component.rotation ?? 0);
             const selected = c.selection?.kind === 'component' && c.selection.id === component.id;
@@ -169,6 +169,7 @@ export function WorkbenchStage({
                 data-y={component.position.y}
                 data-physical={componentPhysicalSummary(entry)}
                 data-physical-evidence={entry.physical.evidence}
+                data-terminal-count={entry.terminals.length}
               >
                 {selected ? (
                   <rect
@@ -208,24 +209,25 @@ export function WorkbenchStage({
                     />
                   ) : null}
                 </g>
-                {(['a', 'b'] as const).map((terminal) => {
+                {entry.terminals.map((spec) => {
+                  const terminalId = spec.id;
                   const point = terminalPosition(
                     component.kind,
                     component.position,
-                    terminal,
+                    terminalId,
                     component.rotation ?? 0,
                   );
                   if (!point) return null;
-                  const spec = entry.terminals[terminal];
                   const pending =
                     c.pendingTerminal?.componentId === component.id &&
-                    c.pendingTerminal.terminal === terminal;
+                    c.pendingTerminal.terminal === terminalId;
                   return (
                     <g
-                      key={terminal}
+                      key={terminalId}
                       className={`workbench-terminal${pending ? ' pending' : ''}`}
                       transform={`translate(${point.x} ${point.y})`}
-                      data-terminal-id={spec.id}
+                      data-terminal-id={terminalId}
+                      data-terminal-semantic-id={spec.semanticId}
                       data-terminal-role={spec.role}
                     >
                       <circle
@@ -234,7 +236,7 @@ export function WorkbenchStage({
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
                           event.stopPropagation();
-                          c.clickTerminal(component.id, terminal);
+                          c.clickTerminal(component.id, terminalId);
                         }}
                         role="button"
                         tabIndex={0}
@@ -242,7 +244,7 @@ export function WorkbenchStage({
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            c.clickTerminal(component.id, terminal);
+                            c.clickTerminal(component.id, terminalId);
                           }
                         }}
                       />
