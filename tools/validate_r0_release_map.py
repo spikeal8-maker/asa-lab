@@ -17,21 +17,22 @@ BLUEPRINT_PATH = ROOT / "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml"
 ACTIVE_MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 EXPECTED_RELEASES = [f"R{index}" for index in range(11)]
 EXPECTED_LEGACY = {
-    "TASK-PRODUCT-DOC-001": "done",
-    "TASK-PORTAL-001": "done",
-    "TASK-PROJECT-SHELL-001": "superseded",
-    "TASK-CHECKERS-LITE-001": "superseded",
-    "TASK-ELECTRONICS-ALPHA-001": "superseded",
-    "TASK-SEAT-001": "superseded",
-    "TASK-ACT-001": "superseded",
-    "TASK-REVIEW-001": "superseded",
-    "TASK-ELEC-001": "superseded",
+    "TASK-PRODUCT-DOC-001": ("done", "R0"),
+    "TASK-PORTAL-001": ("done", "R0"),
+    "TASK-PROJECT-SHELL-001": ("superseded", "R3"),
+    "TASK-CHECKERS-LITE-001": ("superseded", "R10"),
+    "TASK-ELECTRONICS-ALPHA-001": ("superseded", "R4"),
+    "TASK-SEAT-001": ("superseded", "R5"),
+    "TASK-ACT-001": ("superseded", "R9"),
+    "TASK-REVIEW-001": ("superseded", "R9"),
+    "TASK-ELEC-001": ("superseded", "R9"),
 }
 EXPECTED_ACTIVATION_RULES = {
     "do_not_replace_active_project_map_before_pr_43_merge",
     "r0a_sets_current_focus_to_r0",
     "r1_remains_blocked_after_r0a",
     "r0d_is_the_only_transition_that_marks_r1_ready",
+    "strict_next_release_beats_dependency_ready_candidates",
     "preserve_existing_architecture_and_code_nodes",
     "update_owner_viewer_dynamically_after_activation",
 }
@@ -67,6 +68,10 @@ def main() -> int:
             fail("activation_transition must be R0A_CONTRACT_ACTIVATION")
         if template.get("current_gate") != "R0":
             fail("template current_gate must be R0")
+        if template.get("execution_order") != EXPECTED_RELEASES:
+            fail("template execution_order must be strict R0-R10")
+        if template.get("release_selection") != "strict_list_order":
+            fail("template release_selection must be strict_list_order")
 
         raw_nodes = template.get("release_nodes")
         if not isinstance(raw_nodes, list):
@@ -112,14 +117,22 @@ def main() -> int:
             if node.get("status") != expected_status:
                 fail(f"{release_id}.status must be {expected_status}")
 
-        for node in nodes:
+        for index, node in enumerate(nodes):
             release_id = node["id"]
-            next_candidates = set(node.get("next_candidates") or [])
-            if next_candidates != reverse.get(release_id, set()):
+            expected_next = EXPECTED_RELEASES[index + 1] if index + 1 < len(nodes) else None
+            if node.get("next_release") != expected_next:
                 fail(
-                    f"{release_id}.next_candidates must equal direct reverse dependencies "
-                    f"{sorted(reverse.get(release_id, set()))}, got {sorted(next_candidates)}"
+                    f"{release_id}.next_release must be {expected_next!r}, "
+                    f"got {node.get('next_release')!r}"
                 )
+            unlocks = set(node.get("unlocks_when_done") or [])
+            if unlocks != reverse.get(release_id, set()):
+                fail(
+                    f"{release_id}.unlocks_when_done must equal direct reverse dependencies "
+                    f"{sorted(reverse.get(release_id, set()))}, got {sorted(unlocks)}"
+                )
+            if expected_next is not None and node.get("next_release") not in EXPECTED_RELEASES:
+                fail(f"{release_id}.next_release is not a known release")
 
         raw_legacy = template.get("legacy_traceability")
         if not isinstance(raw_legacy, list):
@@ -131,11 +144,13 @@ def main() -> int:
         }
         if set(legacy) != set(EXPECTED_LEGACY):
             fail("legacy traceability IDs do not match the v1 delivery tasks")
-        for task_id, expected_status in EXPECTED_LEGACY.items():
+        for task_id, (expected_status, expected_replacement) in EXPECTED_LEGACY.items():
             if legacy[task_id].get("target_status") != expected_status:
                 fail(f"{task_id}.target_status must be {expected_status}")
-            if not isinstance(legacy[task_id].get("replacement"), str):
-                fail(f"{task_id} must name a replacement")
+            if legacy[task_id].get("replacement") != expected_replacement:
+                fail(f"{task_id}.replacement must be {expected_replacement}")
+            if expected_replacement not in EXPECTED_RELEASES:
+                fail(f"{task_id} names unknown replacement {expected_replacement}")
 
         rules = set(template.get("activation_rules") or [])
         if rules != EXPECTED_ACTIVATION_RULES:
@@ -163,7 +178,8 @@ def main() -> int:
     print(f"- releases: {len(EXPECTED_RELEASES)}")
     print("- active release nodes before PR 43 merge: 0")
     print("- current template gate: R0")
-    print("- future release status: blocked")
+    print("- strict next release: R1")
+    print("- dependency unlocks do not override execution order")
     return 0
 
 
