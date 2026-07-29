@@ -27,10 +27,23 @@ baseline_preservation:
     - project_versions.id
   preserve_values:
     - users.password_hash
+    - projects.tenant_id
+    - projects.created_by
+    - projects.classroom_id
+    - projects.project_scope
     - projects.module_key
-    - project_drafts.payload
-    - project_versions.payload
-    - project_versions.digest
+    - project_drafts.document_json
+    - project_drafts.revision
+    - project_versions.document_json
+    - project_versions.version_no
+  computed_fingerprints:
+    - project_drafts_document_json_canonical_sha256
+    - project_versions_document_json_canonical_sha256
+  schema_binding:
+    project_document_column: document_json
+    project_version_number_column: version_no
+    persisted_project_version_digest_column: null
+    digest_rule: compare canonical SHA-256 externally until an additive digest column is introduced by an approved release
   forbidden_operations:
     - rename_users_to_accounts
     - drop_users
@@ -150,6 +163,7 @@ stages:
       - backup_dev_and_test_database
       - record_baseline_counts_and_ids
       - record_existing_password_hashes_without_plaintext
+      - record_canonical_project_document_fingerprints
       - prove_legacy_login_classes_projects_and_electronics
     exit_gate:
       - backup_restore_verified
