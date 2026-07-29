@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { parseElectronicsDocument } from '../domain/document';
 
-function base(breadboardAttachments: unknown) {
+function base(
+  breadboardAttachments: unknown,
+  connections: unknown[] = [],
+) {
   return {
     schemaVersion: 1,
     geometryProfile: 'breadboard-2.54mm-v1',
@@ -11,7 +14,7 @@ function base(breadboardAttachments: unknown) {
       { id: 'led1', kind: 'led', position: { x: 40, y: 20 }, value: 2 },
       { id: 'legacy-wire', kind: 'wire', position: { x: 0, y: 0 }, value: 0 },
     ],
-    connections: [],
+    connections,
     breadboardAttachments,
   };
 }
@@ -26,6 +29,19 @@ function attachment(overrides: Record<string, unknown> = {}) {
     footprintKey: 'axial-resistor-10-pitch',
     insertionDepthMm: 3,
     ...overrides,
+  };
+}
+
+function wireToBoard(
+  id: string,
+  componentId: string,
+  componentTerminalId: string,
+  boardTerminalId: string,
+) {
+  return {
+    id,
+    from: { componentId, terminal: componentTerminalId },
+    to: { componentId: 'board', terminal: boardTerminalId },
   };
 }
 
@@ -64,7 +80,7 @@ describe('breadboard attachment document contract', () => {
     });
   });
 
-  it('rejects two conductors inserted into one physical hole', () => {
+  it('rejects two hidden conductors inserted into one physical hole', () => {
     expect(
       parseElectronicsDocument(
         base([
@@ -78,7 +94,35 @@ describe('breadboard attachment document contract', () => {
       ),
     ).toEqual({
       ok: false,
-      message: 'breadboard physical hole can contain only one attached conductor',
+      message: 'breadboard physical hole can contain only one conductor',
+    });
+  });
+
+  it('rejects two visible wire endpoints inserted into one physical hole', () => {
+    expect(
+      parseElectronicsDocument(
+        base([], [
+          wireToBoard('wire-1', 'r1', 'a', 'half-400:terminal:1:a'),
+          wireToBoard('wire-2', 'led1', 'a', 'half-400:terminal:1:a'),
+        ]),
+      ),
+    ).toEqual({
+      ok: false,
+      message: 'breadboard physical hole can contain only one conductor',
+    });
+  });
+
+  it('rejects a visible wire endpoint and a hidden lead in the same physical hole', () => {
+    expect(
+      parseElectronicsDocument(
+        base(
+          [attachment()],
+          [wireToBoard('wire-1', 'led1', 'a', 'half-400:terminal:1:a')],
+        ),
+      ),
+    ).toEqual({
+      ok: false,
+      message: 'breadboard physical hole can contain only one conductor',
     });
   });
 
