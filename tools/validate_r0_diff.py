@@ -68,10 +68,12 @@ REQUIRED_CHANGED = {
     "docs/delivery/R0_CONVERGENCE_CURRENT_STATE.md",
     "docs/delivery/R0_OWNER_DECISION.md",
     "docs/delivery/R0_OWNER_DECISION.yaml",
+    "docs/delivery/R0_POST_MERGE_TRANSITION.yaml",
     "docs/delivery/R0_VALIDATION_MATRIX.md",
     "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md",
     "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml",
     "docs/product/TARGET_PLATFORM_INDEX.md",
+    "docs/project-map/R0_TARGET_RELEASE_MAP.yaml",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_r0.py",
@@ -79,6 +81,8 @@ REQUIRED_CHANGED = {
     "tools/validate_r0_github_state.py",
     "tools/validate_r0_human_contract.py",
     "tools/validate_r0_owner_decision.py",
+    "tools/validate_r0_post_merge.py",
+    "tools/validate_r0_release_map.py",
 }
 
 
