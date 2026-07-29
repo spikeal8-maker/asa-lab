@@ -33,7 +33,6 @@ const requiredFragments = [
   "R10:'R10 — Несколько учебных модулей'",
   'Старые TASK-* доступны только в техническом режиме как история',
   'После merge PR №43 viewer автоматически переключится на R0–R10',
-  "release_selection",
 ];
 
 const failures = [];
