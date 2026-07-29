@@ -18,6 +18,7 @@ VALIDATORS = (
     "tools/validate_r0_legacy_traceability.py",
     "tools/validate_r0_review_packets.py",
     "tools/validate_target_test_matrix.py",
+    "tools/validate_r1_migration_contract.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
@@ -62,6 +63,7 @@ def main() -> int:
     print("legacyTraceabilityValid=true")
     print("reviewPacketsValid=true")
     print("targetTestMatrixValid=true")
+    print("r1MigrationContractValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
