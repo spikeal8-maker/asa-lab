@@ -42,6 +42,7 @@ export interface ProjectVersion {
 }
 
 export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+export type TerminalId = string;
 export type ElectronicsGeometryProfile = 'legacy-pixel-v1' | 'breadboard-2.54mm-v1';
 
 export interface SchematicComponent {
@@ -52,10 +53,16 @@ export interface SchematicComponent {
   rotation?: 0 | 90 | 180 | 270;
 }
 
+export interface SchematicEndpoint {
+  componentId: string;
+  /** Existing documents use a/b; future multi-terminal parts use stable IDs. */
+  terminal: TerminalId;
+}
+
 export interface SchematicConnection {
   id: string;
-  from: { componentId: string; terminal: 'a' | 'b' };
-  to: { componentId: string; terminal: 'a' | 'b' };
+  from: SchematicEndpoint;
+  to: SchematicEndpoint;
   color?: string;
   vertices?: { x: number; y: number }[];
 }
