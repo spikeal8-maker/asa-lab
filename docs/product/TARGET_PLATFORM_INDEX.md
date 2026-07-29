@@ -16,6 +16,8 @@
 - [`../delivery/R0_CONVERGENCE_CURRENT_STATE.md`](../delivery/R0_CONVERGENCE_CURRENT_STATE.md) — текущие роли веток и freeze;
 - [`../delivery/R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) — пять решений владельца;
 - [`../delivery/R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) — machine-readable pending/approved/rejected state;
+- [`../delivery/R0_FOUNDATION_REVIEW_PR34.md`](../delivery/R0_FOUNDATION_REVIEW_PR34.md) — owner checklist ограниченного Electronics/Project foundation;
+- [`../delivery/R0_R1_CANDIDATE_SELECTION.md`](../delivery/R0_R1_CANDIDATE_SELECTION.md) — сравнение PR №59/№60 и процедура выбора одной R1-линии;
 - [`../delivery/R0_POST_MERGE_TRANSITION.yaml`](../delivery/R0_POST_MERGE_TRANSITION.yaml) — R0A–R0D после merge, без раннего R1;
 - [`../delivery/R0_LEGACY_TRACEABILITY.yaml`](../delivery/R0_LEGACY_TRACEABILITY.yaml) — mapping старых v1 tasks/Issues в R0–R10;
 - [`../project-map/R0_TARGET_RELEASE_MAP.yaml`](../project-map/R0_TARGET_RELEASE_MAP.yaml) — неактивный шаблон release-карты;
@@ -48,6 +50,8 @@ R9  Activities / assignments / submissions / review / grades / badges
 R10 Multi-module lifecycle proof and measured operations scale
 ```
 
+Строгий delivery order всегда R0 → R1 → … → R10. Архитектурная готовность зависимости не разрешает перескочить через следующий release.
+
 ## Инварианты
 
 - Account, Principal, Workspace, capability и membership различаются.
@@ -77,6 +81,7 @@ validate_r0_owner_decision.py
 validate_r0_post_merge.py
 validate_r0_release_map.py
 validate_r0_legacy_traceability.py
+validate_r0_review_packets.py
 validate_tinkercad_parity.py
 validate_target_execution.py
 validate_architecture.py
@@ -87,4 +92,9 @@ validate_r0_github_state.py
 
 ## Текущий owner action
 
-Открыть [`R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md), принять или отклонить пять решений, затем синхронно обновить [`R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) и зафиксировать решение в PR №43. До этого R1 не начинается.
+1. Проверить PR №34 по [`R0_FOUNDATION_REVIEW_PR34.md`](../delivery/R0_FOUNDATION_REVIEW_PR34.md).
+2. Открыть [`R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) и принять/отклонить пять решений.
+3. После технического R0 PASS синхронно обновить [`R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) и зафиксировать решение в PR №43.
+4. PR №59/№60 выбираются только после R0B по [`R0_R1_CANDIDATE_SELECTION.md`](../delivery/R0_R1_CANDIDATE_SELECTION.md).
+
+До этого R1 не начинается.
