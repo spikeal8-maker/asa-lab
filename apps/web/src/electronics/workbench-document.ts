@@ -9,17 +9,22 @@ import {
   validEditableValue,
 } from './component-behavior';
 import {
-  ACTIVE_COMPONENTS,
   catalogEntry,
   componentOriginForCenter,
   renderedSize,
   snapComponentOrigin,
   terminalPosition,
   terminalSpec,
+  type CatalogEntry,
 } from './component-catalog';
 import { snap, type Point } from './workbench-geometry';
 import { BREADBOARD_PITCH_UNITS, HALF_PITCH_UNITS } from './workbench-scale';
 import type { Selection, TerminalRef } from './workbench-model';
+
+function enabledEntry(kind: Exclude<ComponentKind, 'wire'>): CatalogEntry | null {
+  const entry = catalogEntry(kind);
+  return entry?.enabled === true && entry.kind === kind ? entry : null;
+}
 
 function boxOf(component: SchematicComponent): {
   x: number;
@@ -27,7 +32,8 @@ function boxOf(component: SchematicComponent): {
   width: number;
   height: number;
 } | null {
-  const entry = catalogEntry(component.kind);
+  if (component.kind === 'wire') return null;
+  const entry = enabledEntry(component.kind);
   if (!entry) return null;
   const size = renderedSize(entry, component.rotation ?? 0);
   return { x: component.position.x, y: component.position.y, ...size };
@@ -92,7 +98,10 @@ export function addComponentToDocument(
   center: Point,
   id: string,
 ): { document: SchematicDocument; component: SchematicComponent } {
-  const entry = ACTIVE_COMPONENTS[kind];
+  const entry = enabledEntry(kind);
+  if (!entry) {
+    throw new Error(`component ${kind} is not enabled in the native workbench catalogue`);
+  }
   const size = renderedSize(entry);
   const component: SchematicComponent = {
     id,
@@ -113,7 +122,7 @@ export function duplicateComponentInDocument(
   const source = document.components.find((item) => item.id === selection.id);
   if (!source || source.kind === 'wire') return null;
   const rotation = source.rotation ?? 0;
-  const entry = catalogEntry(source.kind);
+  const entry = enabledEntry(source.kind);
   if (!entry) return null;
   const size = renderedSize(entry, rotation);
   const sourceCenter = {
@@ -157,8 +166,8 @@ export function rotateSelectionInDocument(
 ): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
   const selected = document.components.find((item) => item.id === selection.id);
-  if (!selected) return null;
-  const entry = catalogEntry(selected.kind);
+  if (!selected || selected.kind === 'wire') return null;
+  const entry = enabledEntry(selected.kind);
   if (!entry) return null;
   const previousRotation = selected.rotation ?? 0;
   const previousSize = renderedSize(entry, previousRotation);
@@ -183,7 +192,7 @@ export function updateSelectionValue(
 ): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
   const selected = document.components.find((item) => item.id === selection.id);
-  if (!selected) return null;
+  if (!selected || selected.kind === 'wire' || !enabledEntry(selected.kind)) return null;
   const valid = validEditableValue(selected.kind, value);
   if (valid === null) return null;
   return {
@@ -200,7 +209,7 @@ export function resetSelectionValueToNominal(
 ): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
   const selected = document.components.find((item) => item.id === selection.id);
-  if (!selected || selected.kind === 'wire') return null;
+  if (!selected || selected.kind === 'wire' || !enabledEntry(selected.kind)) return null;
   const value = WORKBENCH_VALUE_CONTROLS[selected.kind].defaultValue;
   if (selected.value === value) return null;
   return {
@@ -272,7 +281,7 @@ export type ConnectTerminalResult =
 function terminalExists(document: SchematicDocument, ref: TerminalRef): boolean {
   const component = document.components.find((item) => item.id === ref.componentId);
   if (!component || component.kind === 'wire') return false;
-  const entry = catalogEntry(component.kind);
+  const entry = enabledEntry(component.kind);
   return Boolean(entry && terminalSpec(entry, ref.terminal));
 }
 
@@ -284,7 +293,7 @@ export function connectTerminals(
   color: string,
 ): ConnectTerminalResult {
   if (!terminalExists(document, from) || !terminalExists(document, to)) {
-    return { kind: 'invalid', message: 'Вывод больше не существует в текущей модели компонента.' };
+    return { kind: 'invalid', message: 'Вывод больше не существует в текущей активной модели компонента.' };
   }
   if (from.componentId === to.componentId && from.terminal === to.terminal) {
     return { kind: 'invalid', message: 'Нельзя соединить вывод сам с собой.' };
@@ -318,7 +327,7 @@ export function moveComponentInDocument(
   position: Point,
 ): SchematicDocument {
   const component = document.components.find((item) => item.id === componentId);
-  if (!component) return document;
+  if (!component || component.kind === 'wire' || !enabledEntry(component.kind)) return document;
   const snapped = snapComponentOrigin(component.kind, position, component.rotation ?? 0);
   return {
     ...document,
@@ -331,11 +340,14 @@ export function moveComponentInDocument(
 export function sceneBounds(
   document: SchematicDocument,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  const placed = document.components.filter((component) => catalogEntry(component.kind));
+  const placed = document.components.filter(
+    (component) => component.kind !== 'wire' && enabledEntry(component.kind),
+  );
   if (placed.length === 0) return null;
   return placed.reduce(
     (acc, component) => {
-      const entry = catalogEntry(component.kind);
+      if (component.kind === 'wire') return acc;
+      const entry = enabledEntry(component.kind);
       if (!entry) return acc;
       const size = renderedSize(entry, component.rotation ?? 0);
       return {
