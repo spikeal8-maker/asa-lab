@@ -1,0 +1,276 @@
+schema_version: 1.0.0
+contract_id: asa-native-breadboard-model
+status: normative_candidate
+release: R4
+module_key: electronics
+source_scope: docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md
+source_tools: docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+implementation_foundation_pr: 34
+
+principle:
+  physical_units_source_of_truth: millimetres
+  rendering_is_not_connectivity: true
+  visual_overlap_is_not_an_electrical_attachment: true
+  unsupported_physical_state_returns_diagnostic: true
+  original_asa_or_owner_assets_only: true
+
+active_board:
+  key: breadboard-half-400
+  reference_class: half_size_solderless_breadboard
+  dimensions_mm:
+    width: 83.5
+    height: 54.5
+    depth: 8.5
+  lattice_pitch_mm: 2.54
+  center_channel_mm: 7.62
+  terminal_count: 400
+  field:
+    columns: 30
+    rows: [a, b, c, d, e, f, g, h, i, j]
+    upper_bus_rows: [a, b, c, d, e]
+    lower_bus_rows: [f, g, h, i, j]
+    holes_per_bus: 5
+  rails:
+    sides: [top, bottom]
+    polarities: [positive, negative]
+    points_per_line: 25
+    line_is_continuous_in_v1: true
+  terminal_ids:
+    field: half-400:terminal:<column>:<row>
+    rail: half-400:rail:<side>:<polarity>:<point>
+  bus_ids:
+    field: half-400:bus:field:<column>:<upper|lower>
+    rail: half-400:bus:rail:<side>:<positive|negative>
+
+future_boards:
+  - key: breadboard-mini-170
+    status: evidence_required_disabled
+    activation_requires:
+      - verified_dimensions
+      - verified_internal_topology
+      - original_asset
+      - terminal_contract
+      - mounting_tests
+  - key: breadboard-full-830
+    status: evidence_required_disabled
+    activation_requires:
+      - verified_dimensions
+      - verified_rail_split_behavior
+      - original_asset
+      - terminal_contract
+      - mounting_tests
+
+physical_coordinate_model:
+  field_x_mm: (column - 1) * 2.54
+  upper_y_mm: row_index_0_to_4 * 2.54
+  lower_y_mm: (row_index_5_to_9 - 5) * 2.54 + 4 * 2.54 + 7.62
+  tolerance_mm: 0.02
+  allowed_rotations_degrees: [0, 90, 180, 270]
+  rules:
+    - component_footprint_coordinates_are_relative_to_an_anchor_terminal
+    - rotation_is_applied_around_the_anchor_terminal
+    - every_component_terminal_must_land_on_a_real_hole
+    - center_channel_is_not_a_virtual_2_54mm_hole_step
+    - out_of_board_terminal_rejects_the_mount
+    - non_finite_or_duplicate_footprint_terminal_rejects_the_mount
+
+foundation_footprints:
+  - key: axial_resistor_4_pitch
+    status: foundation_active_reference_span_evidence_required
+    terminal_span_mm: 10.16
+    pitch_multiple: 4
+    rules:
+      - both_leads_must_land_on_real_holes
+      - future_variable_lead_span_requires_reference_evidence_and_schema_update
+  - key: led_5mm_1_pitch
+    status: foundation_active
+    terminal_span_mm: 2.54
+    pitch_multiple: 1
+    rules:
+      - polarity_is_preserved
+      - both_leads_must_land_on_real_holes
+  - key: dc_source
+    status: free_component_connected_by_visible_wires
+    rules:
+      - source_body_is_not_inserted_into_breadboard
+      - source_terminals_connect_through_visible_wires
+
+attachment_model:
+  entity: BreadboardAttachment
+  required_fields:
+    - id
+    - breadboard_component_id
+    - breadboard_terminal_id
+    - component_id
+    - component_terminal_id
+    - created_at
+  optional_fields:
+    - insertion_depth_mm
+    - footprint_key
+  uniqueness:
+    - one_active_attachment_per_component_terminal
+    - one_inserted_conductor_per_physical_hole
+  invariants:
+    - breadboard_component_kind_is_breadboard
+    - breadboard_terminal_id_exists_on_that_board
+    - component_terminal_id_exists_on_that_component
+    - component_id_is_not_breadboard_component_id
+    - attachment_is_tenant_and_project_local
+    - attachment_id_is_stable_across_save_reload
+    - hidden_attachment_is_not_serialized_as_a_visible_wire
+    - deleting_component_deletes_its_attachments
+    - deleting_breadboard_requires_detach_or_cascade_with_explicit_user_action
+    - copying_project_remaps_component_board_and_attachment_ids_consistently
+
+occupancy_model:
+  conductor_types:
+    - component_lead
+    - visible_wire_endpoint
+    - instrument_probe_if_supported
+  v1_rule: one_conductor_per_physical_hole
+  conflict_result:
+    code: breadboard_hole_occupied
+    severity: error
+    behavior: reject_drop_without_mutating_document
+  future_deviation:
+    status: evidence_required
+    question: whether_reference_allows_multiple_virtual_conductors_in_one_hole
+
+snapping_and_dragging:
+  drag_preview:
+    valid: highlight_all_target_holes_and_show_component_ghost
+    invalid: highlight_conflicting_or_missing_holes_and_show_reason
+    no_target: free_stage_placement_without_electrical_attachment
+  drop:
+    valid: atomically_move_component_and_replace_attachments
+    invalid: leave_document_unchanged
+  detach:
+    trigger:
+      - drag_component_beyond_snap_tolerance
+      - explicit_detach_action
+      - delete_breadboard
+    result: remove_attachment_edges_without_creating_hidden_visible_wire
+  board_move:
+    target_behavior: move_board_and_attached_components_as_one_physical_assembly
+    status: evidence_required_before_parity_pass
+  component_rotate:
+    target_behavior: recompute_all_attachment_targets_or_reject_rotation_atomically
+
+netlist_model:
+  graph_vertices:
+    - component_terminal
+    - breadboard_terminal
+  graph_edges:
+    - visible_wire
+    - breadboard_internal_bus
+    - breadboard_attachment
+  collapse_rule: connected_vertices_form_one_electrical_net
+  forbidden:
+    - infer_connection_from_bounding_box_overlap
+    - infer_connection_from_pixel_colour
+    - infer_connection_from_component_center_position
+    - return_fake_numeric_result_when_attachment_state_is_invalid
+  deterministic_order:
+    - stable_component_id
+    - stable_terminal_id
+    - stable_attachment_id
+    - stable_wire_id
+
+ui_behavior:
+  pending_wire_or_attachment:
+    - highlight_entire_five_hole_strip_or_power_rail_bus
+    - highlight_occupied_holes_separately
+    - expose_accessible_bus_description
+  selected_component:
+    - highlight_all_attached_holes
+    - show_mount_status_in_inspector
+    - show_detach_action_when_authorized
+  inspector:
+    read_only_board_fields:
+      - physical_dimensions
+      - terminal_count
+      - pitch
+      - center_channel
+      - internal_bus_model
+    component_fields:
+      - footprint_key
+      - attached_terminal_count
+      - attachment_diagnostics
+  accessibility:
+    - do_not_render_400_persistent_text_labels
+    - each_hole_has_accessible_name
+    - keyboard_mount_flow_has_equivalent_validation
+    - bus_highlight_is_not_colour_only
+
+persistence_model:
+  document_change: additive
+  target_field: breadboardAttachments
+  migration_rules:
+    - missing_field_means_empty_attachment_list
+    - preserve_existing_component_wire_and_terminal_ids
+    - explicit_legacy_hidden_wires_may_be_migrated_only_by_verified_idempotent_migrator
+    - unknown_attachment_fields_are_preserved_when_safe
+    - immutable_project_versions_are_never_rewritten_in_place
+  autosave:
+    - move_and_attachment_update_are_one_revision
+    - invalid_drop_does_not_increment_revision
+    - repeated_same_attachment_request_is_idempotent
+
+required_tests:
+  physical:
+    - terminal_count_400_unique
+    - dimensions_and_pitch
+    - center_channel_geometry
+    - field_and_rail_bus_membership
+    - invalid_terminal_ids
+  footprint:
+    - resistor_four_pitch_horizontal_and_reverse
+    - led_one_pitch_horizontal_and_vertical
+    - center_channel_rejection
+    - out_of_board_rejection
+    - duplicate_terminal_rejection
+  attachment:
+    - create_replace_detach_idempotency
+    - one_terminal_one_attachment
+    - one_hole_one_conductor
+    - delete_component_cleanup
+    - copy_id_remap
+    - save_reload_preservation
+  netlist:
+    - five_hole_internal_connectivity
+    - center_channel_isolation
+    - independent_power_rails
+    - attachment_plus_bus_plus_visible_wire_series_circuit
+    - cross_board_isolation
+  ui:
+    - valid_and_invalid_drop_preview
+    - bus_and_occupancy_highlight
+    - keyboard_mount
+    - board_move_with_attached_parts_or_approved_deviation
+    - reload_visual_and_electrical_equivalence
+  security:
+    - malformed_attachment_rejected
+    - attachment_cannot_reference_foreign_project_or_tenant
+    - server_revalidates_attachment_geometry_and_occupancy
+
+implementation_status:
+  canonical_physical_constants: in_review_pr34
+  stable_terminal_and_bus_ids: in_review_pr34
+  internal_bus_netlist: in_review_pr34
+  physical_footprint_mount_planner: in_review_pr34
+  native_original_svg: in_review_pr34
+  persisted_breadboard_attachments: absent
+  occupancy_enforcement: absent
+  automatic_ui_snap_attach: absent
+  bus_highlight: absent
+  board_move_assembly: evidence_required
+  live_browser_save_reload_simulation: not_run_after_latest_correctives
+
+completion_gate:
+  - all_required_tests_pass
+  - no_visual_overlap_connection_inference
+  - attachment_persistence_and_netlist_are_one_contract
+  - owner_accepts_native_drop_snap_wire_and_reload_flow
+  - unresolved_board_move_and_variable_resistor_span_have_evidence_or_approved_deviation
+  - port_5173_not_used
+  - complete_electronics_parity_not_claimed_from_breadboard_slice_alone
