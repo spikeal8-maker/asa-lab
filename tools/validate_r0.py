@@ -27,6 +27,7 @@ VALIDATORS = (
     "tools/validate_tinkercad_parity.py",
     "tools/validate_complete_product_interfaces.py",
     "tools/validate_page_wireframes.py",
+    "tools/validate_breadboard_native_contract.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
     "tools/validate_project_map.py",
@@ -34,6 +35,7 @@ VALIDATORS = (
     "tools/validate_r0_pr34_remote.py",
     "tools/validate_r0_pr34_api_validation_remote.py",
     "tools/validate_r0_pr34_openapi_remote.py",
+    "tools/validate_r0_pr34_breadboard_remote.py",
     "tools/validate_r0_github_state.py",
 )
 
@@ -82,9 +84,11 @@ def main() -> int:
     print("tinkercadParityContractValid=true")
     print("completeProductInterfacesValid=true")
     print("pageWireframesValid=true")
+    print("nativeBreadboardContractValid=true")
     print("pr34RemoteCorrectiveSourceValid=true")
     print("pr34RequestValidationSourceValid=true")
     print("pr34OpenApiSourceValid=true")
+    print("pr34NativeGeometrySourceValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
