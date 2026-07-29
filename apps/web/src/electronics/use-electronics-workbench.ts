@@ -7,7 +7,11 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import { type ComponentKind, type SchematicComponent } from '../api';
+import {
+  type ComponentKind,
+  type SchematicComponent,
+  type TerminalId,
+} from '../api';
 import {
   WORKBENCH_CATALOG,
   catalogEntry,
@@ -114,11 +118,15 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function addComponent(kind: Exclude<ComponentKind, 'wire'>, at?: Point): void {
     if (!document || !editable()) return;
-    const added = addComponentToDocument(document, kind, at ?? visibleCenter(), nextId(kind));
     const entry = catalogEntry(kind);
+    if (!entry?.enabled) {
+      setNotice('Этот компонент ещё не имеет проверенной геометрии, выводов и модели.');
+      return;
+    }
+    const added = addComponentToDocument(document, kind, at ?? visibleCenter(), nextId(kind));
     commitDocument(
       added.document,
-      `${entry?.label ?? 'Компонент'} добавлен по сетке 2,54 мм. Соедините выводы проводами.`,
+      `${entry.label} добавлен по сетке 2,54 мм. Соедините выводы проводами.`,
     );
     setSelection({ kind: 'component', id: added.component.id });
   }
@@ -127,7 +135,10 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document || selection?.kind !== 'component' || !editable()) return;
     const duplicated = duplicateComponentInDocument(document, selection, nextId(selection.id));
     if (!duplicated) return;
-    commitDocument(duplicated.document, 'Создана копия элемента с привязкой к макетной сетке.');
+    commitDocument(
+      duplicated.document,
+      'Создана копия элемента в ближайшем свободном месте макетной сетки.',
+    );
     setSelection({ kind: 'component', id: duplicated.component.id });
   }
 
@@ -135,7 +146,10 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document || !selection || !editable()) return;
     commitDocument(
       removeSelectionFromDocument(document, selection),
-      selection.kind === 'wire' ? 'Провод удалён.' : 'Элемент удалён.',
+      selection.kind === 'wire' ? 'Провод удалён.' : 'Элемент и связанные провода удалены.',
+    );
+    setPendingTerminal((pending) =>
+      selection.kind === 'component' && pending?.componentId === selection.id ? null : pending,
     );
     setSelection(null);
   }
@@ -161,6 +175,10 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setWireColor(color: string): void {
     if (!editable()) return;
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
+      setNotice('Недопустимый цвет провода.');
+      return;
+    }
     setActiveWireColor(color);
     if (!document) return;
     const next = updateSelectedWireColor(document, selection, color);
@@ -170,20 +188,30 @@ export function useElectronicsWorkbench(projectId: string) {
   function toggleWireRoute(): void {
     if (!document || !editable()) return;
     const next = toggleSelectedWireRoute(document, selection);
-    if (next) commitDocument(next);
+    if (next) commitDocument(next, 'Маршрут провода перестроен по макетной сетке.');
   }
 
-  function clickTerminal(componentId: string, terminal: 'a' | 'b'): void {
+  function clearPendingWire(message?: string): void {
+    setPendingTerminal(null);
+    setWirePreviewEnd(null);
+    if (message) setNotice(message);
+  }
+
+  function clickTerminal(componentId: string, terminal: TerminalId): void {
     if (!document || !editable()) return;
+    const component = document.components.find((item) => item.id === componentId);
+    const entry = component ? catalogEntry(component.kind) : null;
+    if (!component || !entry?.terminals.some((candidate) => candidate.id === terminal)) {
+      clearPendingWire('Вывод больше не существует в текущей модели компонента.');
+      return;
+    }
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
       setNotice('Выберите второй вывод. Провод будет проложен по макетной сетке.');
       return;
     }
     if (pendingTerminal.componentId === componentId && pendingTerminal.terminal === terminal) {
-      setPendingTerminal(null);
-      setWirePreviewEnd(null);
-      setNotice('Прокладка провода отменена.');
+      clearPendingWire('Прокладка провода отменена.');
       return;
     }
     const connected = connectTerminals(
@@ -193,16 +221,17 @@ export function useElectronicsWorkbench(projectId: string) {
       nextId('wire'),
       activeWireColor,
     );
-    if (connected.kind === 'duplicate') {
-      setPendingTerminal(null);
-      setWirePreviewEnd(null);
-      setNotice('Эти выводы уже соединены.');
+    if (connected.kind === 'invalid') {
+      clearPendingWire(connected.message);
       return;
     }
-    commitDocument(connected.document, 'Провод добавлен.');
+    if (connected.kind === 'duplicate') {
+      clearPendingWire('Эти выводы уже соединены.');
+      return;
+    }
+    commitDocument(connected.document, 'Провод добавлен между стабильными выводами.');
     setSelection({ kind: 'wire', id: connected.wire.id });
-    setPendingTerminal(null);
-    setWirePreviewEnd(null);
+    clearPendingWire();
   }
 
   function toWorld(event: PointerEvent | DragEvent | WheelEvent): Point {
@@ -244,8 +273,9 @@ export function useElectronicsWorkbench(projectId: string) {
       if (
         event.target === event.currentTarget ||
         (event.target as Element).classList.contains('workbench-grid-hit')
-      )
+      ) {
         setSelection(null);
+      }
       return;
     }
     panDragRef.current = {
@@ -303,7 +333,9 @@ export function useElectronicsWorkbench(projectId: string) {
           (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y)
         ) {
           pushHistory(document);
-          setNotice('Положение и выводы выровнены по макетной сетке; изменение сохранится автоматически.');
+          setNotice(
+            'Положение и выводы выровнены по физической сетке; изменение сохранится автоматически.',
+          );
         }
       }
     }
@@ -352,15 +384,22 @@ export function useElectronicsWorkbench(projectId: string) {
   function handleDrop(event: DragEvent<SVGSVGElement>): void {
     event.preventDefault();
     if (!editable()) return;
-    const kind = event.dataTransfer.getData(DRAG_MIME) as Exclude<ComponentKind, 'wire'>;
-    if (!['source', 'resistor', 'led'].includes(kind)) return;
-    addComponent(kind, toWorld(event));
+    const requested = event.dataTransfer.getData(DRAG_MIME);
+    const entry = WORKBENCH_CATALOG.find(
+      (candidate) => candidate.enabled && candidate.kind === requested,
+    );
+    if (!entry?.kind || entry.kind === 'wire') {
+      setNotice('Компонент недоступен: требуется проверенная геометрия, выводы и модель.');
+      return;
+    }
+    addComponent(entry.kind, toWorld(event));
   }
 
   useEffect(() => {
     function keyDown(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space' && !(event.target instanceof HTMLInputElement))
+      if (event.code === 'Space' && !(event.target instanceof HTMLInputElement)) {
         spacePressedRef.current = true;
+      }
       const editableTarget =
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
@@ -382,8 +421,7 @@ export function useElectronicsWorkbench(projectId: string) {
         event.preventDefault();
         rotateSelected();
       } else if (event.key === 'Escape') {
-        setPendingTerminal(null);
-        setWirePreviewEnd(null);
+        clearPendingWire();
         setSelection(null);
       }
     }
@@ -447,8 +485,9 @@ export function useElectronicsWorkbench(projectId: string) {
       codes?.has('led_no_resistor') ||
       codes?.has('short_circuit') ||
       codes?.has('led_damage_risk')
-    )
+    ) {
       return 'burned';
+    }
     if (codes?.has('overcurrent')) return 'overcurrent';
     return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
   }
