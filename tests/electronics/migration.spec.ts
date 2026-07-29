@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { SchematicDocument } from '../../apps/web/src/api';
-import { terminalPosition } from '../../apps/web/src/electronics/component-catalog';
+import {
+  catalogEntry,
+  terminalIds,
+  terminalPosition,
+} from '../../apps/web/src/electronics/component-catalog';
 import { migrateElectronicsGeometry } from '../../apps/web/src/electronics/workbench-migration';
 import { HALF_PITCH_UNITS } from '../../apps/web/src/electronics/workbench-scale';
 
@@ -65,13 +69,17 @@ describe('legacy Electronics geometry migration', () => {
     expect(second.document).toBe(first.document);
   });
 
-  it('preserves IDs, electrical topology, values, rotation, wire colour and manual vertices', () => {
+  it('preserves IDs, terminal identities, electrical topology, values, rotation, wire colour and vertices', () => {
     const migrated = migrateElectronicsGeometry(legacy).document;
     expect(snapshotTopology(migrated)).toEqual(snapshotTopology(legacy));
     expect(migrated.geometryProfile).toBe('breadboard-2.54mm-v1');
+    expect(migrated.connections.map((wire) => [wire.from.terminal, wire.to.terminal])).toEqual([
+      ['a', 'a'],
+      ['b', 'a'],
+    ]);
   });
 
-  it('moves only component positions and aligns physical terminals to the half-pitch grid', () => {
+  it('moves only component positions and aligns every registered terminal to the half-pitch grid', () => {
     const result = migrateElectronicsGeometry(legacy);
     expect(result.migratedComponents).toBe(3);
     expect(result.maximumCentreShift).toBeLessThanOrEqual(HALF_PITCH_UNITS * Math.SQRT2);
@@ -81,7 +89,8 @@ describe('legacy Electronics geometry migration', () => {
 
     for (const component of result.document.components) {
       if (component.kind === 'wire') continue;
-      for (const terminal of ['a', 'b'] as const) {
+      const entry = catalogEntry(component.kind)!;
+      for (const terminal of terminalIds(entry)) {
         const point = terminalPosition(
           component.kind,
           component.position,
