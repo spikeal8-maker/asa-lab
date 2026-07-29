@@ -34,7 +34,13 @@ EXPECTED_PRS: dict[int, dict[str, Any]] = {
 }
 
 EXPECTED_ISSUES: dict[int, str] = {
-    24: "[SUPERSEDED]",
+    6: "[SUPERSEDED][TASK-ELEC-001]",
+    7: "[SUPERSEDED][TASK-SEAT-001]",
+    8: "[SUPERSEDED][TASK-ACT-001]",
+    20: "[SUPERSEDED][TASK-REVIEW-001]",
+    24: "[SUPERSEDED][TASK-PROJECT-SHELL-001]",
+    25: "[SUPERSEDED][TASK-CHECKERS-LITE-001]",
+    26: "[SUPERSEDED][TASK-ELECTRONICS-ALPHA-001]",
     36: "[EPIC][R0 CONVERGENCE]",
     37: "[R3]",
     38: "[R7]",
@@ -52,6 +58,16 @@ EXPECTED_ISSUES: dict[int, str] = {
     63: "[R4]",
     64: "[R6]",
 }
+
+LEGACY_TASK_IDS = (
+    "TASK-ELEC-001",
+    "TASK-SEAT-001",
+    "TASK-ACT-001",
+    "TASK-REVIEW-001",
+    "TASK-PROJECT-SHELL-001",
+    "TASK-CHECKERS-LITE-001",
+    "TASK-ELECTRONICS-ALPHA-001",
+)
 
 
 def gh_api(path: str, fields: dict[str, str] | None = None) -> Any:
@@ -143,19 +159,20 @@ def main() -> int:
             if marker not in contract_body:
                 errors.append(f"PR #43 body misses marker: {marker}")
 
-        search = gh_api(
-            "search/issues",
-            {
-                "q": f'repo:{REPOSITORY} is:pr is:open in:title "TASK-PROJECT-SHELL-001"',
-                "per_page": "20",
-            },
-        )
-        if int(search.get("total_count", 0)) > 0:
-            numbers = [item.get("number") for item in search.get("items", [])]
-            errors.append(
-                "legacy TASK-PROJECT-SHELL-001 must not have an open PR title; found "
-                + ", ".join(f"#{number}" for number in numbers)
+        for task_id in LEGACY_TASK_IDS:
+            search = gh_api(
+                "search/issues",
+                {
+                    "q": f'repo:{REPOSITORY} is:pr is:open in:title "{task_id}"',
+                    "per_page": "20",
+                },
             )
+            if int(search.get("total_count", 0)) > 0:
+                numbers = [item.get("number") for item in search.get("items", [])]
+                errors.append(
+                    f"legacy {task_id} must not have an open PR title; found "
+                    + ", ".join(f"#{number}" for number in numbers)
+                )
 
     except RuntimeError as error:
         print(f"ASA R0 GitHub state BLOCKED: {error}", file=sys.stderr)
@@ -172,7 +189,7 @@ def main() -> int:
     print(f"- issues checked: {len(EXPECTED_ISSUES)}")
     print("- transfer-only PRs: #35, #45, #47")
     print("- competing R1 candidates: #59, #60")
-    print("- legacy Project Shell open PR titles: 0")
+    print(f"- legacy executable task PR titles: 0 ({len(LEGACY_TASK_IDS)} task IDs)")
     return 0
 
 
