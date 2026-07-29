@@ -1,8 +1,16 @@
-import { componentValueError } from './component-model.js';
+import {
+  COMPONENT_KINDS,
+  componentValueError,
+  isComponentTerminal,
+  type ComponentKind,
+  type TerminalId,
+} from './component-model.js';
+
+export type { ComponentKind, TerminalId } from './component-model.js';
+/** @deprecated Use TerminalId. Kept as a source-compatible alias. */
+export type Terminal = TerminalId;
 
 /** Electronics schematic document stored inside ProjectDraft. */
-export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
-export type Terminal = 'a' | 'b';
 export type ElectronicsGeometryProfile = 'legacy-pixel-v1' | 'breadboard-2.54mm-v1';
 
 export interface ComponentPosition {
@@ -18,10 +26,16 @@ export interface SchematicComponent {
   readonly rotation?: 0 | 90 | 180 | 270;
 }
 
+export interface SchematicEndpoint {
+  readonly componentId: string;
+  /** Stable within the component definition; existing documents use a/b. */
+  readonly terminal: TerminalId;
+}
+
 export interface SchematicConnection {
   readonly id: string;
-  readonly from: { readonly componentId: string; readonly terminal: Terminal };
-  readonly to: { readonly componentId: string; readonly terminal: Terminal };
+  readonly from: SchematicEndpoint;
+  readonly to: SchematicEndpoint;
   readonly color?: string;
   readonly vertices?: readonly ComponentPosition[];
 }
@@ -45,8 +59,6 @@ export const EMPTY_DOCUMENT: ElectronicsDocument = {
   connections: [],
 };
 
-const KINDS: readonly ComponentKind[] = ['source', 'resistor', 'led', 'wire'];
-const TERMINALS: readonly Terminal[] = ['a', 'b'];
 const GEOMETRY_PROFILES: readonly ElectronicsGeometryProfile[] = [
   'legacy-pixel-v1',
   'breadboard-2.54mm-v1',
@@ -56,6 +68,7 @@ const MAX_COMPONENTS = 100;
 const MAX_CONNECTIONS = 200;
 const MAX_WIRE_VERTICES = 24;
 const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+const TERMINAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -63,6 +76,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 64;
+}
+
+function isTerminalId(value: unknown): value is TerminalId {
+  return typeof value === 'string' && TERMINAL_ID_PATTERN.test(value);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -88,6 +105,32 @@ function parseGeometryProfile(value: unknown): ElectronicsGeometryProfile | null
   return null;
 }
 
+function parseEndpoint(
+  value: unknown,
+  field: string,
+  componentKinds: ReadonlyMap<string, ComponentKind>,
+): SchematicEndpoint | string {
+  if (!isPlainObject(value) || !isId(value['componentId']) || !isTerminalId(value['terminal'])) {
+    return `${field} must contain a componentId and safe terminal ID`;
+  }
+  const componentId = value['componentId'];
+  const kind = componentKinds.get(componentId);
+  if (!kind) return `${field} must reference an existing component`;
+  const terminal = value['terminal'];
+  if (!isComponentTerminal(kind, terminal)) {
+    return `${field} references unsupported terminal ${terminal} on ${kind}`;
+  }
+  return { componentId, terminal };
+}
+
+function endpointKey(endpoint: SchematicEndpoint): string {
+  return `${endpoint.componentId}:${endpoint.terminal}`;
+}
+
+function connectionPairKey(from: SchematicEndpoint, to: SchematicEndpoint): string {
+  return [endpointKey(from), endpointKey(to)].sort().join('|');
+}
+
 export type DocumentParseResult =
   | { readonly ok: true; readonly document: ElectronicsDocument }
   | { readonly ok: false; readonly message: string };
@@ -110,12 +153,13 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
 
   const components: SchematicComponent[] = [];
   const seenComponents = new Set<string>();
+  const componentKinds = new Map<string, ComponentKind>();
   for (const raw of rawComponents) {
     if (!isPlainObject(raw)) return { ok: false, message: 'component must be an object' };
     const { id, kind, position, value: componentValue, rotation } = raw;
     if (!isId(id) || seenComponents.has(id))
       return { ok: false, message: 'component id must be unique and non-empty' };
-    if (typeof kind !== 'string' || !KINDS.includes(kind as ComponentKind))
+    if (typeof kind !== 'string' || !COMPONENT_KINDS.includes(kind as ComponentKind))
       return { ok: false, message: `unsupported component kind: ${String(kind)}` };
     const componentKind = kind as ComponentKind;
     const parsedPosition = parsePosition(position, 'component position');
@@ -130,6 +174,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     )
       return { ok: false, message: 'component rotation must be 0, 90, 180 or 270' };
     seenComponents.add(id);
+    componentKinds.set(id, componentKind);
     components.push({
       id,
       kind: componentKind,
@@ -141,20 +186,22 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
 
   const connections: SchematicConnection[] = [];
   const seenConnections = new Set<string>();
+  const seenEndpointPairs = new Set<string>();
   for (const raw of rawConnections) {
     if (!isPlainObject(raw)) return { ok: false, message: 'connection must be an object' };
-    const { id, from, to, color, vertices } = raw;
+    const { id, from: rawFrom, to: rawTo, color, vertices } = raw;
     if (!isId(id) || seenConnections.has(id))
       return { ok: false, message: 'connection id must be unique and non-empty' };
-    for (const endpoint of [from, to]) {
-      if (
-        !isPlainObject(endpoint) ||
-        !isId(endpoint['componentId']) ||
-        !seenComponents.has(endpoint['componentId'] as string) ||
-        typeof endpoint['terminal'] !== 'string' ||
-        !TERMINALS.includes(endpoint['terminal'] as Terminal)
-      )
-        return { ok: false, message: 'connection endpoints must reference existing terminals' };
+    const from = parseEndpoint(rawFrom, 'connection from', componentKinds);
+    if (typeof from === 'string') return { ok: false, message: from };
+    const to = parseEndpoint(rawTo, 'connection to', componentKinds);
+    if (typeof to === 'string') return { ok: false, message: to };
+    if (endpointKey(from) === endpointKey(to)) {
+      return { ok: false, message: 'connection cannot join a terminal to itself' };
+    }
+    const pairKey = connectionPairKey(from, to);
+    if (seenEndpointPairs.has(pairKey)) {
+      return { ok: false, message: 'duplicate connection endpoints are not allowed' };
     }
     if (color !== undefined && (typeof color !== 'string' || !COLOR_PATTERN.test(color)))
       return { ok: false, message: 'wire color must be a six-digit hex color' };
@@ -170,16 +217,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       }
     }
     seenConnections.add(id);
+    seenEndpointPairs.add(pairKey);
     connections.push({
       id,
-      from: {
-        componentId: (from as Record<string, unknown>)['componentId'] as string,
-        terminal: (from as Record<string, unknown>)['terminal'] as Terminal,
-      },
-      to: {
-        componentId: (to as Record<string, unknown>)['componentId'] as string,
-        terminal: (to as Record<string, unknown>)['terminal'] as Terminal,
-      },
+      from,
+      to,
       ...(color === undefined ? {} : { color }),
       ...(parsedVertices === undefined ? {} : { vertices: parsedVertices }),
     });
