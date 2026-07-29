@@ -18,12 +18,13 @@ R0 PASS означает только: нормативный кандидат �
 | 4 | `validate_r0_owner_decision.py` | machine-readable owner state не подменён ботом | mixed/forged approval or rejected contract without notes | — |
 | 5 | `validate_r0_post_merge.py` | после merge R1 не разблокируется до integration и выбора одной identity-линии | skipped/parallel phase, early R1 activation | — |
 | 6 | `validate_r0_release_map.py` | inactive R0–R10 map template совпадает с blueprint/execution plan и не протёк в active map | dependency/status/legacy mismatch | — |
-| 7 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
-| 8 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
-| 9 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
-| 10 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
-| 11 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
-| 12 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
+| 7 | `validate_r0_legacy_traceability.py` | все старые v1 tasks/evidence Issues mapped в R0–R10 и не исполнимы | потерянный requirement, неверный replacement, дублированный Issue | — |
+| 8 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
+| 9 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
+| 10 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
+| 11 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
+| 12 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
+| 13 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
 
 Первый non-zero останавливает suite.
 
@@ -40,6 +41,14 @@ rejected_changes_required контракт должен быть изменён;
 ```text
 docs/delivery/R0_OWNER_DECISION.yaml
 ```
+
+## Legacy traceability
+
+```text
+docs/delivery/R0_LEGACY_TRACEABILITY.yaml
+```
+
+Старые Issues №6/№7/№8/№20/№24/№25/№26 остаются открыты только как traceability. Ни одна не может создать branch/PR или стать current release.
 
 ## Post-merge phases
 
@@ -86,13 +95,14 @@ docs/delivery/R0_OWNER_DECISION.md
 commit SHA
 base SHA
 changed file list
-12 validator results
+13 validator results
 YAML result
 working tree clean
 R0 GitHub state result
 owner decision state
 post-merge sequence result
 release-map template result
+legacy traceability result
 product code changed = 0
 migration changed = 0
 repository binary changed = 0
