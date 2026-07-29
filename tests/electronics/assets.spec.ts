@@ -6,6 +6,7 @@ import {
   renderedSize,
   renderedSizeMillimetres,
   snapComponentOrigin,
+  terminalIds,
   terminalPosition,
 } from '../../apps/web/src/electronics/component-catalog';
 import {
@@ -57,7 +58,6 @@ describe('electronics component assets', () => {
 
     expect(svg.trimStart().startsWith('<svg'), 'must be a bare SVG root').toBe(true);
     expect(svg, 'viewBox is required for scaling without distortion').toMatch(/viewBox="/);
-
     expect(svg).not.toMatch(/<script/i);
     expect(svg).not.toMatch(/<foreignObject/i);
     expect(svg).not.toMatch(/\son[a-z]+\s*=/i);
@@ -69,11 +69,13 @@ describe('electronics component assets', () => {
     expect(svg, 'editor metadata must be stripped').not.toMatch(/sodipodi|inkscape|<metadata/i);
   });
 
-  it('active components declare semantic terminals inside their viewBox', () => {
+  it('active components declare stable semantic terminals inside their viewBox', () => {
     for (const entry of WORKBENCH_CATALOG.filter((item) => item.enabled)) {
-      expect(entry.terminals, `${entry.key} must expose terminals`).not.toBeNull();
-      for (const terminal of Object.values(entry.terminals ?? {})) {
-        expect(terminal.id).toMatch(/^[a-z0-9-]+$/);
+      expect(entry.terminals.length, `${entry.key} must expose terminals`).toBeGreaterThanOrEqual(2);
+      expect(new Set(terminalIds(entry)).size).toBe(entry.terminals.length);
+      for (const terminal of entry.terminals) {
+        expect(terminal.id).toMatch(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/);
+        expect(terminal.semanticId).toMatch(/^[a-z0-9][a-z0-9-]*$/);
         expect(terminal.label.length).toBeGreaterThan(0);
         expect(terminal.role.length).toBeGreaterThan(0);
         expect(terminal.x).toBeGreaterThanOrEqual(0);
@@ -87,11 +89,13 @@ describe('electronics component assets', () => {
   it('active terminal spans equal their declared breadboard-pitch spans', () => {
     for (const entry of WORKBENCH_CATALOG.filter((item) => item.enabled)) {
       expect(entry.kind).not.toBeNull();
-      expect(entry.terminals).not.toBeNull();
       expect(entry.physical.terminalSpanPitches).toBeGreaterThan(0);
+      const [first, second] = terminalIds(entry);
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
       const origin = { x: 0, y: 0 };
-      const a = terminalPosition(entry.kind!, origin, 'a', 0)!;
-      const b = terminalPosition(entry.kind!, origin, 'b', 0)!;
+      const a = terminalPosition(entry.kind!, origin, first!, 0)!;
+      const b = terminalPosition(entry.kind!, origin, second!, 0)!;
       const span = Math.hypot(b.x - a.x, b.y - a.y);
       const expected = entry.physical.terminalSpanPitches! * BREADBOARD_PITCH_UNITS;
       expect(span, `${entry.key} terminal span`).toBeCloseTo(expected, 6);
@@ -102,11 +106,11 @@ describe('electronics component assets', () => {
     }
   });
 
-  it('new placements align both terminals to the half-pitch grid in every rotation', () => {
+  it('new placements align all registered terminals to the half-pitch grid in every rotation', () => {
     for (const entry of WORKBENCH_CATALOG.filter((item) => item.enabled)) {
       for (const rotation of [0, 90, 180, 270] as const) {
         const origin = snapComponentOrigin(entry.kind!, { x: 137.3, y: 91.7 }, rotation);
-        for (const terminal of ['a', 'b'] as const) {
+        for (const terminal of terminalIds(entry)) {
           const point = terminalPosition(entry.kind!, origin, terminal, rotation)!;
           expect(nearInteger(point.x / (BREADBOARD_PITCH_UNITS / 2))).toBe(true);
           expect(nearInteger(point.y / (BREADBOARD_PITCH_UNITS / 2))).toBe(true);
@@ -135,13 +139,21 @@ describe('electronics component assets', () => {
     expect(workbenchUnitsToMm(STAGE_HEIGHT_UNITS)).toBeCloseTo(124.46, 5);
   });
 
-  it('disabled components remain outside the simulated set and disclose provisional geometry', () => {
+  it('disabled components remain electrically inert even when official dimensions exist', () => {
+    const allowedEvidence = new Set([
+      'owner_asset_calibrated',
+      'manufacturer_official',
+      'manufacturer_typical',
+      'reference_capture_required',
+    ]);
     for (const entry of WORKBENCH_CATALOG.filter((item) => !item.enabled)) {
       expect(entry.kind, `${entry.key} must not claim a simulated kind`).toBeNull();
       expect(entry.physical.bodyMm.width).toBeGreaterThan(0);
       expect(entry.physical.bodyMm.height).toBeGreaterThan(0);
-      expect(entry.physical.evidence).toBe('reference_capture_required');
-      expect(entry.terminals).toBeNull();
+      expect(allowedEvidence.has(entry.physical.evidence)).toBe(true);
+      expect(entry.physical.referenceBehaviorVerified).toBe(false);
+      expect(entry.terminals).toEqual([]);
+      expect(entry.asset).toBeNull();
     }
   });
 });
