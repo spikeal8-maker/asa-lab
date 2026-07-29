@@ -32,6 +32,7 @@ import {
   duplicateComponentInDocument,
   moveComponentInDocument,
   removeSelectionFromDocument,
+  resetSelectionValueToNominal,
   rotateSelectionInDocument,
   sceneBounds,
   toggleSelectedWireRoute,
@@ -149,9 +150,17 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document || !editable()) return;
     const next = updateSelectionValue(document, selection, value);
     if (next) commitDocument(next);
+    else setNotice('Значение не поддерживается моделью этого компонента.');
+  }
+
+  function resetSelectedValue(): void {
+    if (!document || !editable()) return;
+    const next = resetSelectionValueToNominal(document, selection);
+    if (next) commitDocument(next, 'Возвращён нативный номинал компонента.');
   }
 
   function setWireColor(color: string): void {
+    if (!editable()) return;
     setActiveWireColor(color);
     if (!document) return;
     const next = updateSelectedWireColor(document, selection, color);
@@ -352,9 +361,8 @@ export function useElectronicsWorkbench(projectId: string) {
     function keyDown(event: globalThis.KeyboardEvent): void {
       if (event.code === 'Space' && !(event.target instanceof HTMLInputElement))
         spacePressedRef.current = true;
-      const inputTarget = event.target instanceof HTMLInputElement;
       const editableTarget =
-        inputTarget ||
+        event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement;
       if (editableTarget) return;
@@ -435,7 +443,12 @@ export function useElectronicsWorkbench(projectId: string) {
     if (component.kind !== 'led' || !simulationRunning) return 'default';
     const codes = diagnosticCodesByComponent.get(component.id);
     if (codes?.has('led_reverse')) return 'reverse';
-    if (codes?.has('led_no_resistor') || codes?.has('short_circuit')) return 'burned';
+    if (
+      codes?.has('led_no_resistor') ||
+      codes?.has('short_circuit') ||
+      codes?.has('led_damage_risk')
+    )
+      return 'burned';
     if (codes?.has('overcurrent')) return 'overcurrent';
     return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
   }
@@ -491,6 +504,7 @@ export function useElectronicsWorkbench(projectId: string) {
     removeSelection,
     rotateSelected,
     updateSelectedValue,
+    resetSelectedValue,
     setWireColor,
     toggleWireRoute,
     clickTerminal,
