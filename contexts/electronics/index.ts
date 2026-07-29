@@ -51,6 +51,15 @@ export {
   type PhysicalPartTerminalMm,
 } from './domain/breadboard-placement.js';
 export {
+  breadboardRenderHole,
+  buildBreadboardRenderModel,
+  type BreadboardRenderChannel,
+  type BreadboardRenderHole,
+  type BreadboardRenderLabel,
+  type BreadboardRenderModel,
+  type BreadboardRenderRailGuide,
+} from './domain/breadboard-render-model.js';
+export {
   COMPONENT_KINDS,
   COMPONENT_TERMINAL_MODELS,
   COMPONENT_VALUE_MODELS,
