@@ -70,6 +70,20 @@ def validate_timestamp(value: Any) -> None:
         fail(f"approval.decided_at is invalid: {error}")
 
 
+def validate_owner_attribution(approval: dict[str, Any]) -> None:
+    if approval.get("decided_by") != EXPECTED_OWNER:
+        fail(f"approval.decided_by must be repository owner {EXPECTED_OWNER}")
+    validate_timestamp(approval.get("decided_at"))
+    evidence_url = approval.get("evidence_comment_url")
+    if not isinstance(evidence_url, str) or not evidence_url.startswith(EXPECTED_COMMENT_PREFIX):
+        fail("foundation decision evidence must be a PR34 issue-comment URL")
+    if not evidence_url.removeprefix(EXPECTED_COMMENT_PREFIX).isdigit():
+        fail("foundation evidence URL must end with a numeric comment id")
+    notes = approval.get("decision_notes")
+    if not isinstance(notes, str) or not notes.strip():
+        fail("foundation owner decision requires decision_notes")
+
+
 def main() -> int:
     try:
         document = load()
@@ -103,7 +117,7 @@ def main() -> int:
             item_id = item["id"]
             if item_id in items:
                 fail(f"duplicate corrective item: {item_id}")
-            if item.get("status") not in {"open", "pending", "pass", "fail", "blocked"}:
+            if item.get("status") not in {"open", "pending", "pass", "fail", "blocked", "not_applicable"}:
                 fail(f"unsupported corrective status for {item_id}: {item.get('status')!r}")
             if not isinstance(item.get("requirement"), str) or not item["requirement"].strip():
                 fail(f"corrective item {item_id} must define requirement")
@@ -134,29 +148,20 @@ def main() -> int:
             missing_evidence = sorted(item_id for item_id, item in items.items() if not item.get("evidence"))
             if missing_evidence:
                 fail(f"foundation acceptance requires evidence for all items: {missing_evidence}")
-            if approval.get("decided_by") != EXPECTED_OWNER:
-                fail(f"approval.decided_by must be repository owner {EXPECTED_OWNER}")
-            validate_timestamp(approval.get("decided_at"))
-            evidence_url = approval.get("evidence_comment_url")
-            if not isinstance(evidence_url, str) or not evidence_url.startswith(EXPECTED_COMMENT_PREFIX):
-                fail("foundation acceptance evidence must be a PR34 issue-comment URL")
-            if not evidence_url.removeprefix(EXPECTED_COMMENT_PREFIX).isdigit():
-                fail("foundation evidence URL must end with a numeric comment id")
-            notes = approval.get("decision_notes")
-            if not isinstance(notes, str) or "foundation" not in notes.lower():
+            validate_owner_attribution(approval)
+            if "foundation" not in approval["decision_notes"].lower():
                 fail("accepted foundation requires explicit foundation-only decision notes")
 
+        elif status == "rejected_close_candidate":
+            validate_owner_attribution(approval)
+            if any(item.get("status") == "pass" and not item.get("evidence") for item in items.values()):
+                fail("passing corrective evidence must remain attributable even when PR34 is rejected")
+
         else:
-            if approval.get("decided_by") != EXPECTED_OWNER:
-                fail(f"rejection must be attributed to repository owner {EXPECTED_OWNER}")
-            validate_timestamp(approval.get("decided_at"))
-            evidence_url = approval.get("evidence_comment_url")
-            if not isinstance(evidence_url, str) or not evidence_url.startswith(EXPECTED_COMMENT_PREFIX):
-                fail("rejection evidence must be a PR34 issue-comment URL")
-            notes = approval.get("decision_notes")
-            if not isinstance(notes, str) or not notes.strip():
-                fail("rejection requires decision_notes")
-            print(f"ASA R0 foundation decision {status}: owner action recorded", file=sys.stderr)
+            validate_owner_attribution(approval)
+            if not any(item.get("status") in {"fail", "blocked", "open"} for item in items.values()):
+                fail("rejected_changes_required must identify at least one unresolved corrective item")
+            print("ASA R0 foundation decision REJECTED: PR34 changes are required", file=sys.stderr)
             return 1
 
     except (OSError, ValueError, yaml.YAMLError) as error:
@@ -167,7 +172,10 @@ def main() -> int:
     print(f"- status: {status}")
     print(f"- corrective items: {len(items)}")
     print(f"- owner decision recorded: {str(status != 'pending_owner').lower()}")
-    print(f"- PR43 rebase allowed: {str(status == 'accepted_pending_merge').lower()}")
+    print(
+        "- PR43 rebase allowed: "
+        + str(status in {"accepted_pending_merge", "rejected_close_candidate"}).lower()
+    )
     return 0
 
 
