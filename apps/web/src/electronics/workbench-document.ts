@@ -64,6 +64,22 @@ function ringOffsets(ring: number): Point[] {
   return offsets;
 }
 
+/** Remove every hidden physical insertion edge involving a component or board. */
+export function detachComponentFromBreadboard(
+  document: SchematicDocument,
+  componentId: string,
+): SchematicDocument {
+  const attachments = document.breadboardAttachments;
+  if (!attachments || attachments.length === 0) return document;
+  const next = attachments.filter(
+    (attachment) =>
+      attachment.componentId !== componentId &&
+      attachment.breadboardComponentId !== componentId,
+  );
+  if (next.length === attachments.length) return document;
+  return { ...document, breadboardAttachments: next };
+}
+
 /** Find a free terminal-aligned spot around the requested visual centre. */
 function freePosition(
   document: SchematicDocument,
@@ -151,10 +167,11 @@ export function removeSelectionFromDocument(
       connections: document.connections.filter((item) => item.id !== selection.id),
     };
   }
+  const detached = detachComponentFromBreadboard(document, selection.id);
   return {
-    ...document,
-    components: document.components.filter((item) => item.id !== selection.id),
-    connections: document.connections.filter(
+    ...detached,
+    components: detached.components.filter((item) => item.id !== selection.id),
+    connections: detached.connections.filter(
       (wire) => wire.from.componentId !== selection.id && wire.to.componentId !== selection.id,
     ),
   };
@@ -177,9 +194,10 @@ export function rotateSelectionInDocument(
   };
   const rotation = ((previousRotation + 90) % 360) as 0 | 90 | 180 | 270;
   const position = componentOriginForCenter(selected.kind, center, rotation);
+  const detached = detachComponentFromBreadboard(document, selected.id);
   return {
-    ...document,
-    components: document.components.map((item) =>
+    ...detached,
+    components: detached.components.map((item) =>
       item.id === selection.id ? { ...item, rotation, position } : item,
     ),
   };
@@ -329,9 +347,10 @@ export function moveComponentInDocument(
   const component = document.components.find((item) => item.id === componentId);
   if (!component || component.kind === 'wire' || !enabledEntry(component.kind)) return document;
   const snapped = snapComponentOrigin(component.kind, position, component.rotation ?? 0);
+  const detached = detachComponentFromBreadboard(document, componentId);
   return {
-    ...document,
-    components: document.components.map((item) =>
+    ...detached,
+    components: detached.components.map((item) =>
       item.id === componentId ? { ...item, position: snapped } : item,
     ),
   };
