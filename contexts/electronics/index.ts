@@ -4,6 +4,7 @@ export {
   type ComponentKind,
   type DocumentParseResult,
   type ElectronicsDocument,
+  type ElectronicsGeometryProfile,
   type SchematicComponent,
   type SchematicConnection,
   type Terminal,
