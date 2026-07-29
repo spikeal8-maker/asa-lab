@@ -29,7 +29,7 @@ def main() -> int:
             "PR №34",
             "ограниченный foundation candidate",
             "Personal Electronics project не требует Classroom",
-            "не завершённая Tinkercad",
+            "полной Tinkercad parity",
             "OWNER FOUNDATION DECISION: ACCEPTED",
             "Parity completion: NOT CLAIMED",
             "порт `5173`",
