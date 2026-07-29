@@ -13,10 +13,13 @@ VALIDATORS = (
     "tools/validate_r0_contract_refs.py",
     "tools/validate_r0_human_contract.py",
     "tools/validate_r0_owner_decision.py",
+    "tools/validate_r0_foundation_decision.py",
     "tools/validate_r0_post_merge.py",
+    "tools/validate_r0_baseline_preservation.py",
     "tools/validate_r0_release_map.py",
     "tools/validate_r0_legacy_traceability.py",
     "tools/validate_r0_review_packets.py",
+    "tools/validate_r0_r1_candidate_decision.py",
     "tools/validate_target_test_matrix.py",
     "tools/validate_r1_migration_contract.py",
     "tools/validate_tinkercad_parity.py",
@@ -57,11 +60,14 @@ def main() -> int:
     print("currentGate=R0")
     print("contractReferencesValid=true")
     print("ownerDecisionFileValid=true")
+    print("foundationDecisionFileValid=true")
     print("ownerDecisionRequired=true")
     print("postMergeSequenceValid=true")
+    print("baselinePreservationContractValid=true")
     print("releaseMapTemplateValid=true")
     print("legacyTraceabilityValid=true")
     print("reviewPacketsValid=true")
+    print("r1CandidateDecisionFileValid=true")
     print("targetTestMatrixValid=true")
     print("r1MigrationContractValid=true")
     print("productCodeAllowed=false")
