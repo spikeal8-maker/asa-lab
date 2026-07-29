@@ -1,3 +1,5 @@
+import { componentValueError } from './component-model.js';
+
 /** Electronics schematic document stored inside ProjectDraft. */
 export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
 export type Terminal = 'a' | 'b';
@@ -115,10 +117,13 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       return { ok: false, message: 'component id must be unique and non-empty' };
     if (typeof kind !== 'string' || !KINDS.includes(kind as ComponentKind))
       return { ok: false, message: `unsupported component kind: ${String(kind)}` };
+    const componentKind = kind as ComponentKind;
     const parsedPosition = parsePosition(position, 'component position');
     if (typeof parsedPosition === 'string') return { ok: false, message: parsedPosition };
-    if (!isFiniteNumber(componentValue) || componentValue < 0)
-      return { ok: false, message: 'component value must be a non-negative number' };
+    if (!isFiniteNumber(componentValue))
+      return { ok: false, message: 'component value must be a finite number' };
+    const valueError = componentValueError(componentKind, componentValue);
+    if (valueError) return { ok: false, message: valueError };
     if (
       rotation !== undefined &&
       (!Number.isInteger(rotation) || !ROTATIONS.has(rotation as number))
@@ -127,7 +132,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     seenComponents.add(id);
     components.push({
       id,
-      kind: kind as ComponentKind,
+      kind: componentKind,
       position: parsedPosition,
       value: componentValue,
       ...(rotation === undefined ? {} : { rotation: rotation as 0 | 90 | 180 | 270 }),
