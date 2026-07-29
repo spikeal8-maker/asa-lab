@@ -14,6 +14,7 @@ VALIDATORS = (
     "tools/validate_r0_human_contract.py",
     "tools/validate_r0_owner_decision.py",
     "tools/validate_r0_foundation_decision.py",
+    "tools/validate_r0_convergence_actions.py",
     "tools/validate_r0_post_merge.py",
     "tools/validate_r0_baseline_preservation.py",
     "tools/validate_r0_release_map.py",
@@ -61,6 +62,7 @@ def main() -> int:
     print("contractReferencesValid=true")
     print("ownerDecisionFileValid=true")
     print("foundationDecisionFileValid=true")
+    print("convergenceActionOrderValid=true")
     print("ownerDecisionRequired=true")
     print("postMergeSequenceValid=true")
     print("baselinePreservationContractValid=true")
