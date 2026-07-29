@@ -1,0 +1,127 @@
+schema_version: 1.0.0
+transition_id: asa-r0-post-merge
+status: planned
+source_contract_pr: 43
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+
+invariants:
+  - r1_remains_blocked_after_contract_merge
+  - no_product_feature_in_governance_transitions
+  - one_p1_integration_pr_only
+  - transfer_only_prs_close_after_verified_transfer
+  - exactly_one_r1_candidate_selected
+  - next_release_starts_only_after_r0_completion_transition
+
+phases:
+  - id: R0A_CONTRACT_ACTIVATION
+    type: governance_only
+    canonical_branch: agent/r0-contract-activation-transition
+    depends_on:
+      - owner_decision_approved_pending_merge
+      - pr_43_merged
+    actions:
+      - set_target_plan_status_active_r0_convergence
+      - set_owner_decision_status_approved_merged
+      - add_release_nodes_r0_r10_to_project_map
+      - set_current_focus_r0_convergence
+      - mark_legacy_project_shell_superseded
+      - keep_r1_r10_blocked
+      - update_quality_map_and_test_catalog_for_r0
+      - update_issue_36_in_progress
+      - keep_issue_48_blocked
+    forbidden_paths:
+      - apps/
+      - packages/
+      - contexts/
+      - modules/
+      - migrations/
+      - schemas/
+      - crates/
+      - infra/
+    exit_gate:
+      - project_map_valid
+      - target_execution_valid
+      - test_catalog_valid
+      - owner_decision_attribution_preserved
+      - r1_status_blocked
+    stop: true
+
+  - id: R0B_FOUNDATION_INTEGRATION
+    type: controlled_product_convergence
+    canonical_branch: agent/r0-p1-integration
+    source_branch: agent/parity-p1-visual-integration
+    depends_on:
+      - R0A_CONTRACT_ACTIVATION
+      - pr_34_owner_decision_completed
+      - accepted_main_contains_pr_34_if_approved
+    actions:
+      - rebase_source_once_on_accepted_main
+      - create_one_owner_facing_integration_pr
+      - preserve_teacher_classroom_project_and_electronics_data
+      - prove_module_registry_project_hub_editor_host_and_visual_system_transfer
+      - run_existing_product_gates
+      - run_live_demo_and_owner_screenshots
+      - close_pr_35_45_47_after_verified_transfer
+    forbidden_actions:
+      - add_new_identity_model
+      - continue_pr_59_or_pr_60
+      - add_studentseat_publication_assignments
+      - create_second_integration_pr
+      - destructive_migration
+    exit_gate:
+      - one_integration_pr_merged
+      - current_data_preserved
+      - transfer_only_prs_closed
+      - no_duplicate_portal_or_editor_host_implementation
+      - owner_visual_acceptance
+    stop: true
+
+  - id: R0C_R1_SELECTION
+    type: owner_decision_and_rebase
+    canonical_branch: agent/r0-r1-selection-transition
+    depends_on:
+      - R0B_FOUNDATION_INTEGRATION
+    actions:
+      - owner_selects_exactly_one_of_pr_59_or_pr_60
+      - close_unselected_candidate_superseded
+      - rebase_selected_candidate_once_on_accepted_baseline
+      - reconcile_selected_candidate_with_r1_issue_48
+      - prohibit_r1_scope_expansion_during_rebase
+    exit_gate:
+      - exactly_one_r1_candidate_open
+      - selected_branch_matches_r1_canonical_branch_or_documented_transfer
+      - unselected_candidate_closed_superseded
+      - r1_issue_and_migration_contract_synchronized
+    stop: true
+
+  - id: R0D_COMPLETION_TRANSITION
+    type: governance_only
+    canonical_branch: agent/r0-completion-transition
+    depends_on:
+      - R0C_R1_SELECTION
+    actions:
+      - mark_r0_done
+      - mark_r1_ready
+      - set_current_gate_r1
+      - set_current_focus_r1
+      - keep_r2_r10_blocked
+      - update_project_quality_and_execution_maps
+      - update_issue_36_completed
+      - update_issue_48_ready
+      - publish_single_next_command_for_r1
+    forbidden_paths:
+      - apps/
+      - packages/
+      - contexts/
+      - modules/
+      - migrations/
+      - schemas/
+      - crates/
+      - infra/
+    exit_gate:
+      - target_plan_current_gate_r1
+      - r0_status_done
+      - r1_status_ready
+      - r2_status_blocked
+      - validators_pass
+    stop: true
