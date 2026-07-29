@@ -5,10 +5,12 @@ source_execution_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml
 source_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
 activation_transition: R0A_CONTRACT_ACTIVATION
 current_gate: R0
+execution_order: [R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10]
+release_selection: strict_list_order
 
 status_definitions:
-  blocked: dependency or owner stop is not completed
-  ready: release may be issued to the coding agent
+  blocked: dependency, previous release or owner stop is not completed
+  ready: the one next release may be issued to the coding agent
   in_progress: exactly one current release is being implemented
   in_review: release PR awaits owner acceptance
   done: release PR and post-merge transition completed
@@ -21,77 +23,88 @@ release_nodes:
     canonical_branch: assistant/tinkercad-parity-baseline
     status: in_progress
     depends_on: []
-    next_candidates: [R1]
+    next_release: R1
+    unlocks_when_done: [R1]
   - id: R1
     label: Account, Personal Workspace, Sessions and Educator Grant
     issue: https://github.com/spikeal8-maker/asa-lab/issues/48
     canonical_branch: agent/r1-account-onboarding
     status: blocked
     depends_on: [R0]
-    next_candidates: [R2, R5]
+    next_release: R2
+    unlocks_when_done: [R2, R5]
   - id: R2
     label: Creator Home and capability-aware Portal shell
     issue: https://github.com/spikeal8-maker/asa-lab/issues/62
     canonical_branch: agent/r2-creator-portal
     status: blocked
     depends_on: [R1]
-    next_candidates: [R3]
+    next_release: R3
+    unlocks_when_done: [R3]
   - id: R3
     label: Module Registry, Project Hub and shared Editor Host
     issue: https://github.com/spikeal8-maker/asa-lab/issues/37
     canonical_branch: agent/r3-project-hub
     status: blocked
     depends_on: [R2]
-    next_candidates: [R4, R5, R7]
+    next_release: R4
+    unlocks_when_done: [R4, R5, R7]
   - id: R4
     label: Electronics parity
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     canonical_branch: agent/r4-electronics-parity
     status: blocked
     depends_on: [R3]
-    next_candidates: [R10]
+    next_release: R5
+    unlocks_when_done: [R10]
   - id: R5
     label: Classroom, class code, StudentSeat and Safe Mode
     issue: https://github.com/spikeal8-maker/asa-lab/issues/40
     canonical_branch: agent/r5-classroom-studentseat
     status: blocked
     depends_on: [R1, R3]
-    next_candidates: [R6, R9]
+    next_release: R6
+    unlocks_when_done: [R6, R9]
   - id: R6
     label: Learner portfolio and audited teacher Project Viewer
     issue: https://github.com/spikeal8-maker/asa-lab/issues/64
     canonical_branch: agent/r6-learner-portfolio
     status: blocked
     depends_on: [R5]
-    next_candidates: [R9]
+    next_release: R7
+    unlocks_when_done: [R9]
   - id: R7
     label: Sharing, publication, public page and Remix
     issue: https://github.com/spikeal8-maker/asa-lab/issues/38
     canonical_branch: agent/r7-publication-remix
     status: blocked
     depends_on: [R3]
-    next_candidates: [R8, R10]
+    next_release: R8
+    unlocks_when_done: [R8, R10]
   - id: R8
     label: Profiles, Explore, Collections and moderation
     issue: https://github.com/spikeal8-maker/asa-lab/issues/39
     canonical_branch: agent/r8-explore-moderation
     status: blocked
     depends_on: [R7]
-    next_candidates: []
+    next_release: R9
+    unlocks_when_done: []
   - id: R9
     label: Activities, assignments, submissions, review, grades and badges
     issue: https://github.com/spikeal8-maker/asa-lab/issues/41
     canonical_branch: agent/r9-learning-cycle
     status: blocked
     depends_on: [R5, R6]
-    next_candidates: [R10]
+    next_release: R10
+    unlocks_when_done: [R10]
   - id: R10
     label: Multi-module lifecycle proof and measured operations scale
     issue: https://github.com/spikeal8-maker/asa-lab/issues/42
     canonical_branch: agent/r10-multimodule-ops
     status: blocked
     depends_on: [R4, R7, R9]
-    next_candidates: []
+    next_release: null
+    unlocks_when_done: []
 
 legacy_traceability:
   - id: TASK-PRODUCT-DOC-001
@@ -99,13 +112,13 @@ legacy_traceability:
     replacement: R0
   - id: TASK-PORTAL-001
     target_status: done
-    replacement: R0_foundation
+    replacement: R0
   - id: TASK-PROJECT-SHELL-001
     target_status: superseded
     replacement: R3
   - id: TASK-CHECKERS-LITE-001
     target_status: superseded
-    replacement: R10_module_candidate
+    replacement: R10
   - id: TASK-ELECTRONICS-ALPHA-001
     target_status: superseded
     replacement: R4
@@ -120,12 +133,13 @@ legacy_traceability:
     replacement: R9
   - id: TASK-ELEC-001
     target_status: superseded
-    replacement: R9_R10
+    replacement: R9
 
 activation_rules:
   - do_not_replace_active_project_map_before_pr_43_merge
   - r0a_sets_current_focus_to_r0
   - r1_remains_blocked_after_r0a
   - r0d_is_the_only_transition_that_marks_r1_ready
+  - strict_next_release_beats_dependency_ready_candidates
   - preserve_existing_architecture_and_code_nodes
   - update_owner_viewer_dynamically_after_activation
