@@ -1,0 +1,185 @@
+schema_version: 1.0.0
+contract_id: asa-r0-baseline-preservation
+status: inactive_until_r0b_foundation_integration
+source_transition: docs/delivery/R0_POST_MERGE_TRANSITION.yaml
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+foundation_pull_request: 34
+integration_source_branch: agent/parity-p1-visual-integration
+
+accepted_main_foundation:
+  user_flows:
+    - workspace_email_password_teacher_login
+    - teacher_session_reload
+    - classroom_create
+    - classroom_list
+    - classroom_reload_persistence
+    - logout_and_session_revocation
+  security_invariants:
+    - tenant_context_from_server_session
+    - runtime_database_role_without_bypassrls
+    - classroom_owner_membership_created_atomically
+    - classroom_audit_event_created_atomically
+    - cross_tenant_classroom_access_denied
+  required_tables:
+    - tenants
+    - tenant_placements
+    - schools
+    - academic_periods
+    - users
+    - sessions
+    - classrooms
+    - classroom_memberships
+    - audit_events
+  immutable_identifiers:
+    - tenants.id
+    - users.id
+    - schools.id
+    - classrooms.id
+
+foundation_if_pr34_accepted:
+  user_flows:
+    - personal_project_create_without_classroom
+    - project_rename
+    - project_autosave
+    - project_reload
+    - immutable_project_checkpoint
+    - electronics_document_open
+    - electronics_component_place_and_edit
+    - electronics_wire_create_and_edit
+    - electronics_simulation_start_stop
+  required_tables:
+    - projects
+    - project_drafts
+    - project_versions
+  immutable_identifiers:
+    - projects.id
+    - project_versions.id
+  preserve_values:
+    - projects.tenant_id
+    - projects.created_by_user_id
+    - projects.classroom_id
+    - projects.module_key
+    - project_drafts.payload
+    - project_versions.payload
+    - project_versions.digest
+  electronics_document_invariants:
+    - existing_payload_parses_without_loss
+    - component_ids_stable
+    - terminal_ids_stable
+    - wire_endpoint_references_stable
+    - coordinates_and_properties_preserved
+    - unsupported_topology_remains_diagnostic_not_fake_success
+
+r0b_integration_rules:
+  exactly_one_owner_facing_integration_pr: true
+  accepted_base: main_after_pr34_decision_and_pr43_merge
+  source_branch: agent/parity-p1-visual-integration
+  transfer_candidates:
+    - pull_request: 35
+      role: electronics_workbench_transfer
+    - pull_request: 45
+      role: module_registry_project_hub_editor_host_transfer
+    - pull_request: 47
+      role: visual_system_transfer
+  allowed_changes:
+    - module_registry_and_provider_contract
+    - project_hub_and_shared_editor_host
+    - visual_tokens_layout_and_owner_previews
+    - additive_compatibility_adapters
+    - tests_evidence_and_maps
+  forbidden_changes:
+    - new_account_identity_model
+    - studentseat_or_class_code
+    - publication_or_remix
+    - assignments_submissions_review_grades
+    - destructive_migration
+    - regenerate_existing_ids
+    - reset_existing_password_hashes
+    - disable_rls
+    - client_authoritative_tenant_workspace_or_capability
+    - second_competing_portal_or_editor_host
+
+baseline_manifest:
+  required_before_integration:
+    - source_commit_sha
+    - database_schema_migration_versions
+    - table_row_counts
+    - stable_id_samples
+    - password_hash_digests_without_plaintext
+    - project_payload_digests
+    - project_version_digests
+    - electronics_fixture_digests
+    - canonical_route_inventory
+    - desktop_mobile_screenshot_inventory
+  storage_path: reports/r0-baseline-manifest.json
+  contains_secrets: false
+
+migration_gate:
+  scenarios:
+    - empty_database
+    - accepted_main_database
+    - accepted_main_plus_pr34_database_if_approved
+    - repeated_migration
+    - backup_restore_copy
+  required_assertions:
+    - no_required_table_dropped
+    - no_stable_id_changed
+    - no_password_hash_changed
+    - no_project_payload_changed_without_explicit_schema_migrator
+    - no_project_version_digest_changed
+    - no_cross_tenant_lineage_broken
+    - no_rls_policy_removed
+    - no_runtime_role_privilege_broadened
+
+application_gate:
+  required_routes:
+    - /api/auth/login
+    - /api/auth/logout
+    - /api/auth/me
+    - /api/classrooms
+  required_surfaces:
+    - teacher_portal
+    - classes
+  conditional_surfaces_if_pr34_accepted:
+    - projects
+    - electronics_editor
+  required_tests:
+    - teacher_login_compatibility
+    - session_reload_compatibility
+    - classroom_create_list_reload
+    - project_create_save_reload_version
+    - electronics_document_save_reload
+    - runtime_role_negative_privilege_matrix
+    - cross_tenant_negative_matrix
+
+owner_evidence:
+  required:
+    - teacher_portal_desktop
+    - teacher_portal_mobile
+    - classroom_create_reload
+  conditional_if_pr34_accepted:
+    - project_hub_desktop
+    - electronics_empty_workbench
+    - electronics_saved_circuit
+  acceptance_rule: owner_accepts_visible_flow_and_no_data_loss
+
+rollback_contract:
+  strategy: revert_integration_read_path_and_feature_flags_without_deleting_additive_data
+  required:
+    - database_backup_verified
+    - previous_main_startup_verified
+    - no_down_migration_required_for_safe_rollback
+  forbidden:
+    - delete_new_tables_to_rollback
+    - restore_plaintext_credentials
+    - disable_rls
+    - overwrite_immutable_project_versions
+
+exit_gate:
+  - one_integration_pr_merged
+  - baseline_manifest_before_and_after_compared
+  - all_preservation_assertions_pass
+  - transfer_only_prs_closed_after_verified_transfer
+  - owner_visual_acceptance
+  - no_duplicate_portal_project_hub_or_editor_host_implementation
+  - r1_remains_blocked
