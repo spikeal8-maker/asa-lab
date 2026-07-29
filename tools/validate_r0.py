@@ -17,6 +17,7 @@ VALIDATORS = (
     "tools/validate_r0_release_map.py",
     "tools/validate_r0_legacy_traceability.py",
     "tools/validate_r0_review_packets.py",
+    "tools/validate_target_test_matrix.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
@@ -60,6 +61,7 @@ def main() -> int:
     print("releaseMapTemplateValid=true")
     print("legacyTraceabilityValid=true")
     print("reviewPacketsValid=true")
+    print("targetTestMatrixValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
