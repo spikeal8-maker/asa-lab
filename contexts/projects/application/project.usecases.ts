@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
+  PROJECT_CHECKPOINT_LABEL_MAX_LENGTH,
+  PROJECT_TITLE_MAX_LENGTH,
   isProjectScope,
   isSupportedModuleKey,
   isValidCheckpointLabel,
@@ -12,7 +14,10 @@ import {
 import type { ProjectListFilter, ProjectRepositoryPort } from './ports.js';
 
 export type ProjectErrorCode =
-  'validation_error' | 'idempotency_conflict' | 'classroom_not_found' | 'project_not_found';
+  | 'validation_error'
+  | 'idempotency_conflict'
+  | 'classroom_not_found'
+  | 'project_not_found';
 
 export type UseCaseResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -64,9 +69,12 @@ export class CreateProjectUseCase {
       return fail('validation_error', 'personal projects must not contain classroomId');
     }
     if (!isSupportedModuleKey(input.moduleKey))
-      return fail('validation_error', 'module must be "electronics"');
+      return fail('validation_error', 'moduleKey must be "electronics"');
     if (!isValidProjectTitle(input.title))
-      return fail('validation_error', 'title must be 1..255 characters');
+      return fail(
+        'validation_error',
+        `title must be 1..${PROJECT_TITLE_MAX_LENGTH} characters`,
+      );
     const title = input.title.trim();
     const result = await this.repository.createWithDraft({
       tenantId: input.tenantId,
@@ -150,7 +158,10 @@ export class RenameProjectUseCase {
     title: unknown;
   }): Promise<UseCaseResult<Project>> {
     if (!isValidProjectTitle(input.title))
-      return fail('validation_error', 'title must be 1..255 characters');
+      return fail(
+        'validation_error',
+        `title must be 1..${PROJECT_TITLE_MAX_LENGTH} characters`,
+      );
     const project = await this.repository.rename(
       input.tenantId,
       input.projectId,
@@ -197,7 +208,10 @@ export class CreateCheckpointUseCase {
     label: unknown;
   }): Promise<UseCaseResult<ProjectVersion>> {
     if (!isValidCheckpointLabel(input.label))
-      return fail('validation_error', 'label must be at most 255 characters');
+      return fail(
+        'validation_error',
+        `label must be at most ${PROJECT_CHECKPOINT_LABEL_MAX_LENGTH} characters`,
+      );
     const label =
       typeof input.label === 'string' && input.label.trim().length > 0 ? input.label.trim() : null;
     const version = await this.repository.createCheckpoint(
