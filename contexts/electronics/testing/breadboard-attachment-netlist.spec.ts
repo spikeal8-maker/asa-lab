@@ -9,8 +9,8 @@ function attachedSeriesCircuit(): ElectronicsDocument {
     geometryProfile: 'breadboard-2.54mm-v1',
     components: [
       { id: 'board', kind: 'breadboard', position: { x: 100, y: 100 }, value: 0 },
-      { id: 'src', kind: 'source', position: { x: 20, y: 20 }, value: 5 },
-      { id: 'r1', kind: 'resistor', position: { x: 150, y: 140 }, value: 300 },
+      { id: 'src', kind: 'source', position: { x: 20, y: 20 }, value: 3 },
+      { id: 'r1', kind: 'resistor', position: { x: 150, y: 140 }, value: 100 },
       { id: 'led1', kind: 'led', position: { x: 210, y: 140 }, value: 2 },
     ],
     connections: [
