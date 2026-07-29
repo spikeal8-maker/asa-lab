@@ -2,8 +2,16 @@
 
 ## 1. Короткая команда владельца
 
+### Во время R0
+
 ```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml, Issue №36 и PR №43. Выполни только текущую R0 работу. Product code и R1 не начинай.
+```
+
+### После активации R0–R10
+
+```text
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md и active release в docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml. Открой указанную Issue и выполни только её. Следующий release не начинай.
 ```
 
 Владелец не пересказывает ТЗ вручную.
@@ -11,17 +19,19 @@
 ## 2. Источники выполнения
 
 ```text
-Product Blueprint                 что строим
-Capability Map                   какие возможности и зависимости
-EXECUTION_MANIFEST.yaml          task order, Issue, branch, stage, tests, map nodes
-DEVELOPMENT_PROGRAM_V1.md        человекочитаемый путь
-LOCAL_PORT_POLICY.md             порты и безопасный запуск
-project-map.yaml                 current focus и динамические statuses
-GitHub Issue                     scope одного user flow
-test-catalog.yaml                команды test IDs
+ASA_TARGET_PLATFORM_BLUEPRINT       целевая продуктовая модель
+ASA_TARGET_PLATFORM_EXECUTION_PLAN  R0–R10, branches, Issues, owner stops
+TINKERCAD parity/evidence contracts reference behavior и deviations
+AGENTS.md                            обязательные архитектурные правила
+EXECUTION_MANIFEST.yaml             принятая v1 foundation/legacy traceability
+project-map.yaml                     динамическая карта после activation
+GitHub Issue                         scope одного user flow
+TEST catalog                         команды обязательных test IDs
 ```
 
-Конфликт не разрешается догадкой. Чат не меняет task ID, capability, dependency, branch, scope, port, test ID или exit gate.
+Пока target execution plan имеет `status: owner_review_required` и `current_gate: R0`, старые future tasks v1 не запускаются.
+
+Конфликт не разрешается догадкой. Чат не меняет release/task, dependency, branch, scope, port, test ID, owner stop или exit gate.
 
 ## 3. ORIENT
 
@@ -32,64 +42,125 @@ git fetch --all --prune
 git branch --all
 ```
 
-Затем:
+### R0 ORIENT
 
-1. прочитать `project.current_focus`;
-2. найти task entry в `EXECUTION_MANIFEST.yaml`;
-3. проверить status и manifest `depends_on` против map edges;
-4. открыть manifest Issue;
-5. продолжить manifest branch/PR либо создать её от актуального `main`;
-6. прочитать manifest `read` links;
-7. получить обязательные tests из manifest profiles и test catalog;
-8. проверить Port Policy для server/UI задачи.
+1. прочитать `AGENTS.md`;
+2. прочитать `ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`;
+3. подтвердить `current_gate: R0`;
+4. открыть Issue №36 и PR №43;
+5. проверить R0 candidate roles;
+6. выполнять только contract/evidence/validator/convergence work;
+7. product code не менять.
 
-Разрешена работа только с current focus или существующим PR этого task. `planned`, `blocked`, `done`, `deprecated` не выполняются.
+### После R0
 
-## 4. CAPABILITY CHECK и PLAN
+1. прочитать active release;
+2. проверить status, `depends_on`, previous owner stop;
+3. открыть release Issue;
+4. продолжить canonical branch/PR либо создать её от accepted baseline;
+5. прочитать только профильные contracts;
+6. получить exact tests из Issue/test catalog;
+7. проверить Port Policy.
 
-До изменения кода:
+Работа разрешена только с current release или существующим PR этого release. `planned`, `blocked`, `done`, `deprecated` и `superseded` не выполняются.
+
+## 4. R0 convergence
 
 ```text
+PR #34          Electronics/Project foundation review
+PR #43          normative target contract candidate
+PR #35/#45/#47 transfer-only
+PR #59/#60     frozen competing R1 candidates
+```
+
+Разрешённый порядок:
+
+```text
+owner review #34
+→ owner decisions #43
+→ rebase/validate/merge #43
+→ one P1 integration PR
+→ close #35/#45/#47 after transfer proof
+→ select #59 OR #60
+→ rebase selected R1 once
+```
+
+Не создавать новую product branch до R0 exit gate.
+
+## 5. CHECK и PLAN
+
+До изменения файлов:
+
+```text
+RELEASE:
 TASK:
 ISSUE:
 MILESTONE:
-DELIVERY_STAGE:
-ARCHITECTURE_HORIZON:
 CAPABILITIES:
 DEPENDENCIES:
 USER_FLOW:
 NON_GOALS:
 PORTS:
+OWNER_STOP:
 PLAN: максимум 25 строк
 STOP_CRITERION:
 ```
 
-`delivery_stage` — порядок выполнения. `architecture_horizon` — информационная архитектурная группировка и может идти не по порядку Product Alpha.
+## 6. Scope freeze
 
-## 5. Scope freeze
+После начала release разрешены только defect/security/contract/additive-migration/test fixes текущего flow и review feedback текущего PR.
 
-После начала task разрешены только defect/security/contract/migration/test fixes текущего flow и review feedback текущего PR.
+Запрещены:
 
-Запрещены следующая capability, дополнительные роли/страницы, unrelated refactoring, новый framework, Docker/Redis/MinIO/CI polish без прямой необходимости, изменение портов и второй competing PR.
+- следующая capability/release;
+- дополнительные роли/страницы;
+- unrelated refactoring;
+- новый framework без ADR;
+- premature Docker/Redis/MinIO/workers/object storage;
+- destructive migration;
+- изменение портов;
+- второй competing PR.
 
-## 6. IMPLEMENT
+## 7. IMPLEMENT
 
-Один task реализует один вертикальный user flow:
+Один release slice реализует один наблюдаемый user flow:
 
 ```text
 domain/application
-→ migration/repository
-→ API
+→ additive migration/repository
+→ API/contracts
 → UI
 → automated E2E
 → evidence/maps
+→ owner stop
 ```
 
-Если существует PR, сохранять рабочий код и продолжать его. Переписывание с нуля требует доказанного blocker.
+Если существует полезный PR, сохранять и конвергировать его. Переписывание с нуля требует доказанного blocker. Transfer-only PR не сливается в `main` самостоятельно.
 
-Архитектурные правила находятся в `AGENTS.md`; Issue определяет точный scope.
+## 8. Identity/Workspace rules
 
-## 7. Порты
+После target activation:
+
+- Account, Principal, Workspace, capability и membership различаются;
+- Personal Workspace exactly one per Account, backed by tenant boundary в первой версии;
+- educator — capability Account, не отдельный Account type;
+- `school_admin` scoped, `platform_admin` global;
+- Account session и StudentSeat session различаются;
+- current teacher/classes/projects/Electronics сохраняются additive migration;
+- client role/tenant/workspace не доверяются;
+- RLS не отключается.
+
+## 9. Project/Module rules
+
+- Personal Project не требует Classroom.
+- Project owner — Principal.
+- ProjectDraft mutable/optimistic; ProjectVersion immutable/digested.
+- Publication и Submission ссылаются на точную ProjectVersion.
+- Module Registry/Provider является единственным подключением subject logic.
+- Core не содержит subject switch.
+- Remix создаёт новый Project и lineage.
+
+## 10. Порты
 
 ```text
 Web  127.0.0.1:4610
@@ -104,9 +175,9 @@ E2E  127.0.0.1:4612
 - вывести точный `BLOCKED`;
 - остановить текущий запуск.
 
-## 8. Промежуточные milestones
+## 11. Промежуточные owner milestones
 
-После завершённого внутреннего результата, а не каждой команды:
+После завершённого внутреннего результата:
 
 ```text
 MILESTONE:
@@ -116,95 +187,107 @@ TESTS:
 DEMO_URLS:
 SCREENSHOTS:
 BLOCKERS:
+OWNER_REVIEW_REQUIRED:
 NEXT_INTERNAL_MILESTONE:
 ```
 
-Checkpoint не меняет scope и не разблокирует следующую Issue.
+Checkpoint не меняет scope и не разблокирует следующий release.
 
-## 9. VERIFY
+## 12. VERIFY
+
+### R0
+
+```bash
+python tools/validate_tinkercad_parity.py
+python tools/validate_target_execution.py
+python tools/validate_architecture.py
+python tools/validate_project_map.py
+python tools/validate_test_catalog.py
+```
+
+### Product release
+
+Использовать exact test IDs текущей Issue/test catalog. Если активный contract ещё сохраняет v1 TASK-ID, разрешён runner:
 
 ```bash
 python tools/run_task_tests.py --task <TASK-ID>
 ```
-
-Runner поддерживает многочастные IDs (`TASK-PROJECT-SHELL-001`) и передаёт текущий TASK-ID validators.
 
 - PASS — фактический exit 0;
 - FAIL — фактический non-zero;
 - BLOCKED — обязательная среда отсутствует;
 - NOT_RUN — команда не запускалась.
 
-`BLOCKED`/`NOT_RUN` не закрывают gate. Нельзя удалять test ID, сокращать `required_for` или заменять automated E2E ручным просмотром.
+`BLOCKED`/`NOT_RUN` не закрывают gate. Нельзя удалять test ID или заменять automated E2E ручным просмотром.
 
-Для UI обязательны keyboard/focus/accessibility, Playwright и screenshots. Для tenant data обязательны отрицательные authz tests, отдельный test DB, runtime-role checks и отсутствие admin credentials в API.
+Для UI обязательны keyboard/focus/accessibility, Playwright и screenshots. Tests не заменяют owner visual/product acceptance.
 
-## 10. UPDATE MAPS
-
-Машиночитаемый map protocol находится в `EXECUTION_MANIFEST.yaml`.
+## 13. UPDATE MAPS
 
 ### При начале
 
-- task → `in_progress`;
-- implementation nodes из `map_nodes` → `in_progress` по факту;
-- `current_focus` остаётся task.
+- current release/task → `in_progress`;
+- реальные implementation nodes → `in_progress`;
+- current gate/focus остаётся текущим.
 
 ### В Draft PR
 
-- task → `in_review`;
-- `project-map.yaml` и `PROJECT_MAP.md` отражают реальные nodes/paths/edges;
-- `QUALITY_MAP.md` и test catalog отражают точный gate;
-- `nx-project-graph.json` регенерирован при изменении структуры кода;
-- next task остаётся `blocked`.
+- current release/task → `in_review`;
+- Project/Quality maps и test catalog отражают exact gate;
+- Nx graph регенерирован при structural code changes;
+- next release остаётся `blocked`.
 
-Product-code diff без этих map artifacts должен падать на `TST-DEVELOPMENT-PROGRAM-001`.
+### После merge
 
-## 11. DRAFT PR
+- current release/task → `done`;
+- next → `ready` только после dependencies и owner stop;
+- current gate/focus → next;
+- Issues/maps/validators синхронизированы;
+- агент останавливается.
 
-Один task — один Draft PR. Body содержит:
+## 14. DRAFT PR
 
-- TASK/Issue/Milestone/Capabilities;
+Один release — один owner-facing Draft PR. Body содержит:
+
+- Release/Issue/Milestone;
 - visible result и user flow;
 - non-goals;
 - API/data/security impact;
+- additive migrations and rollback;
 - ports;
 - map/Nx changes;
-- test IDs и реальные статусы;
+- exact tests и реальные статусы;
 - demo URLs;
-- screenshots/artifacts;
-- rollout/rollback;
+- desktop/mobile screenshots;
+- residual risks;
+- owner stop;
 - `NEXT_ALLOWED_TASK`.
 
-Draft разрешён с честными FAIL/BLOCKED/NOT_RUN. Ready/merge требуют полного PASS.
+Draft разрешён с честными FAIL/BLOCKED/NOT_RUN. Ready/merge требуют полного automated gate и owner acceptance.
 
-## 12. MERGE и обязательный map transition
+## 15. MERGE
 
-После review и полного exit gate:
+После review:
 
-1. merge task PR;
+1. merge release PR;
 2. синхронизировать `main`;
-3. сделать map-only transition commit/PR:
-   - task → `done`;
-   - next task → `ready`, если dependencies done;
-   - `current_focus` → `next_task`;
-   - implementation nodes/stage обновлены;
-   - `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
-4. запустить governance validators;
-5. Issue → completed;
-6. остановиться.
+3. выполнить map-only transition;
+4. закрыть Issue completed;
+5. закрыть transfer-only/superseded branches после доказанного переноса;
+6. разблокировать только следующий release;
+7. остановиться.
 
-Если repository не разрешает прямой map-only commit в `main`, открыть и объединить маленький transition PR. Product code в нём запрещён.
+Следующий release не реализуется в той же сессии.
 
-Следующая задача не реализуется в той же сессии.
-
-## 13. Финальный отчёт
+## 16. Финальный отчёт
 
 ```text
 MILESTONE:
+RELEASE:
 TASK:
 ISSUE:
 STATUS:
 VISIBLE_RESULT:
-CAPABILITIES:
 USER_FLOW:
   ... PASS|FAIL|BLOCKED
 PORTS:
@@ -219,24 +302,27 @@ SCREENSHOTS:
 BLOCKERS:
 RESIDUAL_RISKS:
 WORKING_TREE:
+OWNER_STOP:
 NEXT_ALLOWED_TASK:
 NEXT_COMMAND:
 ```
 
 Отчёт начинается с видимого результата, не с установленных инструментов.
 
-## 14. Каноническая очередь
+## 17. Каноническая target очередь
 
 ```text
-TASK-PRODUCT-DOC-001
-→ TASK-PORTAL-001
-→ TASK-PROJECT-SHELL-001
-→ TASK-CHECKERS-LITE-001
-→ TASK-ELECTRONICS-ALPHA-001
-→ TASK-SEAT-001
-→ TASK-ACT-001
-→ TASK-REVIEW-001
-→ TASK-ELEC-001
+R0  Contract and one accepted baseline
+R1  Account / Personal Workspace / Sessions / Educator Grant
+R2  Creator Home / Portal shell
+R3  Module Registry / Project Hub / Editor Host
+R4  Electronics parity
+R5  Classroom / StudentSeat / Safe Mode
+R6  Learner portfolio / teacher Project Viewer
+R7  Sharing / publication / Remix
+R8  Profiles / Explore / moderation
+R9  Assignments / submissions / review / grades / badges
+R10 Multi-module proof / measured operations scale
 ```
 
-Очередь изменяется только синхронной правкой Execution Manifest, Development Program, Project Map, Issues и test catalog в нормативном PR.
+Очередь изменяется только owner-approved нормативным PR с синхронной правкой machine-readable plan, Issues, maps и validators.
