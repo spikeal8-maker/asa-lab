@@ -7,6 +7,7 @@ import {
   type SolveResult,
 } from '../api';
 import { cloneJson } from './workbench-geometry';
+import { migrateElectronicsGeometry } from './workbench-migration';
 import type { HistoryState, SaveStatus } from './workbench-model';
 
 export function useWorkbenchProjectState(projectId: string) {
@@ -37,13 +38,20 @@ export function useWorkbenchProjectState(projectId: string) {
       setStatus('error');
       return;
     }
+    const geometry = migrateElectronicsGeometry(response.data.draft.document);
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
-    setDocument(response.data.draft.document);
+    setDocument(geometry.document);
     setResult(response.data.result);
     setVersions(response.data.versions);
-    setSaveStatus('saved');
-    initialiseHistory(response.data.draft.document);
+    initialiseHistory(geometry.document);
+    setSaveStatus(geometry.migrated ? 'dirty' : 'saved');
+    if (geometry.migrated) {
+      setNotice(
+        `Схема переведена на физическую сетку 2,54 мм: ${geometry.migratedComponents} компонентов. ` +
+          'Топология, IDs и неизменяемые версии сохранены.',
+      );
+    }
     setStatus('ready');
   }, [initialiseHistory, projectId]);
 
@@ -116,16 +124,13 @@ export function useWorkbenchProjectState(projectId: string) {
   useEffect(() => {
     if (!document || saveStatus !== 'dirty') return;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(
-      () => {
-        void persist(document, true);
-      },
-      simulationRunning ? 700 : 1800,
-    );
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void persist(document, true);
+    }, 1800);
     return () => {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
-  }, [document, persist, saveStatus, simulationRunning]);
+  }, [document, persist, saveStatus]);
 
   async function saveNow(): Promise<void> {
     if (!document || busy) return;
@@ -138,7 +143,7 @@ export function useWorkbenchProjectState(projectId: string) {
     if (!document || busy) return;
     if (simulationRunning) {
       setSimulationRunning(false);
-      setNotice('Моделирование остановлено.');
+      setNotice('Моделирование остановлено. Редактирование схемы снова доступно.');
       return;
     }
     setBusy(true);
@@ -146,7 +151,9 @@ export function useWorkbenchProjectState(projectId: string) {
     setBusy(false);
     if (nextResult) {
       setSimulationRunning(true);
-      setNotice('Моделирование запущено. Изменения схемы пересчитываются автоматически.');
+      setNotice(
+        'Моделирование запущено. Структура схемы заблокирована; просмотр и измерения доступны.',
+      );
     }
   }
 
