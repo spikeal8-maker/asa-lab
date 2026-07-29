@@ -75,6 +75,17 @@ function parsePosition(value: unknown, field: string): ComponentPosition | strin
   return { x: value['x'], y: value['y'] };
 }
 
+function parseGeometryProfile(value: unknown): ElectronicsGeometryProfile | null {
+  if (value === undefined) return 'legacy-pixel-v1';
+  if (
+    typeof value === 'string' &&
+    GEOMETRY_PROFILES.includes(value as ElectronicsGeometryProfile)
+  ) {
+    return value as ElectronicsGeometryProfile;
+  }
+  return null;
+}
+
 export type DocumentParseResult =
   | { readonly ok: true; readonly document: ElectronicsDocument }
   | { readonly ok: false; readonly message: string };
@@ -84,14 +95,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   if (value['schemaVersion'] !== 1)
     return { ok: false, message: 'unsupported document schemaVersion' };
 
-  const rawGeometryProfile = value['geometryProfile'];
-  const geometryProfile: ElectronicsGeometryProfile =
-    rawGeometryProfile === undefined
-      ? 'legacy-pixel-v1'
-      : typeof rawGeometryProfile === 'string' &&
-          GEOMETRY_PROFILES.includes(rawGeometryProfile as ElectronicsGeometryProfile)
-        ? (rawGeometryProfile as ElectronicsGeometryProfile)
-        : (null as never);
+  const geometryProfile = parseGeometryProfile(value['geometryProfile']);
   if (geometryProfile === null)
     return { ok: false, message: 'unsupported document geometryProfile' };
 
