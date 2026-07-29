@@ -17,6 +17,7 @@ import {
   terminalSpec,
   type CatalogEntry,
 } from './component-catalog';
+import { halfBreadboardRenderedSize } from './native-breadboard-model';
 import { snap, type Point } from './workbench-geometry';
 import { BREADBOARD_PITCH_UNITS, HALF_PITCH_UNITS } from './workbench-scale';
 import type { Selection, TerminalRef } from './workbench-model';
@@ -26,17 +27,25 @@ function enabledEntry(kind: Exclude<ComponentKind, 'wire'>): CatalogEntry | null
   return entry?.enabled === true && entry.kind === kind ? entry : null;
 }
 
+function visualSize(
+  component: SchematicComponent,
+): { width: number; height: number } | null {
+  if (component.kind === 'wire') return null;
+  if (component.kind === 'breadboard') {
+    return halfBreadboardRenderedSize(component.rotation ?? 0);
+  }
+  const entry = catalogEntry(component.kind);
+  return entry ? renderedSize(entry, component.rotation ?? 0) : null;
+}
+
 function boxOf(component: SchematicComponent): {
   x: number;
   y: number;
   width: number;
   height: number;
 } | null {
-  if (component.kind === 'wire') return null;
-  const entry = enabledEntry(component.kind);
-  if (!entry) return null;
-  const size = renderedSize(entry, component.rotation ?? 0);
-  return { x: component.position.x, y: component.position.y, ...size };
+  const size = visualSize(component);
+  return size ? { x: component.position.x, y: component.position.y, ...size } : null;
 }
 
 function overlaps(
@@ -167,6 +176,9 @@ export function removeSelectionFromDocument(
       connections: document.connections.filter((item) => item.id !== selection.id),
     };
   }
+  const selected = document.components.find((component) => component.id === selection.id);
+  if (!selected || selected.kind === 'wire') return document;
+  if (!enabledEntry(selected.kind)) return document;
   const detached = detachComponentFromBreadboard(document, selection.id);
   return {
     ...detached,
@@ -359,23 +371,24 @@ export function moveComponentInDocument(
 export function sceneBounds(
   document: SchematicDocument,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  const placed = document.components.filter(
-    (component) => component.kind !== 'wire' && enabledEntry(component.kind),
-  );
+  const placed = document.components
+    .map((component) => ({ component, size: visualSize(component) }))
+    .filter(
+      (
+        item,
+      ): item is {
+        component: SchematicComponent;
+        size: { width: number; height: number };
+      } => item.size !== null,
+    );
   if (placed.length === 0) return null;
   return placed.reduce(
-    (acc, component) => {
-      if (component.kind === 'wire') return acc;
-      const entry = enabledEntry(component.kind);
-      if (!entry) return acc;
-      const size = renderedSize(entry, component.rotation ?? 0);
-      return {
-        minX: Math.min(acc.minX, component.position.x),
-        minY: Math.min(acc.minY, component.position.y),
-        maxX: Math.max(acc.maxX, component.position.x + size.width),
-        maxY: Math.max(acc.maxY, component.position.y + size.height),
-      };
-    },
+    (acc, { component, size }) => ({
+      minX: Math.min(acc.minX, component.position.x),
+      minY: Math.min(acc.minY, component.position.y),
+      maxX: Math.max(acc.maxX, component.position.x + size.width),
+      maxY: Math.max(acc.maxY, component.position.y + size.height),
+    }),
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
   );
 }
