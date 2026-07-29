@@ -66,9 +66,12 @@ REQUIRED_CHANGED = {
     "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml",
     "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md",
     "docs/delivery/R0_CONVERGENCE_CURRENT_STATE.md",
+    "docs/delivery/R0_FOUNDATION_REVIEW_PR34.md",
+    "docs/delivery/R0_LEGACY_TRACEABILITY.yaml",
     "docs/delivery/R0_OWNER_DECISION.md",
     "docs/delivery/R0_OWNER_DECISION.yaml",
     "docs/delivery/R0_POST_MERGE_TRANSITION.yaml",
+    "docs/delivery/R0_R1_CANDIDATE_SELECTION.md",
     "docs/delivery/R0_VALIDATION_MATRIX.md",
     "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md",
     "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml",
@@ -77,12 +80,15 @@ REQUIRED_CHANGED = {
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_r0.py",
+    "tools/validate_r0_contract_refs.py",
     "tools/validate_r0_diff.py",
     "tools/validate_r0_github_state.py",
     "tools/validate_r0_human_contract.py",
+    "tools/validate_r0_legacy_traceability.py",
     "tools/validate_r0_owner_decision.py",
     "tools/validate_r0_post_merge.py",
     "tools/validate_r0_release_map.py",
+    "tools/validate_r0_review_packets.py",
 }
 
 
@@ -232,6 +238,7 @@ def main() -> int:
     print(f"- branch: {branch}")
     print(f"- base: {base}")
     print(f"- changed files: {len(changed)}")
+    print("- required governance files: complete")
     print("- working tree: clean")
     print("- product/runtime paths changed: 0")
     print("- migrations/schemas changed: 0")
