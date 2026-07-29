@@ -42,6 +42,11 @@ beforeAll(async () => {
     [teacherA.tenantId, teacherA.teacherId],
   );
   projectA = project.rows[0].id as string;
+  await admin.query(
+    `INSERT INTO project_drafts (project_id, tenant_id, document_json, updated_by)
+     VALUES ($1, $2, '{}'::jsonb, $3)`,
+    [projectA, teacherA.tenantId, teacherA.teacherId],
+  );
 });
 
 afterAll(async () => {
@@ -122,7 +127,6 @@ describe('runtime role hardening', () => {
       'classrooms:SELECT',
       'project_drafts:INSERT',
       'project_drafts:SELECT',
-      'project_drafts:UPDATE',
       'project_versions:INSERT',
       'project_versions:SELECT',
       'projects:INSERT',
@@ -142,8 +146,8 @@ describe('runtime role hardening', () => {
     }
   });
 
-  it('may UPDATE only the projects.title column', async () => {
-    const updateColumns = await runtime.query(
+  it('may UPDATE only the required project and draft columns', async () => {
+    const projectUpdateColumns = await runtime.query(
       `SELECT column_name
          FROM information_schema.column_privileges
         WHERE grantee = current_user
@@ -152,7 +156,23 @@ describe('runtime role hardening', () => {
           AND privilege_type = 'UPDATE'
         ORDER BY column_name`,
     );
-    expect(updateColumns.rows.map((row) => row.column_name)).toEqual(['title']);
+    expect(projectUpdateColumns.rows.map((row) => row.column_name)).toEqual(['title']);
+
+    const draftUpdateColumns = await runtime.query(
+      `SELECT column_name
+         FROM information_schema.column_privileges
+        WHERE grantee = current_user
+          AND table_schema = 'public'
+          AND table_name = 'project_drafts'
+          AND privilege_type = 'UPDATE'
+        ORDER BY column_name`,
+    );
+    expect(draftUpdateColumns.rows.map((row) => row.column_name)).toEqual([
+      'document_json',
+      'revision',
+      'updated_at',
+      'updated_by',
+    ]);
 
     const renamed = await withTenantContext(runtime, teacherA.tenantId, (client) =>
       client.query(`UPDATE projects SET title = 'Renamed safely' WHERE id = $1 RETURNING title`, [
@@ -161,7 +181,22 @@ describe('runtime role hardening', () => {
     );
     expect(renamed.rows[0].title).toBe('Renamed safely');
 
-    const forbiddenColumns = [
+    const saved = await withTenantContext(runtime, teacherA.tenantId, (client) =>
+      client.query(
+        `UPDATE project_drafts
+            SET document_json = '{"safe":true}'::jsonb,
+                revision = revision + 1,
+                updated_at = now(),
+                updated_by = $2
+          WHERE project_id = $1
+          RETURNING document_json, revision`,
+        [projectA, teacherA.teacherId],
+      ),
+    );
+    expect(saved.rows[0].document_json).toEqual({ safe: true });
+    expect(saved.rows[0].revision).toBe(2);
+
+    const forbiddenProjectColumns = [
       'tenant_id',
       'classroom_id',
       'module_key',
@@ -172,9 +207,19 @@ describe('runtime role hardening', () => {
       'created_at',
       'project_scope',
     ] as const;
-    for (const column of forbiddenColumns) {
+    for (const column of forbiddenProjectColumns) {
       const attempt = withTenantContext(runtime, teacherA.tenantId, (client) =>
         client.query(`UPDATE projects SET ${column} = ${column} WHERE id = $1`, [projectA]),
+      );
+      await expect(attempt).rejects.toMatchObject({ code: '42501' });
+    }
+
+    for (const column of ['tenant_id', 'project_id'] as const) {
+      const attempt = withTenantContext(runtime, teacherA.tenantId, (client) =>
+        client.query(
+          `UPDATE project_drafts SET ${column} = ${column} WHERE project_id = $1`,
+          [projectA],
+        ),
       );
       await expect(attempt).rejects.toMatchObject({ code: '42501' });
     }
@@ -191,12 +236,10 @@ describe('runtime role hardening', () => {
       await client.query(
         `CREATE TEMP TABLE tenants (id uuid, workspace_slug varchar, status varchar)`,
       );
-      // The locator still resolves against the real public.tenants row.
       const tenant = await client.query(`SELECT auth_lookup_tenant_id($1) AS id`, [
         teacherA.workspace,
       ]);
       expect(tenant.rows[0].id).toBe(teacherA.tenantId);
-      // Session resolution also targets public.*, not the hostile temp copies.
       const resolved = await client.query(`SELECT * FROM auth_resolve_session($1)`, [
         'no-such-hash',
       ]);
