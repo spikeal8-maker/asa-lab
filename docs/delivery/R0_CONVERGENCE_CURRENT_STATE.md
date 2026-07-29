@@ -29,37 +29,57 @@ main
 | №60 | frozen competing R1 candidate B | сохранение branch/evidence, critical fix | расширение vertical, merge, третья identity branch |
 | №29 | non-blocking Map UX candidate | viewer-only fixes | изменение execution order или target semantics |
 
-## 3. Обязательная последовательность
+## 3. Три независимых decision state
 
 ```text
-1. Owner принимает или отклоняет PR №34 как ограниченный foundation
-2. Owner принимает пять решений PR №43
-3. PR №43 один раз rebased на актуальный main
-4. R0 validators PASS
-5. PR №43 merged
-6. Один P1 integration PR из agent/parity-p1-visual-integration
-7. Transfer proof и закрытие №35/№45/№47
-8. Owner выбирает №59 ИЛИ №60
-9. Выбранная R1-линия один раз rebased на accepted baseline
-10. Вторая R1-линия закрывается superseded
+R0_FOUNDATION_DECISION.yaml      PR №34: pending_owner
+R0_OWNER_DECISION.yaml           target contract: pending_owner
+R0_R1_CANDIDATE_DECISION.yaml    PR №59/№60: deferred_until_r0c
 ```
+
+Технический PASS не меняет ни один owner state автоматически.
+
+## 4. Обязательная последовательность
+
+```text
+1. Исправить доказанные blockers PR №34 внутри foundation scope
+2. Owner принимает PR №34 как foundation либо требует изменения
+3. Если принят — PR №34 merge, foundation status → accepted_merged
+4. Owner принимает пять target decisions PR №43
+5. PR №43 один раз rebased на main с принятым foundation
+6. 19 R0 validators + YAML PASS
+7. PR №43 merged
+8. R0A governance activation; R1 остаётся blocked
+9. Один R0B/P1 integration PR + baseline preservation
+10. Transfer proof и закрытие №35/№45/№47
+11. R0C: owner выбирает №59 ИЛИ №60
+12. Выбранная R1-линия один раз rebased на accepted baseline
+13. Вторая R1-линия закрывается superseded
+14. Только R0D отмечает R0 done и R1 ready
+```
+
+Если PR №34 отклонён с закрытием, текущий integration/source contract сначала пересматривается. PR №43 не merge по плану, который предполагает принятый foundation.
 
 Нельзя переставлять шаги ради удобства конкретной ветки.
 
-## 4. Что не является активной задачей
+## 5. Что не является активной задачей
 
-- Issue №24 / `TASK-PROJECT-SHELL-001` — superseded историческая спецификация;
-- Issues №44/№50/№52 — evidence-only;
+- Issues №6/№7/№8/№20/№24/№25/№26 — superseded v1 traceability;
+- Issues №44/№46/№50/№52 — evidence-only;
 - Issue №49 — superseded cross-release bundle;
 - Issue №61 — superseded owner-intent roadmap;
 - PR №35/№45/№47 — не самостоятельные product releases;
 - PR №59/№60 — не две параллельные R1-линии.
 
-## 5. Owner action
+## 6. Owner action
 
-Открыть [`R0_OWNER_DECISION.md`](R0_OWNER_DECISION.md) и подтвердить пять решений.
+### Сначала PR №34
 
-После локального полного PASS владелец пишет в PR №43:
+Открыть [`R0_FOUNDATION_REVIEW_PR34.md`](R0_FOUNDATION_REVIEW_PR34.md). Решение и evidence фиксируются в [`R0_FOUNDATION_DECISION.yaml`](R0_FOUNDATION_DECISION.yaml).
+
+### Затем target contract
+
+Открыть [`R0_OWNER_DECISION.md`](R0_OWNER_DECISION.md) и подтвердить пять решений. После локального полного PASS владелец пишет в PR №43:
 
 ```text
 OWNER DECISION: APPROVED
@@ -67,9 +87,13 @@ Decisions 1–5: accepted
 Convergence order: accepted
 ```
 
-Без этой записи PR №43 остаётся Draft и R1 не начинается.
+Состояние синхронно фиксируется в `R0_OWNER_DECISION.yaml`.
 
-## 6. R0 checks
+### Выбор R1 — позже
+
+PR №59/№60 не выбираются до R0C. Состояние находится в `R0_R1_CANDIDATE_DECISION.yaml`.
+
+## 7. R0 checks
 
 ```text
 python tools/validate_r0.py
@@ -78,17 +102,21 @@ python tools/validate_r0.py
 Suite должна доказать:
 
 - parity/target contracts согласованы;
-- R0–R10 dependencies непротиворечивы;
-- PR №43 не меняет product code, migrations или runtime schemas;
+- PR №34/PR №43/R1 candidate states разделены;
+- baseline preservation и post-merge sequence непротиворечивы;
+- R0–R10 dependencies и strict order непротиворечивы;
+- PR №43 не меняет product code, migrations, runtime schemas или binaries;
+- release-map/test-matrix templates не активированы раньше времени;
 - architecture/map/test catalog validators PASS;
-- owner decision всё ещё требуется.
+- live GitHub branch roles совпадают с контрактом.
 
-## 7. Stop condition
+## 8. Stop condition
 
-После R0 PASS агент:
+После технического R0 PASS агент:
 
 1. обновляет PR №43 фактическими результатами;
-2. не переводит PR в Ready самостоятельно;
-3. не merge;
-4. не начинает R1;
-5. останавливается для owner review.
+2. не изменяет owner decision files;
+3. не переводит PR в Ready самостоятельно;
+4. не merge;
+5. не начинает R1;
+6. останавливается для owner review.
