@@ -1,0 +1,104 @@
+schema_version: 1.0.0
+traceability_id: asa-r0-legacy-v1-to-r0-r10
+status: active_during_r0
+source_execution_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml
+
+legacy_items:
+  - task_id: TASK-PROJECT-SHELL-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/24
+    status: superseded
+    replacements: [R3]
+    preserved_requirements:
+      - module_registry
+      - project_draft_save_reload
+      - optimistic_conflict
+      - immutable_project_version
+      - module_neutral_editor_host
+
+  - task_id: TASK-CHECKERS-LITE-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/25
+    status: superseded
+    replacements: [R3, R10]
+    preserved_requirements:
+      - module_schema
+      - validation_diagnostics
+      - save_reload_version
+      - no_subject_branching_in_core
+
+  - task_id: TASK-ELECTRONICS-ALPHA-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/26
+    status: superseded
+    replacements: [R3, R4]
+    preserved_requirements:
+      - original_svg_components
+      - terminals_wires_properties
+      - deterministic_netlist
+      - honest_dc_simulation
+      - autosave_reload_version
+
+  - task_id: TASK-SEAT-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/7
+    status: superseded
+    replacements: [R1, R3, R5]
+    preserved_requirements:
+      - child_login_without_email
+      - distinct_studentseat_session
+      - credential_issue_reset_revoke
+      - safe_mode
+      - private_project_access
+
+  - task_id: TASK-ACT-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/8
+    status: superseded
+    replacements: [R3, R5, R6, R9]
+    preserved_requirements:
+      - immutable_activity_version
+      - isolated_assignment_work
+      - exact_submission_version
+      - progress_states
+      - assignment_never_public_automatically
+
+  - task_id: TASK-REVIEW-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/20
+    status: superseded
+    replacements: [R6, R9]
+    preserved_requirements:
+      - educational_review_comment
+      - module_anchored_feedback
+      - request_changes_resubmit
+      - rubric_grade_badge
+      - immutable_attempt_history
+
+  - task_id: TASK-ELEC-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/6
+    status: superseded
+    replacements: [R4, R5, R6, R9, R10]
+    preserved_requirements:
+      - electronics_activity
+      - studentseat_work
+      - immutable_submission
+      - anchored_component_feedback
+      - grade_badge
+      - full_multimodule_lifecycle
+
+non_executable_evidence_issues:
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/44
+    role: reference_evidence
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/46
+    role: visual_system_transfer_evidence
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/49
+    role: superseded_cross_release_bundle
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/50
+    role: project_publication_activity_evidence
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/52
+    role: educator_classroom_studentseat_viewer_evidence
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/61
+    role: superseded_owner_intent_roadmap
+
+rules:
+  - legacy_issue_remains_open_for_traceability
+  - legacy_issue_never_becomes_current_release
+  - no_branch_or_pr_created_from_superseded_task
+  - preserved_requirement_must_exist_in_at_least_one_replacement_release
+  - evidence_issue_never_unlocks_a_release
+  - replacements_follow_target_execution_dependencies
