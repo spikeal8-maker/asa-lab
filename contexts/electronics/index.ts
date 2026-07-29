@@ -29,6 +29,16 @@ export {
   type BreadboardInternalLink,
 } from './domain/breadboard-netlist.js';
 export {
+  occupancyFromAssignments,
+  planPartMountToBreadboard,
+  type BreadboardHoleOccupant,
+  type BreadboardMountFailure,
+  type BreadboardMountPlan,
+  type BreadboardOccupancy,
+  type PlannedBreadboardMount,
+  type PlanBreadboardMountOptions,
+} from './domain/breadboard-mount-planner.js';
+export {
   partTerminalWorldMm,
   snapPartToBreadboard,
   type BreadboardPartSnapFailure,
