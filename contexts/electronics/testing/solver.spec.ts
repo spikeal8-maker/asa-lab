@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import { createBreadboardDefinition } from '../domain/breadboard';
+import {
+  breadboardInternalLinks,
+  breadboardTerminalIds,
+} from '../domain/breadboard-netlist';
 import { parseElectronicsDocument, type ElectronicsDocument } from '../domain/document';
-import { buildNetlist, terminalKey } from '../domain/netlist';
+import {
+  buildNetlist,
+  buildNetlistFromTerminalMap,
+  terminalKey,
+} from '../domain/netlist';
 import { solveCircuit } from '../domain/solver';
 
 /** Golden cases for the teaching scenario: a source, a resistor and an LED
@@ -90,6 +99,61 @@ describe('netlist', () => {
     expect(netlist.nodeOf.get(terminalKey('r1', 'b'))).toBe(
       netlist.nodeOf.get(terminalKey('r2', 'a')),
     );
+  });
+
+  it('supports arbitrary stable terminal IDs without changing the netlist schema', () => {
+    const terminalMap = new Map<string, readonly string[]>([
+      ['arduino-1', ['gnd', '5v', 'd13', 'a0', 'sda', 'scl']],
+      ['meter-1', ['positive', 'negative']],
+    ]);
+    const netlist = buildNetlistFromTerminalMap(terminalMap, [
+      {
+        from: { componentId: 'arduino-1', terminal: 'd13' },
+        to: { componentId: 'meter-1', terminal: 'positive' },
+      },
+      {
+        from: { componentId: 'arduino-1', terminal: 'gnd' },
+        to: { componentId: 'meter-1', terminal: 'negative' },
+      },
+    ]);
+    expect(netlist.nodeOf.get(terminalKey('arduino-1', 'd13'))).toBe(
+      netlist.nodeOf.get(terminalKey('meter-1', 'positive')),
+    );
+    expect(netlist.nodeOf.get(terminalKey('arduino-1', 'gnd'))).toBe(
+      netlist.nodeOf.get(terminalKey('meter-1', 'negative')),
+    );
+    expect(netlist.nodeOf.get(terminalKey('arduino-1', 'a0'))).not.toBe(
+      netlist.nodeOf.get(terminalKey('arduino-1', 'd13')),
+    );
+  });
+
+  it('expands physical breadboard holes and internal buses into electrical nodes', () => {
+    const board = createBreadboardDefinition('mini-170');
+    const internal = breadboardInternalLinks(board, 'board-1');
+    const netlist = buildNetlistFromTerminalMap(
+      new Map<string, readonly string[]>([
+        ['board-1', breadboardTerminalIds(board)],
+        ['probe-1', ['positive', 'negative']],
+      ]),
+      [
+        ...internal,
+        {
+          from: { componentId: 'probe-1', terminal: 'positive' },
+          to: { componentId: 'board-1', terminal: 'mini-170:terminal:1:a' },
+        },
+        {
+          from: { componentId: 'probe-1', terminal: 'negative' },
+          to: { componentId: 'board-1', terminal: 'mini-170:terminal:1:f' },
+        },
+      ],
+    );
+    const upper = netlist.nodeOf.get(terminalKey('board-1', 'mini-170:terminal:1:a'));
+    expect(upper).toBe(netlist.nodeOf.get(terminalKey('board-1', 'mini-170:terminal:1:e')));
+    expect(upper).toBe(netlist.nodeOf.get(terminalKey('probe-1', 'positive')));
+    const lower = netlist.nodeOf.get(terminalKey('board-1', 'mini-170:terminal:1:f'));
+    expect(lower).toBe(netlist.nodeOf.get(terminalKey('board-1', 'mini-170:terminal:1:j')));
+    expect(lower).toBe(netlist.nodeOf.get(terminalKey('probe-1', 'negative')));
+    expect(upper).not.toBe(lower);
   });
 });
 
