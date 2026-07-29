@@ -6,7 +6,7 @@
 python tools/validate_r0.py
 ```
 
-R0 PASS означает только: нормативный кандидат внутренне согласован, GitHub-ветки находятся в заявленных ролях, а PR №43 не содержит product runtime. PASS **не означает owner approval** и не разрешает R1 автоматически.
+R0 PASS означает только: нормативный кандидат внутренне согласован, GitHub-ветки находятся в заявленных ролях, а PR №43 не содержит product runtime. PASS **не означает owner approval**, не означает фактическую реализацию описанных страниц и не разрешает R1 автоматически.
 
 ## Порядок gates
 
@@ -27,15 +27,41 @@ R0 PASS означает только: нормативный кандидат �
 | 13 | `validate_r0_r1_candidate_decision.py` | выбор PR №59/№60 невозможен до R0C; selected/unselected state однозначен | early selection, two selected candidates, forbidden transfer | — |
 | 14 | `validate_target_test_matrix.py` | test profiles, release IDs, artifacts и owner flows R0–R10 зафиксированы до кода | duplicate/invalid IDs, missing profile, early activation | — |
 | 15 | `validate_r1_migration_contract.py` | выбранная R1-линия сохраняет данные, имеет SessionsV2/Personal Workspace и actual Project schema bindings | missing entity/stage/API/security/preservation rule | — |
-| 16 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
-| 17 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues and entry docs | contract mismatch | — |
-| 18 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
-| 19 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
-| 20 | `validate_test_catalog.py` | existing active v1 test catalog remains structurally valid | missing/invalid active test contract | — |
-| 21 | `validate_r0_pr34_remote.py` | remote PR №34 preserves migration 0004 checksum and contains additive project/draft least-privilege source/tests | broad privilege, modified applied migration, R1/R5 scope | no `gh`, auth or network |
-| 22 | `validate_r0_github_state.py` | live PR/Issue titles, bases, heads, Draft states and roles match R0 | merged/closed/rebased/mislabelled competing branch | no `gh`, auth or network |
+| 16 | `validate_tinkercad_parity.py` | прежняя parity matrix/evidence/deviations внутренне согласованы | missing entity/invariant/evidence/deviation | — |
+| 17 | `validate_complete_product_interfaces.py` | описаны все page shells, роли, admin/learner surfaces, Electronics tools/components и полный functional-parity scope; 100% claim остаётся false | missing surface/tool/component/evidence state, скрытый overclaim | — |
+| 18 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues and entry docs | contract mismatch | — |
+| 19 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
+| 20 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
+| 21 | `validate_test_catalog.py` | existing active v1 test catalog remains structurally valid | missing/invalid active test contract | — |
+| 22 | `validate_r0_pr34_remote.py` | remote PR №34 preserves migration 0004 checksum and contains additive project/draft least-privilege source/tests | broad privilege, modified applied migration, R1/R5 scope | no `gh`, auth or network |
+| 23 | `validate_r0_pr34_api_validation_remote.py` | PR №34 controller/tests reject malformed IDs, bodies, values and over-posting before repository access | unsafe cast, missing negative test/source | no `gh`, auth or network |
+| 24 | `validate_r0_pr34_openapi_remote.py` | PR №34 OpenAPI declares UUID/enum/string limits, closed request objects and 400 responses | runtime/contract mismatch | no `gh`, auth or network |
+| 25 | `validate_r0_github_state.py` | live PR/Issue titles, bases, heads, Draft states and roles match R0 | merged/closed/rebased/mislabelled competing branch | no `gh`, auth or network |
 
 Первый non-zero останавливает suite.
+
+## Полный interface/parity package
+
+```text
+docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+docs/product/ASA_COMPLETE_INTERFACE_BLUEPRINT.md
+docs/product/ASA_VISUAL_PRODUCT_SYSTEM.md
+docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md
+docs/product/ASA_ADMIN_CONSOLE_SPEC.md
+docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+docs/product/interface-catalog.html
+```
+
+Пакет должен доказывать наличие документационного контракта, а не runtime. `absent`, `partial`, `in_review` и `evidence_required` честно блокируют заявление 100% parity.
+
+Визуальный каталог открывается локально:
+
+```text
+python -m http.server 8080
+http://127.0.0.1:8080/docs/product/interface-catalog.html
+```
 
 ## Target owner-decision state
 
@@ -59,7 +85,7 @@ rejected_close_candidate  contract конвергенции пересматри
 
 Файл: `docs/delivery/R0_FOUNDATION_DECISION.yaml`.
 
-Статическая least-privilege реализация опубликована в PR №34, но migration/RLS/full gate после неё ещё `NOT_RUN`. До локального PASS corrective item не переводится в `pass`.
+Статические least-privilege/API исправления опубликованы в PR №34, но migration/RLS/API/full gate после них ещё требует локального подтверждения. До PASS corrective item не переводится в `pass`.
 
 ## R1 candidate-decision state
 
@@ -134,11 +160,29 @@ python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text(en
 
 Входит в architecture validator; при сомнении запускается отдельно существующий link-validation flow.
 
+### Browser smoke interface catalog
+
+```text
+python -m http.server 8080
+```
+
+Проверить:
+
+- три вкладки;
+- поиск/фильтры;
+- страницы/роли/routes;
+- Electronics tools;
+- parity capability points;
+- сообщение `100% parity: не подтверждена`;
+- console errors = 0;
+- forbidden runtime ports не используются.
+
 ### Owner review
 
-1. PR №34 — `R0_FOUNDATION_REVIEW_PR34.md` + `R0_FOUNDATION_DECISION.yaml`.
-2. Target contract — `R0_OWNER_DECISION.md` + `R0_OWNER_DECISION.yaml`.
-3. R1 candidate — только в R0C, `R0_R1_CANDIDATE_SELECTION.md` + `R0_R1_CANDIDATE_DECISION.yaml`.
+1. Complete surface/parity scope — visual catalog + human specs.
+2. PR №34 — `R0_FOUNDATION_REVIEW_PR34.md` + `R0_FOUNDATION_DECISION.yaml`.
+3. Target contract — `R0_OWNER_DECISION.md` + `R0_OWNER_DECISION.yaml`.
+4. R1 candidate — только в R0C, `R0_R1_CANDIDATE_SELECTION.md` + `R0_R1_CANDIDATE_DECISION.yaml`.
 
 ## R0 PASS package
 
@@ -148,13 +192,16 @@ python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text(en
 commit SHA
 base SHA
 changed file list
-22 validator results
+25 validator results
 YAML result
 working tree clean
 R0 GitHub state result
 target owner decision state
 foundation decision state
 R1 candidate decision state
+complete interface/parity result
+unresolved evidence-required counts
+interface catalog browser result
 convergence action result
 post-merge sequence result
 baseline preservation result
@@ -164,7 +211,7 @@ legacy traceability result
 owner review packet result
 target test matrix result
 R1 migration contract result
-PR34 remote corrective-source result
+PR34 remote security/API/OpenAPI results
 product code changed in PR43 = 0
 migration changed in PR43 = 0
 repository binary changed in PR43 = 0
@@ -174,6 +221,7 @@ repository binary changed in PR43 = 0
 
 До merge PR №43:
 
+- complete interface/parity contract принят как целевой scope;
 - PR №34 status = `accepted_merged`;
 - пять target decisions приняты;
 - technical R0 PASS;
@@ -193,8 +241,11 @@ repository binary changed in PR43 = 0
 - validator нельзя удалить из wrapper ради зелёного результата;
 - `BLOCKED`/`NOT_RUN` не закрывают R0;
 - screenshots/test count не заменяют owner product decision;
+- документация страницы не означает runtime implementation;
+- `evidence_required` не может считаться parity PASS;
 - технический PASS не меняет owner decision files автоматически;
 - PR №59 и №60 не могут быть одновременно selected;
-- PR №43 не может содержать product runtime, migrations or repository binaries;
+- PR №43 не может содержать product runtime, migrations или repository binaries;
 - target release test IDs не активируются до R0A;
-- поздний dependency-ready release не обходит strict delivery order.
+- поздний dependency-ready release не обходит strict delivery order;
+- буквальное копирование чужого кода/бренда/ассетов запрещено.
