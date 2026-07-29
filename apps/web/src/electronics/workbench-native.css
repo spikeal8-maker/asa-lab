@@ -1,0 +1,96 @@
+.workbench-property-help {
+  margin: -4px 0 2px;
+  color: #657784;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.workbench-value-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.workbench-value-presets button {
+  min-height: 32px;
+  padding: 5px 7px;
+  border: 1px solid #d5dde3;
+  border-radius: 5px;
+  background: #f8fafb;
+  color: #405665;
+  font-size: 12px;
+  text-align: center;
+}
+
+.workbench-value-presets button:hover:not(:disabled) {
+  border-color: #67aeca;
+  background: #eef8fb;
+}
+
+.workbench-value-presets button.active {
+  border-color: #087fa4;
+  background: #e5f6fa;
+  color: #075f7a;
+  box-shadow: 0 0 0 1px #087fa4 inset;
+}
+
+.workbench-model-warning {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #e7c26d;
+  border-radius: 7px;
+  background: #fff8e7;
+  color: #6b4a05;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.workbench-model-warning strong {
+  color: #704c00;
+}
+
+.workbench-model-warning button {
+  justify-self: start;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid #c99f3b;
+  border-radius: 5px;
+  background: #fff;
+  color: #6b4a05;
+}
+
+.workbench-model-warning button:hover:not(:disabled) {
+  background: #ffefc3;
+}
+
+.workbench-wire-swatches button:disabled,
+.workbench-value-presets button:disabled,
+.workbench-model-warning button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.workbench-catalog-card small {
+  max-width: 100%;
+  color: #72808b;
+  font-size: 10px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.workbench-inspector input:disabled {
+  color: #4e5f6b;
+  background: #eef2f4;
+  cursor: not-allowed;
+}
+
+.workbench-stage-status {
+  max-width: calc(100% - 170px);
+}
+
+@media (max-width: 1120px) {
+  .workbench-value-presets {
+    grid-template-columns: 1fr;
+  }
+}
