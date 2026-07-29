@@ -118,13 +118,14 @@ describe('DC solver golden cases', () => {
     expect(result.diagnostics.map((d) => d.code)).toContain('open_circuit');
   });
 
-  it('reports a short circuit when the source is wired to itself', () => {
+  it('reports a short circuit when the source is wired to itself without inventing current', () => {
     const document = doc(
       [component('src', 'source', 5), component('w1', 'wire', 0)],
       [connect('c1', 'src', 'a', 'w1', 'a'), connect('c2', 'w1', 'b', 'src', 'b')],
     );
     const result = solveCircuit(document);
     expect(result.solved).toBe(false);
+    expect(result.current).toBe(0);
     expect(result.diagnostics.map((d) => d.code)).toContain('short_circuit');
   });
 
@@ -147,20 +148,22 @@ describe('DC solver golden cases', () => {
     expect(result.components.find((entry) => entry.componentId === 'led1')?.lit).toBe(false);
   });
 
-  it('warns about an LED without a current-limiting resistor', () => {
+  it('reports an LED without a current-limiting resistor without inventing current', () => {
     const document = doc(
       [component('src', 'source', 5), component('led1', 'led', 2)],
       [connect('c1', 'src', 'a', 'led1', 'a'), connect('c2', 'led1', 'b', 'src', 'b')],
     );
     const result = solveCircuit(document);
+    expect(result.solved).toBe(false);
+    expect(result.current).toBe(0);
     expect(result.diagnostics.map((d) => d.code)).toContain('led_no_resistor');
   });
 
-  it('warns about overcurrent through the LED', () => {
+  it('reports damage risk for a severely overdriven LED', () => {
     const result = solveCircuit(seriesCircuit(5, 20, 2));
     // (5 - 2) / 20 = 150 mA
     expect(result.solved).toBe(true);
-    expect(result.diagnostics.map((d) => d.code)).toContain('overcurrent');
+    expect(result.diagnostics.map((d) => d.code)).toContain('led_damage_risk');
   });
 
   it('keeps the LED dark when the source cannot reach its forward voltage', () => {
@@ -196,6 +199,7 @@ describe('DC solver golden cases', () => {
     );
     const result = solveCircuit(document);
     expect(result.solved).toBe(false);
+    expect(result.current).toBe(0);
     expect(result.diagnostics.map((d) => d.code)).toContain('not_series');
   });
 
