@@ -1,4 +1,9 @@
 import {
+  WORKBENCH_VALUE_CONTROLS,
+  formatComponentValue,
+  isNominalWorkbenchValue,
+} from './component-behavior';
+import {
   CATEGORY_LABELS,
   componentPhysicalSummary,
   renderedSizeMillimetres,
@@ -25,6 +30,14 @@ export function WorkbenchSidebars({
 }: {
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
+  const valueControl = c.selectedComponent
+    ? WORKBENCH_VALUE_CONTROLS[c.selectedComponent.kind]
+    : null;
+  const nonNominal =
+    c.selectedComponent &&
+    valueControl &&
+    !isNominalWorkbenchValue(c.selectedComponent.kind, c.selectedComponent.value);
+
   return (
     <>
       <aside
@@ -96,7 +109,9 @@ export function WorkbenchSidebars({
                     </span>
                     <span>{entry.label}</span>
                     <small>
-                      {entry.enabled ? componentPhysicalSummary(entry) : `Скоро · ${componentPhysicalSummary(entry)}`}
+                      {entry.enabled
+                        ? componentPhysicalSummary(entry)
+                        : `Скоро · ${componentPhysicalSummary(entry)}`}
                     </small>
                   </button>
                 );
@@ -125,7 +140,7 @@ export function WorkbenchSidebars({
               <MinusIcon />
             </button>
           </div>
-          {c.selectedComponent && c.selectedEntry ? (
+          {c.selectedComponent && c.selectedEntry && valueControl ? (
             <div className="workbench-inspector-body">
               <div className="workbench-inspector-preview">
                 <ComponentPreview
@@ -157,25 +172,55 @@ export function WorkbenchSidebars({
                 </div>
               </dl>
               <label>
-                <span>
-                  {c.selectedComponent.kind === 'resistor'
-                    ? 'Сопротивление'
-                    : c.selectedComponent.kind === 'source'
-                      ? 'Напряжение'
-                      : 'Падение напряжения'}
-                </span>
+                <span>{valueControl.label}</span>
                 <div className="workbench-value-field">
                   <input
                     type="number"
-                    min="0"
-                    step="any"
+                    min={valueControl.minimum}
+                    max={valueControl.maximum}
+                    step={valueControl.step}
                     value={c.selectedComponent.value}
-                    disabled={c.simulationRunning}
+                    disabled={!valueControl.editable || c.simulationRunning}
+                    aria-describedby="workbench-component-value-help"
                     onChange={(event) => c.updateSelectedValue(Number(event.target.value))}
                   />
-                  <span>{c.selectedEntry.unit}</span>
+                  <span>{valueControl.unit}</span>
                 </div>
               </label>
+              <p id="workbench-component-value-help" className="workbench-property-help">
+                {valueControl.help}
+              </p>
+              {valueControl.presets.length > 0 ? (
+                <div className="workbench-value-presets" aria-label="Типовые номиналы">
+                  {valueControl.presets.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      disabled={c.simulationRunning}
+                      className={c.selectedComponent?.value === preset ? 'active' : ''}
+                      onClick={() => c.updateSelectedValue(preset)}
+                    >
+                      {formatComponentValue(c.selectedComponent!.kind, preset)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {nonNominal ? (
+                <div className="workbench-model-warning" role="note">
+                  <strong>Legacy-номинал: {formatComponentValue(c.selectedComponent.kind, c.selectedComponent.value)}</strong>
+                  <span>
+                    Нативный номинал этого конкретного SVG-компонента —{' '}
+                    {formatComponentValue(c.selectedComponent.kind, valueControl.defaultValue)}.
+                  </span>
+                  <button
+                    type="button"
+                    disabled={c.simulationRunning}
+                    onClick={c.resetSelectedValue}
+                  >
+                    Вернуть нативный номинал
+                  </button>
+                </div>
+              ) : null}
               {c.simulationRunning && c.resultByComponent.get(c.selectedComponent.id) ? (
                 <dl className="workbench-measurements">
                   <div>
@@ -226,6 +271,7 @@ export function WorkbenchSidebars({
                   <button
                     key={color}
                     type="button"
+                    disabled={c.simulationRunning}
                     className={(c.selectedWire?.color ?? '#e3212b') === color ? 'active' : ''}
                     style={{ background: color }}
                     onClick={() => c.setWireColor(color)}
