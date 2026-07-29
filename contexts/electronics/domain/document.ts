@@ -84,7 +84,7 @@ const GEOMETRY_PROFILES: readonly ElectronicsGeometryProfile[] = [
 const ROTATIONS = new Set([0, 90, 180, 270]);
 const MAX_COMPONENTS = 100;
 const MAX_CONNECTIONS = 200;
-const MAX_BREADBOARD_ATTACHMENTS = 400;
+const MAX_BREADBOARD_ATTACHMENTS = 2000;
 const MAX_WIRE_VERTICES = 24;
 const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const TERMINAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
@@ -196,8 +196,8 @@ function parseBreadboardAttachments(
       footprintKey,
       insertionDepthMm,
     } = raw;
-    if (!isId(id) || seenIds.has(id)) {
-      return 'breadboard attachment id must be unique and non-empty';
+    if (!isId(id) || !isSafeKey(id) || seenIds.has(id)) {
+      return 'breadboard attachment id must be unique, safe and non-empty';
     }
     if (!isId(breadboardComponentId) || componentKinds.get(breadboardComponentId) !== 'breadboard') {
       return 'breadboard attachment must reference an existing breadboard component';
@@ -369,3 +369,6 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     },
   };
 }
+
+/** Public application-layer name retained for Project SaveDraftUseCase. */
+export const validateElectronicsDocument = parseElectronicsDocument;
