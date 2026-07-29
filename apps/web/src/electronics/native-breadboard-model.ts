@@ -1,4 +1,8 @@
-import { BREADBOARD_PITCH_MM, mmToWorkbenchUnits } from './workbench-scale';
+import {
+  BREADBOARD_PITCH_MM,
+  mmToWorkbenchUnits,
+  type PointLike,
+} from './workbench-scale';
 
 export type HalfBreadboardRow = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j';
 export type HalfBreadboardRail =
@@ -6,6 +10,7 @@ export type HalfBreadboardRail =
   | 'top-negative'
   | 'bottom-positive'
   | 'bottom-negative';
+export type HalfBreadboardRotation = 0 | 90 | 180 | 270;
 
 export interface HalfBreadboardVisualHole {
   readonly id: string;
@@ -28,6 +33,7 @@ export interface HalfBreadboardVisualModel {
   readonly depthMm: 8.5;
   readonly viewBox: { readonly width: 83.5; readonly height: 54.5 };
   readonly renderWidth: number;
+  readonly renderHeight: number;
   readonly pitchMm: 2.54;
   readonly centerChannelMm: 7.62;
   readonly channel: {
@@ -86,7 +92,9 @@ function railHoleId(rail: HalfBreadboardRail, railIndex: number): string {
 }
 
 function fieldAccessibleName(column: number, row: HalfBreadboardRow): string {
-  const side = ['a', 'b', 'c', 'd', 'e'].includes(row) ? 'верхняя группа из пяти' : 'нижняя группа из пяти';
+  const side = ['a', 'b', 'c', 'd', 'e'].includes(row)
+    ? 'верхняя группа из пяти'
+    : 'нижняя группа из пяти';
   return `Отверстие ${row}${column}, ${side}`;
 }
 
@@ -99,8 +107,7 @@ function railAccessibleName(rail: HalfBreadboardRail, railIndex: number): string
 function buildHalfBreadboardHoles(): HalfBreadboardVisualHole[] {
   const fieldWidth = (TERMINAL_COLUMNS - 1) * BREADBOARD_PITCH_MM;
   const xStart = (WIDTH_MM - fieldWidth) / 2;
-  const fieldHeight =
-    (5 - 1) * BREADBOARD_PITCH_MM * 2 + CENTER_CHANNEL_MM;
+  const fieldHeight = (5 - 1) * BREADBOARD_PITCH_MM * 2 + CENTER_CHANNEL_MM;
   const yStart = (HEIGHT_MM - fieldHeight) / 2;
   const holes: HalfBreadboardVisualHole[] = [];
 
@@ -166,6 +173,7 @@ export const HALF_BREADBOARD_VISUAL: HalfBreadboardVisualModel = {
   depthMm: DEPTH_MM,
   viewBox: { width: WIDTH_MM, height: HEIGHT_MM },
   renderWidth: mmToWorkbenchUnits(WIDTH_MM),
+  renderHeight: mmToWorkbenchUnits(HEIGHT_MM),
   pitchMm: BREADBOARD_PITCH_MM,
   centerChannelMm: CENTER_CHANNEL_MM,
   channel: {
@@ -182,4 +190,32 @@ export function halfBreadboardVisualHole(
   terminalId: string,
 ): HalfBreadboardVisualHole | null {
   return HALF_BREADBOARD_VISUAL.holes.find((hole) => hole.id === terminalId) ?? null;
+}
+
+export function halfBreadboardRenderedSize(
+  rotation: HalfBreadboardRotation = 0,
+): { width: number; height: number } {
+  const { renderWidth, renderHeight } = HALF_BREADBOARD_VISUAL;
+  return rotation === 90 || rotation === 270
+    ? { width: renderHeight, height: renderWidth }
+    : { width: renderWidth, height: renderHeight };
+}
+
+export function halfBreadboardTerminalPosition(
+  origin: PointLike,
+  terminalId: string,
+  rotation: HalfBreadboardRotation = 0,
+): PointLike | null {
+  const hole = halfBreadboardVisualHole(terminalId);
+  if (!hole) return null;
+  const baseWidth = HALF_BREADBOARD_VISUAL.renderWidth;
+  const baseHeight = HALF_BREADBOARD_VISUAL.renderHeight;
+  const x = mmToWorkbenchUnits(hole.xMm);
+  const y = mmToWorkbenchUnits(hole.yMm);
+  if (rotation === 90) return { x: origin.x + baseHeight - y, y: origin.y + x };
+  if (rotation === 180) {
+    return { x: origin.x + baseWidth - x, y: origin.y + baseHeight - y };
+  }
+  if (rotation === 270) return { x: origin.x + y, y: origin.y + baseWidth - x };
+  return { x: origin.x + x, y: origin.y + y };
 }
