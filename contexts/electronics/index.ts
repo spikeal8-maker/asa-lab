@@ -116,6 +116,7 @@ export {
 export {
   EMPTY_DOCUMENT,
   parseElectronicsDocument,
+  validateElectronicsDocument,
   type BreadboardAttachment,
   type ComponentPosition,
   type DocumentParseResult,
