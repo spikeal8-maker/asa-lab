@@ -11,6 +11,7 @@ let runtime: pg.Pool;
 let teacherA: SeededTeacher;
 let teacherB: SeededTeacher;
 let classroomA: string;
+let projectA: string;
 
 beforeAll(async () => {
   admin = testAdminPool();
@@ -33,6 +34,14 @@ beforeAll(async () => {
      VALUES ($1, $2, 'classroom', $3, 'classroom.created')`,
     [teacherA.tenantId, teacherA.teacherId, classroomA],
   );
+  const project = await admin.query(
+    `INSERT INTO projects
+       (tenant_id, project_scope, classroom_id, module_key, title, created_by)
+     VALUES ($1, 'personal', NULL, 'electronics', 'RLS Project', $2)
+     RETURNING id`,
+    [teacherA.tenantId, teacherA.teacherId],
+  );
+  projectA = project.rows[0].id as string;
 });
 
 afterAll(async () => {
@@ -118,7 +127,6 @@ describe('runtime role hardening', () => {
       'project_versions:SELECT',
       'projects:INSERT',
       'projects:SELECT',
-      'projects:UPDATE',
       'schools:SELECT',
     ]);
     const sequences = await runtime.query(
@@ -131,6 +139,44 @@ describe('runtime role hardening', () => {
     );
     for (const row of sequences.rows) {
       expect(row.usage).toBe(row.relname === 'audit_events_id_seq');
+    }
+  });
+
+  it('may UPDATE only the projects.title column', async () => {
+    const updateColumns = await runtime.query(
+      `SELECT column_name
+         FROM information_schema.column_privileges
+        WHERE grantee = current_user
+          AND table_schema = 'public'
+          AND table_name = 'projects'
+          AND privilege_type = 'UPDATE'
+        ORDER BY column_name`,
+    );
+    expect(updateColumns.rows.map((row) => row.column_name)).toEqual(['title']);
+
+    const renamed = await withTenantContext(runtime, teacherA.tenantId, (client) =>
+      client.query(`UPDATE projects SET title = 'Renamed safely' WHERE id = $1 RETURNING title`, [
+        projectA,
+      ]),
+    );
+    expect(renamed.rows[0].title).toBe('Renamed safely');
+
+    const forbiddenColumns = [
+      'tenant_id',
+      'classroom_id',
+      'module_key',
+      'status',
+      'created_by',
+      'idempotency_key',
+      'request_fingerprint',
+      'created_at',
+      'project_scope',
+    ] as const;
+    for (const column of forbiddenColumns) {
+      const attempt = withTenantContext(runtime, teacherA.tenantId, (client) =>
+        client.query(`UPDATE projects SET ${column} = ${column} WHERE id = $1`, [projectA]),
+      );
+      await expect(attempt).rejects.toMatchObject({ code: '42501' });
     }
   });
 
@@ -205,6 +251,15 @@ describe('row level security', () => {
       return (result.rows as Array<{ id: string }>).map((r) => r.id);
     });
     expect(visible).toContain(classroomA);
+  });
+
+  it('tenant B cannot rename tenant A project through the column-scoped grant', async () => {
+    const updated = await withTenantContext(runtime, teacherB.tenantId, (client) =>
+      client.query(`UPDATE projects SET title = 'Cross tenant' WHERE id = $1 RETURNING id`, [
+        projectA,
+      ]),
+    );
+    expect(updated.rows).toHaveLength(0);
   });
 
   it('WITH CHECK blocks writing a row for another tenant (SQLSTATE 42501)', async () => {
