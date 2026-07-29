@@ -41,7 +41,7 @@ export interface ProjectVersion {
   createdAt: string;
 }
 
-export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+export type ComponentKind = 'source' | 'resistor' | 'led' | 'breadboard' | 'wire';
 export type TerminalId = string;
 export type ElectronicsGeometryProfile = 'legacy-pixel-v1' | 'breadboard-2.54mm-v1';
 
@@ -55,7 +55,7 @@ export interface SchematicComponent {
 
 export interface SchematicEndpoint {
   componentId: string;
-  /** Existing documents use a/b; future multi-terminal parts use stable IDs. */
+  /** Existing documents use a/b; multi-terminal parts use stable IDs. */
   terminal: TerminalId;
 }
 
