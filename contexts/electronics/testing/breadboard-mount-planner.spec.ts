@@ -111,7 +111,8 @@ describe('occupancy-aware breadboard mount planner', () => {
     );
     expect(result).toMatchObject({
       ok: false,
-      code: 'terminals_collide_on_one_hole',
+      code: 'breadboard_hole_occupied',
+      terminalId: expect.any(String),
       occupiedHoleId: expect.any(String),
       occupant: { conductorType: 'wire_endpoint' },
     });
