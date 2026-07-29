@@ -13,6 +13,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX_PATH = ROOT / "docs/testing/ASA_TARGET_TEST_MATRIX.yaml"
 EXECUTION_PATH = ROOT / "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml"
+SURFACE_PATH = ROOT / "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml"
+SCOPE_PATH = ROOT / "docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml"
+ELECTRONICS_PATH = ROOT / "docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml"
 ACTIVE_CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
 EXPECTED_RELEASES = [f"R{index}" for index in range(11)]
 EXPECTED_RESULT_STATES = {"PASS", "FAIL", "BLOCKED", "NOT_RUN"}
@@ -24,17 +27,53 @@ EXPECTED_PROFILES = {
     "browser_common",
     "owner_evidence",
 }
-EXPECTED_MIGRATION_RELEASES = {"R1", "R3", "R5", "R7", "R8", "R9"}
+EXPECTED_MIGRATION_RELEASES = {"R1", "R3", "R5", "R7", "R8", "R9", "R10"}
 EXPECTED_RULES = {
     "do_not_modify_active_test_catalog_before_r0a",
     "r0a_registers_target_test_contracts_without_removing_existing_tests",
     "release_test_ids_are_frozen_before_product_code",
     "blocked_and_not_run_never_close_a_release",
+    "evidence_required_never_counts_as_pass",
     "owner_evidence_does_not_replace_automated_tests",
     "automated_tests_do_not_replace_owner_acceptance",
     "next_release_tests_do_not_run_as_current_scope",
 }
 TEST_ID_PATTERN = re.compile(r"^TST-[A-Z0-9][A-Z0-9-]*-\d{3}$")
+EXPECTED_R0_TESTS = {
+    "TST-R0-SURFACE-CATALOG-001",
+    "TST-R0-ELECTRONICS-CATALOG-001",
+    "TST-R0-FUNCTIONAL-PARITY-SCOPE-001",
+    "TST-R0-INTERFACE-VIEWER-001",
+}
+EXPECTED_R4_TESTS = {
+    "TST-R4-COMPONENT-INVENTORY-001",
+    "TST-R4-BREADBOARD-CONNECTIVITY-001",
+    "TST-R4-WIRING-EDITING-001",
+    "TST-R4-MULTIMETER-001",
+    "TST-R4-OSCILLOSCOPE-001",
+    "TST-R4-ARDUINO-CODE-001",
+    "TST-R4-MICROBIT-001",
+    "TST-R4-CODE-MODES-001",
+    "TST-R4-SERIAL-MONITOR-001",
+    "TST-R4-REFERENCE-EVIDENCE-001",
+}
+EXPECTED_R10_TESTS = {
+    "TST-R10-THREE-D-SHAPES-001",
+    "TST-R10-THREE-D-IMPORT-EXPORT-001",
+    "TST-R10-CODEBLOCKS-WORKSPACE-001",
+    "TST-R10-SIMLAB-MATERIALS-FORCES-001",
+    "TST-R10-SIMLAB-CONNECTORS-MOTORS-001",
+    "TST-R10-SIMLAB-TRACES-001",
+    "TST-R10-MOBILE-TOUCH-PEN-001",
+    "TST-R10-MOBILE-AR-001",
+    "TST-R10-CLASSROOM-INTEGRATIONS-001",
+    "TST-R10-CAD-HANDOFF-DEVIATIONS-001",
+    "TST-R10-SCHOOL-ADMIN-AUTHZ-001",
+    "TST-R10-PLATFORM-ADMIN-AUTHZ-001",
+    "TST-R10-SUPPORT-SESSION-AUDIT-001",
+    "TST-R10-JOBS-HEALTH-STORAGE-001",
+    "TST-R10-INCIDENT-RECOVERY-001",
+}
 
 
 def fail(message: str) -> None:
@@ -86,6 +125,9 @@ def main() -> int:
     try:
         matrix = load(MATRIX_PATH)
         execution = load(EXECUTION_PATH)
+        surfaces = load(SURFACE_PATH)
+        scope = load(SCOPE_PATH)
+        electronics = load(ELECTRONICS_PATH)
         active_catalog = load(ACTIVE_CATALOG_PATH)
 
         if matrix.get("schema_version") != "1.0.0":
@@ -94,10 +136,22 @@ def main() -> int:
             fail("unexpected target test matrix id")
         if matrix.get("status") != "inactive_until_r0a_contract_activation":
             fail("target test matrix must remain inactive before R0A")
-        if matrix.get("source_execution_plan") != "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml":
-            fail("target test matrix must reference the target execution plan")
-        if matrix.get("source_blueprint") != "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml":
-            fail("target test matrix must reference the target blueprint")
+        expected_sources = {
+            "source_execution_plan": "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml",
+            "source_blueprint": "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml",
+            "source_surface_catalog": "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml",
+            "source_functional_parity_scope": "docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml",
+            "source_electronics_catalog": "docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml",
+        }
+        for field, expected in expected_sources.items():
+            if matrix.get(field) != expected:
+                fail(f"target test matrix {field} must be {expected}")
+        if surfaces.get("catalog_id") != "asa-complete-product-surfaces":
+            fail("target test matrix references an invalid surface catalog")
+        if scope.get("completion_rule", {}).get("current_claim") != "not_100_percent":
+            fail("target test matrix cannot activate with a false 100% parity claim")
+        if electronics.get("catalog_id") != "asa-electronics-complete-tool-catalog":
+            fail("target test matrix references an invalid Electronics catalog")
         if matrix.get("activation_transition") != "R0A_CONTRACT_ACTIVATION":
             fail("target test matrix activation transition must be R0A_CONTRACT_ACTIVATION")
 
@@ -140,6 +194,8 @@ def main() -> int:
             fail("target test release order differs from target execution order")
 
         release_specific_ids: set[str] = set()
+        release_tests_by_id: dict[str, set[str]] = {}
+        release_artifacts_by_id: dict[str, set[str]] = {}
         for release in releases:
             release_id = release["id"]
             required_profiles = string_list(
@@ -174,15 +230,30 @@ def main() -> int:
                 fail(f"every {release_id} release test must start with {expected_prefix}")
             validate_test_ids(release_tests, f"{release_id}.release_tests", seen_test_ids)
             release_specific_ids.update(release_tests)
+            release_tests_by_id[release_id] = set(release_tests)
 
             artifacts = string_list(
                 release.get("required_artifacts"), f"{release_id}.required_artifacts"
             )
             if any(".." in artifact or artifact.startswith("/") for artifact in artifacts):
                 fail(f"{release_id}.required_artifacts contains an unsafe path")
+            release_artifacts_by_id[release_id] = set(artifacts)
             owner_flow = release.get("owner_flow")
             if not isinstance(owner_flow, str) or not owner_flow.strip():
                 fail(f"{release_id} must define owner_flow")
+
+        if not EXPECTED_R0_TESTS <= release_tests_by_id["R0"]:
+            fail("R0 tests do not cover surfaces, Electronics, parity scope and interface viewer")
+        if "six target decisions" not in releases[0]["owner_flow"]:
+            fail("R0 owner flow must explicitly review six target decisions")
+        if not EXPECTED_R4_TESTS <= release_tests_by_id["R4"]:
+            fail("R4 tests do not cover complete Circuits instruments/code/reference evidence")
+        if len(release_tests_by_id["R4"]) < 24 or len(release_artifacts_by_id["R4"]) < 15:
+            fail("R4 test or evidence set is too small for complete Electronics parity")
+        if not EXPECTED_R10_TESTS <= release_tests_by_id["R10"]:
+            fail("R10 tests do not cover 3D, Codeblocks, Sim Lab, mobile, integrations and admin")
+        if len(release_tests_by_id["R10"]) < 33 or len(release_artifacts_by_id["R10"]) < 18:
+            fail("R10 test or evidence set is too small for full multi-module/admin scope")
 
         active_ids = active_catalog_ids(active_catalog)
         leaked = sorted(release_specific_ids & active_ids)
@@ -208,7 +279,10 @@ def main() -> int:
     print(f"- releases: {len(EXPECTED_RELEASES)}")
     print(f"- profiles: {len(EXPECTED_PROFILES)}")
     print(f"- unique target test IDs: {len(seen_test_ids)}")
+    print(f"- R4 release tests: {len(release_tests_by_id['R4'])}")
+    print(f"- R10 release tests: {len(release_tests_by_id['R10'])}")
     print("- target release IDs active in v1 catalog: 0")
+    print("- evidence_required counts as PASS: false")
     print("- next release tests executable before R0A: false")
     return 0
 
