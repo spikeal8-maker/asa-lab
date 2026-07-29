@@ -26,6 +26,7 @@ VALIDATORS = (
     "tools/validate_r1_migration_contract.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_complete_product_interfaces.py",
+    "tools/validate_page_wireframes.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
     "tools/validate_project_map.py",
@@ -80,6 +81,7 @@ def main() -> int:
     print("r1MigrationContractValid=true")
     print("tinkercadParityContractValid=true")
     print("completeProductInterfacesValid=true")
+    print("pageWireframesValid=true")
     print("pr34RemoteCorrectiveSourceValid=true")
     print("pr34RequestValidationSourceValid=true")
     print("pr34OpenApiSourceValid=true")
