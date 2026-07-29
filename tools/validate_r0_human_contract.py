@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md"
 CURRENT_STATE = ROOT / "docs/delivery/R0_CONVERGENCE_CURRENT_STATE.md"
 OWNER_DECISION = ROOT / "docs/delivery/R0_OWNER_DECISION.md"
+INTERFACE_BLUEPRINT = ROOT / "docs/product/ASA_COMPLETE_INTERFACE_BLUEPRINT.md"
+PARITY_SCOPE = ROOT / "docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml"
 
 RELEASE_ISSUES = {
     "R0": 36,
@@ -42,6 +44,8 @@ def main() -> int:
         contract = read(CONTRACT)
         current_state = read(CURRENT_STATE)
         owner = read(OWNER_DECISION)
+        interface = read(INTERFACE_BLUEPRINT)
+        parity_scope = read(PARITY_SCOPE)
 
         for marker in (
             "owner_review_required",
@@ -72,18 +76,39 @@ def main() -> int:
         ):
             require(current_state, marker, CURRENT_STATE.name)
 
-        for number in range(1, 6):
+        for number in range(1, 7):
             require(owner, f"## Решение {number}.", OWNER_DECISION.name)
-        require(owner, "Convergence order: accepted", OWNER_DECISION.name)
+        for marker in (
+            "Decisions 1–6: accepted",
+            "Functional parity scope: accepted",
+            "Convergence order: accepted",
+        ):
+            require(owner, marker, OWNER_DECISION.name)
+
+        for marker in (
+            "Что означает «100% копия»",
+            "School/Organization Admin",
+            "StudentSeat",
+            "Что реализовано, а что только описано",
+        ):
+            require(interface, marker, INTERFACE_BLUEPRINT.name)
+        for marker in (
+            "100_percent_functional_parity_of_approved_reference_scope",
+            "current_claim: not_100_percent",
+            "source_code: forbidden",
+            "functional_flows_and_tool_capabilities: required",
+        ):
+            require(parity_scope, marker, PARITY_SCOPE.name)
 
         forbidden_claims = (
             "R1 = ready",
             "TASK-PROJECT-SHELL-001 = ready",
             "product coding = allowed",
+            "current_claim: 100_percent",
         )
         for claim in forbidden_claims:
-            if claim in contract or claim in current_state:
-                raise ValueError(f"R0 documents contain forbidden activation claim: {claim}")
+            if claim in contract or claim in current_state or claim in parity_scope:
+                raise ValueError(f"R0 documents contain forbidden activation/parity claim: {claim}")
 
     except (OSError, ValueError) as error:
         print(f"ASA R0 human contract FAIL: {error}", file=sys.stderr)
@@ -93,7 +118,8 @@ def main() -> int:
     print("- releases: R0-R10")
     print("- active gate: R0 only")
     print("- future releases blocked: 10")
-    print("- owner decisions present: 5")
+    print("- owner decisions present: 6")
+    print("- functional parity claim: not_100_percent")
     return 0
 
 
