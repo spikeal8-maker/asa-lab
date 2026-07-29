@@ -33,6 +33,25 @@ EXPECTED_MAIN_TABLES = {
     "audit_events",
 }
 EXPECTED_PROJECT_TABLES = {"projects", "project_drafts", "project_versions"}
+EXPECTED_SCHEMA_MIGRATIONS = {
+    "migrations/0003_electronics_project_slice.sql",
+    "migrations/0004_personal_teacher_projects.sql",
+}
+EXPECTED_PRESERVE_VALUES = {
+    "projects.tenant_id",
+    "projects.created_by",
+    "projects.classroom_id",
+    "projects.project_scope",
+    "projects.module_key",
+    "project_drafts.document_json",
+    "project_drafts.revision",
+    "project_versions.document_json",
+    "project_versions.version_no",
+}
+EXPECTED_COMPUTED_FINGERPRINTS = {
+    "project_drafts_document_json_canonical_sha256",
+    "project_versions_document_json_canonical_sha256",
+}
 EXPECTED_TRANSFER_PRS = {35, 45, 47}
 EXPECTED_FORBIDDEN_CHANGES = {
     "new_account_identity_model",
@@ -41,10 +60,22 @@ EXPECTED_FORBIDDEN_CHANGES = {
     "assignments_submissions_review_grades",
     "destructive_migration",
     "regenerate_existing_ids",
-    "reset_existing_password_hashes",
+    "reset_existing_credential_hashes",
     "disable_rls",
     "client_authoritative_tenant_workspace_or_capability",
     "second_competing_portal_or_editor_host",
+}
+EXPECTED_MANIFEST_FIELDS = {
+    "source_commit_sha",
+    "database_schema_migration_versions",
+    "table_row_counts",
+    "stable_id_samples",
+    "credential_hash_fingerprints_without_plaintext",
+    "project_draft_document_digests",
+    "project_version_document_digests",
+    "electronics_fixture_digests",
+    "canonical_route_inventory",
+    "desktop_mobile_screenshot_inventory",
 }
 EXPECTED_MIGRATION_SCENARIOS = {
     "empty_database",
@@ -56,12 +87,21 @@ EXPECTED_MIGRATION_SCENARIOS = {
 EXPECTED_ASSERTIONS = {
     "no_required_table_dropped",
     "no_stable_id_changed",
-    "no_password_hash_changed",
-    "no_project_payload_changed_without_explicit_schema_migrator",
-    "no_project_version_digest_changed",
+    "no_credential_hash_changed",
+    "no_project_document_changed_without_explicit_schema_migrator",
+    "no_project_version_document_digest_changed",
     "no_cross_tenant_lineage_broken",
     "no_rls_policy_removed",
     "no_runtime_role_privilege_broadened",
+}
+EXPECTED_APPLICATION_TESTS = {
+    "teacher_login_compatibility",
+    "session_reload_compatibility",
+    "classroom_create_list_reload",
+    "project_create_save_reload_version",
+    "electronics_document_save_reload",
+    "runtime_role_least_privilege_matrix",
+    "cross_tenant_negative_matrix",
 }
 EXPECTED_EXIT_GATE = {
     "one_integration_pr_merged",
@@ -146,15 +186,26 @@ def main() -> int:
         project_foundation = contract.get("foundation_if_pr34_accepted")
         if not isinstance(project_foundation, dict):
             fail("foundation_if_pr34_accepted must be an object")
-        if string_set(project_foundation.get("required_tables"), "foundation_if_pr34_accepted.required_tables") != EXPECTED_PROJECT_TABLES:
+        schema_source = project_foundation.get("schema_source")
+        if not isinstance(schema_source, dict):
+            fail("foundation schema_source must be an object")
+        if string_set(schema_source.get("migrations"), "foundation.schema_source.migrations") != EXPECTED_SCHEMA_MIGRATIONS:
+            fail("PR34 schema source must be migrations 0003 and 0004")
+        note = schema_source.get("note")
+        if not isinstance(note, str) or "document_json" not in note or "no persisted digest column" not in note:
+            fail("foundation schema note must explicitly describe document_json and computed digests")
+        if string_set(project_foundation.get("required_tables"), "foundation.required_tables") != EXPECTED_PROJECT_TABLES:
             fail("PR34 foundation required table set must be projects/project_drafts/project_versions")
-        for label in (
-            "user_flows",
-            "immutable_identifiers",
-            "preserve_values",
-            "electronics_document_invariants",
-        ):
-            string_set(project_foundation.get(label), f"foundation_if_pr34_accepted.{label}")
+        string_set(project_foundation.get("user_flows"), "foundation.user_flows")
+        string_set(project_foundation.get("immutable_identifiers"), "foundation.immutable_identifiers")
+        if string_set(project_foundation.get("preserve_values"), "foundation.preserve_values") != EXPECTED_PRESERVE_VALUES:
+            fail("foundation preserve_values do not match the actual PR34 schema")
+        if string_set(project_foundation.get("computed_fingerprints"), "foundation.computed_fingerprints") != EXPECTED_COMPUTED_FINGERPRINTS:
+            fail("foundation computed_fingerprints must cover draft and version document_json")
+        string_set(
+            project_foundation.get("electronics_document_invariants"),
+            "foundation.electronics_document_invariants",
+        )
 
         rules = contract.get("r0b_integration_rules")
         if not isinstance(rules, dict):
@@ -173,10 +224,8 @@ def main() -> int:
             for candidate in raw_candidates
             if isinstance(candidate, dict)
         }
-        if transfer_prs != EXPECTED_TRANSFER_PRS:
-            fail(f"transfer candidate PRs must be {sorted(EXPECTED_TRANSFER_PRS)}")
-        if len(raw_candidates) != len(transfer_prs):
-            fail("transfer_candidates contain malformed or duplicate entries")
+        if transfer_prs != EXPECTED_TRANSFER_PRS or len(raw_candidates) != len(transfer_prs):
+            fail(f"transfer candidate PRs must be unique and equal {sorted(EXPECTED_TRANSFER_PRS)}")
         string_set(rules.get("allowed_changes"), "r0b_integration_rules.allowed_changes")
         if string_set(rules.get("forbidden_changes"), "r0b_integration_rules.forbidden_changes") != EXPECTED_FORBIDDEN_CHANGES:
             fail("R0B forbidden change set is incomplete or contains additions")
@@ -184,7 +233,12 @@ def main() -> int:
         manifest = contract.get("baseline_manifest")
         if not isinstance(manifest, dict):
             fail("baseline_manifest must be an object")
-        string_set(manifest.get("required_before_integration"), "baseline_manifest.required_before_integration")
+        if string_set(manifest.get("required_before_integration"), "baseline_manifest.required_before_integration") != EXPECTED_MANIFEST_FIELDS:
+            fail("baseline manifest field set is incomplete or contains additions")
+        if manifest.get("digest_algorithm") != "sha256":
+            fail("baseline manifest digest algorithm must be sha256")
+        if manifest.get("json_canonicalization") != "recursively_sorted_object_keys_preserve_array_order":
+            fail("baseline manifest JSON canonicalization mismatch")
         if manifest.get("storage_path") != "reports/r0-baseline-manifest.json":
             fail("baseline manifest storage path mismatch")
         if manifest.get("contains_secrets") is not False:
@@ -201,22 +255,16 @@ def main() -> int:
         application_gate = contract.get("application_gate")
         if not isinstance(application_gate, dict):
             fail("application_gate must be an object")
-        for label in (
-            "required_routes",
-            "required_surfaces",
-            "conditional_surfaces_if_pr34_accepted",
-            "required_tests",
-        ):
+        for label in ("required_routes", "required_surfaces", "conditional_surfaces_if_pr34_accepted"):
             string_set(application_gate.get(label), f"application_gate.{label}")
+        if string_set(application_gate.get("required_tests"), "application_gate.required_tests") != EXPECTED_APPLICATION_TESTS:
+            fail("application required test set is incomplete or contains additions")
 
         owner_evidence = contract.get("owner_evidence")
         if not isinstance(owner_evidence, dict):
             fail("owner_evidence must be an object")
         string_set(owner_evidence.get("required"), "owner_evidence.required")
-        string_set(
-            owner_evidence.get("conditional_if_pr34_accepted"),
-            "owner_evidence.conditional_if_pr34_accepted",
-        )
+        string_set(owner_evidence.get("conditional_if_pr34_accepted"), "owner_evidence.conditional")
         if owner_evidence.get("acceptance_rule") != "owner_accepts_visible_flow_and_no_data_loss":
             fail("owner evidence acceptance rule mismatch")
 
@@ -241,7 +289,7 @@ def main() -> int:
         if execution_candidates != EXPECTED_TRANSFER_PRS:
             fail("baseline preservation transfer PRs differ from target execution plan")
 
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (OSError, StopIteration, ValueError, yaml.YAMLError) as error:
         print(f"ASA R0 baseline preservation FAIL: {error}", file=sys.stderr)
         return 1
 
@@ -249,6 +297,8 @@ def main() -> int:
     print(f"- accepted main tables: {len(EXPECTED_MAIN_TABLES)}")
     print(f"- conditional project tables: {len(EXPECTED_PROJECT_TABLES)}")
     print(f"- transfer candidates: {len(EXPECTED_TRANSFER_PRS)}")
+    print("- actual PR34 document columns: verified")
+    print("- database digest column assumed: false")
     print("- destructive migration allowed: false")
     print("- R1 allowed during R0B: false")
     return 0
