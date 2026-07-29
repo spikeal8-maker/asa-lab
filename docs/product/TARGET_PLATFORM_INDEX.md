@@ -21,6 +21,7 @@
 - [`../delivery/R0_POST_MERGE_TRANSITION.yaml`](../delivery/R0_POST_MERGE_TRANSITION.yaml) — R0A–R0D после merge, без раннего R1;
 - [`../delivery/R0_LEGACY_TRACEABILITY.yaml`](../delivery/R0_LEGACY_TRACEABILITY.yaml) — mapping старых v1 tasks/Issues в R0–R10;
 - [`../project-map/R0_TARGET_RELEASE_MAP.yaml`](../project-map/R0_TARGET_RELEASE_MAP.yaml) — неактивный шаблон release-карты;
+- [`../testing/ASA_TARGET_TEST_MATRIX.yaml`](../testing/ASA_TARGET_TEST_MATRIX.yaml) — неактивные test profiles, release tests, artifacts и owner flows;
 - [`../delivery/R0_VALIDATION_MATRIX.md`](../delivery/R0_VALIDATION_MATRIX.md) — что доказывает каждый gate;
 - [`../../AGENTS.md`](../../AGENTS.md);
 - [`../../START_HERE_FOR_AI.md`](../../START_HERE_FOR_AI.md);
@@ -82,6 +83,7 @@ validate_r0_post_merge.py
 validate_r0_release_map.py
 validate_r0_legacy_traceability.py
 validate_r0_review_packets.py
+validate_target_test_matrix.py
 validate_tinkercad_parity.py
 validate_target_execution.py
 validate_architecture.py
