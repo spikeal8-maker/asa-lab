@@ -9,6 +9,10 @@ approval:
   approved_by: null
   approved_at: null
   evidence_comment_url: null
+approval_format:
+  approved_by: spikeal8-maker
+  approved_at: quoted ISO-8601 UTC timestamp ending in Z
+  evidence_comment_url: https://github.com/spikeal8-maker/asa-lab/pull/43#issuecomment-<numeric-id>
 
 convergence_order:
   status: pending
