@@ -3,7 +3,7 @@ import { breadboardInternalLinks } from './breadboard-netlist.js';
 import { componentTerminalIds, type TerminalId } from './component-model.js';
 import type { ElectronicsDocument } from './document.js';
 
-/** Netlist: terminals joined by wires and direct links collapse into nodes. */
+/** Netlist: terminals joined by wires, attachments and direct links collapse into nodes. */
 
 export interface TerminalRef {
   readonly componentId: string;
@@ -87,7 +87,8 @@ const HALF_BREADBOARD = createBreadboardDefinition('half-400');
 /**
  * Build the current document netlist. Legacy wire components are ideal links;
  * active half-size breadboards contribute their physical internal buses;
- * explicit SchematicConnection objects add user-created wires.
+ * explicit SchematicConnection objects add visible user-created wires; and
+ * BreadboardAttachment objects add hidden physical lead-to-hole edges.
  */
 export function buildNetlist(document: ElectronicsDocument): Netlist {
   const terminalMap = new Map(
@@ -101,9 +102,19 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
       ? breadboardInternalLinks(HALF_BREADBOARD, component.id)
       : [],
   );
+  const attachmentLinks = (document.breadboardAttachments ?? []).map((attachment) => ({
+    from: {
+      componentId: attachment.componentId,
+      terminal: attachment.componentTerminalId,
+    },
+    to: {
+      componentId: attachment.breadboardComponentId,
+      terminal: attachment.breadboardTerminalId,
+    },
+  }));
   return buildNetlistFromTerminalMap(
     terminalMap,
-    [...document.connections, ...boardLinks],
+    [...document.connections, ...boardLinks, ...attachmentLinks],
     internallyShorted,
   );
 }
