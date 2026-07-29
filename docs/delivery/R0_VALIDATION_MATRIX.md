@@ -20,12 +20,13 @@ R0 PASS означает только: нормативный кандидат �
 | 6 | `validate_r0_release_map.py` | inactive R0–R10 map template совпадает с blueprint/execution plan и не протёк в active map | dependency/status/legacy mismatch | — |
 | 7 | `validate_r0_legacy_traceability.py` | все старые v1 tasks/evidence Issues mapped в R0–R10 и не исполнимы | потерянный requirement, неверный replacement, дублированный Issue | — |
 | 8 | `validate_r0_review_packets.py` | PR №34 review и PR №59/№60 selection имеют owner-safe scope и no-auto-merge rules | пропавший blocker, автоматическое решение вместо owner stop | — |
-| 9 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
-| 10 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
-| 11 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
-| 12 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
-| 13 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
-| 14 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
+| 9 | `validate_target_test_matrix.py` | test profiles, release IDs, artifacts и owner flows для R0–R10 зафиксированы до кода и ещё не протекли в active catalog | duplicate/invalid IDs, missing profile, early activation | — |
+| 10 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
+| 11 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
+| 12 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
+| 13 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
+| 14 | `validate_test_catalog.py` | existing active v1 test catalog remains structurally valid | missing/invalid active test contract | — |
+| 15 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
 
 Первый non-zero останавливает suite.
 
@@ -51,6 +52,14 @@ docs/delivery/R0_R1_CANDIDATE_SELECTION.md
 ```
 
 Первый ограничивает PR №34 только Project/Electronics foundation. Второй рекомендует PR №60 как R1 base, но требует отдельного owner decision после R0B и запрещает автоматический merge.
+
+## Target test matrix
+
+```text
+docs/testing/ASA_TARGET_TEST_MATRIX.yaml
+```
+
+Матрица неактивна до R0A. Она заранее фиксирует profiles, release-specific IDs, evidence и owner flows. Активный v1 `test-catalog.yaml` не изменяется в PR №43.
 
 ## Legacy traceability
 
@@ -105,7 +114,7 @@ docs/delivery/R0_OWNER_DECISION.md
 commit SHA
 base SHA
 changed file list
-14 validator results
+15 validator results
 YAML result
 working tree clean
 R0 GitHub state result
@@ -114,6 +123,7 @@ post-merge sequence result
 release-map template result
 legacy traceability result
 owner review packet result
+target test matrix result
 product code changed = 0
 migration changed = 0
 repository binary changed = 0
@@ -144,7 +154,7 @@ approved_by / approved_at / evidence_comment_url: заполнены
 
 В той же сессии нельзя начинать R1. Последовательность строго берётся из `R0_POST_MERGE_TRANSITION.yaml`:
 
-1. R0A — активировать contract/map, оставить R1 blocked, stop;
+1. R0A — активировать contract/map/test matrix, оставить R1 blocked, stop;
 2. R0B — один P1 integration PR, transfer proof, stop;
 3. R0C — выбрать PR №59 или №60, закрыть второй, stop;
 4. R0D — отметить R0 done, R1 ready, R2–R10 blocked, stop.
@@ -159,4 +169,5 @@ approved_by / approved_at / evidence_comment_url: заполнены
 - старый `TASK-PROJECT-SHELL-001` не становится активным из-за старой карты;
 - PR №59 и №60 не могут быть одновременно активными R1-линиями;
 - технический PASS не меняет `pending_owner` автоматически;
-- PR №43 не может содержать product runtime, migrations или repository binaries.
+- PR №43 не может содержать product runtime, migrations или repository binaries;
+- target release test IDs не активируются до R0A.
