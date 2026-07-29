@@ -1,4 +1,10 @@
-import { CATEGORY_LABELS, visualAsset, type ComponentCategory } from './component-catalog';
+import {
+  CATEGORY_LABELS,
+  componentPhysicalSummary,
+  renderedSizeMillimetres,
+  visualAsset,
+  type ComponentCategory,
+} from './component-catalog';
 import { ComponentPreview } from './component-preview';
 import {
   CollapseIcon,
@@ -40,7 +46,7 @@ export function WorkbenchSidebars({
                 <span>Компоненты</span>
                 <select
                   value={c.category}
-                  onChange={(e) => c.setCategory(e.target.value as ComponentCategory)}
+                  onChange={(event) => c.setCategory(event.target.value as ComponentCategory)}
                   aria-label="Категория компонентов"
                 >
                   {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -50,7 +56,7 @@ export function WorkbenchSidebars({
                   ))}
                 </select>
               </div>
-              <button type="button" aria-label="Вид списка">
+              <button type="button" aria-label="Вид списка" disabled title="Список появится позже">
                 <ListIcon />
               </button>
             </div>
@@ -58,37 +64,43 @@ export function WorkbenchSidebars({
               <span className="sr-only">Поиск компонентов</span>
               <input
                 value={c.libraryQuery}
-                onChange={(e) => c.setLibraryQuery(e.target.value)}
+                onChange={(event) => c.setLibraryQuery(event.target.value)}
                 placeholder="Поиск"
               />
               <SearchIcon />
             </label>
             <div className="workbench-catalog-grid">
-              {c.filteredCatalog.map((entry) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  className={`workbench-catalog-card${entry.enabled ? '' : ' disabled'}`}
-                  disabled={!entry.enabled}
-                  draggable={entry.enabled}
-                  onDragStart={(e) => {
-                    if (entry.kind) {
-                      e.dataTransfer.setData(DRAG_MIME, entry.kind);
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }
-                  }}
-                  onClick={() => entry.kind && entry.kind !== 'wire' && c.addComponent(entry.kind)}
-                  title={
-                    entry.enabled ? `Добавить: ${entry.label}` : `${entry.label}: появится позже`
-                  }
-                >
-                  <span className="workbench-catalog-art">
-                    <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
-                  </span>
-                  <span>{entry.label}</span>
-                  {!entry.enabled ? <small>Скоро</small> : null}
-                </button>
-              ))}
+              {c.filteredCatalog.map((entry) => {
+                const disabled = !entry.enabled || c.simulationRunning;
+                const disabledReason = !entry.enabled
+                  ? `${entry.label}: модель и точная геометрия ещё проверяются`
+                  : 'Остановите моделирование, чтобы добавить компонент';
+                return (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    className={`workbench-catalog-card${entry.enabled ? '' : ' disabled'}`}
+                    disabled={disabled}
+                    draggable={entry.enabled && !c.simulationRunning}
+                    onDragStart={(event) => {
+                      if (entry.kind && !c.simulationRunning) {
+                        event.dataTransfer.setData(DRAG_MIME, entry.kind);
+                        event.dataTransfer.effectAllowed = 'copy';
+                      }
+                    }}
+                    onClick={() => entry.kind && entry.kind !== 'wire' && c.addComponent(entry.kind)}
+                    title={disabled ? disabledReason : `Добавить: ${entry.label}`}
+                  >
+                    <span className="workbench-catalog-art">
+                      <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
+                    </span>
+                    <span>{entry.label}</span>
+                    <small>
+                      {entry.enabled ? componentPhysicalSummary(entry) : `Скоро · ${componentPhysicalSummary(entry)}`}
+                    </small>
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : null}
@@ -121,6 +133,29 @@ export function WorkbenchSidebars({
                   asset={visualAsset(c.selectedEntry, c.componentVisualState(c.selectedComponent))}
                 />
               </div>
+              <dl className="workbench-measurements" aria-label="Физическая геометрия компонента">
+                <div>
+                  <dt>Корпус</dt>
+                  <dd>{componentPhysicalSummary(c.selectedEntry)}</dd>
+                </div>
+                <div>
+                  <dt>На поле</dt>
+                  <dd>
+                    {renderedSizeMillimetres(c.selectedEntry).width.toFixed(1)} ×{' '}
+                    {renderedSizeMillimetres(c.selectedEntry).height.toFixed(1)} мм
+                  </dd>
+                </div>
+                <div>
+                  <dt>Масштаб</dt>
+                  <dd>
+                    {c.selectedEntry.physical.evidence === 'owner_asset_calibrated'
+                      ? 'По авторскому asset'
+                      : c.selectedEntry.physical.evidence === 'manufacturer_typical'
+                        ? 'Типовой физический размер'
+                        : 'Требует reference-проверки'}
+                  </dd>
+                </div>
+              </dl>
               <label>
                 <span>
                   {c.selectedComponent.kind === 'resistor'
@@ -135,7 +170,8 @@ export function WorkbenchSidebars({
                     min="0"
                     step="any"
                     value={c.selectedComponent.value}
-                    onChange={(e) => c.updateSelectedValue(Number(e.target.value))}
+                    disabled={c.simulationRunning}
+                    onChange={(event) => c.updateSelectedValue(Number(event.target.value))}
                   />
                   <span>{c.selectedEntry.unit}</span>
                 </div>
@@ -145,33 +181,38 @@ export function WorkbenchSidebars({
                   <div>
                     <dt>Ток</dt>
                     <dd>
-                      {(c.resultByComponent.get(c.selectedComponent.id)?.current ?? 0) * 1000} мА
+                      {((c.resultByComponent.get(c.selectedComponent.id)?.current ?? 0) * 1000).toFixed(2)} мА
                     </dd>
                   </div>
                   <div>
                     <dt>Падение</dt>
-                    <dd>{c.resultByComponent.get(c.selectedComponent.id)?.voltageDrop ?? 0} В</dd>
+                    <dd>
+                      {(c.resultByComponent.get(c.selectedComponent.id)?.voltageDrop ?? 0).toFixed(3)} В
+                    </dd>
                   </div>
                   {c.selectedComponent.kind === 'led' ? (
                     <div>
                       <dt>Состояние</dt>
                       <dd>
-                        {c.resultByComponent.get(c.selectedComponent.id)?.lit
-                          ? 'Горит'
-                          : 'Не горит'}
+                        {c.resultByComponent.get(c.selectedComponent.id)?.lit ? 'Горит' : 'Не горит'}
                       </dd>
                     </div>
                   ) : null}
                 </dl>
               ) : null}
               <div className="workbench-inspector-actions">
-                <button type="button" onClick={c.rotateSelected}>
+                <button type="button" onClick={c.rotateSelected} disabled={c.simulationRunning}>
                   <RotateIcon /> Повернуть
                 </button>
-                <button type="button" onClick={c.duplicateSelected}>
+                <button type="button" onClick={c.duplicateSelected} disabled={c.simulationRunning}>
                   <DuplicateIcon /> Копировать
                 </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={c.removeSelection}
+                  disabled={c.simulationRunning}
+                >
                   <DeleteIcon /> Удалить
                 </button>
               </div>
@@ -193,10 +234,15 @@ export function WorkbenchSidebars({
                 ))}
               </div>
               <div className="workbench-inspector-actions">
-                <button type="button" onClick={c.toggleWireRoute}>
+                <button type="button" onClick={c.toggleWireRoute} disabled={c.simulationRunning}>
                   <WireIcon /> Изгиб
                 </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={c.removeSelection}
+                  disabled={c.simulationRunning}
+                >
                   <DeleteIcon /> Удалить
                 </button>
               </div>
