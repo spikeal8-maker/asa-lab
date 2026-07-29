@@ -15,6 +15,8 @@
 - [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md) — подробный design/workstream документ;
 - [`../delivery/R0_CONVERGENCE_CURRENT_STATE.md`](../delivery/R0_CONVERGENCE_CURRENT_STATE.md) — текущие роли веток и freeze;
 - [`../delivery/R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) — пять решений владельца;
+- [`../delivery/R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) — machine-readable pending/approved/rejected state;
+- [`../delivery/R0_VALIDATION_MATRIX.md`](../delivery/R0_VALIDATION_MATRIX.md) — что доказывает каждый gate;
 - [`../../AGENTS.md`](../../AGENTS.md);
 - [`../../START_HERE_FOR_AI.md`](../../START_HERE_FOR_AI.md);
 - [`../delivery/BOT_RUNBOOK.md`](../delivery/BOT_RUNBOOK.md).
@@ -66,13 +68,16 @@ Wrapper включает:
 
 ```text
 validate_r0_diff.py
+validate_r0_human_contract.py
+validate_r0_owner_decision.py
 validate_tinkercad_parity.py
 validate_target_execution.py
 validate_architecture.py
 validate_project_map.py
 validate_test_catalog.py
+validate_r0_github_state.py
 ```
 
 ## Текущий owner action
 
-Открыть [`R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md), принять или отклонить пять решений, затем зафиксировать решение в PR №43. До этого R1 не начинается.
+Открыть [`R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md), принять или отклонить пять решений, затем синхронно обновить [`R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) и зафиксировать решение в PR №43. До этого R1 не начинается.
