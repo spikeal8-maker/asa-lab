@@ -2,7 +2,7 @@
 
 **Дата снимка:** 2026-07-29  
 **Статус:** `owner_review_required`  
-**Current gate:** `R0`  
+Current gate: `R0`  
 **Product coding:** запрещён до owner approval и merge PR №43.
 
 Этот документ является кратким снимком текущего состояния. Машиночитаемый источник — [`ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`](ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml). При изменении ролей веток обновляются оба файла одним нормативным PR.
