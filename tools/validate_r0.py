@@ -10,6 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATORS = (
     "tools/validate_r0_diff.py",
+    "tools/validate_r0_contract_refs.py",
     "tools/validate_r0_human_contract.py",
     "tools/validate_r0_owner_decision.py",
     "tools/validate_r0_post_merge.py",
@@ -50,6 +51,7 @@ def main() -> int:
     print("\nASA Lab R0 validation suite: PASS")
     print(f"validators={len(VALIDATORS)}")
     print("currentGate=R0")
+    print("contractReferencesValid=true")
     print("ownerDecisionFileValid=true")
     print("ownerDecisionRequired=true")
     print("postMergeSequenceValid=true")
