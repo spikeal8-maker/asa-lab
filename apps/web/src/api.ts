@@ -42,6 +42,7 @@ export interface ProjectVersion {
 }
 
 export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+export type ElectronicsGeometryProfile = 'legacy-pixel-v1' | 'breadboard-2.54mm-v1';
 
 export interface SchematicComponent {
   id: string;
@@ -61,6 +62,7 @@ export interface SchematicConnection {
 
 export interface SchematicDocument {
   schemaVersion: 1;
+  geometryProfile?: ElectronicsGeometryProfile;
   components: SchematicComponent[];
   connections: SchematicConnection[];
 }
