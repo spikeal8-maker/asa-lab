@@ -14,14 +14,29 @@ R0 PASS означает только: нормативный кандидат �
 |---:|---|---|---|---|
 | 1 | `validate_r0_diff.py` | clean branch, governance-only diff, no product code/migrations/binaries | forbidden path, dirty tree, missing governance file | нет `origin/main`/git context |
 | 2 | `validate_r0_human_contract.py` | актуальный owner-gated human R0–R10 contract | release/Issue/status/owner marker mismatch | отсутствующий файл |
-| 3 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
-| 4 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
-| 5 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
-| 6 | `validate_project_map.py` | accepted v1 map remains valid before activation transition | broken nodes/edges/queue | — |
-| 7 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
-| 8 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
+| 3 | `validate_r0_owner_decision.py` | machine-readable owner state не подменён ботом | mixed/forged approval or rejected contract without notes | — |
+| 4 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
+| 5 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
+| 6 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
+| 7 | `validate_project_map.py` | accepted v1 map remains valid before activation transition | broken nodes/edges/queue | — |
+| 8 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
+| 9 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
 
 Первый non-zero останавливает suite.
+
+## Owner-decision states
+
+```text
+pending_owner           технический R0 может быть PASS, merge/activation запрещены
+approved_pending_merge  все 5 решений accepted, convergence accepted, attribution записана
+rejected_changes_required контракт должен быть изменён; R0 suite FAIL
+```
+
+Файл:
+
+```text
+docs/delivery/R0_OWNER_DECISION.yaml
+```
 
 ## Отдельные проверки, не заменяемые wrapper
 
@@ -43,7 +58,7 @@ python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text(en
 docs/delivery/R0_OWNER_DECISION.md
 ```
 
-И принимает или отклоняет пять решений. Это действие не автоматизируется.
+И принимает или отклоняет пять решений. После решения синхронно обновляется `R0_OWNER_DECISION.yaml`. Это действие не автоматизируется.
 
 ## R0 PASS package
 
@@ -53,13 +68,14 @@ docs/delivery/R0_OWNER_DECISION.md
 commit SHA
 base SHA
 changed file list
-8 validator results
+9 validator results
 YAML result
 working tree clean
 R0 GitHub state result
-owner decision = pending
+owner decision state
 product code changed = 0
 migration changed = 0
+repository binary changed = 0
 ```
 
 ## Owner approval package
@@ -70,6 +86,15 @@ migration changed = 0
 OWNER DECISION: APPROVED
 Decisions 1–5: accepted
 Convergence order: accepted
+```
+
+Затем `R0_OWNER_DECISION.yaml` переводится в:
+
+```text
+status: approved_pending_merge
+all decision statuses: accepted
+convergence_order.status: accepted
+approved_by / approved_at / evidence_comment_url: заполнены
 ```
 
 Только после этого разрешены rebase/merge PR №43 и отдельный post-merge governance transition.
@@ -93,4 +118,5 @@ Convergence order: accepted
 - `BLOCKED`/`NOT_RUN` не закрывают R0;
 - screenshots/test count не заменяют owner product decision;
 - старый `TASK-PROJECT-SHELL-001` не становится активным из-за старой карты;
-- PR №59 и №60 не могут быть одновременно активными R1-линиями.
+- PR №59 и №60 не могут быть одновременно активными R1-линиями;
+- технический PASS не меняет `pending_owner` автоматически.
