@@ -1,9 +1,10 @@
+import { createBreadboardDefinition } from './breadboard.js';
+
 /**
- * Foundation component kinds. The document terminal model is already
- * multi-terminal capable; R4 extends this registry with breadboards, boards,
- * ICs and instruments instead of changing the connection schema again.
+ * Active foundation kinds. Breadboard is connectivity-only: it contributes
+ * terminals and internal buses to the netlist but is not an electrical load.
  */
-export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+export type ComponentKind = 'source' | 'resistor' | 'led' | 'breadboard' | 'wire';
 
 /** Persisted, stable terminal identity inside one component instance. */
 export type TerminalId = string;
@@ -42,13 +43,40 @@ export interface ComponentValueModel {
   readonly modelNote: string;
 }
 
-export const COMPONENT_KINDS = ['source', 'resistor', 'led', 'wire'] as const satisfies readonly ComponentKind[];
+const HALF_BREADBOARD = createBreadboardDefinition('half-400');
+
+function breadboardTerminalLabel(hole: (typeof HALF_BREADBOARD.holes)[number]): string {
+  if (hole.region === 'terminal-strip') return `${hole.row}${hole.column}`;
+  const side = hole.rail?.startsWith('top') ? 'T' : 'B';
+  const polarity = hole.rail?.endsWith('positive') ? '+' : '−';
+  return `${polarity}${side}${hole.railIndex}`;
+}
+
+const BREADBOARD_TERMINALS: readonly ComponentTerminalModel[] = HALF_BREADBOARD.holes.map(
+  (hole) => ({
+    id: hole.id,
+    label: breadboardTerminalLabel(hole),
+    role:
+      hole.region === 'terminal-strip'
+        ? 'passive'
+        : hole.rail?.endsWith('positive')
+          ? 'power'
+          : 'ground',
+  }),
+);
+
+export const COMPONENT_KINDS = [
+  'source',
+  'resistor',
+  'led',
+  'breadboard',
+  'wire',
+] as const satisfies readonly ComponentKind[];
 
 /**
- * Electrical interface for the currently active foundation components.
- * IDs a/b are intentionally preserved for old drafts and immutable versions.
- * Future components may expose any safe set of stable IDs (for example gnd,
- * d13, a0 or a breadboard hole ID) without changing SchematicConnection.
+ * Electrical interface for active foundation components.
+ * IDs a/b remain compatible with old drafts. The half-size breadboard exposes
+ * all 400 physical holes as stable terminal IDs.
  */
 export const COMPONENT_TERMINAL_MODELS: Readonly<
   Record<ComponentKind, readonly ComponentTerminalModel[]>
@@ -65,6 +93,7 @@ export const COMPONENT_TERMINAL_MODELS: Readonly<
     { id: 'a', label: 'A', role: 'anode' },
     { id: 'b', label: 'K', role: 'cathode' },
   ],
+  breadboard: BREADBOARD_TERMINALS,
   wire: [
     { id: 'a', label: '1', role: 'passive' },
     { id: 'b', label: '2', role: 'passive' },
@@ -111,6 +140,20 @@ export const COMPONENT_VALUE_MODELS: Readonly<Record<ComponentKind, ComponentVal
     presets: [],
     modelNote:
       'Текущий компонент — красный LED с номинальным прямым падением 2 В; тепловое разрушение моделируется только диагностикой риска.',
+  },
+  breadboard: {
+    kind: 'breadboard',
+    label: 'Макетная плата',
+    unit: '',
+    defaultValue: 0,
+    minimum: 0,
+    maximum: 0,
+    editable: false,
+    nominalValue: 0,
+    step: 0,
+    presets: [],
+    modelNote:
+      'Connectivity-only model: 300 terminal-strip holes and 100 rail holes are joined only through the declared physical internal buses.',
   },
   wire: {
     kind: 'wire',
