@@ -4,8 +4,8 @@ import pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-E2E-ELECTRONICS-SLICE-001: a teacher creates a personal project without
- * a class, works in the full-screen electronics workbench, wires the circuit,
- * simulates, reloads and creates an immutable checkpoint. */
+ * a class, works in the full-screen physical electronics workbench, wires the
+ * circuit, simulates, reloads and creates an immutable checkpoint. */
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
@@ -24,9 +24,7 @@ async function createPersonalProject(page: Page, title: string): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
   await page.getByLabel('Название проекта').fill(title);
   await expect(page.getByText('Электроника', { exact: true })).toBeVisible();
-  // Future environments are visible in the dialog but cannot be chosen yet.
   await expect(page.getByText('Блочное программирование', { exact: true })).toBeVisible();
-  // The page keeps its own "Создать проект" button, so submit inside the dialog.
   await page
     .getByLabel('Что вы хотите создать?')
     .getByRole('button', { name: 'Создать проект' })
@@ -39,7 +37,7 @@ async function addComponent(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name, exact: true }).click();
 }
 
-async function connect(page: Page, first: string, second: string): Promise<void> {
+async function connect(page: Page, first: RegExp, second: RegExp): Promise<void> {
   await page.getByLabel(first).click();
   await page.getByLabel(second).click();
 }
@@ -50,8 +48,6 @@ async function moveComponent(
 ): Promise<{ beforeX: number; afterX: number }> {
   const target = page.locator(`[data-testid="schematic-component"][data-kind="${kind}"]`).first();
   const beforeX = Number(await target.getAttribute('data-x'));
-  // Drag the interactive part itself: the outer group also spans the selection
-  // frame, so its centre is not guaranteed to sit on the draggable artwork.
   const box = await target.locator('.workbench-part').boundingBox();
   if (!box) throw new Error(`component ${kind} has no bounding box`);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -73,7 +69,7 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-test('teacher builds and preserves a personal circuit in the Tinkercad-style workbench', async ({
+test('teacher builds and preserves a personal circuit in the physical Tinkercad-style workbench', async ({
   page,
 }) => {
   await login(page);
@@ -81,18 +77,45 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 
   await expect(page.getByLabel('Библиотека компонентов')).toBeVisible();
   await expect(page.getByPlaceholder('Поиск')).toBeVisible();
+  await expect(page.locator('.workbench-stage-status')).toContainText('Сетка 2,54 мм');
 
-  await addComponent(page, 'Батарейный отсек');
+  await addComponent(page, 'Батарейный отсек 2×AA');
   await addComponent(page, 'Резистор');
-  await addComponent(page, 'Светодиод');
+  await addComponent(page, 'Светодиод 5 мм');
   await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(3);
   await expect(page.locator('image[href$="power-source.svg"]')).toBeVisible();
   await expect(page.locator('image[href$="resistor.svg"]')).toBeVisible();
   await expect(page.locator('image[href$="led-red-off.svg"]')).toBeVisible();
 
-  await connect(page, 'Батарейный отсек: вывод +', 'Резистор: вывод 1');
-  await connect(page, 'Резистор: вывод 2', 'Светодиод: вывод A');
-  await connect(page, 'Светодиод: вывод K', 'Батарейный отсек: вывод −');
+  const source = page.locator('[data-testid="schematic-component"][data-kind="source"]');
+  const resistor = page.locator('[data-testid="schematic-component"][data-kind="resistor"]');
+  const led = page.locator('[data-testid="schematic-component"][data-kind="led"]');
+  await expect(source).toHaveAttribute('data-terminal-count', '2');
+  await expect(source).toHaveAttribute('data-physical-evidence', 'owner_asset_calibrated');
+  await expect(source).toHaveAttribute('data-physical', /мм/);
+  await expect(resistor).toHaveAttribute('data-physical-evidence', 'manufacturer_typical');
+  await expect(led).toHaveAttribute('data-physical-evidence', 'manufacturer_typical');
+
+  const breadboardTarget = page.getByRole('button', {
+    name: /Макетка 400 точек.*Официальные механические размеры/,
+  });
+  await expect(breadboardTarget).toBeDisabled();
+  const multimeterTarget = page.getByRole('button', {
+    name: /Мультиметр.*Требуется reference-проверка/,
+  });
+  await expect(multimeterTarget).toBeDisabled();
+
+  await connect(
+    page,
+    /Батарейный отсек 2×AA: вывод \+, positive/,
+    /Резистор: вывод 1, passive/,
+  );
+  await connect(page, /Резистор: вывод 2, passive/, /Светодиод 5 мм: вывод A, anode/);
+  await connect(
+    page,
+    /Светодиод 5 мм: вывод K, cathode/,
+    /Батарейный отсек 2×AA: вывод −, negative/,
+  );
   await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
 
   const moved = await moveComponent(page, 'resistor');
@@ -111,10 +134,10 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 
   await page.reload();
   await expect(page.getByLabel('Название проекта')).toHaveValue('Демонстрация закона Ома');
-  const resistor = page
+  const reloadedResistor = page
     .locator('[data-testid="schematic-component"][data-kind="resistor"]')
     .first();
-  expect(Number(await resistor.getAttribute('data-x'))).toBe(moved.afterX);
+  expect(Number(await reloadedResistor.getAttribute('data-x'))).toBe(moved.afterX);
   await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
 
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
