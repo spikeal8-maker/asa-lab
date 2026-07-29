@@ -1,4 +1,20 @@
 export {
+  BREADBOARD_CENTER_GAP_MM,
+  BREADBOARD_HOLE_PITCH_MM,
+  areBreadboardHolesConnected,
+  breadboardBusMembers,
+  breadboardHole,
+  createBreadboardDefinition,
+  expectedBreadboardTiePointCount,
+  type BreadboardDefinition,
+  type BreadboardEvidence,
+  type BreadboardHole,
+  type BreadboardHoleRegion,
+  type BreadboardKind,
+  type BreadboardRailId,
+  type BreadboardTerminalRow,
+} from './domain/breadboard.js';
+export {
   COMPONENT_VALUE_MODELS,
   componentValueError,
   isNominalComponentValue,
