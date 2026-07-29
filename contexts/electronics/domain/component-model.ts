@@ -24,6 +24,8 @@ export const COMPONENT_VALUE_MODELS: Readonly<Record<ComponentKind, ComponentVal
     maximum: 60,
     editable: false,
     nominalValue: 3,
+    step: 0.1,
+    presets: [],
     modelNote:
       'Текущий SVG — батарейный отсек 2×AA с номиналом 3 В. Нестандартные legacy-значения читаются для совместимости, но новые схемы используют 3 В.',
   },
@@ -48,6 +50,8 @@ export const COMPONENT_VALUE_MODELS: Readonly<Record<ComponentKind, ComponentVal
     maximum: 10,
     editable: false,
     nominalValue: 2,
+    step: 0.1,
+    presets: [],
     modelNote:
       'Текущий компонент — красный LED с номинальным прямым падением 2 В; тепловое разрушение моделируется только диагностикой риска.',
   },
@@ -60,6 +64,8 @@ export const COMPONENT_VALUE_MODELS: Readonly<Record<ComponentKind, ComponentVal
     maximum: 0,
     editable: false,
     nominalValue: 0,
+    step: 0,
+    presets: [],
     modelNote: 'Идеальное соединение без сопротивления в текущем foundation solver.',
   },
 };
