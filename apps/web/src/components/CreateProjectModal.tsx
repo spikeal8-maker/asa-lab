@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { api, type Project, type ProjectScope } from '../api';
 import { CircuitIcon, CloseIcon } from '../electronics/workbench-icons';
 
+const PROJECT_TITLE_MAX_LENGTH = 160;
+
 const MODULES = [
   {
     key: 'electronics',
@@ -86,13 +88,18 @@ export function CreateProjectModal({
       titleRef.current?.focus();
       return;
     }
+    if (trimmed.length > PROJECT_TITLE_MAX_LENGTH) {
+      setError(`Название не должно превышать ${PROJECT_TITLE_MAX_LENGTH} символов.`);
+      titleRef.current?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     const result = await api.createProject({
       scope,
       classroomId: scope === 'classroom' ? classroomId : null,
       title: trimmed,
-      module: 'electronics',
+      moduleKey: 'electronics',
       idempotencyKey: crypto.randomUUID(),
     });
     setBusy(false);
@@ -103,7 +110,7 @@ export function CreateProjectModal({
   return (
     <div
       className="modal-backdrop project-create-backdrop"
-      onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}
+      onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}
     >
       <div
         ref={dialogRef}
@@ -134,9 +141,17 @@ export function CreateProjectModal({
             ref={titleRef}
             id="project-title"
             value={title}
-            maxLength={255}
-            onChange={(event) => setTitle(event.target.value)}
+            minLength={1}
+            maxLength={PROJECT_TITLE_MAX_LENGTH}
+            aria-describedby="project-title-limit"
+            onChange={(event) => {
+              setTitle(event.target.value);
+              if (error) setError(null);
+            }}
           />
+          <small id="project-title-limit">
+            {title.trim().length} / {PROJECT_TITLE_MAX_LENGTH}
+          </small>
           <fieldset className="module-picker">
             <legend>Среда проекта</legend>
             <div className="module-picker-grid">
