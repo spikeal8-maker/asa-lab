@@ -1,3 +1,5 @@
+import { createBreadboardDefinition } from './breadboard.js';
+import { breadboardInternalLinks } from './breadboard-netlist.js';
 import { componentTerminalIds, type TerminalId } from './component-model.js';
 import type { ElectronicsDocument } from './document.js';
 
@@ -40,10 +42,7 @@ class UnionFind {
   }
 }
 
-/**
- * Generic netlist builder used by the document-specific adapter and future
- * multi-terminal components such as breadboards, boards, ICs and instruments.
- */
+/** Generic builder for multi-terminal parts, boards, ICs and instruments. */
 export function buildNetlistFromTerminalMap(
   terminalMap: ReadonlyMap<string, readonly TerminalId[]>,
   links: readonly { readonly from: TerminalRef; readonly to: TerminalRef }[],
@@ -83,9 +82,12 @@ export function buildNetlistFromTerminalMap(
   return { nodeOf, nodeCount: rootToIndex.size };
 }
 
+const HALF_BREADBOARD = createBreadboardDefinition('half-400');
+
 /**
  * Build the current document netlist. Legacy wire components are ideal links;
- * explicit SchematicConnection objects merge endpoint terminals directly.
+ * active half-size breadboards contribute their physical internal buses;
+ * explicit SchematicConnection objects add user-created wires.
  */
 export function buildNetlist(document: ElectronicsDocument): Netlist {
   const terminalMap = new Map(
@@ -94,5 +96,14 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
   const internallyShorted = new Set(
     document.components.filter((component) => component.kind === 'wire').map((component) => component.id),
   );
-  return buildNetlistFromTerminalMap(terminalMap, document.connections, internallyShorted);
+  const boardLinks = document.components.flatMap((component) =>
+    component.kind === 'breadboard'
+      ? breadboardInternalLinks(HALF_BREADBOARD, component.id)
+      : [],
+  );
+  return buildNetlistFromTerminalMap(
+    terminalMap,
+    [...document.connections, ...boardLinks],
+    internallyShorted,
+  );
 }
