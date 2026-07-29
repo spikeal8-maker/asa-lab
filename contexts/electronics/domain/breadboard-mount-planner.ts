@@ -29,11 +29,11 @@ export interface PlannedBreadboardMount extends BreadboardPartSnapSuccess {
   readonly attemptedCandidateCount: number;
 }
 
-export interface BreadboardMountFailure extends BreadboardPartSnapFailure {
+export type BreadboardMountFailure = BreadboardPartSnapFailure & {
   readonly attemptedCandidateCount: number;
   readonly occupiedHoleId?: string;
   readonly occupant?: BreadboardHoleOccupant;
-}
+};
 
 export type BreadboardMountPlan = PlannedBreadboardMount | BreadboardMountFailure;
 
@@ -154,7 +154,9 @@ export function planPartMountToBreadboard(
       anchorTerminalId,
       {
         anchorSearchRadiusMm: Math.max(0.01, options.terminalToleranceMm ?? 0.01),
-        terminalToleranceMm: options.terminalToleranceMm,
+        ...(options.terminalToleranceMm === undefined
+          ? {}
+          : { terminalToleranceMm: options.terminalToleranceMm }),
       },
     );
     if (!snap.ok) {
