@@ -1,4 +1,10 @@
 export {
+  COMPONENT_VALUE_MODELS,
+  componentValueError,
+  isNominalComponentValue,
+  type ComponentValueModel,
+} from './domain/component-model.js';
+export {
   EMPTY_DOCUMENT,
   parseElectronicsDocument,
   type ComponentKind,
