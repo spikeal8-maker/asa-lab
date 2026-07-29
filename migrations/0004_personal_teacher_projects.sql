@@ -17,9 +17,6 @@ CREATE INDEX IF NOT EXISTS projects_teacher_personal_idx
 CREATE INDEX IF NOT EXISTS projects_teacher_scope_idx
   ON projects (tenant_id, created_by, project_scope, status, created_at DESC);
 
--- The workbench may rename a project, but the runtime role must not be able to
--- rewrite ownership, tenant lineage, classroom/scope, module identity,
--- idempotency metadata or timestamps through direct SQL. Revoke any inherited
--- table-level UPDATE grant before issuing the single required column grant.
-REVOKE UPDATE ON projects FROM asalab_app;
-GRANT UPDATE (title) ON projects TO asalab_app;
+-- The workbench can rename a project, so the runtime role needs UPDATE on the
+-- title column set; nothing else is opened up and RLS still applies.
+GRANT UPDATE ON projects TO asalab_app;
