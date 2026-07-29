@@ -25,11 +25,14 @@ VALIDATORS = (
     "tools/validate_target_test_matrix.py",
     "tools/validate_r1_migration_contract.py",
     "tools/validate_tinkercad_parity.py",
+    "tools/validate_complete_product_interfaces.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
     "tools/validate_project_map.py",
     "tools/validate_test_catalog.py",
     "tools/validate_r0_pr34_remote.py",
+    "tools/validate_r0_pr34_api_validation_remote.py",
+    "tools/validate_r0_pr34_openapi_remote.py",
     "tools/validate_r0_github_state.py",
 )
 
@@ -75,7 +78,11 @@ def main() -> int:
     print("r1CandidateDecisionFileValid=true")
     print("targetTestMatrixValid=true")
     print("r1MigrationContractValid=true")
+    print("tinkercadParityContractValid=true")
+    print("completeProductInterfacesValid=true")
     print("pr34RemoteCorrectiveSourceValid=true")
+    print("pr34RequestValidationSourceValid=true")
+    print("pr34OpenApiSourceValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
