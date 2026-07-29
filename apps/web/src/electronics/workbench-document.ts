@@ -7,10 +7,13 @@ import type {
 import {
   ACTIVE_COMPONENTS,
   catalogEntry,
+  componentOriginForCenter,
   renderedSize,
+  snapComponentOrigin,
   terminalPosition,
 } from './component-catalog';
 import { snap, type Point } from './workbench-geometry';
+import { BREADBOARD_PITCH_UNITS, HALF_PITCH_UNITS } from './workbench-scale';
 import type { Selection, TerminalRef } from './workbench-model';
 
 /** Bounding box of a placed component in stage coordinates. */
@@ -40,34 +43,35 @@ function overlaps(
 }
 
 /**
- * Find a free spot near the requested centre. Dropping every new part on the
- * exact centre would stack them on top of each other, hiding the artwork and
- * making the top one swallow every drag.
+ * Find a free, terminal-aligned spot near the requested centre. Components use
+ * physical geometry, so the search step is expressed in breadboard pitches.
  */
 function freePosition(
   document: SchematicDocument,
+  kind: Exclude<ComponentKind, 'wire'>,
   size: { width: number; height: number },
   center: Point,
 ): Point {
-  const gap = 24;
+  const gap = BREADBOARD_PITCH_UNITS;
   const taken = document.components
     .map(boxOf)
     .filter((box): box is { x: number; y: number; width: number; height: number } => box !== null);
-  const start = { x: center.x - size.width / 2, y: center.y - size.height / 2 };
-  const step = 160;
-  for (let ring = 0; ring < 6; ring += 1) {
+  const start = componentOriginForCenter(kind, center, 0);
+  const step = BREADBOARD_PITCH_UNITS * 6;
+  for (let ring = 0; ring < 8; ring += 1) {
     for (let index = 0; index <= ring * 2; index += 1) {
-      const candidate = {
-        x: snap(start.x + (index - ring) * step),
-        y: snap(start.y + ring * step),
+      const proposed = {
+        x: start.x + (index - ring) * step,
+        y: start.y + ring * step,
       };
+      const candidate = snapComponentOrigin(kind, proposed, 0);
       const box = { ...candidate, ...size };
       if (!taken.some((other) => overlaps(box, other, gap))) {
         return candidate;
       }
     }
   }
-  return { x: snap(start.x), y: snap(start.y) };
+  return snapComponentOrigin(kind, start, 0);
 }
 
 export function addComponentToDocument(
@@ -81,7 +85,7 @@ export function addComponentToDocument(
   const component: SchematicComponent = {
     id,
     kind,
-    position: freePosition(document, size, center),
+    position: freePosition(document, kind, size, center),
     value: entry.defaultValue,
     rotation: 0,
   };
@@ -96,10 +100,18 @@ export function duplicateComponentInDocument(
   if (selection?.kind !== 'component') return null;
   const source = document.components.find((item) => item.id === selection.id);
   if (!source) return null;
+  const rotation = source.rotation ?? 0;
   const component: SchematicComponent = {
     ...source,
     id,
-    position: { x: source.position.x + 28, y: source.position.y + 28 },
+    position: snapComponentOrigin(
+      source.kind,
+      {
+        x: source.position.x + BREADBOARD_PITCH_UNITS * 2,
+        y: source.position.y + BREADBOARD_PITCH_UNITS * 2,
+      },
+      rotation,
+    ),
   };
   return { component, document: { ...document, components: [...document.components, component] } };
 }
@@ -123,17 +135,28 @@ export function removeSelectionFromDocument(
   };
 }
 
+/** Rotate around the visual centre, then re-align the placement anchor. */
 export function rotateSelectionInDocument(
   document: SchematicDocument,
   selection: Selection,
 ): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
+  const selected = document.components.find((item) => item.id === selection.id);
+  if (!selected) return null;
+  const entry = catalogEntry(selected.kind);
+  if (!entry) return null;
+  const previousRotation = selected.rotation ?? 0;
+  const previousSize = renderedSize(entry, previousRotation);
+  const center = {
+    x: selected.position.x + previousSize.width / 2,
+    y: selected.position.y + previousSize.height / 2,
+  };
+  const rotation = ((previousRotation + 90) % 360) as 0 | 90 | 180 | 270;
+  const position = componentOriginForCenter(selected.kind, center, rotation);
   return {
     ...document,
     components: document.components.map((item) =>
-      item.id === selection.id
-        ? { ...item, rotation: (((item.rotation ?? 0) + 90) % 360) as 0 | 90 | 180 | 270 }
-        : item,
+      item.id === selection.id ? { ...item, rotation, position } : item,
     ),
   };
 }
@@ -186,7 +209,8 @@ export function toggleSelectedWireRoute(
   if (!start || !end) return null;
   const current = connection.vertices ?? [];
   const vertical =
-    Math.abs((current[0]?.x ?? start.x) - start.x) > Math.abs((current[0]?.y ?? start.y) - start.y);
+    Math.abs((current[0]?.x ?? start.x) - start.x) >
+    Math.abs((current[0]?.y ?? start.y) - start.y);
   const vertices = vertical
     ? [
         { x: start.x, y: snap((start.y + end.y) / 2) },
@@ -238,10 +262,13 @@ export function moveComponentInDocument(
   componentId: string,
   position: Point,
 ): SchematicDocument {
+  const component = document.components.find((item) => item.id === componentId);
+  if (!component) return document;
+  const snapped = snapComponentOrigin(component.kind, position, component.rotation ?? 0);
   return {
     ...document,
     components: document.components.map((item) =>
-      item.id === componentId ? { ...item, position } : item,
+      item.id === componentId ? { ...item, position: snapped } : item,
     ),
   };
 }
@@ -266,3 +293,5 @@ export function sceneBounds(
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
   );
 }
+
+export const WORKBENCH_PLACEMENT_GAP = HALF_PITCH_UNITS;
