@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VALIDATORS = (
     "tools/validate_r0_diff.py",
     "tools/validate_r0_human_contract.py",
+    "tools/validate_r0_owner_decision.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
@@ -51,6 +52,7 @@ def main() -> int:
     print("\nASA Lab R0 validation suite: PASS")
     print(f"validators={len(VALIDATORS)}")
     print("currentGate=R0")
+    print("ownerDecisionFileValid=true")
     print("ownerDecisionRequired=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
