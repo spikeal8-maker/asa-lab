@@ -12,23 +12,26 @@ R0 PASS означает только: нормативный кандидат �
 
 | № | Validator | Что доказывает | FAIL | BLOCKED |
 |---:|---|---|---|---|
-| 1 | `validate_r0_diff.py` | clean branch, governance-only diff, no product code/migrations/binaries | forbidden path, dirty tree, missing governance file | нет `origin/main`/git context |
-| 2 | `validate_r0_human_contract.py` | актуальный owner-gated human R0–R10 contract | release/Issue/status/owner marker mismatch | отсутствующий файл |
-| 3 | `validate_r0_owner_decision.py` | machine-readable owner state не подменён ботом | mixed/forged approval or rejected contract without notes | — |
-| 4 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
-| 5 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
-| 6 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
-| 7 | `validate_project_map.py` | accepted v1 map remains valid before activation transition | broken nodes/edges/queue | — |
-| 8 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
-| 9 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
+| 1 | `validate_r0_diff.py` | clean canonical branch, governance-only diff, no product code/migrations/binaries | forbidden path, dirty tree, missing governance file | нет `origin/main`/git context |
+| 2 | `validate_r0_contract_refs.py` | machine plan ссылается на актуальный human contract, owner decision, post-merge plan и release-map template | stale/ambiguous reference | отсутствующий файл |
+| 3 | `validate_r0_human_contract.py` | актуальный owner-gated human R0–R10 contract | release/Issue/status/owner marker mismatch | отсутствующий файл |
+| 4 | `validate_r0_owner_decision.py` | machine-readable owner state не подменён ботом | mixed/forged approval or rejected contract without notes | — |
+| 5 | `validate_r0_post_merge.py` | после merge R1 не разблокируется до integration и выбора одной identity-линии | skipped/parallel phase, early R1 activation | — |
+| 6 | `validate_r0_release_map.py` | inactive R0–R10 map template совпадает с blueprint/execution plan и не протёк в active map | dependency/status/legacy mismatch | — |
+| 7 | `validate_tinkercad_parity.py` | target entities, invariants, parity matrix/evidence/deviations | missing entity/invariant/evidence/deviation | — |
+| 8 | `validate_target_execution.py` | R0–R10 order, dependencies, branches, Issues, R0 convergence and owner/agent entry docs | contract mismatch | — |
+| 9 | `validate_architecture.py` | architecture baseline, ADR and links | architecture/link invariant broken | — |
+| 10 | `validate_project_map.py` | accepted v1 active map remains valid before activation transition | broken nodes/edges/queue | — |
+| 11 | `validate_test_catalog.py` | existing test catalog remains syntactically and structurally valid | missing/invalid test contract | — |
+| 12 | `validate_r0_github_state.py` | live PR/Issue titles, states and roles match R0 contract | merged/closed/mislabelled competing branch | no `gh`, auth or network |
 
 Первый non-zero останавливает suite.
 
 ## Owner-decision states
 
 ```text
-pending_owner           технический R0 может быть PASS, merge/activation запрещены
-approved_pending_merge  все 5 решений accepted, convergence accepted, attribution записана
+pending_owner             технический R0 может быть PASS, merge/activation запрещены
+approved_pending_merge    все 5 решений accepted, convergence accepted, attribution записана
 rejected_changes_required контракт должен быть изменён; R0 suite FAIL
 ```
 
@@ -36,6 +39,21 @@ rejected_changes_required контракт должен быть изменён;
 
 ```text
 docs/delivery/R0_OWNER_DECISION.yaml
+```
+
+## Post-merge phases
+
+```text
+R0A contract activation      governance only; R1 blocked
+R0B foundation integration   one owner-facing integration PR
+R0C R1 selection             choose PR #59 OR PR #60
+R0D completion transition    only here R1 becomes ready
+```
+
+Файл:
+
+```text
+docs/delivery/R0_POST_MERGE_TRANSITION.yaml
 ```
 
 ## Отдельные проверки, не заменяемые wrapper
@@ -68,11 +86,13 @@ docs/delivery/R0_OWNER_DECISION.md
 commit SHA
 base SHA
 changed file list
-9 validator results
+12 validator results
 YAML result
 working tree clean
 R0 GitHub state result
 owner decision state
+post-merge sequence result
+release-map template result
 product code changed = 0
 migration changed = 0
 repository binary changed = 0
@@ -101,14 +121,12 @@ approved_by / approved_at / evidence_comment_url: заполнены
 
 ## После merge
 
-В той же сессии нельзя начинать R1. Разрешено только:
+В той же сессии нельзя начинать R1. Последовательность строго берётся из `R0_POST_MERGE_TRANSITION.yaml`:
 
-1. синхронизировать `main`;
-2. обновить Project Map, Quality Map, test catalog и active Issues на R0–R10;
-3. отметить R0 `done`;
-4. создать один P1 integration PR согласно convergence order;
-5. оставить R1 `blocked` до завершения P1 и выбора одной identity-линии;
-6. остановиться.
+1. R0A — активировать contract/map, оставить R1 blocked, stop;
+2. R0B — один P1 integration PR, transfer proof, stop;
+3. R0C — выбрать PR №59 или №60, закрыть второй, stop;
+4. R0D — отметить R0 done, R1 ready, R2–R10 blocked, stop.
 
 ## Anti-fake правила
 
@@ -119,4 +137,5 @@ approved_by / approved_at / evidence_comment_url: заполнены
 - screenshots/test count не заменяют owner product decision;
 - старый `TASK-PROJECT-SHELL-001` не становится активным из-за старой карты;
 - PR №59 и №60 не могут быть одновременно активными R1-линиями;
-- технический PASS не меняет `pending_owner` автоматически.
+- технический PASS не меняет `pending_owner` автоматически;
+- PR №43 не может содержать product runtime, migrations или repository binaries.
