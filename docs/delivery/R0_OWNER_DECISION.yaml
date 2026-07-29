@@ -34,10 +34,14 @@ decisions:
   - id: r0_r10_release_order_and_additive_migration_policy
     status: pending
     notes: null
+  - id: complete_interface_catalog_and_functional_parity_scope
+    status: pending
+    notes: null
 
 activation_rules:
-  - all_five_decisions_must_be_accepted
+  - all_six_decisions_must_be_accepted
   - convergence_order_must_be_accepted
   - technical_r0_suite_must_pass
   - pr_43_must_remain_draft_until_owner_approval
   - r1_must_remain_blocked_until_post_merge_transition
+  - functional_parity_claim_must_remain_not_100_percent_until_runtime_and_owner_evidence
