@@ -37,6 +37,11 @@ accepted_main_foundation:
     - classrooms.id
 
 foundation_if_pr34_accepted:
+  schema_source:
+    migrations:
+      - migrations/0003_electronics_project_slice.sql
+      - migrations/0004_personal_teacher_projects.sql
+    note: Current PR34 stores subject documents in document_json and has no persisted digest column.
   user_flows:
     - personal_project_create_without_classroom
     - project_rename
@@ -56,14 +61,19 @@ foundation_if_pr34_accepted:
     - project_versions.id
   preserve_values:
     - projects.tenant_id
-    - projects.created_by_user_id
+    - projects.created_by
     - projects.classroom_id
+    - projects.project_scope
     - projects.module_key
-    - project_drafts.payload
-    - project_versions.payload
-    - project_versions.digest
+    - project_drafts.document_json
+    - project_drafts.revision
+    - project_versions.document_json
+    - project_versions.version_no
+  computed_fingerprints:
+    - project_drafts_document_json_canonical_sha256
+    - project_versions_document_json_canonical_sha256
   electronics_document_invariants:
-    - existing_payload_parses_without_loss
+    - existing_document_json_parses_without_loss
     - component_ids_stable
     - terminal_ids_stable
     - wire_endpoint_references_stable
@@ -94,7 +104,7 @@ r0b_integration_rules:
     - assignments_submissions_review_grades
     - destructive_migration
     - regenerate_existing_ids
-    - reset_existing_password_hashes
+    - reset_existing_credential_hashes
     - disable_rls
     - client_authoritative_tenant_workspace_or_capability
     - second_competing_portal_or_editor_host
@@ -105,12 +115,14 @@ baseline_manifest:
     - database_schema_migration_versions
     - table_row_counts
     - stable_id_samples
-    - password_hash_digests_without_plaintext
-    - project_payload_digests
-    - project_version_digests
+    - credential_hash_fingerprints_without_plaintext
+    - project_draft_document_digests
+    - project_version_document_digests
     - electronics_fixture_digests
     - canonical_route_inventory
     - desktop_mobile_screenshot_inventory
+  digest_algorithm: sha256
+  json_canonicalization: recursively_sorted_object_keys_preserve_array_order
   storage_path: reports/r0-baseline-manifest.json
   contains_secrets: false
 
@@ -124,9 +136,9 @@ migration_gate:
   required_assertions:
     - no_required_table_dropped
     - no_stable_id_changed
-    - no_password_hash_changed
-    - no_project_payload_changed_without_explicit_schema_migrator
-    - no_project_version_digest_changed
+    - no_credential_hash_changed
+    - no_project_document_changed_without_explicit_schema_migrator
+    - no_project_version_document_digest_changed
     - no_cross_tenant_lineage_broken
     - no_rls_policy_removed
     - no_runtime_role_privilege_broadened
@@ -149,7 +161,7 @@ application_gate:
     - classroom_create_list_reload
     - project_create_save_reload_version
     - electronics_document_save_reload
-    - runtime_role_negative_privilege_matrix
+    - runtime_role_least_privilege_matrix
     - cross_tenant_negative_matrix
 
 owner_evidence:
