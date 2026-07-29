@@ -1,0 +1,78 @@
+schema_version: 1.0.0
+decision_id: asa-r0-r1-candidate-selection
+status: deferred_until_r0c
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+release_issue: https://github.com/spikeal8-maker/asa-lab/issues/48
+human_packet: docs/delivery/R0_R1_CANDIDATE_SELECTION.md
+selection_phase: R0C_R1_SELECTION
+
+candidates:
+  - pull_request: 59
+    label: candidate_a_broad_identity
+    branch: agent/parity-c1-identity
+    state: frozen
+    role: selective_transfer_source_or_selected_candidate
+  - pull_request: 60
+    label: candidate_b_account_vertical
+    branch: agent/account-vertical-001
+    state: frozen
+    role: recommended_base_candidate
+
+recommendation:
+  pull_request: 60
+  status: advisory_only
+  reasons:
+    - contains_sessions_v2
+    - contains_personal_workspace_vertical
+    - contains_principal_owned_personal_project
+    - excludes_class_code_studentseat_scope
+
+selection:
+  selected_pull_request: null
+  unselected_pull_request: null
+  selected_branch: null
+  target_branch: agent/r1-account-onboarding
+  transfer_from_unselected: []
+  decision_notes: null
+
+approval:
+  decided_by: null
+  decided_at: null
+  evidence_comment_url: null
+approval_format:
+  decided_by: spikeal8-maker
+  decided_at: quoted ISO-8601 UTC timestamp ending in Z
+  evidence_comment_url: https://github.com/spikeal8-maker/asa-lab/issues/48#issuecomment-<numeric-id>
+
+required_preselection_evidence:
+  - r0b_integration_merged
+  - both_candidates_rebased_or_conflict_reported_against_accepted_baseline
+  - empty_existing_repeat_migrations_compared
+  - teacher_classes_projects_electronics_preservation_compared
+  - sessions_v2_and_active_workspace_compared
+  - tenant_principal_rls_negatives_compared
+  - creator_without_educator_classes_denial_compared
+  - class_code_studentseat_scope_absent_from_selected_r1
+  - owner_visible_account_flow_compared
+
+allowed_transfer_categories_from_pr59_if_pr60_selected:
+  - migration_preflight_and_integrity_patterns
+  - baseline_preservation_tooling
+  - age_and_email_verification_policy
+  - public_entry_ux_within_current_r1_milestone
+  - compatibility_and_deprecation_metadata
+forbidden_transfer_categories_from_pr59_to_r1:
+  - join_class_controllers
+  - class_code_secret_or_issue_tools
+  - classroom_join_intent
+  - studentseat_routes_or_screens
+  - r5_capabilities
+
+activation_rules:
+  - selection_forbidden_before_r0c
+  - exactly_one_candidate_selected
+  - unselected_candidate_closed_superseded_after_verified_transfer
+  - selected_candidate_rebased_once_on_accepted_baseline
+  - no_third_identity_implementation
+  - selected_candidate_must_pass_r1_migration_contract
+  - recommendation_does_not_equal_owner_decision
