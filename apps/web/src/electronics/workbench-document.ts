@@ -5,6 +5,10 @@ import type {
   SchematicDocument,
 } from '../api';
 import {
+  WORKBENCH_VALUE_CONTROLS,
+  validEditableValue,
+} from './component-behavior';
+import {
   ACTIVE_COMPONENTS,
   catalogEntry,
   componentOriginForCenter,
@@ -16,7 +20,6 @@ import { snap, type Point } from './workbench-geometry';
 import { BREADBOARD_PITCH_UNITS, HALF_PITCH_UNITS } from './workbench-scale';
 import type { Selection, TerminalRef } from './workbench-model';
 
-/** Bounding box of a placed component in stage coordinates. */
 function boxOf(component: SchematicComponent): {
   x: number;
   y: number;
@@ -42,10 +45,6 @@ function overlaps(
   );
 }
 
-/**
- * Find a free, terminal-aligned spot near the requested centre. Components use
- * physical geometry, so the search step is expressed in breadboard pitches.
- */
 function freePosition(
   document: SchematicDocument,
   kind: Exclude<ComponentKind, 'wire'>,
@@ -66,9 +65,7 @@ function freePosition(
       };
       const candidate = snapComponentOrigin(kind, proposed, 0);
       const box = { ...candidate, ...size };
-      if (!taken.some((other) => overlaps(box, other, gap))) {
-        return candidate;
-      }
+      if (!taken.some((other) => overlaps(box, other, gap))) return candidate;
     }
   }
   return snapComponentOrigin(kind, start, 0);
@@ -86,7 +83,7 @@ export function addComponentToDocument(
     id,
     kind,
     position: freePosition(document, kind, size, center),
-    value: entry.defaultValue,
+    value: WORKBENCH_VALUE_CONTROLS[kind].defaultValue,
     rotation: 0,
   };
   return { component, document: { ...document, components: [...document.components, component] } };
@@ -135,7 +132,6 @@ export function removeSelectionFromDocument(
   };
 }
 
-/** Rotate around the visual centre, then re-align the placement anchor. */
 export function rotateSelectionInDocument(
   document: SchematicDocument,
   selection: Selection,
@@ -166,7 +162,28 @@ export function updateSelectionValue(
   selection: Selection,
   value: number,
 ): SchematicDocument | null {
-  if (selection?.kind !== 'component' || !Number.isFinite(value) || value < 0) return null;
+  if (selection?.kind !== 'component') return null;
+  const selected = document.components.find((item) => item.id === selection.id);
+  if (!selected) return null;
+  const valid = validEditableValue(selected.kind, value);
+  if (valid === null) return null;
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === selection.id ? { ...item, value: valid } : item,
+    ),
+  };
+}
+
+export function resetSelectionValueToNominal(
+  document: SchematicDocument,
+  selection: Selection,
+): SchematicDocument | null {
+  if (selection?.kind !== 'component') return null;
+  const selected = document.components.find((item) => item.id === selection.id);
+  if (!selected || selected.kind === 'wire') return null;
+  const value = WORKBENCH_VALUE_CONTROLS[selected.kind].defaultValue;
+  if (selected.value === value) return null;
   return {
     ...document,
     components: document.components.map((item) =>
