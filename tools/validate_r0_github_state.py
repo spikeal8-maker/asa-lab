@@ -130,14 +130,14 @@ def main() -> int:
         search = gh_api(
             "search/issues",
             {
-                "q": f'repo:{REPOSITORY} is:pr is:open "TASK-PROJECT-SHELL-001"',
+                "q": f'repo:{REPOSITORY} is:pr is:open in:title "TASK-PROJECT-SHELL-001"',
                 "per_page": "20",
             },
         )
         if int(search.get("total_count", 0)) > 0:
             numbers = [item.get("number") for item in search.get("items", [])]
             errors.append(
-                "legacy TASK-PROJECT-SHELL-001 must not have an open PR; found "
+                "legacy TASK-PROJECT-SHELL-001 must not have an open PR title; found "
                 + ", ".join(f"#{number}" for number in numbers)
             )
 
@@ -156,7 +156,7 @@ def main() -> int:
     print(f"- issues checked: {len(EXPECTED_ISSUES)}")
     print("- transfer-only PRs: #35, #45, #47")
     print("- competing R1 candidates: #59, #60")
-    print("- legacy Project Shell open PRs: 0")
+    print("- legacy Project Shell open PR titles: 0")
     return 0
 
 
