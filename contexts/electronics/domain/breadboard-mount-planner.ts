@@ -29,11 +29,19 @@ export interface PlannedBreadboardMount extends BreadboardPartSnapSuccess {
   readonly attemptedCandidateCount: number;
 }
 
-export type BreadboardMountFailure = BreadboardPartSnapFailure & {
+export interface BreadboardOccupiedHoleFailure {
+  readonly ok: false;
+  readonly code: 'breadboard_hole_occupied';
+  readonly message: string;
+  readonly terminalId: TerminalId;
   readonly attemptedCandidateCount: number;
-  readonly occupiedHoleId?: string;
-  readonly occupant?: BreadboardHoleOccupant;
-};
+  readonly occupiedHoleId: string;
+  readonly occupant: BreadboardHoleOccupant;
+}
+
+export type BreadboardMountFailure =
+  | (BreadboardPartSnapFailure & { readonly attemptedCandidateCount: number })
+  | BreadboardOccupiedHoleFailure;
 
 export type BreadboardMountPlan = PlannedBreadboardMount | BreadboardMountFailure;
 
@@ -48,6 +56,12 @@ interface CandidateAnchor {
   readonly hole: BreadboardHole;
   readonly world: { readonly xMm: number; readonly yMm: number };
   readonly distanceMm: number;
+}
+
+interface OccupancyConflict {
+  readonly terminalId: TerminalId;
+  readonly holeId: string;
+  readonly occupant: BreadboardHoleOccupant;
 }
 
 function roundMm(value: number): number {
@@ -80,11 +94,15 @@ function occupancyConflict(
   snap: BreadboardPartSnapSuccess,
   occupancy: BreadboardOccupancy,
   movingComponentId?: string,
-): { readonly holeId: string; readonly occupant: BreadboardHoleOccupant } | null {
+): OccupancyConflict | null {
   for (const assignment of snap.assignments) {
     const occupant = occupancy.get(assignment.hole.id);
     if (!occupant || occupant.componentId === movingComponentId) continue;
-    return { holeId: assignment.hole.id, occupant };
+    return {
+      terminalId: assignment.terminalId,
+      holeId: assignment.hole.id,
+      occupant,
+    };
   }
   return null;
 }
@@ -134,9 +152,7 @@ export function planPartMountToBreadboard(
     anchorTerminalId,
   )!;
   let lastGeometryFailure: BreadboardPartSnapFailure | null = null;
-  let firstOccupancyConflict:
-    | { readonly holeId: string; readonly occupant: BreadboardHoleOccupant }
-    | null = null;
+  let firstOccupancyConflict: OccupancyConflict | null = null;
   let attemptedCandidateCount = 0;
 
   for (const candidate of candidates) {
@@ -179,8 +195,9 @@ export function planPartMountToBreadboard(
   if (firstOccupancyConflict) {
     return {
       ok: false,
-      code: 'terminals_collide_on_one_hole',
+      code: 'breadboard_hole_occupied',
       message: `Отверстие ${firstOccupancyConflict.holeId} уже занято другим проводником.`,
+      terminalId: firstOccupancyConflict.terminalId,
       attemptedCandidateCount,
       occupiedHoleId: firstOccupancyConflict.holeId,
       occupant: firstOccupancyConflict.occupant,
