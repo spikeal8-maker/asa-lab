@@ -1,4 +1,32 @@
-import type { ComponentKind } from './document.js';
+/**
+ * Foundation component kinds. The document terminal model is already
+ * multi-terminal capable; R4 extends this registry with breadboards, boards,
+ * ICs and instruments instead of changing the connection schema again.
+ */
+export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+
+/** Persisted, stable terminal identity inside one component instance. */
+export type TerminalId = string;
+
+export type TerminalElectricalRole =
+  | 'passive'
+  | 'positive'
+  | 'negative'
+  | 'anode'
+  | 'cathode'
+  | 'signal'
+  | 'power'
+  | 'ground'
+  | 'digital'
+  | 'analog'
+  | 'instrument';
+
+export interface ComponentTerminalModel {
+  /** Persisted ID used by SchematicConnection. Existing documents use a/b. */
+  readonly id: TerminalId;
+  readonly label: string;
+  readonly role: TerminalElectricalRole;
+}
 
 export interface ComponentValueModel {
   readonly kind: ComponentKind;
@@ -13,6 +41,35 @@ export interface ComponentValueModel {
   readonly presets?: readonly number[];
   readonly modelNote: string;
 }
+
+export const COMPONENT_KINDS = ['source', 'resistor', 'led', 'wire'] as const satisfies readonly ComponentKind[];
+
+/**
+ * Electrical interface for the currently active foundation components.
+ * IDs a/b are intentionally preserved for old drafts and immutable versions.
+ * Future components may expose any safe set of stable IDs (for example gnd,
+ * d13, a0 or a breadboard hole ID) without changing SchematicConnection.
+ */
+export const COMPONENT_TERMINAL_MODELS: Readonly<
+  Record<ComponentKind, readonly ComponentTerminalModel[]>
+> = {
+  source: [
+    { id: 'a', label: '+', role: 'positive' },
+    { id: 'b', label: '−', role: 'negative' },
+  ],
+  resistor: [
+    { id: 'a', label: '1', role: 'passive' },
+    { id: 'b', label: '2', role: 'passive' },
+  ],
+  led: [
+    { id: 'a', label: 'A', role: 'anode' },
+    { id: 'b', label: 'K', role: 'cathode' },
+  ],
+  wire: [
+    { id: 'a', label: '1', role: 'passive' },
+    { id: 'b', label: '2', role: 'passive' },
+  ],
+};
 
 export const COMPONENT_VALUE_MODELS: Readonly<Record<ComponentKind, ComponentValueModel>> = {
   source: {
@@ -69,6 +126,28 @@ export const COMPONENT_VALUE_MODELS: Readonly<Record<ComponentKind, ComponentVal
     modelNote: 'Идеальное соединение без сопротивления в текущем foundation solver.',
   },
 };
+
+export function componentTerminalModels(kind: ComponentKind): readonly ComponentTerminalModel[] {
+  return COMPONENT_TERMINAL_MODELS[kind];
+}
+
+export function componentTerminalIds(kind: ComponentKind): readonly TerminalId[] {
+  return COMPONENT_TERMINAL_MODELS[kind].map((terminal) => terminal.id);
+}
+
+export function componentTerminalModel(
+  kind: ComponentKind,
+  terminalId: TerminalId,
+): ComponentTerminalModel | null {
+  return COMPONENT_TERMINAL_MODELS[kind].find((terminal) => terminal.id === terminalId) ?? null;
+}
+
+export function isComponentTerminal(kind: ComponentKind, terminalId: unknown): terminalId is TerminalId {
+  return (
+    typeof terminalId === 'string' &&
+    COMPONENT_TERMINAL_MODELS[kind].some((terminal) => terminal.id === terminalId)
+  );
+}
 
 export function componentValueError(kind: ComponentKind, value: number): string | null {
   const model = COMPONENT_VALUE_MODELS[kind];
