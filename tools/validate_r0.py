@@ -29,6 +29,7 @@ VALIDATORS = (
     "tools/validate_architecture.py",
     "tools/validate_project_map.py",
     "tools/validate_test_catalog.py",
+    "tools/validate_r0_pr34_remote.py",
     "tools/validate_r0_github_state.py",
 )
 
@@ -74,6 +75,7 @@ def main() -> int:
     print("r1CandidateDecisionFileValid=true")
     print("targetTestMatrixValid=true")
     print("r1MigrationContractValid=true")
+    print("pr34RemoteCorrectiveSourceValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
