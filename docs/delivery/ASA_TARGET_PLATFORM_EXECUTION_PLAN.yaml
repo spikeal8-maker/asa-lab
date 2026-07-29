@@ -1,0 +1,214 @@
+schema_version: 1.0.0
+plan_id: asa-target-platform-r0-r10
+status: owner_review_required
+activation:
+  pull_request: 43
+  rule: becomes normative only after owner approval and merge
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+human_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md
+target_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
+current_gate: R0
+
+ports:
+  bind: 127.0.0.1
+  web: 4610
+  api: 4611
+  e2e: 4612
+  forbidden: [3000, 3100, 5173]
+
+execution_rules:
+  - one_owner_facing_pr_per_release
+  - one_active_product_implementation_line
+  - owner_stop_between_releases
+  - additive_migrations_until_owner_approved_destructive_gate
+  - no_new_long_lived_stacked_product_branches_after_r0
+  - tests_do_not_replace_owner_visual_acceptance
+  - current_data_and_rls_must_be_preserved
+  - next_release_starts_only_after_merge_and_map_transition
+
+branch_policy:
+  integration_strategy: one accepted baseline, then one branch per release
+  parallel_product_branches: forbidden
+  transfer_only_branches_must_close_after_verified_transfer: true
+  competing_candidates_require_owner_selection: true
+
+r0_convergence:
+  accepted_baseline_required: true
+  candidates:
+    - id: teacher_portal_main
+      ref: main
+      role: current_foundation
+      action: preserve
+    - id: electronics_project_foundation
+      pull_request: 34
+      role: foundation_candidate
+      action: owner_review_then_merge_or_reject
+      scope_freeze: [electronics, projects]
+    - id: target_contract
+      pull_request: 43
+      role: normative_candidate
+      action: owner_approve_rebase_validate_merge
+    - id: electronics_workbench_transfer
+      pull_request: 35
+      role: transfer_only
+      action: close_after_verified_transfer
+    - id: project_hub_transfer
+      pull_request: 45
+      role: transfer_only
+      action: close_after_verified_transfer
+    - id: visual_system_transfer
+      pull_request: 47
+      role: transfer_only
+      action: close_after_verified_transfer
+    - id: identity_candidate_wide
+      pull_request: 59
+      role: competing_r1_candidate
+      action: freeze_until_owner_selection
+    - id: identity_candidate_vertical
+      pull_request: 60
+      role: competing_r1_candidate
+      action: freeze_until_owner_selection
+  ordered_actions:
+    - owner_review_pr_34_foundation_scope
+    - owner_review_target_contract_decisions
+    - rebase_and_merge_pr_43_after_pr_34_decision
+    - create_one_p1_integration_pr
+    - close_pr_35_45_47_after_transfer_proof
+    - select_exactly_one_of_pr_59_or_pr_60
+    - rebase_selected_r1_once_on_accepted_baseline
+  exit_gate:
+    - one_baseline_commit_in_main
+    - target_contract_merged
+    - no_competing_portal_identity_or_editor_host_implementations
+    - existing_teacher_classroom_project_and_electronics_data_preserved
+    - demo_start_stop_pass
+    - existing_automated_gates_pass
+    - owner_screenshots_accepted
+    - project_map_and_active_issues_match_r0_r10
+
+releases:
+  - id: R0
+    name: Contract and baseline convergence
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+    canonical_branch: assistant/tinkercad-parity-baseline
+    status: in_review
+    depends_on: []
+    owner_review: required
+    visible_result: One accepted baseline and one unambiguous execution contract; no new user feature.
+    non_goals: [new_product_feature, destructive_migration]
+
+  - id: R1
+    name: Account, Profile, Personal Workspace, Sessions and Educator Grant
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/48
+    canonical_branch: agent/r1-account-onboarding
+    status: blocked
+    depends_on: [R0]
+    owner_review: required_each_milestone
+    visible_result: Adult registers and signs in without workspace code, receives exactly one Personal Workspace, manages sessions and can gain an audited educator capability.
+    migrations: [MIG-ID-01, MIG-ID-02, MIG-ID-03, MIG-ID-04, MIG-ID-05, MIG-ID-06]
+    non_goals: [classroom_studentseat, publication, electronics_changes, destructive_cleanup]
+
+  - id: R2
+    name: Creator Home and capability-aware Portal shell
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/62
+    canonical_branch: agent/r2-creator-portal
+    status: blocked
+    depends_on: [R1]
+    owner_review: required
+    visible_result: Account opens Creator Home, projects and account/workspace navigation appropriate to server-issued capabilities.
+    non_goals: [module_registry, electronics_changes, classroom_provisioning]
+
+  - id: R3
+    name: Module Registry, Project Hub and shared Editor Host
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/37
+    canonical_branch: agent/r3-project-hub
+    status: blocked
+    depends_on: [R2]
+    owner_review: required
+    visible_result: Creator manages module-neutral projects and opens Electronics through a shared registry-driven Editor Host.
+    non_goals: [electronics_parity_expansion, classroom_studentseat, publication]
+
+  - id: R4
+    name: Electronics parity
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/63
+    canonical_branch: agent/r4-electronics-parity
+    status: blocked
+    depends_on: [R3]
+    owner_review: required
+    visible_result: Creator builds, saves and simulates a circuit in the shared project/editor platform.
+    non_goals: [identity_redesign, classroom_studentseat, publication, assignments]
+
+  - id: R5
+    name: Classroom shell, class code, StudentSeat and Safe Mode
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/40
+    canonical_branch: agent/r5-classroom-studentseat
+    status: blocked
+    depends_on: [R1, R3]
+    owner_review: required
+    visible_result: Educator creates a class, issues StudentSeats, and a learner signs in without email to create private work.
+    non_goals: [teacher_project_viewer, publication, assignments]
+
+  - id: R6
+    name: Learner portfolio and audited teacher Project Viewer
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/64
+    canonical_branch: agent/r6-learner-portfolio
+    status: blocked
+    depends_on: [R5]
+    owner_review: required
+    visible_result: Educator opens an authorised learner portfolio and exact immutable project version; assistance is explicit and audited.
+    non_goals: [assignments_grades, public_profile_explore]
+
+  - id: R7
+    name: Sharing, publication and Remix
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/38
+    canonical_branch: agent/r7-publication-remix
+    status: blocked
+    depends_on: [R3]
+    owner_review: required
+    visible_result: Eligible immutable project versions can be unlisted/public, viewed and remixed with attribution.
+    non_goals: [explore_social, assignments, billing]
+
+  - id: R8
+    name: Profiles, Explore, Collections and moderation
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/39
+    canonical_branch: agent/r8-explore-moderation
+    status: blocked
+    depends_on: [R7]
+    owner_review: required
+    visible_result: Eligible published work appears in profiles and Explore with safe interactions and audited moderation.
+    non_goals: [assignments_grades, direct_child_messaging]
+
+  - id: R9
+    name: Activities, assignments, submissions, review, grades and badges
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/41
+    canonical_branch: agent/r9-learning-cycle
+    status: blocked
+    depends_on: [R3, R5, R6]
+    owner_review: required
+    visible_result: Teacher assigns an immutable starter, learner submits exact work, receives feedback, resubmits and receives grade/badge.
+    non_goals: [billing, replacing_review_with_public_comments]
+
+  - id: R10
+    name: Multi-module proof and measured operations scale
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/42
+    canonical_branch: agent/r10-multimodule-ops
+    status: blocked
+    depends_on: [R4, R7, R9]
+    owner_review: required
+    visible_result: At least three substantially different modules use the same personal, publication and classroom lifecycle; operations scale is evidence-driven.
+    non_goals: [premature_microservices, unmeasured_capacity_claims]
+
+legacy_traceability:
+  - issue: https://github.com/spikeal8-maker/asa-lab/issues/24
+    status: superseded
+    replacement: R3
+  - task_id: TASK-PROJECT-SHELL-001
+    status: superseded
+    replacement: R3
+
+owner_decisions_required_before_activation:
+  - account_principal_workspace_are_distinct
+  - tenant_and_rls_remain_security_boundary
+  - personal_project_does_not_require_classroom
+  - account_and_studentseat_sessions_are_distinct
+  - r0_r10_release_order_and_additive_migration_policy
