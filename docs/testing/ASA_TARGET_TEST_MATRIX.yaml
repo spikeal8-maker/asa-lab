@@ -3,12 +3,15 @@ matrix_id: asa-target-platform-r0-r10-tests
 status: inactive_until_r0a_contract_activation
 source_execution_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml
 source_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
+source_surface_catalog: docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+source_functional_parity_scope: docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+source_electronics_catalog: docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
 activation_transition: R0A_CONTRACT_ACTIVATION
 
 result_states:
   PASS: command or owner gate actually passed
   FAIL: required assertion or command failed
-  BLOCKED: mandatory environment/evidence unavailable
+  BLOCKED: mandatory environment or reference evidence unavailable
   NOT_RUN: test was not executed
 
 profiles:
@@ -66,13 +69,23 @@ releases:
       - TST-R0-GITHUB-STATE-001
       - TST-R0-LEGACY-TRACEABILITY-001
       - TST-R0-REVIEW-PACKETS-001
+      - TST-R0-SURFACE-CATALOG-001
+      - TST-R0-ELECTRONICS-CATALOG-001
+      - TST-R0-FUNCTIONAL-PARITY-SCOPE-001
+      - TST-R0-INTERFACE-VIEWER-001
     required_artifacts:
       - docs/delivery/R0_OWNER_DECISION.md
       - docs/delivery/R0_OWNER_DECISION.yaml
       - docs/delivery/R0_VALIDATION_MATRIX.md
       - docs/delivery/R0_FOUNDATION_REVIEW_PR34.md
       - docs/delivery/R0_R1_CANDIDATE_SELECTION.md
-    owner_flow: Review five target decisions and the R0 branch-convergence order.
+      - docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+      - docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+      - docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+      - docs/product/ASA_ADMIN_CONSOLE_SPEC.md
+      - docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+      - docs/product/interface-catalog.html
+    owner_flow: Review six target decisions, all page and tool catalogs, unresolved reference-evidence items and the R0 branch-convergence order.
 
   - id: R1
     required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
@@ -84,6 +97,8 @@ releases:
       - TST-R1-LEGACY-BRIDGE-001
       - TST-R1-EDUCATOR-GRANT-001
       - TST-R1-CREATOR-NO-EDUCATOR-001
+      - TST-R1-ACCOUNT-SETTINGS-001
+      - TST-R1-SESSION-MANAGEMENT-001
       - TST-R1-E2E-ACCOUNT-001
     required_artifacts:
       - migration-report-empty
@@ -91,7 +106,9 @@ releases:
       - baseline-preservation-report
       - account-flow-desktop.png
       - account-flow-mobile.png
-    owner_flow: Register, use Personal Workspace, create personal Project, logout/login, and verify educator capability is separate.
+      - account-settings.png
+      - account-sessions.png
+    owner_flow: Register, use Personal Workspace, create a personal Project, manage sessions, logout/login, and verify educator capability is separate.
 
   - id: R2
     required_profiles: [code_common, security_common, browser_common, owner_evidence]
@@ -99,6 +116,8 @@ releases:
       - TST-R2-CAPABILITY-NAV-001
       - TST-R2-WORKSPACE-SWITCH-001
       - TST-R2-ROUTES-001
+      - TST-R2-NOTIFICATIONS-001
+      - TST-R2-HELP-CENTER-001
       - TST-R2-LEGACY-PORTAL-COMPAT-001
       - TST-R2-E2E-CREATOR-HOME-001
     required_artifacts:
@@ -106,7 +125,9 @@ releases:
       - creator-home-mobile.png
       - educator-navigation.png
       - registered-student-navigation.png
-    owner_flow: Open Creator Home, navigate account/workspace surfaces, and confirm Classes appears only for educator capability.
+      - notifications.png
+      - help-center.png
+    owner_flow: Open Creator Home, navigate account/workspace surfaces, read notifications/help, and confirm Classes appears only for educator capability.
 
   - id: R3
     required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
@@ -116,6 +137,7 @@ releases:
       - TST-R3-PROJECT-DRAFT-001
       - TST-R3-PROJECT-VERSION-001
       - TST-R3-OPTIMISTIC-CONFLICT-001
+      - TST-R3-PROJECT-ACTIONS-001
       - TST-R3-EDITOR-HOST-001
       - TST-R3-NO-SUBJECT-BRANCH-001
       - TST-R3-E2E-PROJECT-HUB-001
@@ -123,29 +145,56 @@ releases:
       - project-hub-desktop.png
       - project-hub-mobile.png
       - module-chooser.png
+      - project-version-journal.png
       - shared-editor-host.png
       - core-import-report.json
-    owner_flow: Create a personal module project, save/reload/version it, and open it through the shared Editor Host.
+    owner_flow: Create, find, rename, duplicate, archive and version a personal module project, then open it through the shared Editor Host.
 
   - id: R4
     required_profiles: [code_common, security_common, browser_common, owner_evidence]
     release_tests:
       - TST-R4-ELECTRONICS-SCHEMA-001
       - TST-R4-ELECTRONICS-ASSETS-001
+      - TST-R4-COMPONENT-INVENTORY-001
+      - TST-R4-COMPONENT-CONTRACT-001
+      - TST-R4-TERMINALS-001
+      - TST-R4-BREADBOARD-CONNECTIVITY-001
+      - TST-R4-WIRING-EDITING-001
+      - TST-R4-MULTISELECT-HISTORY-001
+      - TST-R4-INSPECTOR-001
       - TST-R4-ELECTRONICS-NETLIST-001
       - TST-R4-ELECTRONICS-SIMULATION-001
       - TST-R4-ELECTRONICS-DIAGNOSTIC-001
+      - TST-R4-MULTIMETER-001
+      - TST-R4-OSCILLOSCOPE-001
+      - TST-R4-INSTRUMENTS-001
+      - TST-R4-ARDUINO-BOARD-001
+      - TST-R4-ARDUINO-CODE-001
+      - TST-R4-MICROBIT-001
+      - TST-R4-CODE-MODES-001
+      - TST-R4-SERIAL-MONITOR-001
       - TST-R4-ELECTRONICS-SAVE-RELOAD-001
       - TST-R4-ELECTRONICS-PARITY-001
+      - TST-R4-REFERENCE-EVIDENCE-001
       - TST-R4-E2E-ELECTRONICS-001
     required_artifacts:
       - electronics-empty.png
-      - electronics-components.png
-      - electronics-wire.png
+      - electronics-component-library.png
+      - electronics-component-properties.png
+      - electronics-wire-selected.png
+      - electronics-wire-routing.png
+      - electronics-multiselect.png
       - electronics-inspector.png
       - electronics-running.png
       - electronics-diagnostic.png
-    owner_flow: Build, save, reload and simulate a circuit with honest diagnostics in the shared Editor Host.
+      - electronics-multimeter.png
+      - electronics-oscilloscope.png
+      - electronics-arduino-code.png
+      - electronics-serial-monitor.png
+      - electronics-microbit.png
+      - electronics-mobile-or-approved-responsive-state.png
+      - electronics-reference-inventory.yaml
+    owner_flow: Build and wire a circuit, edit properties, use confirmed instruments, run honest simulation, execute Arduino and microbit code where confirmed, save/reload/version, and inspect every unresolved reference deviation.
 
   - id: R5
     required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
@@ -153,22 +202,31 @@ releases:
       - TST-R5-CLASSROOM-001
       - TST-R5-CLASS-CODE-001
       - TST-R5-STUDENTSEAT-001
+      - TST-R5-STUDENTSEAT-BULK-001
       - TST-R5-CREDENTIAL-ROTATION-001
+      - TST-R5-COTEACHER-001
+      - TST-R5-ROSTER-PRIVACY-001
       - TST-R5-SAFE-MODE-001
       - TST-R5-STUDENT-SESSION-001
+      - TST-R5-LEARNER-HOME-001
       - TST-R5-E2E-CLASSROOM-001
     required_artifacts:
       - classroom-shell.png
+      - class-overview.png
+      - class-roster.png
       - class-code-share.png
       - studentseat-credentials.png
+      - studentseat-bulk-preview.png
       - learner-login.png
+      - learner-home.png
       - safe-mode-dashboard.png
-    owner_flow: Create a class, issue StudentSeats, log in without email, and create private learner work under Safe Mode.
+    owner_flow: Create a class, add co-teachers, issue StudentSeats individually and in bulk, log in without email, and create private learner work under Safe Mode.
 
   - id: R6
     required_profiles: [code_common, security_common, browser_common, owner_evidence]
     release_tests:
       - TST-R6-LEARNER-PORTFOLIO-001
+      - TST-R6-PROJECT-GALLERY-001
       - TST-R6-PROJECT-VIEWER-001
       - TST-R6-VERSION-HISTORY-001
       - TST-R6-RESTORE-COPY-001
@@ -176,11 +234,12 @@ releases:
       - TST-R6-CROSS-CLASS-DENIAL-001
       - TST-R6-E2E-TEACHER-VIEWER-001
     required_artifacts:
+      - learner-project-gallery.png
       - learner-portfolio.png
       - teacher-project-viewer.png
       - version-history.png
       - assistance-mode-banner.png
-    owner_flow: Open an authorised learner portfolio and exact immutable version, then verify audited assistance and restore-to-copy.
+    owner_flow: Open an authorised learner gallery/portfolio and exact immutable version, then verify audited assistance and restore-to-copy.
 
   - id: R7
     required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
@@ -207,6 +266,8 @@ releases:
       - TST-R8-EXPLORE-INDEX-001
       - TST-R8-LIKE-BOOKMARK-001
       - TST-R8-COLLECTION-001
+      - TST-R8-LEARNING-CENTER-001
+      - TST-R8-CHALLENGES-001
       - TST-R8-PUBLIC-COMMENT-001
       - TST-R8-MODERATION-001
       - TST-R8-STUDENT-SOCIAL-DENIAL-001
@@ -215,8 +276,10 @@ releases:
       - public-profile.png
       - explore-gallery.png
       - collections.png
+      - learning-center.png
+      - challenges.png
       - moderation-case.png
-    owner_flow: Discover published work, use allowed interactions, report content, and complete an audited moderation decision.
+    owner_flow: Discover published work, browse learning/challenges, use allowed interactions, report content, and complete an audited moderation decision.
 
   - id: R9
     required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
@@ -224,48 +287,90 @@ releases:
       - TST-R9-ACTIVITY-VERSION-001
       - TST-R9-ASSIGNMENT-001
       - TST-R9-ASSIGNMENT-WORK-001
+      - TST-R9-PROGRESS-MONITOR-001
       - TST-R9-SUBMISSION-IMMUTABLE-001
       - TST-R9-REVIEW-ANCHOR-001
       - TST-R9-REVISION-001
       - TST-R9-RUBRIC-GRADE-001
       - TST-R9-BADGE-EVIDENCE-001
       - TST-R9-PUBLICATION-LOCK-001
+      - TST-R9-LEARNER-EXPERIENCE-001
       - TST-R9-E2E-LEARNING-CYCLE-001
     required_artifacts:
       - teacher-assignment.png
+      - assignment-progress.png
       - learner-work.png
+      - submission-confirmation.png
       - submission-queue.png
       - anchored-review.png
+      - student-feedback.png
       - grade-badge.png
-    owner_flow: Assign an immutable starter, submit exact work, request changes, resubmit, grade and award a badge.
+    owner_flow: Assign an immutable starter, work and submit exact versions, request changes, resubmit, grade and award a badge with evidence.
 
   - id: R10
-    required_profiles: [code_common, security_common, browser_common, owner_evidence]
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
     release_tests:
       - TST-R10-MULTIMODULE-CONTRACT-001
-      - TST-R10-BLOCKS-MODULE-001
-      - TST-R10-THIRD-MODULE-001
+      - TST-R10-THREE-D-SHAPES-001
+      - TST-R10-THREE-D-TRANSFORM-001
+      - TST-R10-THREE-D-COMBINE-001
+      - TST-R10-THREE-D-ALIGN-RULER-001
+      - TST-R10-THREE-D-IMPORT-EXPORT-001
+      - TST-R10-THREE-D-CAMERA-AR-001
+      - TST-R10-CODEBLOCKS-WORKSPACE-001
+      - TST-R10-CODEBLOCKS-RUN-001
+      - TST-R10-CODEBLOCKS-VERSION-EXPORT-001
+      - TST-R10-SIMLAB-MATERIALS-FORCES-001
+      - TST-R10-SIMLAB-CONNECTORS-MOTORS-001
+      - TST-R10-SIMLAB-ROBOT-CODE-001
+      - TST-R10-SIMLAB-TRACES-001
+      - TST-R10-SIMLAB-MEDIA-001
+      - TST-R10-MOBILE-TOUCH-PEN-001
+      - TST-R10-MOBILE-AR-001
+      - TST-R10-CLASSROOM-INTEGRATIONS-001
+      - TST-R10-CAD-HANDOFF-DEVIATIONS-001
+      - TST-R10-SCHOOL-ADMIN-AUTHZ-001
+      - TST-R10-PLATFORM-ADMIN-AUTHZ-001
+      - TST-R10-SUPPORT-SESSION-AUDIT-001
+      - TST-R10-MODULE-ROLLOUT-001
+      - TST-R10-POLICY-VERSIONING-001
+      - TST-R10-MODERATION-AUDIT-001
+      - TST-R10-JOBS-HEALTH-STORAGE-001
+      - TST-R10-INCIDENT-RECOVERY-001
       - TST-R10-NO-CORE-SUBJECT-BRANCH-001
       - TST-R10-PERSONAL-LIFECYCLE-001
       - TST-R10-PUBLICATION-LIFECYCLE-001
       - TST-R10-CLASSROOM-LIFECYCLE-001
       - TST-R10-CAPACITY-MEASUREMENT-001
-      - TST-R10-RECOVERY-001
       - TST-R10-E2E-MULTIMODULE-001
     required_artifacts:
       - module-registry-three-modules.png
-      - blocks-editor.png
-      - third-module-editor.png
+      - three-d-editor.png
+      - three-d-import-export.png
+      - codeblocks-editor.png
+      - simlab-editor.png
+      - simlab-traces.png
+      - mobile-touch-editor.png
+      - mobile-ar-or-approved-deviation.md
+      - school-admin-dashboard.png
+      - school-admin-policies.png
+      - platform-admin-dashboard.png
+      - platform-admin-module-registry.png
+      - support-session-banner.png
+      - platform-admin-health.png
+      - platform-admin-incidents.png
       - multimodule-project-hub.png
+      - integration-deviation-register.yaml
       - load-report.json
       - recovery-report.json
-    owner_flow: Prove three substantially different modules use the same personal, publication and classroom lifecycle without Core branching.
+    owner_flow: Use 3D, Codeblocks and Sim Lab in the same personal/publication/classroom lifecycle, verify mobile and integration behavior or deviations, administer school/platform scopes safely, and inspect measured capacity and recovery evidence.
 
 activation_rules:
   - do_not_modify_active_test_catalog_before_r0a
   - r0a_registers_target_test_contracts_without_removing_existing_tests
   - release_test_ids_are_frozen_before_product_code
   - blocked_and_not_run_never_close_a_release
+  - evidence_required_never_counts_as_pass
   - owner_evidence_does_not_replace_automated_tests
   - automated_tests_do_not_replace_owner_acceptance
   - next_release_tests_do_not_run_as_current_scope
