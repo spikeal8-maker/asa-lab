@@ -17,6 +17,7 @@ VALIDATORS = (
     "tools/validate_r0_convergence_actions.py",
     "tools/validate_r0_post_merge.py",
     "tools/validate_r0_baseline_preservation.py",
+    "tools/validate_r0_baseline_tool.py",
     "tools/validate_r0_release_map.py",
     "tools/validate_r0_legacy_traceability.py",
     "tools/validate_r0_review_packets.py",
@@ -66,6 +67,7 @@ def main() -> int:
     print("ownerDecisionRequired=true")
     print("postMergeSequenceValid=true")
     print("baselinePreservationContractValid=true")
+    print("baselineManifestToolValid=true")
     print("releaseMapTemplateValid=true")
     print("legacyTraceabilityValid=true")
     print("reviewPacketsValid=true")
