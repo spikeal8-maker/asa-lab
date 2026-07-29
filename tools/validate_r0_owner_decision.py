@@ -19,6 +19,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 DECISION_PATH = ROOT / "docs/delivery/R0_OWNER_DECISION.yaml"
+SCOPE_PATH = ROOT / "docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml"
 EXPECTED_OWNER = "spikeal8-maker"
 EXPECTED_COMMENT_PREFIX = "https://github.com/spikeal8-maker/asa-lab/pull/43#issuecomment-"
 ISO_UTC = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
@@ -28,13 +29,15 @@ EXPECTED_DECISIONS = {
     "personal_project_does_not_require_classroom",
     "account_and_studentseat_sessions_are_distinct",
     "r0_r10_release_order_and_additive_migration_policy",
+    "complete_interface_catalog_and_functional_parity_scope",
 }
 EXPECTED_RULES = {
-    "all_five_decisions_must_be_accepted",
+    "all_six_decisions_must_be_accepted",
     "convergence_order_must_be_accepted",
     "technical_r0_suite_must_pass",
     "pr_43_must_remain_draft_until_owner_approval",
     "r1_must_remain_blocked_until_post_merge_transition",
+    "functional_parity_claim_must_remain_not_100_percent_until_runtime_and_owner_evidence",
 }
 
 
@@ -42,12 +45,12 @@ def fail(message: str) -> None:
     raise ValueError(message)
 
 
-def load() -> dict[str, Any]:
-    if not DECISION_PATH.is_file():
-        fail(f"missing {DECISION_PATH.relative_to(ROOT)}")
-    document = yaml.safe_load(DECISION_PATH.read_text(encoding="utf-8"))
+def load(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        fail(f"missing {path.relative_to(ROOT)}")
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
-        fail("owner decision YAML must be an object")
+        fail(f"{path.relative_to(ROOT)} must contain a YAML object")
     return document
 
 
@@ -62,7 +65,8 @@ def validate_approved_at(value: Any) -> None:
 
 def main() -> int:
     try:
-        document = load()
+        document = load(DECISION_PATH)
+        scope = load(SCOPE_PATH)
         if document.get("schema_version") != "1.0.0":
             fail("schema_version must be 1.0.0")
         if document.get("decision_id") != "asa-r0-target-platform-activation":
@@ -73,6 +77,10 @@ def main() -> int:
             fail("program_issue must reference Issue 36")
         if document.get("human_packet") != "docs/delivery/R0_OWNER_DECISION.md":
             fail("human_packet must reference R0_OWNER_DECISION.md")
+        if scope.get("scope_id") != "asa-tinkercad-functional-parity":
+            fail("owner decision references an invalid functional parity scope")
+        if scope.get("completion_rule", {}).get("current_claim") != "not_100_percent":
+            fail("R0 owner approval cannot begin with a false 100% parity claim")
 
         raw_decisions = document.get("decisions")
         if not isinstance(raw_decisions, list):
@@ -86,7 +94,7 @@ def main() -> int:
                 fail(f"duplicate decision: {decision_id}")
             decisions[decision_id] = entry
         if set(decisions) != EXPECTED_DECISIONS:
-            fail("owner decision IDs do not match the five target activation decisions")
+            fail("owner decision IDs do not match the six target activation decisions")
 
         rules = set(document.get("activation_rules") or [])
         if rules != EXPECTED_RULES:
@@ -103,7 +111,7 @@ def main() -> int:
 
         if status == "pending_owner":
             if decision_statuses != {"pending"}:
-                fail("pending_owner requires all five decisions to remain pending")
+                fail("pending_owner requires all six decisions to remain pending")
             if convergence_status != "pending":
                 fail("pending_owner requires convergence_order.status = pending")
             if any(
@@ -114,7 +122,7 @@ def main() -> int:
 
         elif status == "approved_pending_merge":
             if decision_statuses != {"accepted"}:
-                fail("approved_pending_merge requires all five decisions accepted")
+                fail("approved_pending_merge requires all six decisions accepted")
             if convergence_status != "accepted":
                 fail("approved_pending_merge requires convergence order accepted")
             if approval.get("approved_by") != EXPECTED_OWNER:
@@ -155,6 +163,7 @@ def main() -> int:
     print(f"- status: {status}")
     print(f"- decisions: {len(decisions)}")
     print(f"- convergence order: {convergence_status}")
+    print("- functional parity scope claim: not_100_percent")
     print(f"- expected owner: {EXPECTED_OWNER}")
     print(f"- activation allowed: {str(status == 'approved_pending_merge').lower()}")
     return 0
