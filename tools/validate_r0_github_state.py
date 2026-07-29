@@ -15,6 +15,7 @@ import sys
 from typing import Any
 
 REPOSITORY = "spikeal8-maker/asa-lab"
+API_TIMEOUT_SECONDS = 30
 
 EXPECTED_PRS: dict[int, dict[str, Any]] = {
     29: {"title_prefix": "[MAP-UX]", "base": "main"},
@@ -57,12 +58,26 @@ def gh_api(path: str, fields: dict[str, str] | None = None) -> Any:
     command = ["gh", "api", "--method", "GET", path]
     for key, value in (fields or {}).items():
         command.extend(["-f", f"{key}={value}"])
-    completed = subprocess.run(command, text=True, capture_output=True, check=False)
+    try:
+        completed = subprocess.run(
+            command,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=API_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            f"gh api {path} timed out after {API_TIMEOUT_SECONDS}s"
+        ) from error
     if completed.returncode != 0:
         message = completed.stderr.strip() or completed.stdout.strip()
         raise RuntimeError(f"gh api {path} failed: {message}")
+    payload = completed.stdout.lstrip("\ufeff")
     try:
-        return json.loads(completed.stdout)
+        return json.loads(payload)
     except json.JSONDecodeError as error:
         raise RuntimeError(f"gh api {path} returned invalid JSON: {error}") from error
 
@@ -120,6 +135,7 @@ def main() -> int:
         contract_body = str(contract_pr.get("body", ""))
         for marker in (
             "R0_OWNER_DECISION.md",
+            "R0_OWNER_DECISION.yaml",
             "python tools/validate_r0.py",
             "R1  Account",
             "R10 Multi-module",
