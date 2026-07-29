@@ -2,8 +2,8 @@
 """Verify the static PR #34 foundation corrective directly from GitHub.
 
 This is not a substitute for migration/RLS/browser execution. It prevents the
-R0 contract from claiming the known privilege defect was addressed when the
-remote PR still contains the broad table-level UPDATE grant.
+R0 contract from claiming the known privilege defects were addressed when the
+remote PR still contains broad table-level UPDATE grants.
 """
 
 from __future__ import annotations
@@ -138,20 +138,20 @@ def main() -> int:
             _, migration0005 = file_at(
                 head_sha, "migrations/0005_project_rename_least_privilege.sql"
             )
-            require(
-                migration0005,
+            for marker in (
                 "REVOKE UPDATE ON projects FROM asalab_app;",
-                "migration 0005",
-                errors,
-            )
-            require(
-                migration0005,
                 "GRANT UPDATE (title) ON projects TO asalab_app;",
-                "migration 0005",
-                errors,
-            )
-            if "GRANT UPDATE ON projects" in migration0005:
-                errors.append("migration 0005 reintroduces table-level project UPDATE")
+                "REVOKE UPDATE ON project_drafts FROM asalab_app;",
+                "GRANT UPDATE (document_json, revision, updated_at, updated_by)",
+                "ON project_drafts TO asalab_app;",
+            ):
+                require(migration0005, marker, "migration 0005", errors)
+            for broad_grant in (
+                "GRANT UPDATE ON projects",
+                "GRANT UPDATE ON project_drafts",
+            ):
+                if broad_grant in migration0005:
+                    errors.append(f"migration 0005 reintroduces broad privilege: {broad_grant}")
             for forbidden_column in (
                 "tenant_id",
                 "created_by",
@@ -160,17 +160,24 @@ def main() -> int:
                 "module_key",
                 "idempotency_key",
                 "request_fingerprint",
+                "project_id",
             ):
                 if f"UPDATE ({forbidden_column})" in migration0005:
                     errors.append(
-                        f"migration 0005 grants UPDATE on forbidden project column {forbidden_column}"
+                        f"migration 0005 grants UPDATE on forbidden identity column {forbidden_column}"
                     )
 
             _, rls_test = file_at(head_sha, "tests/portal/rls.spec.ts")
             for marker in (
                 "information_schema.column_privileges",
                 "toEqual(['title'])",
-                "const forbiddenColumns",
+                "draftUpdateColumns",
+                "'document_json'",
+                "'revision'",
+                "'updated_at'",
+                "'updated_by'",
+                "forbiddenProjectColumns",
+                "['tenant_id', 'project_id']",
                 "tenant B cannot rename tenant A project",
                 "code: '42501'",
             ):
@@ -181,8 +188,9 @@ def main() -> int:
                 "module_key",
                 "created_by",
                 "project_scope",
+                "project_id",
             ):
-                require(rls_test, f"'{column}'", "project privilege negative matrix", errors)
+                require(rls_test, f"'{column}'", "project/draft privilege negative matrix", errors)
 
     except RuntimeError as error:
         print(f"ASA R0 PR34 remote gate BLOCKED: {error}", file=sys.stderr)
@@ -199,6 +207,7 @@ def main() -> int:
     print("- migration 0004 checksum preserved: true")
     print("- additive privilege correction migration: present")
     print("- project UPDATE columns: title only")
+    print("- draft UPDATE columns: document_json, revision, updated_at, updated_by")
     print("- runtime negative privilege test source: present")
     print("- local migration/RLS execution: NOT_RUN")
     return 0
