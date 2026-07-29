@@ -3,7 +3,8 @@
 
 The existing parity validator proves product invariants. This validator proves
 that coding agents have one deterministic release order, one Issue per release,
-and one explicit R0 branch-convergence procedure before product work resumes.
+one explicit R0 branch-convergence procedure and unambiguous owner/agent entry
+points before product work resumes.
 """
 
 from __future__ import annotations
@@ -18,7 +19,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_PATH = ROOT / "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml"
 HUMAN_PLAN_PATH = ROOT / "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md"
+CURRENT_STATE_PATH = ROOT / "docs/delivery/R0_CONVERGENCE_CURRENT_STATE.md"
+OWNER_DECISION_PATH = ROOT / "docs/delivery/R0_OWNER_DECISION.md"
 BLUEPRINT_PATH = ROOT / "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml"
+INDEX_PATH = ROOT / "docs/product/TARGET_PLATFORM_INDEX.md"
+AGENTS_PATH = ROOT / "AGENTS.md"
+START_PATH = ROOT / "START_HERE_FOR_AI.md"
+RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
 
 EXPECTED_RELEASES = [f"R{index}" for index in range(11)]
 EXPECTED_ISSUES = {
@@ -58,6 +65,19 @@ def load_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(document, dict):
         fail(f"{path.relative_to(ROOT)} must contain a YAML object")
     return document
+
+
+def read_text(path: Path) -> str:
+    if not path.is_file():
+        fail(f"missing required file: {path.relative_to(ROOT)}")
+    return path.read_text(encoding="utf-8")
+
+
+def require_markers(path: Path, markers: tuple[str, ...]) -> None:
+    text = read_text(path)
+    for marker in markers:
+        if marker not in text:
+            fail(f"{path.relative_to(ROOT)} misses required marker: {marker}")
 
 
 def issue_number(url: Any) -> int:
@@ -194,7 +214,6 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
 
     branches: list[str] = []
     issue_numbers: list[int] = []
-    statuses: list[str] = []
     for release in releases:
         release_id = release["id"]
         expected_issue = EXPECTED_ISSUES[release_id]
@@ -209,7 +228,6 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
         branches.append(branch)
 
         status = release.get("status")
-        statuses.append(str(status))
         expected_status = "in_review" if release_id == "R0" else "blocked"
         if status != expected_status:
             fail(f"{release_id} status must be {expected_status}, got {status!r}")
@@ -244,7 +262,11 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
     legacy = plan.get("legacy_traceability")
     if not isinstance(legacy, list):
         fail("legacy_traceability must be a list")
-    if not any(item.get("issue", "").endswith("/24") and item.get("status") == "superseded" for item in legacy if isinstance(item, dict)):
+    if not any(
+        item.get("issue", "").endswith("/24") and item.get("status") == "superseded"
+        for item in legacy
+        if isinstance(item, dict)
+    ):
         fail("legacy Project Shell Issue 24 must be marked superseded")
 
     owner_decisions = set(plan.get("owner_decisions_required_before_activation") or [])
@@ -255,9 +277,7 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
 
 
 def validate_human_plan() -> None:
-    if not HUMAN_PLAN_PATH.is_file():
-        fail(f"missing human execution plan: {HUMAN_PLAN_PATH.relative_to(ROOT)}")
-    text = HUMAN_PLAN_PATH.read_text(encoding="utf-8")
+    text = read_text(HUMAN_PLAN_PATH)
     for release_id in EXPECTED_RELEASES:
         marker = f"Release {release_id}"
         if marker not in text:
@@ -271,12 +291,78 @@ def validate_human_plan() -> None:
             fail(f"human execution plan misses convergence marker: {marker}")
 
 
+def validate_owner_and_agent_entry_points() -> None:
+    require_markers(
+        CURRENT_STATE_PATH,
+        (
+            "owner_review_required",
+            "Current gate: `R0`",
+            "PR №35/№45/№47",
+            "PR №59",
+            "PR №60",
+            "Product coding",
+            "Issue №24",
+        ),
+    )
+    require_markers(
+        OWNER_DECISION_PATH,
+        (
+            "## Решение 1.",
+            "## Решение 2.",
+            "## Решение 3.",
+            "## Решение 4.",
+            "## Решение 5.",
+            "OWNER DECISION: APPROVED",
+            "Convergence order: accepted",
+        ),
+    )
+    require_markers(
+        INDEX_PATH,
+        (
+            "R0  Contract and one accepted baseline",
+            "R10 Multi-module lifecycle proof",
+            "ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml",
+            "R0_OWNER_DECISION.md",
+        ),
+    )
+    require_markers(
+        AGENTS_PATH,
+        (
+            "## 0. Target Platform activation gate",
+            "current_gate: R0",
+            "TASK-PROJECT-SHELL-001",
+            "PR №59",
+            "PR №60",
+            "product code",
+        ),
+    )
+    require_markers(
+        START_PATH,
+        (
+            "current gate = R0",
+            "product coding = forbidden",
+            "ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml",
+            "Issue №36",
+        ),
+    )
+    require_markers(
+        RUNBOOK_PATH,
+        (
+            "## 4. R0 convergence",
+            "PR #35/#45/#47 transfer-only",
+            "PR #59/#60",
+            "python tools/validate_target_execution.py",
+        ),
+    )
+
+
 def main() -> int:
     try:
         plan = load_yaml(PLAN_PATH)
         blueprint = load_yaml(BLUEPRINT_PATH)
         release_count, candidate_count = validate_plan(plan, blueprint)
         validate_human_plan()
+        validate_owner_and_agent_entry_points()
     except (OSError, ValueError, yaml.YAMLError) as error:
         print(f"ASA target execution contract FAIL: {error}", file=sys.stderr)
         return 1
@@ -284,6 +370,7 @@ def main() -> int:
     print("ASA target execution contract PASS")
     print(f"- releases: {release_count} (R0-R10)")
     print(f"- R0 convergence candidates: {candidate_count}")
+    print("- owner/agent entry documents: synchronized")
     print("- current gate: R0 / owner review required")
     print("- competing R1 candidates frozen: PR 59 and PR 60")
     print("- canonical ports: web=4610 api=4611 e2e=4612")
