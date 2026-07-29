@@ -8,6 +8,15 @@ program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
 human_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md
 detailed_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md
 target_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
+visual_system: docs/product/ASA_VISUAL_PRODUCT_SYSTEM.md
+functional_parity_scope: docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+complete_interface_blueprint: docs/product/ASA_COMPLETE_INTERFACE_BLUEPRINT.md
+surface_catalog: docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+interface_catalog_viewer: docs/product/interface-catalog.html
+electronics_spec: docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md
+electronics_tool_catalog: docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+student_experience_spec: docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+admin_console_spec: docs/product/ASA_ADMIN_CONSOLE_SPEC.md
 owner_decision: docs/delivery/R0_OWNER_DECISION.yaml
 foundation_decision: docs/delivery/R0_FOUNDATION_DECISION.yaml
 r1_candidate_decision: docs/delivery/R0_R1_CANDIDATE_DECISION.yaml
@@ -19,6 +28,7 @@ r1_migration_contract: docs/architecture/R1_ACCOUNT_WORKSPACE_MIGRATION_CONTRACT
 current_gate: R0
 execution_order: [R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10]
 release_selection: strict_list_order
+functional_parity_claim: not_100_percent
 
 ports:
   bind: 127.0.0.1
@@ -37,6 +47,11 @@ execution_rules:
   - current_data_and_rls_must_be_preserved
   - next_release_starts_only_after_merge_and_map_transition
   - strict_release_order_even_when_later_dependencies_are_satisfied
+  - every_product_task_references_surface_and_capability_ids
+  - absent_partial_in_review_or_evidence_required_never_count_as_parity_pass
+  - literal_source_brand_asset_or_pixel_copy_is_forbidden
+  - functional_parity_requires_original_asa_code_brand_and_owner_assets
+  - administration_student_and_editor_interfaces_are_first_class_product_surfaces
 
 branch_policy:
   integration_strategy: one accepted baseline, then one branch per release
@@ -86,6 +101,7 @@ r0_convergence:
     - owner_record_pr_34_foundation_decision
     - merge_pr_34_if_accepted_else_revise_r0_contract
     - owner_review_target_contract_decisions
+    - owner_review_complete_interface_and_functional_parity_scope
     - rebase_and_merge_pr_43_after_pr_34_accepted_merge
     - execute_r0a_contract_activation
     - create_one_p1_integration_pr
@@ -95,6 +111,7 @@ r0_convergence:
   exit_gate:
     - one_baseline_commit_in_main
     - target_contract_merged
+    - complete_interface_and_functional_parity_scope_accepted
     - no_competing_portal_identity_or_editor_host_implementations
     - existing_teacher_classroom_project_and_electronics_data_preserved
     - demo_start_stop_pass
@@ -104,14 +121,20 @@ r0_convergence:
 
 releases:
   - id: R0
-    name: Contract and baseline convergence
+    name: Contract, complete interface inventory and baseline convergence
     issue: https://github.com/spikeal8-maker/asa-lab/issues/36
     canonical_branch: assistant/tinkercad-parity-baseline
     status: in_review
     depends_on: []
     owner_review: required
-    visible_result: One accepted baseline and one unambiguous execution contract; no new user feature.
-    non_goals: [new_product_feature, destructive_migration]
+    visible_result: One accepted baseline, one complete page/tool/admin/student catalog and one unambiguous R0-R10 execution contract; no new user feature.
+    required_contracts:
+      - docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+      - docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml
+      - docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+      - docs/product/ASA_ADMIN_CONSOLE_SPEC.md
+      - docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md
+    non_goals: [new_product_feature, destructive_migration, false_100_percent_claim]
 
   - id: R1
     name: Account, Profile, Personal Workspace, Sessions and Educator Grant
@@ -121,6 +144,7 @@ releases:
     depends_on: [R0]
     owner_review: required_each_milestone
     visible_result: Adult registers and signs in without workspace code, receives exactly one Personal Workspace, manages sessions and can gain an audited educator capability.
+    surface_ids: [PUB-002, PUB-003, PUB-004, PUB-008, CRT-013, CRT-014, CRT-015, EDU-001]
     migrations: [MIG-ID-01, MIG-ID-02, MIG-ID-03, MIG-ID-04, MIG-ID-05, MIG-ID-06]
     non_goals: [classroom_studentseat, publication, electronics_changes, destructive_cleanup]
 
@@ -131,7 +155,8 @@ releases:
     status: blocked
     depends_on: [R1]
     owner_review: required
-    visible_result: Account opens Creator Home, projects and account/workspace navigation appropriate to server-issued capabilities.
+    visible_result: Account opens Creator Home, notifications, help and capability-aware navigation appropriate to server-issued capabilities.
+    surface_ids: [PUB-001, PUB-010, CRT-001, CRT-012]
     non_goals: [module_registry, electronics_changes, classroom_provisioning]
 
   - id: R3
@@ -141,18 +166,22 @@ releases:
     status: blocked
     depends_on: [R2]
     owner_review: required
-    visible_result: Creator manages module-neutral projects and opens Electronics through a shared registry-driven Editor Host.
+    visible_result: Creator manages module-neutral projects, versions and module choices and opens Electronics through a shared registry-driven Editor Host.
+    surface_ids: [CRT-002, CRT-003, CRT-004, EDT-001]
     non_goals: [electronics_parity_expansion, classroom_studentseat, publication]
 
   - id: R4
-    name: Electronics parity
+    name: Complete Circuits and Electronics functional parity
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     canonical_branch: agent/r4-electronics-parity
     status: blocked
     depends_on: [R3]
-    owner_review: required
-    visible_result: Creator builds, saves and simulates a circuit in the shared project/editor platform.
-    non_goals: [identity_redesign, classroom_studentseat, publication, assignments]
+    owner_review: required_each_milestone
+    visible_result: Creator builds, wires, measures, codes, saves, versions and simulates circuits with the reference-confirmed component, instrument, Arduino and microbit scope and honest diagnostics.
+    surface_ids: [EDT-002]
+    milestone_contract: docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml
+    capability_group: GROUP-CIRCUITS
+    non_goals: [identity_redesign, classroom_studentseat, publication, assignments, unconfirmed_reference_claims]
 
   - id: R5
     name: Classroom shell, class code, StudentSeat and Safe Mode
@@ -161,7 +190,8 @@ releases:
     status: blocked
     depends_on: [R1, R3]
     owner_review: required
-    visible_result: Educator creates a class, issues StudentSeats, and a learner signs in without email to create private work.
+    visible_result: Educator creates a class, issues StudentSeats individually or in bulk, shares a class code and a learner signs in without email to create private work.
+    surface_ids: [PUB-005, PUB-006, PUB-007, EDU-002, EDU-003, EDU-004, EDU-005, EDU-006, EDU-007, EDU-008, EDU-016, EDU-021, EDU-022, EDU-023, STU-001, STU-002, STU-008, STU-010]
     non_goals: [teacher_project_viewer, publication, assignments]
 
   - id: R6
@@ -171,7 +201,8 @@ releases:
     status: blocked
     depends_on: [R5]
     owner_review: required
-    visible_result: Educator opens an authorised learner portfolio and exact immutable project version; assistance is explicit and audited.
+    visible_result: Educator opens an authorised learner portfolio and exact immutable project version; assistance is explicit, visible and audited.
+    surface_ids: [EDU-012, EDU-013, EDU-014, EDU-015]
     non_goals: [assignments_grades, public_profile_explore]
 
   - id: R7
@@ -181,17 +212,19 @@ releases:
     status: blocked
     depends_on: [R3]
     owner_review: required
-    visible_result: Eligible immutable project versions can be unlisted/public, viewed and remixed with attribution.
+    visible_result: Eligible immutable project versions can be private, unlisted or public, viewed through a safe public page and remixed with attribution.
+    surface_ids: [PUB-009, CRT-005, CRT-006]
     non_goals: [explore_social, assignments, billing]
 
   - id: R8
-    name: Profiles, Explore, Collections and moderation
+    name: Profiles, Explore, Learning, Challenges, Collections and moderation
     issue: https://github.com/spikeal8-maker/asa-lab/issues/39
     canonical_branch: agent/r8-explore-moderation
     status: blocked
     depends_on: [R7]
     owner_review: required
-    visible_result: Eligible published work appears in profiles and Explore with safe interactions and audited moderation.
+    visible_result: Eligible published work appears in privacy-aware profiles, Explore and Collections; users access learning/challenges and moderation is audited.
+    surface_ids: [CRT-007, CRT-008, CRT-009, CRT-010, CRT-011, PADM-006]
     non_goals: [assignments_grades, direct_child_messaging]
 
   - id: R9
@@ -201,18 +234,21 @@ releases:
     status: blocked
     depends_on: [R5, R6]
     owner_review: required
-    visible_result: Teacher assigns an immutable starter, learner submits exact work, receives feedback, resubmits and receives grade/badge.
+    visible_result: Teacher assigns an immutable starter, learner works and submits exact versions, receives anchored feedback, resubmits and receives auditable grade and badge.
+    surface_ids: [EDU-009, EDU-010, EDU-011, EDU-017, EDU-018, EDU-019, EDU-020, STU-003, STU-004, STU-005, STU-006, STU-007, STU-009, STU-011]
     non_goals: [billing, replacing_review_with_public_comments]
 
   - id: R10
-    name: Multi-module proof and measured operations scale
+    name: 3D, Codeblocks, Sim Lab, mobile/integrations, administration and measured scale
     issue: https://github.com/spikeal8-maker/asa-lab/issues/42
     canonical_branch: agent/r10-multimodule-ops
     status: blocked
     depends_on: [R4, R7, R9]
-    owner_review: required
-    visible_result: At least three substantially different modules use the same personal, publication and classroom lifecycle; operations scale is evidence-driven.
-    non_goals: [premature_microservices, unmeasured_capacity_claims]
+    owner_review: required_each_milestone
+    visible_result: 3D Design, Codeblocks and Sim Lab use the same project/publication/classroom lifecycle; school/platform administration, mobile/touch/AR or approved deviations, ecosystem integrations and measured operations are proven.
+    surface_ids: [EDT-003, EDT-004, EDT-005, SADM-001, SADM-002, SADM-003, SADM-004, SADM-005, SADM-006, SADM-007, SADM-008, SADM-009, SADM-010, PADM-001, PADM-002, PADM-003, PADM-004, PADM-005, PADM-007, PADM-008, PADM-009, PADM-010, PADM-011, PADM-012, PADM-013]
+    capability_groups: [GROUP-3D, GROUP-CODEBLOCKS, GROUP-SIMLAB, GROUP-MOBILE-INTEGRATIONS]
+    non_goals: [premature_microservices, unmeasured_capacity_claims, literal_proprietary_integration_copy]
 
 legacy_traceability:
   - issue: https://github.com/spikeal8-maker/asa-lab/issues/24
@@ -228,3 +264,4 @@ owner_decisions_required_before_activation:
   - personal_project_does_not_require_classroom
   - account_and_studentseat_sessions_are_distinct
   - r0_r10_release_order_and_additive_migration_policy
+  - complete_interface_catalog_and_functional_parity_scope
