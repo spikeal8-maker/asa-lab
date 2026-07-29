@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACTIVE_NATIVE_COMPONENT_GEOMETRY,
+  NATIVE_ASSET_TERMINAL_EPSILON_MM,
   NATIVE_GRID_PITCH_MM,
   calibratedAssetSizeMm,
+  calibratedAssetTerminalMm,
   createAxialResistorGeometry,
   rotateNativePoint,
   rotatedEnvelopeMm,
@@ -18,15 +20,31 @@ describe('native component geometry', () => {
     }
   });
 
-  it('calibrates the owner battery SVG from its stable terminal span', () => {
+  it('calibrates and centres the owner battery SVG from its stable terminal span', () => {
     const source = ACTIVE_NATIVE_COMPONENT_GEOMETRY.source;
     const size = calibratedAssetSizeMm(source.assetCalibration!);
-    expect(size.widthMm).toBeCloseTo(46.9333, 3);
-    expect(size.heightMm).toBeCloseTo(81.5611, 3);
+    expect(size.widthMm).toBeCloseTo(46.9295, 3);
+    expect(size.heightMm).toBeCloseTo(81.5703, 3);
     expect(terminalDistanceMm(source, 'a', 'b')).toBeCloseTo(10.16, 6);
+    expect(source.assetOriginMm?.xMm).toBeCloseTo((47 - size.widthMm) / 2, 4);
+    expect(source.assetOriginMm?.yMm).toBeCloseTo((82 - size.heightMm) / 2, 4);
     expect(size.widthMm).toBeLessThanOrEqual(source.envelopeMm.widthMm);
     expect(size.heightMm).toBeLessThanOrEqual(source.envelopeMm.heightMm);
   });
+
+  it.each(['source', 'resistor', 'led'] as const)(
+    'keeps calibrated %s SVG terminal anchors on the native electrical terminals',
+    (kind) => {
+      const geometry = ACTIVE_NATIVE_COMPONENT_GEOMETRY[kind];
+      for (const terminal of geometry.terminals) {
+        const calibrated = calibratedAssetTerminalMm(geometry, terminal.id);
+        expect(calibrated).not.toBeNull();
+        expect(Math.hypot(calibrated!.xMm - terminal.xMm, calibrated!.yMm - terminal.yMm)).toBeLessThanOrEqual(
+          NATIVE_ASSET_TERMINAL_EPSILON_MM,
+        );
+      }
+    },
+  );
 
   it('keeps the resistor body native while the lead footprint changes', () => {
     const fourPitch = createAxialResistorGeometry(4);
@@ -43,6 +61,9 @@ describe('native component geometry', () => {
     );
     expect(fourPitch.envelopeMm.widthMm).toBeLessThan(tenPitch.envelopeMm.widthMm);
     expect(tenPitch.envelopeMm.widthMm).toBeLessThan(twentyPitch.envelopeMm.widthMm);
+    expect(fourPitch.assetCalibration).toBeUndefined();
+    expect(tenPitch.assetCalibration).toBeDefined();
+    expect(twentyPitch.assetCalibration).toBeUndefined();
   });
 
   it('rejects unsupported resistor lead spans instead of silently distorting the asset', () => {
@@ -99,6 +120,18 @@ describe('native component geometry', () => {
     expect(validateNativeComponentGeometry(outside)).toMatchObject({
       ok: false,
       code: 'terminal_outside_envelope',
+    });
+  });
+
+  it('rejects an SVG whose calibrated terminal anchor no longer matches native geometry', () => {
+    const base = ACTIVE_NATIVE_COMPONENT_GEOMETRY.led;
+    const broken: NativeComponentGeometry = {
+      ...base,
+      terminals: [base.terminals[0]!, { ...base.terminals[1]!, xMm: base.terminals[1]!.xMm + 0.1 }],
+    };
+    expect(validateNativeComponentGeometry(broken)).toMatchObject({
+      ok: false,
+      code: 'asset_terminal_mismatch',
     });
   });
 });
