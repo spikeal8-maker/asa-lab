@@ -67,6 +67,8 @@ REQUIRED_CHANGED = {
     "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md",
     "docs/delivery/R0_CONVERGENCE_CURRENT_STATE.md",
     "docs/delivery/R0_OWNER_DECISION.md",
+    "docs/delivery/R0_OWNER_DECISION.yaml",
+    "docs/delivery/R0_VALIDATION_MATRIX.md",
     "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md",
     "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml",
     "docs/product/TARGET_PLATFORM_INDEX.md",
@@ -74,7 +76,9 @@ REQUIRED_CHANGED = {
     "tools/validate_target_execution.py",
     "tools/validate_r0.py",
     "tools/validate_r0_diff.py",
+    "tools/validate_r0_github_state.py",
     "tools/validate_r0_human_contract.py",
+    "tools/validate_r0_owner_decision.py",
 }
 
 
