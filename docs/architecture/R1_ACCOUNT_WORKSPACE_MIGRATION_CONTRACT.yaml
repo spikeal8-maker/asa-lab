@@ -1,0 +1,356 @@
+schema_version: 1.0.0
+contract_id: asa-r1-account-workspace-migration
+status: inactive_until_r0d_r1_ready
+release: R1
+issue: https://github.com/spikeal8-maker/asa-lab/issues/48
+source_plan: docs/architecture/ASA_IDENTITY_WORKSPACE_TRANSITION_PLAN.md
+source_execution: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml
+
+baseline_preservation:
+  required_tables:
+    - tenants
+    - schools
+    - academic_periods
+    - users
+    - sessions
+    - classrooms
+    - classroom_memberships
+    - projects
+    - project_drafts
+    - project_versions
+    - audit_events
+  immutable_identifiers:
+    - tenants.id
+    - users.id
+    - classrooms.id
+    - projects.id
+    - project_versions.id
+  preserve_values:
+    - users.password_hash
+    - projects.module_key
+    - project_drafts.payload
+    - project_versions.payload
+    - project_versions.digest
+  forbidden_operations:
+    - rename_users_to_accounts
+    - drop_users
+    - drop_sessions
+    - disable_rls
+    - reset_password_hashes
+    - regenerate_existing_project_ids
+    - make_client_tenant_or_workspace_authoritative
+    - destructive_cleanup_in_r1
+
+entities:
+  principals:
+    primary_key: id
+    kinds: [account, student_seat, service, support_session]
+    statuses: [active, suspended, revoked]
+    invariants:
+      - account_has_exactly_one_account_principal
+      - studentseat_has_distinct_studentseat_principal
+  accounts:
+    primary_key: id
+    required_fields:
+      - principal_id
+      - email_normalized
+      - password_hash
+      - country_code
+      - birth_date
+      - age_policy_key
+      - email_verification_state
+      - account_state
+    unique:
+      - principal_id
+      - email_normalized
+    invariants:
+      - password_hash_is_versioned_memory_hard
+      - email_normalized_is_case_insensitive
+  profiles:
+    primary_key: account_id
+    required_fields:
+      - username_normalized
+      - username_display
+      - profile_visibility
+      - locale
+      - time_zone
+    unique:
+      - username_normalized
+    invariants:
+      - public_display_name_is_not_authorization_identity
+      - profile_visibility_is_server_enforced
+  workspaces:
+    primary_key: id
+    kinds: [personal, organization]
+    statuses: [active, suspended, archived]
+    required_fields:
+      - tenant_id
+      - kind
+      - name
+      - created_by_principal_id
+    v1_unique:
+      - tenant_id
+    invariants:
+      - exactly_one_personal_workspace_per_account
+      - personal_workspace_created_once_and_idempotently
+      - workspace_is_product_scope_tenant_is_security_boundary
+  workspace_memberships:
+    key: [workspace_id, account_id, role]
+    roles: [owner, member, educator, school_admin, billing_admin, moderator]
+    states: [active, invited, suspended, revoked]
+    invariants:
+      - school_admin_is_scoped_not_global
+      - membership_does_not_create_global_capability
+  capability_grants:
+    key: [account_id, capability, policy_version, source]
+    capabilities: [creator, educator, registered_student, guardian, platform_admin]
+    states: [provisional, verified, suspended, revoked]
+    sources: [self_attestation, invitation, admin, guardian_approval, migration]
+    invariants:
+      - creator_granted_to_new_adult_account
+      - educator_is_explicit_audited_and_revocable
+      - platform_admin_is_global_and_never_inferred_from_workspace_role
+  sessions_v2:
+    primary_key: id
+    required_fields:
+      - principal_id
+      - token_hash
+      - assurance_level
+      - created_at
+      - expires_at
+      - last_seen_at
+    optional_fields:
+      - active_workspace_id
+      - revoked_at
+      - client_metadata
+    unique:
+      - token_hash
+    invariants:
+      - plaintext_token_never_persisted
+      - active_workspace_must_be_authorized_for_account_principal
+      - account_and_studentseat_session_types_remain_distinct
+      - revocation_is_server_enforced
+  legacy_user_account_links:
+    key: [tenant_id, user_id]
+    required_fields:
+      - account_id
+      - principal_id
+      - migration_state
+      - migrated_at
+    invariants:
+      - one_legacy_user_maps_to_one_account
+      - rerun_never_creates_duplicate_account
+      - cross_tenant_mapping_is_rejected
+
+stages:
+  - id: MIG-ID-00
+    name: freeze_and_evidence
+    r1_required: true
+    operations:
+      - backup_dev_and_test_database
+      - record_baseline_counts_and_ids
+      - record_existing_password_hashes_without_plaintext
+      - prove_legacy_login_classes_projects_and_electronics
+    exit_gate:
+      - backup_restore_verified
+      - baseline_manifest_written
+      - legacy_login_pass
+      - existing_data_visible
+  - id: MIG-ID-01
+    name: additive_global_identity
+    r1_required: true
+    operations:
+      - create_principals
+      - create_accounts
+      - create_profiles
+      - create_capability_grants
+      - create_legacy_user_account_links
+    forbidden:
+      - mutate_existing_users
+      - mutate_existing_sessions
+  - id: MIG-ID-02
+    name: additive_workspace_model
+    r1_required: true
+    operations:
+      - create_workspaces
+      - create_workspace_memberships
+      - create_workspace_policy_envelope
+      - add_tenant_kind_if_required
+    forbidden:
+      - change_existing_tenant_ids
+  - id: MIG-ID-03
+    name: existing_teacher_backfill
+    r1_required: true
+    transaction: single_idempotent_transaction_per_legacy_user
+    operations:
+      - create_account_from_existing_email_and_password_hash
+      - create_account_principal
+      - create_profile
+      - create_personal_workspace_backed_by_existing_tenant
+      - create_owner_membership
+      - create_creator_grant
+      - create_policy_compliant_educator_grant
+      - create_legacy_link
+      - create_audit_event
+    idempotency_key: tenant_id_plus_user_id
+  - id: MIG-ID-04
+    name: principal_aware_sessions
+    r1_required: true
+    operations:
+      - create_sessions_v2
+      - resolve_v2_token_first
+      - resolve_legacy_token_via_legacy_link
+      - issue_only_v2_for_new_login
+      - retain_legacy_session_until_controlled_expiry_or_revocation
+  - id: MIG-ID-05
+    name: public_registration_behind_flag
+    r1_required: true
+    feature_flag: identity.public_registration
+    operations:
+      - register_account
+      - create_profile_principal_personal_workspace_membership_creator_grant
+      - issue_sessions_v2
+      - support_email_and_username_login
+    owner_gate_before_default_enable: true
+  - id: MIG-ID-06
+    name: principal_ownership_bridge
+    r1_required: true
+    operations:
+      - add_projects_owner_principal_id_nullable
+      - add_classrooms_created_by_principal_id_nullable
+      - add_audit_events_actor_principal_id_nullable
+      - backfill_from_legacy_links
+      - add_constraints_after_complete_backfill
+    compatibility_window_minimum_releases: 2
+    forbidden:
+      - drop_legacy_author_columns
+      - make_not_null_before_complete_backfill
+  - id: MIG-ID-07
+    name: compatibility_cutover
+    r1_required: false
+    earliest_after: R1_owner_acceptance
+    operations:
+      - default_login_without_workspace_slug
+      - hide_legacy_workspace_login_from_public_ui
+      - keep_compatibility_endpoint
+      - monitor_legacy_resolver_usage
+  - id: MIG-ID-08
+    name: destructive_legacy_deprecation
+    r1_required: false
+    destructive: true
+    earliest_after:
+      - two_stable_release_gates
+      - zero_legacy_session_resolution_window
+      - verified_backup_restore
+      - owner_approval
+      - adr_destructive_migration_review
+    forbidden_during_r1: true
+
+api_contract:
+  primary:
+    - POST /api/auth/register
+    - POST /api/auth/login
+    - POST /api/auth/logout
+    - GET /api/auth/me
+    - GET /api/workspaces
+    - POST /api/session/context
+    - POST /api/capabilities/educator/self-attest
+    - GET /api/account/profile
+    - PATCH /api/account/profile
+    - GET /api/account/sessions
+    - DELETE /api/account/sessions/:id
+    - POST /api/account/sessions/revoke-all
+  compatibility:
+    - POST /api/auth/login-legacy-workspace
+  context_resolution:
+    - resolve_session_principal
+    - verify_active_workspace_membership
+    - resolve_workspace_tenant_id
+    - set_local_app_tenant_id
+    - invoke_application_use_case
+  untrusted_client_fields:
+    - tenantId
+    - workspaceId
+    - role
+    - capability
+
+security_contract:
+  global_identity_tables_direct_runtime_grants: forbidden
+  tenant_owned_tables_require:
+    - tenant_id_not_null
+    - composite_lineage
+    - runtime_role_no_bypassrls
+    - set_local_app_tenant_id
+  negative_tests:
+    - account_cannot_activate_unknown_workspace
+    - member_cannot_activate_suspended_workspace
+    - client_tenant_override_rejected
+    - personal_workspace_invisible_to_other_account
+    - school_admin_does_not_gain_platform_admin
+    - legacy_user_cannot_map_cross_tenant
+    - studentseat_session_denied_account_only_endpoints
+    - creator_without_educator_denied_classes
+
+required_test_groups:
+  migration:
+    - empty_database
+    - existing_database
+    - repeat_idempotency
+    - collision_preflight
+    - rollback_compatibility
+    - preservation_manifest
+  identity:
+    - email_registration
+    - username_login
+    - email_login
+    - password_hash_verification
+    - session_hash_and_revocation
+    - exactly_one_personal_workspace
+  compatibility:
+    - existing_teacher_legacy_login
+    - existing_teacher_v2_login
+    - same_classes_visible
+    - same_projects_visible
+    - same_electronics_documents_visible
+  authorization:
+    - personal_workspace_isolation
+    - organization_workspace_isolation
+    - capability_and_membership_separation
+    - educator_grant_audit
+    - creator_classes_denial
+
+rollback_contract:
+  strategy: disable_new_read_path_and_feature_flags_without_dropping_new_tables
+  must_preserve:
+    - existing_users
+    - existing_sessions
+    - existing_tenants
+    - existing_classes
+    - existing_projects
+    - existing_project_versions
+  forbidden:
+    - rollback_by_deleting_accounts_created_from_legacy_users
+    - rollback_by_restoring_plaintext_tokens
+    - rollback_by_disabling_rls
+
+candidate_acceptance:
+  selected_candidate_must:
+    - implement_all_r1_required_stages_or_document_exact_remaining_milestone
+    - preserve_baseline_manifest
+    - include_sessions_v2
+    - include_exactly_one_personal_workspace_per_account
+    - bridge_existing_teacher
+    - exclude_class_code_and_studentseat_scope
+    - pass_empty_existing_repeat_migrations
+    - pass_security_negative_tests
+    - pass_owner_visible_account_flow
+  candidate_a_pr59:
+    known_gap:
+      - sessions_v2
+      - working_registration_to_personal_workspace_session
+      - class_code_scope_must_be_removed_from_r1
+  candidate_b_pr60:
+    known_gap:
+      - educator_grant_milestone_not_complete
+      - principal_ownership_nullability_requires_strict_preservation_review
+      - public_entry_age_email_policy_may_need_selective_transfer
