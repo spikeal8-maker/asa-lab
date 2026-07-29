@@ -17,8 +17,13 @@ EXPECTED_REFS = {
     "detailed_plan": "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md",
     "target_blueprint": "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml",
     "owner_decision": "docs/delivery/R0_OWNER_DECISION.yaml",
+    "foundation_decision": "docs/delivery/R0_FOUNDATION_DECISION.yaml",
+    "r1_candidate_decision": "docs/delivery/R0_R1_CANDIDATE_DECISION.yaml",
     "post_merge_transition": "docs/delivery/R0_POST_MERGE_TRANSITION.yaml",
+    "baseline_preservation": "docs/delivery/R0_BASELINE_PRESERVATION_CONTRACT.yaml",
     "release_map_template": "docs/project-map/R0_TARGET_RELEASE_MAP.yaml",
+    "target_test_matrix": "docs/testing/ASA_TARGET_TEST_MATRIX.yaml",
+    "r1_migration_contract": "docs/architecture/R1_ACCOUNT_WORKSPACE_MIGRATION_CONTRACT.yaml",
 }
 
 
@@ -106,13 +111,28 @@ def main() -> int:
         if EXPECTED_REFS["human_plan"] == EXPECTED_REFS["detailed_plan"]:
             fail("canonical human plan and detailed design plan must remain distinct")
 
-    except (OSError, ValueError, yaml.YAMLError) as error:
+        owner = yaml.safe_load((ROOT / EXPECTED_REFS["owner_decision"]).read_text(encoding="utf-8"))
+        foundation = yaml.safe_load(
+            (ROOT / EXPECTED_REFS["foundation_decision"]).read_text(encoding="utf-8")
+        )
+        candidate = yaml.safe_load(
+            (ROOT / EXPECTED_REFS["r1_candidate_decision"]).read_text(encoding="utf-8")
+        )
+        if owner.get("activation_pull_request") != 43:
+            fail("owner decision must activate PR 43")
+        if foundation.get("foundation_pull_request") != 34:
+            fail("foundation decision must govern PR 34")
+        if candidate.get("selection_phase") != "R0C_R1_SELECTION":
+            fail("R1 candidate decision must be deferred to R0C")
+
+    except (OSError, ValueError, yaml.YAMLError, AttributeError) as error:
         print(f"ASA R0 contract references FAIL: {error}", file=sys.stderr)
         return 1
 
     print("ASA R0 contract references PASS")
     print(f"- references: {len(EXPECTED_REFS)}")
     print("- execution order: R0 -> R10 (strict)")
+    print("- PR34/PR43/R1 decisions: explicitly separated")
     print("- canonical human plan: owner-gated R0 contract")
     print("- detailed plan: non-canonical design/workstream reference")
     return 0
