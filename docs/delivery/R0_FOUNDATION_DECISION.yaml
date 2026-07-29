@@ -1,0 +1,63 @@
+schema_version: 1.0.0
+decision_id: asa-r0-pr34-foundation
+status: pending_owner
+foundation_pull_request: 34
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+human_packet: docs/delivery/R0_FOUNDATION_REVIEW_PR34.md
+
+expected_scope:
+  - project_foundation
+  - electronics_foundation
+forbidden_scope:
+  - account_identity
+  - studentseat
+  - publication_remix
+  - assignments_submissions_review
+  - full_tinkercad_parity_claim
+  - destructive_migration
+
+required_corrective_items:
+  - id: runtime_projects_update_is_column_scoped
+    status: open
+    evidence: null
+    requirement: Runtime role may update only explicitly required project columns; ownership, tenant, scope, classroom, module identity and immutable metadata remain denied.
+  - id: migration_empty_existing_repeat_pass
+    status: pending
+    evidence: null
+    requirement: Migration 0003/0004 passes empty, existing and repeat scenarios without data loss.
+  - id: project_save_reload_checkpoint_pass
+    status: pending
+    evidence: null
+    requirement: Personal project create, rename, autosave, reload and immutable checkpoint work.
+  - id: electronics_foundation_flow_pass
+    status: pending
+    evidence: null
+    requirement: Components, wires, inspector, start/stop simulation, diagnostics and save/reload work in live browser.
+  - id: owner_visual_review_pass
+    status: pending
+    evidence: null
+    requirement: Owner accepts desktop/mobile foundation screenshots and live flow.
+
+approval:
+  decided_by: null
+  decided_at: null
+  evidence_comment_url: null
+  decision_notes: null
+approval_format:
+  decided_by: spikeal8-maker
+  decided_at: quoted ISO-8601 UTC timestamp ending in Z
+  evidence_comment_url: https://github.com/spikeal8-maker/asa-lab/pull/34#issuecomment-<numeric-id>
+
+allowed_statuses:
+  - pending_owner
+  - accepted_pending_merge
+  - rejected_changes_required
+  - rejected_close_candidate
+
+activation_rules:
+  - all_required_corrective_items_must_pass_before_acceptance
+  - acceptance_is_project_and_electronics_foundation_only
+  - parity_completion_must_remain_not_claimed
+  - rejection_requires_owner_notes
+  - pr_43_rebase_waits_for_foundation_decision
+  - r1_remains_blocked
