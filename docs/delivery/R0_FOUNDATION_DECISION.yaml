@@ -48,9 +48,19 @@ approval_format:
   decided_at: quoted ISO-8601 UTC timestamp ending in Z
   evidence_comment_url: https://github.com/spikeal8-maker/asa-lab/pull/34#issuecomment-<numeric-id>
 
+merge:
+  merged_at: null
+  merge_commit_sha: null
+  merged_by: null
+merge_format:
+  merged_at: quoted ISO-8601 UTC timestamp ending in Z
+  merge_commit_sha: 40-character lowercase Git SHA
+  merged_by: spikeal8-maker
+
 allowed_statuses:
   - pending_owner
   - accepted_pending_merge
+  - accepted_merged
   - rejected_changes_required
   - rejected_close_candidate
 
@@ -59,5 +69,5 @@ activation_rules:
   - acceptance_is_project_and_electronics_foundation_only
   - parity_completion_must_remain_not_claimed
   - rejection_requires_owner_notes
-  - pr_43_rebase_waits_for_foundation_decision
+  - pr_43_rebase_waits_for_accepted_merged_foundation
   - r1_remains_blocked
