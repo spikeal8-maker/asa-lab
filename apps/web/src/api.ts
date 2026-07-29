@@ -67,11 +67,23 @@ export interface SchematicConnection {
   vertices?: { x: number; y: number }[];
 }
 
+export interface BreadboardAttachment {
+  id: string;
+  breadboardComponentId: string;
+  breadboardTerminalId: TerminalId;
+  componentId: string;
+  componentTerminalId: TerminalId;
+  footprintKey?: string;
+  insertionDepthMm?: number;
+}
+
 export interface SchematicDocument {
   schemaVersion: 1;
   geometryProfile?: ElectronicsGeometryProfile;
   components: SchematicComponent[];
   connections: SchematicConnection[];
+  /** Hidden component-lead to physical-hole edges; absent legacy documents mean none. */
+  breadboardAttachments?: BreadboardAttachment[];
 }
 
 export interface Diagnostic {
