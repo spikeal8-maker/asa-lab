@@ -92,7 +92,8 @@ export interface ApiError {
 }
 
 export type ApiResult<T> =
-  { ok: true; status: number; data: T } | { ok: false; status: number; error: ApiError };
+  | { ok: true; status: number; data: T }
+  | { ok: false; status: number; error: ApiError };
 
 async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   let response: Response;
@@ -127,7 +128,7 @@ export interface CreateProjectOptions {
   scope: ProjectScope;
   classroomId?: string | null | undefined;
   title: string;
-  module: 'electronics';
+  moduleKey: 'electronics';
   idempotencyKey: string;
 }
 
@@ -154,7 +155,7 @@ export const api = {
       body: JSON.stringify({
         scope: options.scope,
         classroomId: options.classroomId ?? null,
-        module: options.module,
+        moduleKey: options.moduleKey,
         title: options.title,
       }),
     }),
