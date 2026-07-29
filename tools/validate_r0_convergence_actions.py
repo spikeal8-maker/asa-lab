@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the exact R0 branch-convergence action sequence."""
+"""Validate the exact pre-completion R0 branch-convergence action sequence."""
 
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ EXPECTED_ACTIONS = [
     "close_pr_35_45_47_after_transfer_proof",
     "select_exactly_one_of_pr_59_or_pr_60",
     "rebase_selected_r1_once_on_accepted_baseline",
-    "execute_r0d_completion_transition",
 ]
 
 
@@ -59,16 +58,15 @@ def main() -> int:
 
         position = {action: index for index, action in enumerate(actions)}
         required_before = (
-            ("owner_review_pr_34_foundation_scope", "owner_review_target_contract_decisions"),
+            ("owner_review_pr_34_foundation_scope", "resolve_pr_34_foundation_correctives"),
             ("resolve_pr_34_foundation_correctives", "owner_record_pr_34_foundation_decision"),
-            ("owner_record_pr_34_foundation_decision", "rebase_and_merge_pr_43_after_pr_34_accepted_merge"),
+            ("owner_record_pr_34_foundation_decision", "owner_review_target_contract_decisions"),
             ("owner_review_target_contract_decisions", "rebase_and_merge_pr_43_after_pr_34_accepted_merge"),
             ("rebase_and_merge_pr_43_after_pr_34_accepted_merge", "execute_r0a_contract_activation"),
             ("execute_r0a_contract_activation", "create_one_p1_integration_pr"),
             ("create_one_p1_integration_pr", "close_pr_35_45_47_after_transfer_proof"),
             ("close_pr_35_45_47_after_transfer_proof", "select_exactly_one_of_pr_59_or_pr_60"),
             ("select_exactly_one_of_pr_59_or_pr_60", "rebase_selected_r1_once_on_accepted_baseline"),
-            ("rebase_selected_r1_once_on_accepted_baseline", "execute_r0d_completion_transition"),
         )
         for earlier, later in required_before:
             if position[earlier] >= position[later]:
@@ -92,17 +90,27 @@ def main() -> int:
             "R0C_R1_SELECTION",
             "R0D_COMPLETION_TRANSITION",
         ]:
-            fail("post-merge phases do not match the convergence action sequence")
+            fail("post-merge phases must remain R0A, R0B, R0C and R0D")
+        completion = next(
+            phase
+            for phase in post_merge["phases"]
+            if isinstance(phase, dict) and phase.get("id") == "R0D_COMPLETION_TRANSITION"
+        )
+        completion_actions = set(completion.get("actions") or [])
+        if not {"mark_r0_done", "mark_r1_ready", "set_current_gate_r1"}.issubset(
+            completion_actions
+        ):
+            fail("R0D must remain the sole explicit R1 activation phase")
 
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (OSError, StopIteration, ValueError, yaml.YAMLError) as error:
         print(f"ASA R0 convergence action sequence FAIL: {error}", file=sys.stderr)
         return 1
 
     print("ASA R0 convergence action sequence PASS")
-    print(f"- ordered actions: {len(EXPECTED_ACTIONS)}")
+    print(f"- pre-completion ordered actions: {len(EXPECTED_ACTIONS)}")
     print("- PR34 accepted merge before final PR43 rebase: enforced")
-    print("- R0A -> R0B -> R0C -> R0D: enforced")
-    print("- R1 ready before R0D: forbidden")
+    print("- R0A -> R0B -> R0C ordering: enforced")
+    print("- R0D remains the sole R1 activation phase")
     return 0
 
 
