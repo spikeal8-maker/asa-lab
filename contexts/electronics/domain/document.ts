@@ -164,10 +164,25 @@ function connectionPairKey(from: SchematicEndpoint, to: SchematicEndpoint): stri
   return [endpointKey(from), endpointKey(to)].sort().join('|');
 }
 
+function recordBreadboardConductor(
+  endpoint: SchematicEndpoint,
+  componentKinds: ReadonlyMap<string, ComponentKind>,
+  occupiedBreadboardHoles: Set<string>,
+): string | null {
+  if (componentKinds.get(endpoint.componentId) !== 'breadboard') return null;
+  const key = endpointKey(endpoint);
+  if (occupiedBreadboardHoles.has(key)) {
+    return 'breadboard physical hole can contain only one conductor';
+  }
+  occupiedBreadboardHoles.add(key);
+  return null;
+}
+
 function parseBreadboardAttachments(
   value: unknown,
   geometryProfile: ElectronicsGeometryProfile,
   componentKinds: ReadonlyMap<string, ComponentKind>,
+  initialOccupiedBoardHoles: ReadonlySet<string>,
 ): readonly BreadboardAttachment[] | string | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length > MAX_BREADBOARD_ATTACHMENTS) {
@@ -180,7 +195,7 @@ function parseBreadboardAttachments(
   const attachments: BreadboardAttachment[] = [];
   const seenIds = new Set<string>();
   const occupiedComponentTerminals = new Set<string>();
-  const occupiedBoardHoles = new Set<string>();
+  const occupiedBoardHoles = new Set(initialOccupiedBoardHoles);
   for (const raw of value) {
     if (!isPlainObject(raw)) return 'breadboard attachment must be an object';
     const unknownKeys = Object.keys(raw).filter((key) => !ATTACHMENT_KEYS.has(key));
@@ -234,7 +249,7 @@ function parseBreadboardAttachments(
     }
     const boardHoleKey = `${breadboardComponentId}:${breadboardTerminalId}`;
     if (occupiedBoardHoles.has(boardHoleKey)) {
-      return 'breadboard physical hole can contain only one attached conductor';
+      return 'breadboard physical hole can contain only one conductor';
     }
 
     seenIds.add(id);
@@ -309,6 +324,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   const connections: SchematicConnection[] = [];
   const seenConnections = new Set<string>();
   const seenEndpointPairs = new Set<string>();
+  const occupiedBreadboardHoles = new Set<string>();
   for (const raw of rawConnections) {
     if (!isPlainObject(raw)) return { ok: false, message: 'connection must be an object' };
     const { id, from: rawFrom, to: rawTo, color, vertices } = raw;
@@ -325,6 +341,18 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     if (seenEndpointPairs.has(pairKey)) {
       return { ok: false, message: 'duplicate connection endpoints are not allowed' };
     }
+    const fromOccupancyError = recordBreadboardConductor(
+      from,
+      componentKinds,
+      occupiedBreadboardHoles,
+    );
+    if (fromOccupancyError) return { ok: false, message: fromOccupancyError };
+    const toOccupancyError = recordBreadboardConductor(
+      to,
+      componentKinds,
+      occupiedBreadboardHoles,
+    );
+    if (toOccupancyError) return { ok: false, message: toOccupancyError };
     if (color !== undefined && (typeof color !== 'string' || !COLOR_PATTERN.test(color)))
       return { ok: false, message: 'wire color must be a six-digit hex color' };
     let parsedVertices: ComponentPosition[] | undefined;
@@ -353,6 +381,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     value['breadboardAttachments'],
     geometryProfile,
     componentKinds,
+    occupiedBreadboardHoles,
   );
   if (typeof breadboardAttachments === 'string') {
     return { ok: false, message: breadboardAttachments };
