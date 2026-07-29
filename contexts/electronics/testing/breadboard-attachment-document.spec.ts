@@ -109,6 +109,11 @@ describe('breadboard attachment document contract', () => {
       'breadboard attachment target must be an attachable non-board component',
     ],
     [
+      'unsafe attachment id',
+      attachment({ id: '../foreign' }),
+      'breadboard attachment id must be unique, safe and non-empty',
+    ],
+    [
       'unsafe footprint key',
       attachment({ footprintKey: '../foreign' }),
       'breadboard attachment footprintKey is invalid',
@@ -141,7 +146,7 @@ describe('breadboard attachment document contract', () => {
       ),
     ).toEqual({
       ok: false,
-      message: 'breadboard attachment id must be unique and non-empty',
+      message: 'breadboard attachment id must be unique, safe and non-empty',
     });
   });
 });
