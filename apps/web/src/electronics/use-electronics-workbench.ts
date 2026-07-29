@@ -17,10 +17,10 @@ import {
   type ComponentVisualState,
 } from './component-catalog';
 import {
+  clientToSvgWorld,
   clientToWorld,
   clamp,
   fitViewport,
-  snap,
   viewportViewBox,
   type Point,
   type Viewport,
@@ -94,9 +94,16 @@ export function useElectronicsWorkbench(projectId: string) {
   const panDragRef = useRef<PanDrag | null>(null);
   const spacePressedRef = useRef(false);
   const counterRef = useRef(0);
+
   function nextId(prefix: string): string {
     counterRef.current += 1;
     return `${prefix}-${Date.now().toString(36)}-${counterRef.current}`;
+  }
+
+  function editable(): boolean {
+    if (!simulationRunning) return true;
+    setNotice('Остановите моделирование перед изменением схемы. Масштаб и просмотр доступны.');
+    return false;
   }
 
   function visibleCenter(): Point {
@@ -105,26 +112,26 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function addComponent(kind: Exclude<ComponentKind, 'wire'>, at?: Point): void {
-    if (!document) return;
+    if (!document || !editable()) return;
     const added = addComponentToDocument(document, kind, at ?? visibleCenter(), nextId(kind));
     const entry = catalogEntry(kind);
     commitDocument(
       added.document,
-      `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
+      `${entry?.label ?? 'Компонент'} добавлен по сетке 2,54 мм. Соедините выводы проводами.`,
     );
     setSelection({ kind: 'component', id: added.component.id });
   }
 
   function duplicateSelected(): void {
-    if (!document || selection?.kind !== 'component') return;
+    if (!document || selection?.kind !== 'component' || !editable()) return;
     const duplicated = duplicateComponentInDocument(document, selection, nextId(selection.id));
     if (!duplicated) return;
-    commitDocument(duplicated.document, 'Создана копия элемента.');
+    commitDocument(duplicated.document, 'Создана копия элемента с привязкой к макетной сетке.');
     setSelection({ kind: 'component', id: duplicated.component.id });
   }
 
   function removeSelection(): void {
-    if (!document || !selection) return;
+    if (!document || !selection || !editable()) return;
     commitDocument(
       removeSelectionFromDocument(document, selection),
       selection.kind === 'wire' ? 'Провод удалён.' : 'Элемент удалён.',
@@ -133,13 +140,13 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function rotateSelected(): void {
-    if (!document) return;
+    if (!document || !editable()) return;
     const next = rotateSelectionInDocument(document, selection);
-    if (next) commitDocument(next, 'Элемент повернут на 90° — провода обновлены.');
+    if (next) commitDocument(next, 'Элемент повернут вокруг центра; выводы привязаны к сетке.');
   }
 
   function updateSelectedValue(value: number): void {
-    if (!document) return;
+    if (!document || !editable()) return;
     const next = updateSelectionValue(document, selection, value);
     if (next) commitDocument(next);
   }
@@ -152,16 +159,16 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function toggleWireRoute(): void {
-    if (!document) return;
+    if (!document || !editable()) return;
     const next = toggleSelectedWireRoute(document, selection);
     if (next) commitDocument(next);
   }
 
   function clickTerminal(componentId: string, terminal: 'a' | 'b'): void {
-    if (!document) return;
+    if (!document || !editable()) return;
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
-      setNotice('Выберите второй вывод. Провод будет проложен автоматически.');
+      setNotice('Выберите второй вывод. Провод будет проложен по макетной сетке.');
       return;
     }
     if (pendingTerminal.componentId === componentId && pendingTerminal.terminal === terminal) {
@@ -192,13 +199,15 @@ export function useElectronicsWorkbench(projectId: string) {
   function toWorld(event: PointerEvent | DragEvent | WheelEvent): Point {
     const stage = stageRef.current;
     if (!stage) return { x: 0, y: 0 };
-    return clientToWorld(
-      event.clientX,
-      event.clientY,
-      stage.getBoundingClientRect(),
-      viewport,
-      STAGE_WIDTH,
-      STAGE_HEIGHT,
+    return clientToSvgWorld(stage, event.clientX, event.clientY, () =>
+      clientToWorld(
+        event.clientX,
+        event.clientY,
+        stage.getBoundingClientRect(),
+        viewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      ),
     );
   }
 
@@ -206,7 +215,7 @@ export function useElectronicsWorkbench(projectId: string) {
     event: PointerEvent<SVGGElement>,
     component: SchematicComponent,
   ): void {
-    if (event.button !== 0 || pendingTerminal) return;
+    if (event.button !== 0 || pendingTerminal || !editable()) return;
     const point = toWorld(event);
     componentDragRef.current = {
       componentId: component.id,
@@ -250,23 +259,26 @@ export function useElectronicsWorkbench(projectId: string) {
       if (!component || !entry) return;
       const size = renderedSize(entry, component.rotation ?? 0);
       const margin = 20;
-      const next = {
-        x: snap(clamp(world.x - drag.offset.x, -1000 + margin, 5000 - size.width - margin)),
-        y: snap(clamp(world.y - drag.offset.y, -1000 + margin, 4000 - size.height - margin)),
+      const proposed = {
+        x: clamp(world.x - drag.offset.x, -1000 + margin, 5000 - size.width - margin),
+        y: clamp(world.y - drag.offset.y, -1000 + margin, 4000 - size.height - margin),
       };
-      setDocument(moveComponentInDocument(document, drag.componentId, next));
+      setDocument(moveComponentInDocument(document, drag.componentId, proposed));
       setSaveStatus('dirty');
       return;
     }
     const pan = panDragRef.current;
     if (pan && pan.pointerId === event.pointerId) {
+      const matrix = event.currentTarget.getScreenCTM();
       const rect = event.currentTarget.getBoundingClientRect();
-      const scaleX = STAGE_WIDTH / pan.startViewport.zoom / rect.width;
-      const scaleY = STAGE_HEIGHT / pan.startViewport.zoom / rect.height;
+      const fallbackScaleX = rect.width / (STAGE_WIDTH / pan.startViewport.zoom);
+      const fallbackScaleY = rect.height / (STAGE_HEIGHT / pan.startViewport.zoom);
+      const scaleX = matrix ? Math.hypot(matrix.a, matrix.b) : fallbackScaleX;
+      const scaleY = matrix ? Math.hypot(matrix.c, matrix.d) : fallbackScaleY;
       setViewport({
         ...pan.startViewport,
-        x: pan.startViewport.x - (event.clientX - pan.startClient.x) * scaleX,
-        y: pan.startViewport.y - (event.clientY - pan.startClient.y) * scaleY,
+        x: pan.startViewport.x - (event.clientX - pan.startClient.x) / Math.max(scaleX, 0.0001),
+        y: pan.startViewport.y - (event.clientY - pan.startClient.y) / Math.max(scaleY, 0.0001),
       });
     }
   }
@@ -282,7 +294,7 @@ export function useElectronicsWorkbench(projectId: string) {
           (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y)
         ) {
           pushHistory(document);
-          setNotice('Положение сохранится автоматически.');
+          setNotice('Положение и выводы выровнены по макетной сетке; изменение сохранится автоматически.');
         }
       }
     }
@@ -299,13 +311,13 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function handleWheel(event: WheelEvent<SVGSVGElement>): void {
     event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
     const before = toWorld(event);
+    const currentBox = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const rx = clamp((before.x - currentBox.x) / currentBox.width, 0, 1);
+    const ry = clamp((before.y - currentBox.y) / currentBox.height, 0, 1);
     const zoom = clamp(viewport.zoom * (event.deltaY > 0 ? 0.88 : 1.14), 0.35, 3.2);
     const visibleWidth = STAGE_WIDTH / zoom;
     const visibleHeight = STAGE_HEIGHT / zoom;
-    const rx = (event.clientX - rect.left) / rect.width;
-    const ry = (event.clientY - rect.top) / rect.height;
     setViewport({ x: before.x - rx * visibleWidth, y: before.y - ry * visibleHeight, zoom });
   }
 
@@ -330,6 +342,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function handleDrop(event: DragEvent<SVGSVGElement>): void {
     event.preventDefault();
+    if (!editable()) return;
     const kind = event.dataTransfer.getData(DRAG_MIME) as Exclude<ComponentKind, 'wire'>;
     if (!['source', 'resistor', 'led'].includes(kind)) return;
     addComponent(kind, toWorld(event));
@@ -339,19 +352,21 @@ export function useElectronicsWorkbench(projectId: string) {
     function keyDown(event: globalThis.KeyboardEvent): void {
       if (event.code === 'Space' && !(event.target instanceof HTMLInputElement))
         spacePressedRef.current = true;
-      const editable =
-        event.target instanceof HTMLInputElement ||
+      const inputTarget = event.target instanceof HTMLInputElement;
+      const editableTarget =
+        inputTarget ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement;
-      if (editable) return;
+      if (editableTarget) return;
       const modifier = event.ctrlKey || event.metaKey;
       if (modifier && event.key.toLowerCase() === 'z') {
         event.preventDefault();
+        if (!editable()) return;
         if (event.shiftKey) redo();
         else undo();
       } else if (modifier && event.key.toLowerCase() === 'y') {
         event.preventDefault();
-        redo();
+        if (editable()) redo();
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         removeSelection();
@@ -381,7 +396,10 @@ export function useElectronicsWorkbench(projectId: string) {
       const categoryMatches = category === 'all' || entry.category === category;
       const queryMatches =
         !query ||
-        [entry.label, entry.description, ...entry.keywords].join(' ').toLowerCase().includes(query);
+        [entry.label, entry.description, entry.physical.source, ...entry.keywords]
+          .join(' ')
+          .toLowerCase()
+          .includes(query);
       return categoryMatches && queryMatches;
     });
   }, [category, libraryQuery]);
