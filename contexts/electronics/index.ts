@@ -24,6 +24,11 @@ export {
   type NearestBreadboardHole,
 } from './domain/breadboard.js';
 export {
+  breadboardInternalLinks,
+  breadboardTerminalIds,
+  type BreadboardInternalLink,
+} from './domain/breadboard-netlist.js';
+export {
   COMPONENT_KINDS,
   COMPONENT_TERMINAL_MODELS,
   COMPONENT_VALUE_MODELS,
