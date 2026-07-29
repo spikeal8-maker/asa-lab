@@ -12,6 +12,18 @@
 
 До принятия R0 новая продуктовая ветка не создаётся.
 
+Отдельное решение по PR №34 фиксируется в:
+
+```text
+docs/delivery/R0_FOUNDATION_DECISION.yaml
+```
+
+Пять решений ниже относятся к target contract PR №43 и фиксируются в:
+
+```text
+docs/delivery/R0_OWNER_DECISION.yaml
+```
+
 ---
 
 ## Решение 1. Один Account, несколько контекстов
@@ -138,15 +150,20 @@ Identity и ownership должны быть определены до новых
 
 ## Решение по текущим веткам
 
-После принятия пяти решений:
+После принятия пяти решений target contract:
 
 ```text
-1. Принять или отклонить PR №34 как ограниченный Electronics/Project foundation
-2. Rebase и merge PR №43
-3. Создать один P1 integration PR из проверенной integration branch
-4. Закрыть transfer-only PR №35/№45/№47 после переноса
-5. Выбрать PR №59 ИЛИ PR №60 как единственную R1 identity-линию
-6. Вторую identity-линию закрыть как superseded
+1. Завершить отдельное решение по PR №34
+2. Если PR №34 принят — исправить corrective items, получить owner acceptance и merge PR №34
+3. Если PR №34 отклонён — сначала изменить R0 integration/source contract; PR №43 не merge по старому плану
+4. После принятого merge PR №34 один раз rebase PR №43 на новый main
+5. Выполнить полный R0 gate и merge PR №43
+6. Выполнить R0A governance transition; R1 остаётся blocked
+7. Создать один R0B/P1 integration PR
+8. Закрыть PR №35/№45/№47 после доказанного transfer
+9. В R0C выбрать PR №59 ИЛИ PR №60
+10. Вторую identity-линию закрыть как superseded
+11. Только R0D переводит R1 в ready
 ```
 
 - [ ] Порядок конвергенции принят
@@ -162,4 +179,6 @@ Decisions 1–5: accepted
 Convergence order: accepted
 ```
 
-Только после этого локальный исполнитель запускает validators, rebase и merge PR №43. В той же сессии product coding не начинается.
+Затем `R0_OWNER_DECISION.yaml` получает owner attribution. Это не заменяет отдельное решение и merge PR №34.
+
+Только после PR №34 `accepted_merged`, полного R0 technical PASS и target owner approval локальный исполнитель выполняет final rebase/merge PR №43. В той же сессии product coding не начинается.
