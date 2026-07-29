@@ -9,8 +9,13 @@ human_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md
 detailed_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md
 target_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
 owner_decision: docs/delivery/R0_OWNER_DECISION.yaml
+foundation_decision: docs/delivery/R0_FOUNDATION_DECISION.yaml
+r1_candidate_decision: docs/delivery/R0_R1_CANDIDATE_DECISION.yaml
 post_merge_transition: docs/delivery/R0_POST_MERGE_TRANSITION.yaml
+baseline_preservation: docs/delivery/R0_BASELINE_PRESERVATION_CONTRACT.yaml
 release_map_template: docs/project-map/R0_TARGET_RELEASE_MAP.yaml
+target_test_matrix: docs/testing/ASA_TARGET_TEST_MATRIX.yaml
+r1_migration_contract: docs/architecture/R1_ACCOUNT_WORKSPACE_MIGRATION_CONTRACT.yaml
 current_gate: R0
 execution_order: [R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10]
 release_selection: strict_list_order
