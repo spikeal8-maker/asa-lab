@@ -5,8 +5,12 @@ activation:
   pull_request: 43
   rule: becomes normative only after owner approval and merge
 program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
-human_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md
+human_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md
+detailed_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md
 target_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
+owner_decision: docs/delivery/R0_OWNER_DECISION.yaml
+post_merge_transition: docs/delivery/R0_POST_MERGE_TRANSITION.yaml
+release_map_template: docs/project-map/R0_TARGET_RELEASE_MAP.yaml
 current_gate: R0
 
 ports:
