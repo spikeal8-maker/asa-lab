@@ -10,11 +10,14 @@
 
 ## Исполнение
 
-- [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md)
-- [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml)
-- [`../delivery/R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md)
-- [`../../AGENTS.md`](../../AGENTS.md)
-- [`../delivery/BOT_RUNBOOK.md`](../delivery/BOT_RUNBOOK.md)
+- [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md) — актуальный owner-gated human contract;
+- [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml) — machine-readable release/branch/Issue contract;
+- [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md) — подробный design/workstream документ;
+- [`../delivery/R0_CONVERGENCE_CURRENT_STATE.md`](../delivery/R0_CONVERGENCE_CURRENT_STATE.md) — текущие роли веток и freeze;
+- [`../delivery/R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) — пять решений владельца;
+- [`../../AGENTS.md`](../../AGENTS.md);
+- [`../../START_HERE_FOR_AI.md`](../../START_HERE_FOR_AI.md);
+- [`../delivery/BOT_RUNBOOK.md`](../delivery/BOT_RUNBOOK.md).
 
 ## Reference parity и evidence
 
@@ -56,11 +59,18 @@ R10 Multi-module lifecycle proof and measured operations scale
 ## Проверка R0
 
 ```text
-python tools/validate_tinkercad_parity.py
-python tools/validate_target_execution.py
-python tools/validate_architecture.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
+python tools/validate_r0.py
+```
+
+Wrapper включает:
+
+```text
+validate_r0_diff.py
+validate_tinkercad_parity.py
+validate_target_execution.py
+validate_architecture.py
+validate_project_map.py
+validate_test_catalog.py
 ```
 
 ## Текущий owner action
