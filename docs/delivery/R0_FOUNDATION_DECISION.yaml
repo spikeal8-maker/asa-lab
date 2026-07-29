@@ -18,13 +18,13 @@ forbidden_scope:
 
 required_corrective_items:
   - id: runtime_projects_update_is_column_scoped
-    status: open
-    evidence: null
+    status: pending
+    evidence: "Static implementation on PR34: migration commit 83d57156de083087f39503091860fd135ecc8c9a and RLS-test commit 2b2e0842ce5da3d9308a2b13c18b6d895c7d9a9f; local execution NOT_RUN."
     requirement: Runtime role may update only explicitly required project columns; ownership, tenant, scope, classroom, module identity and immutable metadata remain denied.
   - id: migration_empty_existing_repeat_pass
     status: pending
     evidence: null
-    requirement: Migration 0003/0004 passes empty, existing and repeat scenarios without data loss.
+    requirement: Migrations 0003, 0004 and additive corrective 0005 pass empty, existing and repeat scenarios without data loss or applied-checksum changes.
   - id: project_save_reload_checkpoint_pass
     status: pending
     evidence: null
