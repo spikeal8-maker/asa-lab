@@ -15,23 +15,40 @@ export {
   type BreadboardTerminalRow,
 } from './domain/breadboard.js';
 export {
+  COMPONENT_KINDS,
+  COMPONENT_TERMINAL_MODELS,
   COMPONENT_VALUE_MODELS,
+  componentTerminalIds,
+  componentTerminalModel,
+  componentTerminalModels,
   componentValueError,
+  isComponentTerminal,
   isNominalComponentValue,
+  type ComponentKind,
+  type ComponentTerminalModel,
   type ComponentValueModel,
+  type TerminalElectricalRole,
+  type TerminalId,
 } from './domain/component-model.js';
 export {
   EMPTY_DOCUMENT,
   parseElectronicsDocument,
-  type ComponentKind,
+  type ComponentPosition,
   type DocumentParseResult,
   type ElectronicsDocument,
   type ElectronicsGeometryProfile,
   type SchematicComponent,
   type SchematicConnection,
+  type SchematicEndpoint,
   type Terminal,
 } from './domain/document.js';
-export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
+export {
+  buildNetlist,
+  buildNetlistFromTerminalMap,
+  terminalKey,
+  type Netlist,
+  type TerminalRef,
+} from './domain/netlist.js';
 export {
   solveCircuit,
   type ComponentResult,
