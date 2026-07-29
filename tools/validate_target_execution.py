@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Validate the owner-gated ASA Lab target-platform execution contract.
 
-The existing parity validator proves product invariants. This validator proves
-that coding agents have one deterministic release order, one Issue per release,
-one explicit R0 branch-convergence procedure and unambiguous owner/agent entry
-points before product work resumes.
+The parity validators prove product/interface scope. This validator proves that
+coding agents have one deterministic release order, one Issue per release, one
+explicit R0 branch-convergence procedure, complete surface-to-release mapping
+and unambiguous owner/agent entry points before product work resumes.
 """
 
 from __future__ import annotations
@@ -22,6 +22,8 @@ HUMAN_PLAN_PATH = ROOT / "docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md"
 CURRENT_STATE_PATH = ROOT / "docs/delivery/R0_CONVERGENCE_CURRENT_STATE.md"
 OWNER_DECISION_PATH = ROOT / "docs/delivery/R0_OWNER_DECISION.md"
 BLUEPRINT_PATH = ROOT / "docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml"
+SURFACE_CATALOG_PATH = ROOT / "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml"
+PARITY_SCOPE_PATH = ROOT / "docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml"
 INDEX_PATH = ROOT / "docs/product/TARGET_PLATFORM_INDEX.md"
 AGENTS_PATH = ROOT / "AGENTS.md"
 START_PATH = ROOT / "START_HERE_FOR_AI.md"
@@ -51,6 +53,18 @@ EXPECTED_OWNER_DECISIONS = {
     "personal_project_does_not_require_classroom",
     "account_and_studentseat_sessions_are_distinct",
     "r0_r10_release_order_and_additive_migration_policy",
+    "complete_interface_catalog_and_functional_parity_scope",
+}
+EXPECTED_CONTRACT_REFS = {
+    "visual_system": "docs/product/ASA_VISUAL_PRODUCT_SYSTEM.md",
+    "functional_parity_scope": "docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml",
+    "complete_interface_blueprint": "docs/product/ASA_COMPLETE_INTERFACE_BLUEPRINT.md",
+    "surface_catalog": "docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml",
+    "interface_catalog_viewer": "docs/product/interface-catalog.html",
+    "electronics_spec": "docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md",
+    "electronics_tool_catalog": "docs/product/ASA_ELECTRONICS_TOOL_CATALOG.yaml",
+    "student_experience_spec": "docs/product/ASA_STUDENT_EXPERIENCE_SPEC.md",
+    "admin_console_spec": "docs/product/ASA_ADMIN_CONSOLE_SPEC.md",
 }
 
 
@@ -130,7 +144,105 @@ def validate_release_graph(releases: list[dict[str, Any]]) -> None:
         fail("release dependency graph contains a cycle")
 
 
-def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int, int]:
+def validate_surface_mapping(
+    releases: list[dict[str, Any]], surface_catalog: dict[str, Any]
+) -> int:
+    raw_surfaces = surface_catalog.get("surfaces")
+    if not isinstance(raw_surfaces, list):
+        fail("surface catalog surfaces must be a list")
+    surfaces = {
+        surface.get("id"): surface
+        for surface in raw_surfaces
+        if isinstance(surface, dict) and isinstance(surface.get("id"), str)
+    }
+    if len(surfaces) != len(raw_surfaces):
+        fail("surface catalog contains malformed or duplicate surface IDs")
+
+    mapped: dict[str, str] = {}
+    for release in releases:
+        release_id = release["id"]
+        if release_id == "R0":
+            contracts = release.get("required_contracts")
+            if not isinstance(contracts, list) or len(contracts) < 5:
+                fail("R0 must define the complete interface/parity contract set")
+            for contract in contracts:
+                if not isinstance(contract, str) or not (ROOT / contract).is_file():
+                    fail(f"R0 required contract does not exist: {contract!r}")
+            continue
+
+        surface_ids = release.get("surface_ids")
+        if not isinstance(surface_ids, list) or not surface_ids:
+            fail(f"{release_id} must define non-empty surface_ids")
+        if len(surface_ids) != len(set(surface_ids)):
+            fail(f"{release_id}.surface_ids contain duplicates")
+        for surface_id in surface_ids:
+            if surface_id not in surfaces:
+                fail(f"{release_id} references unknown surface {surface_id}")
+            if surfaces[surface_id].get("release") != release_id:
+                fail(
+                    f"surface {surface_id} belongs to {surfaces[surface_id].get('release')}, "
+                    f"but execution plan maps it to {release_id}"
+                )
+            if surface_id in mapped:
+                fail(f"surface {surface_id} is mapped to both {mapped[surface_id]} and {release_id}")
+            mapped[surface_id] = release_id
+
+    missing = sorted(set(surfaces) - set(mapped))
+    if missing:
+        fail("surfaces are not mapped to a release: " + ", ".join(missing))
+    return len(mapped)
+
+
+def validate_capability_mapping(
+    releases: list[dict[str, Any]], parity_scope: dict[str, Any]
+) -> int:
+    raw_groups = parity_scope.get("capability_groups")
+    if not isinstance(raw_groups, list):
+        fail("functional parity scope capability_groups must be a list")
+    groups = {
+        group.get("id"): group
+        for group in raw_groups
+        if isinstance(group, dict) and isinstance(group.get("id"), str)
+    }
+    if len(groups) != len(raw_groups):
+        fail("functional parity scope has malformed or duplicate groups")
+
+    declared_groups: set[str] = set()
+    release_by_id = {release["id"]: release for release in releases}
+    r4_group = release_by_id["R4"].get("capability_group")
+    if r4_group != "GROUP-CIRCUITS":
+        fail("R4 must explicitly own GROUP-CIRCUITS")
+    declared_groups.add(r4_group)
+    r10_groups = release_by_id["R10"].get("capability_groups")
+    if not isinstance(r10_groups, list) or set(r10_groups) != {
+        "GROUP-3D",
+        "GROUP-CODEBLOCKS",
+        "GROUP-SIMLAB",
+        "GROUP-MOBILE-INTEGRATIONS",
+    }:
+        fail("R10 capability_groups must cover 3D, Codeblocks, Sim Lab and mobile/integrations")
+    declared_groups.update(r10_groups)
+
+    expected_other = {
+        "R1": "GROUP-PLATFORM",
+        "R5": "GROUP-CLASSROOM",
+    }
+    for release_id, group_id in expected_other.items():
+        if group_id not in groups:
+            fail(f"functional parity scope misses {group_id}")
+        declared_groups.add(group_id)
+    unknown = sorted(declared_groups - set(groups))
+    if unknown:
+        fail(f"execution plan references unknown capability groups: {unknown}")
+    return len(declared_groups)
+
+
+def validate_plan(
+    plan: dict[str, Any],
+    blueprint: dict[str, Any],
+    surface_catalog: dict[str, Any],
+    parity_scope: dict[str, Any],
+) -> tuple[int, int, int, int]:
     if plan.get("schema_version") != "1.0.0":
         fail("execution plan schema_version must be 1.0.0")
     if plan.get("plan_id") != "asa-target-platform-r0-r10":
@@ -139,6 +251,14 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
         fail("execution plan must remain owner_review_required before PR 43 merge")
     if plan.get("current_gate") != "R0":
         fail("current gate must remain R0 until owner-approved baseline convergence")
+    if plan.get("functional_parity_claim") != "not_100_percent":
+        fail("execution plan must keep functional_parity_claim = not_100_percent")
+
+    for field, expected in EXPECTED_CONTRACT_REFS.items():
+        if plan.get(field) != expected:
+            fail(f"execution plan {field} must be {expected}")
+        if not (ROOT / expected).is_file():
+            fail(f"execution plan contract does not exist: {expected}")
 
     activation = plan.get("activation")
     if not isinstance(activation, dict) or activation.get("pull_request") != 43:
@@ -163,6 +283,11 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
         "additive_migrations_until_owner_approved_destructive_gate",
         "no_new_long_lived_stacked_product_branches_after_r0",
         "next_release_starts_only_after_merge_and_map_transition",
+        "every_product_task_references_surface_and_capability_ids",
+        "absent_partial_in_review_or_evidence_required_never_count_as_parity_pass",
+        "literal_source_brand_asset_or_pixel_copy_is_forbidden",
+        "functional_parity_requires_original_asa_code_brand_and_owner_assets",
+        "administration_student_and_editor_interfaces_are_first_class_product_surfaces",
     }
     missing_rules = sorted(required_rules - rules)
     if missing_rules:
@@ -202,8 +327,10 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
         fail(f"competing R1 PRs must be {sorted(EXPECTED_COMPETING_R1)}, got {sorted(competing)}")
 
     actions = convergence.get("ordered_actions")
-    if not isinstance(actions, list) or len(actions) < 7:
+    if not isinstance(actions, list) or len(actions) < 8:
         fail("R0 ordered_actions must define the full convergence sequence")
+    if "owner_review_complete_interface_and_functional_parity_scope" not in actions:
+        fail("R0 convergence must include owner review of complete interface/parity scope")
     if actions[-1] != "rebase_selected_r1_once_on_accepted_baseline":
         fail("R0 must end by rebasing exactly one selected R1 line on the accepted baseline")
 
@@ -273,7 +400,9 @@ def validate_plan(plan: dict[str, Any], blueprint: dict[str, Any]) -> tuple[int,
     if owner_decisions != EXPECTED_OWNER_DECISIONS:
         fail("owner decision set is incomplete or contains unapproved additions")
 
-    return len(releases), len(candidates)
+    surface_count = validate_surface_mapping(releases, surface_catalog)
+    capability_group_count = validate_capability_mapping(releases, parity_scope)
+    return len(releases), len(candidates), surface_count, capability_group_count
 
 
 def validate_human_plan() -> None:
@@ -312,6 +441,9 @@ def validate_owner_and_agent_entry_points() -> None:
             "## Решение 3.",
             "## Решение 4.",
             "## Решение 5.",
+            "## Решение 6.",
+            "Decisions 1–6: accepted",
+            "Functional parity scope: accepted",
             "OWNER DECISION: APPROVED",
             "Convergence order: accepted",
         ),
@@ -320,8 +452,13 @@ def validate_owner_and_agent_entry_points() -> None:
         INDEX_PATH,
         (
             "R0  Contract and one accepted baseline",
-            "R10 Multi-module lifecycle proof",
+            "R10 Multi-module lifecycle",
             "ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml",
+            "ASA_TINKERCAD_100_PERCENT_SCOPE.yaml",
+            "ASA_PRODUCT_SURFACE_CATALOG.yaml",
+            "ASA_ELECTRONICS_TOOL_CATALOG.yaml",
+            "ASA_ADMIN_CONSOLE_SPEC.md",
+            "ASA_STUDENT_EXPERIENCE_SPEC.md",
             "R0_OWNER_DECISION.md",
         ),
     )
@@ -360,7 +497,11 @@ def main() -> int:
     try:
         plan = load_yaml(PLAN_PATH)
         blueprint = load_yaml(BLUEPRINT_PATH)
-        release_count, candidate_count = validate_plan(plan, blueprint)
+        surface_catalog = load_yaml(SURFACE_CATALOG_PATH)
+        parity_scope = load_yaml(PARITY_SCOPE_PATH)
+        release_count, candidate_count, surface_count, capability_group_count = validate_plan(
+            plan, blueprint, surface_catalog, parity_scope
+        )
         validate_human_plan()
         validate_owner_and_agent_entry_points()
     except (OSError, ValueError, yaml.YAMLError) as error:
@@ -370,8 +511,11 @@ def main() -> int:
     print("ASA target execution contract PASS")
     print(f"- releases: {release_count} (R0-R10)")
     print(f"- R0 convergence candidates: {candidate_count}")
+    print(f"- product surfaces mapped: {surface_count}")
+    print(f"- explicitly owned parity groups: {capability_group_count}")
     print("- owner/agent entry documents: synchronized")
     print("- current gate: R0 / owner review required")
+    print("- functional parity claim: not_100_percent")
     print("- competing R1 candidates frozen: PR 59 and PR 60")
     print("- canonical ports: web=4610 api=4611 e2e=4612")
     return 0
