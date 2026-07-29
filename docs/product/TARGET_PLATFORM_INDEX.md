@@ -17,6 +17,7 @@
 - [`../delivery/R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) — пять решений владельца;
 - [`../delivery/R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) — machine-readable pending/approved/rejected state;
 - [`../delivery/R0_POST_MERGE_TRANSITION.yaml`](../delivery/R0_POST_MERGE_TRANSITION.yaml) — R0A–R0D после merge, без раннего R1;
+- [`../delivery/R0_LEGACY_TRACEABILITY.yaml`](../delivery/R0_LEGACY_TRACEABILITY.yaml) — mapping старых v1 tasks/Issues в R0–R10;
 - [`../project-map/R0_TARGET_RELEASE_MAP.yaml`](../project-map/R0_TARGET_RELEASE_MAP.yaml) — неактивный шаблон release-карты;
 - [`../delivery/R0_VALIDATION_MATRIX.md`](../delivery/R0_VALIDATION_MATRIX.md) — что доказывает каждый gate;
 - [`../../AGENTS.md`](../../AGENTS.md);
@@ -75,6 +76,7 @@ validate_r0_human_contract.py
 validate_r0_owner_decision.py
 validate_r0_post_merge.py
 validate_r0_release_map.py
+validate_r0_legacy_traceability.py
 validate_tinkercad_parity.py
 validate_target_execution.py
 validate_architecture.py
