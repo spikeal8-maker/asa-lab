@@ -2,6 +2,7 @@ import type { TerminalElectricalRole, TerminalId } from './component-model.js';
 
 export const NATIVE_GRID_PITCH_MM = 2.54;
 export const NATIVE_GEOMETRY_EPSILON_MM = 0.02;
+export const NATIVE_ASSET_TERMINAL_EPSILON_MM = 0.02;
 
 export type NativeGeometryEvidence =
   | 'owner_asset_calibrated'
@@ -30,12 +31,21 @@ export interface NativeTerminalGeometry extends NativePointMm {
   readonly requiresHole: boolean;
 }
 
+export interface NativeAssetTerminalAnchor {
+  readonly id: TerminalId;
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface NativeAssetCalibration {
   readonly viewBoxWidth: number;
   readonly viewBoxHeight: number;
-  readonly terminalA: { readonly id: TerminalId; readonly x: number; readonly y: number };
-  readonly terminalB: { readonly id: TerminalId; readonly x: number; readonly y: number };
-  readonly targetTerminalSpanMm: number;
+  readonly terminals: readonly NativeAssetTerminalAnchor[];
+  readonly scaleReference: {
+    readonly fromTerminalId: TerminalId;
+    readonly toTerminalId: TerminalId;
+    readonly targetSpanMm: number;
+  };
 }
 
 export interface NativeComponentGeometry {
@@ -49,6 +59,7 @@ export interface NativeComponentGeometry {
   readonly evidenceSource: string;
   readonly referenceBehaviorVerified: boolean;
   readonly assetCalibration?: NativeAssetCalibration;
+  readonly assetOriginMm?: NativePointMm;
 }
 
 export type NativeGeometryValidation =
@@ -67,6 +78,29 @@ function roundMm(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
+function assetTerminal(
+  calibration: NativeAssetCalibration,
+  terminalId: TerminalId,
+): NativeAssetTerminalAnchor | null {
+  return calibration.terminals.find((terminal) => terminal.id === terminalId) ?? null;
+}
+
+function assetScaleMmPerUnit(calibration: NativeAssetCalibration): number {
+  const from = assetTerminal(calibration, calibration.scaleReference.fromTerminalId);
+  const to = assetTerminal(calibration, calibration.scaleReference.toTerminalId);
+  if (!from || !to) throw new Error('asset scale reference terminal is missing');
+  const assetSpan = Math.hypot(to.x - from.x, to.y - from.y);
+  if (
+    !finitePositive(calibration.viewBoxWidth) ||
+    !finitePositive(calibration.viewBoxHeight) ||
+    !finitePositive(assetSpan) ||
+    !finitePositive(calibration.scaleReference.targetSpanMm)
+  ) {
+    throw new Error('invalid native asset calibration');
+  }
+  return calibration.scaleReference.targetSpanMm / assetSpan;
+}
+
 export function terminalDistanceMm(
   geometry: NativeComponentGeometry,
   terminalA: TerminalId,
@@ -81,22 +115,43 @@ export function terminalDistanceMm(
 export function calibratedAssetSizeMm(
   calibration: NativeAssetCalibration,
 ): NativeSizeMm {
-  const assetSpan = Math.hypot(
-    calibration.terminalB.x - calibration.terminalA.x,
-    calibration.terminalB.y - calibration.terminalA.y,
-  );
-  if (
-    !finitePositive(calibration.viewBoxWidth) ||
-    !finitePositive(calibration.viewBoxHeight) ||
-    !finitePositive(assetSpan) ||
-    !finitePositive(calibration.targetTerminalSpanMm)
-  ) {
-    throw new Error('invalid native asset calibration');
-  }
-  const scaleMmPerAssetUnit = calibration.targetTerminalSpanMm / assetSpan;
+  const scaleMmPerAssetUnit = assetScaleMmPerUnit(calibration);
   return {
     widthMm: roundMm(calibration.viewBoxWidth * scaleMmPerAssetUnit),
     heightMm: roundMm(calibration.viewBoxHeight * scaleMmPerAssetUnit),
+  };
+}
+
+export function centeredAssetOriginMm(
+  envelope: NativeSizeMm,
+  calibration: NativeAssetCalibration,
+): NativePointMm {
+  const size = calibratedAssetSizeMm(calibration);
+  if (
+    size.widthMm > envelope.widthMm + NATIVE_GEOMETRY_EPSILON_MM ||
+    size.heightMm > envelope.heightMm + NATIVE_GEOMETRY_EPSILON_MM
+  ) {
+    throw new Error('calibrated asset does not fit inside the native envelope');
+  }
+  return {
+    xMm: roundMm((envelope.widthMm - size.widthMm) / 2),
+    yMm: roundMm((envelope.heightMm - size.heightMm) / 2),
+  };
+}
+
+export function calibratedAssetTerminalMm(
+  geometry: NativeComponentGeometry,
+  terminalId: TerminalId,
+): NativePointMm | null {
+  const calibration = geometry.assetCalibration;
+  const origin = geometry.assetOriginMm;
+  if (!calibration || !origin) return null;
+  const anchor = assetTerminal(calibration, terminalId);
+  if (!anchor) return null;
+  const scale = assetScaleMmPerUnit(calibration);
+  return {
+    xMm: roundMm(origin.xMm + anchor.x * scale),
+    yMm: roundMm(origin.yMm + anchor.y * scale),
   };
 }
 
@@ -212,17 +267,43 @@ export function validateNativeComponentGeometry(
       message: 'Every terminal of a breadboard-hole component must require a real hole.',
     };
   }
-  if (geometry.assetCalibration) {
-    const calibration = geometry.assetCalibration;
-    if (!terminalIds.has(calibration.terminalA.id) || !terminalIds.has(calibration.terminalB.id)) {
+  if (geometry.assetCalibration || geometry.assetOriginMm) {
+    if (!geometry.assetCalibration || !geometry.assetOriginMm) {
       return {
         ok: false,
-        code: 'asset_calibration_terminal_missing',
-        message: 'Asset calibration must reference existing stable terminals.',
+        code: 'incomplete_asset_calibration',
+        message: 'Asset calibration and asset origin must be provided together.',
       };
     }
+    const calibration = geometry.assetCalibration;
+    const assetTerminalIds = new Set<string>();
+    for (const anchor of calibration.terminals) {
+      if (!anchor.id || assetTerminalIds.has(anchor.id)) {
+        return {
+          ok: false,
+          code: 'duplicate_asset_terminal_id',
+          message: `Asset terminal ID must be unique: ${anchor.id || '<empty>'}.`,
+        };
+      }
+      assetTerminalIds.add(anchor.id);
+      if (!terminalIds.has(anchor.id)) {
+        return {
+          ok: false,
+          code: 'asset_calibration_terminal_missing',
+          message: `Asset terminal ${anchor.id} has no matching native terminal.`,
+        };
+      }
+      if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) {
+        return {
+          ok: false,
+          code: 'invalid_asset_calibration',
+          message: `Asset terminal ${anchor.id} has invalid coordinates.`,
+        };
+      }
+    }
+    let assetSize: NativeSizeMm;
     try {
-      calibratedAssetSizeMm(calibration);
+      assetSize = calibratedAssetSizeMm(calibration);
     } catch {
       return {
         ok: false,
@@ -230,8 +311,85 @@ export function validateNativeComponentGeometry(
         message: 'Asset calibration values are invalid.',
       };
     }
+    const assetOrigin = geometry.assetOriginMm;
+    if (
+      !finiteNonNegative(assetOrigin.xMm) ||
+      !finiteNonNegative(assetOrigin.yMm) ||
+      assetOrigin.xMm + assetSize.widthMm >
+        geometry.envelopeMm.widthMm + NATIVE_GEOMETRY_EPSILON_MM ||
+      assetOrigin.yMm + assetSize.heightMm >
+        geometry.envelopeMm.heightMm + NATIVE_GEOMETRY_EPSILON_MM
+    ) {
+      return {
+        ok: false,
+        code: 'asset_outside_envelope',
+        message: 'Calibrated asset does not fit inside the native component envelope.',
+      };
+    }
+    for (const terminal of geometry.terminals) {
+      const calibrated = calibratedAssetTerminalMm(geometry, terminal.id);
+      if (!calibrated) continue;
+      const error = Math.hypot(calibrated.xMm - terminal.xMm, calibrated.yMm - terminal.yMm);
+      if (error > NATIVE_ASSET_TERMINAL_EPSILON_MM) {
+        return {
+          ok: false,
+          code: 'asset_terminal_mismatch',
+          message: `Native terminal ${terminal.id} differs from the calibrated SVG anchor by ${roundMm(error)} mm.`,
+        };
+      }
+    }
   }
   return { ok: true };
+}
+
+const SOURCE_ASSET_CALIBRATION: NativeAssetCalibration = {
+  viewBoxWidth: 485,
+  viewBoxHeight: 843,
+  terminals: [
+    { id: 'a', x: 295.5, y: 74 },
+    { id: 'b', x: 190.5, y: 74 },
+  ],
+  scaleReference: { fromTerminalId: 'a', toTerminalId: 'b', targetSpanMm: 10.16 },
+};
+
+const RESISTOR_ASSET_CALIBRATION: NativeAssetCalibration = {
+  viewBoxWidth: 260,
+  viewBoxHeight: 96,
+  terminals: [
+    { id: 'a', x: 12, y: 48 },
+    { id: 'b', x: 248, y: 48 },
+  ],
+  scaleReference: { fromTerminalId: 'a', toTerminalId: 'b', targetSpanMm: 25.4 },
+};
+
+const LED_ASSET_CALIBRATION: NativeAssetCalibration = {
+  viewBoxWidth: 240,
+  viewBoxHeight: 400,
+  terminals: [
+    { id: 'a', x: 83, y: 372 },
+    { id: 'b', x: 209, y: 372 },
+  ],
+  scaleReference: { fromTerminalId: 'a', toTerminalId: 'b', targetSpanMm: 2.54 },
+};
+
+function nativeTerminalsFromAsset(
+  calibration: NativeAssetCalibration,
+  origin: NativePointMm,
+  labels: Readonly<Record<string, { readonly label: string; readonly role: TerminalElectricalRole; readonly requiresHole: boolean }>>,
+): NativeTerminalGeometry[] {
+  const scale = assetScaleMmPerUnit(calibration);
+  return calibration.terminals.map((terminal) => {
+    const definition = labels[terminal.id];
+    if (!definition) throw new Error(`native terminal definition missing for ${terminal.id}`);
+    return {
+      id: terminal.id,
+      label: definition.label,
+      role: definition.role,
+      requiresHole: definition.requiresHole,
+      xMm: roundMm(origin.xMm + terminal.x * scale),
+      yMm: roundMm(origin.yMm + terminal.y * scale),
+    };
+  });
 }
 
 export function createAxialResistorGeometry(
@@ -248,13 +406,14 @@ export function createAxialResistorGeometry(
     heightMm: 10.5,
     depthMm: 2.5,
   } as const;
-  return {
+  const bodyOriginMm = {
+    xMm: roundMm((envelopeMm.widthMm - bodyMm.widthMm) / 2),
+    yMm: roundMm((envelopeMm.heightMm - bodyMm.heightMm) / 2),
+  };
+  const base: NativeComponentGeometry = {
     key: `axial-resistor-${pitchMultiple}-pitch`,
     bodyMm,
-    bodyOriginMm: {
-      xMm: roundMm((envelopeMm.widthMm - bodyMm.widthMm) / 2),
-      yMm: roundMm((envelopeMm.heightMm - bodyMm.heightMm) / 2),
-    },
+    bodyOriginMm,
     envelopeMm,
     terminals: [
       {
@@ -277,81 +436,60 @@ export function createAxialResistorGeometry(
     mountingMode: 'breadboard-hole',
     evidence: 'manufacturer_typical',
     evidenceSource:
-      'Typical 1/4 W axial body; current foundation uses a 10-pitch educational lead span. Exact reference lead behavior requires capture.',
+      'Typical 1/4 W axial body. The current 10-pitch SVG is calibrated; flexible lead geometry requires a separate native lead renderer and reference capture.',
     referenceBehaviorVerified: false,
   };
+  if (pitchMultiple !== 10) return base;
+  const assetOriginMm = centeredAssetOriginMm(envelopeMm, RESISTOR_ASSET_CALIBRATION);
+  return {
+    ...base,
+    assetCalibration: RESISTOR_ASSET_CALIBRATION,
+    assetOriginMm,
+    terminals: nativeTerminalsFromAsset(RESISTOR_ASSET_CALIBRATION, assetOriginMm, {
+      a: { label: '1', role: 'passive', requiresHole: true },
+      b: { label: '2', role: 'passive', requiresHole: true },
+    }),
+  };
 }
+
+const SOURCE_ENVELOPE = { widthMm: 47, heightMm: 82, depthMm: 16 } as const;
+const SOURCE_ASSET_ORIGIN = centeredAssetOriginMm(SOURCE_ENVELOPE, SOURCE_ASSET_CALIBRATION);
+const LED_ENVELOPE = { widthMm: 5, heightMm: 8.6, depthMm: 5 } as const;
+const LED_ASSET_ORIGIN = centeredAssetOriginMm(LED_ENVELOPE, LED_ASSET_CALIBRATION);
 
 export const ACTIVE_NATIVE_COMPONENT_GEOMETRY = {
   source: {
     key: 'aa-holder-2x-free',
     bodyMm: { widthMm: 44, heightMm: 76.6, depthMm: 16 },
     bodyOriginMm: { xMm: 1.5, yMm: 2.7 },
-    envelopeMm: { widthMm: 47, heightMm: 82, depthMm: 16 },
-    terminals: [
-      {
-        id: 'a',
-        label: '+',
-        role: 'positive',
-        xMm: 28.596,
-        yMm: 7.16,
-        requiresHole: false,
-      },
-      {
-        id: 'b',
-        label: '−',
-        role: 'negative',
-        xMm: 18.436,
-        yMm: 7.16,
-        requiresHole: false,
-      },
-    ],
+    envelopeMm: SOURCE_ENVELOPE,
+    terminals: nativeTerminalsFromAsset(SOURCE_ASSET_CALIBRATION, SOURCE_ASSET_ORIGIN, {
+      a: { label: '+', role: 'positive', requiresHole: false },
+      b: { label: '−', role: 'negative', requiresHole: false },
+    }),
     mountingMode: 'free-physical',
     evidence: 'owner_asset_calibrated',
-    evidenceSource: 'Owner SVG terminals calibrated to a 10.16 mm span.',
+    evidenceSource: 'Owner SVG terminals calibrated to a 10.16 mm span and centred in a 47 × 82 mm envelope.',
     referenceBehaviorVerified: true,
-    assetCalibration: {
-      viewBoxWidth: 485,
-      viewBoxHeight: 843,
-      terminalA: { id: 'a', x: 295.5, y: 74 },
-      terminalB: { id: 'b', x: 190.5, y: 74 },
-      targetTerminalSpanMm: 10.16,
-    },
+    assetCalibration: SOURCE_ASSET_CALIBRATION,
+    assetOriginMm: SOURCE_ASSET_ORIGIN,
   },
   resistor: createAxialResistorGeometry(10),
   led: {
     key: 'led-5mm-one-pitch',
     bodyMm: { widthMm: 5, heightMm: 8.6, depthMm: 5 },
     bodyOriginMm: { xMm: 0, yMm: 0 },
-    envelopeMm: { widthMm: 5, heightMm: 8.6, depthMm: 5 },
-    terminals: [
-      {
-        id: 'a',
-        label: 'A',
-        role: 'anode',
-        xMm: 1.23,
-        yMm: 8.6,
-        requiresHole: true,
-      },
-      {
-        id: 'b',
-        label: 'K',
-        role: 'cathode',
-        xMm: 3.77,
-        yMm: 8.6,
-        requiresHole: true,
-      },
-    ],
+    envelopeMm: LED_ENVELOPE,
+    terminals: nativeTerminalsFromAsset(LED_ASSET_CALIBRATION, LED_ASSET_ORIGIN, {
+      a: { label: 'A', role: 'anode', requiresHole: true },
+      b: { label: 'K', role: 'cathode', requiresHole: true },
+    }),
     mountingMode: 'breadboard-hole',
     evidence: 'manufacturer_typical',
-    evidenceSource: 'Typical 5 mm through-hole LED with 2.54 mm lead pitch.',
+    evidenceSource:
+      'Typical 5 mm through-hole red LED. The owner SVG is calibrated to one 2.54 mm lead pitch and centred in the physical envelope.',
     referenceBehaviorVerified: false,
-    assetCalibration: {
-      viewBoxWidth: 240,
-      viewBoxHeight: 400,
-      terminalA: { id: 'a', x: 83, y: 372 },
-      terminalB: { id: 'b', x: 209, y: 372 },
-      targetTerminalSpanMm: 2.54,
-    },
+    assetCalibration: LED_ASSET_CALIBRATION,
+    assetOriginMm: LED_ASSET_ORIGIN,
   },
 } as const satisfies Readonly<Record<'source' | 'resistor' | 'led', NativeComponentGeometry>>;
