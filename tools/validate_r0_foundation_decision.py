@@ -16,6 +16,7 @@ DECISION_PATH = ROOT / "docs/delivery/R0_FOUNDATION_DECISION.yaml"
 EXPECTED_OWNER = "spikeal8-maker"
 EXPECTED_COMMENT_PREFIX = "https://github.com/spikeal8-maker/asa-lab/pull/34#issuecomment-"
 ISO_UTC = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
+GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 EXPECTED_SCOPE = {"project_foundation", "electronics_foundation"}
 EXPECTED_FORBIDDEN_SCOPE = {
     "account_identity",
@@ -37,12 +38,13 @@ EXPECTED_RULES = {
     "acceptance_is_project_and_electronics_foundation_only",
     "parity_completion_must_remain_not_claimed",
     "rejection_requires_owner_notes",
-    "pr_43_rebase_waits_for_foundation_decision",
+    "pr_43_rebase_waits_for_accepted_merged_foundation",
     "r1_remains_blocked",
 }
 EXPECTED_ALLOWED_STATUSES = {
     "pending_owner",
     "accepted_pending_merge",
+    "accepted_merged",
     "rejected_changes_required",
     "rejected_close_candidate",
 }
@@ -61,19 +63,19 @@ def load() -> dict[str, Any]:
     return document
 
 
-def validate_timestamp(value: Any) -> None:
+def validate_timestamp(value: Any, label: str) -> None:
     if not isinstance(value, str) or not ISO_UTC.fullmatch(value):
-        fail("approval.decided_at must be a quoted ISO-8601 UTC timestamp ending in Z")
+        fail(f"{label} must be a quoted ISO-8601 UTC timestamp ending in Z")
     try:
         datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
     except ValueError as error:
-        fail(f"approval.decided_at is invalid: {error}")
+        fail(f"{label} is invalid: {error}")
 
 
 def validate_owner_attribution(approval: dict[str, Any]) -> None:
     if approval.get("decided_by") != EXPECTED_OWNER:
         fail(f"approval.decided_by must be repository owner {EXPECTED_OWNER}")
-    validate_timestamp(approval.get("decided_at"))
+    validate_timestamp(approval.get("decided_at"), "approval.decided_at")
     evidence_url = approval.get("evidence_comment_url")
     if not isinstance(evidence_url, str) or not evidence_url.startswith(EXPECTED_COMMENT_PREFIX):
         fail("foundation decision evidence must be a PR34 issue-comment URL")
@@ -82,6 +84,15 @@ def validate_owner_attribution(approval: dict[str, Any]) -> None:
     notes = approval.get("decision_notes")
     if not isinstance(notes, str) or not notes.strip():
         fail("foundation owner decision requires decision_notes")
+
+
+def validate_acceptance_items(items: dict[str, dict[str, Any]]) -> None:
+    non_pass = sorted(item_id for item_id, item in items.items() if item.get("status") != "pass")
+    if non_pass:
+        fail(f"foundation acceptance requires all corrective items PASS: {non_pass}")
+    missing_evidence = sorted(item_id for item_id, item in items.items() if not item.get("evidence"))
+    if missing_evidence:
+        fail(f"foundation acceptance requires evidence for all items: {missing_evidence}")
 
 
 def main() -> int:
@@ -129,8 +140,9 @@ def main() -> int:
         if status not in EXPECTED_ALLOWED_STATUSES:
             fail(f"unsupported foundation decision status: {status!r}")
         approval = document.get("approval")
-        if not isinstance(approval, dict):
-            fail("approval must be an object")
+        merge = document.get("merge")
+        if not isinstance(approval, dict) or not isinstance(merge, dict):
+            fail("approval and merge must be objects")
 
         if status == "pending_owner":
             if any(
@@ -138,22 +150,31 @@ def main() -> int:
                 for field in ("decided_by", "decided_at", "evidence_comment_url", "decision_notes")
             ):
                 fail("pending_owner must not contain owner attribution")
+            if any(value is not None for value in merge.values()):
+                fail("pending_owner must not contain merge attribution")
             if any(item.get("status") == "pass" and not item.get("evidence") for item in items.values()):
                 fail("a passing corrective item must contain evidence")
 
-        elif status == "accepted_pending_merge":
-            non_pass = sorted(item_id for item_id, item in items.items() if item.get("status") != "pass")
-            if non_pass:
-                fail(f"foundation acceptance requires all corrective items PASS: {non_pass}")
-            missing_evidence = sorted(item_id for item_id, item in items.items() if not item.get("evidence"))
-            if missing_evidence:
-                fail(f"foundation acceptance requires evidence for all items: {missing_evidence}")
+        elif status in {"accepted_pending_merge", "accepted_merged"}:
+            validate_acceptance_items(items)
             validate_owner_attribution(approval)
             if "foundation" not in approval["decision_notes"].lower():
                 fail("accepted foundation requires explicit foundation-only decision notes")
+            if status == "accepted_pending_merge":
+                if any(value is not None for value in merge.values()):
+                    fail("accepted_pending_merge must not contain merge attribution")
+            else:
+                validate_timestamp(merge.get("merged_at"), "merge.merged_at")
+                merge_sha = merge.get("merge_commit_sha")
+                if not isinstance(merge_sha, str) or not GIT_SHA.fullmatch(merge_sha):
+                    fail("merge.merge_commit_sha must be a 40-character lowercase Git SHA")
+                if merge.get("merged_by") != EXPECTED_OWNER:
+                    fail(f"merge.merged_by must be repository owner {EXPECTED_OWNER}")
 
         else:
             validate_owner_attribution(approval)
+            if any(value is not None for value in merge.values()):
+                fail("rejected foundation decision must not contain merge attribution")
             if status == "rejected_changes_required" and not any(
                 item.get("status") in {"fail", "blocked", "open"} for item in items.values()
             ):
@@ -172,7 +193,8 @@ def main() -> int:
     print(f"- status: {status}")
     print(f"- corrective items: {len(items)}")
     print(f"- owner decision recorded: {str(status != 'pending_owner').lower()}")
-    print(f"- PR43 rebase allowed: {str(status == 'accepted_pending_merge').lower()}")
+    print(f"- PR34 merged: {str(status == 'accepted_merged').lower()}")
+    print(f"- PR43 final rebase allowed: {str(status == 'accepted_merged').lower()}")
     return 0
 
 
