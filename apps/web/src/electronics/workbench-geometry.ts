@@ -1,3 +1,5 @@
+import { HALF_PITCH_UNITS } from './workbench-scale';
+
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -13,7 +15,7 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function snap(value: number, grid = 10): number {
+export function snap(value: number, grid = HALF_PITCH_UNITS): number {
   return Math.round(value / grid) * grid;
 }
 
@@ -79,6 +81,7 @@ export function viewportViewBox(
   };
 }
 
+/** Mathematical fallback used when the browser cannot expose an SVG CTM. */
 export function clientToWorld(
   clientX: number,
   clientY: number,
@@ -92,6 +95,33 @@ export function clientToWorld(
     x: box.x + ((clientX - rect.left) / rect.width) * box.width,
     y: box.y + ((clientY - rect.top) / rect.height) * box.height,
   };
+}
+
+/**
+ * Convert a browser pointer into the actual SVG user coordinate system. This
+ * remains correct with responsive letterboxing, zoom and `preserveAspectRatio`,
+ * unlike a raw DOM-rectangle ratio.
+ */
+export function clientToSvgWorld(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+  fallback: () => Point,
+): Point {
+  const matrix = svg.getScreenCTM();
+  if (!matrix) return fallback();
+  try {
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    const world = point.matrixTransform(matrix.inverse());
+    if (Number.isFinite(world.x) && Number.isFinite(world.y)) {
+      return { x: world.x, y: world.y };
+    }
+  } catch {
+    // JSDOM and older embedded browsers may not expose an invertible CTM.
+  }
+  return fallback();
 }
 
 export function fitViewport(
