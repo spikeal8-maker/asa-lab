@@ -1,0 +1,271 @@
+schema_version: 1.0.0
+matrix_id: asa-target-platform-r0-r10-tests
+status: inactive_until_r0a_contract_activation
+source_execution_plan: docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml
+source_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
+activation_transition: R0A_CONTRACT_ACTIVATION
+
+result_states:
+  PASS: command or owner gate actually passed
+  FAIL: required assertion or command failed
+  BLOCKED: mandatory environment/evidence unavailable
+  NOT_RUN: test was not executed
+
+profiles:
+  governance_common:
+    tests:
+      - TST-TARGET-CONTRACT-001
+      - TST-PARITY-CONTRACT-001
+      - TST-PROJECT-MAP-001
+      - TST-TEST-CATALOG-001
+  code_common:
+    tests:
+      - TST-FORMAT-001
+      - TST-LINT-001
+      - TST-TYPE-001
+      - TST-BOUNDARY-001
+      - TST-BUILD-001
+      - TST-CONTRACT-001
+      - TST-UNIT-001
+      - TST-SECRET-001
+      - TST-DEPENDENCY-001
+      - TST-PORTS-001
+      - TST-STARTUP-001
+  migration_common:
+    tests:
+      - TST-MIGRATION-EMPTY-001
+      - TST-MIGRATION-EXISTING-001
+      - TST-MIGRATION-REPEAT-001
+      - TST-MIGRATION-PRESERVATION-001
+  security_common:
+    tests:
+      - TST-TENANT-CONTEXT-001
+      - TST-RLS-001
+      - TST-AUTHZ-001
+      - TST-AUDIT-001
+  browser_common:
+    tests:
+      - TST-A11Y-001
+      - TST-BROWSER-CONSOLE-001
+      - TST-RESPONSIVE-001
+      - TST-DEEP-LINK-001
+  owner_evidence:
+    owner_gate: true
+    tests:
+      - TST-OWNER-DESKTOP-001
+      - TST-OWNER-MOBILE-001
+      - TST-OWNER-FLOW-001
+
+releases:
+  - id: R0
+    required_profiles: [governance_common]
+    release_tests:
+      - TST-R0-DIFF-001
+      - TST-R0-OWNER-DECISION-001
+      - TST-R0-POST-MERGE-001
+      - TST-R0-GITHUB-STATE-001
+      - TST-R0-LEGACY-TRACEABILITY-001
+      - TST-R0-REVIEW-PACKETS-001
+    required_artifacts:
+      - docs/delivery/R0_OWNER_DECISION.md
+      - docs/delivery/R0_OWNER_DECISION.yaml
+      - docs/delivery/R0_VALIDATION_MATRIX.md
+      - docs/delivery/R0_FOUNDATION_REVIEW_PR34.md
+      - docs/delivery/R0_R1_CANDIDATE_SELECTION.md
+    owner_flow: Review five target decisions and the R0 branch-convergence order.
+
+  - id: R1
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R1-ACCOUNT-SCHEMA-001
+      - TST-R1-REGISTRATION-001
+      - TST-R1-SESSIONS-V2-001
+      - TST-R1-PERSONAL-WORKSPACE-001
+      - TST-R1-LEGACY-BRIDGE-001
+      - TST-R1-EDUCATOR-GRANT-001
+      - TST-R1-CREATOR-NO-EDUCATOR-001
+      - TST-R1-E2E-ACCOUNT-001
+    required_artifacts:
+      - migration-report-empty
+      - migration-report-existing
+      - baseline-preservation-report
+      - account-flow-desktop.png
+      - account-flow-mobile.png
+    owner_flow: Register, use Personal Workspace, create personal Project, logout/login, and verify educator capability is separate.
+
+  - id: R2
+    required_profiles: [code_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R2-CAPABILITY-NAV-001
+      - TST-R2-WORKSPACE-SWITCH-001
+      - TST-R2-ROUTES-001
+      - TST-R2-LEGACY-PORTAL-COMPAT-001
+      - TST-R2-E2E-CREATOR-HOME-001
+    required_artifacts:
+      - creator-home-desktop.png
+      - creator-home-mobile.png
+      - educator-navigation.png
+      - registered-student-navigation.png
+    owner_flow: Open Creator Home, navigate account/workspace surfaces, and confirm Classes appears only for educator capability.
+
+  - id: R3
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R3-MODULE-CONTRACT-001
+      - TST-R3-REGISTRY-001
+      - TST-R3-PROJECT-DRAFT-001
+      - TST-R3-PROJECT-VERSION-001
+      - TST-R3-OPTIMISTIC-CONFLICT-001
+      - TST-R3-EDITOR-HOST-001
+      - TST-R3-NO-SUBJECT-BRANCH-001
+      - TST-R3-E2E-PROJECT-HUB-001
+    required_artifacts:
+      - project-hub-desktop.png
+      - project-hub-mobile.png
+      - module-chooser.png
+      - shared-editor-host.png
+      - core-import-report.json
+    owner_flow: Create a personal module project, save/reload/version it, and open it through the shared Editor Host.
+
+  - id: R4
+    required_profiles: [code_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R4-ELECTRONICS-SCHEMA-001
+      - TST-R4-ELECTRONICS-ASSETS-001
+      - TST-R4-ELECTRONICS-NETLIST-001
+      - TST-R4-ELECTRONICS-SIMULATION-001
+      - TST-R4-ELECTRONICS-DIAGNOSTIC-001
+      - TST-R4-ELECTRONICS-SAVE-RELOAD-001
+      - TST-R4-ELECTRONICS-PARITY-001
+      - TST-R4-E2E-ELECTRONICS-001
+    required_artifacts:
+      - electronics-empty.png
+      - electronics-components.png
+      - electronics-wire.png
+      - electronics-inspector.png
+      - electronics-running.png
+      - electronics-diagnostic.png
+    owner_flow: Build, save, reload and simulate a circuit with honest diagnostics in the shared Editor Host.
+
+  - id: R5
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R5-CLASSROOM-001
+      - TST-R5-CLASS-CODE-001
+      - TST-R5-STUDENTSEAT-001
+      - TST-R5-CREDENTIAL-ROTATION-001
+      - TST-R5-SAFE-MODE-001
+      - TST-R5-STUDENT-SESSION-001
+      - TST-R5-E2E-CLASSROOM-001
+    required_artifacts:
+      - classroom-shell.png
+      - class-code-share.png
+      - studentseat-credentials.png
+      - learner-login.png
+      - safe-mode-dashboard.png
+    owner_flow: Create a class, issue StudentSeats, log in without email, and create private learner work under Safe Mode.
+
+  - id: R6
+    required_profiles: [code_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R6-LEARNER-PORTFOLIO-001
+      - TST-R6-PROJECT-VIEWER-001
+      - TST-R6-VERSION-HISTORY-001
+      - TST-R6-RESTORE-COPY-001
+      - TST-R6-ASSISTANCE-AUDIT-001
+      - TST-R6-CROSS-CLASS-DENIAL-001
+      - TST-R6-E2E-TEACHER-VIEWER-001
+    required_artifacts:
+      - learner-portfolio.png
+      - teacher-project-viewer.png
+      - version-history.png
+      - assistance-mode-banner.png
+    owner_flow: Open an authorised learner portfolio and exact immutable version, then verify audited assistance and restore-to-copy.
+
+  - id: R7
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R7-VISIBILITY-001
+      - TST-R7-SHARE-LINK-001
+      - TST-R7-PUBLICATION-001
+      - TST-R7-PUBLIC-VERSION-001
+      - TST-R7-REMIX-LINEAGE-001
+      - TST-R7-UNPUBLISH-REVOKE-001
+      - TST-R7-STUDENT-PUBLISH-DENIAL-001
+      - TST-R7-E2E-PUBLICATION-001
+    required_artifacts:
+      - visibility-dialog.png
+      - unlisted-share.png
+      - public-project-page.png
+      - remix-attribution.png
+    owner_flow: Publish an eligible immutable version, open it publicly, remix with attribution, then revoke/unpublish it.
+
+  - id: R8
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R8-PROFILE-001
+      - TST-R8-EXPLORE-INDEX-001
+      - TST-R8-LIKE-BOOKMARK-001
+      - TST-R8-COLLECTION-001
+      - TST-R8-PUBLIC-COMMENT-001
+      - TST-R8-MODERATION-001
+      - TST-R8-STUDENT-SOCIAL-DENIAL-001
+      - TST-R8-E2E-EXPLORE-001
+    required_artifacts:
+      - public-profile.png
+      - explore-gallery.png
+      - collections.png
+      - moderation-case.png
+    owner_flow: Discover published work, use allowed interactions, report content, and complete an audited moderation decision.
+
+  - id: R9
+    required_profiles: [code_common, migration_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R9-ACTIVITY-VERSION-001
+      - TST-R9-ASSIGNMENT-001
+      - TST-R9-ASSIGNMENT-WORK-001
+      - TST-R9-SUBMISSION-IMMUTABLE-001
+      - TST-R9-REVIEW-ANCHOR-001
+      - TST-R9-REVISION-001
+      - TST-R9-RUBRIC-GRADE-001
+      - TST-R9-BADGE-EVIDENCE-001
+      - TST-R9-PUBLICATION-LOCK-001
+      - TST-R9-E2E-LEARNING-CYCLE-001
+    required_artifacts:
+      - teacher-assignment.png
+      - learner-work.png
+      - submission-queue.png
+      - anchored-review.png
+      - grade-badge.png
+    owner_flow: Assign an immutable starter, submit exact work, request changes, resubmit, grade and award a badge.
+
+  - id: R10
+    required_profiles: [code_common, security_common, browser_common, owner_evidence]
+    release_tests:
+      - TST-R10-MULTIMODULE-CONTRACT-001
+      - TST-R10-BLOCKS-MODULE-001
+      - TST-R10-THIRD-MODULE-001
+      - TST-R10-NO-CORE-SUBJECT-BRANCH-001
+      - TST-R10-PERSONAL-LIFECYCLE-001
+      - TST-R10-PUBLICATION-LIFECYCLE-001
+      - TST-R10-CLASSROOM-LIFECYCLE-001
+      - TST-R10-CAPACITY-MEASUREMENT-001
+      - TST-R10-RECOVERY-001
+      - TST-R10-E2E-MULTIMODULE-001
+    required_artifacts:
+      - module-registry-three-modules.png
+      - blocks-editor.png
+      - third-module-editor.png
+      - multimodule-project-hub.png
+      - load-report.json
+      - recovery-report.json
+    owner_flow: Prove three substantially different modules use the same personal, publication and classroom lifecycle without Core branching.
+
+activation_rules:
+  - do_not_modify_active_test_catalog_before_r0a
+  - r0a_registers_target_test_contracts_without_removing_existing_tests
+  - release_test_ids_are_frozen_before_product_code
+  - blocked_and_not_run_never_close_a_release
+  - owner_evidence_does_not_replace_automated_tests
+  - automated_tests_do_not_replace_owner_acceptance
+  - next_release_tests_do_not_run_as_current_scope
