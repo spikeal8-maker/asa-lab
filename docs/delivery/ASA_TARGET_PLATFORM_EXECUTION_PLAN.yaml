@@ -183,7 +183,7 @@ releases:
     issue: https://github.com/spikeal8-maker/asa-lab/issues/41
     canonical_branch: agent/r9-learning-cycle
     status: blocked
-    depends_on: [R3, R5, R6]
+    depends_on: [R5, R6]
     owner_review: required
     visible_result: Teacher assigns an immutable starter, learner submits exact work, receives feedback, resubmits and receives grade/badge.
     non_goals: [billing, replacing_review_with_public_comments]
