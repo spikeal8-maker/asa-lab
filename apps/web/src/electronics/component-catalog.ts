@@ -148,7 +148,7 @@ const ACTIVE: CatalogEntry[] = [
       source: 'owner SVG snap points calibrated to a 10.16 mm terminal span',
       referenceBehaviorVerified: true,
     },
-    placement: { gridDivisor: 2, anchorTerminal: 'a', mode: 'terminal-grid' },
+    placement: { gridDivisor: 2, anchorTerminal: 'a', mode: 'free-physical' },
     defaultValue: 3,
     unit: 'В',
     authored: true,
@@ -160,7 +160,8 @@ const ACTIVE: CatalogEntry[] = [
     kind: 'resistor',
     label: 'Резистор',
     category: 'basic',
-    description: 'Осевой учебный резистор; выводы разнесены на 10 шагов макетной платы.',
+    description:
+      'Осевой учебный резистор: текущий foundation использует 10 шагов; гибкие выводы требуют отдельной физической модели и reference-проверки.',
     keywords: ['резистор', 'сопротивление', 'ом', '300'],
     preview: 'resistor',
     asset: `${ASSET_ROOT}/resistor.svg`,
@@ -177,7 +178,7 @@ const ACTIVE: CatalogEntry[] = [
       envelopeMm: { width: 28, height: 10.5, depth: 2.5 },
       terminalSpanPitches: 10,
       evidence: 'manufacturer_typical',
-      source: 'typical axial quarter-watt body; educational lead span 25.4 mm',
+      source: 'typical axial quarter-watt body; current educational lead span 25.4 mm',
       referenceBehaviorVerified: false,
     },
     placement: { gridDivisor: 2, anchorTerminal: 'a', mode: 'terminal-grid' },
@@ -320,7 +321,7 @@ const FUTURE: CatalogEntry[] = [
   future({ key: 'battery-aa', label: 'Элемент AA 1,5 В', category: 'power', preview: 'battery-aa', description: 'Один цилиндрический элемент AA.', physical: provisionalPhysical(14.5, 50.5, 'typical AA cell envelope', 14.5) }),
   future({ key: 'adjustable-source', label: 'Регулируемый источник', category: 'power', preview: 'power-supply', description: 'Источник с регулируемым напряжением и ограничением тока.', physical: provisionalPhysical(55, 35) }),
   future({ key: 'breadboard-mini', label: 'Мини-макетка 170 точек', category: 'boards', preview: 'breadboard', description: '17 колонок, две группы по пять отверстий, шаг 2,54 мм.', physical: officialPhysical(47, 35, 'SparkFun PRT-12047 mechanical dimensions; reference visual still pending', 10), placementMode: 'breadboard-hole' }),
-  future({ key: 'breadboard-half', label: 'Макетка 400 точек', category: 'boards', preview: 'breadboard', description: '30 рядов, центральный канал и четыре шины питания.', physical: officialPhysical(83.5, 54.5, 'SparkFun PRT-12002 mechanical dimensions; exact reference visual still pending', 8.5), placementMode: 'breadboard-hole' }),
+  future({ key: 'breadboard-half', label: 'Макетка 400 точек', category: 'boards', preview: 'breadboard', description: '30 рядов, центральный канал и четыре шины питания; UI attachment persistence ещё не реализована.', physical: officialPhysical(83.5, 54.5, 'SparkFun PRT-12002 mechanical dimensions; exact reference visual still pending', 8.5), placementMode: 'breadboard-hole' }),
   future({ key: 'breadboard-full', label: 'Макетка 830 точек', category: 'boards', preview: 'breadboard', description: '63 ряда и разделённые шины питания.', physical: officialPhysical(165.1, 54.29, 'SparkFun PRT-12615 mechanical dimensions; exact reference visual still pending', 9.68), placementMode: 'breadboard-hole' }),
   future({ key: 'microbit', label: 'micro:bit V2', category: 'boards', preview: 'microbit', description: 'Плата с edge connector, LED-матрицей, кнопками, sensors, speaker и microphone.', authored: false, physical: officialPhysical(51.6, 42, 'micro:bit Educational Foundation V2 mechanical dimensions', 11.65), placementMode: 'free-physical' }),
   future({ key: 'arduino', label: 'Arduino Uno R3', category: 'boards', preview: 'arduino', description: 'Официальная геометрия платы, headers и pin model.', physical: officialPhysical(68.6, 53.4, 'Arduino official Uno Rev3 length and width'), placementMode: 'free-physical' }),
@@ -364,11 +365,26 @@ const FUTURE: CatalogEntry[] = [
   future({ key: 'bench-power-supply', label: 'Лабораторный источник', category: 'instruments', preview: 'power-supply', description: 'Adjustable voltage/current with explicit limits.', physical: provisionalPhysical(100, 65), placementMode: 'free-physical' }),
 ];
 
+const PLANNED_HALF_BREADBOARD = FUTURE.find(
+  (entry) => entry.key === 'breadboard-half',
+);
+if (!PLANNED_HALF_BREADBOARD) {
+  throw new Error('planned half breadboard catalogue entry is missing');
+}
+
 export const WORKBENCH_CATALOG: readonly CatalogEntry[] = [...ACTIVE, ...FUTURE];
-export const ACTIVE_COMPONENTS: Record<Exclude<ComponentKind, 'wire'>, CatalogEntry> = {
+/**
+ * Every persisted ComponentKind resolves deterministically. Breadboard resolves
+ * to an explicitly disabled planning entry until its original asset, 400-hole
+ * terminal map, attachment persistence and browser flow are complete.
+ */
+export const ACTIVE_COMPONENTS: Readonly<
+  Record<Exclude<ComponentKind, 'wire'>, CatalogEntry>
+> = {
   source: ACTIVE[0] as CatalogEntry,
   resistor: ACTIVE[1] as CatalogEntry,
   led: ACTIVE[2] as CatalogEntry,
+  breadboard: PLANNED_HALF_BREADBOARD,
 };
 
 export function catalogEntry(kind: ComponentKind): CatalogEntry | null {
