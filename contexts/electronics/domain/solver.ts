@@ -1,10 +1,11 @@
+import { isNominalComponentValue } from './component-model.js';
 import type { ElectronicsDocument, SchematicComponent } from './document.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 
 /**
- * Minimal DC analysis for a single series loop: exactly one source and a chain
- * of resistors/LEDs. Enough for the teaching scenario of this slice and small
- * enough to stay fully deterministic and explainable.
+ * Deterministic foundation DC analysis for a single series loop: exactly one
+ * source and a chain of resistors/LEDs. Unsupported topology returns an honest
+ * diagnostic; it never fabricates a numerical result.
  */
 
 export type DiagnosticCode =
@@ -16,6 +17,8 @@ export type DiagnosticCode =
   | 'led_reverse'
   | 'led_no_resistor'
   | 'overcurrent'
+  | 'led_damage_risk'
+  | 'non_nominal_component'
   | 'not_series';
 
 export type DiagnosticSeverity = 'info' | 'warning' | 'error';
@@ -38,15 +41,16 @@ export interface ComponentResult {
 
 export interface SolveResult {
   readonly solved: boolean;
+  /** Zero when a current cannot be calculated honestly. */
   readonly current: number;
   readonly components: readonly ComponentResult[];
   readonly diagnostics: readonly Diagnostic[];
 }
 
-/** LED model: a fixed forward drop above which it conducts and lights up. */
-const LED_MIN_CURRENT_A = 0.001;
-const LED_MAX_CURRENT_A = 0.03;
-const SHORT_CIRCUIT_CURRENT_A = 10;
+/** Red LED foundation model. */
+const LED_MIN_VISIBLE_CURRENT_A = 0.001;
+const LED_RECOMMENDED_MAX_CURRENT_A = 0.02;
+const LED_DAMAGE_RISK_CURRENT_A = 0.03;
 
 function round(value: number, digits = 6): number {
   const factor = 10 ** digits;
@@ -57,8 +61,27 @@ function idsOf(components: readonly SchematicComponent[]): string[] {
   return components.map((component) => component.id);
 }
 
+function nonNominalDiagnostics(document: ElectronicsDocument): Diagnostic[] {
+  if (document.geometryProfile !== 'breadboard-2.54mm-v1') return [];
+  const affected = document.components.filter(
+    (component) =>
+      (component.kind === 'source' || component.kind === 'led') &&
+      !isNominalComponentValue(component.kind, component.value),
+  );
+  if (affected.length === 0) return [];
+  return [
+    {
+      code: 'non_nominal_component',
+      severity: 'warning',
+      message:
+        'В схеме сохранён старый нестандартный номинал батарейного отсека или LED. Расчёт выполнен по сохранённому значению; для нативной модели верните номинал компонента.',
+      componentIds: idsOf(affected),
+    },
+  ];
+}
+
 export function solveCircuit(document: ElectronicsDocument): SolveResult {
-  const diagnostics: Diagnostic[] = [];
+  const diagnostics: Diagnostic[] = nonNominalDiagnostics(document);
   const sources = document.components.filter((component) => component.kind === 'source');
   const leds = document.components.filter((component) => component.kind === 'led');
   const empty = { solved: false, current: 0, components: [] as ComponentResult[] };
@@ -75,7 +98,8 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     diagnostics.push({
       code: 'multiple_sources',
       severity: 'error',
-      message: 'В схеме несколько источников. Этот редактор рассчитывает цепь с одним источником.',
+      message:
+        'В схеме несколько источников. Foundation solver поддерживает один источник; объединённая модель пока не реализована.',
       componentIds: idsOf(sources),
     });
     return { ...empty, diagnostics };
@@ -86,7 +110,6 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const nodeA = netlist.nodeOf.get(terminalKey(source.id, 'a'));
   const nodeB = netlist.nodeOf.get(terminalKey(source.id, 'b'));
 
-  // Elements in the loop: everything except wires (wires only merge nodes).
   const elements = document.components.filter(
     (component) => component.kind === 'resistor' || component.kind === 'led',
   );
@@ -97,10 +120,10 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         code: 'short_circuit',
         severity: 'error',
         message:
-          'Источник замкнут накоротко: его выводы соединены проводом без резистора. Добавьте резистор.',
+          'Источник замкнут накоротко. Ток не рассчитан: для него нужны внутреннее сопротивление источника и сопротивление проводов. Разомкните цепь и добавьте нагрузку.',
         componentIds: [source.id],
       });
-      return { ...empty, current: SHORT_CIRCUIT_CURRENT_A, diagnostics };
+      return { ...empty, diagnostics };
     }
     diagnostics.push({
       code: 'open_circuit',
@@ -110,8 +133,6 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     return { ...empty, diagnostics };
   }
 
-  // Walk the loop from the source terminal A back to terminal B; every element
-  // must be traversed exactly once for a valid series circuit.
   const adjacency = new Map<number, { component: SchematicComponent; other: number }[]>();
   for (const element of elements) {
     const from = netlist.nodeOf.get(terminalKey(element.id, 'a'));
@@ -149,7 +170,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         code: 'not_series',
         severity: 'error',
         message:
-          'Здесь цепь разветвляется. Этот редактор рассчитывает только простую последовательную цепь.',
+          'Цепь разветвляется. Foundation solver ещё не поддерживает параллельные ветви; численный результат не выдаётся.',
         componentIds: options.map((edge) => edge.component.id),
       });
       return { ...empty, diagnostics };
@@ -166,21 +187,19 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     diagnostics.push({
       code: 'open_circuit',
       severity: 'warning',
-      message: 'Часть элементов не входит в замкнутый контур и не участвует в работе схемы.',
+      message: 'Часть элементов не входит в замкнутый контур и не участвует в расчёте.',
       componentIds: idsOf(unusedElements),
     });
   }
 
   const pathLeds = path.filter((entry) => entry.component.kind === 'led');
-  // Current flows from the source terminal A, so an LED traversed backwards is
-  // reverse-biased and blocks the circuit.
   const reversed = pathLeds.filter((entry) => !entry.forward);
   if (reversed.length > 0) {
     diagnostics.push({
       code: 'led_reverse',
       severity: 'error',
       message:
-        'Светодиод подключён в обратной полярности и не пропускает ток. Разверните его выводы.',
+        'Светодиод подключён в обратной полярности и блокирует ток. Соедините анод A с положительным направлением цепи, катод K — с отрицательным.',
       componentIds: reversed.map((entry) => entry.component.id),
     });
     return {
@@ -208,11 +227,11 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       severity: 'error',
       message:
         pathLeds.length > 0
-          ? 'Светодиод подключён без токоограничивающего резистора — так он сгорит. Добавьте резистор.'
-          : 'Короткое замыкание: в цепи нет сопротивления. Добавьте резистор.',
+          ? 'Светодиод подключён без токоограничивающего резистора. Ток не рассчитан, потому что модель не должна придумывать внутреннее сопротивление.'
+          : 'Короткое замыкание: в цепи нет сопротивления. Ток не рассчитан без модели внутренних сопротивлений.',
       componentIds: pathLeds.length > 0 ? idsOf(leds) : [source.id],
     });
-    return { ...empty, current: SHORT_CIRCUIT_CURRENT_A, diagnostics };
+    return { ...empty, diagnostics };
   }
 
   if (drivingVoltage <= 0) {
@@ -220,7 +239,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       code: 'open_circuit',
       severity: 'warning',
       message:
-        'Напряжения источника не хватает, чтобы зажечь светодиод. Возьмите источник с большим напряжением.',
+        'Напряжения источника не хватает для суммарного прямого падения LED. Ток равен нулю в текущей идеализированной модели.',
       componentIds: idsOf(leds),
     });
     return {
@@ -237,11 +256,18 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   }
 
   const current = drivingVoltage / totalResistance;
-  if (current > LED_MAX_CURRENT_A && pathLeds.length > 0) {
+  if (pathLeds.length > 0 && current > LED_DAMAGE_RISK_CURRENT_A) {
+    diagnostics.push({
+      code: 'led_damage_risk',
+      severity: 'error',
+      message: `Ток ${(current * 1000).toFixed(1)} мА превышает 30 мА: высок риск повреждения красного LED. Увеличьте сопротивление.`,
+      componentIds: pathLeds.map((entry) => entry.component.id),
+    });
+  } else if (pathLeds.length > 0 && current > LED_RECOMMENDED_MAX_CURRENT_A) {
     diagnostics.push({
       code: 'overcurrent',
       severity: 'warning',
-      message: `Ток ${(current * 1000).toFixed(1)} мА выше безопасного для светодиода (20–30 мА). Возьмите резистор побольше.`,
+      message: `Ток ${(current * 1000).toFixed(1)} мА выше рекомендуемых 20 мА для текущей учебной модели LED. Увеличьте сопротивление.`,
       componentIds: pathLeds.map((entry) => entry.component.id),
     });
   }
@@ -258,7 +284,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       componentId: entry.component.id,
       voltageDrop: round(entry.component.value),
       current: round(current),
-      lit: current >= LED_MIN_CURRENT_A,
+      lit: current >= LED_MIN_VISIBLE_CURRENT_A,
     };
   });
 
@@ -266,7 +292,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     diagnostics.push({
       code: 'circuit_ok',
       severity: 'info',
-      message: `Цепь замкнута. Ток ${(current * 1000).toFixed(1)} мА.`,
+      message: `Последовательная цепь рассчитана. Ток ${(current * 1000).toFixed(1)} мА.`,
     });
   }
 
