@@ -40,6 +40,21 @@ export interface SchematicConnection {
   readonly vertices?: readonly ComponentPosition[];
 }
 
+/**
+ * Hidden physical insertion edge. It is not rendered as a visible wire.
+ * A component lead and a breadboard hole can each participate in at most one
+ * active attachment inside one project document.
+ */
+export interface BreadboardAttachment {
+  readonly id: string;
+  readonly breadboardComponentId: string;
+  readonly breadboardTerminalId: TerminalId;
+  readonly componentId: string;
+  readonly componentTerminalId: TerminalId;
+  readonly footprintKey?: string;
+  readonly insertionDepthMm?: number;
+}
+
 export interface ElectronicsDocument {
   readonly schemaVersion: 1;
   /**
@@ -50,6 +65,8 @@ export interface ElectronicsDocument {
   readonly geometryProfile?: ElectronicsGeometryProfile;
   readonly components: readonly SchematicComponent[];
   readonly connections: readonly SchematicConnection[];
+  /** Additive physical attachment field; absent legacy documents mean []. */
+  readonly breadboardAttachments?: readonly BreadboardAttachment[];
 }
 
 export const EMPTY_DOCUMENT: ElectronicsDocument = {
@@ -57,6 +74,7 @@ export const EMPTY_DOCUMENT: ElectronicsDocument = {
   geometryProfile: 'breadboard-2.54mm-v1',
   components: [],
   connections: [],
+  breadboardAttachments: [],
 };
 
 const GEOMETRY_PROFILES: readonly ElectronicsGeometryProfile[] = [
@@ -66,9 +84,20 @@ const GEOMETRY_PROFILES: readonly ElectronicsGeometryProfile[] = [
 const ROTATIONS = new Set([0, 90, 180, 270]);
 const MAX_COMPONENTS = 100;
 const MAX_CONNECTIONS = 200;
+const MAX_BREADBOARD_ATTACHMENTS = 400;
 const MAX_WIRE_VERTICES = 24;
 const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const TERMINAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
+const SAFE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const ATTACHMENT_KEYS = new Set([
+  'id',
+  'breadboardComponentId',
+  'breadboardTerminalId',
+  'componentId',
+  'componentTerminalId',
+  'footprintKey',
+  'insertionDepthMm',
+]);
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -76,6 +105,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 64;
+}
+
+function isSafeKey(value: unknown): value is string {
+  return typeof value === 'string' && SAFE_KEY_PATTERN.test(value);
 }
 
 function isTerminalId(value: unknown): value is TerminalId {
@@ -129,6 +162,95 @@ function endpointKey(endpoint: SchematicEndpoint): string {
 
 function connectionPairKey(from: SchematicEndpoint, to: SchematicEndpoint): string {
   return [endpointKey(from), endpointKey(to)].sort().join('|');
+}
+
+function parseBreadboardAttachments(
+  value: unknown,
+  geometryProfile: ElectronicsGeometryProfile,
+  componentKinds: ReadonlyMap<string, ComponentKind>,
+): readonly BreadboardAttachment[] | string | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > MAX_BREADBOARD_ATTACHMENTS) {
+    return 'breadboardAttachments must be a bounded array';
+  }
+  if (value.length > 0 && geometryProfile !== 'breadboard-2.54mm-v1') {
+    return 'breadboardAttachments require the breadboard-2.54mm-v1 geometry profile';
+  }
+
+  const attachments: BreadboardAttachment[] = [];
+  const seenIds = new Set<string>();
+  const occupiedComponentTerminals = new Set<string>();
+  const occupiedBoardHoles = new Set<string>();
+  for (const raw of value) {
+    if (!isPlainObject(raw)) return 'breadboard attachment must be an object';
+    const unknownKeys = Object.keys(raw).filter((key) => !ATTACHMENT_KEYS.has(key));
+    if (unknownKeys.length > 0) {
+      return `breadboard attachment contains unsupported field: ${unknownKeys.sort()[0]}`;
+    }
+    const {
+      id,
+      breadboardComponentId,
+      breadboardTerminalId,
+      componentId,
+      componentTerminalId,
+      footprintKey,
+      insertionDepthMm,
+    } = raw;
+    if (!isId(id) || seenIds.has(id)) {
+      return 'breadboard attachment id must be unique and non-empty';
+    }
+    if (!isId(breadboardComponentId) || componentKinds.get(breadboardComponentId) !== 'breadboard') {
+      return 'breadboard attachment must reference an existing breadboard component';
+    }
+    if (!isTerminalId(breadboardTerminalId) || !isComponentTerminal('breadboard', breadboardTerminalId)) {
+      return 'breadboard attachment must reference a valid breadboard terminal';
+    }
+    if (!isId(componentId)) {
+      return 'breadboard attachment must reference an existing component';
+    }
+    const componentKind = componentKinds.get(componentId);
+    if (!componentKind || componentKind === 'breadboard' || componentKind === 'wire') {
+      return 'breadboard attachment target must be an attachable non-board component';
+    }
+    if (componentId === breadboardComponentId) {
+      return 'breadboard attachment cannot attach a board to itself';
+    }
+    if (!isTerminalId(componentTerminalId) || !isComponentTerminal(componentKind, componentTerminalId)) {
+      return 'breadboard attachment must reference a valid component terminal';
+    }
+    if (footprintKey !== undefined && !isSafeKey(footprintKey)) {
+      return 'breadboard attachment footprintKey is invalid';
+    }
+    if (
+      insertionDepthMm !== undefined &&
+      (!isFiniteNumber(insertionDepthMm) || insertionDepthMm < 0 || insertionDepthMm > 20)
+    ) {
+      return 'breadboard attachment insertionDepthMm must be between 0 and 20';
+    }
+
+    const componentTerminalKey = `${componentId}:${componentTerminalId}`;
+    if (occupiedComponentTerminals.has(componentTerminalKey)) {
+      return 'component terminal can have only one breadboard attachment';
+    }
+    const boardHoleKey = `${breadboardComponentId}:${breadboardTerminalId}`;
+    if (occupiedBoardHoles.has(boardHoleKey)) {
+      return 'breadboard physical hole can contain only one attached conductor';
+    }
+
+    seenIds.add(id);
+    occupiedComponentTerminals.add(componentTerminalKey);
+    occupiedBoardHoles.add(boardHoleKey);
+    attachments.push({
+      id,
+      breadboardComponentId,
+      breadboardTerminalId,
+      componentId,
+      componentTerminalId,
+      ...(footprintKey === undefined ? {} : { footprintKey }),
+      ...(insertionDepthMm === undefined ? {} : { insertionDepthMm }),
+    });
+  }
+  return attachments;
 }
 
 export type DocumentParseResult =
@@ -227,8 +349,23 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     });
   }
 
+  const breadboardAttachments = parseBreadboardAttachments(
+    value['breadboardAttachments'],
+    geometryProfile,
+    componentKinds,
+  );
+  if (typeof breadboardAttachments === 'string') {
+    return { ok: false, message: breadboardAttachments };
+  }
+
   return {
     ok: true,
-    document: { schemaVersion: 1, geometryProfile, components, connections },
+    document: {
+      schemaVersion: 1,
+      geometryProfile,
+      components,
+      connections,
+      ...(breadboardAttachments === undefined ? {} : { breadboardAttachments }),
+    },
   };
 }
