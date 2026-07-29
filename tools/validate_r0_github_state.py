@@ -18,19 +18,54 @@ REPOSITORY = "spikeal8-maker/asa-lab"
 API_TIMEOUT_SECONDS = 30
 
 EXPECTED_PRS: dict[int, dict[str, Any]] = {
-    29: {"title_prefix": "[MAP-UX]", "base": "main"},
-    34: {"title_prefix": "[R0 FOUNDATION REVIEW]", "base": "main"},
-    35: {"title_prefix": "[TRANSFER-ONLY]", "base": "agent/task-electronics-slice-001"},
+    29: {
+        "title_prefix": "[MAP-UX]",
+        "base": "main",
+        "head": "assistant/map-ux-owner-view",
+        "draft": True,
+    },
+    34: {
+        "title_prefix": "[R0 FOUNDATION REVIEW]",
+        "base": "main",
+        "head": "agent/task-electronics-slice-001",
+        "draft": True,
+    },
+    35: {
+        "title_prefix": "[TRANSFER-ONLY]",
+        "base": "agent/task-electronics-slice-001",
+        "head": "assistant/electronics-workbench-redesign",
+        "draft": True,
+    },
     43: {
         "title_prefix": "[R0 TARGET CONTRACT]",
         "base": "main",
         "head": "assistant/tinkercad-parity-baseline",
         "draft": True,
     },
-    45: {"title_prefix": "[TRANSFER-ONLY]"},
-    47: {"title_prefix": "[TRANSFER-ONLY]"},
-    59: {"title_prefix": "[FROZEN R1 CANDIDATE A]"},
-    60: {"title_prefix": "[FROZEN R1 CANDIDATE B]"},
+    45: {
+        "title_prefix": "[TRANSFER-ONLY]",
+        "base": "assistant/electronics-workbench-redesign",
+        "head": "assistant/parity-p1-project-hub",
+        "draft": True,
+    },
+    47: {
+        "title_prefix": "[TRANSFER-ONLY]",
+        "base": "assistant/parity-p1-project-hub",
+        "head": "assistant/asa-visual-system",
+        "draft": True,
+    },
+    59: {
+        "title_prefix": "[FROZEN R1 CANDIDATE A]",
+        "base": "agent/parity-p1-visual-integration",
+        "head": "agent/parity-c1-identity",
+        "draft": True,
+    },
+    60: {
+        "title_prefix": "[FROZEN R1 CANDIDATE B]",
+        "base": "agent/parity-p1-visual-integration",
+        "head": "agent/account-vertical-001",
+        "draft": True,
+    },
 }
 
 EXPECTED_ISSUES: dict[int, str] = {
@@ -116,15 +151,15 @@ def main() -> int:
                 errors.append(
                     f"PR #{number} title must start with {expected['title_prefix']!r}, got {title!r}"
                 )
-            if expected.get("base") and pr.get("base", {}).get("ref") != expected["base"]:
+            if pr.get("base", {}).get("ref") != expected["base"]:
                 errors.append(
                     f"PR #{number} base must be {expected['base']}, got {pr.get('base', {}).get('ref')!r}"
                 )
-            if expected.get("head") and pr.get("head", {}).get("ref") != expected["head"]:
+            if pr.get("head", {}).get("ref") != expected["head"]:
                 errors.append(
                     f"PR #{number} head must be {expected['head']}, got {pr.get('head', {}).get('ref')!r}"
                 )
-            if "draft" in expected and pr.get("draft") is not expected["draft"]:
+            if pr.get("draft") is not expected["draft"]:
                 errors.append(
                     f"PR #{number} draft must be {expected['draft']}, got {pr.get('draft')!r}"
                 )
@@ -187,6 +222,7 @@ def main() -> int:
     print("ASA R0 GitHub state PASS")
     print(f"- pull requests checked: {len(EXPECTED_PRS)}")
     print(f"- issues checked: {len(EXPECTED_ISSUES)}")
+    print("- exact PR base/head/draft chain: verified")
     print("- transfer-only PRs: #35, #45, #47")
     print("- competing R1 candidates: #59, #60")
     print(f"- legacy executable task PR titles: 0 ({len(LEGACY_TASK_IDS)} task IDs)")
