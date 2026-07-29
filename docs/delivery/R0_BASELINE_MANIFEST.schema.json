@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/spikeal8-maker/asa-lab/blob/main/docs/delivery/R0_BASELINE_MANIFEST.schema.json",
+  "title": "ASA Lab R0 baseline manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "manifestType",
+    "generatedAt",
+    "sourceCommitSha",
+    "database",
+    "tables",
+    "stableIdentifiers",
+    "credentialFingerprints",
+    "projectDrafts",
+    "projectVersions",
+    "electronicsDocuments",
+    "routes",
+    "screenshots"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "manifestType": { "const": "asa-r0-baseline" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "sourceCommitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nameFingerprint", "migrationVersions"],
+      "properties": {
+        "nameFingerprint": { "$ref": "#/$defs/digest" },
+        "migrationVersions": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[0-9]{4}$" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "tables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["exists", "rowCount"],
+        "properties": {
+          "exists": { "type": "boolean" },
+          "rowCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "stableIdentifiers": { "$ref": "#/$defs/digestMap" },
+    "credentialFingerprints": { "$ref": "#/$defs/digestMap" },
+    "projectDrafts": { "$ref": "#/$defs/projectDocumentMap" },
+    "projectVersions": { "$ref": "#/$defs/projectVersionMap" },
+    "electronicsDocuments": { "$ref": "#/$defs/digestMap" },
+    "routes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^/" },
+      "uniqueItems": true
+    },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "$ref": "#/$defs/digest" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "digestMap": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/digest" }
+    },
+    "projectDocumentMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["documentDigest", "revision"],
+        "properties": {
+          "documentDigest": { "$ref": "#/$defs/digest" },
+          "revision": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "projectVersionMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["projectKey", "documentDigest", "versionNo"],
+        "properties": {
+          "projectKey": { "$ref": "#/$defs/digest" },
+          "documentDigest": { "$ref": "#/$defs/digest" },
+          "versionNo": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}
