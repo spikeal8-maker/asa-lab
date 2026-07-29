@@ -10,12 +10,13 @@
     :root { color-scheme:dark; --bg:#101216; --panel:#181c22; --panel2:#202630; --text:#eef2f6; --muted:#aeb8c5; --border:#333c49; --accent:#8db6ff; --accent2:#6ee7b7; --danger:#ff8d8d; --warning:#f4c86a; }
     * { box-sizing:border-box; }
     body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    a { color:var(--accent); }
     header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel); }
     header h1 { margin:0; font-size:18px; }
     .mode-switch { display:flex; gap:6px; }
     .mode-switch button { width:auto; margin:0; padding:7px 11px; }
     .mode-switch button[aria-pressed="true"] { border-color:var(--accent); background:#263653; color:#fff; }
-    #ownerSummary { display:grid; grid-template-columns:1.05fr 1.6fr 1fr .8fr; gap:10px; padding:10px 18px; border-bottom:1px solid var(--border); background:#141820; }
+    #ownerSummary { display:grid; grid-template-columns:1.05fr 1.6fr 1fr .9fr; gap:10px; padding:10px 18px; border-bottom:1px solid var(--border); background:#141820; }
     .summary-card { min-width:0; border:1px solid var(--border); border-radius:9px; padding:10px 12px; background:var(--panel); }
     .summary-card .kicker { display:block; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
     .summary-card strong { display:block; margin-top:4px; line-height:1.3; }
@@ -61,9 +62,10 @@
     .contract { margin-top:12px; border:1px solid var(--border); border-radius:8px; padding:10px; background:var(--panel2); }
     .contract code,.technical { color:var(--accent); font-size:12px; }
     #notice { display:none; padding:12px 18px; background:#6b3030; color:white; }
+    #sourceBanner { padding:7px 18px; border-bottom:1px solid var(--border); background:#182330; color:var(--muted); font-size:12px; }
     .technical-only { display:none; }
     body.technical-mode .technical-only { display:block; }
-    @media (max-width:1260px) { #ownerSummary { grid-template-columns:1fr 1fr; } main { height:calc(100vh - 225px); grid-template-columns:290px 1fr; } aside.right { display:none; } }
+    @media (max-width:1260px) { #ownerSummary { grid-template-columns:1fr 1fr; } main { height:calc(100vh - 250px); grid-template-columns:290px 1fr; } aside.right { display:none; } }
     @media (max-width:760px) { header { align-items:flex-start; flex-direction:column; } #ownerSummary { grid-template-columns:1fr; } main { height:auto; min-height:75vh; grid-template-columns:1fr; } aside.left { border-right:0; border-bottom:1px solid var(--border); } #cy { min-height:65vh; } }
   </style>
 </head>
@@ -76,9 +78,10 @@
       <button id="modeTechnical" type="button" aria-pressed="false">Технический режим</button>
     </div>
   </header>
+  <div id="sourceBanner">Загрузка источников…</div>
   <section id="ownerSummary" aria-label="Что происходит сейчас">
     <div class="summary-card"><span class="kicker">Сейчас</span><strong id="summaryNow">Загрузка…</strong><small id="summaryStage"></small></div>
-    <div class="summary-card"><span class="kicker">Что делает бот</span><strong id="summaryResult">Загрузка…</strong></div>
+    <div class="summary-card"><span class="kicker">Что должно получиться</span><strong id="summaryResult">Загрузка…</strong></div>
     <div class="summary-card"><span class="kicker">Следующий этап</span><strong id="summaryNext">Загрузка…</strong></div>
     <div class="summary-card"><span class="kicker">Статус</span><strong id="summaryStatus">Загрузка…</strong><small id="summaryMap"></small></div>
   </section>
@@ -94,7 +97,7 @@
         <button type="button" data-preset="student">Детский доступ и задания</button>
         <button type="button" data-preset="full">Полная техническая карта</button>
       </div>
-      <label for="search">Поиск</label><input id="search" type="search" placeholder="класс, проект, электроника…">
+      <label for="search">Поиск</label><input id="search" type="search" placeholder="аккаунт, класс, проект, электроника…">
       <div class="technical-only">
         <label for="status">Статус</label><select id="status"><option value="">Все статусы</option></select>
         <label for="layer">Слой</label><select id="layer"><option value="">Все слои</option></select>
@@ -110,144 +113,97 @@
     <aside class="right"><div id="detail" class="detail-empty">Выберите узел. В простом режиме показано человеческое объяснение, технические IDs сохранены вторично.</div></aside>
   </main>
 <script>
-const statusColors={planned:'#6f7b8a',blocked:'#c65f5f',ready:'#4ca66b',in_progress:'#d6a84d',in_review:'#7e79d6',done:'#3aa6a0',deprecated:'#555b64'};
-const statusLabels={planned:'Запланировано',blocked:'Заблокировано',ready:'Готово к работе',in_progress:'В разработке',in_review:'На проверке',done:'Готово',deprecated:'Только история'};
-const kindLabels={actor:'Участник',platform:'Платформа',plane:'Архитектурный контур',application:'Приложение',bounded_context:'Часть системы',worker_pool:'Вычислительный сервис',data_store:'Хранилище данных',integration:'Интеграция',observability:'Наблюдаемость',sdk:'Контракт модулей',subject_module:'Учебный модуль',document:'Документ',roadmap_phase:'Архитектурный горизонт',task:'Этап разработки',program:'Программа',delivery_track:'Линия поставки'};
+const statusColors={planned:'#6f7b8a',blocked:'#c65f5f',ready:'#4ca66b',in_progress:'#d6a84d',in_review:'#7e79d6',done:'#3aa6a0',deprecated:'#555b64',superseded:'#555b64'};
+const statusLabels={planned:'Запланировано',blocked:'Заблокировано',ready:'Готово к работе',in_progress:'В разработке',in_review:'На проверке',done:'Готово',deprecated:'Только история',superseded:'Заменено новой программой'};
+const kindLabels={actor:'Участник',platform:'Платформа',plane:'Архитектурный контур',application:'Приложение',bounded_context:'Часть системы',worker_pool:'Вычислительный сервис',data_store:'Хранилище данных',integration:'Интеграция',observability:'Наблюдаемость',sdk:'Контракт модулей',subject_module:'Учебный модуль',document:'Документ',roadmap_phase:'Архитектурный горизонт',task:'Этап разработки',release:'Релиз программы',program:'Программа',delivery_track:'Линия поставки'};
 const relationLabels={contains:'содержит',uses:'использует',depends_on:'зависит от',produces:'создаёт',implements:'реализует',governs:'управляет',observes:'наблюдает',stores_in:'хранит в',queues_to:'передаёт задачу',serves:'предоставляет интерфейс',next:'следующий этап'};
-const kindShapes={actor:'ellipse',platform:'round-rectangle',plane:'round-rectangle',application:'round-rectangle',bounded_context:'round-rectangle',worker_pool:'hexagon',data_store:'barrel',integration:'diamond',observability:'diamond',sdk:'round-rectangle',subject_module:'round-rectangle',document:'rectangle',roadmap_phase:'tag',task:'round-tag',program:'star',delivery_track:'round-rectangle'};
+const kindShapes={actor:'ellipse',platform:'round-rectangle',plane:'round-rectangle',application:'round-rectangle',bounded_context:'round-rectangle',worker_pool:'hexagon',data_store:'barrel',integration:'diamond',observability:'diamond',sdk:'round-rectangle',subject_module:'round-rectangle',document:'rectangle',roadmap_phase:'tag',task:'round-tag',release:'round-tag',program:'star',delivery_track:'round-rectangle'};
 const friendlyNames={
-  'TASK-PRODUCT-DOC-001':'Определение продукта и правил разработки',
-  'TASK-PORTAL-001':'Кабинет педагога и классы',
-  'TASK-PROJECT-SHELL-001':'Универсальные проекты',
-  'TASK-CHECKERS-LITE-001':'Пробный модуль шашек',
-  'TASK-ELECTRONICS-ALPHA-001':'Первая электронная лаборатория',
-  'TASK-SEAT-001':'Детский вход и кабинет ученика',
-  'TASK-ACT-001':'Задание и сдача работы',
-  'TASK-REVIEW-001':'Проверка, оценка и значок',
-  'TASK-ELEC-001':'Полный урок по электронике',
-  'CTX-IDENTITY':'Пользователи и вход',
-  'CTX-ORG':'Школы и организации',
-  'CTX-CLASSROOM':'Классы',
-  'CTX-PROJECTS':'Проекты',
-  'CTX-MODULES':'Подключаемые учебные модули',
-  'CTX-ACTIVITIES':'Задания',
-  'CTX-ASSESSMENT':'Проверка и оценки',
-  'APP-WEB':'Сайт ASA Lab',
-  'APP-ADMIN':'Панель администратора',
-  'DATA-PG':'Основная база данных',
-  'SDK-MODULE':'Контракт учебных модулей',
-  'MOD-BLANK':'Технический пробный модуль',
-  'MOD-CHECKERS-LITE':'Шашки Lite',
-  'MOD-ELECTRONICS':'Электроника Alpha',
-  'TRACK-TECH-ALPHA':'Работающий технический продукт',
-  'TRACK-SCHOOL-PILOT':'Полный школьный учебный цикл',
-  'ACT-TEACHER':'Педагог',
-  'ACT-STUDENT':'Ученик'
+  R0:'R0 — Единый контракт и baseline',R1:'R1 — Аккаунт и личное пространство',R2:'R2 — Главная страница автора',R3:'R3 — Проекты и общий редактор',R4:'R4 — Электронная лаборатория',R5:'R5 — Класс и детский вход',R6:'R6 — Работы ученика для педагога',R7:'R7 — Публикация и Remix',R8:'R8 — Профили и Explore',R9:'R9 — Задания, проверка и оценки',R10:'R10 — Несколько учебных модулей',
+  'TASK-PRODUCT-DOC-001':'Определение продукта и правил разработки','TASK-PORTAL-001':'Кабинет педагога и классы','TASK-PROJECT-SHELL-001':'Старая задача универсальных проектов','TASK-CHECKERS-LITE-001':'Старая задача шашек','TASK-ELECTRONICS-ALPHA-001':'Старая задача первой электроники','TASK-SEAT-001':'Старая задача детского входа','TASK-ACT-001':'Старая задача заданий','TASK-REVIEW-001':'Старая задача проверки и оценок','TASK-ELEC-001':'Старый полный урок электроники',
+  'CTX-IDENTITY':'Пользователи и вход','CTX-ORG':'Школы и организации','CTX-CLASSROOM':'Классы','CTX-PROJECTS':'Проекты','CTX-MODULES':'Подключаемые учебные модули','CTX-ACTIVITIES':'Задания','CTX-ASSESSMENT':'Проверка и оценки','APP-WEB':'Сайт ASA Lab','APP-ADMIN':'Панель администратора','DATA-PG':'Основная база данных','SDK-MODULE':'Контракт учебных модулей','MOD-CHECKERS-LITE':'Шашки','MOD-ELECTRONICS':'Электроника','TRACK-TECH-ALPHA':'Работающий технический продукт','TRACK-SCHOOL-PILOT':'Полный школьный учебный цикл','ACT-TEACHER':'Педагог','ACT-STUDENT':'Ученик'
 };
-const resultRu={
-  'TASK-PRODUCT-DOC-001':'Зафиксировать цель продукта, очередь разработки и обязательные правила.',
-  'TASK-PORTAL-001':'Запустить вход педагога, кабинет «Мои классы» и создание класса.',
-  'TASK-PROJECT-SHELL-001':'Создавать универсальный проект, сохранять черновик и контрольную версию.',
-  'TASK-CHECKERS-LITE-001':'Проверить подключение нового модуля на простой шашечной задаче.',
-  'TASK-ELECTRONICS-ALPHA-001':'Собрать первую схему из источника, резистора, LED и проводов и выполнить DC-расчёт.',
-  'TASK-SEAT-001':'Дать ребёнку безопасный вход без обязательной электронной почты.',
-  'TASK-ACT-001':'Выдать задание и сохранить неизменяемую версию сданной работы.',
-  'TASK-REVIEW-001':'Оставить комментарий, вернуть на доработку, оценить и выдать значок.',
-  'TASK-ELEC-001':'Провести полный учебный цикл на проекте электронной схемы.'
+const releaseResults={
+  R0:'Оставить одну принятую baseline, один целевой контракт и одну понятную очередь разработки.',
+  R1:'Зарегистрировать взрослого пользователя без кода школы, создать личное пространство и безопасную сессию.',
+  R2:'Показать Creator Home, последние проекты, меню аккаунта и разделы по реальным возможностям пользователя.',
+  R3:'Создавать и хранить универсальные проекты через реестр модулей и общий Editor Host.',
+  R4:'Собирать, сохранять и рассчитывать электронную схему в общей проектной платформе.',
+  R5:'Создать класс, выдать детские доступы и войти ребёнком без электронной почты в Safe Mode.',
+  R6:'Открывать портфолио ученика и точную неизменяемую версию работы с аудитом доступа.',
+  R7:'Публиковать неизменяемую версию, делиться ссылкой и создавать Remix с указанием источника.',
+  R8:'Показывать разрешённые публикации в профилях и Explore с безопасными взаимодействиями и модерацией.',
+  R9:'Выдать задание, принять точную сдачу, вернуть на доработку, оценить и выдать значок.',
+  R10:'Доказать общий жизненный цикл минимум на трёх существенно разных учебных модулях.'
 };
-const stageLabels={
-  'STAGE-0-PRODUCT-DEFINITION':'Определение продукта',
-  'STAGE-1-TEACHER-PORTAL':'Кабинет педагога',
-  'STAGE-2-PROJECT-SHELL':'Универсальные проекты',
-  'STAGE-3-CHECKERS-LITE':'Пробный модуль шашек',
-  'STAGE-4-ELECTRONICS-ALPHA':'Первая электроника',
-  'STAGE-5-STUDENT-SEAT':'Детский доступ',
-  'STAGE-6-ASSIGNMENT-SUBMISSION':'Задания и сдачи',
-  'STAGE-7-REVIEW-ASSESSMENT':'Проверка и оценки',
-  'STAGE-8-ELECTRONICS-CLASSROOM':'Полный урок электроники'
-};
-const horizonLabels={'PHASE-0':'Фундамент','PHASE-1':'Пользователи, школы и классы','PHASE-2':'Детский доступ','PHASE-3':'Проекты и модули','PHASE-4':'Задания и сдачи','PHASE-5':'Электронная лаборатория','PHASE-8':'Проверка и оценивание'};
-let map,manifest,cy,manifestByTask=new Map(),mode='simple',preset='path';
+let rawMap,legacyManifest,targetPlan,targetReleaseMap,map,activeTasks=[],taskById=new Map(),cy,mode='simple',preset='path',sourceMode='legacy';
 const $=id=>document.getElementById(id);
 function fail(message){$('notice').textContent=message;$('notice').style.display='block';throw new Error(message);}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function clone(value){return JSON.parse(JSON.stringify(value));}
 function friendly(id,fallback){return friendlyNames[id]||fallback||id;}
-function visibleResult(task){return resultRu[task.task_id]||task.visible_result||'Результат не описан';}
+function visibleResult(task){return releaseResults[task?.task_id]||task?.visible_result||'Результат не описан';}
 function unique(field){return [...new Set(map.nodes.map(n=>n[field]).filter(Boolean))].sort();}
 function addOptions(id,values,labeler=value=>value){const select=$(id);for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=labeler(value);select.append(option);}}
-function runLayout(){const visible=cy.nodes(':visible').length;cy.layout({name:visible<24?'cose':'cose',animate:false,fit:true,padding:36,nodeRepulsion:12000,idealEdgeLength:125,edgeElasticity:120,nestingFactor:1.2,numIter:1300,randomize:false}).run();}
-function visibleCounts(){$('nodeCount').textContent=cy.nodes(':visible').length;$('edgeCount').textContent=cy.edges(':visible').length;}
-function taskIds(){return new Set(manifest.tasks.map(t=>t.task_id));}
-function currentSet(){const current=map.project.current_focus,contract=manifestByTask.get(current)||{};const ids=new Set(['ASA',current,'TRACK-TECH-ALPHA','TRACK-SCHOOL-PILOT',...(contract.map_nodes||[])]);if(contract.next_task)ids.add(contract.next_task);for(const edge of map.edges){if(edge.from===current)ids.add(edge.to);if(edge.to===current)ids.add(edge.from);}return ids;}
-function idsForPreset(name){
-  const tasks=taskIds();
-  if(name==='full')return new Set(map.nodes.map(n=>n.id));
-  if(name==='current')return currentSet();
-  if(name==='path')return new Set(['ASA','TRACK-TECH-ALPHA','TRACK-SCHOOL-PILOT',...tasks]);
-  const groups={
-    classroom:['ASA','ACT-TEACHER','APP-WEB','CTX-IDENTITY','CTX-ORG','CTX-CLASSROOM','DATA-PG','TASK-PORTAL-001','TASK-SEAT-001','TASK-ACT-001','TASK-REVIEW-001'],
-    projects:['ASA','APP-WEB','CTX-PROJECTS','CTX-MODULES','SDK-MODULE','MOD-BLANK','MOD-CHECKERS-LITE','MOD-ELECTRONICS','TASK-PROJECT-SHELL-001','TASK-CHECKERS-LITE-001','TASK-ELECTRONICS-ALPHA-001'],
-    electronics:['ASA','APP-WEB','CTX-PROJECTS','CTX-MODULES','SDK-MODULE','MOD-ELECTRONICS','WORK-SIM','TASK-ELECTRONICS-ALPHA-001','TASK-ELEC-001'],
-    student:['ASA','ACT-STUDENT','APP-WEB','CTX-IDENTITY','CTX-CLASSROOM','CTX-CONTENT','CTX-ACTIVITIES','CTX-ASSESSMENT','TASK-SEAT-001','TASK-ACT-001','TASK-REVIEW-001','TASK-ELEC-001']
-  };
-  return new Set(groups[name]||[]);
-}
-function applyFilters(){
-  const query=$('search').value.trim().toLowerCase(),status=$('status').value,layer=$('layer').value,kind=$('kind').value;
-  const allowed=mode==='technical'?new Set(map.nodes.map(n=>n.id)):idsForPreset(preset);
-  cy.batch(()=>{cy.elements().show();cy.nodes().forEach(node=>{const contract=manifestByTask.get(node.id())||{};const text=[node.id(),node.data('label'),friendly(node.id()),node.data('summary'),node.data('path'),node.data('phase'),contract.delivery_stage,contract.milestone,contract.branch,visibleResult(contract)].join(' ').toLowerCase();const show=allowed.has(node.id())&&(!query||text.includes(query))&&(!status||node.data('status')===status)&&(!layer||node.data('layer')===layer)&&(!kind||node.data('kind')===kind);if(!show)node.hide();});cy.edges().forEach(edge=>{if(edge.source().hidden()||edge.target().hidden())edge.hide();});});
-  visibleCounts();
-}
-function setMode(next){mode=next;document.body.classList.toggle('technical-mode',mode==='technical');$('modeSimple').setAttribute('aria-pressed',String(mode==='simple'));$('modeTechnical').setAttribute('aria-pressed',String(mode==='technical'));if(mode==='technical'){preset='full';}else if(preset==='full'){preset='path';}syncPresetButtons();applyFilters();runLayout();}
-function setPreset(next){preset=next;if(next==='full')mode='technical';else mode='simple';document.body.classList.toggle('technical-mode',mode==='technical');$('modeSimple').setAttribute('aria-pressed',String(mode==='simple'));$('modeTechnical').setAttribute('aria-pressed',String(mode==='technical'));syncPresetButtons();applyFilters();runLayout();}
-function syncPresetButtons(){document.querySelectorAll('[data-preset]').forEach(button=>button.classList.toggle('active',button.dataset.preset===preset));}
-function selectNode(id){const node=cy.getElementById(id);if(!node.length)return;if(node.hidden()){preset='current';mode='simple';syncPresetButtons();applyFilters();runLayout();}cy.elements().unselect();node.select();cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),1.15)},{duration:250});showDetail(node);}
-function listHtml(values,translate=false){return values?.length?`<ul class="links">${values.map(x=>`<li>${escapeHtml(translate?friendly(x):x)}${translate&&friendly(x)!==x?` <code class="technical">${escapeHtml(x)}</code>`:''}</li>`).join('')}</ul>`:'<span class="muted">—</span>';}
-function showDetail(node){
-  const data=node.data(),contract=manifestByTask.get(node.id())||null;
-  const incoming=node.incomers('edge').map(e=>`${friendly(e.source().id(),e.source().data('label'))} → ${relationLabels[e.data('type')]||e.data('type')}`),outgoing=node.outgoers('edge').map(e=>`${relationLabels[e.data('type')]||e.data('type')} → ${friendly(e.target().id(),e.target().data('label'))}`);
-  const external=data.issue?`<a href="${escapeHtml(data.issue)}" target="_blank" rel="noopener">Открыть Issue/PR</a>`:'—';
-  const contractHtml=contract?`<div class="contract"><span class="section-label">Контракт этапа</span><dl><dt>Этап разработки</dt><dd>${escapeHtml(stageLabels[contract.delivery_stage]||contract.delivery_stage)}</dd><dt>Архитектурный контур</dt><dd>${escapeHtml(horizonLabels[contract.architecture_horizon]||contract.architecture_horizon)}</dd><dt>Ветка</dt><dd><code>${escapeHtml(contract.branch)}</code></dd><dt>Следующая задача</dt><dd>${escapeHtml(friendly(contract.next_task,contract.next_task||'нет'))}</dd><dt>Что должно получиться</dt><dd>${escapeHtml(visibleResult(contract))}</dd></dl><span class="section-label">Наборы проверок</span>${listHtml(contract.test_profiles)}<span class="section-label">Проверки задачи</span>${listHtml(contract.task_tests)}<span class="section-label">Затрагиваемые части системы</span>${listHtml(contract.map_nodes,true)}<span class="section-label">Доказательства результата</span>${listHtml(contract.artifacts)}</div>`:'';
-  $('detail').className='detail';
-  $('detail').innerHTML=`<h2>${escapeHtml(friendly(data.id,data.label))}</h2><span class="badge">${escapeHtml(statusLabels[data.status]||data.status)}</span><span class="badge">${escapeHtml(kindLabels[data.kind]||data.kind)}</span><span class="badge technical">${escapeHtml(data.id)}</span><p>${escapeHtml(contract?visibleResult(contract):(data.summary||''))}</p><dl><dt>Слой</dt><dd>${escapeHtml(data.layer||'—')}</dd><dt>Архитектурный контур</dt><dd>${escapeHtml(horizonLabels[contract?.architecture_horizon||data.phase]||contract?.architecture_horizon||data.phase||'—')}</dd><dt>Файл/путь</dt><dd>${escapeHtml(data.path||'—')}</dd><dt>GitHub</dt><dd>${external}</dd></dl>${contractHtml}<span class="section-label">Входящие связи</span>${listHtml(incoming)}<span class="section-label">Исходящие связи</span>${listHtml(outgoing)}`;
+async function loadRequiredYaml(path,label){const response=await fetch(path,{cache:'no-store'});if(!response.ok)fail(`Не удалось загрузить ${label}: HTTP ${response.status}`);return jsyaml.load(await response.text());}
+async function loadOptionalYaml(path){const response=await fetch(path,{cache:'no-store'});if(response.status===404)return null;if(!response.ok)fail(`Не удалось загрузить необязательный контракт ${path}: HTTP ${response.status}`);return jsyaml.load(await response.text());}
+function buildLegacyTasks(){sourceMode='legacy';activeTasks=[...legacyManifest.tasks].sort((a,b)=>a.position-b.position);map=clone(rawMap);}
+function buildTargetTasks(){
+  if(!targetPlan||!Array.isArray(targetPlan.execution_order)||!Array.isArray(targetPlan.releases))return false;
+  sourceMode='target';map=clone(rawMap);
+  const releaseById=new Map(targetPlan.releases.map(release=>[release.id,release]));
+  const releaseMapById=new Map((targetReleaseMap?.release_nodes||[]).map(release=>[release.id,release]));
+  activeTasks=targetPlan.execution_order.map((id,index)=>{const release=releaseById.get(id);if(!release)fail(`Target execution plan не содержит ${id}`);const releaseMap=releaseMapById.get(id)||{};return {position:index+1,task_id:id,delivery_stage:release.name,architecture_horizon:id,branch:release.canonical_branch,next_task:targetPlan.execution_order[index+1]||null,visible_result:release.visible_result,test_profiles:[],task_tests:[],map_nodes:[],artifacts:[],issue:release.issue,status:releaseMap.status||release.status,depends_on:release.depends_on||[]};});
+  const nodeIds=new Set(map.nodes.map(node=>node.id));
+  for(const task of activeTasks){if(!nodeIds.has(task.task_id)){map.nodes.push({id:task.task_id,label:friendly(task.task_id,task.task_id),kind:'release',layer:'delivery',status:task.status,summary:visibleResult(task),issue:task.issue,phase:task.task_id,path:'docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml'});nodeIds.add(task.task_id);}}
+  const edgeKeys=new Set(map.edges.map(edge=>`${edge.from}|${edge.to}|${edge.type}`));
+  const addEdge=(from,to,type)=>{const key=`${from}|${to}|${type}`;if(!edgeKeys.has(key)){map.edges.push({from,to,type});edgeKeys.add(key);}};
+  activeTasks.forEach((task,index)=>{if(index+1<activeTasks.length)addEdge(task.task_id,activeTasks[index+1].task_id,'next');for(const dependency of task.depends_on)addEdge(task.task_id,dependency,'depends_on');});
+  map.project.current_focus=targetPlan.current_gate;
+  map.execution_queue=activeTasks.map(task=>({position:task.position,task_id:task.task_id,instruction:visibleResult(task),gate:'Owner stop + automated gate'}));
+  return true;
 }
 function validateContracts(){
-  if(!map?.nodes||!map?.edges||!Array.isArray(manifest?.tasks))fail('Некорректный project map или execution manifest.');
-  const nodeIds=new Set(map.nodes.map(n=>n.id));
+  if(!map?.nodes||!map?.edges||!Array.isArray(activeTasks))fail('Некорректная карта или execution contract.');
+  const nodeIds=new Set(map.nodes.map(node=>node.id));
   for(const edge of map.edges){if(!nodeIds.has(edge.from)||!nodeIds.has(edge.to))fail(`Некорректная связь ${edge.from} → ${edge.to}`);}
-  const manifestOrder=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(t=>t.task_id);
-  const mapOrder=[...(map.execution_queue||[])].sort((a,b)=>a.position-b.position).map(t=>t.task_id);
-  if(JSON.stringify(manifestOrder)!==JSON.stringify(mapOrder))fail(`Очередь рассинхронизирована: manifest=${manifestOrder.join(' → ')}; map=${mapOrder.join(' → ')}`);
-  for(const task of manifest.tasks){if(!nodeIds.has(task.task_id))fail(`Manifest ссылается на отсутствующий task node ${task.task_id}`);manifestByTask.set(task.task_id,task);}
-  if(!manifestByTask.has(map.project.current_focus))fail(`current_focus ${map.project.current_focus} отсутствует в execution manifest`);
+  const taskOrder=activeTasks.map(task=>task.task_id);const mapOrder=[...(map.execution_queue||[])].sort((a,b)=>a.position-b.position).map(task=>task.task_id);
+  if(JSON.stringify(taskOrder)!==JSON.stringify(mapOrder))fail(`Очередь рассинхронизирована: contract=${taskOrder.join(' → ')}; map=${mapOrder.join(' → ')}`);
+  if(sourceMode==='target'){
+    if(JSON.stringify(targetPlan.execution_order)!==JSON.stringify(taskOrder))fail('Target execution order не совпадает с очередью viewer.');
+    if(targetReleaseMap&&JSON.stringify(targetReleaseMap.execution_order)!==JSON.stringify(taskOrder))fail('Target release map не совпадает с execution plan.');
+  }
+  taskById=new Map();for(const task of activeTasks){if(!nodeIds.has(task.task_id))fail(`Контракт ссылается на отсутствующий узел ${task.task_id}`);taskById.set(task.task_id,task);}
+  if(!taskById.has(map.project.current_focus))fail(`current focus ${map.project.current_focus} отсутствует в активном контракте`);
 }
-function renderSummary(){const id=map.project.current_focus,task=manifestByTask.get(id),node=map.nodes.find(n=>n.id===id);$('summaryNow').textContent=friendly(id,node?.label);$('summaryResult').textContent=visibleResult(task);$('summaryNext').textContent=task?.next_task?friendly(task.next_task):'Следующего этапа нет';$('summaryStatus').textContent=statusLabels[node?.status]||node?.status||'Неизвестно';$('summaryStage').textContent=`${stageLabels[task?.delivery_stage]||task?.delivery_stage||'этап не указан'} · ${horizonLabels[task?.architecture_horizon]||task?.architecture_horizon||'контур не указан'}`;$('summaryMap').textContent=`Версия карты: ${map.map_version}`;$('focusText').textContent=`Текущий фокус: ${friendly(id,node?.label)} (${id})`;}
+function runLayout(){const visible=cy.nodes(':visible').length;cy.layout({name:'cose',animate:false,fit:true,padding:36,nodeRepulsion:12000,idealEdgeLength:125,edgeElasticity:120,nestingFactor:1.2,numIter:1300,randomize:false}).run();}
+function visibleCounts(){$('nodeCount').textContent=cy.nodes(':visible').length;$('edgeCount').textContent=cy.edges(':visible').length;}
+function taskIds(){return new Set(activeTasks.map(task=>task.task_id));}
+function currentSet(){const current=map.project.current_focus,task=taskById.get(current)||{};const ids=new Set(['ASA',current,'TRACK-TECH-ALPHA','TRACK-SCHOOL-PILOT',...(task.map_nodes||[]),...(task.depends_on||[])]);if(task.next_task)ids.add(task.next_task);for(const edge of map.edges){if(edge.from===current)ids.add(edge.to);if(edge.to===current)ids.add(edge.from);}return ids;}
+function idsForPreset(name){
+  const tasks=taskIds();if(name==='full')return new Set(map.nodes.map(node=>node.id));if(name==='current')return currentSet();if(name==='path')return new Set(['ASA','PROGRAM-ALPHA-001','TRACK-TECH-ALPHA','TRACK-SCHOOL-PILOT',...tasks]);
+  const targetGroups={classroom:['ASA','ACT-TEACHER','ACT-STUDENT','APP-WEB','CTX-IDENTITY','CTX-ORG','CTX-CLASSROOM','DATA-PG','R5','R6','R9'],projects:['ASA','APP-WEB','CTX-PROJECTS','CTX-MODULES','SDK-MODULE','MOD-ELECTRONICS','R3','R7','R10'],electronics:['ASA','APP-WEB','CTX-PROJECTS','CTX-MODULES','SDK-MODULE','MOD-ELECTRONICS','WORK-SIM','R4','R10'],student:['ASA','ACT-STUDENT','APP-WEB','CTX-IDENTITY','CTX-CLASSROOM','CTX-ACTIVITIES','CTX-ASSESSMENT','R5','R6','R9']};
+  const legacyGroups={classroom:['ASA','ACT-TEACHER','APP-WEB','CTX-IDENTITY','CTX-ORG','CTX-CLASSROOM','DATA-PG','TASK-PORTAL-001','TASK-SEAT-001','TASK-ACT-001','TASK-REVIEW-001'],projects:['ASA','APP-WEB','CTX-PROJECTS','CTX-MODULES','SDK-MODULE','MOD-CHECKERS-LITE','MOD-ELECTRONICS','TASK-PROJECT-SHELL-001','TASK-CHECKERS-LITE-001','TASK-ELECTRONICS-ALPHA-001'],electronics:['ASA','APP-WEB','CTX-PROJECTS','CTX-MODULES','SDK-MODULE','MOD-ELECTRONICS','WORK-SIM','TASK-ELECTRONICS-ALPHA-001','TASK-ELEC-001'],student:['ASA','ACT-STUDENT','APP-WEB','CTX-IDENTITY','CTX-CLASSROOM','CTX-ACTIVITIES','CTX-ASSESSMENT','TASK-SEAT-001','TASK-ACT-001','TASK-REVIEW-001','TASK-ELEC-001']};
+  return new Set((sourceMode==='target'?targetGroups:legacyGroups)[name]||[]);
+}
+function applyFilters(){const query=$('search').value.trim().toLowerCase(),status=$('status').value,layer=$('layer').value,kind=$('kind').value;const allowed=mode==='technical'?new Set(map.nodes.map(node=>node.id)):idsForPreset(preset);cy.batch(()=>{cy.elements().show();cy.nodes().forEach(node=>{const task=taskById.get(node.id())||{};const text=[node.id(),node.data('label'),friendly(node.id()),node.data('summary'),node.data('path'),node.data('phase'),task.delivery_stage,task.branch,visibleResult(task)].join(' ').toLowerCase();const show=allowed.has(node.id())&&(!query||text.includes(query))&&(!status||node.data('status')===status)&&(!layer||node.data('layer')===layer)&&(!kind||node.data('kind')===kind);if(!show)node.hide();});cy.edges().forEach(edge=>{if(edge.source().hidden()||edge.target().hidden())edge.hide();});});visibleCounts();}
+function syncPresetButtons(){document.querySelectorAll('[data-preset]').forEach(button=>button.classList.toggle('active',button.dataset.preset===preset));}
+function setMode(next){mode=next;document.body.classList.toggle('technical-mode',mode==='technical');$('modeSimple').setAttribute('aria-pressed',String(mode==='simple'));$('modeTechnical').setAttribute('aria-pressed',String(mode==='technical'));if(mode==='technical')preset='full';else if(preset==='full')preset='path';syncPresetButtons();applyFilters();runLayout();}
+function setPreset(next){preset=next;mode=next==='full'?'technical':'simple';document.body.classList.toggle('technical-mode',mode==='technical');$('modeSimple').setAttribute('aria-pressed',String(mode==='simple'));$('modeTechnical').setAttribute('aria-pressed',String(mode==='technical'));syncPresetButtons();applyFilters();runLayout();}
+function listHtml(values,translate=false){return values?.length?`<ul class="links">${values.map(value=>`<li>${escapeHtml(translate?friendly(value):value)}${translate&&friendly(value)!==value?` <code class="technical">${escapeHtml(value)}</code>`:''}</li>`).join('')}</ul>`:'<span class="muted">—</span>';}
+function selectNode(id){const node=cy.getElementById(id);if(!node.length)return;if(node.hidden()){preset='current';mode='simple';syncPresetButtons();applyFilters();runLayout();}cy.elements().unselect();node.select();cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),1.12)},{duration:250});showDetail(node);}
+function showDetail(node){const data=node.data(),task=taskById.get(node.id())||null;const incoming=node.incomers('edge').map(edge=>`${friendly(edge.source().id(),edge.source().data('label'))} → ${relationLabels[edge.data('type')]||edge.data('type')}`),outgoing=node.outgoers('edge').map(edge=>`${relationLabels[edge.data('type')]||edge.data('type')} → ${friendly(edge.target().id(),edge.target().data('label'))}`);const external=(task?.issue||data.issue)?`<a href="${escapeHtml(task?.issue||data.issue)}" target="_blank" rel="noopener">Открыть Issue/PR</a>`:'—';const contractHtml=task?`<div class="contract"><span class="section-label">Контракт этапа</span><dl><dt>Этап</dt><dd>${escapeHtml(task.delivery_stage||task.task_id)}</dd><dt>Ветка</dt><dd><code>${escapeHtml(task.branch||'—')}</code></dd><dt>Следующий этап</dt><dd>${escapeHtml(task.next_task?friendly(task.next_task):'нет')}</dd><dt>Что должно получиться</dt><dd>${escapeHtml(visibleResult(task))}</dd></dl><span class="section-label">Зависимости</span>${listHtml(task.depends_on,true)}<span class="section-label">Проверки</span>${listHtml([...(task.test_profiles||[]),...(task.task_tests||[])])}<span class="section-label">Доказательства</span>${listHtml(task.artifacts)}</div>`:'';$('detail').className='detail';$('detail').innerHTML=`<h2>${escapeHtml(friendly(data.id,data.label))}</h2><span class="badge">${escapeHtml(statusLabels[data.status]||data.status)}</span><span class="badge">${escapeHtml(kindLabels[data.kind]||data.kind)}</span><span class="badge technical">${escapeHtml(data.id)}</span><p>${escapeHtml(task?visibleResult(task):(data.summary||''))}</p><dl><dt>Слой</dt><dd>${escapeHtml(data.layer||'—')}</dd><dt>Файл/путь</dt><dd>${escapeHtml(data.path||'—')}</dd><dt>GitHub</dt><dd>${external}</dd></dl>${contractHtml}<span class="section-label">Входящие связи</span>${listHtml(incoming)}<span class="section-label">Исходящие связи</span>${listHtml(outgoing)}`;}
+function renderSummary(){const id=map.project.current_focus,task=taskById.get(id),node=map.nodes.find(item=>item.id===id);$('summaryNow').textContent=friendly(id,node?.label);$('summaryResult').textContent=visibleResult(task);$('summaryNext').textContent=task?.next_task?friendly(task.next_task):'Следующего этапа нет';$('summaryStatus').textContent=statusLabels[node?.status]||node?.status||'Неизвестно';$('summaryStage').textContent=task?.delivery_stage||'Этап не указан';$('summaryMap').textContent=`Источник: ${sourceMode==='target'?'R0–R10 target contract':'v1 foundation'} · карта ${map.map_version||'template'}`;$('focusText').textContent=`Текущий фокус: ${friendly(id,node?.label)} (${id})`;$('sourceBanner').textContent=sourceMode==='target'?'Показана новая owner-gated программа R0–R10. Старые TASK-* доступны только в техническом режиме как история.':'Показана принятая v1 foundation. После merge PR №43 viewer автоматически переключится на R0–R10.';}
 async function init(){
   if(typeof cytoscape==='undefined'||typeof jsyaml==='undefined')fail('Не загрузились Cytoscape.js или js-yaml. Проверьте сеть.');
-  const [mapResponse,manifestResponse]=await Promise.all([fetch('project-map.yaml',{cache:'no-store'}),fetch('../delivery/EXECUTION_MANIFEST.yaml',{cache:'no-store'})]);
-  if(!mapResponse.ok)fail(`Не удалось загрузить project-map.yaml: HTTP ${mapResponse.status}`);
-  if(!manifestResponse.ok)fail(`Не удалось загрузить EXECUTION_MANIFEST.yaml: HTTP ${manifestResponse.status}`);
-  map=jsyaml.load(await mapResponse.text());manifest=jsyaml.load(await manifestResponse.text());validateContracts();
-  const elements=[...map.nodes.map(n=>({data:{...n,label:friendly(n.id,n.label)}})),...map.edges.map((e,i)=>({data:{id:`edge-${i}`,source:e.from,target:e.to,type:e.type,label:relationLabels[e.type]||e.label||e.type}}))];
-  cy=cytoscape({container:$('cy'),elements,wheelSensitivity:.2,minZoom:.07,maxZoom:3,style:[
-    {selector:'node',style:{'background-color':e=>statusColors[e.data('status')]||'#6f7b8a',label:'data(label)',color:'#eef2f6','font-size':11,'text-wrap':'wrap','text-max-width':128,'text-valign':'center','text-halign':'center','border-width':1,'border-color':'#d8dee8','border-opacity':.35,width:68,height:68,shape:e=>kindShapes[e.data('kind')]||'ellipse'}},
-    {selector:'node[kind="platform"]',style:{width:98,height:98,'font-size':14,'font-weight':700}},
-    {selector:'node[kind="task"]',style:{width:118,height:64,'font-size':10}},
-    {selector:'node[kind="program"]',style:{width:96,height:96,'font-size':11}},
-    {selector:'edge',style:{width:1.2,'line-color':'#657184','target-arrow-color':'#657184','target-arrow-shape':'triangle','curve-style':'bezier',opacity:.58}},
-    {selector:'edge[type="depends_on"]',style:{'line-style':'dashed','line-color':'#c65f5f','target-arrow-color':'#c65f5f'}},
-    {selector:':selected',style:{'border-width':4,'border-color':'#ffffff','line-color':'#ffffff','target-arrow-color':'#ffffff',opacity:1}},
-    {selector:'.faded',style:{opacity:.12}}
-  ]});
+  [rawMap,legacyManifest,targetPlan,targetReleaseMap]=await Promise.all([loadRequiredYaml('project-map.yaml','project-map.yaml'),loadRequiredYaml('../delivery/EXECUTION_MANIFEST.yaml','EXECUTION_MANIFEST.yaml'),loadOptionalYaml('../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml'),loadOptionalYaml('R0_TARGET_RELEASE_MAP.yaml')]);
+  if(!buildTargetTasks())buildLegacyTasks();validateContracts();
+  const elements=[...map.nodes.map(node=>({data:{...node,label:friendly(node.id,node.label)}})),...map.edges.map((edge,index)=>({data:{id:`edge-${index}`,source:edge.from,target:edge.to,type:edge.type,label:relationLabels[edge.type]||edge.label||edge.type}}))];
+  cy=cytoscape({container:$('cy'),elements,wheelSensitivity:.2,minZoom:.07,maxZoom:3,style:[{selector:'node',style:{'background-color':element=>statusColors[element.data('status')]||'#6f7b8a',label:'data(label)',color:'#eef2f6','font-size':11,'text-wrap':'wrap','text-max-width':135,'text-valign':'center','text-halign':'center','border-width':1,'border-color':'#d8dee8','border-opacity':.35,width:72,height:72,shape:element=>kindShapes[element.data('kind')]||'ellipse'}},{selector:'node[kind="platform"]',style:{width:98,height:98,'font-size':14,'font-weight':700}},{selector:'node[kind="task"],node[kind="release"]',style:{width:128,height:66,'font-size':10}},{selector:'node[kind="program"]',style:{width:96,height:96,'font-size':11}},{selector:'edge',style:{width:1.2,'line-color':'#657184','target-arrow-color':'#657184','target-arrow-shape':'triangle','curve-style':'bezier',opacity:.58}},{selector:'edge[type="depends_on"]',style:{'line-style':'dashed','line-color':'#c65f5f','target-arrow-color':'#c65f5f'}},{selector:'edge[type="next"]',style:{width:2.2,'line-color':'#8db6ff','target-arrow-color':'#8db6ff',opacity:.9}},{selector:':selected',style:{'border-width':4,'border-color':'#ffffff','line-color':'#ffffff','target-arrow-color':'#ffffff',opacity:1}},{selector:'.faded',style:{opacity:.12}}]});
   addOptions('status',unique('status'),value=>statusLabels[value]||value);addOptions('layer',unique('layer'));addOptions('kind',unique('kind'),value=>kindLabels[value]||value);
   for(const [status,description] of Object.entries(map.status_definitions||{})){const item=document.createElement('div');item.className='legend-item';item.innerHTML=`<span class="dot" style="background:${statusColors[status]||'#777'}"></span><span><strong>${escapeHtml(statusLabels[status]||status)}</strong> — ${escapeHtml(description)}</span>`;$('legend').append(item);}
-  for(const task of [...manifest.tasks].sort((a,b)=>a.position-b.position)){const node=map.nodes.find(n=>n.id===task.task_id);const li=document.createElement('li');li.classList.add(node?.status||'planned');if(task.task_id===map.project.current_focus)li.classList.add('current');li.innerHTML=`<strong>${task.position}. ${escapeHtml(friendly(task.task_id,node?.label))}</strong><span class="stage">${escapeHtml(stageLabels[task.delivery_stage]||task.delivery_stage)}</span><span class="result">${escapeHtml(visibleResult(task))}</span><span class="status">${escapeHtml(statusLabels[node?.status]||node?.status||'неизвестно')}</span>`;li.onclick=()=>selectNode(task.task_id);$('queue').append(li);}
-  renderSummary();
-  ['search','status','layer','kind'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',applyFilters));
-  $('fit').onclick=()=>cy.fit(cy.elements(':visible'),40);$('focus').onclick=()=>{preset='current';mode='simple';syncPresetButtons();applyFilters();runLayout();selectNode(map.project.current_focus);};$('layout').onclick=runLayout;$('reset').onclick=()=>{$('search').value='';['status','layer','kind'].forEach(id=>$(id).value='');preset=mode==='technical'?'full':'path';syncPresetButtons();applyFilters();runLayout();};
-  $('modeSimple').onclick=()=>setMode('simple');$('modeTechnical').onclick=()=>setMode('technical');document.querySelectorAll('[data-preset]').forEach(button=>button.onclick=()=>setPreset(button.dataset.preset));
-  cy.on('tap','node',event=>showDetail(event.target));cy.on('mouseover','node',event=>{const n=event.target;cy.elements().addClass('faded');n.removeClass('faded');n.connectedEdges().removeClass('faded');n.neighborhood('node').removeClass('faded');});cy.on('mouseout','node',()=>cy.elements().removeClass('faded'));
-  applyFilters();runLayout();selectNode(map.project.current_focus);
+  for(const task of activeTasks){const node=map.nodes.find(item=>item.id===task.task_id);const li=document.createElement('li');li.classList.add(node?.status||task.status||'planned');if(task.task_id===map.project.current_focus)li.classList.add('current');li.innerHTML=`<strong>${task.position}. ${escapeHtml(friendly(task.task_id,node?.label))}</strong><span class="stage">${escapeHtml(task.delivery_stage||task.task_id)}</span><span class="result">${escapeHtml(visibleResult(task))}</span><span class="status">${escapeHtml(statusLabels[node?.status||task.status]||node?.status||task.status||'неизвестно')}</span>`;li.onclick=()=>selectNode(task.task_id);$('queue').append(li);}
+  renderSummary();['search','status','layer','kind'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',applyFilters));$('fit').onclick=()=>cy.fit(cy.elements(':visible'),40);$('focus').onclick=()=>{preset='current';mode='simple';syncPresetButtons();applyFilters();runLayout();selectNode(map.project.current_focus);};$('layout').onclick=runLayout;$('reset').onclick=()=>{$('search').value='';['status','layer','kind'].forEach(id=>$(id).value='');preset=mode==='technical'?'full':'path';syncPresetButtons();applyFilters();runLayout();};$('modeSimple').onclick=()=>setMode('simple');$('modeTechnical').onclick=()=>setMode('technical');document.querySelectorAll('[data-preset]').forEach(button=>button.onclick=()=>setPreset(button.dataset.preset));cy.on('tap','node',event=>showDetail(event.target));cy.on('mouseover','node',event=>{const node=event.target;cy.elements().addClass('faded');node.removeClass('faded');node.connectedEdges().removeClass('faded');node.neighborhood('node').removeClass('faded');});cy.on('mouseout','node',()=>cy.elements().removeClass('faded'));applyFilters();runLayout();selectNode(map.project.current_focus);
 }
 init().catch(error=>{console.error(error);$('notice').textContent=`${error.message} Запускайте из корня репозитория: python -m http.server 8080; затем откройте /docs/project-map/viewer.html`;$('notice').style.display='block';});
 </script>
