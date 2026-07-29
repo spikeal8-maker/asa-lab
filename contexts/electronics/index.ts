@@ -29,6 +29,17 @@ export {
   type BreadboardInternalLink,
 } from './domain/breadboard-netlist.js';
 export {
+  partTerminalWorldMm,
+  snapPartToBreadboard,
+  type BreadboardPartSnapFailure,
+  type BreadboardPartSnapResult,
+  type BreadboardPartSnapSuccess,
+  type BreadboardTerminalAssignment,
+  type PhysicalPartDefinitionMm,
+  type PhysicalPartPlacementMm,
+  type PhysicalPartTerminalMm,
+} from './domain/breadboard-placement.js';
+export {
   COMPONENT_KINDS,
   COMPONENT_TERMINAL_MODELS,
   COMPONENT_VALUE_MODELS,
