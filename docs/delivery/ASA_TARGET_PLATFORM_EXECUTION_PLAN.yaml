@@ -92,7 +92,6 @@ r0_convergence:
     - close_pr_35_45_47_after_transfer_proof
     - select_exactly_one_of_pr_59_or_pr_60
     - rebase_selected_r1_once_on_accepted_baseline
-    - execute_r0d_completion_transition
   exit_gate:
     - one_baseline_commit_in_main
     - target_contract_merged
