@@ -72,8 +72,11 @@ export function isNominalWorkbenchValue(kind: ComponentKind, value: number): boo
 }
 
 export function formatComponentValue(kind: ComponentKind, value: number): string {
-  if (kind !== 'resistor') return `${value:g}`.replace(':g', '');
-  if (value >= 1_000_000) return `${Number((value / 1_000_000).toFixed(3))} МОм`;
-  if (value >= 1_000) return `${Number((value / 1_000).toFixed(3))} кОм`;
-  return `${Number(value.toFixed(3))} Ом`;
+  if (kind === 'resistor') {
+    if (value >= 1_000_000) return `${Number((value / 1_000_000).toFixed(3))} МОм`;
+    if (value >= 1_000) return `${Number((value / 1_000).toFixed(3))} кОм`;
+    return `${Number(value.toFixed(3))} Ом`;
+  }
+  const control = WORKBENCH_VALUE_CONTROLS[kind];
+  return `${Number(value.toFixed(3))}${control.unit ? ` ${control.unit}` : ''}`;
 }
