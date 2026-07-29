@@ -1,0 +1,39 @@
+schema_version: 1.0.0
+decision_id: asa-r0-target-platform-activation
+status: pending_owner
+activation_pull_request: 43
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/36
+human_packet: docs/delivery/R0_OWNER_DECISION.md
+
+approval:
+  approved_by: null
+  approved_at: null
+  evidence_comment_url: null
+
+convergence_order:
+  status: pending
+  notes: null
+
+decisions:
+  - id: account_principal_workspace_are_distinct
+    status: pending
+    notes: null
+  - id: tenant_and_rls_remain_security_boundary
+    status: pending
+    notes: null
+  - id: personal_project_does_not_require_classroom
+    status: pending
+    notes: null
+  - id: account_and_studentseat_sessions_are_distinct
+    status: pending
+    notes: null
+  - id: r0_r10_release_order_and_additive_migration_policy
+    status: pending
+    notes: null
+
+activation_rules:
+  - all_five_decisions_must_be_accepted
+  - convergence_order_must_be_accepted
+  - technical_r0_suite_must_pass
+  - pr_43_must_remain_draft_until_owner_approval
+  - r1_must_remain_blocked_until_post_merge_transition
