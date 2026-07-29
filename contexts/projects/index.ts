@@ -1,4 +1,6 @@
 export {
+  PROJECT_CHECKPOINT_LABEL_MAX_LENGTH,
+  PROJECT_TITLE_MAX_LENGTH,
   isProjectScope,
   isSupportedModuleKey,
   isValidCheckpointLabel,
