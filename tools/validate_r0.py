@@ -20,6 +20,7 @@ VALIDATORS = (
     "tools/validate_architecture.py",
     "tools/validate_project_map.py",
     "tools/validate_test_catalog.py",
+    "tools/validate_r0_github_state.py",
 )
 
 
@@ -52,6 +53,7 @@ def main() -> int:
     print("currentGate=R0")
     print("ownerDecisionRequired=true")
     print("productCodeAllowed=false")
+    print("githubStateVerified=true")
     return 0
 
 
