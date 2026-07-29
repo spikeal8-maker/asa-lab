@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Run the complete owner-gated R0 contract suite.
-
-This wrapper does not weaken any validator. It executes each existing command as
-an independent process, streams output, and fails on the first non-zero exit.
-"""
+"""Run the complete owner-gated R0 contract suite."""
 
 from __future__ import annotations
 
@@ -17,6 +13,7 @@ VALIDATORS = (
     "tools/validate_r0_human_contract.py",
     "tools/validate_r0_owner_decision.py",
     "tools/validate_r0_post_merge.py",
+    "tools/validate_r0_release_map.py",
     "tools/validate_tinkercad_parity.py",
     "tools/validate_target_execution.py",
     "tools/validate_architecture.py",
@@ -56,6 +53,7 @@ def main() -> int:
     print("ownerDecisionFileValid=true")
     print("ownerDecisionRequired=true")
     print("postMergeSequenceValid=true")
+    print("releaseMapTemplateValid=true")
     print("productCodeAllowed=false")
     print("githubStateVerified=true")
     return 0
