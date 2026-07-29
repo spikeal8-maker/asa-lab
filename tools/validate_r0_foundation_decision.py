@@ -152,16 +152,16 @@ def main() -> int:
             if "foundation" not in approval["decision_notes"].lower():
                 fail("accepted foundation requires explicit foundation-only decision notes")
 
-        elif status == "rejected_close_candidate":
-            validate_owner_attribution(approval)
-            if any(item.get("status") == "pass" and not item.get("evidence") for item in items.values()):
-                fail("passing corrective evidence must remain attributable even when PR34 is rejected")
-
         else:
             validate_owner_attribution(approval)
-            if not any(item.get("status") in {"fail", "blocked", "open"} for item in items.values()):
-                fail("rejected_changes_required must identify at least one unresolved corrective item")
-            print("ASA R0 foundation decision REJECTED: PR34 changes are required", file=sys.stderr)
+            if status == "rejected_changes_required" and not any(
+                item.get("status") in {"fail", "blocked", "open"} for item in items.values()
+            ):
+                fail("rejected_changes_required must identify an unresolved corrective item")
+            print(
+                "ASA R0 foundation decision REJECTED: target convergence contract must be revised",
+                file=sys.stderr,
+            )
             return 1
 
     except (OSError, ValueError, yaml.YAMLError) as error:
@@ -172,10 +172,7 @@ def main() -> int:
     print(f"- status: {status}")
     print(f"- corrective items: {len(items)}")
     print(f"- owner decision recorded: {str(status != 'pending_owner').lower()}")
-    print(
-        "- PR43 rebase allowed: "
-        + str(status in {"accepted_pending_merge", "rejected_close_candidate"}).lower()
-    )
+    print(f"- PR43 rebase allowed: {str(status == 'accepted_pending_merge').lower()}")
     return 0
 
 
