@@ -2,35 +2,67 @@
 
 ## Миссия
 
-ASA Lab — единая образовательная платформа:
+ASA Lab — единая Tinkercad-подобная образовательная платформа на собственном коде и ассетах:
 
 ```text
-teacher/child identity
-→ classroom
-→ universal project
-→ subject module
-→ assignment
-→ immutable submission
-→ review/comment
-→ grade/badge/progress
+Account / Principal / Workspace
+→ Creator Home / Projects
+→ Module Registry / Editor Host
+→ Electronics and future modules
+→ Classroom / StudentSeat
+→ immutable versions / publication / remix
+→ learner portfolio / teacher viewer
+→ assignments / submissions / review / grades / badges
 ```
 
-Приоритетный предметный результат — Electronics. Checkers Lite является только маленьким reference module для проверки Module SDK.
+## Критический текущий статус
+
+Ветка PR №43 содержит кандидат новой целевой программы. Пока она не принята владельцем:
+
+```text
+current gate = R0
+product coding = forbidden
+allowed work = contract / evidence / validators / branch convergence
+```
+
+Главные файлы R0:
+
+```text
+AGENTS.md
+docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
+docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.yaml
+docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md
+docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml
+docs/delivery/R0_OWNER_DECISION.md
+Issue #36
+PR #43
+```
+
+Старый `docs/delivery/EXECUTION_MANIFEST.yaml` остаётся принятой v1 foundation/traceability, но его future task `TASK-PROJECT-SHELL-001` superseded и во время R0 не запускается.
 
 ## Не выбирай задачу самостоятельно
 
-Текущая задача определяется четырьмя связанными источниками:
+### Пока target plan ожидает owner approval
 
-```text
-docs/project-map/project-map.yaml        current_focus и status
-docs/delivery/EXECUTION_MANIFEST.yaml   Issue, branch, stage, dependencies, ports, tests
-docs/delivery/DEVELOPMENT_PROGRAM_V1.md человекочитаемый путь
-tекущая GitHub Issue                     исполнимый scope одного user flow
-```
+1. прочитай `AGENTS.md`;
+2. прочитай `current_gate` в `ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`;
+3. если `R0` — работай только с Issue №36 / PR №43;
+4. не пиши product code;
+5. не продолжай PR №34/№35/№45/№47/№59/№60 без явно разрешённого R0 действия;
+6. при конфликте старой карты с R0 остановись и сообщи конфликт.
 
-Чат не меняет task, capability, dependency, branch, scope, port или test gate.
+### После owner approval и merge R0
 
-## Первые действия
+1. прочитай активный release в target execution plan;
+2. проверь `depends_on`, status и предыдущий owner stop;
+3. открой указанную Issue;
+4. используй только canonical branch;
+5. реализуй один наблюдаемый user flow;
+6. следующую задачу не начинай.
+
+Чат не меняет release/task, dependency, branch, scope, port, test gate или owner stop.
+
+## Первые команды
 
 ```bash
 git remote -v
@@ -39,34 +71,59 @@ git fetch --all --prune
 git branch --all
 ```
 
-Затем:
-
-1. прочитай `AGENTS.md`;
-2. прочитай `project.current_focus`;
-3. найди entry того же task в `EXECUTION_MANIFEST.yaml`;
-4. проверь status и все `depends_on`;
-5. открой Issue и branch из manifest;
-6. прочитай только manifest `read` links и раздел текущего этапа;
-7. выведи CAPABILITY CHECK и PLAN максимум на 25 строк;
-8. реализуй только текущий user flow.
-
-Если task `blocked`, `planned`, `done` или `deprecated`, код не писать. Если current focus нельзя продолжить, сообщить `BLOCKED`, а не выбирать следующую задачу.
-
-## Каноническая очередь
+После этого выведи:
 
 ```text
-TASK-PRODUCT-DOC-001
-→ TASK-PORTAL-001
-→ TASK-PROJECT-SHELL-001
-→ TASK-CHECKERS-LITE-001
-→ TASK-ELECTRONICS-ALPHA-001
-→ TASK-SEAT-001
-→ TASK-ACT-001
-→ TASK-REVIEW-001
-→ TASK-ELEC-001
+RELEASE:
+TASK:
+ISSUE:
+STATUS:
+DEPENDENCIES:
+USER_FLOW:
+NON_GOALS:
+PORTS:
+OWNER_STOP:
+PLAN: максимум 25 строк
+STOP_CRITERION:
 ```
 
-`delivery_stage` задаёт эту очередь. `architecture_horizon` в manifest — информационная группировка, а не порядок исполнения.
+## R0 convergence
+
+```text
+PR #34          foundation review only
+PR #43          target contract candidate
+PR #35/#45/#47 transfer-only
+PR #59/#60     frozen competing R1 candidates
+```
+
+Разрешённый порядок находится в `r0_convergence.ordered_actions` machine-readable plan.
+
+Запрещено:
+
+- merge transfer-only PR напрямую в `main`;
+- продолжать PR №59 и №60 одновременно;
+- создавать третью identity/portal/editor implementation;
+- destructive migration;
+- отключать RLS;
+- начинать R1 до owner decision и R0 merge.
+
+## Очередь после активации target plan
+
+```text
+R0  Contract and one accepted baseline
+R1  Account / Personal Workspace / Sessions / Educator Grant
+R2  Creator Home and Portal shell
+R3  Module Registry / Project Hub / Editor Host
+R4  Electronics parity
+R5  Classroom / StudentSeat / Safe Mode
+R6  Learner portfolio / teacher Project Viewer
+R7  Sharing / publication / Remix
+R8  Profiles / Explore / moderation
+R9  Assignments / submissions / review / grades / badges
+R10 Multi-module proof and measured operations scale
+```
+
+Каждый release имеет owner stop. Следующий не начинается автоматически.
 
 ## Порты
 
@@ -78,63 +135,57 @@ E2E  127.0.0.1:4612
 
 Запрещены `3000`, `3100`, `5173`. Занятый порт даёт `BLOCKED`; чужой процесс не останавливать.
 
-## Обязательный первый отчёт
-
-```text
-TASK:
-ISSUE:
-MILESTONE:
-DELIVERY_STAGE:
-ARCHITECTURE_HORIZON:
-CAPABILITIES:
-DEPENDENCIES:
-USER_FLOW:
-NON_GOALS:
-PORTS:
-PLAN:
-STOP_CRITERION:
-```
-
 ## Рабочий цикл
 
 ```text
 ORIENT
-→ manifest/Issue check
+→ active contract / Issue check
 → PLAN
 → IMPLEMENT one vertical flow
-→ VERIFY manifest test IDs
-→ UPDATE project/quality/Nx maps
+→ VERIFY exact tests
+→ UPDATE maps / Nx graph
 → Draft PR
-→ evidence/review
+→ live evidence
+→ owner review / stop
 → merge
-→ mandatory map-only transition
-→ next task ready
+→ mandatory map transition
+→ next release only ready
 → stop
 ```
 
-## Проверка
+## Проверки R0
 
 ```bash
-python tools/run_task_tests.py --task <TASK-ID>
+python tools/validate_tinkercad_parity.py
+python tools/validate_target_execution.py
+python tools/validate_architecture.py
+python tools/validate_project_map.py
+python tools/validate_test_catalog.py
 ```
 
-`PASS` существует только после фактического exit 0. `BLOCKED` и `NOT_RUN` не разрешают Ready/merge. Manual browser smoke не заменяет automated E2E.
+После R0 test IDs берутся только из текущей Issue и `docs/testing/test-catalog.yaml`.
+
+`PASS` существует только после фактического exit 0. `BLOCKED` и `NOT_RUN` не разрешают merge. Test count не заменяет owner visual/product acceptance.
 
 ## Map transition
 
-В task PR карта показывает task `in_review`. После merge обязательно:
+После merge обязательно:
 
-- task → `done`;
-- next task → `ready`;
-- `current_focus` → next task;
-- `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
+- release/task → `done`;
+- next → `ready` только после dependencies и owner stop;
+- current gate/focus → next;
+- Project Map, Quality Map, Issues и Nx graph синхронизированы;
 - validators PASS;
 - агент останавливается.
 
-## Команда владельца
+## Команда владельца во время R0
 
 ```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml, Issue №36 и PR №43. Выполни только текущую R0 работу. Product code и R1 не начинай.
 ```
 
-Этой команды достаточно. Полное ТЗ находится в GitHub.
+## Команда владельца после R0
+
+```text
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md и active release в docs/delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml. Открой указанную Issue и выполни только её. Следующий release не начинай.
+```
