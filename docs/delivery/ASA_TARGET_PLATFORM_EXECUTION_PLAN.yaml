@@ -12,6 +12,8 @@ owner_decision: docs/delivery/R0_OWNER_DECISION.yaml
 post_merge_transition: docs/delivery/R0_POST_MERGE_TRANSITION.yaml
 release_map_template: docs/project-map/R0_TARGET_RELEASE_MAP.yaml
 current_gate: R0
+execution_order: [R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10]
+release_selection: strict_list_order
 
 ports:
   bind: 127.0.0.1
@@ -29,6 +31,7 @@ execution_rules:
   - tests_do_not_replace_owner_visual_acceptance
   - current_data_and_rls_must_be_preserved
   - next_release_starts_only_after_merge_and_map_transition
+  - strict_release_order_even_when_later_dependencies_are_satisfied
 
 branch_policy:
   integration_strategy: one accepted baseline, then one branch per release
