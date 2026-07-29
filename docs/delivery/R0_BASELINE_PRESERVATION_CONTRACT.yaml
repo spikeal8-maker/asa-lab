@@ -41,7 +41,8 @@ foundation_if_pr34_accepted:
     migrations:
       - migrations/0003_electronics_project_slice.sql
       - migrations/0004_personal_teacher_projects.sql
-    note: Current PR34 stores subject documents in document_json and has no persisted digest column.
+      - migrations/0005_project_rename_least_privilege.sql
+    note: Current PR34 stores subject documents in document_json, has no persisted digest column, and corrects project rename privileges in additive migration 0005 without changing applied migration checksums.
   user_flows:
     - personal_project_create_without_classroom
     - project_rename
