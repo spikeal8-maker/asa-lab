@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { SchematicComponent, SchematicDocument } from '../api';
+import type { SchematicComponent, SchematicDocument, TerminalId } from '../api';
 import { catalogEntry, renderedSize } from './component-catalog';
 import type { Point, Viewport } from './workbench-geometry';
 import { STAGE_HEIGHT_UNITS, STAGE_WIDTH_UNITS } from './workbench-scale';
@@ -15,7 +15,7 @@ export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
 export interface TerminalRef {
   componentId: string;
-  terminal: 'a' | 'b';
+  terminal: TerminalId;
 }
 
 export interface ComponentDrag {
