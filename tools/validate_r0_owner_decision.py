@@ -4,12 +4,14 @@
 A technically green contract may remain pending. This validator prevents an
 agent from silently converting technical PASS into product/architecture
 approval. Pending is a valid state; rejected requires contract revision;
-approved requires complete attribution and all decisions accepted.
+approved requires complete attribution from the repository owner.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
+import re
 import sys
 from typing import Any
 
@@ -17,6 +19,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 DECISION_PATH = ROOT / "docs/delivery/R0_OWNER_DECISION.yaml"
+EXPECTED_OWNER = "spikeal8-maker"
+EXPECTED_COMMENT_PREFIX = "https://github.com/spikeal8-maker/asa-lab/pull/43#issuecomment-"
+ISO_UTC = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
 EXPECTED_DECISIONS = {
     "account_principal_workspace_are_distinct",
     "tenant_and_rls_remain_security_boundary",
@@ -44,6 +49,15 @@ def load() -> dict[str, Any]:
     if not isinstance(document, dict):
         fail("owner decision YAML must be an object")
     return document
+
+
+def validate_approved_at(value: Any) -> None:
+    if not isinstance(value, str) or not ISO_UTC.fullmatch(value):
+        fail("approval.approved_at must be a quoted ISO-8601 UTC timestamp ending in Z")
+    try:
+        datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+    except ValueError as error:
+        fail(f"approval.approved_at is not a valid timestamp: {error}")
 
 
 def main() -> int:
@@ -92,7 +106,10 @@ def main() -> int:
                 fail("pending_owner requires all five decisions to remain pending")
             if convergence_status != "pending":
                 fail("pending_owner requires convergence_order.status = pending")
-            if any(approval.get(field) is not None for field in ("approved_by", "approved_at", "evidence_comment_url")):
+            if any(
+                approval.get(field) is not None
+                for field in ("approved_by", "approved_at", "evidence_comment_url")
+            ):
                 fail("pending_owner must not contain approval attribution")
 
         elif status == "approved_pending_merge":
@@ -100,17 +117,26 @@ def main() -> int:
                 fail("approved_pending_merge requires all five decisions accepted")
             if convergence_status != "accepted":
                 fail("approved_pending_merge requires convergence order accepted")
-            for field in ("approved_by", "approved_at", "evidence_comment_url"):
-                value = approval.get(field)
-                if not isinstance(value, str) or not value.strip():
-                    fail(f"approved_pending_merge requires approval.{field}")
-            if "/pull/43#issuecomment-" not in approval["evidence_comment_url"]:
-                fail("approval evidence must be a PR 43 issue-comment URL")
+            if approval.get("approved_by") != EXPECTED_OWNER:
+                fail(f"approval.approved_by must be repository owner {EXPECTED_OWNER}")
+            validate_approved_at(approval.get("approved_at"))
+            evidence_url = approval.get("evidence_comment_url")
+            if not isinstance(evidence_url, str) or not evidence_url.startswith(
+                EXPECTED_COMMENT_PREFIX
+            ):
+                fail("approval evidence must be an issue-comment URL on PR 43")
+            comment_id = evidence_url.removeprefix(EXPECTED_COMMENT_PREFIX)
+            if not comment_id.isdigit():
+                fail("approval evidence URL must end with a numeric issue-comment id")
 
         elif status == "rejected_changes_required":
             if "rejected" not in decision_statuses and convergence_status != "rejected":
                 fail("rejected state requires a rejected decision or convergence order")
-            notes = [entry.get("notes") for entry in decisions.values() if entry.get("status") == "rejected"]
+            notes = [
+                entry.get("notes")
+                for entry in decisions.values()
+                if entry.get("status") == "rejected"
+            ]
             if convergence_status == "rejected":
                 notes.append(convergence.get("notes"))
             if not any(isinstance(note, str) and note.strip() for note in notes):
@@ -129,6 +155,7 @@ def main() -> int:
     print(f"- status: {status}")
     print(f"- decisions: {len(decisions)}")
     print(f"- convergence order: {convergence_status}")
+    print(f"- expected owner: {EXPECTED_OWNER}")
     print(f"- activation allowed: {str(status == 'approved_pending_merge').lower()}")
     return 0
 
