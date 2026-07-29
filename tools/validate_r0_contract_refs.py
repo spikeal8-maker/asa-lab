@@ -89,7 +89,8 @@ def main() -> int:
             "Current gate:** `R0`",
             "Product coding до активации:** запрещён",
             "Release R10",
-            "строгий delivery order",
+            "→ next release only ready",
+            "Новые product branches до шага 10 запрещены",
         ):
             if marker not in human:
                 fail(f"canonical human plan misses marker: {marker}")
