@@ -2,6 +2,7 @@ export const BREADBOARD_HOLE_PITCH_MM = 2.54;
 export const BREADBOARD_CENTER_GAP_MM = 7.62;
 
 export type BreadboardKind = 'mini-170' | 'half-400' | 'full-830';
+export type BreadboardRotation = 0 | 90 | 180 | 270;
 export type BreadboardTerminalRow = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j';
 export type BreadboardHoleRegion = 'terminal-strip' | 'power-rail';
 export type BreadboardRailId =
@@ -10,11 +11,20 @@ export type BreadboardRailId =
   | 'bottom-positive'
   | 'bottom-negative';
 
-export interface BreadboardHole {
-  readonly id: string;
-  readonly region: BreadboardHoleRegion;
+export interface BreadboardPointMm {
   readonly xMm: number;
   readonly yMm: number;
+}
+
+/** Top-left placement of the rotated physical envelope in project millimetres. */
+export interface BreadboardPlacementMm extends BreadboardPointMm {
+  readonly rotation: BreadboardRotation;
+}
+
+export interface BreadboardHole extends BreadboardPointMm {
+  /** Stable terminal ID suitable for a future SchematicConnection endpoint. */
+  readonly id: string;
+  readonly region: BreadboardHoleRegion;
   /** Holes with the same internalBusId are electrically connected by the board. */
   readonly internalBusId: string;
   readonly column?: number;
@@ -44,6 +54,11 @@ export interface BreadboardDefinition {
   readonly evidence: BreadboardEvidence;
 }
 
+export interface NearestBreadboardHole {
+  readonly hole: BreadboardHole;
+  readonly distanceMm: number;
+}
+
 interface BreadboardProfile {
   readonly kind: BreadboardKind;
   readonly displayName: string;
@@ -57,6 +72,11 @@ interface BreadboardProfile {
   readonly topologySource: string;
 }
 
+/**
+ * These are real mechanical profiles, not a claim that the current Tinkercad
+ * artwork is pixel-identical. R4 reference capture chooses the exact visual
+ * variant while preserving this 2.54 mm electrical geometry contract.
+ */
 const PROFILES: Readonly<Record<BreadboardKind, BreadboardProfile>> = {
   'mini-170': {
     kind: 'mini-170',
@@ -67,20 +87,20 @@ const PROFILES: Readonly<Record<BreadboardKind, BreadboardProfile>> = {
     terminalColumns: 17,
     railHolesPerRow: 0,
     railSplit: false,
-    geometrySource: 'SparkFun PRT-12047: 47 × 35 × 10 mm, 170 tie points',
-    topologySource: 'Standard 0.1 inch terminal strips; exact Tinkercad visual capture pending',
+    geometrySource: 'SparkFun PRT-12047 mechanical envelope: 47 × 35 × 10 mm',
+    topologySource: '17 columns × two isolated five-hole terminal groups; exact reference visual pending',
   },
   'half-400': {
     kind: 'half-400',
     displayName: 'Макетная плата половинного размера, 400 точек',
-    widthMm: 82.6,
-    heightMm: 55,
-    thicknessMm: 9.3,
+    widthMm: 83.5,
+    heightMm: 54.5,
+    thicknessMm: 8.5,
     terminalColumns: 30,
     railHolesPerRow: 25,
     railSplit: false,
-    geometrySource: 'Adafruit product 64: 82.6 × 55 × 9.3 mm, 400 tie points',
-    topologySource: '30 rows, two five-hole terminal strips and four 25-hole rail rows',
+    geometrySource: 'SparkFun PRT-12002 mechanical envelope: 83.5 × 54.5 × 8.5 mm',
+    topologySource: '30 terminal columns plus four continuous 25-hole power rails; exact reference visual pending',
   },
   'full-830': {
     kind: 'full-830',
@@ -91,8 +111,8 @@ const PROFILES: Readonly<Record<BreadboardKind, BreadboardProfile>> = {
     terminalColumns: 63,
     railHolesPerRow: 50,
     railSplit: true,
-    geometrySource: 'SparkFun PRT-12615: 165.1 × 54.29 × 9.68 mm, 830 tie points',
-    topologySource: '63 rows, ten terminal columns, two split power buses; exact reference visual pending',
+    geometrySource: 'SparkFun PRT-12615 mechanical envelope: 165.1 × 54.29 × 9.68 mm',
+    topologySource: '63 terminal columns plus four rails split into isolated 25-hole segments; exact reference visual pending',
   },
 };
 
@@ -218,6 +238,95 @@ export function breadboardHole(
   return definition.holes.find((hole) => hole.id === holeId) ?? null;
 }
 
+export function breadboardEnvelopeMm(
+  definition: BreadboardDefinition,
+  rotation: BreadboardRotation,
+): { readonly widthMm: number; readonly heightMm: number } {
+  return rotation === 90 || rotation === 270
+    ? { widthMm: definition.heightMm, heightMm: definition.widthMm }
+    : { widthMm: definition.widthMm, heightMm: definition.heightMm };
+}
+
+/** Rotate a board-local point while keeping the rotated envelope top-left at 0,0. */
+export function rotateBreadboardPointMm(
+  definition: BreadboardDefinition,
+  point: BreadboardPointMm,
+  rotation: BreadboardRotation,
+): BreadboardPointMm {
+  if (rotation === 90) {
+    return { xMm: roundMm(definition.heightMm - point.yMm), yMm: roundMm(point.xMm) };
+  }
+  if (rotation === 180) {
+    return {
+      xMm: roundMm(definition.widthMm - point.xMm),
+      yMm: roundMm(definition.heightMm - point.yMm),
+    };
+  }
+  if (rotation === 270) {
+    return { xMm: roundMm(point.yMm), yMm: roundMm(definition.widthMm - point.xMm) };
+  }
+  return { xMm: roundMm(point.xMm), yMm: roundMm(point.yMm) };
+}
+
+export function breadboardHoleWorldMm(
+  definition: BreadboardDefinition,
+  holeId: string,
+  placement: BreadboardPlacementMm,
+): BreadboardPointMm | null {
+  const hole = breadboardHole(definition, holeId);
+  if (!hole) return null;
+  const rotated = rotateBreadboardPointMm(definition, hole, placement.rotation);
+  return {
+    xMm: roundMm(placement.xMm + rotated.xMm),
+    yMm: roundMm(placement.yMm + rotated.yMm),
+  };
+}
+
+function inverseRotateBreadboardPointMm(
+  definition: BreadboardDefinition,
+  point: BreadboardPointMm,
+  rotation: BreadboardRotation,
+): BreadboardPointMm {
+  if (rotation === 90) {
+    return { xMm: roundMm(point.yMm), yMm: roundMm(definition.heightMm - point.xMm) };
+  }
+  if (rotation === 180) {
+    return {
+      xMm: roundMm(definition.widthMm - point.xMm),
+      yMm: roundMm(definition.heightMm - point.yMm),
+    };
+  }
+  if (rotation === 270) {
+    return { xMm: roundMm(definition.widthMm - point.yMm), yMm: roundMm(point.xMm) };
+  }
+  return { xMm: roundMm(point.xMm), yMm: roundMm(point.yMm) };
+}
+
+/** Find the nearest hole in world millimetres for terminal/probe snapping. */
+export function nearestBreadboardHole(
+  definition: BreadboardDefinition,
+  placement: BreadboardPlacementMm,
+  worldPoint: BreadboardPointMm,
+  options: {
+    readonly region?: BreadboardHoleRegion;
+    readonly maximumDistanceMm?: number;
+  } = {},
+): NearestBreadboardHole | null {
+  const localRotated = {
+    xMm: worldPoint.xMm - placement.xMm,
+    yMm: worldPoint.yMm - placement.yMm,
+  };
+  const local = inverseRotateBreadboardPointMm(definition, localRotated, placement.rotation);
+  let nearest: NearestBreadboardHole | null = null;
+  for (const hole of definition.holes) {
+    if (options.region && hole.region !== options.region) continue;
+    const distanceMm = Math.hypot(hole.xMm - local.xMm, hole.yMm - local.yMm);
+    if (!nearest || distanceMm < nearest.distanceMm) nearest = { hole, distanceMm };
+  }
+  const limit = options.maximumDistanceMm ?? BREADBOARD_HOLE_PITCH_MM * 0.55;
+  return nearest && nearest.distanceMm <= limit ? nearest : null;
+}
+
 export function areBreadboardHolesConnected(
   definition: BreadboardDefinition,
   firstHoleId: string,
@@ -235,6 +344,18 @@ export function breadboardBusMembers(
   const hole = breadboardHole(definition, holeId);
   if (!hole) return [];
   return definition.holes.filter((candidate) => candidate.internalBusId === hole.internalBusId);
+}
+
+export function breadboardInternalBusMap(
+  definition: BreadboardDefinition,
+): ReadonlyMap<string, readonly BreadboardHole[]> {
+  const groups = new Map<string, BreadboardHole[]>();
+  for (const hole of definition.holes) {
+    const members = groups.get(hole.internalBusId) ?? [];
+    members.push(hole);
+    groups.set(hole.internalBusId, members);
+  }
+  return groups;
 }
 
 export function expectedBreadboardTiePointCount(kind: BreadboardKind): number {
