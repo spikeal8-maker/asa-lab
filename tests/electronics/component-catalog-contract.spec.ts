@@ -4,6 +4,7 @@ import {
   COMPONENT_VALUE_MODELS,
 } from '../../contexts/electronics/domain/component-model';
 import {
+  ACTIVE_COMPONENTS,
   WORKBENCH_CATALOG,
   catalogEntry,
   terminalIds,
@@ -38,7 +39,9 @@ describe('visual/electrical component registry contract', () => {
   it('has unique catalogue keys and no enabled component without a full native contract', () => {
     const keys = WORKBENCH_CATALOG.map((entry) => entry.key);
     expect(new Set(keys).size).toBe(keys.length);
-    for (const entry of WORKBENCH_CATALOG.filter((candidate) => candidate.enabled)) {
+    const enabled = WORKBENCH_CATALOG.filter((candidate) => candidate.enabled);
+    expect(enabled.map((entry) => entry.kind)).toEqual(activeKinds);
+    for (const entry of enabled) {
       expect(entry.kind).not.toBeNull();
       expect(entry.asset).toMatch(/^\/assets\/electronics\/components\/.+\.svg$/);
       expect(entry.terminals.length).toBeGreaterThanOrEqual(2);
@@ -47,6 +50,25 @@ describe('visual/electrical component registry contract', () => {
       expect(entry.physical.bodyMm.height).toBeGreaterThan(0);
       expect(entry.physical.referenceBehaviorVerified).toBeDefined();
     }
+  });
+
+  it('resolves the persisted breadboard kind to one explicit disabled planning entry', () => {
+    const breadboard = catalogEntry('breadboard');
+    expect(breadboard).toBe(ACTIVE_COMPONENTS.breadboard);
+    expect(breadboard).toMatchObject({
+      key: 'breadboard-half',
+      kind: null,
+      enabled: false,
+      category: 'boards',
+      placement: { mode: 'breadboard-hole' },
+      physical: {
+        bodyMm: { width: 83.5, height: 54.5, depth: 8.5 },
+        evidence: 'manufacturer_official',
+        referenceBehaviorVerified: false,
+      },
+    });
+    expect(breadboard?.asset).toBeNull();
+    expect(breadboard?.terminals).toEqual([]);
   });
 
   it('keeps unavailable parts visible but electrically inert', () => {
@@ -69,5 +91,6 @@ describe('visual/electrical component registry contract', () => {
     expect(resistor.physical.evidence).toBe('manufacturer_typical');
     expect(resistor.physical.referenceBehaviorVerified).toBe(false);
     expect(resistor.enabled).toBe(true);
+    expect(resistor.physical.terminalSpanPitches).toBe(10);
   });
 });
