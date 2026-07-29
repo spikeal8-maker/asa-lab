@@ -3,6 +3,8 @@
  * a class or publish a project inside a class workspace. */
 
 export type ProjectScope = 'personal' | 'classroom';
+export const PROJECT_TITLE_MAX_LENGTH = 160;
+export const PROJECT_CHECKPOINT_LABEL_MAX_LENGTH = 160;
 
 export interface Project {
   readonly id: string;
@@ -34,7 +36,11 @@ export function isProjectScope(value: unknown): value is ProjectScope {
 }
 
 export function isValidProjectTitle(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length >= 1 && value.trim().length <= 255;
+  return (
+    typeof value === 'string' &&
+    value.trim().length >= 1 &&
+    value.trim().length <= PROJECT_TITLE_MAX_LENGTH
+  );
 }
 
 /** Only the electronics module is executable in this slice. Other module cards
@@ -44,5 +50,8 @@ export function isSupportedModuleKey(value: unknown): value is 'electronics' {
 }
 
 export function isValidCheckpointLabel(value: unknown): value is string | undefined {
-  return value === undefined || (typeof value === 'string' && value.trim().length <= 255);
+  return (
+    value === undefined ||
+    (typeof value === 'string' && value.trim().length <= PROJECT_CHECKPOINT_LABEL_MAX_LENGTH)
+  );
 }
