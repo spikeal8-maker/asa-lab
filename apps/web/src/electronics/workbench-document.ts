@@ -15,6 +15,7 @@ import {
   renderedSize,
   snapComponentOrigin,
   terminalPosition,
+  terminalSpec,
 } from './component-catalog';
 import { snap, type Point } from './workbench-geometry';
 import { BREADBOARD_PITCH_UNITS, HALF_PITCH_UNITS } from './workbench-scale';
@@ -45,30 +46,44 @@ function overlaps(
   );
 }
 
+function ringOffsets(ring: number): Point[] {
+  if (ring === 0) return [{ x: 0, y: 0 }];
+  const offsets: Point[] = [];
+  for (let x = -ring; x <= ring; x += 1) {
+    offsets.push({ x, y: -ring }, { x, y: ring });
+  }
+  for (let y = -ring + 1; y < ring; y += 1) {
+    offsets.push({ x: -ring, y }, { x: ring, y });
+  }
+  return offsets;
+}
+
+/** Find a free terminal-aligned spot around the requested visual centre. */
 function freePosition(
   document: SchematicDocument,
   kind: Exclude<ComponentKind, 'wire'>,
   size: { width: number; height: number },
   center: Point,
+  rotation: 0 | 90 | 180 | 270 = 0,
 ): Point {
   const gap = BREADBOARD_PITCH_UNITS;
   const taken = document.components
     .map(boxOf)
     .filter((box): box is { x: number; y: number; width: number; height: number } => box !== null);
-  const start = componentOriginForCenter(kind, center, 0);
-  const step = BREADBOARD_PITCH_UNITS * 6;
-  for (let ring = 0; ring < 8; ring += 1) {
-    for (let index = 0; index <= ring * 2; index += 1) {
-      const proposed = {
-        x: start.x + (index - ring) * step,
-        y: start.y + ring * step,
-      };
-      const candidate = snapComponentOrigin(kind, proposed, 0);
+  const start = componentOriginForCenter(kind, center, rotation);
+  const step = BREADBOARD_PITCH_UNITS * 4;
+  for (let ring = 0; ring < 10; ring += 1) {
+    for (const offset of ringOffsets(ring)) {
+      const candidate = snapComponentOrigin(
+        kind,
+        { x: start.x + offset.x * step, y: start.y + offset.y * step },
+        rotation,
+      );
       const box = { ...candidate, ...size };
       if (!taken.some((other) => overlaps(box, other, gap))) return candidate;
     }
   }
-  return snapComponentOrigin(kind, start, 0);
+  return snapComponentOrigin(kind, start, rotation);
 }
 
 export function addComponentToDocument(
@@ -96,19 +111,23 @@ export function duplicateComponentInDocument(
 ): { document: SchematicDocument; component: SchematicComponent } | null {
   if (selection?.kind !== 'component') return null;
   const source = document.components.find((item) => item.id === selection.id);
-  if (!source) return null;
+  if (!source || source.kind === 'wire') return null;
   const rotation = source.rotation ?? 0;
+  const entry = catalogEntry(source.kind);
+  if (!entry) return null;
+  const size = renderedSize(entry, rotation);
+  const sourceCenter = {
+    x: source.position.x + size.width / 2,
+    y: source.position.y + size.height / 2,
+  };
+  const preferredCenter = {
+    x: sourceCenter.x + BREADBOARD_PITCH_UNITS * 4,
+    y: sourceCenter.y + BREADBOARD_PITCH_UNITS * 4,
+  };
   const component: SchematicComponent = {
     ...source,
     id,
-    position: snapComponentOrigin(
-      source.kind,
-      {
-        x: source.position.x + BREADBOARD_PITCH_UNITS * 2,
-        y: source.position.y + BREADBOARD_PITCH_UNITS * 2,
-      },
-      rotation,
-    ),
+    position: freePosition(document, source.kind, size, preferredCenter, rotation),
   };
   return { component, document: { ...document, components: [...document.components, component] } };
 }
@@ -197,7 +216,7 @@ export function updateSelectedWireColor(
   selection: Selection,
   color: string,
 ): SchematicDocument | null {
-  if (selection?.kind !== 'wire') return null;
+  if (selection?.kind !== 'wire' || !/^#[0-9a-fA-F]{6}$/.test(color)) return null;
   return {
     ...document,
     connections: document.connections.map((item) =>
@@ -245,15 +264,34 @@ export function toggleSelectedWireRoute(
   };
 }
 
+export type ConnectTerminalResult =
+  | { kind: 'duplicate' }
+  | { kind: 'invalid'; message: string }
+  | { kind: 'created'; wire: SchematicConnection; document: SchematicDocument };
+
+function terminalExists(document: SchematicDocument, ref: TerminalRef): boolean {
+  const component = document.components.find((item) => item.id === ref.componentId);
+  if (!component || component.kind === 'wire') return false;
+  const entry = catalogEntry(component.kind);
+  return Boolean(entry && terminalSpec(entry, ref.terminal));
+}
+
 export function connectTerminals(
   document: SchematicDocument,
   from: TerminalRef,
   to: TerminalRef,
   id: string,
   color: string,
-):
-  | { kind: 'duplicate' }
-  | { kind: 'created'; wire: SchematicConnection; document: SchematicDocument } {
+): ConnectTerminalResult {
+  if (!terminalExists(document, from) || !terminalExists(document, to)) {
+    return { kind: 'invalid', message: 'Вывод больше не существует в текущей модели компонента.' };
+  }
+  if (from.componentId === to.componentId && from.terminal === to.terminal) {
+    return { kind: 'invalid', message: 'Нельзя соединить вывод сам с собой.' };
+  }
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
+    return { kind: 'invalid', message: 'Выбран недопустимый цвет провода.' };
+  }
   const duplicate = document.connections.some(
     (wire) =>
       (wire.from.componentId === from.componentId &&
