@@ -92,12 +92,92 @@
   opacity: 0.46;
 }
 
+/* The base sheet was designed for a title-only card. Native physical metadata
+ * and evidence are now first-class, so the card grows instead of overlaying or
+ * clipping that information. */
+.workbench-catalog-card {
+  grid-template-rows: 70px auto auto auto;
+  align-content: start;
+  min-height: 156px;
+  padding: 7px 5px 8px;
+}
+
+.workbench-catalog-card.disabled {
+  opacity: 0.7;
+}
+
 .workbench-catalog-card small {
+  position: static;
+  right: auto;
+  top: auto;
   max-width: 100%;
-  color: #72808b;
-  font-size: 10px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #61727e;
+  font-size: 9px;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.workbench-evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  max-width: 100%;
+  padding: 2px 5px;
+  border: 1px solid #ccd6dd;
+  border-radius: 999px;
+  background: #f6f8fa;
+  color: #526773;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.workbench-evidence-badge.owner_asset_calibrated {
+  border-color: #86c5a7;
+  background: #edf8f2;
+  color: #176643;
+}
+
+.workbench-evidence-badge.manufacturer_official {
+  border-color: #8bc2da;
+  background: #eef8fc;
+  color: #075f7a;
+}
+
+.workbench-evidence-badge.manufacturer_typical {
+  border-color: #d5c58e;
+  background: #fff9e8;
+  color: #6b4a05;
+}
+
+.workbench-evidence-badge.reference_capture_required {
+  border-color: #d4b1b1;
+  background: #fff3f2;
+  color: #8b312b;
+}
+
+.workbench-inspector {
+  max-height: calc(100% - 24px);
+  overflow: auto;
+}
+
+.workbench-measurements .workbench-measurement-wide {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
+.workbench-measurements .workbench-measurement-wide dd {
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: left;
 }
 
 .workbench-inspector input:disabled {
