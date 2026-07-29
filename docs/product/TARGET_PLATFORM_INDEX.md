@@ -7,18 +7,22 @@
 - [`ASA_TARGET_PLATFORM_BLUEPRINT.md`](ASA_TARGET_PLATFORM_BLUEPRINT.md)
 - [`ASA_TARGET_PLATFORM_BLUEPRINT.yaml`](ASA_TARGET_PLATFORM_BLUEPRINT.yaml)
 - [`../architecture/ASA_IDENTITY_WORKSPACE_TRANSITION_PLAN.md`](../architecture/ASA_IDENTITY_WORKSPACE_TRANSITION_PLAN.md)
+- [`../architecture/R1_ACCOUNT_WORKSPACE_MIGRATION_CONTRACT.yaml`](../architecture/R1_ACCOUNT_WORKSPACE_MIGRATION_CONTRACT.yaml) — additive R1 contract, неактивный до R0D.
 
-## Исполнение
+## Исполнение и решения
 
 - [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN_R0.md) — актуальный owner-gated human contract;
 - [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.yaml) — machine-readable release/branch/Issue contract;
 - [`../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md`](../delivery/ASA_TARGET_PLATFORM_EXECUTION_PLAN.md) — подробный design/workstream документ;
 - [`../delivery/R0_CONVERGENCE_CURRENT_STATE.md`](../delivery/R0_CONVERGENCE_CURRENT_STATE.md) — текущие роли веток и freeze;
 - [`../delivery/R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) — пять решений владельца;
-- [`../delivery/R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) — machine-readable pending/approved/rejected state;
+- [`../delivery/R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) — machine-readable target-contract decision;
 - [`../delivery/R0_FOUNDATION_REVIEW_PR34.md`](../delivery/R0_FOUNDATION_REVIEW_PR34.md) — owner checklist ограниченного Electronics/Project foundation;
-- [`../delivery/R0_R1_CANDIDATE_SELECTION.md`](../delivery/R0_R1_CANDIDATE_SELECTION.md) — сравнение PR №59/№60 и процедура выбора одной R1-линии;
+- [`../delivery/R0_FOUNDATION_DECISION.yaml`](../delivery/R0_FOUNDATION_DECISION.yaml) — machine-readable PR №34 decision и corrective items;
+- [`../delivery/R0_R1_CANDIDATE_SELECTION.md`](../delivery/R0_R1_CANDIDATE_SELECTION.md) — сравнение PR №59/№60;
+- [`../delivery/R0_R1_CANDIDATE_DECISION.yaml`](../delivery/R0_R1_CANDIDATE_DECISION.yaml) — deferred/selected R1 candidate state;
 - [`../delivery/R0_POST_MERGE_TRANSITION.yaml`](../delivery/R0_POST_MERGE_TRANSITION.yaml) — R0A–R0D после merge, без раннего R1;
+- [`../delivery/R0_BASELINE_PRESERVATION_CONTRACT.yaml`](../delivery/R0_BASELINE_PRESERVATION_CONTRACT.yaml) — данные и flows, которые R0B обязан сохранить;
 - [`../delivery/R0_LEGACY_TRACEABILITY.yaml`](../delivery/R0_LEGACY_TRACEABILITY.yaml) — mapping старых v1 tasks/Issues в R0–R10;
 - [`../project-map/R0_TARGET_RELEASE_MAP.yaml`](../project-map/R0_TARGET_RELEASE_MAP.yaml) — неактивный шаблон release-карты;
 - [`../testing/ASA_TARGET_TEST_MATRIX.yaml`](../testing/ASA_TARGET_TEST_MATRIX.yaml) — неактивные test profiles, release tests, artifacts и owner flows;
@@ -72,18 +76,22 @@ R10 Multi-module lifecycle proof and measured operations scale
 python tools/validate_r0.py
 ```
 
-Wrapper включает:
+Wrapper включает 19 gates:
 
 ```text
 validate_r0_diff.py
 validate_r0_contract_refs.py
 validate_r0_human_contract.py
 validate_r0_owner_decision.py
+validate_r0_foundation_decision.py
 validate_r0_post_merge.py
+validate_r0_baseline_preservation.py
 validate_r0_release_map.py
 validate_r0_legacy_traceability.py
 validate_r0_review_packets.py
+validate_r0_r1_candidate_decision.py
 validate_target_test_matrix.py
+validate_r1_migration_contract.py
 validate_tinkercad_parity.py
 validate_target_execution.py
 validate_architecture.py
@@ -94,9 +102,9 @@ validate_r0_github_state.py
 
 ## Текущий owner action
 
-1. Проверить PR №34 по [`R0_FOUNDATION_REVIEW_PR34.md`](../delivery/R0_FOUNDATION_REVIEW_PR34.md).
-2. Открыть [`R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) и принять/отклонить пять решений.
-3. После технического R0 PASS синхронно обновить [`R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml) и зафиксировать решение в PR №43.
-4. PR №59/№60 выбираются только после R0B по [`R0_R1_CANDIDATE_SELECTION.md`](../delivery/R0_R1_CANDIDATE_SELECTION.md).
+1. Проверить PR №34 по [`R0_FOUNDATION_REVIEW_PR34.md`](../delivery/R0_FOUNDATION_REVIEW_PR34.md); corrective items и решение фиксируются в [`R0_FOUNDATION_DECISION.yaml`](../delivery/R0_FOUNDATION_DECISION.yaml).
+2. Открыть [`R0_OWNER_DECISION.md`](../delivery/R0_OWNER_DECISION.md) и принять/отклонить пять решений; состояние фиксируется в [`R0_OWNER_DECISION.yaml`](../delivery/R0_OWNER_DECISION.yaml).
+3. После технического R0 PASS и двух owner decisions выполнить rebase/merge PR №43.
+4. PR №59/№60 выбираются только в R0C по [`R0_R1_CANDIDATE_SELECTION.md`](../delivery/R0_R1_CANDIDATE_SELECTION.md); состояние фиксируется в [`R0_R1_CANDIDATE_DECISION.yaml`](../delivery/R0_R1_CANDIDATE_DECISION.yaml).
 
 До этого R1 не начинается.
