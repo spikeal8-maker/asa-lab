@@ -1,10 +1,11 @@
-import type { ElectronicsDocument, Terminal } from './document.js';
+import { componentTerminalIds, type TerminalId } from './component-model.js';
+import type { ElectronicsDocument } from './document.js';
 
 /** Netlist: terminals joined by wires and direct links collapse into nodes. */
 
 export interface TerminalRef {
   readonly componentId: string;
-  readonly terminal: Terminal;
+  readonly terminal: TerminalId;
 }
 
 export interface Netlist {
@@ -13,7 +14,7 @@ export interface Netlist {
   readonly nodeCount: number;
 }
 
-export function terminalKey(componentId: string, terminal: Terminal): string {
+export function terminalKey(componentId: string, terminal: TerminalId): string {
   return `${componentId}:${terminal}`;
 }
 
@@ -26,9 +27,7 @@ class UnionFind {
       this.parent.set(key, key);
       return key;
     }
-    if (seen === key) {
-      return key;
-    }
+    if (seen === key) return key;
     const root = this.find(seen);
     this.parent.set(key, root);
     return root;
@@ -37,37 +36,41 @@ class UnionFind {
   union(left: string, right: string): void {
     const a = this.find(left);
     const b = this.find(right);
-    if (a !== b) {
-      this.parent.set(a, b);
-    }
+    if (a !== b) this.parent.set(a, b);
   }
 }
 
 /**
- * Build the netlist. Wires are not circuit elements: both of their terminals
- * belong to the same node, so a wire simply merges what it connects.
+ * Generic netlist builder used by the document-specific adapter and future
+ * multi-terminal components such as breadboards, boards, ICs and instruments.
  */
-export function buildNetlist(document: ElectronicsDocument): Netlist {
+export function buildNetlistFromTerminalMap(
+  terminalMap: ReadonlyMap<string, readonly TerminalId[]>,
+  links: readonly { readonly from: TerminalRef; readonly to: TerminalRef }[],
+  internallyShortedComponents: ReadonlySet<string> = new Set(),
+): Netlist {
   const union = new UnionFind();
-  for (const component of document.components) {
-    union.find(terminalKey(component.id, 'a'));
-    union.find(terminalKey(component.id, 'b'));
-    if (component.kind === 'wire') {
-      union.union(terminalKey(component.id, 'a'), terminalKey(component.id, 'b'));
+  for (const [componentId, terminalIds] of terminalMap) {
+    for (const terminalId of terminalIds) union.find(terminalKey(componentId, terminalId));
+    if (internallyShortedComponents.has(componentId) && terminalIds.length > 1) {
+      const first = terminalIds[0] as TerminalId;
+      for (const terminalId of terminalIds.slice(1)) {
+        union.union(terminalKey(componentId, first), terminalKey(componentId, terminalId));
+      }
     }
   }
-  for (const connection of document.connections) {
+  for (const link of links) {
     union.union(
-      terminalKey(connection.from.componentId, connection.from.terminal),
-      terminalKey(connection.to.componentId, connection.to.terminal),
+      terminalKey(link.from.componentId, link.from.terminal),
+      terminalKey(link.to.componentId, link.to.terminal),
     );
   }
 
   const nodeOf = new Map<string, number>();
   const rootToIndex = new Map<string, number>();
-  for (const component of document.components) {
-    for (const terminal of ['a', 'b'] as const) {
-      const key = terminalKey(component.id, terminal);
+  for (const [componentId, terminalIds] of terminalMap) {
+    for (const terminalId of terminalIds) {
+      const key = terminalKey(componentId, terminalId);
       const root = union.find(key);
       let index = rootToIndex.get(root);
       if (index === undefined) {
@@ -78,4 +81,18 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     }
   }
   return { nodeOf, nodeCount: rootToIndex.size };
+}
+
+/**
+ * Build the current document netlist. Legacy wire components are ideal links;
+ * explicit SchematicConnection objects merge endpoint terminals directly.
+ */
+export function buildNetlist(document: ElectronicsDocument): Netlist {
+  const terminalMap = new Map(
+    document.components.map((component) => [component.id, componentTerminalIds(component.kind)]),
+  );
+  const internallyShorted = new Set(
+    document.components.filter((component) => component.kind === 'wire').map((component) => component.id),
+  );
+  return buildNetlistFromTerminalMap(terminalMap, document.connections, internallyShorted);
 }
