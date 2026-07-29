@@ -37,6 +37,28 @@ EXPECTED_BASELINE_TABLES = {
     "project_versions",
     "audit_events",
 }
+EXPECTED_PRESERVE_VALUES = {
+    "users.password_hash",
+    "projects.tenant_id",
+    "projects.created_by",
+    "projects.classroom_id",
+    "projects.project_scope",
+    "projects.module_key",
+    "project_drafts.document_json",
+    "project_drafts.revision",
+    "project_versions.document_json",
+    "project_versions.version_no",
+}
+EXPECTED_FINGERPRINTS = {
+    "project_drafts_document_json_canonical_sha256",
+    "project_versions_document_json_canonical_sha256",
+}
+EXPECTED_SCHEMA_BINDING = {
+    "project_document_column": "document_json",
+    "project_version_number_column": "version_no",
+    "persisted_project_version_digest_column": None,
+    "digest_rule": "compare canonical SHA-256 externally until an additive digest column is introduced by an approved release",
+}
 EXPECTED_FORBIDDEN = {
     "rename_users_to_accounts",
     "drop_users",
@@ -122,11 +144,17 @@ def main() -> int:
         if not isinstance(baseline, dict):
             fail("baseline_preservation must be an object")
         if string_set(baseline.get("required_tables"), "baseline.required_tables") != EXPECTED_BASELINE_TABLES:
-            fail("baseline required_tables do not match the current accepted product data")
+            fail("baseline required_tables do not match the accepted product data")
         if string_set(baseline.get("forbidden_operations"), "baseline.forbidden_operations") != EXPECTED_FORBIDDEN:
             fail("baseline forbidden_operations are incomplete or contain additions")
-        for label in ("immutable_identifiers", "preserve_values"):
-            string_set(baseline.get(label), f"baseline.{label}")
+        string_set(baseline.get("immutable_identifiers"), "baseline.immutable_identifiers")
+        if string_set(baseline.get("preserve_values"), "baseline.preserve_values") != EXPECTED_PRESERVE_VALUES:
+            fail("baseline preserve_values do not match the actual Project schema")
+        if string_set(baseline.get("computed_fingerprints"), "baseline.computed_fingerprints") != EXPECTED_FINGERPRINTS:
+            fail("baseline computed_fingerprints must cover draft and version document_json")
+        schema_binding = baseline.get("schema_binding")
+        if schema_binding != EXPECTED_SCHEMA_BINDING:
+            fail(f"baseline schema_binding must be {EXPECTED_SCHEMA_BINDING}, got {schema_binding!r}")
 
         entities = contract.get("entities")
         if not isinstance(entities, dict) or set(entities) != EXPECTED_ENTITIES:
@@ -172,6 +200,7 @@ def main() -> int:
                 f"R1 required stages must be {sorted(R1_REQUIRED_STAGES)}, "
                 f"got {sorted(required_stage_ids)}"
             )
+        stage_by_id = {stage["id"]: stage for stage in stages}
         for stage in stages:
             stage_id = stage["id"]
             operations = string_set(stage.get("operations"), f"{stage_id}.operations")
@@ -179,6 +208,10 @@ def main() -> int:
                 fail(f"{stage_id} has no operations")
             if stage_id in {"MIG-ID-07", "MIG-ID-08"} and stage.get("r1_required") is not False:
                 fail(f"{stage_id} must not be required during R1")
+        if "record_canonical_project_document_fingerprints" not in set(
+            stage_by_id["MIG-ID-00"].get("operations") or []
+        ):
+            fail("MIG-ID-00 must record canonical Project document fingerprints")
 
         stage08 = stages[-1]
         if stage08.get("destructive") is not True or stage08.get("forbidden_during_r1") is not True:
@@ -271,7 +304,7 @@ def main() -> int:
                 fail(f"candidate_acceptance misses {candidate_name}")
             string_set(candidate.get("known_gap"), f"candidate_acceptance.{candidate_name}.known_gap")
 
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (OSError, StopIteration, ValueError, yaml.YAMLError) as error:
         print(f"ASA R1 migration contract FAIL: {error}", file=sys.stderr)
         return 1
 
@@ -279,6 +312,8 @@ def main() -> int:
     print(f"- entities: {len(EXPECTED_ENTITIES)}")
     print(f"- migration stages: {len(EXPECTED_STAGES)}")
     print(f"- R1 required stages: {len(R1_REQUIRED_STAGES)}")
+    print("- actual Project document columns: verified")
+    print("- persisted ProjectVersion digest assumed: false")
     print("- destructive stage allowed during R1: false")
     print("- selected R1 candidate requirements: explicit")
     return 0
