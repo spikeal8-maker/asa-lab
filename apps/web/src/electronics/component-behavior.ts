@@ -46,6 +46,17 @@ export const WORKBENCH_VALUE_CONTROLS: Readonly<Record<ComponentKind, WorkbenchV
     presets: [],
     help: 'Красный LED использует фиксированное прямое падение 2 В в foundation-модели.',
   },
+  breadboard: {
+    label: 'Внутренняя топология',
+    unit: '',
+    defaultValue: 0,
+    minimum: 0,
+    maximum: 0,
+    editable: false,
+    step: 0,
+    presets: [],
+    help: 'Connectivity-only: 300 terminal-strip holes и 100 rail holes объединены физическими внутренними buses.',
+  },
   wire: {
     label: 'Сопротивление',
     unit: 'Ом',
@@ -72,6 +83,7 @@ export function isNominalWorkbenchValue(kind: ComponentKind, value: number): boo
 }
 
 export function formatComponentValue(kind: ComponentKind, value: number): string {
+  if (kind === 'breadboard') return '400 точек';
   if (kind === 'resistor') {
     if (value >= 1_000_000) return `${Number((value / 1_000_000).toFixed(3))} МОм`;
     if (value >= 1_000) return `${Number((value / 1_000).toFixed(3))} кОм`;
