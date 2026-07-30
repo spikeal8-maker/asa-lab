@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessEditor } from './ChessEditor';
 import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
+import './chess-training.css';
 
 interface ChessModuleExperienceProps {
   projectId: string;
@@ -31,7 +32,10 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
         aria-label="Открыть шахматные задачи"
       >
         <span aria-hidden="true">◆</span>
-        <span><strong>Задачи</strong><small>Тренировка</small></span>
+        <span>
+          <strong>Задачи</strong>
+          <small>Тренировка</small>
+        </span>
       </button>
     </div>
   );
