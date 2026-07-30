@@ -1,36 +1,36 @@
 # Карта качества ASA Lab
 
-Эта карта отвечает на вопрос: **чем доказана готовность каждого delivery stage**.
-
 Источники:
 
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — test profiles и task-specific tests;
-- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml) — команды и `required_for`;
-- [`project-map.yaml`](project-map.yaml) — task status/current focus;
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — видимые результаты;
-- GitHub Issue — acceptance конкретного flow.
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml);
+- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml);
+- [`project-map.yaml`](project-map.yaml);
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md).
 
-`tools/validate_delivery_program.py` разворачивает profiles manifest и требует **точного совпадения** с `required_for` test catalog. Бот не может сократить gate после начала задачи.
+## Исполняемая очередь
 
-## 1. Каноническая очередь
-
-```mermaid
-flowchart LR
-    DOC[TASK-PRODUCT-DOC-001]
-    PORTAL[TASK-PORTAL-001]
-    ACCOUNT[TASK-ACCOUNT-C1-001]
-    PROJECT[TASK-ELECTRONICS-SLICE-001]
-    CHECKERS[TASK-CHECKERS-LITE-001]
-    EALPHA[TASK-ELECTRONICS-ALPHA-001]
-    SEAT[TASK-SEAT-001]
-    ACT[TASK-ACT-001]
-    REVIEW[TASK-REVIEW-001]
-    EFULL[TASK-ELEC-001]
-
-    DOC --> PORTAL --> ACCOUNT --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
+```text
+TASK-PRODUCT-DOC-001  done
+TASK-PORTAL-001       done
+TASK-ACCOUNT-C1-001   in_progress
 ```
 
-## 2. Test profiles
+Других executable tasks сейчас нет. R2 Issue №62, R3 Issue №37 и R4 Issue №63 остаются blocked roadmap и не получают test gate до отдельной активации.
+
+## Принятый baseline
+
+```text
+runtime baseline: 7afebdcf9441b027092ce17a37f1f89950af99c6
+full local suite: 286/286
+PostgreSQL: PASS
+RLS: 15/15
+Playwright: 8/8
+browser counters: console=0, pageerror=0, requestfailed=0
+```
+
+Этот PASS относится только к baseline SHA. Он не переносится на новые Account commits.
+
+## Общие profiles
 
 ### product_docs
 
@@ -73,81 +73,15 @@ TST-RLS-001
 TST-AUTHZ-001
 ```
 
-### module_runtime
+## Account C1 gate
+
+Profiles:
 
 ```text
-TST-MODULE-CONTRACT-001
-TST-AUTHZ-001
+code_common + tenant_storage
 ```
 
-### assessment_common
-
-```text
-TST-COMMENTS-001
-TST-REVIEW-LIFECYCLE-001
-TST-ASSESSMENT-REVISION-001
-TST-BADGE-EVIDENCE-001
-```
-
-### electronics_kernel
-
-```text
-TST-ELECTRONICS-SCHEMA-001
-TST-ELECTRONICS-NETLIST-001
-TST-ELECTRONICS-GOLDEN-001
-TST-ELECTRONICS-WASM-PARITY-001
-```
-
-Profiles являются машиночитаемыми в Execution Manifest. Эта страница — визуальное представление.
-
-## 3. Product Documentation gate
-
-```mermaid
-flowchart LR
-    DOC[TASK-PRODUCT-DOC-001]
-    ARCH[TST-ARCH-001]
-    MAP[TST-MAP-001]
-    CAP[TST-CAPABILITY-MAP-001]
-    PROGRAM[TST-DEVELOPMENT-PROGRAM-001]
-    CATALOG[TST-CATALOG-001]
-    YAML[TST-YAML-001]
-    LINKS[TST-LINKS-001]
-
-    DOC --> ARCH & MAP & CAP & PROGRAM & CATALOG & YAML & LINKS
-```
-
-Gate подтверждает Product Blueprint, Capability Map, Execution Manifest, Development Program, Port Policy, точную очередь, Issues, task/test mapping и карты.
-
-## 4. Teacher Portal gate
-
-Profiles: `code_common + tenant_storage`.
-
-Task tests:
-
-```text
-TST-PORTAL-API-001
-TST-E2E-PORTAL-001
-```
-
-Flow:
-
-```text
-site opens
-→ login
-→ empty classrooms
-→ create classroom
-→ owner membership + AuditEvent
-→ reload persists
-→ logout
-```
-
-Дополнительно: runtime DB URL only, idempotency conflict, users/sessions/classrooms/audit isolation, clean PowerShell startup, canonical ports and accessibility.
-
-## 5. Account C1 gate
-
-Profiles: `code_common + tenant_storage`.
-
-Task tests:
+Task-specific IDs:
 
 ```text
 TST-ACCOUNT-REG-001
@@ -161,156 +95,109 @@ TST-IDENTITY-RLS-001
 TST-E2E-ACCOUNT-C1-001
 ```
 
-Flow:
+Обязательный user flow:
 
 ```text
 existing Account foundation
-→ adult educator self-attestation
-→ Personal/Organization workspace context
-→ profile update
-→ active session list and revocation
+→ educator self-attestation
+→ audited provisional educator grant
+→ workspace list
+→ safe ActiveContext switch
+→ profile
+→ active session list
+→ revoke one/all other sessions
 → existing teacher/projects preserved
 ```
 
-## 6. Electronics Project Slice gate
+Negative matrix:
 
-Визуальная часть среза доказывается browser E2E: авторские SVG на рабочем поле, перетаскивание с сохранением координат, SVG-провода, ток и состояние светодиода, immutable checkpoint.
+- under-18 educator grant denied;
+- client capability/role forgery denied;
+- unknown, foreign and suspended workspace denied;
+- client tenant/workspace override denied;
+- cross-account personal workspace isolation;
+- cross-account session revoke denied;
+- token hash never returned;
+- revoked session receives 401;
+- legacy link cannot cross tenant/account;
+- school_admin never implies platform_admin.
 
-Profiles: `code_common + tenant_storage + module_runtime`.
+## Test command lifecycle
 
-Task tests:
-
-```text
-TST-PROJECT-SHELL-001
-TST-E2E-PROJECT-SHELL-001
-```
-
-Flow:
-
-```text
-create project
-→ choose module
-→ save draft
-→ reload restores
-→ optimistic conflict protected
-→ immutable checkpoint
-```
-
-## 7. Checkers Lite gate
-
-Profiles: `code_common + module_runtime`.
-
-Task tests:
+Account test IDs зарегистрированы до завершения реализации. Пока реальные suites отсутствуют, соответствующие package scripts обязаны завершаться:
 
 ```text
-TST-CHECKERS-SCHEMA-001
-TST-CHECKERS-RULES-001
-TST-E2E-CHECKERS-LITE-001
+BLOCKED
+exit code 78
 ```
 
-Flow: board → legal move → diagnostic → save/reload → preview. Gate также доказывает отсутствие subject imports в Core.
+Это предотвращает как `command not found`, так и ложный PASS. Product implementation заменяет blocker-команды реальными Vitest/Playwright commands в том же PR.
 
-## 8. Electronics Alpha gate
+## Проверка migrations и данных
 
-Profiles: `code_common + module_runtime + electronics_kernel`.
+Обязательно:
 
-Task test:
+- новая migration только additive;
+- migration `0010` не изменяется;
+- apply на пустой test DB;
+- apply на копии существующей DB;
+- repeat apply = 0 pending;
+- checksum applied migrations сохранён;
+- существующие teacher/classes/projects/drafts не сброшены;
+- backup/restore выполняется только в изолированной DB.
+
+## Browser gate
+
+Account C1 Playwright использует live API/PostgreSQL без mocks и проверяет:
+
+- public registration/login regression;
+- account menu and profile;
+- educator grant;
+- workspace switch;
+- two active sessions;
+- revoke another session;
+- refresh/logout/relogin;
+- preservation of projects;
+- existing teacher access to Electronics and Chess.
+
+Для каждого browser scenario:
 
 ```text
-TST-E2E-ELECTRONICS-ALPHA-001
+console errors = 0
+page errors = 0
+unexpected requestfailed = 0
+unexpected HTTP 5xx = 0
 ```
 
-Flow: source/resistor/LED/wire → validation → netlist → native/WASM DC result → diagnostic → save/reload.
+## GitHub Actions
 
-Unsupported topology обязана завершаться diagnostic, а не fake numerical success.
+Workflow опубликован для `main`, `agent/**` и `assistant/**` с jobs:
 
-## 9. StudentSeat gate
+- governance;
+- format/lint/typecheck/contracts/build;
+- PostgreSQL/RLS.
 
-Profiles: `code_common + tenant_storage`.
-
-Task tests:
+Текущий hosted-runner status:
 
 ```text
-TST-STUDENT-SEAT-001
-TST-STUDENT-CREDENTIAL-001
-TST-STUDENT-IMPORT-001
-TST-E2E-STUDENT-SEAT-001
+BLOCKED before first step
+step list empty
+logs unavailable
 ```
 
-Flow: create/import seat → one-time card → child login without email → dashboard/project → reset revokes old session.
+Это не считается validator/code FAIL и не считается PASS. До устранения Actions account/runner blocker локальная полная матрица остаётся обязательной.
 
-## 10. Assignment and Submission gate
+## Статусы
 
-Profiles: `code_common + tenant_storage + module_runtime`.
+- `PASS` — реальный exit `0`;
+- `FAIL` — выполненная команда вернула non-zero;
+- `BLOCKED` — обязательная среда или ещё не реализованный suite отсутствует;
+- `NOT_RUN` — команда не запускалась.
 
-Task tests:
+`BLOCKED` и `NOT_RUN` не закрывают gate. Screenshot не заменяет assertion, manual smoke не заменяет Playwright.
 
-```text
-TST-ACTIVITY-VERSION-001
-TST-ASSIGNMENT-001
-TST-SUBMISSION-IMMUTABLE-001
-TST-E2E-ASSIGNMENT-SUBMISSION-001
-```
-
-Flow: publish immutable ActivityVersion → assign → child work/save → exact ProjectVersion submission → teacher queue.
-
-## 11. Review, Grade and Badge gate
-
-Profiles: `code_common + tenant_storage + assessment_common`.
-
-Task test:
-
-```text
-TST-E2E-REVIEW-001
-```
-
-Flow: anchored comment → request changes → resubmit → compare → accept → rubric/grade → badge/progress.
-
-## 12. Full Electronics Classroom gate
-
-Profiles: `code_common + module_runtime + assessment_common + electronics_kernel`.
-
-Additional tests:
-
-```text
-TST-TENANT-001
-TST-RLS-001
-TST-ELECTRONICS-ACTIVITY-001
-TST-ELECTRONICS-AUTOGRADE-001
-TST-ELECTRONICS-DIFF-001
-TST-E2E-ELECTRONICS-CLASSROOM-001
-```
-
-Flow: assign electronics → child circuit → public checks → immutable submission → anchored review → revision → grade/badge.
-
-## 13. Map and evidence gate
-
-Каждая product-code task должна изменить или подтвердить:
-
-```text
-project-map.yaml
-PROJECT_MAP.md
-QUALITY_MAP.md
-nx-project-graph.json
-```
-
-`TST-DEVELOPMENT-PROGRAM-001` проверяет наличие map artifacts в product-code diff.
-
-Текущее состояние: `TASK-PORTAL-001` — `done`. Текущий focus — `TASK-ACCOUNT-C1-001` (Issue №48); `TASK-ELECTRONICS-SLICE-001` приостановлен до owner acceptance Account C1.
-
-В Draft PR task имеет `in_review`, next task остаётся `blocked`. После merge отдельный map transition переводит current task в `done`, next в `ready` и сдвигает `current_focus`.
-
-## 14. Правила результата
-
-- PASS — команда фактически завершилась exit 0;
-- FAIL — команда фактически упала;
-- BLOCKED — обязательная среда отсутствует;
-- NOT_RUN — команда не запускалась.
-
-`BLOCKED` и `NOT_RUN` не закрывают gate. Manual browser smoke не заменяет Playwright. Screenshot не заменяет assertion. Test ID нельзя удалить из `required_for` ради зелёного отчёта.
-
-Единый запуск:
+Единый task runner:
 
 ```bash
-python tools/run_task_tests.py --task <TASK-ID>
+python tools/run_task_tests.py --task TASK-ACCOUNT-C1-001
 ```
