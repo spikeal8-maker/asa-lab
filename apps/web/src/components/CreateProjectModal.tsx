@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { api, type ModuleSummary, type Project, type ProjectScope } from '../api';
+import { newClientId } from '../client-id';
 import { CloseIcon } from '../electronics/workbench-icons';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
@@ -97,7 +98,7 @@ export function CreateProjectModal({
       classroomId: scope === 'classroom' ? (classroomId ?? null) : null,
       title: trimmed,
       module: selectedModule,
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: newClientId(),
     });
     setBusy(false);
     if (result.ok) {

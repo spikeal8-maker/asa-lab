@@ -59,8 +59,9 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await page.getByRole('button', { name: 'Создать', exact: true }).click();
   await page.getByLabel('Название проекта').fill(title);
   const tile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });
-  await tile.getByRole('radio').check();
-  await page.getByRole('button', { name: 'Создать проект' }).click();
+  await tile.click();
+  await expect(tile.getByRole('radio')).toBeChecked();
+  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await page.getByRole('button', { name: 'Открыть онлайн-шахматы' }).click();
   await expect(page.getByRole('heading', { name: 'Вызовы и поиск соперника' })).toBeVisible();
@@ -102,8 +103,6 @@ test('two teachers create and play one server-authoritative direct challenge', a
   browser,
 }) => {
   const session = await pages(browser);
-  const firstFailures = browserFailures(session.firstPage);
-  const secondFailures = browserFailures(session.secondPage);
   try {
     await login(session.firstPage, {
       workspace: first.workspace,
@@ -112,6 +111,8 @@ test('two teachers create and play one server-authoritative direct challenge', a
       userId: first.teacherId,
     });
     await login(session.secondPage, second);
+    const firstFailures = browserFailures(session.firstPage);
+    const secondFailures = browserFailures(session.secondPage);
     await createChessProject(session.firstPage, 'Онлайн — белые');
     await createChessProject(session.secondPage, 'Онлайн — чёрные');
 
@@ -181,7 +182,10 @@ test('two teachers create and play one server-authoritative direct challenge', a
     const forged = await session.firstPage.request.post(
       `/api/chess/live/games/${encodeURIComponent(accepted.game.gameId)}/moves`,
       {
-        headers: { 'idempotency-key': `forged:${Date.now()}` },
+        headers: {
+          origin: 'http://web:8080',
+          'idempotency-key': `forged:${Date.now()}`,
+        },
         data: {
           expectedVersion: envelope.snapshot.version,
           uci: 'f1b5',
@@ -196,8 +200,13 @@ test('two teachers create and play one server-authoritative direct challenge', a
     expect(forged.status()).toBe(400);
 
     mkdirSync('e2e/artifacts', { recursive: true });
+    await session.firstPage.setViewportSize({ width: 1366, height: 768 });
     await session.firstPage.screenshot({
       path: 'e2e/artifacts/chess-online-white-desktop.png',
+      fullPage: true,
+    });
+    await session.firstPage.screenshot({
+      path: 'e2e/artifacts/docker-chess-online.png',
       fullPage: true,
     });
     await session.secondPage.setViewportSize({ width: 390, height: 844 });

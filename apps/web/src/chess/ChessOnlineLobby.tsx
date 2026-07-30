@@ -9,6 +9,7 @@ import {
 } from '@asa-lab/chess';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicUser } from '../api';
+import { newClientId } from '../client-id';
 import { ChessBoard } from './ChessBoard';
 import {
   chessLiveApi,
@@ -42,7 +43,7 @@ const TIME_PRESETS: readonly TimePreset[] = [
 ] as const;
 
 function newCommandId(prefix: string): string {
-  return `${prefix}:${crypto.randomUUID()}`;
+  return `${prefix}:${newClientId()}`;
 }
 
 function positionFromGame(game: LiveGameView | null): ChessPosition | null {

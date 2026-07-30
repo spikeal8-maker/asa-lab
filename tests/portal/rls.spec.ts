@@ -138,6 +138,20 @@ describe('runtime role hardening', () => {
       'projects:SELECT',
       'schools:SELECT',
     ]);
+    const projectUpdateColumns = await runtime.query(
+      `SELECT table_name, column_name, privilege_type
+         FROM information_schema.role_column_grants
+        WHERE grantee = current_user
+          AND table_schema = 'public'
+          AND table_name = 'projects'
+          AND privilege_type = 'UPDATE'
+        ORDER BY column_name`,
+    );
+    expect(
+      projectUpdateColumns.rows.map(
+        (row) => `${row.table_name}:${row.column_name}:${row.privilege_type}`,
+      ),
+    ).toEqual(['projects:title:UPDATE']);
     const sequences = await runtime.query(
       `SELECT c.relname,
               has_sequence_privilege(current_user, c.oid, 'USAGE') AS usage

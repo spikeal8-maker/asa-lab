@@ -21,8 +21,9 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await page.getByLabel('Название проекта').fill(title);
   const chessTile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });
   await expect(chessTile).toContainText('Поддерживает безопасный режим');
-  await chessTile.getByRole('radio').check();
-  await page.getByRole('button', { name: 'Создать проект' }).click();
+  await chessTile.click();
+  await expect(chessTile.getByRole('radio')).toBeChecked();
+  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await expect(page.getByLabel('Название проекта')).toHaveValue(title);
 }
@@ -63,11 +64,11 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
   await page.getByRole('button', { name: 'Версия', exact: true }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
   await page.getByRole('tab', { name: 'Версии' }).click();
-  await expect(page.getByText('Версия №1')).toBeVisible();
+  await expect(page.getByText('Версия №1', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'PGN', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'PGN партии' })).toBeVisible();
-  await expect(page.getByLabel('PGN')).toContainText('1. e4 e5 2. Nf3 Nc6 *');
+  await expect(page.getByRole('textbox', { name: 'PGN' })).toHaveValue(/1\. e4 e5 2\. Nf3 Nc6 \*/);
   await page.getByRole('button', { name: 'Закрыть' }).click();
 
   mkdirSync('e2e/artifacts', { recursive: true });

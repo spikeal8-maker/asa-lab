@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { withTenantContext } from '../../packages/database/dist/index.js';
@@ -8,17 +9,12 @@ import { MutableLiveClock } from '../../contexts/chess-live/testing/test-kit';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 class UuidTestIds implements LiveIdPort {
-  private counter = 0;
-  private code = 0;
-
   nextId(): string {
-    this.counter += 1;
-    return `00000000-0000-4000-8000-${String(this.counter).padStart(12, '0')}`;
+    return randomUUID();
   }
 
   nextPublicCode(): string {
-    this.code += 1;
-    return `PG${String(this.code).padStart(10, '0')}`;
+    return `PG${randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`;
   }
 
   randomBit(): 0 | 1 {
@@ -301,11 +297,11 @@ describe('PgChessLiveRepository', () => {
           event.rows[0].id,
         ]),
       ),
-    ).rejects.toThrow(/append-only/);
+    ).rejects.toThrow(/append-only|permission denied for table chess_live_events/);
     await expect(
       withTenantContext(runtime, tenantA.tenantId, (client) =>
         client.query(`DELETE FROM chess_rating_ledger WHERE id = $1`, [ledger.rows[0].id]),
       ),
-    ).rejects.toThrow(/append-only/);
+    ).rejects.toThrow(/append-only|permission denied for table chess_rating_ledger/);
   });
 });

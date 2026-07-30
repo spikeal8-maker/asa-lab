@@ -35,7 +35,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     commonjsOptions: {
-      include: [/node_modules/, /contexts\/chess\/dist/],
+      include: [/node_modules/, /contexts\/chess\/dist/, /packages\/module-sdk\/dist/],
     },
   },
   server: {
