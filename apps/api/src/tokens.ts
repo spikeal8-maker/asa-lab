@@ -13,6 +13,8 @@ export const TOKENS = {
   renameProjectUseCase: 'RENAME_PROJECT_USECASE',
   saveDraftUseCase: 'SAVE_DRAFT_USECASE',
   createCheckpointUseCase: 'CREATE_CHECKPOINT_USECASE',
+  chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
+  chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;
 
 export const SESSION_COOKIE = 'asa_session';
