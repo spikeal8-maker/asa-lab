@@ -52,7 +52,6 @@ export {
   chessDocumentPositionKeys,
   createEmptyChessDocument,
   exportChessPgn,
-  importChessPgn,
   playChessDocumentMove,
   resetChessDocument,
   resignChessDocument,
@@ -72,6 +71,7 @@ export {
   type ChessSquareAnnotation,
   type ChessTermination,
 } from './domain/document.js';
+export { importChessPgn, stripPgnLineComments } from './domain/pgn.js';
 export {
   createChessGameDocument,
   flagChessTimeout,
