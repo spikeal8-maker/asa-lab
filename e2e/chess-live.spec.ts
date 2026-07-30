@@ -2,7 +2,13 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
-import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { loginWithOrganization } from './organization-login';
+import {
+  e2eAdminPool,
+  seedLegacyTeacherIdentity,
+  seedTeacher,
+  type SeededTeacher,
+} from './seed';
 
 interface LivePlayerCredentials {
   readonly workspace: string;
@@ -22,9 +28,25 @@ async function seedSecondPlayer(): Promise<LivePlayerCredentials> {
      SELECT tenant_id, school_id, 'teacher', $1, 'Педагог Соперник', password_hash
        FROM users
       WHERE id = $2
-     RETURNING id`,
+     RETURNING id, password_hash`,
     [email, first.teacherId],
   );
+  const workspace = await admin.query(
+    `SELECT wm.workspace_id
+       FROM legacy_user_account_links l
+       JOIN workspace_memberships wm ON wm.account_id = l.account_id
+      WHERE l.tenant_id = $1 AND l.user_id = $2
+      LIMIT 1`,
+    [first.tenantId, first.teacherId],
+  );
+  await seedLegacyTeacherIdentity(admin, {
+    tenantId: first.tenantId,
+    userId: inserted.rows[0].id as string,
+    email,
+    passwordHash: inserted.rows[0].password_hash as string,
+    displayName: 'Педагог Соперник',
+    workspaceId: workspace.rows[0].workspace_id as string,
+  });
   return {
     workspace: first.workspace,
     email,
@@ -34,12 +56,7 @@ async function seedSecondPlayer(): Promise<LivePlayerCredentials> {
 }
 
 async function login(page: Page, credentials: LivePlayerCredentials): Promise<void> {
-  await page.goto('/#/projects');
-  await page.getByLabel('Код организации').fill(credentials.workspace);
-  await page.getByLabel('Email педагога').fill(credentials.email);
-  await page.getByLabel('Пароль').fill(credentials.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await loginWithOrganization(page, credentials);
 }
 
 async function createChessProject(page: Page, title: string): Promise<void> {

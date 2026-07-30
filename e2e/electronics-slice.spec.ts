@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
+import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-E2E-ELECTRONICS-SLICE-001: a teacher creates a personal project without
@@ -12,12 +13,7 @@ let admin: pg.Pool;
 let teacher: SeededTeacher;
 
 async function login(page: Page): Promise<void> {
-  await page.goto('/#/projects');
-  await page.getByLabel('Код организации').fill(teacher.workspace);
-  await page.getByLabel('Email педагога').fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await loginWithOrganization(page, teacher);
 }
 
 async function createPersonalProject(page: Page, title: string): Promise<void> {

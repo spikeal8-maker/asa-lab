@@ -1,4 +1,5 @@
 export {
+  seedLegacyTeacherIdentity,
   seedTeacher,
   testAdminPool as e2eAdminPool,
   type SeededTeacher,

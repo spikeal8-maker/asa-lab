@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
+import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-E2E-PORTAL-001: real browser flow —
@@ -10,9 +11,6 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
-
-const organizationCodeField = 'Код организации';
-const teacherEmailField = 'Email педагога';
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const metrics = await page.evaluate(() => ({
@@ -41,13 +39,10 @@ test.afterAll(async () => {
 
 test('teacher logs in, creates a classroom and it survives reload', async ({ page }) => {
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-  await page.goto('/');
+  await page.goto('/#/projects');
   await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
 
-  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
-  await page.getByLabel(teacherEmailField).fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
+  await loginWithOrganization(page, teacher);
 
   await page.getByRole('button', { name: 'Классы' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
@@ -87,6 +82,6 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.setViewportSize({ width: 1280, height: 800 });
 
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
   failures.assertEmpty();
 });

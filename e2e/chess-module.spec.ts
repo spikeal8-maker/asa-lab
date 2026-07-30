@@ -2,18 +2,14 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
+import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
 async function login(page: Page): Promise<void> {
-  await page.goto('/#/projects');
-  await page.getByLabel('Код организации').fill(teacher.workspace);
-  await page.getByLabel('Email педагога').fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await loginWithOrganization(page, teacher);
 }
 
 async function createChessProject(page: Page, title: string): Promise<void> {
@@ -94,6 +90,7 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   await expect.poll(async () => page.locator('.asa-chess-moves li').count()).toBeGreaterThan(0);
   await expect(page.locator('.asa-chess-moves li').first()).not.toHaveText(/^1\.\s*e4\s*$/);
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator('.asa-chess-moves li').first()).toContainText('e4');
   failures.assertEmpty();
