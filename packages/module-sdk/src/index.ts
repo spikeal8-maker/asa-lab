@@ -43,7 +43,11 @@ export interface ModuleDiagnostic {
 }
 
 export type ModuleValidationResult<TPayload> =
-  | { readonly ok: true; readonly payload: TPayload; readonly diagnostics: readonly ModuleDiagnostic[] }
+  | {
+      readonly ok: true;
+      readonly payload: TPayload;
+      readonly diagnostics: readonly ModuleDiagnostic[];
+    }
   | { readonly ok: false; readonly diagnostics: readonly ModuleDiagnostic[] };
 
 export interface ModulePreviewDescriptor {
@@ -141,7 +145,9 @@ export class ModuleRegistry {
         throw new ModuleRegistryError(`duplicate moduleKey: ${entry.manifest.moduleKey}`);
       }
       if (entry.manifest.availability === 'active' && entry.provider === undefined) {
-        throw new ModuleRegistryError(`active module ${entry.manifest.moduleKey} requires a provider`);
+        throw new ModuleRegistryError(
+          `active module ${entry.manifest.moduleKey} requires a provider`,
+        );
       }
       this.entries.set(entry.manifest.moduleKey, entry);
     }

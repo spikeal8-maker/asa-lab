@@ -30,16 +30,22 @@ export interface ChessFairPlayPolicy {
 const set = (...capabilities: readonly ChessCapability[]): ReadonlySet<ChessCapability> =>
   new Set(capabilities);
 
-export const CHESS_FAIR_PLAY_POLICIES: Readonly<
-  Record<ChessSessionPolicy, ChessFairPlayPolicy>
-> = {
+export const CHESS_FAIR_PLAY_POLICIES: Readonly<Record<ChessSessionPolicy, ChessFairPlayPolicy>> = {
   analysis_project: {
     policy: 'analysis_project',
-    allowed: set('engine_analysis', 'opening_explorer', 'move_hints', 'undo', 'annotations', 'pgn_export'),
+    allowed: set(
+      'engine_analysis',
+      'opening_explorer',
+      'move_hints',
+      'undo',
+      'annotations',
+      'pgn_export',
+    ),
     spectatorDelayMs: 0,
     serverAuthoritativeMoves: false,
     serverAuthoritativeClock: false,
-    reason: 'Private project analysis may use assistance because no protected competitive result exists.',
+    reason:
+      'Private project analysis may use assistance because no protected competitive result exists.',
   },
   post_game_review: {
     policy: 'post_game_review',
@@ -63,7 +69,8 @@ export const CHESS_FAIR_PLAY_POLICIES: Readonly<
     spectatorDelayMs: 0,
     serverAuthoritativeMoves: false,
     serverAuthoritativeClock: false,
-    reason: 'Local play has no public rating; engine assistance remains off by default to preserve the game experience.',
+    reason:
+      'Local play has no public rating; engine assistance remains off by default to preserve the game experience.',
   },
   classroom_training: {
     policy: 'classroom_training',
@@ -79,7 +86,8 @@ export const CHESS_FAIR_PLAY_POLICIES: Readonly<
     spectatorDelayMs: 0,
     serverAuthoritativeMoves: true,
     serverAuthoritativeClock: true,
-    reason: 'Engine, explorer, hints, undo and hidden assistance are forbidden during a protected rated game.',
+    reason:
+      'Engine, explorer, hints, undo and hidden assistance are forbidden during a protected rated game.',
   },
   live_spectator: {
     policy: 'live_spectator',
@@ -87,7 +95,8 @@ export const CHESS_FAIR_PLAY_POLICIES: Readonly<
     spectatorDelayMs: 15_000,
     serverAuthoritativeMoves: true,
     serverAuthoritativeClock: true,
-    reason: 'Live spectators receive a delayed board and cannot attach analysis to the protected player session.',
+    reason:
+      'Live spectators receive a delayed board and cannot attach analysis to the protected player session.',
   },
 };
 

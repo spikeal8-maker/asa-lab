@@ -48,7 +48,12 @@ const blocks = defineFutureModule({
 describe('ModuleRegistry', () => {
   it('lists active and future modules while exposing only active providers as creatable', () => {
     const registry = new ModuleRegistry([electronics, blocks]);
-    expect(registry.list().map((module) => module.moduleKey).sort()).toEqual(['blocks', 'electronics']);
+    expect(
+      registry
+        .list()
+        .map((module) => module.moduleKey)
+        .sort(),
+    ).toEqual(['blocks', 'electronics']);
     expect(registry.listCreatable().map((module) => module.moduleKey)).toEqual(['electronics']);
     expect(registry.getCreatable('electronics')?.provider?.createEmptyProject()).toEqual({
       schemaVersion: 1,
@@ -71,12 +76,11 @@ describe('ModuleRegistry', () => {
   });
 
   it('rejects malformed manifests before they enter the product catalog', () => {
-    expect(
-      () =>
-        defineFutureModule({
-          ...blocks.manifest,
-          moduleKey: 'Bad Key',
-        }),
+    expect(() =>
+      defineFutureModule({
+        ...blocks.manifest,
+        moduleKey: 'Bad Key',
+      }),
     ).not.toThrow();
     expect(
       () =>

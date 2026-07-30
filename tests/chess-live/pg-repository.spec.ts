@@ -5,12 +5,7 @@ import { ChessLiveService } from '../../contexts/chess-live/application/service'
 import type { LiveIdPort } from '../../contexts/chess-live/application/ports';
 import { PgChessLiveRepository } from '../../contexts/chess-live/infrastructure/pg-repository';
 import { MutableLiveClock } from '../../contexts/chess-live/testing/test-kit';
-import {
-  seedTeacher,
-  testAdminPool,
-  testAppPool,
-  type SeededTeacher,
-} from '../portal/helpers';
+import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 class UuidTestIds implements LiveIdPort {
   private counter = 0;
@@ -139,11 +134,7 @@ describe('PgChessLiveRepository', () => {
       first.clock,
       new UuidTestIds(),
     );
-    const reconnect = await restarted.reconnect(
-      creator,
-      accepted.value.game.gameId,
-      2,
-    );
+    const reconnect = await restarted.reconnect(creator, accepted.value.game.gameId, 2);
     expect(reconnect).toMatchObject({
       ok: true,
       value: {
@@ -174,21 +165,21 @@ describe('PgChessLiveRepository', () => {
     expect(created.ok).toBe(true);
     if (!created.ok) return;
     const foreign = { tenantId: tenantB.tenantId, userId: tenantB.teacherId };
-    expect(
-      await value.service.getChallenge(foreign, created.value.challenge.publicCode),
-    ).toEqual({ ok: false, code: 'not_found', message: 'challenge not found' });
+    expect(await value.service.getChallenge(foreign, created.value.challenge.publicCode)).toEqual({
+      ok: false,
+      code: 'not_found',
+      message: 'challenge not found',
+    });
 
     const visibleA = await withTenantContext(runtime, tenantA.tenantId, async (client) =>
-      client.query(
-        `SELECT count(*)::int AS n FROM chess_live_challenges WHERE id = $1`,
-        [created.value.challenge.id],
-      ),
+      client.query(`SELECT count(*)::int AS n FROM chess_live_challenges WHERE id = $1`, [
+        created.value.challenge.id,
+      ]),
     );
     const visibleB = await withTenantContext(runtime, tenantB.tenantId, async (client) =>
-      client.query(
-        `SELECT count(*)::int AS n FROM chess_live_challenges WHERE id = $1`,
-        [created.value.challenge.id],
-      ),
+      client.query(`SELECT count(*)::int AS n FROM chess_live_challenges WHERE id = $1`, [
+        created.value.challenge.id,
+      ]),
     );
     expect(visibleA.rows[0].n).toBe(1);
     expect(visibleB.rows[0].n).toBe(0);
@@ -288,10 +279,9 @@ describe('PgChessLiveRepository', () => {
       value: { rating: { rating: 1176, games: 1 }, ledger: [{ delta: -24 }] },
     });
     const ledgerCount = await withTenantContext(runtime, tenantA.tenantId, (client) =>
-      client.query(
-        `SELECT count(*)::int AS n FROM chess_rating_ledger WHERE game_id = $1`,
-        [accepted.value.game.gameId],
-      ),
+      client.query(`SELECT count(*)::int AS n FROM chess_rating_ledger WHERE game_id = $1`, [
+        accepted.value.game.gameId,
+      ]),
     );
     expect(ledgerCount.rows[0].n).toBe(2);
   });

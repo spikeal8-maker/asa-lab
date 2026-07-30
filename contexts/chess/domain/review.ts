@@ -9,12 +9,7 @@ import { chooseChessBotMove, evaluateChessPosition } from './bot.js';
 import type { ChessDocument } from './document.js';
 
 export type AsaMoveClassification =
-  | 'best'
-  | 'excellent'
-  | 'good'
-  | 'inaccuracy'
-  | 'mistake'
-  | 'blunder';
+  'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
 
 export interface AsaMoveReview {
   readonly ply: number;
@@ -94,10 +89,7 @@ function countClassifications(
   return counts;
 }
 
-export function reviewChessDocument(
-  document: ChessDocument,
-  depth: 1 | 2 | 3 = 1,
-): AsaGameReview {
+export function reviewChessDocument(document: ChessDocument, depth: 1 | 2 | 3 = 1): AsaGameReview {
   const initial = parseFen(document.initialFen);
   if (!initial.ok) throw new Error(initial.message);
   let position: ChessPosition = initial.value;
@@ -141,7 +133,6 @@ export function reviewChessDocument(
     blackQuality: average(black),
     overallQuality: average(moves.map((move) => move.asaQuality)),
     counts: countClassifications(moves),
-    note:
-      'ASA Quality is an original transparent centipawn-loss score. It is not Chess.com Accuracy/CAPS and must not be presented as formula parity.',
+    note: 'ASA Quality is an original transparent centipawn-loss score. It is not Chess.com Accuracy/CAPS and must not be presented as formula parity.',
   };
 }

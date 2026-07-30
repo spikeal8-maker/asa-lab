@@ -112,7 +112,9 @@ export function ChessBoard({
             >
               {showRank && <span className="asa-chess-coordinate rank-coordinate">{rank}</span>}
               {showFile && <span className="asa-chess-coordinate file-coordinate">{file}</span>}
-              {legalTarget && !captureTarget && <span className="asa-chess-move-dot" aria-hidden="true" />}
+              {legalTarget && !captureTarget && (
+                <span className="asa-chess-move-dot" aria-hidden="true" />
+              )}
               {captureTarget && <span className="asa-chess-capture-ring" aria-hidden="true" />}
               {piece && (
                 <span

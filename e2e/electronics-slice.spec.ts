@@ -42,9 +42,7 @@ async function moveComponent(
   page: Page,
   kind: string,
 ): Promise<{ beforeX: number; afterX: number }> {
-  const target = page
-    .locator(`[data-testid="schematic-component"][data-kind="${kind}"]`)
-    .first();
+  const target = page.locator(`[data-testid="schematic-component"][data-kind="${kind}"]`).first();
   const beforeX = Number(await target.getAttribute('data-x'));
   const box = await target.boundingBox();
   if (!box) throw new Error(`component ${kind} has no bounding box`);

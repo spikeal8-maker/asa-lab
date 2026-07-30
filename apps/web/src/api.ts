@@ -109,8 +109,7 @@ export interface ApiError {
 }
 
 export type ApiResult<T> =
-  | { ok: true; status: number; data: T }
-  | { ok: false; status: number; error: ApiError };
+  { ok: true; status: number; data: T } | { ok: false; status: number; error: ApiError };
 
 async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   let response: Response;

@@ -43,10 +43,7 @@ function reject<T>(result: Extract<LiveChessResult<T>, { ok: false }>): never {
   throw new HttpException(error(result.code, result.message), STATUS_BY_CODE[result.code]);
 }
 
-function requireString(
-  body: Readonly<Record<string, unknown>>,
-  key: string,
-): string {
+function requireString(body: Readonly<Record<string, unknown>>, key: string): string {
   const value = body[key];
   if (typeof value !== 'string') {
     throw new HttpException(error('validation_error', `${key} must be a string`), 400);
@@ -54,10 +51,7 @@ function requireString(
   return value;
 }
 
-function requireBoolean(
-  body: Readonly<Record<string, unknown>>,
-  key: string,
-): boolean {
+function requireBoolean(body: Readonly<Record<string, unknown>>, key: string): boolean {
   const value = body[key];
   if (typeof value !== 'boolean') {
     throw new HttpException(error('validation_error', `${key} must be a boolean`), 400);
@@ -65,10 +59,7 @@ function requireBoolean(
   return value;
 }
 
-function requireInteger(
-  body: Readonly<Record<string, unknown>>,
-  key: string,
-): number {
+function requireInteger(body: Readonly<Record<string, unknown>>, key: string): number {
   const value = body[key];
   if (!Number.isSafeInteger(value)) {
     throw new HttpException(error('validation_error', `${key} must be an integer`), 400);
@@ -203,10 +194,7 @@ export class ChessLiveController {
   }
 
   @Get('games/:gameId')
-  async getGame(
-    @Req() request: FastifyRequest,
-    @Param('gameId') gameId: string,
-  ): Promise<unknown> {
+  async getGame(@Req() request: FastifyRequest, @Param('gameId') gameId: string): Promise<unknown> {
     const principal = await this.principal(request);
     const result = await this.service.getGame(
       { tenantId: principal.tenantId, userId: principal.userId },
@@ -408,10 +396,7 @@ export class ChessLiveController {
   }
 
   @Get('ratings/:pool')
-  async getRating(
-    @Req() request: FastifyRequest,
-    @Param('pool') pool: string,
-  ): Promise<unknown> {
+  async getRating(@Req() request: FastifyRequest, @Param('pool') pool: string): Promise<unknown> {
     const principal = await this.principal(request);
     const result = await this.service.getRating(
       { tenantId: principal.tenantId, userId: principal.userId },

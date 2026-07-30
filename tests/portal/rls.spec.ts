@@ -146,10 +146,7 @@ describe('runtime role hardening', () => {
         WHERE c.relkind = 'S' AND n.nspname = 'public'
         ORDER BY c.relname`,
     );
-    const allowedSequences = new Set([
-      'audit_events_id_seq',
-      'chess_live_command_receipts_id_seq',
-    ]);
+    const allowedSequences = new Set(['audit_events_id_seq', 'chess_live_command_receipts_id_seq']);
     for (const row of sequences.rows) {
       expect(row.usage).toBe(allowedSequences.has(row.relname));
     }

@@ -25,7 +25,10 @@ export function PortalHeader({
     const result = await api.logout();
     setBusy(false);
     if (result.ok) onLoggedOut();
-    else setError(result.status === 0 ? 'Сервер недоступен — сессия не завершена.' : 'Не удалось выйти.');
+    else
+      setError(
+        result.status === 0 ? 'Сервер недоступен — сессия не завершена.' : 'Не удалось выйти.',
+      );
   }
 
   return (
@@ -33,7 +36,10 @@ export function PortalHeader({
       <header className="portal-header">
         <button type="button" className="portal-brand" onClick={() => onNavigate('projects')}>
           <span className="portal-brand-mark" aria-hidden="true">
-            <span>A</span><span>S</span><span>A</span><span>LAB</span>
+            <span>A</span>
+            <span>S</span>
+            <span>A</span>
+            <span>LAB</span>
           </span>
           <span>ASA Lab</span>
         </button>
@@ -54,19 +60,34 @@ export function PortalHeader({
             <ClassesIcon />
             Классы
           </button>
-          <span className="portal-nav-item disabled" aria-disabled="true" title="Появится в следующих этапах">
+          <span
+            className="portal-nav-item disabled"
+            aria-disabled="true"
+            title="Появится в следующих этапах"
+          >
             Учебные материалы
           </span>
         </nav>
         <div className="portal-user">
-          <span className="portal-user-avatar" aria-hidden="true"><UserIcon /></span>
+          <span className="portal-user-avatar" aria-hidden="true">
+            <UserIcon />
+          </span>
           <span className="portal-user-name">{user.displayName}</span>
-          <button type="button" className="portal-logout" disabled={busy} onClick={() => void logout()}>
+          <button
+            type="button"
+            className="portal-logout"
+            disabled={busy}
+            onClick={() => void logout()}
+          >
             {busy ? 'Выходим…' : 'Выйти'}
           </button>
         </div>
       </header>
-      {error ? <p className="portal-global-error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="portal-global-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </>
   );
 }

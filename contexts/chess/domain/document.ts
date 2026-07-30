@@ -70,10 +70,7 @@ export interface ChessCommentAnnotation {
   readonly text: string;
 }
 
-export type ChessAnnotation =
-  | ChessArrowAnnotation
-  | ChessSquareAnnotation
-  | ChessCommentAnnotation;
+export type ChessAnnotation = ChessArrowAnnotation | ChessSquareAnnotation | ChessCommentAnnotation;
 
 export interface ChessDocument {
   readonly schemaVersion: 1;
@@ -92,8 +89,7 @@ export interface ChessDocument {
 }
 
 export type ChessDocumentResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly message: string };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string };
 
 const TOP_LEVEL_KEYS = new Set([
   'schemaVersion',
@@ -161,9 +157,7 @@ function defaultClock(mode: ChessMode): ChessClockState | null {
   };
 }
 
-export function createEmptyChessDocument(
-  mode: ChessMode = 'analysis',
-): ChessDocument {
+export function createEmptyChessDocument(mode: ChessMode = 'analysis'): ChessDocument {
   return {
     schemaVersion: 1,
     variant: 'standard',
@@ -351,7 +345,9 @@ export function resignChessDocument(
   };
 }
 
-export function agreeDrawChessDocument(document: ChessDocument): ChessDocumentResult<ChessDocument> {
+export function agreeDrawChessDocument(
+  document: ChessDocument,
+): ChessDocumentResult<ChessDocument> {
   if (document.result !== '*' || document.termination !== 'ongoing') {
     return { ok: false, message: 'The game is already finished.' };
   }
@@ -362,7 +358,10 @@ export function agreeDrawChessDocument(document: ChessDocument): ChessDocumentRe
 }
 
 function escapePgnHeader(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]/g, ' ');
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/[\r\n]/g, ' ');
 }
 
 export function exportChessPgn(document: ChessDocument): string {
@@ -379,7 +378,9 @@ export function exportChessPgn(document: ChessDocument): string {
   for (let index = 0; index < document.moves.length; index += 2) {
     const white = document.moves[index];
     const black = document.moves[index + 1];
-    moveTokens.push(`${Math.floor(index / 2) + 1}. ${white?.san ?? ''}${black ? ` ${black.san}` : ''}`);
+    moveTokens.push(
+      `${Math.floor(index / 2) + 1}. ${white?.san ?? ''}${black ? ` ${black.san}` : ''}`,
+    );
   }
   return `${headerText}\n\n${moveTokens.join(' ')}${moveTokens.length > 0 ? ' ' : ''}${document.result}`.trim();
 }
@@ -466,8 +467,7 @@ export function importChessPgn(pgn: string): ChessDocumentResult<ChessDocument> 
     document = next.value;
   }
   const resultToken = /(?:^|\s)(1-0|0-1|1\/2-1\/2|\*)\s*$/.exec(pgn.trim())?.[1] as
-    | ChessResult
-    | undefined;
+    ChessResult | undefined;
   if (resultToken && resultToken !== '*' && document.result === '*') {
     document = {
       ...document,
@@ -500,7 +500,10 @@ function parseClock(value: unknown): ChessDocumentResult<ChessClockState | null>
   };
 }
 
-function parseAnnotations(value: unknown, maximumPly: number): ChessDocumentResult<readonly ChessAnnotation[]> {
+function parseAnnotations(
+  value: unknown,
+  maximumPly: number,
+): ChessDocumentResult<readonly ChessAnnotation[]> {
   if (!Array.isArray(value) || value.length > MAX_ANNOTATIONS) {
     return { ok: false, message: 'annotations must be a bounded array.' };
   }
@@ -520,7 +523,12 @@ function parseAnnotations(value: unknown, maximumPly: number): ChessDocumentResu
     if (raw['kind'] === 'arrow') {
       const allowed = new Set(['id', 'kind', 'ply', 'from', 'to', 'color']);
       const unknown = exactKeys(raw, allowed);
-      if (unknown || !isSquare(raw['from']) || !isSquare(raw['to']) || !ANNOTATION_COLORS.has(String(raw['color']))) {
+      if (
+        unknown ||
+        !isSquare(raw['from']) ||
+        !isSquare(raw['to']) ||
+        !ANNOTATION_COLORS.has(String(raw['color']))
+      ) {
         return { ok: false, message: 'invalid arrow annotation.' };
       }
       result.push({
@@ -578,7 +586,11 @@ function parseHeaders(value: unknown): ChessDocumentResult<Readonly<Record<strin
   }
   const headers: Record<string, string> = {};
   for (const [key, headerValue] of Object.entries(value)) {
-    if (!HEADER_KEY_PATTERN.test(key) || typeof headerValue !== 'string' || headerValue.length > 500) {
+    if (
+      !HEADER_KEY_PATTERN.test(key) ||
+      typeof headerValue !== 'string' ||
+      headerValue.length > 500
+    ) {
       return { ok: false, message: `invalid PGN header: ${key}.` };
     }
     headers[key] = headerValue.replace(/[\r\n]/g, ' ');
@@ -619,7 +631,8 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
 
   let bot: ChessDocument['bot'] = null;
   if (value['bot'] !== null) {
-    if (!isPlainObject(value['bot'])) return { ok: false, message: 'bot must be an object or null.' };
+    if (!isPlainObject(value['bot']))
+      return { ok: false, message: 'bot must be an object or null.' };
     const unknown = exactKeys(value['bot'], BOT_KEYS);
     if (unknown) return { ok: false, message: `bot contains unsupported field: ${unknown}.` };
     if (
@@ -645,8 +658,13 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
     const raw = value['moves'][index];
     if (!isPlainObject(raw)) return { ok: false, message: `Move ${index + 1} must be an object.` };
     const unknown = exactKeys(raw, MOVE_KEYS);
-    if (unknown) return { ok: false, message: `Move ${index + 1} contains unsupported field: ${unknown}.` };
-    if (raw['ply'] !== index + 1 || typeof raw['uci'] !== 'string' || typeof raw['san'] !== 'string') {
+    if (unknown)
+      return { ok: false, message: `Move ${index + 1} contains unsupported field: ${unknown}.` };
+    if (
+      raw['ply'] !== index + 1 ||
+      typeof raw['uci'] !== 'string' ||
+      typeof raw['san'] !== 'string'
+    ) {
       return { ok: false, message: `Move ${index + 1} has invalid ply or notation.` };
     }
     if (raw['fenBefore'] !== expectedFen || typeof raw['fenAfter'] !== 'string') {
@@ -697,7 +715,10 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
     return { ok: false, message: 'currentFen does not match the replayed move history.' };
   }
   if (clock.value && previousClock) {
-    if (clock.value.whiteMs !== previousClock.whiteMs || clock.value.blackMs !== previousClock.blackMs) {
+    if (
+      clock.value.whiteMs !== previousClock.whiteMs ||
+      clock.value.blackMs !== previousClock.blackMs
+    ) {
       return { ok: false, message: 'Current clock does not match the final move clock.' };
     }
   }
@@ -725,7 +746,16 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
   if ((value['result'] === '*') !== (termination === 'ongoing')) {
     return { ok: false, message: 'Chess result and termination are inconsistent.' };
   }
-  const automatic = getChessStatus(position, [positionKey(initial.value), ...moves.map((move) => positionKey(parseFen(move.fenAfter).ok ? (parseFen(move.fenAfter) as { ok: true; value: ChessPosition }).value : position))]);
+  const automatic = getChessStatus(position, [
+    positionKey(initial.value),
+    ...moves.map((move) =>
+      positionKey(
+        parseFen(move.fenAfter).ok
+          ? (parseFen(move.fenAfter) as { ok: true; value: ChessPosition }).value
+          : position,
+      ),
+    ),
+  ]);
   const automaticTermination = terminationFromStatus(automatic);
   if (
     automaticTermination !== 'ongoing' &&

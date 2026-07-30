@@ -108,7 +108,10 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document) return;
     const added = addComponentToDocument(document, kind, at ?? visibleCenter(), nextId(kind));
     const entry = catalogEntry(kind);
-    commitDocument(added.document, `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`);
+    commitDocument(
+      added.document,
+      `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
+    );
     setSelection({ kind: 'component', id: added.component.id });
   }
 
@@ -167,7 +170,13 @@ export function useElectronicsWorkbench(projectId: string) {
       setNotice('Прокладка провода отменена.');
       return;
     }
-    const connected = connectTerminals(document, pendingTerminal, { componentId, terminal }, nextId('wire'), activeWireColor);
+    const connected = connectTerminals(
+      document,
+      pendingTerminal,
+      { componentId, terminal },
+      nextId('wire'),
+      activeWireColor,
+    );
     if (connected.kind === 'duplicate') {
       setPendingTerminal(null);
       setWirePreviewEnd(null);
@@ -183,10 +192,20 @@ export function useElectronicsWorkbench(projectId: string) {
   function toWorld(event: PointerEvent | DragEvent | WheelEvent): Point {
     const stage = stageRef.current;
     if (!stage) return { x: 0, y: 0 };
-    return clientToWorld(event.clientX, event.clientY, stage.getBoundingClientRect(), viewport, STAGE_WIDTH, STAGE_HEIGHT);
+    return clientToWorld(
+      event.clientX,
+      event.clientY,
+      stage.getBoundingClientRect(),
+      viewport,
+      STAGE_WIDTH,
+      STAGE_HEIGHT,
+    );
   }
 
-  function startComponentDrag(event: PointerEvent<SVGGElement>, component: SchematicComponent): void {
+  function startComponentDrag(
+    event: PointerEvent<SVGGElement>,
+    component: SchematicComponent,
+  ): void {
     if (event.button !== 0 || pendingTerminal) return;
     const point = toWorld(event);
     componentDragRef.current = {
@@ -204,7 +223,11 @@ export function useElectronicsWorkbench(projectId: string) {
   function startPan(event: PointerEvent<SVGSVGElement>): void {
     const shouldPan = event.button === 1 || (event.button === 0 && spacePressedRef.current);
     if (!shouldPan) {
-      if (event.target === event.currentTarget || (event.target as Element).classList.contains('workbench-grid-hit')) setSelection(null);
+      if (
+        event.target === event.currentTarget ||
+        (event.target as Element).classList.contains('workbench-grid-hit')
+      )
+        setSelection(null);
       return;
     }
     panDragRef.current = {
@@ -238,8 +261,8 @@ export function useElectronicsWorkbench(projectId: string) {
     const pan = panDragRef.current;
     if (pan && pan.pointerId === event.pointerId) {
       const rect = event.currentTarget.getBoundingClientRect();
-      const scaleX = (STAGE_WIDTH / pan.startViewport.zoom) / rect.width;
-      const scaleY = (STAGE_HEIGHT / pan.startViewport.zoom) / rect.height;
+      const scaleX = STAGE_WIDTH / pan.startViewport.zoom / rect.width;
+      const scaleY = STAGE_HEIGHT / pan.startViewport.zoom / rect.height;
       setViewport({
         ...pan.startViewport,
         x: pan.startViewport.x - (event.clientX - pan.startClient.x) * scaleX,
@@ -254,7 +277,10 @@ export function useElectronicsWorkbench(projectId: string) {
       componentDragRef.current = null;
       if (document) {
         const moved = document.components.find((item) => item.id === drag.componentId);
-        if (moved && (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y)) {
+        if (
+          moved &&
+          (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y)
+        ) {
           pushHistory(document);
           setNotice('Положение сохранится автоматически.');
         }
@@ -264,7 +290,11 @@ export function useElectronicsWorkbench(projectId: string) {
       panDragRef.current = null;
       setPanning(false);
     }
-    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* capture may already be released */ }
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* capture may already be released */
+    }
   }
 
   function handleWheel(event: WheelEvent<SVGSVGElement>): void {
@@ -282,7 +312,11 @@ export function useElectronicsWorkbench(projectId: string) {
   function zoomBy(factor: number): void {
     const center = visibleCenter();
     const zoom = clamp(viewport.zoom * factor, 0.35, 3.2);
-    setViewport({ x: center.x - STAGE_WIDTH / zoom / 2, y: center.y - STAGE_HEIGHT / zoom / 2, zoom });
+    setViewport({
+      x: center.x - STAGE_WIDTH / zoom / 2,
+      y: center.y - STAGE_HEIGHT / zoom / 2,
+      zoom,
+    });
   }
 
   function fitScene(): void {
@@ -303,13 +337,18 @@ export function useElectronicsWorkbench(projectId: string) {
 
   useEffect(() => {
     function keyDown(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space' && !(event.target instanceof HTMLInputElement)) spacePressedRef.current = true;
-      const editable = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
+      if (event.code === 'Space' && !(event.target instanceof HTMLInputElement))
+        spacePressedRef.current = true;
+      const editable =
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement;
       if (editable) return;
       const modifier = event.ctrlKey || event.metaKey;
       if (modifier && event.key.toLowerCase() === 'z') {
         event.preventDefault();
-        if (event.shiftKey) redo(); else undo();
+        if (event.shiftKey) redo();
+        else undo();
       } else if (modifier && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         redo();
@@ -325,7 +364,9 @@ export function useElectronicsWorkbench(projectId: string) {
         setSelection(null);
       }
     }
-    function keyUp(event: globalThis.KeyboardEvent): void { if (event.code === 'Space') spacePressedRef.current = false; }
+    function keyUp(event: globalThis.KeyboardEvent): void {
+      if (event.code === 'Space') spacePressedRef.current = false;
+    }
     window.addEventListener('keydown', keyDown);
     window.addEventListener('keyup', keyUp);
     return () => {
@@ -338,13 +379,21 @@ export function useElectronicsWorkbench(projectId: string) {
     const query = libraryQuery.trim().toLowerCase();
     return WORKBENCH_CATALOG.filter((entry) => {
       const categoryMatches = category === 'all' || entry.category === category;
-      const queryMatches = !query || [entry.label, entry.description, ...entry.keywords].join(' ').toLowerCase().includes(query);
+      const queryMatches =
+        !query ||
+        [entry.label, entry.description, ...entry.keywords].join(' ').toLowerCase().includes(query);
       return categoryMatches && queryMatches;
     });
   }, [category, libraryQuery]);
 
-  const selectedComponent = selection?.kind === 'component' ? document?.components.find((item) => item.id === selection.id) ?? null : null;
-  const selectedWire = selection?.kind === 'wire' ? document?.connections.find((item) => item.id === selection.id) ?? null : null;
+  const selectedComponent =
+    selection?.kind === 'component'
+      ? (document?.components.find((item) => item.id === selection.id) ?? null)
+      : null;
+  const selectedWire =
+    selection?.kind === 'wire'
+      ? (document?.connections.find((item) => item.id === selection.id) ?? null)
+      : null;
   const selectedEntry = selectedComponent ? catalogEntry(selectedComponent.kind) : null;
   const resultByComponent = useMemo(() => {
     const map = new Map<string, { current: number; voltageDrop: number; lit?: boolean }>();
@@ -374,24 +423,82 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   const viewBox = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
-  const pendingStart = pendingTerminal && document
-    ? (() => {
-        const component = document.components.find((item) => item.id === pendingTerminal.componentId);
-        return component ? terminalPosition(component.kind, component.position, pendingTerminal.terminal, component.rotation ?? 0) : null;
-      })()
-    : null;
+  const pendingStart =
+    pendingTerminal && document
+      ? (() => {
+          const component = document.components.find(
+            (item) => item.id === pendingTerminal.componentId,
+          );
+          return component
+            ? terminalPosition(
+                component.kind,
+                component.position,
+                pendingTerminal.terminal,
+                component.rotation ?? 0,
+              )
+            : null;
+        })()
+      : null;
 
   return {
-    project, document, result, versions, status, saveStatus, saveCopy, notice,
-    selection, setSelection, pendingTerminal, wirePreviewEnd, activeWireColor,
-    simulationRunning, libraryOpen, setLibraryOpen, libraryQuery, setLibraryQuery,
-    category, setCategory, viewport, projectTitle, setProjectTitle, stageRef,
-    canUndo, canRedo, undo, redo, duplicateSelected, removeSelection, rotateSelected,
-    updateSelectedValue, setWireColor, toggleWireRoute, clickTerminal,
-    startComponentDrag, startPan, handlePointerMove, finishPointer, handleWheel,
-    zoomBy, fitScene, handleDrop, saveNow, toggleSimulation, checkpoint, renameProject,
-    filteredCatalog, selectedComponent, selectedWire, selectedEntry, resultByComponent,
-    componentVisualState, viewBox, pendingStart, busy, panning, addComponent,
+    project,
+    document,
+    result,
+    versions,
+    status,
+    saveStatus,
+    saveCopy,
+    notice,
+    selection,
+    setSelection,
+    pendingTerminal,
+    wirePreviewEnd,
+    activeWireColor,
+    simulationRunning,
+    libraryOpen,
+    setLibraryOpen,
+    libraryQuery,
+    setLibraryQuery,
+    category,
+    setCategory,
+    viewport,
+    projectTitle,
+    setProjectTitle,
+    stageRef,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    duplicateSelected,
+    removeSelection,
+    rotateSelected,
+    updateSelectedValue,
+    setWireColor,
+    toggleWireRoute,
+    clickTerminal,
+    startComponentDrag,
+    startPan,
+    handlePointerMove,
+    finishPointer,
+    handleWheel,
+    zoomBy,
+    fitScene,
+    handleDrop,
+    saveNow,
+    toggleSimulation,
+    checkpoint,
+    renameProject,
+    filteredCatalog,
+    selectedComponent,
+    selectedWire,
+    selectedEntry,
+    resultByComponent,
+    componentVisualState,
+    viewBox,
+    pendingStart,
+    busy,
+    panning,
+    addComponent,
   };
 }
 

@@ -40,44 +40,41 @@ function invalidDocument(message: string): readonly ModuleDiagnostic[] {
   ];
 }
 
-export const CHESS_MODULE = defineModule<ChessDocument, ChessAnalysisSummary>(
-  CHESS_MANIFEST,
-  {
-    createEmptyProject: () => createEmptyChessDocument('analysis'),
-    validate: (payload: unknown) => {
-      const parsed = validateChessDocument(payload);
-      if (!parsed.ok) return { ok: false, diagnostics: invalidDocument(parsed.message) };
-      return { ok: true, payload: parsed.value, diagnostics: [] };
-    },
-    createPreview: (payload: ChessDocument) => ({
-      kind: 'board',
-      summary: `${payload.moves.length} полуходов · ${payload.result === '*' ? 'партия не завершена' : payload.result}`,
-      inlineData: payload.currentFen,
-    }),
-    analyse: (payload: ChessDocument) => {
-      const parsed = parseFen(payload.currentFen);
-      if (!parsed.ok) {
-        return {
-          status: {
-            state: 'ongoing',
-            inCheck: false,
-            winner: null,
-            result: '*',
-            legalMoveCount: 0,
-          },
-          evaluationCp: 0,
-          bestMoveUci: null,
-          searchedNodes: 0,
-        };
-      }
-      const status = getChessStatus(parsed.value);
-      const best = status.result === '*' ? chooseChessBotMove(parsed.value, 1) : null;
-      return {
-        status,
-        evaluationCp: evaluateChessPosition(parsed.value),
-        bestMoveUci: best?.uci ?? null,
-        searchedNodes: best?.nodes ?? 0,
-      };
-    },
+export const CHESS_MODULE = defineModule<ChessDocument, ChessAnalysisSummary>(CHESS_MANIFEST, {
+  createEmptyProject: () => createEmptyChessDocument('analysis'),
+  validate: (payload: unknown) => {
+    const parsed = validateChessDocument(payload);
+    if (!parsed.ok) return { ok: false, diagnostics: invalidDocument(parsed.message) };
+    return { ok: true, payload: parsed.value, diagnostics: [] };
   },
-);
+  createPreview: (payload: ChessDocument) => ({
+    kind: 'board',
+    summary: `${payload.moves.length} полуходов · ${payload.result === '*' ? 'партия не завершена' : payload.result}`,
+    inlineData: payload.currentFen,
+  }),
+  analyse: (payload: ChessDocument) => {
+    const parsed = parseFen(payload.currentFen);
+    if (!parsed.ok) {
+      return {
+        status: {
+          state: 'ongoing',
+          inCheck: false,
+          winner: null,
+          result: '*',
+          legalMoveCount: 0,
+        },
+        evaluationCp: 0,
+        bestMoveUci: null,
+        searchedNodes: 0,
+      };
+    }
+    const status = getChessStatus(parsed.value);
+    const best = status.result === '*' ? chooseChessBotMove(parsed.value, 1) : null;
+    return {
+      status,
+      evaluationCp: evaluateChessPosition(parsed.value),
+      bestMoveUci: best?.uci ?? null,
+      searchedNodes: best?.nodes ?? 0,
+    };
+  },
+});

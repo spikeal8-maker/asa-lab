@@ -30,9 +30,7 @@ export function isSafeLiveId(value: string): boolean {
   return SAFE_ID.test(value);
 }
 
-export function validateLiveTimeControl(
-  value: LiveTimeControl,
-): LiveChessResult<LiveTimeControl> {
+export function validateLiveTimeControl(value: LiveTimeControl): LiveChessResult<LiveTimeControl> {
   if (
     !Number.isSafeInteger(value.initialMs) ||
     value.initialMs < MIN_INITIAL_MS ||
@@ -148,7 +146,11 @@ export function acceptLiveChessChallenge(
   nowMs: number,
 ): LiveChessResult<LiveChessChallenge> {
   if (!isSafeLiveId(accepterId) || !isSafeLiveId(gameId)) {
-    return { ok: false, code: 'validation_error', message: 'accepterId and gameId must be safe IDs' };
+    return {
+      ok: false,
+      code: 'validation_error',
+      message: 'accepterId and gameId must be safe IDs',
+    };
   }
   const status = effectiveChallengeStatus(challenge, nowMs);
   if (status === 'expired') {
@@ -158,7 +160,11 @@ export function acceptLiveChessChallenge(
     return { ok: false, code: 'conflict', message: `challenge is ${status}` };
   }
   if (challenge.creatorId === accepterId) {
-    return { ok: false, code: 'forbidden', message: 'challenge creator cannot accept own challenge' };
+    return {
+      ok: false,
+      code: 'forbidden',
+      message: 'challenge creator cannot accept own challenge',
+    };
   }
   return {
     ok: true,

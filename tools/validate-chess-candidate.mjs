@@ -85,7 +85,8 @@ function walk(path) {
   for (const entry of readdirSync(absolute)) {
     const child = resolve(absolute, entry);
     if (statSync(child).isDirectory()) values.push(...walk(relative(ROOT, child)));
-    else if (SOURCE_EXTENSIONS.has(extname(child))) values.push(relative(ROOT, child).replaceAll('\\', '/'));
+    else if (SOURCE_EXTENSIONS.has(extname(child)))
+      values.push(relative(ROOT, child).replaceAll('\\', '/'));
   }
   return values;
 }
@@ -96,7 +97,8 @@ for (const file of REQUIRED_FILES) {
 
 const contextPackage = json('contexts/chess/package.json');
 if (contextPackage) {
-  if (contextPackage.name !== '@asa-lab/chess') fail('contexts/chess package name must be @asa-lab/chess');
+  if (contextPackage.name !== '@asa-lab/chess')
+    fail('contexts/chess package name must be @asa-lab/chess');
   if (contextPackage.private !== true) fail('contexts/chess package must be private');
   if (contextPackage.dependencies?.['@asa-lab/module-sdk'] !== 'workspace:*') {
     fail('contexts/chess must depend on @asa-lab/module-sdk via workspace:*');
@@ -250,11 +252,7 @@ if (rootPackage) {
 }
 
 const lock = text('pnpm-lock.yaml');
-for (const marker of [
-  'contexts/chess:',
-  "'@asa-lab/module-sdk':",
-  "'@asa-lab/chess':",
-]) {
+for (const marker of ['contexts/chess:', "'@asa-lab/module-sdk':", "'@asa-lab/chess':"]) {
   if (!lock.includes(marker)) {
     fail(`pnpm-lock.yaml is not synchronized; missing marker ${marker}`);
   }

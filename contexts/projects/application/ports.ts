@@ -51,7 +51,11 @@ export interface ModuleCatalogPort {
 
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
-  listForTeacher(tenantId: string, teacherId: string, filter: ProjectListFilter): Promise<Project[]>;
+  listForTeacher(
+    tenantId: string,
+    teacherId: string,
+    filter: ProjectListFilter,
+  ): Promise<Project[]>;
   load(
     tenantId: string,
     projectId: string,

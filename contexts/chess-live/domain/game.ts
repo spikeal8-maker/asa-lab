@@ -87,7 +87,10 @@ function finishGame(
   };
 }
 
-function projectedRemaining(game: LiveChessGame, nowMs: number): {
+function projectedRemaining(
+  game: LiveChessGame,
+  nowMs: number,
+): {
   readonly whiteRemainingMs: number;
   readonly blackRemainingMs: number;
   readonly elapsedMs: number;
@@ -187,10 +190,7 @@ function completeCommand(
   };
 }
 
-function requireActiveParticipant(
-  game: LiveChessGame,
-  actorId: string,
-): LiveChessResult<Color> {
+function requireActiveParticipant(game: LiveChessGame, actorId: string): LiveChessResult<Color> {
   const color = participantColor(game, actorId);
   if (!color) return { ok: false, code: 'forbidden', message: 'user is not a game participant' };
   if (game.status !== 'active') {
@@ -211,7 +211,11 @@ export function createLiveChessGame(input: CreateLiveGameInput): LiveChessResult
     }
   }
   if (input.challengeId !== null && !isSafeLiveId(input.challengeId)) {
-    return { ok: false, code: 'validation_error', message: 'challengeId must be null or a safe ID' };
+    return {
+      ok: false,
+      code: 'validation_error',
+      message: 'challengeId must be null or a safe ID',
+    };
   }
   if (input.whitePlayerId === input.blackPlayerId) {
     return { ok: false, code: 'validation_error', message: 'a live game requires two players' };
@@ -304,7 +308,11 @@ export function submitLiveChessMove(
 
   const parsed = parseFen(game.currentFen);
   if (!parsed.ok) {
-    return { ok: false, code: 'conflict', message: `stored game FEN is invalid: ${parsed.message}` };
+    return {
+      ok: false,
+      code: 'conflict',
+      message: `stored game FEN is invalid: ${parsed.message}`,
+    };
   }
   const applied = applyLegalMove(parsed.value, uci);
   if (!applied.ok) return { ok: false, code: 'illegal_move', message: applied.message };
@@ -369,13 +377,7 @@ export function submitLiveChessMove(
   ];
   if (status.result !== '*') {
     const winnerId = status.winner ? winnerIdForColor(game, status.winner) : null;
-    game = finishGame(
-      game,
-      status.result,
-      terminationFromStatus(status),
-      winnerId,
-      nowMs,
-    );
+    game = finishGame(game, status.result, terminationFromStatus(status), winnerId, nowMs);
     events.push({
       type: 'game_finished',
       actorId: null,
@@ -428,7 +430,11 @@ export function acceptLiveChessDraw(
   if (!participant.ok) return participant;
   if (!game.drawOffer) return { ok: false, code: 'conflict', message: 'no draw offer is pending' };
   if (game.drawOffer.offeredBy === context.actorId) {
-    return { ok: false, code: 'forbidden', message: 'the offering player cannot accept own draw offer' };
+    return {
+      ok: false,
+      code: 'forbidden',
+      message: 'the offering player cannot accept own draw offer',
+    };
   }
   const nowMs = safeNow(game, context.nowMs);
   const finished = finishGame(game, '1/2-1/2', 'draw_agreement', null, nowMs);
@@ -452,22 +458,22 @@ export function declineLiveChessDraw(
   if (!participant.ok) return participant;
   if (!game.drawOffer) return { ok: false, code: 'conflict', message: 'no draw offer is pending' };
   if (game.drawOffer.offeredBy === context.actorId) {
-    return { ok: false, code: 'forbidden', message: 'the offering player cannot decline own draw offer' };
+    return {
+      ok: false,
+      code: 'forbidden',
+      message: 'the offering player cannot decline own draw offer',
+    };
   }
   const nowMs = safeNow(game, context.nowMs);
   return {
     ok: true,
-    value: completeCommand(
-      { ...game, drawOffer: null, updatedAtMs: nowMs },
-      context,
-      [
-        {
-          type: 'draw_declined',
-          actorId: context.actorId,
-          payload: { declinedBy: context.actorId },
-        },
-      ],
-    ),
+    value: completeCommand({ ...game, drawOffer: null, updatedAtMs: nowMs }, context, [
+      {
+        type: 'draw_declined',
+        actorId: context.actorId,
+        payload: { declinedBy: context.actorId },
+      },
+    ]),
   };
 }
 

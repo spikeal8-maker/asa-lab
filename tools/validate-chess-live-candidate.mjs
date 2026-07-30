@@ -264,11 +264,7 @@ if (root) {
 }
 
 const lock = text('pnpm-lock.yaml');
-for (const marker of [
-  'contexts/chess-live:',
-  "'@asa-lab/chess-live':",
-  "'@asa-lab/database':",
-]) {
+for (const marker of ['contexts/chess-live:', "'@asa-lab/chess-live':", "'@asa-lab/database':"]) {
   if (!lock.includes(marker)) {
     fail(`pnpm-lock.yaml is not synchronized; missing marker ${marker}`);
   }

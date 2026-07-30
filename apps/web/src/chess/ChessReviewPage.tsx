@@ -25,10 +25,7 @@ const CLASSIFICATION_LABEL: Readonly<Record<AsaMoveClassification, string>> = {
   blunder: 'Грубая ошибка',
 };
 
-export function ChessReviewPage({
-  projectId,
-  onBackToProject,
-}: ChessReviewPageProps): JSX.Element {
+export function ChessReviewPage({ projectId, onBackToProject }: ChessReviewPageProps): JSX.Element {
   const [project, setProject] = useState<Project | null>(null);
   const [document, setDocument] = useState<ChessDocument | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -58,10 +55,7 @@ export function ChessReviewPage({
     };
   }, [projectId]);
 
-  const review = useMemo(
-    () => (document ? reviewChessDocument(document, 1) : null),
-    [document],
-  );
+  const review = useMemo(() => (document ? reviewChessDocument(document, 1) : null), [document]);
   const position = useMemo(() => {
     if (!document) return null;
     const parsed = parseFen(document.currentFen);
@@ -160,7 +154,9 @@ export function ChessReviewPage({
                   <span className="asa-review-ply">{move.ply}</span>
                   <div>
                     <strong>{move.playedSan}</strong>
-                    <small>{move.color === 'white' ? 'Белые' : 'Чёрные'} · {move.playedUci}</small>
+                    <small>
+                      {move.color === 'white' ? 'Белые' : 'Чёрные'} · {move.playedUci}
+                    </small>
                   </div>
                   <span className="asa-review-classification">
                     {CLASSIFICATION_LABEL[move.classification]}

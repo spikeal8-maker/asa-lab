@@ -70,7 +70,11 @@ export function createMatchmakingTicket(
     return { ok: false, code: 'validation_error', message: 'invalid color preference' };
   }
   if (!Number.isInteger(input.rating) || input.rating < 100 || input.rating > 4000) {
-    return { ok: false, code: 'validation_error', message: 'rating must be an integer from 100 to 4000' };
+    return {
+      ok: false,
+      code: 'validation_error',
+      message: 'rating must be an integer from 100 to 4000',
+    };
   }
   if (!Number.isSafeInteger(input.nowMs) || input.nowMs < 0) {
     return { ok: false, code: 'validation_error', message: 'nowMs must be a non-negative integer' };
@@ -121,14 +125,8 @@ export function matchmakingRatingWindow(ticket: MatchmakingTicket, nowMs: number
   return Math.min(600, 100 + Math.floor(waitedMs / 30_000) * 50);
 }
 
-function colorsCompatible(
-  left: ColorPreference,
-  right: ColorPreference,
-): boolean {
-  return !(
-    (left === 'white' && right === 'white') ||
-    (left === 'black' && right === 'black')
-  );
+function colorsCompatible(left: ColorPreference, right: ColorPreference): boolean {
+  return !((left === 'white' && right === 'white') || (left === 'black' && right === 'black'));
 }
 
 function assignColors(
@@ -146,7 +144,10 @@ export function areMatchmakingTicketsCompatible(
   nowMs: number,
 ): boolean {
   if (left.id === right.id || left.playerId === right.playerId) return false;
-  if (effectiveTicketStatus(left, nowMs) !== 'queued' || effectiveTicketStatus(right, nowMs) !== 'queued') {
+  if (
+    effectiveTicketStatus(left, nowMs) !== 'queued' ||
+    effectiveTicketStatus(right, nowMs) !== 'queued'
+  ) {
     return false;
   }
   if (
@@ -172,10 +173,7 @@ export function findMatchmakingPair(
 ): MatchmakingPair | null {
   const queued = tickets
     .filter((ticket) => effectiveTicketStatus(ticket, nowMs) === 'queued')
-    .sort(
-      (left, right) =>
-        left.createdAtMs - right.createdAtMs || left.id.localeCompare(right.id),
-    );
+    .sort((left, right) => left.createdAtMs - right.createdAtMs || left.id.localeCompare(right.id));
   for (let leftIndex = 0; leftIndex < queued.length; leftIndex += 1) {
     const left = queued[leftIndex]!;
     const candidates = queued
@@ -220,7 +218,11 @@ export function cancelMatchmakingTicket(
   nowMs: number,
 ): LiveChessResult<MatchmakingTicket> {
   if (ticket.playerId !== actorId) {
-    return { ok: false, code: 'forbidden', message: 'only the ticket owner can cancel matchmaking' };
+    return {
+      ok: false,
+      code: 'forbidden',
+      message: 'only the ticket owner can cancel matchmaking',
+    };
   }
   const status = effectiveTicketStatus(ticket, nowMs);
   if (status === 'expired') return { ok: false, code: 'expired', message: 'ticket has expired' };
@@ -233,10 +235,7 @@ export function cancelMatchmakingTicket(
   };
 }
 
-export function preferredColorForPair(
-  pair: MatchmakingPair,
-  playerId: string,
-): Color | null {
+export function preferredColorForPair(pair: MatchmakingPair, playerId: string): Color | null {
   if (pair.white.playerId === playerId) return 'white';
   if (pair.black.playerId === playerId) return 'black';
   return null;

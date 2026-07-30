@@ -97,10 +97,7 @@ function asRepoPath(path) {
 
 function importedContext(specifier) {
   for (const context of CONTEXTS) {
-    if (
-      specifier === `@asa-lab/${context}` ||
-      specifier.startsWith(`@asa-lab/${context}/`)
-    ) {
+    if (specifier === `@asa-lab/${context}` || specifier.startsWith(`@asa-lab/${context}/`)) {
       return context;
     }
   }
@@ -179,9 +176,7 @@ try {
   }
 
   const liveDependencies = graph?.graph?.dependencies?.['chess-live'] ?? [];
-  const hasChessEdge = liveDependencies.some(
-    (dependency) => dependency?.target === 'chess',
-  );
+  const hasChessEdge = liveDependencies.some((dependency) => dependency?.target === 'chess');
   if (!hasChessEdge) {
     errors.push(
       'nx-project-graph.json is stale: chess-live must have a public dependency edge to chess',

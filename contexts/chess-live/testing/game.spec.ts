@@ -29,13 +29,7 @@ function context(
   actorId: string,
   commandId: string,
   nowMs: number,
-  kind:
-    | 'submit_move'
-    | 'offer_draw'
-    | 'accept_draw'
-    | 'decline_draw'
-    | 'resign'
-    | 'claim_timeout',
+  kind: 'submit_move' | 'offer_draw' | 'accept_draw' | 'decline_draw' | 'resign' | 'claim_timeout',
 ) {
   return { actorId, commandId, nowMs, kind } as const;
 }
@@ -112,18 +106,10 @@ describe('server-authoritative live game aggregate', () => {
       ),
     ).toMatchObject({ ok: false, code: 'forbidden' });
     expect(
-      submitLiveChessMove(
-        game(),
-        context('user:black', 'command:2', 2_000, 'submit_move'),
-        'e7e5',
-      ),
+      submitLiveChessMove(game(), context('user:black', 'command:2', 2_000, 'submit_move'), 'e7e5'),
     ).toMatchObject({ ok: false, code: 'not_your_turn' });
     expect(
-      submitLiveChessMove(
-        game(),
-        context('user:white', 'command:3', 2_000, 'submit_move'),
-        'e2e5',
-      ),
+      submitLiveChessMove(game(), context('user:white', 'command:3', 2_000, 'submit_move'), 'e2e5'),
     ).toMatchObject({ ok: false, code: 'illegal_move' });
     expect(
       submitLiveChessMove(
@@ -243,10 +229,7 @@ describe('server-authoritative live game aggregate', () => {
 
   it('finishes immediately when a participant resigns', () => {
     expect(
-      resignLiveChessGame(
-        game(),
-        context('user:black', 'command:resign', 2_000, 'resign'),
-      ),
+      resignLiveChessGame(game(), context('user:black', 'command:resign', 2_000, 'resign')),
     ).toMatchObject({
       ok: true,
       value: {
