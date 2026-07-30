@@ -13,5 +13,9 @@
     "application/**/*.ts",
     "infrastructure/**/*.ts"
   ],
-  "exclude": ["dist", "testing"]
+  "exclude": [
+    "dist",
+    "testing",
+    "application/chess-live.service.ts"
+  ]
 }
