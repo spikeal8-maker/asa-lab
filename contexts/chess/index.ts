@@ -71,4 +71,9 @@ export {
   type ChessSquareAnnotation,
   type ChessTermination,
 } from './domain/document.js';
+export {
+  createChessGameDocument,
+  flagChessTimeout,
+  type NewChessGameOptions,
+} from './domain/game-control.js';
 export { CHESS_MODULE, type ChessAnalysisSummary } from './module.js';
