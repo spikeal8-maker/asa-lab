@@ -1,0 +1,105 @@
+schema_version: 1.0.0
+program_id: INFRA-BOOTSTRAP-001
+owner_issue: https://github.com/spikeal8-maker/asa-lab/issues/69
+state_source: docs/project-map/infrastructure-focus.yaml
+product_state_source: docs/project-map/project-map.yaml
+
+semantics:
+  purpose: Temporary owner-authorized infrastructure lane that does not reorder or complete the product delivery queue.
+  product_focus_rule: The product current_focus remains frozen while infrastructure_focus.active is true.
+  resume_rule: After the infrastructure PR is merged or explicitly cancelled, infrastructure_focus.active becomes false and the frozen product focus resumes.
+  scope_rule: Only portability, containerization, deployment, environment, migration, recovery and verification work described by Issue 69 is allowed.
+
+ports:
+  bind: 127.0.0.1
+  web: 4610
+  api: 4611
+  e2e: 4612
+  forbidden: [3000, 3100, 5173]
+
+tasks:
+  - task_id: TASK-DOCKER-LINUX-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/69
+    status: in_progress
+    base_branch: assistant/chess-online-core
+    branch: assistant/docker-linux-bootstrap
+    draft_pr_base: assistant/chess-online-core
+    architecture_horizon: PHASE-0
+    product_focus_frozen: TASK-ELECTRONICS-SLICE-001
+    depends_on: [TASK-PORTAL-001]
+    visible_result: ASA Lab runs from one portable Linux Docker configuration on Windows 11 WSL2 and a regular Linux Docker host, with persistent PostgreSQL, migrations, health checks, backup/restore and responsive browser evidence.
+    read:
+      - AGENTS.md
+      - docs/delivery/LOCAL_PORT_POLICY.md
+      - docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml
+      - docs/project-map/infrastructure-focus.yaml
+      - https://github.com/spikeal8-maker/asa-lab/issues/69
+    allowed_paths:
+      - Dockerfile.api
+      - Dockerfile.web
+      - .dockerignore
+      - compose.yaml
+      - compose.dev.yaml
+      - compose.test.yaml
+      - compose.staging.yaml
+      - .env.docker.example
+      - docker/**
+      - tools/docker-*.sh
+      - tools/docker-*.ps1
+      - docs/deployment/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - nx.json
+      - docs/project-map/nx-project-graph.json
+      - tests/**
+      - e2e/**
+      - apps/**
+      - contexts/**
+      - migrations/**
+      - schemas/**
+    product_code_rule: Product behavior may be changed only to fix Linux portability, container startup, health, graceful shutdown, same-origin routing, migration, test isolation or responsive defects proven by this task. New product capabilities are forbidden.
+    required_commands:
+      - pnpm install --lockfile-only
+      - pnpm install --frozen-lockfile
+      - pnpm format:check
+      - pnpm chess:contract
+      - pnpm chess-live:contract
+      - pnpm lint
+      - pnpm typecheck:chess
+      - pnpm typecheck:chess-live
+      - pnpm typecheck
+      - pnpm boundaries:check
+      - pnpm contracts:check
+      - pnpm compose:check
+      - pnpm build
+      - pnpm test:chess
+      - pnpm test:chess-live
+      - pnpm test:chess-live:pg
+      - pnpm test:rls
+      - pnpm test
+      - docker compose config
+      - docker compose build --no-cache
+      - docker compose up -d
+      - docker compose ps
+      - pnpm e2e:chess
+      - pnpm e2e:chess-live
+    required_artifacts:
+      - e2e/artifacts/docker-mobile-390.png
+      - e2e/artifacts/docker-tablet-768.png
+      - e2e/artifacts/docker-desktop-1366.png
+      - e2e/artifacts/docker-electronics.png
+      - e2e/artifacts/docker-chess-online.png
+      - reports/docker-health.json
+      - reports/docker-persistence.json
+      - reports/docker-backup-restore.json
+    exit_gate:
+      - WSL2 Ubuntu repository checkout is inside the Linux filesystem and the working tree is clean.
+      - The same Linux-container Compose configuration works on Windows 11 WSL2 and is portable to a normal Linux host.
+      - PostgreSQL, migration, API and Web lifecycle is healthy and repeat-safe.
+      - Restart and down/up preserve project and chess data.
+      - Backup and restore pass against an isolated test database.
+      - Containers run non-root without privileged mode, host networking or Docker socket mounts.
+      - Ports 4610, 4611 and 4612 are respected; 3000, 3100 and 5173 are untouched.
+      - All required commands are PASS; BLOCKED and NOT_RUN do not close the task.
+      - Draft PR targets assistant/chess-online-core and is not merged automatically.
