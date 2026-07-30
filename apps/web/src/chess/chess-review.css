@@ -125,27 +125,27 @@
   border-left: 5px solid #9eabb3;
 }
 
-.asa-review-counts div[data-classification='best'] {
+.asa-review-counts div[data-classification="best"] {
   border-left-color: #1d9b70;
 }
 
-.asa-review-counts div[data-classification='excellent'] {
+.asa-review-counts div[data-classification="excellent"] {
   border-left-color: #38a9c9;
 }
 
-.asa-review-counts div[data-classification='good'] {
+.asa-review-counts div[data-classification="good"] {
   border-left-color: #7aaf52;
 }
 
-.asa-review-counts div[data-classification='inaccuracy'] {
+.asa-review-counts div[data-classification="inaccuracy"] {
   border-left-color: #e1b73c;
 }
 
-.asa-review-counts div[data-classification='mistake'] {
+.asa-review-counts div[data-classification="mistake"] {
   border-left-color: #e07b35;
 }
 
-.asa-review-counts div[data-classification='blunder'] {
+.asa-review-counts div[data-classification="blunder"] {
   border-left-color: #c43e3e;
 }
 
@@ -174,27 +174,27 @@
   border-left: 6px solid #9eabb3;
 }
 
-.asa-review-moves li[data-classification='best'] {
+.asa-review-moves li[data-classification="best"] {
   border-left-color: #1d9b70;
 }
 
-.asa-review-moves li[data-classification='excellent'] {
+.asa-review-moves li[data-classification="excellent"] {
   border-left-color: #38a9c9;
 }
 
-.asa-review-moves li[data-classification='good'] {
+.asa-review-moves li[data-classification="good"] {
   border-left-color: #7aaf52;
 }
 
-.asa-review-moves li[data-classification='inaccuracy'] {
+.asa-review-moves li[data-classification="inaccuracy"] {
   border-left-color: #e1b73c;
 }
 
-.asa-review-moves li[data-classification='mistake'] {
+.asa-review-moves li[data-classification="mistake"] {
   border-left-color: #e07b35;
 }
 
-.asa-review-moves li[data-classification='blunder'] {
+.asa-review-moves li[data-classification="blunder"] {
   border-left-color: #c43e3e;
 }
 

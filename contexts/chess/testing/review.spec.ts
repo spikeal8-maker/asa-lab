@@ -59,7 +59,8 @@ describe('ASA post-game review', () => {
         mistake: 0,
         blunder: 0,
       },
-      note: 'ASA Quality is an original transparent centipawn-loss score. It is not Chess.com Accuracy/CAPS and must not be presented as formula parity.',
+      note:
+        'ASA Quality is an original transparent centipawn-loss score. It is not Chess.com Accuracy/CAPS and must not be presented as formula parity.',
     });
   });
 });

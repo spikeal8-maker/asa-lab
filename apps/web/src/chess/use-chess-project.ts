@@ -66,13 +66,21 @@ export function useChessProject(projectId: string) {
     () => (document ? parsePosition(document.currentFen) : null),
     [document],
   );
-  const legalMoves = useMemo(() => (position ? generateLegalMoves(position) : []), [position]);
+  const legalMoves = useMemo(
+    () => (position ? generateLegalMoves(position) : []),
+    [position],
+  );
   const chessStatus: ChessStatus | null = useMemo(
     () =>
-      position && document ? getChessStatus(position, chessDocumentPositionKeys(document)) : null,
+      position && document
+        ? getChessStatus(position, chessDocumentPositionKeys(document))
+        : null,
     [document, position],
   );
-  const evaluationCp = useMemo(() => (position ? evaluateChessPosition(position) : 0), [position]);
+  const evaluationCp = useMemo(
+    () => (position ? evaluateChessPosition(position) : 0),
+    [position],
+  );
   const selectedMoves = useMemo(
     () => legalMoves.filter((move) => move.from === selectedSquare),
     [legalMoves, selectedSquare],
@@ -235,7 +243,9 @@ export function useChessProject(projectId: string) {
 
   function selectBoardSquare(square: Square): void {
     if (!document || !position || !canHumanMove()) return;
-    const clickedPiece = position.board[(Number(square[1]) - 1) * 8 + (square.charCodeAt(0) - 97)];
+    const clickedPiece = position.board[
+      (Number(square[1]) - 1) * 8 + (square.charCodeAt(0) - 97)
+    ];
     if (!selectedSquare) {
       if (clickedPiece?.color === position.turn) setSelectedSquare(square);
       return;
@@ -300,7 +310,9 @@ export function useChessProject(projectId: string) {
   function resign(): void {
     if (!document || !position) return;
     const loser =
-      document.mode === 'computer' && document.bot ? opposite(document.bot.color) : position.turn;
+      document.mode === 'computer' && document.bot
+        ? opposite(document.bot.color)
+        : position.turn;
     const next = resignChessDocument(document, loser);
     if (next.ok) commit(next.value, 'Партия завершена сдачей.');
   }
@@ -323,7 +335,10 @@ export function useChessProject(projectId: string) {
     setBusy(true);
     const saved = await persist(document, true);
     const response = saved
-      ? await api.createCheckpoint(projectId, `Позиция после ${document.moves.length} полуходов`)
+      ? await api.createCheckpoint(
+          projectId,
+          `Позиция после ${document.moves.length} полуходов`,
+        )
       : null;
     setBusy(false);
     if (response?.ok) {

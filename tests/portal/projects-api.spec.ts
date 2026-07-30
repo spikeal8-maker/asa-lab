@@ -38,10 +38,7 @@ async function createClassroom(token: string, title: string): Promise<string> {
 async function createProject(
   token: string,
   options: { title: string; scope: 'personal' | 'classroom'; classroomId?: string; key?: string },
-): Promise<{
-  status: number;
-  body: { project: { id: string; scope: string; classroomId: string | null } };
-}> {
+): Promise<{ status: number; body: { project: { id: string; scope: string; classroomId: string | null } } }> {
   const response = await inject(app, {
     method: 'POST',
     url: '/api/projects',
@@ -225,11 +222,7 @@ describe('workbench draft and immutable versions', () => {
     });
     expect(reloaded.statusCode).toBe(200);
     expect(reloaded.json().draft.document).toEqual(document);
-    expect(
-      reloaded
-        .json()
-        .result.components.find((item: { componentId: string }) => item.componentId === 'led1').lit,
-    ).toBe(true);
+    expect(reloaded.json().result.components.find((item: { componentId: string }) => item.componentId === 'led1').lit).toBe(true);
   });
 
   it('creates immutable numbered checkpoints', async () => {

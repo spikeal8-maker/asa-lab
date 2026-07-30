@@ -55,12 +55,8 @@ export function ComponentPreview({ preview, asset, className = '' }: Props): JSX
         <svg {...common}>
           <circle cx="50" cy="40" r="27" fill="#9a9a9a" stroke="#5d5d5d" strokeWidth="3" />
           <circle cx="50" cy="40" r="21" fill="#bcbcbc" />
-          <text x="50" y="39" textAnchor="middle" fill="#555" fontSize="9">
-            CR2032
-          </text>
-          <text x="50" y="50" textAnchor="middle" fill="#555" fontSize="11">
-            3V
-          </text>
+          <text x="50" y="39" textAnchor="middle" fill="#555" fontSize="9">CR2032</text>
+          <text x="50" y="50" textAnchor="middle" fill="#555" fontSize="11">3V</text>
         </svg>
       );
     case 'microbit':
@@ -69,20 +65,10 @@ export function ComponentPreview({ preview, asset, className = '' }: Props): JSX
           <rect x="14" y="18" width="72" height="45" rx="5" fill="#111827" />
           {Array.from({ length: 5 }, (_, row) =>
             Array.from({ length: 5 }, (_, column) => (
-              <circle
-                key={`${row}-${column}`}
-                cx={35 + column * 8}
-                cy={29 + row * 7}
-                r="1.5"
-                fill="#ef4444"
-              />
+              <circle key={`${row}-${column}`} cx={35 + column * 8} cy={29 + row * 7} r="1.5" fill="#ef4444" />
             )),
           )}
-          <path
-            d="M25 63v11M38 63v11M50 63v11M62 63v11M75 63v11"
-            stroke="#d4af37"
-            strokeWidth="5"
-          />
+          <path d="M25 63v11M38 63v11M50 63v11M62 63v11M75 63v11" stroke="#d4af37" strokeWidth="5" />
         </svg>
       );
     default:

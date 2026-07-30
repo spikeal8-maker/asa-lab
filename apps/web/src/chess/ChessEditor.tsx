@@ -10,7 +10,12 @@ import {
 import { useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
-import { PIECE_SYMBOL, evaluationLabel, formatChessClock, resultLabel } from './chess-ui';
+import {
+  PIECE_SYMBOL,
+  evaluationLabel,
+  formatChessClock,
+  resultLabel,
+} from './chess-ui';
 import { useChessProject } from './use-chess-project';
 import './chess.css';
 
@@ -90,9 +95,7 @@ function ChessPlayerBar({
       </span>
       <span className="asa-chess-player-copy">
         <strong>{name}</strong>
-        <small>
-          {thinking ? 'Думает…' : active ? 'Ход' : color === 'white' ? 'Белые' : 'Чёрные'}
-        </small>
+        <small>{thinking ? 'Думает…' : active ? 'Ход' : color === 'white' ? 'Белые' : 'Чёрные'}</small>
       </span>
       {milliseconds !== null && (
         <time className={`asa-chess-clock ${milliseconds < 20_000 ? 'low' : ''}`}>
@@ -105,11 +108,7 @@ function ChessPlayerBar({
 
 function MoveList({ moves }: { moves: readonly { san: string; uci: string }[] }) {
   const rows = useMemo(() => {
-    const value: Array<{
-      number: number;
-      white?: { san: string; uci: string };
-      black?: { san: string; uci: string };
-    }> = [];
+    const value: Array<{ number: number; white?: { san: string; uci: string }; black?: { san: string; uci: string } }> = [];
     for (let index = 0; index < moves.length; index += 2) {
       value.push({
         number: Math.floor(index / 2) + 1,
@@ -167,13 +166,11 @@ function NewGameDialog({
         </div>
         <fieldset className="asa-chess-choice-grid">
           <legend>Режим</legend>
-          {(
-            [
-              ['computer', 'Против ASA Bot', 'Локальный детерминированный соперник'],
-              ['local', 'Два игрока', 'Игра на одном устройстве'],
-              ['analysis', 'Анализ', 'Без часов, с отменой ходов'],
-            ] as const
-          ).map(([value, title, note]) => (
+          {([
+            ['computer', 'Против ASA Bot', 'Локальный детерминированный соперник'],
+            ['local', 'Два игрока', 'Игра на одном устройстве'],
+            ['analysis', 'Анализ', 'Без часов, с отменой ходов'],
+          ] as const).map(([value, title, note]) => (
             <label key={value} className={mode === value ? 'selected' : ''}>
               <input
                 type="radio"
@@ -380,13 +377,8 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
           <span aria-hidden="true">←</span> Проекты
         </button>
         <div className="asa-chess-brand" aria-label="ASA Chess">
-          <span className="asa-chess-brand-mark" aria-hidden="true">
-            ♞
-          </span>
-          <span>
-            <strong>ASA Chess</strong>
-            <small>{modeLabel(document.mode)}</small>
-          </span>
+          <span className="asa-chess-brand-mark" aria-hidden="true">♞</span>
+          <span><strong>ASA Chess</strong><small>{modeLabel(document.mode)}</small></span>
         </div>
         <label className="asa-chess-title-field">
           <span className="sr-only">Название проекта</span>
@@ -401,22 +393,11 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
           {SAVE_COPY[controller.saveStatus]}
         </span>
         <div className="asa-chess-header-actions">
-          <button type="button" onClick={() => setNewGameOpen(true)}>
-            Новая
-          </button>
-          <button
-            type="button"
-            disabled={controller.busy}
-            onClick={() => void controller.checkpoint()}
-          >
+          <button type="button" onClick={() => setNewGameOpen(true)}>Новая</button>
+          <button type="button" disabled={controller.busy} onClick={() => void controller.checkpoint()}>
             Версия
           </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={controller.busy}
-            onClick={() => void controller.saveNow()}
-          >
+          <button type="button" className="primary" disabled={controller.busy} onClick={() => void controller.saveNow()}>
             Сохранить
           </button>
         </div>
@@ -432,10 +413,7 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
             thinking={controller.botThinking && botColor === topColor}
           />
           <div className="asa-chess-board-row">
-            <div
-              className="asa-chess-eval"
-              aria-label={`Оценка позиции ${evaluationLabel(controller.evaluationCp)}`}
-            >
+            <div className="asa-chess-eval" aria-label={`Оценка позиции ${evaluationLabel(controller.evaluationCp)}`}>
               <span className="asa-chess-eval-black" style={{ height: `${100 - evaluation}%` }} />
               <span className="asa-chess-eval-white" style={{ height: `${evaluation}%` }} />
               <strong>{evaluationLabel(controller.evaluationCp)}</strong>
@@ -459,37 +437,23 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
             thinking={controller.botThinking && botColor === bottomColor}
           />
           <div className="asa-chess-board-actions" aria-label="Управление доской">
-            <button type="button" onClick={controller.flip}>
-              Перевернуть
-            </button>
-            <button
-              type="button"
-              disabled={document.moves.length === 0 || controller.botThinking}
-              onClick={controller.undo}
-            >
+            <button type="button" onClick={controller.flip}>Перевернуть</button>
+            <button type="button" disabled={document.moves.length === 0 || controller.botThinking} onClick={controller.undo}>
               Отменить ход
             </button>
-            <button type="button" disabled={document.moves.length === 0} onClick={controller.reset}>
-              В начало
-            </button>
-            <button type="button" onClick={() => setImportKind('fen')}>
-              FEN
-            </button>
-            <button type="button" onClick={() => setImportKind('pgn')}>
-              PGN
-            </button>
+            <button type="button" disabled={document.moves.length === 0} onClick={controller.reset}>В начало</button>
+            <button type="button" onClick={() => setImportKind('fen')}>FEN</button>
+            <button type="button" onClick={() => setImportKind('pgn')}>PGN</button>
           </div>
         </section>
 
         <aside className="asa-chess-panel">
           <div className="asa-chess-tabs" role="tablist" aria-label="Панель шахматного проекта">
-            {(
-              [
-                ['game', 'Партия'],
-                ['analysis', 'Анализ'],
-                ['versions', 'Версии'],
-              ] as const
-            ).map(([value, label]) => (
+            {([
+              ['game', 'Партия'],
+              ['analysis', 'Анализ'],
+              ['versions', 'Версии'],
+            ] as const).map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -505,10 +469,7 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
 
           {panelTab === 'game' && (
             <div className="asa-chess-panel-content">
-              <section
-                className={`asa-chess-result result-${document.result.replaceAll('/', '-')}`}
-                aria-live="polite"
-              >
+              <section className={`asa-chess-result result-${document.result.replaceAll('/', '-')}`} aria-live="polite">
                 <strong>{resultLabel(document.result, document.termination)}</strong>
                 <span>
                   {controller.botThinking
@@ -520,25 +481,15 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
               </section>
               <MoveList moves={document.moves} />
               <div className="asa-chess-game-controls">
-                <button
-                  type="button"
-                  disabled={document.result !== '*'}
-                  onClick={controller.agreeDraw}
-                >
+                <button type="button" disabled={document.result !== '*'} onClick={controller.agreeDraw}>
                   Ничья
                 </button>
-                <button
-                  type="button"
-                  className="danger"
-                  disabled={document.result !== '*'}
-                  onClick={controller.resign}
-                >
+                <button type="button" className="danger" disabled={document.result !== '*'} onClick={controller.resign}>
                   Сдаться
                 </button>
               </div>
               <p className="asa-chess-fair-play-note">
-                Анализ и ASA Bot работают только внутри проекта. Подключение движка к будущей
-                защищённой рейтинговой партии будет запрещено серверной политикой fair play.
+                Анализ и ASA Bot работают только внутри проекта. Подключение движка к будущей защищённой рейтинговой партии будет запрещено серверной политикой fair play.
               </p>
             </div>
           )}
@@ -551,46 +502,29 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
                 <small>Положительное значение — преимущество белых.</small>
               </section>
               <dl className="asa-chess-analysis-list">
-                <div>
-                  <dt>Лучший ход после сохранения</dt>
-                  <dd>{controller.analysis?.bestMoveUci ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>Узлов локального анализа</dt>
-                  <dd>{controller.analysis?.searchedNodes.toLocaleString('ru-RU') ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt>FEN</dt>
-                  <dd>
-                    <code>{document.currentFen}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Режим</dt>
-                  <dd>{modeLabel(document.mode)}</dd>
-                </div>
+                <div><dt>Лучший ход после сохранения</dt><dd>{controller.analysis?.bestMoveUci ?? '—'}</dd></div>
+                <div><dt>Узлов локального анализа</dt><dd>{controller.analysis?.searchedNodes.toLocaleString('ru-RU') ?? '—'}</dd></div>
+                <div><dt>FEN</dt><dd><code>{document.currentFen}</code></dd></div>
+                <div><dt>Режим</dt><dd>{modeLabel(document.mode)}</dd></div>
               </dl>
               <div className="asa-chess-analysis-actions">
-                <button type="button" onClick={() => controller.startGame({ mode: 'analysis' })}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    controller.startGame({ mode: 'analysis' })
+                  }
+                >
                   Новая доска анализа
                 </button>
-                <button type="button" onClick={() => setImportKind('pgn')}>
-                  Импорт / экспорт PGN
-                </button>
-                <button type="button" onClick={() => setImportKind('fen')}>
-                  Установить FEN
-                </button>
+                <button type="button" onClick={() => setImportKind('pgn')}>Импорт / экспорт PGN</button>
+                <button type="button" onClick={() => setImportKind('fen')}>Установить FEN</button>
               </div>
             </div>
           )}
 
           {panelTab === 'versions' && (
             <div className="asa-chess-panel-content">
-              <button
-                type="button"
-                className="primary-button full"
-                onClick={() => void controller.checkpoint()}
-              >
+              <button type="button" className="primary-button full" onClick={() => void controller.checkpoint()}>
                 Создать неизменяемую версию
               </button>
               {controller.versions.length === 0 ? (
@@ -612,50 +546,28 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
       </div>
 
       {controller.notice && (
-        <button
-          type="button"
-          className="asa-chess-toast"
-          onClick={controller.clearNotice}
-          aria-live="polite"
-        >
+        <button type="button" className="asa-chess-toast" onClick={controller.clearNotice} aria-live="polite">
           {controller.notice}
         </button>
       )}
 
       {controller.promotion && (
         <div className="asa-chess-dialog-backdrop" role="presentation">
-          <section
-            className="asa-chess-promotion"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="promotion-title"
-          >
+          <section className="asa-chess-promotion" role="dialog" aria-modal="true" aria-labelledby="promotion-title">
             <h2 id="promotion-title">Выберите фигуру</h2>
             <div>
               {controller.promotion.moves.map((move) => {
                 const promotion = move.promotion as PromotionPiece;
                 const color = position.turn;
                 return (
-                  <button
-                    key={promotion}
-                    type="button"
-                    onClick={() => controller.choosePromotion(move)}
-                  >
+                  <button key={promotion} type="button" onClick={() => controller.choosePromotion(move)}>
                     <span aria-hidden="true">{DOMAIN_PIECES[color][promotion]}</span>
-                    {promotion === 'queen'
-                      ? 'Ферзь'
-                      : promotion === 'rook'
-                        ? 'Ладья'
-                        : promotion === 'bishop'
-                          ? 'Слон'
-                          : 'Конь'}
+                    {promotion === 'queen' ? 'Ферзь' : promotion === 'rook' ? 'Ладья' : promotion === 'bishop' ? 'Слон' : 'Конь'}
                   </button>
                 );
               })}
             </div>
-            <button type="button" className="secondary-button" onClick={controller.cancelPromotion}>
-              Отмена
-            </button>
+            <button type="button" className="secondary-button" onClick={controller.cancelPromotion}>Отмена</button>
           </section>
         </div>
       )}

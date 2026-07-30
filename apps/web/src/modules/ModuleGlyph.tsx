@@ -1,12 +1,6 @@
 import type { ModuleSummary } from '../api';
 
-export function ModuleGlyph({
-  module,
-  size = 36,
-}: {
-  module: ModuleSummary;
-  size?: number;
-}): JSX.Element {
+export function ModuleGlyph({ module, size = 36 }: { module: ModuleSummary; size?: number }): JSX.Element {
   const common = {
     width: size,
     height: size,
@@ -51,12 +45,7 @@ export function ModuleGlyph({
     return (
       <svg {...common}>
         <rect x="5" y="5" width="38" height="38" rx="4" stroke="currentColor" strokeWidth="3" />
-        <path
-          d="M5 14.5H43M5 24H43M5 33.5H43M14.5 5V43M24 5V43M33.5 5V43"
-          stroke="currentColor"
-          strokeWidth="2"
-          opacity=".55"
-        />
+        <path d="M5 14.5H43M5 24H43M5 33.5H43M14.5 5V43M24 5V43M33.5 5V43" stroke="currentColor" strokeWidth="2" opacity=".55" />
         <circle cx="14.5" cy="14.5" r="5" fill="currentColor" />
         <circle cx="33.5" cy="33.5" r="5" fill="currentColor" opacity=".7" />
       </svg>
@@ -83,12 +72,7 @@ export function ModuleGlyph({
   }
   return (
     <svg {...common}>
-      <path
-        d="M8 38 17 9l22 22-29 9Z"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinejoin="round"
-      />
+      <path d="M8 38 17 9l22 22-29 9Z" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
       <path d="m17 9 4 14 18 8" stroke="currentColor" strokeWidth="3" />
     </svg>
   );

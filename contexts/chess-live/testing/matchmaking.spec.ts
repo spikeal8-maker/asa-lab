@@ -60,10 +60,18 @@ describe('live chess matchmaking', () => {
   it('rejects same-player and conflicting fixed-color tickets', () => {
     const white = ticket('ticket:1', 'user:1', 1200, 'white');
     expect(
-      areMatchmakingTicketsCompatible(white, ticket('ticket:2', 'user:1', 1200, 'black'), 2_000),
+      areMatchmakingTicketsCompatible(
+        white,
+        ticket('ticket:2', 'user:1', 1200, 'black'),
+        2_000,
+      ),
     ).toBe(false);
     expect(
-      areMatchmakingTicketsCompatible(white, ticket('ticket:3', 'user:3', 1200, 'white'), 2_000),
+      areMatchmakingTicketsCompatible(
+        white,
+        ticket('ticket:3', 'user:3', 1200, 'white'),
+        2_000,
+      ),
     ).toBe(false);
   });
 

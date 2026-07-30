@@ -4,12 +4,7 @@ import type {
   SchematicConnection,
   SchematicDocument,
 } from '../api';
-import {
-  ACTIVE_COMPONENTS,
-  catalogEntry,
-  renderedSize,
-  terminalPosition,
-} from './component-catalog';
+import { ACTIVE_COMPONENTS, catalogEntry, renderedSize, terminalPosition } from './component-catalog';
 import { snap, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
@@ -52,10 +47,7 @@ export function removeSelectionFromDocument(
   selection: Exclude<Selection, null>,
 ): SchematicDocument {
   if (selection.kind === 'wire') {
-    return {
-      ...document,
-      connections: document.connections.filter((item) => item.id !== selection.id),
-    };
+    return { ...document, connections: document.connections.filter((item) => item.id !== selection.id) };
   }
   return {
     ...document,
@@ -66,10 +58,7 @@ export function removeSelectionFromDocument(
   };
 }
 
-export function rotateSelectionInDocument(
-  document: SchematicDocument,
-  selection: Selection,
-): SchematicDocument | null {
+export function rotateSelectionInDocument(document: SchematicDocument, selection: Selection): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
   return {
     ...document,
@@ -81,69 +70,40 @@ export function rotateSelectionInDocument(
   };
 }
 
-export function updateSelectionValue(
-  document: SchematicDocument,
-  selection: Selection,
-  value: number,
-): SchematicDocument | null {
+export function updateSelectionValue(document: SchematicDocument, selection: Selection, value: number): SchematicDocument | null {
   if (selection?.kind !== 'component' || !Number.isFinite(value) || value < 0) return null;
   return {
     ...document,
-    components: document.components.map((item) =>
-      item.id === selection.id ? { ...item, value } : item,
-    ),
+    components: document.components.map((item) => item.id === selection.id ? { ...item, value } : item),
   };
 }
 
-export function updateSelectedWireColor(
-  document: SchematicDocument,
-  selection: Selection,
-  color: string,
-): SchematicDocument | null {
+export function updateSelectedWireColor(document: SchematicDocument, selection: Selection, color: string): SchematicDocument | null {
   if (selection?.kind !== 'wire') return null;
   return {
     ...document,
-    connections: document.connections.map((item) =>
-      item.id === selection.id ? { ...item, color } : item,
-    ),
+    connections: document.connections.map((item) => item.id === selection.id ? { ...item, color } : item),
   };
 }
 
-export function toggleSelectedWireRoute(
-  document: SchematicDocument,
-  selection: Selection,
-): SchematicDocument | null {
+export function toggleSelectedWireRoute(document: SchematicDocument, selection: Selection): SchematicDocument | null {
   if (selection?.kind !== 'wire') return null;
   const connection = document.connections.find((item) => item.id === selection.id);
   if (!connection) return null;
   const from = document.components.find((item) => item.id === connection.from.componentId);
   const to = document.components.find((item) => item.id === connection.to.componentId);
   if (!from || !to) return null;
-  const start = terminalPosition(
-    from.kind,
-    from.position,
-    connection.from.terminal,
-    from.rotation ?? 0,
-  );
+  const start = terminalPosition(from.kind, from.position, connection.from.terminal, from.rotation ?? 0);
   const end = terminalPosition(to.kind, to.position, connection.to.terminal, to.rotation ?? 0);
   if (!start || !end) return null;
   const current = connection.vertices ?? [];
-  const vertical =
-    Math.abs((current[0]?.x ?? start.x) - start.x) > Math.abs((current[0]?.y ?? start.y) - start.y);
+  const vertical = Math.abs((current[0]?.x ?? start.x) - start.x) > Math.abs((current[0]?.y ?? start.y) - start.y);
   const vertices = vertical
-    ? [
-        { x: start.x, y: snap((start.y + end.y) / 2) },
-        { x: end.x, y: snap((start.y + end.y) / 2) },
-      ]
-    : [
-        { x: snap((start.x + end.x) / 2), y: start.y },
-        { x: snap((start.x + end.x) / 2), y: end.y },
-      ];
+    ? [{ x: start.x, y: snap((start.y + end.y) / 2) }, { x: end.x, y: snap((start.y + end.y) / 2) }]
+    : [{ x: snap((start.x + end.x) / 2), y: start.y }, { x: snap((start.x + end.x) / 2), y: end.y }];
   return {
     ...document,
-    connections: document.connections.map((item) =>
-      item.id === connection.id ? { ...item, vertices } : item,
-    ),
+    connections: document.connections.map((item) => item.id === connection.id ? { ...item, vertices } : item),
   };
 }
 
@@ -153,45 +113,25 @@ export function connectTerminals(
   to: TerminalRef,
   id: string,
   color: string,
-):
-  | { kind: 'duplicate' }
-  | { kind: 'created'; wire: SchematicConnection; document: SchematicDocument } {
+): { kind: 'duplicate' } | { kind: 'created'; wire: SchematicConnection; document: SchematicDocument } {
   const duplicate = document.connections.some(
     (wire) =>
-      (wire.from.componentId === from.componentId &&
-        wire.from.terminal === from.terminal &&
-        wire.to.componentId === to.componentId &&
-        wire.to.terminal === to.terminal) ||
-      (wire.to.componentId === from.componentId &&
-        wire.to.terminal === from.terminal &&
-        wire.from.componentId === to.componentId &&
-        wire.from.terminal === to.terminal),
+      (wire.from.componentId === from.componentId && wire.from.terminal === from.terminal && wire.to.componentId === to.componentId && wire.to.terminal === to.terminal) ||
+      (wire.to.componentId === from.componentId && wire.to.terminal === from.terminal && wire.from.componentId === to.componentId && wire.from.terminal === to.terminal),
   );
   if (duplicate) return { kind: 'duplicate' };
   const wire: SchematicConnection = { id, from: { ...from }, to: { ...to }, color };
-  return {
-    kind: 'created',
-    wire,
-    document: { ...document, connections: [...document.connections, wire] },
-  };
+  return { kind: 'created', wire, document: { ...document, connections: [...document.connections, wire] } };
 }
 
-export function moveComponentInDocument(
-  document: SchematicDocument,
-  componentId: string,
-  position: Point,
-): SchematicDocument {
+export function moveComponentInDocument(document: SchematicDocument, componentId: string, position: Point): SchematicDocument {
   return {
     ...document,
-    components: document.components.map((item) =>
-      item.id === componentId ? { ...item, position } : item,
-    ),
+    components: document.components.map((item) => item.id === componentId ? { ...item, position } : item),
   };
 }
 
-export function sceneBounds(
-  document: SchematicDocument,
-): { minX: number; minY: number; maxX: number; maxY: number } | null {
+export function sceneBounds(document: SchematicDocument): { minX: number; minY: number; maxX: number; maxY: number } | null {
   const placed = document.components.filter((component) => catalogEntry(component.kind));
   if (placed.length === 0) return null;
   return placed.reduce(

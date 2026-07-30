@@ -44,7 +44,10 @@ export interface ChessRatingUpdate {
 export const ASA_INITIAL_CHESS_RATING = 1200;
 export const ASA_PROVISIONAL_GAMES = 10;
 
-export function ratingPoolForTimeControl(initialMs: number, incrementMs: number): ChessRatingPool {
+export function ratingPoolForTimeControl(
+  initialMs: number,
+  incrementMs: number,
+): ChessRatingPool {
   const estimatedGameSeconds = initialMs / 1000 + (incrementMs / 1000) * 40;
   if (estimatedGameSeconds < 180) return 'bullet';
   if (estimatedGameSeconds < 600) return 'blitz';
@@ -104,7 +107,10 @@ export function calculateChessRatingUpdate(
   if (game.status !== 'finished' || game.result === '*') {
     throw new Error('only a finished game can update ratings');
   }
-  const pool = ratingPoolForTimeControl(game.timeControl.initialMs, game.timeControl.incrementMs);
+  const pool = ratingPoolForTimeControl(
+    game.timeControl.initialMs,
+    game.timeControl.incrementMs,
+  );
   for (const state of [whiteBefore, blackBefore]) {
     if (
       state.tenantId !== game.tenantId ||
@@ -114,7 +120,10 @@ export function calculateChessRatingUpdate(
       throw new Error('rating state does not match game tenant, pool or algorithm');
     }
   }
-  if (whiteBefore.playerId !== game.whitePlayerId || blackBefore.playerId !== game.blackPlayerId) {
+  if (
+    whiteBefore.playerId !== game.whitePlayerId ||
+    blackBefore.playerId !== game.blackPlayerId
+  ) {
     throw new Error('rating players do not match game colors');
   }
 

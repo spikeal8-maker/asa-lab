@@ -227,11 +227,7 @@
   padding: 8px 12px;
   background: #f8fafb;
   color: #0b3558;
-  font:
-    800 22px/1 ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
+  font: 800 22px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -249,11 +245,7 @@
   border-radius: 12px;
   background: #edf8fb;
   color: #075d77;
-  font:
-    900 clamp(23px, 3vw, 34px)/1 ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
+  font: 900 clamp(23px, 3vw, 34px)/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   letter-spacing: 0.08em;
 }
 
@@ -281,16 +273,8 @@
 }
 
 @keyframes asa-online-search {
-  0%,
-  70%,
-  100% {
-    transform: scale(0.72);
-    opacity: 0.45;
-  }
-  35% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0%, 70%, 100% { transform: scale(0.72); opacity: 0.45; }
+  35% { transform: scale(1); opacity: 1; }
 }
 
 .asa-online-rating-details {
@@ -382,7 +366,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  font-family: 'Segoe UI Symbol', serif;
+  font-family: "Segoe UI Symbol", serif;
   font-size: 28px;
 }
 

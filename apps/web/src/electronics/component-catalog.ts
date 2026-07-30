@@ -13,7 +13,14 @@ import type { PreviewKey } from './component-preview';
 
 export type ComponentCategory = 'all' | 'basic' | 'power' | 'inputs' | 'outputs' | 'boards';
 export type ComponentVisualState =
-  'default' | 'off' | 'lit' | 'reverse' | 'overcurrent' | 'burned' | 'pressed' | 'on';
+  | 'default'
+  | 'off'
+  | 'lit'
+  | 'reverse'
+  | 'overcurrent'
+  | 'burned'
+  | 'pressed'
+  | 'on';
 
 export interface TerminalSpec {
   readonly x: number;
@@ -168,168 +175,26 @@ function future(options: {
 }
 
 const FUTURE: CatalogEntry[] = [
-  future({
-    key: 'button',
-    label: 'Кнопка',
-    category: 'inputs',
-    preview: 'button',
-    description: 'Авторская кнопка с отпущенным и нажатым SVG-состоянием.',
-    asset: 'button-up.svg',
-    stateAssets: { default: 'button-up.svg', pressed: 'button-down.svg' },
-  }),
-  future({
-    key: 'potentiometer',
-    label: 'Потенциометр',
-    category: 'inputs',
-    preview: 'potentiometer',
-    description: 'Регулируемое сопротивление.',
-    asset: 'potentiometer.svg',
-  }),
-  future({
-    key: 'capacitor',
-    label: 'Конденсатор',
-    category: 'basic',
-    preview: 'capacitor',
-    description: 'Накопление заряда и временные процессы.',
-    asset: 'capacitor.svg',
-  }),
-  future({
-    key: 'slide-switch',
-    label: 'Ползунковый переключатель',
-    category: 'inputs',
-    preview: 'slide-switch',
-    description: 'Авторский переключатель с двумя SVG-положениями.',
-    asset: 'switch-left.svg',
-    stateAssets: { default: 'switch-left.svg', on: 'switch-right.svg' },
-  }),
-  future({
-    key: 'battery-9v',
-    label: 'Батарея 9 В',
-    category: 'power',
-    preview: 'battery-9v',
-    description: 'Источник постоянного напряжения 9 В.',
-    asset: 'battery-9v.svg',
-  }),
-  future({
-    key: 'coin-cell',
-    label: 'Кнопочная батарея 3 В',
-    category: 'power',
-    preview: 'coin-cell',
-    description: 'Компактный источник 3 В. В архиве пока нет отдельного SVG.',
-    authored: false,
-  }),
-  future({
-    key: 'battery-aa',
-    label: 'Батарея 1,5 В',
-    category: 'power',
-    preview: 'battery-aa',
-    description: 'Один элемент AA из авторского набора.',
-    asset: 'battery-aa.svg',
-  }),
-  future({
-    key: 'adjustable-source',
-    label: 'Регулируемый источник',
-    category: 'power',
-    preview: 'battery-9v',
-    description:
-      'Источник с регулируемым напряжением; крупный asset будет подключён отдельным оптимизационным проходом.',
-  }),
-  future({
-    key: 'breadboard',
-    label: 'Малая макетная плата',
-    category: 'boards',
-    preview: 'breadboard',
-    description:
-      'Авторская макетная плата; крупный asset будет подключён вместе с моделью внутренних шин.',
-  }),
-  future({
-    key: 'microbit',
-    label: 'micro:bit',
-    category: 'boards',
-    preview: 'microbit',
-    description: 'Учебная микроконтроллерная плата. Пока только место в каталоге.',
-    authored: false,
-  }),
-  future({
-    key: 'arduino',
-    label: 'Arduino Uno',
-    category: 'boards',
-    preview: 'arduino',
-    description: 'Авторский вектор Arduino будет подключён после оптимизации большого SVG.',
-  }),
-  future({
-    key: 'servo',
-    label: 'Сервопривод',
-    category: 'outputs',
-    preview: 'servo',
-    description: 'Авторский привод будет подключён вместе с моделью управления.',
-  }),
-  future({
-    key: 'motor',
-    label: 'Двигатель постоянного тока',
-    category: 'outputs',
-    preview: 'motor',
-    description: 'Простой электродвигатель.',
-    asset: 'motor.svg',
-  }),
-  future({
-    key: 'buzzer',
-    label: 'Пьезодинамик',
-    category: 'outputs',
-    preview: 'motor',
-    description: 'Звуковой излучатель.',
-    asset: 'buzzer.svg',
-  }),
-  future({
-    key: 'lamp',
-    label: 'Лампа накаливания',
-    category: 'outputs',
-    preview: 'led',
-    description: 'Авторская лампа с выключенным и светящимся SVG-состоянием.',
-    asset: 'lamp-off.svg',
-    stateAssets: { default: 'lamp-off.svg', on: 'lamp-on.svg' },
-  }),
-  future({
-    key: 'transistor',
-    label: 'NPN-транзистор',
-    category: 'basic',
-    preview: 'transistor',
-    description: 'Ключ и усилитель.',
-    asset: 'transistor.svg',
-  }),
-  future({
-    key: 'rgb-led',
-    label: 'RGB-светодиод',
-    category: 'outputs',
-    preview: 'rgb-led',
-    description: 'Авторский RGB-светодиод с отдельными SVG-состояниями.',
-    asset: 'rgb-led-off.svg',
-    stateAssets: { default: 'rgb-led-off.svg', lit: 'rgb-led-lit.svg' },
-  }),
-  future({
-    key: 'diode',
-    label: 'Диод',
-    category: 'basic',
-    preview: 'diode',
-    description: 'Авторский диод; электрическая модель будет добавлена позже.',
-    asset: 'diode.svg',
-  }),
-  future({
-    key: 'photoresistor',
-    label: 'Фоторезистор',
-    category: 'inputs',
-    preview: 'photoresistor',
-    description: 'Датчик освещённости.',
-    asset: 'photoresistor.svg',
-  }),
-  future({
-    key: 'seven-segment',
-    label: 'Семисегментный индикатор',
-    category: 'outputs',
-    preview: 'seven-segment',
-    description: 'Авторский многоконтактный индикатор.',
-    asset: 'seven-segment.svg',
-  }),
+  future({ key: 'button', label: 'Кнопка', category: 'inputs', preview: 'button', description: 'Авторская кнопка с отпущенным и нажатым SVG-состоянием.', asset: 'button-up.svg', stateAssets: { default: 'button-up.svg', pressed: 'button-down.svg' } }),
+  future({ key: 'potentiometer', label: 'Потенциометр', category: 'inputs', preview: 'potentiometer', description: 'Регулируемое сопротивление.', asset: 'potentiometer.svg' }),
+  future({ key: 'capacitor', label: 'Конденсатор', category: 'basic', preview: 'capacitor', description: 'Накопление заряда и временные процессы.', asset: 'capacitor.svg' }),
+  future({ key: 'slide-switch', label: 'Ползунковый переключатель', category: 'inputs', preview: 'slide-switch', description: 'Авторский переключатель с двумя SVG-положениями.', asset: 'switch-left.svg', stateAssets: { default: 'switch-left.svg', on: 'switch-right.svg' } }),
+  future({ key: 'battery-9v', label: 'Батарея 9 В', category: 'power', preview: 'battery-9v', description: 'Источник постоянного напряжения 9 В.', asset: 'battery-9v.svg' }),
+  future({ key: 'coin-cell', label: 'Кнопочная батарея 3 В', category: 'power', preview: 'coin-cell', description: 'Компактный источник 3 В. В архиве пока нет отдельного SVG.', authored: false }),
+  future({ key: 'battery-aa', label: 'Батарея 1,5 В', category: 'power', preview: 'battery-aa', description: 'Один элемент AA из авторского набора.', asset: 'battery-aa.svg' }),
+  future({ key: 'adjustable-source', label: 'Регулируемый источник', category: 'power', preview: 'battery-9v', description: 'Источник с регулируемым напряжением; крупный asset будет подключён отдельным оптимизационным проходом.' }),
+  future({ key: 'breadboard', label: 'Малая макетная плата', category: 'boards', preview: 'breadboard', description: 'Авторская макетная плата; крупный asset будет подключён вместе с моделью внутренних шин.' }),
+  future({ key: 'microbit', label: 'micro:bit', category: 'boards', preview: 'microbit', description: 'Учебная микроконтроллерная плата. Пока только место в каталоге.', authored: false }),
+  future({ key: 'arduino', label: 'Arduino Uno', category: 'boards', preview: 'arduino', description: 'Авторский вектор Arduino будет подключён после оптимизации большого SVG.' }),
+  future({ key: 'servo', label: 'Сервопривод', category: 'outputs', preview: 'servo', description: 'Авторский привод будет подключён вместе с моделью управления.' }),
+  future({ key: 'motor', label: 'Двигатель постоянного тока', category: 'outputs', preview: 'motor', description: 'Простой электродвигатель.', asset: 'motor.svg' }),
+  future({ key: 'buzzer', label: 'Пьезодинамик', category: 'outputs', preview: 'motor', description: 'Звуковой излучатель.', asset: 'buzzer.svg' }),
+  future({ key: 'lamp', label: 'Лампа накаливания', category: 'outputs', preview: 'led', description: 'Авторская лампа с выключенным и светящимся SVG-состоянием.', asset: 'lamp-off.svg', stateAssets: { default: 'lamp-off.svg', on: 'lamp-on.svg' } }),
+  future({ key: 'transistor', label: 'NPN-транзистор', category: 'basic', preview: 'transistor', description: 'Ключ и усилитель.', asset: 'transistor.svg' }),
+  future({ key: 'rgb-led', label: 'RGB-светодиод', category: 'outputs', preview: 'rgb-led', description: 'Авторский RGB-светодиод с отдельными SVG-состояниями.', asset: 'rgb-led-off.svg', stateAssets: { default: 'rgb-led-off.svg', lit: 'rgb-led-lit.svg' } }),
+  future({ key: 'diode', label: 'Диод', category: 'basic', preview: 'diode', description: 'Авторский диод; электрическая модель будет добавлена позже.', asset: 'diode.svg' }),
+  future({ key: 'photoresistor', label: 'Фоторезистор', category: 'inputs', preview: 'photoresistor', description: 'Датчик освещённости.', asset: 'photoresistor.svg' }),
+  future({ key: 'seven-segment', label: 'Семисегментный индикатор', category: 'outputs', preview: 'seven-segment', description: 'Авторский многоконтактный индикатор.', asset: 'seven-segment.svg' }),
 ];
 
 export const WORKBENCH_CATALOG: readonly CatalogEntry[] = [...ACTIVE, ...FUTURE];
@@ -343,19 +208,14 @@ export function catalogEntry(kind: ComponentKind): CatalogEntry | null {
   return kind === 'wire' ? null : ACTIVE_COMPONENTS[kind];
 }
 
-export function visualAsset(
-  entry: CatalogEntry,
-  state: ComponentVisualState = 'default',
-): string | null {
+export function visualAsset(entry: CatalogEntry, state: ComponentVisualState = 'default'): string | null {
   return entry.stateAssets?.[state] ?? entry.stateAssets?.default ?? entry.asset;
 }
 
 export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number; height: number } {
   const scale = entry.renderWidth / entry.viewBox.width;
   const original = { width: entry.renderWidth, height: entry.viewBox.height * scale };
-  return Math.abs(rotation % 180) === 90
-    ? { width: original.height, height: original.width }
-    : original;
+  return Math.abs(rotation % 180) === 90 ? { width: original.height, height: original.width } : original;
 }
 
 export function terminalPosition(

@@ -28,11 +28,19 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
   }
   if (surface === 'review') {
     return (
-      <ChessReviewPage projectId={props.projectId} onBackToProject={() => setSurface('project')} />
+      <ChessReviewPage
+        projectId={props.projectId}
+        onBackToProject={() => setSurface('project')}
+      />
     );
   }
   if (surface === 'online') {
-    return <ChessOnlineLobby user={props.user} onBackToProject={() => setSurface('project')} />;
+    return (
+      <ChessOnlineLobby
+        user={props.user}
+        onBackToProject={() => setSurface('project')}
+      />
+    );
   }
   return (
     <div className="asa-chess-experience">

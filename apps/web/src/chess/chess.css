@@ -369,7 +369,7 @@
 .asa-chess-piece {
   position: relative;
   z-index: 3;
-  font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', serif;
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", serif;
   font-size: clamp(31px, 6.8vw, 73px);
   line-height: 1;
   transition: transform 100ms ease;
@@ -827,11 +827,7 @@
   border-radius: 9px;
   background: #f8fafb;
   color: #172431;
-  font:
-    13px/1.5 ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 .asa-chess-promotion {
@@ -859,7 +855,7 @@
 }
 
 .asa-chess-promotion > div button span {
-  font-family: 'Segoe UI Symbol', serif;
+  font-family: "Segoe UI Symbol", serif;
   font-size: 48px;
 }
 

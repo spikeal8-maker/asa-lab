@@ -1,209 +1,23 @@
 import { CATEGORY_LABELS, visualAsset, type ComponentCategory } from './component-catalog';
 import { ComponentPreview } from './component-preview';
-import {
-  CollapseIcon,
-  DeleteIcon,
-  DuplicateIcon,
-  ExpandIcon,
-  ListIcon,
-  MinusIcon,
-  RotateIcon,
-  SearchIcon,
-  WireIcon,
-} from './workbench-icons';
+import { CollapseIcon, DeleteIcon, DuplicateIcon, ExpandIcon, ListIcon, MinusIcon, RotateIcon, SearchIcon, WireIcon } from './workbench-icons';
 import { DRAG_MIME, WIRE_COLORS } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
-export function WorkbenchSidebars({
-  controller: c,
-}: {
-  controller: ElectronicsWorkbenchController;
-}): JSX.Element {
-  return (
-    <>
-      <aside
-        className={`workbench-library${c.libraryOpen ? '' : ' collapsed'}`}
-        aria-label="Библиотека компонентов"
-      >
-        <button
-          type="button"
-          className="workbench-library-collapse"
-          onClick={() => c.setLibraryOpen((value) => !value)}
-          aria-label={c.libraryOpen ? 'Свернуть библиотеку' : 'Открыть библиотеку'}
-        >
-          {c.libraryOpen ? <ExpandIcon /> : <CollapseIcon />}
-        </button>
-        {c.libraryOpen ? (
-          <>
-            <div className="workbench-library-heading">
-              <div>
-                <span>Компоненты</span>
-                <select
-                  value={c.category}
-                  onChange={(e) => c.setCategory(e.target.value as ComponentCategory)}
-                  aria-label="Категория компонентов"
-                >
-                  {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button type="button" aria-label="Вид списка">
-                <ListIcon />
-              </button>
-            </div>
-            <label className="workbench-library-search">
-              <span className="sr-only">Поиск компонентов</span>
-              <input
-                value={c.libraryQuery}
-                onChange={(e) => c.setLibraryQuery(e.target.value)}
-                placeholder="Поиск"
-              />
-              <SearchIcon />
-            </label>
-            <div className="workbench-catalog-grid">
-              {c.filteredCatalog.map((entry) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  className={`workbench-catalog-card${entry.enabled ? '' : ' disabled'}`}
-                  disabled={!entry.enabled}
-                  draggable={entry.enabled}
-                  onDragStart={(e) => {
-                    if (entry.kind) {
-                      e.dataTransfer.setData(DRAG_MIME, entry.kind);
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }
-                  }}
-                  onClick={() => entry.kind && entry.kind !== 'wire' && c.addComponent(entry.kind)}
-                  title={
-                    entry.enabled ? `Добавить: ${entry.label}` : `${entry.label}: появится позже`
-                  }
-                >
-                  <span className="workbench-catalog-art">
-                    <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
-                  </span>
-                  <span>{entry.label}</span>
-                  {!entry.enabled ? <small>Скоро</small> : null}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : null}
-      </aside>
-      {c.selection ? (
-        <aside
-          className={`workbench-inspector${c.libraryOpen ? '' : ' library-hidden'}`}
-          aria-label="Параметры выделения"
-        >
-          <div className="workbench-inspector-heading">
-            <div>
-              <span>
-                {c.selection.kind === 'wire' ? 'Провод' : (c.selectedEntry?.label ?? 'Компонент')}
-              </span>
-              <small>{c.selection.kind === 'wire' ? 'Соединение' : 'Параметры компонента'}</small>
-            </div>
-            <button
-              type="button"
-              onClick={() => c.setSelection(null)}
-              aria-label="Закрыть параметры"
-            >
-              <MinusIcon />
-            </button>
-          </div>
-          {c.selectedComponent && c.selectedEntry ? (
-            <div className="workbench-inspector-body">
-              <div className="workbench-inspector-preview">
-                <ComponentPreview
-                  preview={c.selectedEntry.preview}
-                  asset={visualAsset(c.selectedEntry, c.componentVisualState(c.selectedComponent))}
-                />
-              </div>
-              <label>
-                <span>
-                  {c.selectedComponent.kind === 'resistor'
-                    ? 'Сопротивление'
-                    : c.selectedComponent.kind === 'source'
-                      ? 'Напряжение'
-                      : 'Падение напряжения'}
-                </span>
-                <div className="workbench-value-field">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={c.selectedComponent.value}
-                    onChange={(e) => c.updateSelectedValue(Number(e.target.value))}
-                  />
-                  <span>{c.selectedEntry.unit}</span>
-                </div>
-              </label>
-              {c.simulationRunning && c.resultByComponent.get(c.selectedComponent.id) ? (
-                <dl className="workbench-measurements">
-                  <div>
-                    <dt>Ток</dt>
-                    <dd>
-                      {(c.resultByComponent.get(c.selectedComponent.id)?.current ?? 0) * 1000} мА
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Падение</dt>
-                    <dd>{c.resultByComponent.get(c.selectedComponent.id)?.voltageDrop ?? 0} В</dd>
-                  </div>
-                  {c.selectedComponent.kind === 'led' ? (
-                    <div>
-                      <dt>Состояние</dt>
-                      <dd>
-                        {c.resultByComponent.get(c.selectedComponent.id)?.lit
-                          ? 'Горит'
-                          : 'Не горит'}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
-              ) : null}
-              <div className="workbench-inspector-actions">
-                <button type="button" onClick={c.rotateSelected}>
-                  <RotateIcon /> Повернуть
-                </button>
-                <button type="button" onClick={c.duplicateSelected}>
-                  <DuplicateIcon /> Копировать
-                </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
-                  <DeleteIcon /> Удалить
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {c.selectedWire ? (
-            <div className="workbench-inspector-body">
-              <p>Цвет провода</p>
-              <div className="workbench-wire-swatches">
-                {WIRE_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={(c.selectedWire?.color ?? '#e3212b') === color ? 'active' : ''}
-                    style={{ background: color }}
-                    onClick={() => c.setWireColor(color)}
-                    aria-label={`Цвет ${color}`}
-                  />
-                ))}
-              </div>
-              <div className="workbench-inspector-actions">
-                <button type="button" onClick={c.toggleWireRoute}>
-                  <WireIcon /> Изгиб
-                </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
-                  <DeleteIcon /> Удалить
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </aside>
-      ) : null}
-    </>
-  );
+export function WorkbenchSidebars({ controller: c }: { controller: ElectronicsWorkbenchController }): JSX.Element {
+  return <>
+    <aside className={`workbench-library${c.libraryOpen ? '' : ' collapsed'}`} aria-label="Библиотека компонентов">
+      <button type="button" className="workbench-library-collapse" onClick={() => c.setLibraryOpen((value) => !value)} aria-label={c.libraryOpen ? 'Свернуть библиотеку' : 'Открыть библиотеку'}>{c.libraryOpen ? <ExpandIcon /> : <CollapseIcon />}</button>
+      {c.libraryOpen ? <>
+        <div className="workbench-library-heading"><div><span>Компоненты</span><select value={c.category} onChange={(e) => c.setCategory(e.target.value as ComponentCategory)} aria-label="Категория компонентов">{Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div><button type="button" aria-label="Вид списка"><ListIcon /></button></div>
+        <label className="workbench-library-search"><span className="sr-only">Поиск компонентов</span><input value={c.libraryQuery} onChange={(e) => c.setLibraryQuery(e.target.value)} placeholder="Поиск"/><SearchIcon /></label>
+        <div className="workbench-catalog-grid">{c.filteredCatalog.map((entry) => <button key={entry.key} type="button" className={`workbench-catalog-card${entry.enabled ? '' : ' disabled'}`} disabled={!entry.enabled} draggable={entry.enabled} onDragStart={(e) => { if (entry.kind) { e.dataTransfer.setData(DRAG_MIME, entry.kind); e.dataTransfer.effectAllowed = 'copy'; } }} onClick={() => entry.kind && entry.kind !== 'wire' && c.addComponent(entry.kind)} title={entry.enabled ? `Добавить: ${entry.label}` : `${entry.label}: появится позже`}><span className="workbench-catalog-art"><ComponentPreview preview={entry.preview} asset={visualAsset(entry)} /></span><span>{entry.label}</span>{!entry.enabled ? <small>Скоро</small> : null}</button>)}</div>
+      </> : null}
+    </aside>
+    {c.selection ? <aside className={`workbench-inspector${c.libraryOpen ? '' : ' library-hidden'}`} aria-label="Параметры выделения">
+      <div className="workbench-inspector-heading"><div><span>{c.selection.kind === 'wire' ? 'Провод' : c.selectedEntry?.label ?? 'Компонент'}</span><small>{c.selection.kind === 'wire' ? 'Соединение' : 'Параметры компонента'}</small></div><button type="button" onClick={() => c.setSelection(null)} aria-label="Закрыть параметры"><MinusIcon /></button></div>
+      {c.selectedComponent && c.selectedEntry ? <div className="workbench-inspector-body"><div className="workbench-inspector-preview"><ComponentPreview preview={c.selectedEntry.preview} asset={visualAsset(c.selectedEntry, c.componentVisualState(c.selectedComponent))} /></div><label><span>{c.selectedComponent.kind === 'resistor' ? 'Сопротивление' : c.selectedComponent.kind === 'source' ? 'Напряжение' : 'Падение напряжения'}</span><div className="workbench-value-field"><input type="number" min="0" step="any" value={c.selectedComponent.value} onChange={(e) => c.updateSelectedValue(Number(e.target.value))}/><span>{c.selectedEntry.unit}</span></div></label>{c.simulationRunning && c.resultByComponent.get(c.selectedComponent.id) ? <dl className="workbench-measurements"><div><dt>Ток</dt><dd>{(c.resultByComponent.get(c.selectedComponent.id)?.current ?? 0) * 1000} мА</dd></div><div><dt>Падение</dt><dd>{c.resultByComponent.get(c.selectedComponent.id)?.voltageDrop ?? 0} В</dd></div>{c.selectedComponent.kind === 'led' ? <div><dt>Состояние</dt><dd>{c.resultByComponent.get(c.selectedComponent.id)?.lit ? 'Горит' : 'Не горит'}</dd></div> : null}</dl> : null}<div className="workbench-inspector-actions"><button type="button" onClick={c.rotateSelected}><RotateIcon /> Повернуть</button><button type="button" onClick={c.duplicateSelected}><DuplicateIcon /> Копировать</button><button type="button" className="danger" onClick={c.removeSelection}><DeleteIcon /> Удалить</button></div></div> : null}
+      {c.selectedWire ? <div className="workbench-inspector-body"><p>Цвет провода</p><div className="workbench-wire-swatches">{WIRE_COLORS.map((color) => <button key={color} type="button" className={(c.selectedWire?.color ?? '#e3212b') === color ? 'active' : ''} style={{ background: color }} onClick={() => c.setWireColor(color)} aria-label={`Цвет ${color}`}/>)}</div><div className="workbench-inspector-actions"><button type="button" onClick={c.toggleWireRoute}><WireIcon /> Изгиб</button><button type="button" className="danger" onClick={c.removeSelection}><DeleteIcon /> Удалить</button></div></div> : null}
+    </aside> : null}
+  </>;
 }

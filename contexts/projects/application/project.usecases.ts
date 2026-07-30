@@ -11,7 +11,10 @@ import {
 import type { ModuleCatalogPort, ProjectListFilter, ProjectRepositoryPort } from './ports.js';
 
 export type ProjectErrorCode =
-  'validation_error' | 'idempotency_conflict' | 'classroom_not_found' | 'project_not_found';
+  | 'validation_error'
+  | 'idempotency_conflict'
+  | 'classroom_not_found'
+  | 'project_not_found';
 
 export type UseCaseResult<T> =
   | { readonly ok: true; readonly value: T }

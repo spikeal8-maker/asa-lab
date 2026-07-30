@@ -6,12 +6,10 @@ const request = {
   cookies: { asa_session: 'session-token' },
 } as never;
 
-function setup(
-  context: { tenantId: string; userId: string } | null = {
-    tenantId: 'tenant:session',
-    userId: 'user:session',
-  },
-) {
+function setup(context: { tenantId: string; userId: string } | null = {
+  tenantId: 'tenant:session',
+  userId: 'user:session',
+}) {
   const sessionUseCase = {
     resolve: vi.fn().mockResolvedValue(context),
   };
@@ -42,21 +40,11 @@ function setup(
       ok: true,
       value: { game: { gameId: 'game:1', version: 2 }, replayed: false, event: null },
     }),
-    offerDraw: vi
-      .fn()
-      .mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
-    acceptDraw: vi
-      .fn()
-      .mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
-    declineDraw: vi
-      .fn()
-      .mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
-    resign: vi
-      .fn()
-      .mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
-    claimTimeout: vi
-      .fn()
-      .mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
+    offerDraw: vi.fn().mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
+    acceptDraw: vi.fn().mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
+    declineDraw: vi.fn().mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
+    resign: vi.fn().mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
+    claimTimeout: vi.fn().mockResolvedValue({ ok: true, value: { game: {}, replayed: false, event: null } }),
     joinMatchmaking: vi.fn().mockResolvedValue({
       ok: true,
       value: { ticket: { id: 'ticket:1' }, game: null, replayed: false },
@@ -109,7 +97,7 @@ describe('ChessLiveController', () => {
     );
   });
 
-  it.each(['tenantId', 'tenant_id', 'userId', 'result', 'currentFen', 'winnerId'])(
+  it.each(['tenantId', 'tenant_id', 'userId', 'result', 'currentFen', 'winnerId']) (
     'rejects authoritative over-posted challenge field %s',
     async (field) => {
       const { controller, service } = setup();
@@ -185,7 +173,7 @@ describe('ChessLiveController', () => {
     );
   });
 
-  it.each(['tenantId', 'userId', 'fenAfter', 'clock', 'result', 'elapsedMs'])(
+  it.each(['tenantId', 'userId', 'fenAfter', 'clock', 'result', 'elapsedMs']) (
     'rejects forged move field %s',
     async (field) => {
       const { controller, service } = setup();

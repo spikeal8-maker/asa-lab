@@ -42,18 +42,13 @@ import { ProjectsController } from './projects.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { TOKENS } from './tokens.js';
 
-function validationMessage(
-  entry: RegisteredModule,
-  value: unknown,
-):
-  | {
-      readonly ok: true;
-      readonly document: unknown;
-    }
-  | {
-      readonly ok: false;
-      readonly message: string;
-    } {
+function validationMessage(entry: RegisteredModule, value: unknown): {
+  readonly ok: true;
+  readonly document: unknown;
+} | {
+  readonly ok: false;
+  readonly message: string;
+} {
   const provider = entry.provider;
   if (!provider) {
     return { ok: false, message: `module "${entry.manifest.moduleKey}" has no provider` };
@@ -63,7 +58,8 @@ function validationMessage(
     return {
       ok: false,
       message:
-        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
+        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') ||
+        'invalid document',
     };
   }
   return { ok: true, document: result.payload };
@@ -80,12 +76,14 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
-    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
+    const projectRepository = (): PgProjectRepository =>
+      new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
     // with APP_DATABASE_URL uses the durable RLS-protected repository.
     const persistentChessLiveRepository = pool ? new PgChessLiveRepository(pool) : null;
-    const chessLiveRepository = persistentChessLiveRepository ?? new MemoryChessLiveRepository();
+    const chessLiveRepository =
+      persistentChessLiveRepository ?? new MemoryChessLiveRepository();
     const chessLiveService = new ChessLiveService(
       chessLiveRepository,
       new SystemLiveClock(),
@@ -142,15 +140,18 @@ export class AppModule {
         },
         {
           provide: TOKENS.teachingContextUseCase,
-          useFactory: () => new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
+          useFactory: () =>
+            new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
         },
         {
           provide: TOKENS.createClassroomUseCase,
-          useFactory: () => new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () =>
+            new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
         },
         {
           provide: TOKENS.createProjectUseCase,
-          useFactory: () => new CreateProjectUseCase(projectRepository(), projectModules),
+          useFactory: () =>
+            new CreateProjectUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.listProjectsUseCase,
@@ -166,7 +167,8 @@ export class AppModule {
         },
         {
           provide: TOKENS.saveDraftUseCase,
-          useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
+          useFactory: () =>
+            new SaveDraftUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.createCheckpointUseCase,
@@ -174,7 +176,8 @@ export class AppModule {
         },
         {
           provide: TOKENS.listClassroomsUseCase,
-          useFactory: () => new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () =>
+            new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
         },
       ],
     };

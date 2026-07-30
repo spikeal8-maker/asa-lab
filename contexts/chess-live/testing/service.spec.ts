@@ -58,10 +58,9 @@ describe('ChessLiveService', () => {
         challenge: { id: first.ok ? first.value.challenge.id : '' },
       },
     });
-    expect(await service.createChallenge(creator, { ...command, rated: true })).toMatchObject({
-      ok: false,
-      code: 'idempotency_conflict',
-    });
+    expect(
+      await service.createChallenge(creator, { ...command, rated: true }),
+    ).toMatchObject({ ok: false, code: 'idempotency_conflict' });
   });
 
   it('derives tenant and actor from the principal and isolates challenge codes', async () => {
@@ -223,10 +222,18 @@ describe('ChessLiveService', () => {
       ok: true,
       value: [{ sequence: 3, type: 'move_played' }],
     });
-    const hidden = await fixture.service.spectatorEvents(spectator, fixture.game.gameId, 2);
+    const hidden = await fixture.service.spectatorEvents(
+      spectator,
+      fixture.game.gameId,
+      2,
+    );
     expect(hidden).toEqual({ ok: true, value: [] });
     fixture.clock.advance(15_000);
-    const visible = await fixture.service.spectatorEvents(spectator, fixture.game.gameId, 2);
+    const visible = await fixture.service.spectatorEvents(
+      spectator,
+      fixture.game.gameId,
+      2,
+    );
     expect(visible).toMatchObject({
       ok: true,
       value: [{ sequence: 3, type: 'move_played' }],

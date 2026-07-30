@@ -4,7 +4,9 @@ import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 
 type ListState =
-  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; items: Classroom[] };
 
 export function DashboardPage({
   onOpenProjects,
@@ -20,14 +22,11 @@ export function DashboardPage({
     setList({ kind: 'loading' });
     const result = await api.listClassrooms();
     if (result.ok) setList({ kind: 'ready', items: result.data.items });
-    else if (result.status === 0)
-      setList({ kind: 'error', message: 'Сервер недоступен. Проверьте соединение.' });
+    else if (result.status === 0) setList({ kind: 'error', message: 'Сервер недоступен. Проверьте соединение.' });
     else setList({ kind: 'error', message: 'Не удалось загрузить классы.' });
   }, []);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  useEffect(() => { void reload(); }, [reload]);
 
   function closeModal(): void {
     setModalOpen(false);
@@ -35,12 +34,7 @@ export function DashboardPage({
   }
 
   return (
-    <main
-      id="main-content"
-      className="portal-content"
-      tabIndex={-1}
-      aria-busy={list.kind === 'loading'}
-    >
+    <main id="main-content" className="portal-content" tabIndex={-1} aria-busy={list.kind === 'loading'}>
       <section className="portal-hero">
         <div>
           <p className="portal-eyebrow">Учебные группы</p>
@@ -51,66 +45,35 @@ export function DashboardPage({
           ref={createButtonRef}
           type="button"
           className="portal-create-button"
-          onClick={() => {
-            setNotice(null);
-            setModalOpen(true);
-          }}
+          onClick={() => { setNotice(null); setModalOpen(true); }}
         >
           <PlusIcon /> Создать класс
         </button>
       </section>
 
-      {notice ? (
-        <p className="notice-success" role="status" aria-live="polite">
-          {notice}
-        </p>
-      ) : null}
+      {notice ? <p className="notice-success" role="status" aria-live="polite">{notice}</p> : null}
 
       {list.kind === 'loading' ? (
-        <section className="classroom-gallery loading" role="status" aria-label="Загрузка классов">
-          <div />
-          <div />
-          <div />
-        </section>
+        <section className="classroom-gallery loading" role="status" aria-label="Загрузка классов"><div/><div/><div/></section>
       ) : null}
       {list.kind === 'error' ? (
-        <div className="portal-empty" role="alert">
-          <p>{list.message}</p>
-          <button type="button" className="btn-secondary" onClick={() => void reload()}>
-            Повторить
-          </button>
-        </div>
+        <div className="portal-empty" role="alert"><p>{list.message}</p><button type="button" className="btn-secondary" onClick={() => void reload()}>Повторить</button></div>
       ) : null}
       {list.kind === 'ready' && list.items.length === 0 ? (
         <section className="portal-empty">
-          <span className="portal-empty-icon">
-            <ClassesIcon />
-          </span>
+          <span className="portal-empty-icon"><ClassesIcon /></span>
           <h2>Создайте первый класс</h2>
           <p>Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.</p>
-          <button type="button" className="portal-create-button" onClick={() => setModalOpen(true)}>
-            <PlusIcon /> Создать класс
-          </button>
+          <button type="button" className="portal-create-button" onClick={() => setModalOpen(true)}><PlusIcon /> Создать класс</button>
         </section>
       ) : null}
       {list.kind === 'ready' && list.items.length > 0 ? (
         <ul className="classroom-gallery" data-testid="classroom-grid" aria-label="Мои классы">
           {list.items.map((classroom) => (
             <li key={classroom.id} className="classroom-gallery-card" data-testid="classroom-card">
-              <div className="classroom-card-icon">
-                <ClassesIcon />
-              </div>
-              <div className="classroom-card-copy">
-                <h2>{classroom.title}</h2>
-                <p>Активный класс</p>
-              </div>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => onOpenProjects(classroom.id, classroom.title)}
-              >
-                Открыть проекты класса
-              </button>
+              <div className="classroom-card-icon"><ClassesIcon /></div>
+              <div className="classroom-card-copy"><h2>{classroom.title}</h2><p>Активный класс</p></div>
+              <button type="button" className="btn-secondary" onClick={() => onOpenProjects(classroom.id, classroom.title)}>Открыть проекты класса</button>
             </li>
           ))}
         </ul>
@@ -121,14 +84,8 @@ export function DashboardPage({
           onClose={closeModal}
           onCreated={(classroom, created) => {
             setModalOpen(false);
-            setNotice(
-              created
-                ? `Класс «${classroom.title}» создан.`
-                : `Класс «${classroom.title}» уже существует.`,
-            );
-            window.requestAnimationFrame(() =>
-              createButtonRef.current?.focus({ preventScroll: true }),
-            );
+            setNotice(created ? `Класс «${classroom.title}» создан.` : `Класс «${classroom.title}» уже существует.`);
+            window.requestAnimationFrame(() => createButtonRef.current?.focus({ preventScroll: true }));
             void reload();
           }}
         />

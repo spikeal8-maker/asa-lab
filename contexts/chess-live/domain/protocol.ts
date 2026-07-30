@@ -1,4 +1,8 @@
-import type { LiveChessEvent, LiveChessParticipantView, LiveTimeControl } from './model.js';
+import type {
+  LiveChessEvent,
+  LiveChessParticipantView,
+  LiveTimeControl,
+} from './model.js';
 
 export const CHESS_LIVE_PROTOCOL_VERSION = 'asa-chess-live-v1' as const;
 
@@ -18,12 +22,7 @@ export type ChessLiveClientMessage =
       readonly uci: string;
     }
   | {
-      readonly type:
-        | 'game.offer_draw'
-        | 'game.accept_draw'
-        | 'game.decline_draw'
-        | 'game.resign'
-        | 'game.claim_timeout';
+      readonly type: 'game.offer_draw' | 'game.accept_draw' | 'game.decline_draw' | 'game.resign' | 'game.claim_timeout';
       readonly gameId: string;
       readonly commandId: string;
       readonly expectedVersion: number;
@@ -123,9 +122,7 @@ export function isChessLiveClientMessage(value: unknown): value is ChessLiveClie
     return false;
   }
   if (message['type'] === 'game.move') {
-    return (
-      typeof message['uci'] === 'string' && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(message['uci'])
-    );
+    return typeof message['uci'] === 'string' && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(message['uci']);
   }
   return !('uci' in message);
 }

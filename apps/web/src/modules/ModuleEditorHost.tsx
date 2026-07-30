@@ -15,7 +15,9 @@ const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
 };
 
 type HostState =
-  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; moduleKey: string };
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; moduleKey: string };
 
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */

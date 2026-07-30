@@ -92,7 +92,8 @@ interface LiveApiError {
 }
 
 export type LiveApiResult<T> =
-  { ok: true; status: number; data: T } | { ok: false; status: number; error: LiveApiError };
+  | { ok: true; status: number; data: T }
+  | { ok: false; status: number; error: LiveApiError };
 
 async function call<T>(path: string, init?: RequestInit): Promise<LiveApiResult<T>> {
   let response: Response;
@@ -122,10 +123,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<LiveApiResult<
   return {
     ok: false,
     status: response.status,
-    error: (body as { error?: LiveApiError } | null)?.error ?? {
-      code: 'server_error',
-      message: 'Неизвестная ошибка онлайн-шахмат.',
-    },
+    error:
+      (body as { error?: LiveApiError } | null)?.error ??
+      { code: 'server_error', message: 'Неизвестная ошибка онлайн-шахмат.' },
   };
 }
 

@@ -7,6 +7,11 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": ["index.ts", "domain/**/*.ts", "application/**/*.ts", "infrastructure/**/*.ts"],
+  "include": [
+    "index.ts",
+    "domain/**/*.ts",
+    "application/**/*.ts",
+    "infrastructure/**/*.ts"
+  ],
   "exclude": ["dist", "testing"]
 }

@@ -59,7 +59,8 @@ export interface ChessStatus {
 }
 
 export type ChessParseResult<T> =
-  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string };
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly message: string };
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -161,7 +162,9 @@ function coordinates(index: number): readonly [file: number, rank: number] {
 }
 
 function indexAt(file: number, rank: number): number | null {
-  return isIntegerInRange(file, 0, 7) && isIntegerInRange(rank, 0, 7) ? rank * 8 + file : null;
+  return isIntegerInRange(file, 0, 7) && isIntegerInRange(rank, 0, 7)
+    ? rank * 8 + file
+    : null;
 }
 
 export function pieceAt(position: ChessPosition, square: Square): Piece | null {
@@ -189,8 +192,7 @@ function parseBoardField(field: string): ChessParseResult<readonly (Piece | null
         continue;
       }
       const pieceType = PIECE_FROM_FEN[token.toLowerCase()];
-      if (!pieceType || file > 7)
-        return { ok: false, message: `Invalid FEN piece token: ${token}.` };
+      if (!pieceType || file > 7) return { ok: false, message: `Invalid FEN piece token: ${token}.` };
       const color: Color = token === token.toUpperCase() ? 'white' : 'black';
       if (pieceType === 'pawn' && (rank === 0 || rank === 7)) {
         return { ok: false, message: 'Pawns cannot stand on the first or eighth rank.' };
@@ -202,14 +204,10 @@ function parseBoardField(field: string): ChessParseResult<readonly (Piece | null
       }
       file += 1;
     }
-    if (file !== 8)
-      return { ok: false, message: `FEN rank ${8 - fenRow} does not contain eight squares.` };
+    if (file !== 8) return { ok: false, message: `FEN rank ${8 - fenRow} does not contain eight squares.` };
   }
   if (whiteKings !== 1 || blackKings !== 1) {
-    return {
-      ok: false,
-      message: 'A standard position must contain exactly one king of each color.',
-    };
+    return { ok: false, message: 'A standard position must contain exactly one king of each color.' };
   }
   return { ok: true, value: board };
 }
@@ -396,7 +394,9 @@ function pseudoMovesForPiece(position: ChessPosition, fromIndex: number): ChessM
         const capturedIndex = indexAt(file + fileStep, rank);
         const captured = capturedIndex === null ? null : position.board[capturedIndex];
         if (captured?.color === opposite(piece.color) && captured.type === 'pawn') {
-          moves.push(makeMove(fromIndex, targetIndex, { isCapture: true, isEnPassant: true }));
+          moves.push(
+            makeMove(fromIndex, targetIndex, { isCapture: true, isEnPassant: true }),
+          );
         }
       }
     }
@@ -504,13 +504,15 @@ function pseudoMovesForPiece(position: ChessPosition, fromIndex: number): ChessM
 }
 
 export function findKing(position: ChessPosition, color: Color): Square | null {
-  const index = position.board.findIndex(
-    (piece) => piece?.color === color && piece.type === 'king',
-  );
+  const index = position.board.findIndex((piece) => piece?.color === color && piece.type === 'king');
   return index < 0 ? null : indexToSquare(index);
 }
 
-export function isSquareAttacked(position: ChessPosition, square: Square, byColor: Color): boolean {
+export function isSquareAttacked(
+  position: ChessPosition,
+  square: Square,
+  byColor: Color,
+): boolean {
   const targetIndex = squareToIndex(square);
   const [targetFile, targetRank] = coordinates(targetIndex);
 
@@ -568,7 +570,10 @@ export function isSquareAttacked(position: ChessPosition, square: Square, byColo
   return false;
 }
 
-function updateCastlingForSquare(rights: CastlingRights, square: Square): CastlingRights {
+function updateCastlingForSquare(
+  rights: CastlingRights,
+  square: Square,
+): CastlingRights {
   if (square === 'a1') return { ...rights, whiteQueenSide: false };
   if (square === 'h1') return { ...rights, whiteKingSide: false };
   if (square === 'a8') return { ...rights, blackQueenSide: false };
@@ -595,8 +600,20 @@ export function applyMoveUnchecked(position: ChessPosition, move: ChessMove): Ch
   board[toIndex] = move.promotion ? { color: piece.color, type: move.promotion } : piece;
   if (move.isCastleKingSide || move.isCastleQueenSide) {
     const white = piece.color === 'white';
-    const rookFrom = move.isCastleKingSide ? (white ? 'h1' : 'h8') : white ? 'a1' : 'a8';
-    const rookTo = move.isCastleKingSide ? (white ? 'f1' : 'f8') : white ? 'd1' : 'd8';
+    const rookFrom = move.isCastleKingSide
+      ? white
+        ? 'h1'
+        : 'h8'
+      : white
+        ? 'a1'
+        : 'a8';
+    const rookTo = move.isCastleKingSide
+      ? white
+        ? 'f1'
+        : 'f8'
+      : white
+        ? 'd1'
+        : 'd8';
     const rook = board[squareToIndex(rookFrom)];
     board[squareToIndex(rookFrom)] = null;
     board[squareToIndex(rookTo)] = rook;
@@ -616,7 +633,7 @@ export function applyMoveUnchecked(position: ChessPosition, move: ChessMove): Ch
   if (move.isDoublePawnPush) {
     const [fromFile, fromRank] = coordinates(fromIndex);
     const [, toRank] = coordinates(toIndex);
-    enPassant = indexToSquare(Math.floor((fromRank + toRank) / 2) * 8 + fromFile);
+    enPassant = indexToSquare((Math.floor((fromRank + toRank) / 2) * 8) + fromFile);
   }
 
   const isPawnMove = piece.type === 'pawn';
@@ -717,24 +734,19 @@ export function findLegalMoveBySan(position: ChessPosition, san: string): ChessM
   const matches = generateLegalMoves(position).filter(
     (move) => normalizedSan(moveToSan(position, move)) === normalized,
   );
-  return matches.length === 1 ? (matches[0] ?? null) : null;
+  return matches.length === 1 ? matches[0] ?? null : null;
 }
 
 export function applyLegalMove(
   position: ChessPosition,
   moveOrNotation: ChessMove | string,
-): ChessParseResult<{
-  readonly position: ChessPosition;
-  readonly move: ChessMove;
-  readonly san: string;
-}> {
+): ChessParseResult<{ readonly position: ChessPosition; readonly move: ChessMove; readonly san: string }> {
   const move =
     typeof moveOrNotation === 'string'
-      ? (findLegalMoveByUci(position, moveOrNotation) ??
-        findLegalMoveBySan(position, moveOrNotation))
-      : (generateLegalMoves(position).find(
+      ? findLegalMoveByUci(position, moveOrNotation) ?? findLegalMoveBySan(position, moveOrNotation)
+      : generateLegalMoves(position).find(
           (candidate) => moveToUci(candidate) === moveToUci(moveOrNotation),
-        ) ?? null);
+        ) ?? null;
   if (!move) return { ok: false, message: 'Illegal or ambiguous chess move.' };
   const san = moveToSan(position, move);
   return { ok: true, value: { position: applyMoveUnchecked(position, move), move, san } };
@@ -747,10 +759,7 @@ export function positionKey(position: ChessPosition): string {
 export function hasInsufficientMaterial(position: ChessPosition): boolean {
   const nonKings = position.board
     .map((piece, index) => ({ piece, index }))
-    .filter(
-      (entry): entry is { piece: Piece; index: number } =>
-        entry.piece !== null && entry.piece.type !== 'king',
-    );
+    .filter((entry): entry is { piece: Piece; index: number } => entry.piece !== null && entry.piece.type !== 'king');
   if (nonKings.length === 0) return true;
   if (
     nonKings.length === 1 &&
@@ -833,8 +842,7 @@ export function getChessStatus(
 }
 
 export function perft(position: ChessPosition, depth: number): number {
-  if (!Number.isInteger(depth) || depth < 0)
-    throw new Error('Perft depth must be a non-negative integer.');
+  if (!Number.isInteger(depth) || depth < 0) throw new Error('Perft depth must be a non-negative integer.');
   if (depth === 0) return 1;
   let nodes = 0;
   for (const move of generateLegalMoves(position)) {

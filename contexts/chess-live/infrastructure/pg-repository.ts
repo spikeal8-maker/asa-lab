@@ -6,7 +6,11 @@ import type {
   ChessRatingState,
 } from '../domain/rating.js';
 import type { MatchmakingTicket } from '../domain/matchmaking.js';
-import type { LiveChessChallenge, LiveChessEvent, LiveChessGame } from '../domain/model.js';
+import type {
+  LiveChessChallenge,
+  LiveChessEvent,
+  LiveChessGame,
+} from '../domain/model.js';
 import type {
   ChessLiveRepositoryPort,
   LiveCommandReceipt,
@@ -51,7 +55,8 @@ function mapEvent(row: Record<string, unknown>): LiveChessEvent {
     id: String(row['id']),
     tenantId: String(row['tenant_id']),
     gameId: row['game_id'] === null ? null : String(row['game_id']),
-    challengeId: row['challenge_id'] === null ? null : String(row['challenge_id']),
+    challengeId:
+      row['challenge_id'] === null ? null : String(row['challenge_id']),
     sequence: asNumber(row['sequence']),
     type: row['event_type'] as LiveChessEvent['type'],
     actorId: row['actor_id'] === null ? null : String(row['actor_id']),
@@ -60,7 +65,10 @@ function mapEvent(row: Record<string, unknown>): LiveChessEvent {
   };
 }
 
-async function insertReceipt(client: pg.PoolClient, receipt: LiveCommandReceipt): Promise<void> {
+async function insertReceipt(
+  client: pg.PoolClient,
+  receipt: LiveCommandReceipt,
+): Promise<void> {
   await client.query(
     `INSERT INTO chess_live_command_receipts
        (tenant_id, actor_id, command_id, command_kind, fingerprint,
@@ -137,7 +145,10 @@ async function insertChallenge(
   );
 }
 
-async function insertGame(client: pg.PoolClient, game: LiveChessGame): Promise<void> {
+async function insertGame(
+  client: pg.PoolClient,
+  game: LiveChessGame,
+): Promise<void> {
   await client.query(
     `INSERT INTO chess_live_games
        (id, tenant_id, challenge_id, white_player_id, black_player_id,
@@ -168,7 +179,10 @@ async function insertGame(client: pg.PoolClient, game: LiveChessGame): Promise<v
   );
 }
 
-async function insertTicket(client: pg.PoolClient, ticket: MatchmakingTicket): Promise<void> {
+async function insertTicket(
+  client: pg.PoolClient,
+  ticket: MatchmakingTicket,
+): Promise<void> {
   await client.query(
     `INSERT INTO chess_matchmaking_tickets
        (id, tenant_id, player_id, rating_pool, initial_ms, increment_ms,
@@ -215,12 +229,18 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     });
   }
 
-  async saveCommandReceipt(receipt: LiveCommandReceipt): Promise<RepositoryWriteResult> {
+  async saveCommandReceipt(
+    receipt: LiveCommandReceipt,
+  ): Promise<RepositoryWriteResult> {
     try {
-      return await withTenantContext(this.pool, receipt.tenantId, async (client) => {
-        await insertReceipt(client, receipt);
-        return { ok: true } as const;
-      });
+      return await withTenantContext(
+        this.pool,
+        receipt.tenantId,
+        async (client) => {
+          await insertReceipt(client, receipt);
+          return { ok: true } as const;
+        },
+      );
     } catch (error) {
       if (duplicate(error)) return { ok: false, reason: 'duplicate' };
       throw error;
@@ -233,12 +253,16 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     receipt: LiveCommandReceipt,
   ): Promise<RepositoryWriteResult> {
     try {
-      return await withTenantContext(this.pool, challenge.tenantId, async (client) => {
-        await insertChallenge(client, challenge);
-        await insertEvents(client, [event]);
-        await insertReceipt(client, receipt);
-        return { ok: true } as const;
-      });
+      return await withTenantContext(
+        this.pool,
+        challenge.tenantId,
+        async (client) => {
+          await insertChallenge(client, challenge);
+          await insertEvents(client, [event]);
+          await insertReceipt(client, receipt);
+          return { ok: true } as const;
+        },
+      );
     } catch (error) {
       if (duplicate(error)) return { ok: false, reason: 'duplicate' };
       throw error;
@@ -286,9 +310,12 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     receipt: LiveCommandReceipt,
   ): Promise<RepositoryWriteResult> {
     try {
-      return await withTenantContext(this.pool, challenge.tenantId, async (client) => {
-        const updated = await client.query(
-          `UPDATE chess_live_challenges
+      return await withTenantContext(
+        this.pool,
+        challenge.tenantId,
+        async (client) => {
+          const updated = await client.query(
+            `UPDATE chess_live_challenges
                 SET status = $2,
                     accepted_by_id = $3,
                     accepted_at_ms = $4,
@@ -296,22 +323,23 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
                     version = $6,
                     challenge_json = $7
               WHERE id = $1 AND version = $8`,
-          [
-            challenge.id,
-            challenge.status,
-            challenge.acceptedById,
-            challenge.acceptedAtMs,
-            challenge.gameId,
-            challenge.version,
-            challenge,
-            expectedVersion,
-          ],
-        );
-        if (updated.rowCount !== 1) return { ok: false, reason: 'conflict' } as const;
-        await insertEvents(client, events);
-        await insertReceipt(client, receipt);
-        return { ok: true } as const;
-      });
+            [
+              challenge.id,
+              challenge.status,
+              challenge.acceptedById,
+              challenge.acceptedAtMs,
+              challenge.gameId,
+              challenge.version,
+              challenge,
+              expectedVersion,
+            ],
+          );
+          if (updated.rowCount !== 1) return { ok: false, reason: 'conflict' } as const;
+          await insertEvents(client, events);
+          await insertReceipt(client, receipt);
+          return { ok: true } as const;
+        },
+      );
     } catch (error) {
       if (duplicate(error)) return { ok: false, reason: 'duplicate' };
       throw error;
@@ -326,10 +354,13 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     receipt: LiveCommandReceipt,
   ): Promise<RepositoryWriteResult> {
     try {
-      return await withTenantContext(this.pool, challenge.tenantId, async (client) => {
-        await insertGame(client, game);
-        const updated = await client.query(
-          `UPDATE chess_live_challenges
+      return await withTenantContext(
+        this.pool,
+        challenge.tenantId,
+        async (client) => {
+          await insertGame(client, game);
+          const updated = await client.query(
+            `UPDATE chess_live_challenges
                 SET status = $2,
                     accepted_by_id = $3,
                     accepted_at_ms = $4,
@@ -337,22 +368,23 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
                     version = $6,
                     challenge_json = $7
               WHERE id = $1 AND version = $8 AND status = 'open'`,
-          [
-            challenge.id,
-            challenge.status,
-            challenge.acceptedById,
-            challenge.acceptedAtMs,
-            challenge.gameId,
-            challenge.version,
-            challenge,
-            expectedChallengeVersion,
-          ],
-        );
-        if (updated.rowCount !== 1) return { ok: false, reason: 'conflict' } as const;
-        await insertEvents(client, events);
-        await insertReceipt(client, receipt);
-        return { ok: true } as const;
-      });
+            [
+              challenge.id,
+              challenge.status,
+              challenge.acceptedById,
+              challenge.acceptedAtMs,
+              challenge.gameId,
+              challenge.version,
+              challenge,
+              expectedChallengeVersion,
+            ],
+          );
+          if (updated.rowCount !== 1) return { ok: false, reason: 'conflict' } as const;
+          await insertEvents(client, events);
+          await insertReceipt(client, receipt);
+          return { ok: true } as const;
+        },
+      );
     } catch (error) {
       if (duplicate(error)) return { ok: false, reason: 'duplicate' };
       throw error;
@@ -375,7 +407,10 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     }
   }
 
-  async getGame(tenantId: string, gameId: string): Promise<LiveChessGame | null> {
+  async getGame(
+    tenantId: string,
+    gameId: string,
+  ): Promise<LiveChessGame | null> {
     return withTenantContext(this.pool, tenantId, async (client) => {
       const result = await client.query(
         `SELECT game_json
@@ -383,7 +418,9 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
           WHERE id = $1`,
         [gameId],
       );
-      return result.rowCount ? cloneJson<LiveChessGame>(result.rows[0].game_json, 'game') : null;
+      return result.rowCount
+        ? cloneJson<LiveChessGame>(result.rows[0].game_json, 'game')
+        : null;
     });
   }
 
@@ -469,7 +506,10 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     }
   }
 
-  async getTicket(tenantId: string, ticketId: string): Promise<MatchmakingTicket | null> {
+  async getTicket(
+    tenantId: string,
+    ticketId: string,
+  ): Promise<MatchmakingTicket | null> {
     return withTenantContext(this.pool, tenantId, async (client) => {
       const result = await client.query(
         `SELECT ticket_json
@@ -483,7 +523,9 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
     });
   }
 
-  async listQueuedTickets(tenantId: string): Promise<readonly MatchmakingTicket[]> {
+  async listQueuedTickets(
+    tenantId: string,
+  ): Promise<readonly MatchmakingTicket[]> {
     return withTenantContext(this.pool, tenantId, async (client) => {
       const result = await client.query(
         `SELECT ticket_json
@@ -511,7 +553,14 @@ export class PgChessLiveRepository implements ChessLiveRepositoryPort {
                   version = $4,
                   ticket_json = $5
             WHERE id = $1 AND version = $6`,
-          [ticket.id, ticket.status, ticket.pairedGameId, ticket.version, ticket, expectedVersion],
+          [
+            ticket.id,
+            ticket.status,
+            ticket.pairedGameId,
+            ticket.version,
+            ticket,
+            expectedVersion,
+          ],
         );
         if (updated.rowCount !== 1) return { ok: false, reason: 'conflict' } as const;
         await insertReceipt(client, receipt);

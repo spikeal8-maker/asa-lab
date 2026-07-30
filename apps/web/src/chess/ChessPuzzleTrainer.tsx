@@ -39,9 +39,7 @@ function ProgressDots({
       {Array.from({ length: total }, (_, index) => (
         <span
           key={index}
-          className={
-            index < cursor ? 'complete' : index === cursor && status === 'active' ? 'current' : ''
-          }
+          className={index < cursor ? 'complete' : index === cursor && status === 'active' ? 'current' : ''}
         />
       ))}
     </div>
@@ -53,9 +51,7 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
   const puzzle: ChessPuzzle = ASA_STARTER_PUZZLES[puzzleIndex] ?? ASA_STARTER_PUZZLES[0]!;
   const [session, setSession] = useState(() => createChessPuzzleSession(puzzle));
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [notice, setNotice] = useState(
-    'Найдите лучший ход за сторону, которой принадлежит очередь.',
-  );
+  const [notice, setNotice] = useState('Найдите лучший ход за сторону, которой принадлежит очередь.');
   const [hint, setHint] = useState<string | null>(null);
 
   const position = useMemo(() => safePosition(session), [session]);
@@ -102,9 +98,7 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
       if (piece?.color === position.turn) setSelectedSquare(square);
       return;
     }
-    const candidates = legalMoves.filter(
-      (move) => move.from === selectedSquare && move.to === square,
-    );
+    const candidates = legalMoves.filter((move) => move.from === selectedSquare && move.to === square);
     if (candidates.length === 1) {
       play(candidates[0]!);
       return;
@@ -183,11 +177,7 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
               ))}
             </div>
           </div>
-          <ProgressDots
-            total={puzzle.solutionUci.length}
-            cursor={session.cursor}
-            status={session.status}
-          />
+          <ProgressDots total={puzzle.solutionUci.length} cursor={session.cursor} status={session.status} />
           <section
             className={`asa-puzzle-feedback ${session.status === 'solved' ? 'solved' : ''}`}
             aria-live="polite"
@@ -197,33 +187,18 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
             {hint && <p className="asa-puzzle-hint">{hint}</p>}
           </section>
           <dl className="asa-puzzle-stats">
-            <div>
-              <dt>Попытки</dt>
-              <dd>{session.attempts}</dd>
-            </div>
-            <div>
-              <dt>Ошибки</dt>
-              <dd>{session.mistakes}</dd>
-            </div>
-            <div>
-              <dt>Подсказки</dt>
-              <dd>{session.hintsUsed}</dd>
-            </div>
+            <div><dt>Попытки</dt><dd>{session.attempts}</dd></div>
+            <div><dt>Ошибки</dt><dd>{session.mistakes}</dd></div>
+            <div><dt>Подсказки</dt><dd>{session.hintsUsed}</dd></div>
           </dl>
           <div className="asa-puzzle-actions">
             <button type="button" onClick={requestHint} disabled={session.status === 'solved'}>
               Подсказка
             </button>
-            <button type="button" onClick={reset}>
-              Сбросить
-            </button>
+            <button type="button" onClick={reset}>Сбросить</button>
           </div>
           <div className="asa-puzzle-navigation">
-            <button
-              type="button"
-              disabled={!canGoPrevious}
-              onClick={() => setPuzzle(puzzleIndex - 1)}
-            >
+            <button type="button" disabled={!canGoPrevious} onClick={() => setPuzzle(puzzleIndex - 1)}>
               Предыдущая
             </button>
             <button
@@ -236,7 +211,7 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
             </button>
           </div>
           <p className="asa-puzzle-disclaimer">
-            Оригинальный набор ASA не является копией базы задач Chess.com.
+            Это небольшой оригинальный набор для проверки механики. Он не является копией базы задач Chess.com.
           </p>
         </aside>
       </div>

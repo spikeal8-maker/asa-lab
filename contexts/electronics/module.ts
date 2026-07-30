@@ -1,9 +1,5 @@
 import { defineModule, type ModuleDiagnostic } from '@asa-lab/module-sdk';
-import {
-  EMPTY_DOCUMENT,
-  parseElectronicsDocument,
-  type ElectronicsDocument,
-} from './domain/document.js';
+import { EMPTY_DOCUMENT, parseElectronicsDocument, type ElectronicsDocument } from './domain/document.js';
 import { solveCircuit, type SolveResult } from './domain/solver.js';
 
 const ELECTRONICS_MANIFEST = {

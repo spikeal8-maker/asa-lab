@@ -16,11 +16,9 @@ type SortMode = 'recent' | 'title';
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }).format(
+    date,
+  );
 }
 
 export function MyProjectsPage({
@@ -96,10 +94,8 @@ export function MyProjectsPage({
       setError(result.error.message || 'Не удалось переименовать проект.');
       return;
     }
-    setItems(
-      (current) =>
-        current?.map((project) => (project.id === projectId ? result.data.project : project)) ??
-        null,
+    setItems((current) =>
+      current?.map((project) => (project.id === projectId ? result.data.project : project)) ?? null,
     );
     setRenamingId(null);
   }
@@ -111,8 +107,8 @@ export function MyProjectsPage({
           <p className="portal-eyebrow">Личная мастерская педагога</p>
           <h1>Мои проекты</h1>
           <p>
-            Создавайте демонстрации во всех доступных средах, сохраняйте версии и готовьте будущие
-            задания независимо от классов.
+            Создавайте демонстрации во всех доступных средах, сохраняйте версии и готовьте
+            будущие задания независимо от классов.
           </p>
         </div>
         <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
@@ -143,10 +139,7 @@ export function MyProjectsPage({
         </label>
         <label>
           <span className="sr-only">Сортировка проектов</span>
-          <select
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as SortMode)}
-          >
+          <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
             <option value="recent">Сначала новые</option>
             <option value="title">По названию</option>
           </select>
@@ -204,21 +197,12 @@ export function MyProjectsPage({
                   className="project-preview project-module-preview"
                   onClick={() => onOpenProject(project.id)}
                 >
-                  {module ? (
-                    <ModuleGlyph module={module} size={64} />
-                  ) : (
-                    <span aria-hidden="true">?</span>
-                  )}
-                  <span className="project-preview-label">
-                    {module?.displayName ?? project.moduleKey}
-                  </span>
+                  {module ? <ModuleGlyph module={module} size={64} /> : <span aria-hidden="true">?</span>}
+                  <span className="project-preview-label">{module?.displayName ?? project.moduleKey}</span>
                 </button>
                 <div className="project-card-meta project-card-details">
                   {renamingId === project.id ? (
-                    <form
-                      className="project-rename-form"
-                      onSubmit={(event) => void rename(event, project.id)}
-                    >
+                    <form className="project-rename-form" onSubmit={(event) => void rename(event, project.id)}>
                       <label className="sr-only" htmlFor={`rename-${project.id}`}>
                         Новое название проекта
                       </label>
@@ -233,11 +217,7 @@ export function MyProjectsPage({
                         <button type="submit" className="btn-secondary" disabled={renameBusy}>
                           Сохранить
                         </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => setRenamingId(null)}
-                        >
+                        <button type="button" className="btn-ghost" onClick={() => setRenamingId(null)}>
                           Отмена
                         </button>
                       </div>
@@ -260,11 +240,7 @@ export function MyProjectsPage({
                         >
                           Открыть
                         </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => beginRename(project)}
-                        >
+                        <button type="button" className="btn-ghost" onClick={() => beginRename(project)}>
                           Переименовать
                         </button>
                       </div>

@@ -52,8 +52,7 @@ export function formatChessClock(milliseconds: number): string {
 
 export function resultLabel(result: string, termination: string): string {
   if (result === '*') return 'Партия продолжается';
-  const resultText =
-    result === '1-0' ? 'Белые победили' : result === '0-1' ? 'Чёрные победили' : 'Ничья';
+  const resultText = result === '1-0' ? 'Белые победили' : result === '0-1' ? 'Чёрные победили' : 'Ничья';
   const reason: Readonly<Record<string, string>> = {
     checkmate: 'мат',
     stalemate: 'пат',

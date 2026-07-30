@@ -40,8 +40,7 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
     createWithDraft: async (input) => {
       creates.push(input);
       const previous = creates.find(
-        (entry, index) =>
-          index < creates.length - 1 && entry.idempotencyKey === input.idempotencyKey,
+        (entry, index) => index < creates.length - 1 && entry.idempotencyKey === input.idempotencyKey,
       );
       if (previous && previous.requestFingerprint !== input.requestFingerprint) {
         return { kind: 'conflict' };
@@ -120,11 +119,7 @@ describe('create project', () => {
     const empty = { schemaVersion: 1, components: [], connections: [] };
     const result = await new CreateProjectUseCase(port, catalog(empty)).execute(personalInput);
     expect(result.ok && result.value.created).toBe(true);
-    expect(creates[0]).toMatchObject({
-      scope: 'personal',
-      classroomId: null,
-      initialDocument: empty,
-    });
+    expect(creates[0]).toMatchObject({ scope: 'personal', classroomId: null, initialDocument: empty });
     expect(creates[0]?.requestFingerprint).toBe(
       projectRequestFingerprint({
         scope: 'personal',
@@ -180,9 +175,9 @@ describe('list, rename, draft and checkpoint', () => {
     });
     const usecase = new ListProjectsUseCase(port);
     expect((await usecase.execute('t1', 'u1', { scope: 'personal' })).ok).toBe(true);
-    expect((await usecase.execute('t1', 'u1', { scope: 'classroom', classroomId: 'c1' })).ok).toBe(
-      true,
-    );
+    expect(
+      (await usecase.execute('t1', 'u1', { scope: 'classroom', classroomId: 'c1' })).ok,
+    ).toBe(true);
     expect(seen).toEqual([{ scope: 'personal' }, { scope: 'classroom', classroomId: 'c1' }]);
   });
 

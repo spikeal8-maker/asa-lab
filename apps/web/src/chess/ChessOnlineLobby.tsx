@@ -115,26 +115,27 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
   const [game, setGame] = useState<LiveGameView | null>(null);
   const [rating, setRating] = useState<LiveRatingView | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [notice, setNotice] = useState(
-    'Создайте вызов, введите код соперника или войдите в очередь.',
-  );
+  const [notice, setNotice] = useState('Создайте вызов, введите код соперника или войдите в очередь.');
   const [busy, setBusy] = useState(false);
   const [pollTick, setPollTick] = useState(0);
   const matchmakingCommandRef = useRef<string | null>(null);
 
   const preset = TIME_PRESETS[presetIndex] ?? TIME_PRESETS[3]!;
   const position = useMemo(() => positionFromGame(game), [game]);
-  const legalMoves = useMemo(() => (position ? generateLegalMoves(position) : []), [position]);
+  const legalMoves = useMemo(
+    () => (position ? generateLegalMoves(position) : []),
+    [position],
+  );
   const selectedMoves = useMemo(
     () => legalMoves.filter((move) => move.from === selectedSquare),
     [legalMoves, selectedSquare],
   );
   const canMove = Boolean(
     game &&
-    position &&
-    game.status === 'active' &&
-    game.viewerColor === position.turn &&
-    game.activeColor === position.turn,
+      position &&
+      game.status === 'active' &&
+      game.viewerColor === position.turn &&
+      game.activeColor === position.turn,
   );
 
   useEffect(() => {
@@ -228,7 +229,10 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
     const code = joinCode.trim().toUpperCase();
     if (!code) return;
     setBusy(true);
-    const response = await chessLiveApi.acceptChallenge(code, newCommandId('challenge-accept'));
+    const response = await chessLiveApi.acceptChallenge(
+      code,
+      newCommandId('challenge-accept'),
+    );
     setBusy(false);
     if (!response.ok) {
       setNotice(response.error.message);
@@ -336,10 +340,9 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
 
   function dragMove(from: Square, to: Square): void {
     const candidates = legalMoves.filter((move) => move.from === from && move.to === to);
-    const move =
-      candidates.length === 1
-        ? candidates[0]
-        : candidates.find((candidate) => candidate.promotion === 'queen');
+    const move = candidates.length === 1
+      ? candidates[0]
+      : candidates.find((candidate) => candidate.promotion === 'queen');
     if (move) void play(move);
   }
 
@@ -376,8 +379,8 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
     const bottomColor: LiveColor = viewer === 'black' ? 'black' : 'white';
     const opponentOffered = Boolean(
       game.drawOffer &&
-      ((viewer === 'white' && game.drawOffer.offeredBy === game.blackPlayerId) ||
-        (viewer === 'black' && game.drawOffer.offeredBy === game.whitePlayerId)),
+        ((viewer === 'white' && game.drawOffer.offeredBy === game.blackPlayerId) ||
+          (viewer === 'black' && game.drawOffer.offeredBy === game.whitePlayerId)),
     );
     return (
       <main className="asa-online-shell">
@@ -389,9 +392,7 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
             <span className="eyebrow">ASA Chess · Онлайн</span>
             <h1>{game.rated ? 'Рейтинговая партия' : 'Товарищеская партия'}</h1>
           </div>
-          <span className="asa-online-version">
-            v{game.version} · seq {game.sequence}
-          </span>
+          <span className="asa-online-version">v{game.version} · seq {game.sequence}</span>
         </header>
         <div className="asa-online-game-layout">
           <section className="asa-online-board-column">
@@ -423,12 +424,8 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
               <section className="asa-online-draw-offer">
                 <strong>Соперник предлагает ничью</strong>
                 <div>
-                  <button type="button" onClick={() => void control('draw-accept')}>
-                    Принять
-                  </button>
-                  <button type="button" onClick={() => void control('draw-decline')}>
-                    Отклонить
-                  </button>
+                  <button type="button" onClick={() => void control('draw-accept')}>Принять</button>
+                  <button type="button" onClick={() => void control('draw-decline')}>Отклонить</button>
                 </div>
               </section>
             )}
@@ -456,9 +453,7 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
               >
                 Сдаться
               </button>
-              <button type="button" onClick={leaveGame}>
-                Закрыть
-              </button>
+              <button type="button" onClick={leaveGame}>Закрыть</button>
             </div>
             <p className="asa-online-authority-note">
               Ходы, версия позиции, результат и часы определяются сервером. Браузер отправляет
@@ -484,8 +479,7 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
           <h1>Вызовы и поиск соперника</h1>
         </div>
         <span className="asa-online-rating">
-          Rapid {rating?.rating ?? 1200}
-          {rating?.provisional ? '?' : ''}
+          Rapid {rating?.rating ?? 1200}{rating?.provisional ? '?' : ''}
         </span>
       </header>
       <div className="asa-online-lobby">
@@ -507,13 +501,11 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
           </fieldset>
           <fieldset className="asa-online-color-grid">
             <legend>Цвет</legend>
-            {(
-              [
-                ['white', 'Белые'],
-                ['random', 'Случайно'],
-                ['black', 'Чёрные'],
-              ] as const
-            ).map(([value, label]) => (
+            {([
+              ['white', 'Белые'],
+              ['random', 'Случайно'],
+              ['black', 'Чёрные'],
+            ] as const).map(([value, label]) => (
               <button
                 type="button"
                 key={value}
@@ -525,11 +517,7 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
             ))}
           </fieldset>
           <label className="asa-online-rated-toggle">
-            <input
-              type="checkbox"
-              checked={rated}
-              onChange={(event) => setRated(event.target.checked)}
-            />
+            <input type="checkbox" checked={rated} onChange={(event) => setRated(event.target.checked)} />
             <span>
               <strong>Рейтинговая</strong>
               <small>Использует прозрачный ASA Elo v1 после завершения.</small>
@@ -578,15 +566,10 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
               <h2>Ожидаем соперника</h2>
               <output className="asa-online-share-code">{challenge.publicCode}</output>
               <p>
-                {challenge.timeControl.initialMs / 60_000}+
-                {challenge.timeControl.incrementMs / 1_000}
-                {' · '}
-                {challenge.rated ? 'рейтинговая' : 'товарищеская'}
+                {challenge.timeControl.initialMs / 60_000}+{challenge.timeControl.incrementMs / 1_000}
+                {' · '}{challenge.rated ? 'рейтинговая' : 'товарищеская'}
               </p>
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard?.writeText(challenge.publicCode)}
-              >
+              <button type="button" onClick={() => void navigator.clipboard?.writeText(challenge.publicCode)}>
                 Копировать код
               </button>
               <button type="button" className="danger" onClick={() => void cancelChallenge()}>
@@ -596,14 +579,8 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
           ) : ticket?.status === 'queued' ? (
             <>
               <h2>Ищем соперника</h2>
-              <div className="asa-online-search-pulse" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <p>
-                {ticket.pool} · рейтинг {ticket.rating} · окно поиска расширяется со временем.
-              </p>
+              <div className="asa-online-search-pulse" aria-hidden="true"><span /><span /><span /></div>
+              <p>{ticket.pool} · рейтинг {ticket.rating} · окно поиска расширяется со временем.</p>
               <button type="button" className="danger" onClick={() => void cancelMatchmaking()}>
                 Отменить поиск
               </button>
@@ -613,18 +590,9 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
               <h2>Готово к подключению</h2>
               <p>{notice}</p>
               <dl className="asa-online-rating-details">
-                <div>
-                  <dt>Rapid</dt>
-                  <dd>{rating?.rating ?? 1200}</dd>
-                </div>
-                <div>
-                  <dt>Партий</dt>
-                  <dd>{rating?.games ?? 0}</dd>
-                </div>
-                <div>
-                  <dt>Статус</dt>
-                  <dd>{(rating?.provisional ?? true) ? 'Предварительный' : 'Подтверждённый'}</dd>
-                </div>
+                <div><dt>Rapid</dt><dd>{rating?.rating ?? 1200}</dd></div>
+                <div><dt>Партий</dt><dd>{rating?.games ?? 0}</dd></div>
+                <div><dt>Статус</dt><dd>{rating?.provisional ?? true ? 'Предварительный' : 'Подтверждённый'}</dd></div>
               </dl>
             </>
           )}

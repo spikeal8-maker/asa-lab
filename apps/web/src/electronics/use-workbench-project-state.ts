@@ -116,12 +116,9 @@ export function useWorkbenchProjectState(projectId: string) {
   useEffect(() => {
     if (!document || saveStatus !== 'dirty') return;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(
-      () => {
-        void persist(document, true);
-      },
-      simulationRunning ? 700 : 1800,
-    );
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void persist(document, true);
+    }, simulationRunning ? 700 : 1800);
     return () => {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };

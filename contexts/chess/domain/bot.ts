@@ -56,15 +56,11 @@ function positionalScore(position: ChessPosition): number {
     if (piece) score += piece.color === 'white' ? 18 : -18;
   }
   const currentMobility = generateLegalMoves(position).length;
-  const flipped: ChessPosition = {
-    ...position,
-    turn: position.turn === 'white' ? 'black' : 'white',
-  };
+  const flipped: ChessPosition = { ...position, turn: position.turn === 'white' ? 'black' : 'white' };
   const oppositeMobility = generateLegalMoves(flipped).length;
-  const mobilityForWhite =
-    position.turn === 'white'
-      ? currentMobility - oppositeMobility
-      : oppositeMobility - currentMobility;
+  const mobilityForWhite = position.turn === 'white'
+    ? currentMobility - oppositeMobility
+    : oppositeMobility - currentMobility;
   score += mobilityForWhite * 2;
   return score;
 }
@@ -72,7 +68,9 @@ function positionalScore(position: ChessPosition): number {
 function terminalScore(position: ChessPosition, plyFromRoot: number): number | null {
   const status = getChessStatus(position);
   if (status.state === 'checkmate') {
-    return status.winner === 'white' ? MATE_SCORE - plyFromRoot : -MATE_SCORE + plyFromRoot;
+    return status.winner === 'white'
+      ? MATE_SCORE - plyFromRoot
+      : -MATE_SCORE + plyFromRoot;
   }
   if (
     status.state === 'stalemate' ||
@@ -89,14 +87,9 @@ function moveOrderScore(position: ChessPosition, move: ChessMove): number {
   let score = 0;
   if (move.promotion) score += PIECE_VALUE[move.promotion] + 1000;
   if (move.isCapture) {
-    const victim = move.isEnPassant
-      ? { type: 'pawn' as const }
-      : position.board[squareToIndex(move.to)];
+    const victim = move.isEnPassant ? { type: 'pawn' as const } : position.board[squareToIndex(move.to)];
     const attacker = position.board[squareToIndex(move.from)];
-    score +=
-      500 +
-      (victim ? PIECE_VALUE[victim.type] : 0) -
-      (attacker ? PIECE_VALUE[attacker.type] / 10 : 0);
+    score += 500 + (victim ? PIECE_VALUE[victim.type] : 0) - (attacker ? PIECE_VALUE[attacker.type] / 10 : 0);
   }
   if (move.isCastleKingSide || move.isCastleQueenSide) score += 80;
   if (CENTER_SQUARES.has(move.to)) score += 20;
@@ -135,14 +128,7 @@ function alphaBeta(
     for (const move of orderedMoves(position)) {
       best = Math.max(
         best,
-        alphaBeta(
-          applyMoveUnchecked(position, move),
-          depth - 1,
-          alpha,
-          beta,
-          plyFromRoot + 1,
-          counter,
-        ),
+        alphaBeta(applyMoveUnchecked(position, move), depth - 1, alpha, beta, plyFromRoot + 1, counter),
       );
       alpha = Math.max(alpha, best);
       if (beta <= alpha) break;
@@ -154,14 +140,7 @@ function alphaBeta(
   for (const move of orderedMoves(position)) {
     best = Math.min(
       best,
-      alphaBeta(
-        applyMoveUnchecked(position, move),
-        depth - 1,
-        alpha,
-        beta,
-        plyFromRoot + 1,
-        counter,
-      ),
+      alphaBeta(applyMoveUnchecked(position, move), depth - 1, alpha, beta, plyFromRoot + 1, counter),
     );
     beta = Math.min(beta, best);
     if (beta <= alpha) break;
