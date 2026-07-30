@@ -30,9 +30,13 @@ const REQUIRED_FILES = [
   'contexts/chess/testing/review.spec.ts',
   'apps/web/src/chess/ChessBoard.tsx',
   'apps/web/src/chess/ChessEditor.tsx',
+  'apps/web/src/chess/ChessModuleExperience.tsx',
+  'apps/web/src/chess/ChessPuzzleTrainer.tsx',
+  'apps/web/src/chess/chess-puzzles.ts',
   'apps/web/src/chess/chess-ui.ts',
   'apps/web/src/chess/use-chess-project.ts',
   'apps/web/src/chess/chess.css',
+  'apps/web/src/chess/chess-training.css',
   'tests/chess/chess-ui.spec.ts',
   'e2e/chess-module.spec.ts',
   'docs/product/ASA_CHESS_PLATFORM_SPEC.md',
@@ -151,6 +155,10 @@ requireMarkers('contexts/chess/domain/document.ts', [
   'validateChessDocument',
   'Chess document contains unsupported field',
 ]);
+requireMarkers('contexts/chess/domain/pgn.ts', [
+  'stripPgnLineComments',
+  'importChessPgnBase(stripPgnLineComments(pgn))',
+]);
 requireMarkers('contexts/chess/domain/fair-play.ts', [
   "'protected_live_rated'",
   "'engine_analysis'",
@@ -176,8 +184,13 @@ requireMarkers('apps/api/src/module-registry.ts', [
   'new ModuleRegistry([ELECTRONICS_MODULE, CHESS_MODULE',
 ]);
 requireMarkers('apps/web/src/modules/ModuleEditorHost.tsx', [
-  "import { ChessEditor } from '../chess/ChessEditor'",
-  'chess: ChessEditor',
+  "import { ChessModuleExperience } from '../chess/ChessModuleExperience'",
+  'chess: ChessModuleExperience',
+]);
+requireMarkers('apps/web/src/chess/ChessModuleExperience.tsx', [
+  '<ChessEditor',
+  '<ChessPuzzleTrainer',
+  'Открыть шахматные задачи',
 ]);
 requireMarkers('apps/web/src/chess/ChessEditor.tsx', [
   'ASA Chess',
@@ -185,6 +198,19 @@ requireMarkers('apps/web/src/chess/ChessEditor.tsx', [
   'Новая партия или позиция',
   'PGN партии',
   'fair play',
+]);
+requireMarkers('apps/web/src/chess/ChessPuzzleTrainer.tsx', [
+  'ASA Chess · Тренировка',
+  'playChessPuzzleMove',
+  'requestChessPuzzleHint',
+  'Следующая задача',
+  'не является копией базы задач Chess.com',
+]);
+requireMarkers('apps/web/src/chess/chess-puzzles.ts', [
+  'asa-mate-one-001',
+  'asa-back-rank-001',
+  'asa-development-001',
+  'не скопирован',
 ]);
 requireMarkers('apps/web/src/chess/ChessBoard.tsx', [
   'role="grid"',
@@ -196,14 +222,24 @@ requireMarkers('apps/web/src/chess/ChessBoard.tsx', [
 requireMarkers('e2e/chess-module.spec.ts', [
   'teacher creates, plays, reloads and versions an ASA Chess project',
   'ASA Bot makes a legal persisted reply',
+  'learner opens the original ASA puzzle trainer and solves a mate in one',
   'chess-analysis-desktop.png',
   'chess-analysis-mobile.png',
+  'chess-puzzle-desktop.png',
 ]);
 requireMarkers('docs/product/ASA_CHESS_PLATFORM_SPEC.md', [
   'не merge в `main` до принятия R0',
   'не Chess.com Accuracy/CAPS',
   'production realtime multiplayer',
   'StudentSeat',
+]);
+requireMarkers('docs/testing/ASA_CHESS_TEST_MATRIX.yaml', [
+  'candidate_pull_request: 66',
+  'TST-CHESS-PERFT-001',
+  'TST-CHESS-PUZZLE-001',
+  'TST-CHESS-FAIR-PLAY-001',
+  'chess-puzzle-desktop.png',
+  'blocked_and_not_run_never_count_as_pass',
 ]);
 
 const rootPackage = json('package.json');
@@ -215,7 +251,7 @@ if (rootPackage) {
 
 const lock = text('pnpm-lock.yaml');
 for (const marker of [
-  "contexts/chess:",
+  'contexts/chess:',
   "'@asa-lab/module-sdk':",
   "'@asa-lab/chess':",
 ]) {
@@ -258,6 +294,7 @@ console.log(`- required files: ${REQUIRED_FILES.length}`);
 console.log('- standard rules / FEN / SAN / PGN / bot / puzzle / review: present');
 console.log('- shared Module Registry and Editor Host integration: present');
 console.log('- protected live fair-play policy: present');
+console.log('- project and playable puzzle UI surfaces: present');
 console.log('- package lock synchronized: true');
 console.log('- forbidden ports present: 0');
 console.log('- direct Chess.com runtime/assets: 0');
