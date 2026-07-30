@@ -1,23 +1,28 @@
-name: Specification and Architecture Gates
+name: ASA Lab Governance and Code Gates
 
 "on":
   push:
-    branches: [main, "agent/**"]
+    branches:
+      - main
+      - "agent/**"
+      - "assistant/**"
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: spec-${{ github.workflow }}-${{ github.ref }}
+  group: asa-gates-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CI: "true"
+
 jobs:
-  validate-architecture:
-    name: Validate architecture contracts
+  governance:
+    name: Governance contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -36,17 +41,151 @@ jobs:
       - name: Install validator dependencies
         run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
-      - name: Compile validators
-        run: |
-          python -m compileall -q tools/validate_architecture.py
-          python -m compileall -q tools/validate_project_map.py
-          python -m compileall -q tools/validate_test_catalog.py
+      - name: Compile validator sources
+        run: python -m compileall -q tools
 
       - name: Validate architecture foundation
         run: python tools/validate_architecture.py
+
+      - name: Validate product capabilities
+        run: python tools/validate_capability_map.py
 
       - name: Validate project knowledge graph
         run: python tools/validate_project_map.py
 
       - name: Validate executable test registry
         run: python tools/validate_test_catalog.py
+
+      - name: Validate delivery program
+        run: python tools/validate_delivery_program.py
+
+      - name: Validate infrastructure terminal or active state
+        run: python tools/validate_infrastructure_focus.py
+
+  code:
+    name: Format lint types contracts build
+    needs: governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Validate boundaries
+        run: pnpm boundaries:check
+
+      - name: Validate executable contracts
+        run: pnpm contracts:check
+
+      - name: Validate Compose structure
+        run: pnpm compose:check
+
+      - name: Scan committed secrets
+        run: pnpm security:secrets
+
+      - name: Validate dependency inventory
+        run: pnpm security:dependencies
+
+      - name: Production build
+        run: pnpm build
+
+  postgres-tests:
+    name: PostgreSQL tests and RLS
+    needs: code
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate migration files
+        run: pnpm db:migrate:check
+
+      - name: Validate test Compose configuration
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test config
+
+      - name: Build migration and test images
+        env:
+          ASA_BUILD_REVISION: ${{ github.sha }}
+          ASA_IMAGE_TAG: ${{ github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test build migration test-runner
+
+      - name: Start isolated PostgreSQL
+        env:
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test up -d postgres
+
+      - name: Apply migrations and provision runtime role
+        env:
+          ASA_BUILD_REVISION: ${{ github.sha }}
+          ASA_IMAGE_TAG: ${{ github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm migration
+
+      - name: Run complete Vitest suite
+        env:
+          ASA_BUILD_REVISION: ${{ github.sha }}
+          ASA_IMAGE_TAG: ${{ github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm test
+
+      - name: Run explicit RLS gate
+        env:
+          ASA_BUILD_REVISION: ${{ github.sha }}
+          ASA_IMAGE_TAG: ${{ github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm test:rls
+
+      - name: Cleanup isolated test environment
+        if: always()
+        env:
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test down -v --remove-orphans
