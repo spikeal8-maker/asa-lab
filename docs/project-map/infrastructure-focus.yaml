@@ -1,0 +1,16 @@
+schema_version: 1.0.0
+active: true
+current_focus: TASK-DOCKER-LINUX-001
+status: in_progress
+issue: https://github.com/spikeal8-maker/asa-lab/issues/69
+base_branch: assistant/chess-online-core
+branch: assistant/docker-linux-bootstrap
+product_focus_frozen: TASK-ELECTRONICS-SLICE-001
+product_state_source: docs/project-map/project-map.yaml
+execution_source: docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml
+owner_authorized_at: 2026-07-30T08:17:00Z
+resume_product_focus_after_merge: true
+notes:
+  - This file temporarily supersedes project.current_focus only for the infrastructure task.
+  - The product task remains frozen and must not be marked done, deprecated or merged by this infrastructure work.
+  - Set active to false only after the Docker task is merged, explicitly cancelled or superseded by the owner.
