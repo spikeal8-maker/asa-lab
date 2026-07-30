@@ -4,235 +4,159 @@
 
 Связанные источники:
 
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — точный task contract, stages, branches, tests и map nodes;
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый путь;
-- [`../product/CAPABILITY_MAP.md`](../product/CAPABILITY_MAP.md) — продуктовые возможности;
-- [`QUALITY_MAP.md`](QUALITY_MAP.md) — чем доказывается готовность;
-- [`viewer.html`](viewer.html) — интерактивный Obsidian-подобный граф.
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — единственная executable queue;
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — текущая программа и owner-gated roadmap;
+- [`QUALITY_MAP.md`](QUALITY_MAP.md) — обязательные gates;
+- [`viewer.html`](viewer.html) — интерактивный граф.
 
-## 1. Что является порядком выполнения
+## Текущее состояние
 
-Только `delivery_stage` из Execution Manifest и `execution_queue` из `project-map.yaml`.
+```text
+accepted technical Alpha baseline:
+7afebdcf9441b027092ce17a37f1f89950af99c6
 
-`architecture_horizon`/`phase` — архитектурная группировка, не execution order. Technical Alpha намеренно проверяет Electronics Project Slice (внутри него — Project Shell) до полного StudentSeat/Assignment workflow.
+current_focus:
+TASK-ACCOUNT-C1-001
 
-## 2. Текущий фокус и очередь
+canonical branch:
+assistant/docker-linux-bootstrap
+```
+
+Функциональная полнота не заявляется. `main` пока содержит более старый baseline.
+
+## Исполняемая очередь
 
 ```mermaid
 flowchart LR
     DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>done]
     PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>done]
     ACCOUNT[3 Account C1<br/>TASK-ACCOUNT-C1-001<br/>in_progress]
-    PROJECT[4 Electronics Project Slice<br/>TASK-ELECTRONICS-SLICE-001<br/>blocked]
-    CHECKERS[5 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
-    EALPHA[6 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]
-    SEAT[7 StudentSeat<br/>TASK-SEAT-001<br/>blocked]
-    ACT[8 Assignment Submission<br/>TASK-ACT-001<br/>blocked]
-    REVIEW[9 Review Grade Badge<br/>TASK-REVIEW-001<br/>blocked]
-    EFULL[10 Electronics Classroom<br/>TASK-ELEC-001<br/>blocked]
+    STOP[Owner review<br/>no automatic next task]
 
-    DOC --> PORTAL --> ACCOUNT --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
+    DOC --> PORTAL --> ACCOUNT --> STOP
 ```
 
-Текущий `current_focus` всегда берётся из YAML. Более поздний узел не выбирается при блокировке текущего.
+После Account C1 поле `next_task` равно `null`. Coding-агент не имеет права самостоятельно выбрать Electronics или другую capability.
 
-## 3. Два delivery tracks
-
-```mermaid
-flowchart TB
-    PROGRAM[PROGRAM-ALPHA-001]
-
-    subgraph TECH[Technical Product Alpha]
-        P1[Teacher Portal]
-        P2[Account C1]
-        P3[Electronics Project Slice]
-        P4[Checkers Lite]
-        P5[Electronics Alpha]
-        P1 --> P2 --> P3 --> P4 --> P5
-    end
-
-    subgraph PILOT[School Pilot]
-        S1[StudentSeat]
-        S2[Assignment and Submission]
-        S3[Comments Review Grade Badge]
-        S4[Full Electronics Classroom Cycle]
-        S1 --> S2 --> S3 --> S4
-    end
-
-    PROGRAM --> TECH
-    TECH --> PILOT
-```
-
-## 4. Конечная система
-
-```mermaid
-flowchart TB
-    ASA[ASA Lab]
-
-    subgraph USERS[Users]
-        TEACHER[Teacher]
-        CHILD[Child]
-        ADMIN[School Admin]
-        METHODIST[Methodist]
-    end
-
-    subgraph EXPERIENCE[Experience]
-        WEB[Teacher and Child Web/PWA]
-        ADMINUI[Admin Console]
-        HOST[Module Host]
-    end
-
-    subgraph CORE[Classroom and Learning Core]
-        ORG[Organization]
-        ID[Identity and StudentSeat]
-        CLASS[Classroom]
-        CONTENT[ActivityVersion]
-        PROJECTS[Universal Projects]
-        ASSIGN[Assignments]
-        ASSESS[Submission Review Grade Badge]
-        REGISTRY[Module Registry]
-        SAFE[Safety and Audit]
-    end
-
-    subgraph MODULES[Subject Modules]
-        BLANK[Blank Canvas Technical]
-        CHECKERS[Checkers Lite]
-        ELEC[Electronics]
-        BLOCKS[Block Coding]
-        D3[3D]
-        ROBOT[Robotics]
-        DRAW[Drawing]
-    end
-
-    TEACHER --> WEB
-    CHILD --> WEB
-    ADMIN --> ADMINUI
-    METHODIST --> ADMINUI
-    WEB --> CORE
-    WEB --> HOST
-    HOST --> REGISTRY
-    REGISTRY --> MODULES
-    ORG --> ID --> CLASS
-    CONTENT --> ASSIGN
-    CLASS --> ASSIGN
-    REGISTRY --> PROJECTS
-    ASSIGN --> PROJECTS --> ASSESS
-    SAFE --> CORE
-```
-
-## 5. Главный образовательный цикл
+## Owner-gated roadmap
 
 ```mermaid
 flowchart LR
-    C1[Teacher creates class]
-    C2[Teacher issues StudentSeat]
-    C3[Teacher assigns ActivityVersion]
-    C4[Child opens module]
-    C5[Project autosave]
-    C6[Immutable submission]
-    C7[Automatic checks]
-    C8[Teacher comment]
-    C9[Changes requested]
-    C10[Child resubmits]
-    C11[Accept grade badge]
-    C12[Progress updated]
+    ACCOUNT[Account C1 acceptance]
+    R2[R2 Creator Portal<br/>Issue №62<br/>blocked]
+    R3[R3 Project lifecycle<br/>Issue №37<br/>blocked]
+    R4[R4 Electronics parity<br/>Issue №63<br/>blocked]
+    SCHOOL[Classroom / StudentSeat / learning cycle<br/>blocked]
 
-    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9 --> C10 --> C11 --> C12
+    ACCOUNT -. separate transition .-> R2
+    R2 -. separate transition .-> R3
+    R3 -. separate transition .-> R4
+    R4 -. separate transition .-> SCHOOL
 ```
 
-## 6. Module/Project boundary
+Roadmap arrows are not executable transitions. Каждый этап требует owner acceptance и отдельной синхронной правки manifest/map/Issue/test catalog.
 
-```mermaid
-flowchart LR
-    CLASSROOM[Classroom Core]
-    PROJECT[Project Core]
-    SDK[Module SDK]
-    CHECKERS[Checkers payload]
-    ELECTRONICS[CircuitDocument]
+## Текущий Account C1
 
-    CLASSROOM --> PROJECT --> SDK
-    SDK --> CHECKERS
-    SDK --> ELECTRONICS
-```
+Уже интегрировано и сохраняется:
 
-Core знает только:
+- public entry;
+- adult registration;
+- Account / Profile / Principal;
+- Personal Workspace;
+- sessions_v2;
+- login по email или username;
+- legacy teacher compatibility;
+- principal-aware project ownership;
+- Project Hub, Electronics, Chess и Chess Online.
+
+Оставшийся результат:
 
 ```text
-moduleKey
-moduleVersion
-schemaVersion
-ProjectDraft
-ProjectVersion
-preview/diagnostics envelope
+educator self-attestation
+→ provisional audited educator capability
+→ workspaces
+→ safe ActiveContext switch
+→ account menu/profile
+→ email verification state
+→ active sessions
+→ revoke one/all other sessions
+→ real Chromium Account C1 evidence
 ```
 
-Core не знает `resistor`, `wire`, `LED`, checker piece, sprite или 3D mesh.
-
-## 7. Что показывает каждый этап
-
-| Delivery stage | Видимый результат |
-|---|---|
-| Product Definition | Одна очередь, Issues, maps и validators |
-| Teacher Portal | Login, classroom create/list, reload, logout |
-| Account C1 | Educator self-attestation, Account profile, workspace context and active session management |
-| Electronics Project Slice | Create project, build a circuit from the owner’s SVG components, see the DC result, save/reload, immutable checkpoint |
-| Checkers Lite | Board, legal move, diagnostic, preview |
-| Electronics Alpha | Source/resistor/LED/wire, netlist, DC result |
-| StudentSeat | Child credential, login without email, own dashboard |
-| Assignment | ActivityVersion, assignment, exact immutable submission |
-| Review | Anchored comment, revision, grade, badge |
-| Electronics Classroom | Полный электронный учебный цикл |
-
-## 8. Map protocol
+## Архитектурные границы
 
 ```mermaid
-flowchart LR
-    READY[ready]
-    PROGRESS[in_progress]
-    REVIEW[in_review]
-    MERGE[PR merged]
-    DONE[done]
-    NEXT[next ready]
-    STOP[agent stops]
+flowchart TB
+    WEB[Web / PWA]
+    ID[Identity<br/>Account Principal SessionV2]
+    ORG[Organization / Workspace Membership]
+    PROJECTS[Project lifecycle]
+    CLASS[Classroom]
+    REGISTRY[Module Registry]
+    ELEC[Electronics]
+    CHESS[Chess]
+    PG[(PostgreSQL / RLS)]
 
-    READY --> PROGRESS --> REVIEW --> MERGE --> DONE --> NEXT --> STOP
+    WEB --> ID
+    WEB --> PROJECTS
+    ID --> ORG
+    ID --> PG
+    ORG --> PG
+    PROJECTS --> PG
+    CLASS --> PG
+    PROJECTS -. R3 .-> REGISTRY
+    REGISTRY -. R4+ .-> ELEC
+    REGISTRY -. existing Alpha .-> CHESS
 ```
+
+Главные инварианты:
+
+- Account, Principal, Workspace, capability и membership различаются;
+- tenant/workspace context определяется сервером;
+- Personal Project не требует Classroom;
+- Account session не объединяется с будущей StudentSeat session;
+- migrations additive-only до отдельного destructive gate;
+- subject logic не импортируется в Classroom/Project Core;
+- существующие педагог, классы, проекты и drafts сохраняются.
+
+## Исторические task nodes
+
+Старые `TASK-ELECTRONICS-SLICE-001`, `TASK-CHECKERS-LITE-001` и `TASK-ELECTRONICS-ALPHA-001` остаются в YAML/test catalog для traceability, но помечены `deprecated` и отсутствуют в `execution_queue`.
+
+Полезные реализации уже перенесены в единую Alpha-линию. Будущее расширение Electronics выполняется по R4 / Issue №63, а не через автоматическое возобновление старой ветки.
+
+## Quality state
+
+- local baseline gate на `7afebdc…`: PASS;
+- GitHub workflow definition: опубликован;
+- GitHub hosted runner: BLOCKED до первого step, logs отсутствуют;
+- текущий docs/governance head не имеет нового runtime/Playwright PASS;
+- Account C1 focused tests должны быть реализованы и затем выполнены;
+- старый PASS нельзя переносить на новый product SHA.
+
+## Map protocol
 
 ### Start
 
 - current task → `in_progress`;
 - `current_focus` остаётся task;
-- реальные `map_nodes` → `in_progress`.
+- roadmap остаётся blocked.
 
-### Draft PR
+### Draft review
 
-- task → `in_review`;
-- next task остаётся `blocked`;
-- paths/nodes/edges отражают код;
-- Quality Map, test catalog и Nx graph синхронизированы.
+- task → `in_review` только после focused PASS и owner-visible result;
+- Project Map, Quality Map, test catalog и Nx graph синхронизированы;
+- PR остаётся Draft.
 
-### After merge
+### After acceptance
 
-- обязательный map-only transition;
-- task → `done`;
-- next → `ready` после dependency check;
-- `current_focus` → next;
-- validators PASS;
-- агент останавливается.
+- owner определяет convergence/merge action;
+- task может стать `done` только после принятого gate;
+- отдельный governance transition решает, активировать ли R2;
+- coding-агент останавливается.
 
-## 9. Карты, работающие вместе
-
-| Источник | Вопрос |
-|---|---|
-| Product Blueprint | Зачем и для кого строим? |
-| Capability Map | Что должна уметь платформа? |
-| Execution Manifest | Какой точный task/branch/tests/map contract? |
-| Development Program | Как выглядит путь человеку? |
-| Project Map | Что активно и от чего зависит? |
-| Quality Map | Чем доказана готовность? |
-| Nx Graph | Как фактически связан код? |
-
-## 10. Канонические порты
+## Канонические порты
 
 ```text
 Web  http://127.0.0.1:4610
@@ -240,10 +164,4 @@ API  http://127.0.0.1:4611
 E2E  http://127.0.0.1:4612
 ```
 
-Запрещены `3000`, `3100`, `5173`. Занятый порт не является разрешением остановить чужой процесс.
-
-## 11. Команда coding-агенту
-
-```text
-Прочитай AGENTS.md, current_focus и соответствующий entry в EXECUTION_MANIFEST.yaml. Открой указанную Issue и выполни только её. Следующую задачу не начинай.
-```
+Запрещены `3000`, `3100`, `5173`. Чужие процессы и контейнеры не останавливаются.
