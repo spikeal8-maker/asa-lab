@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@asa-lab/chess": "workspace:*",
+    "@asa-lab/chess-live": "workspace:*",
     "@asa-lab/classroom": "workspace:*",
     "@asa-lab/database": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
