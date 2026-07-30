@@ -92,3 +92,17 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   await page.reload();
   await expect(page.locator('.asa-chess-moves li').first()).toContainText('e4');
 });
+
+test('learner opens the original ASA puzzle trainer and solves a mate in one', async ({ page }) => {
+  await login(page);
+  await createChessProject(page, 'Тренировка по тактике');
+  await page.getByRole('button', { name: 'Открыть шахматные задачи' }).click();
+  await expect(page.getByRole('heading', { name: 'Мат в один ход' })).toBeVisible();
+  await clickMove(page, 'f7', 'g7');
+  await expect(page.getByText('Решено', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Ферзь встаёт на g7/)).toBeVisible();
+  await page.getByRole('button', { name: 'Следующая задача' }).click();
+  await expect(page.getByRole('heading', { name: 'Мат по последней горизонтали' })).toBeVisible();
+  mkdirSync('e2e/artifacts', { recursive: true });
+  await page.screenshot({ path: 'e2e/artifacts/chess-puzzle-desktop.png', fullPage: true });
+});
