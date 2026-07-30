@@ -1,5 +1,6 @@
 import {
   agreeDrawChessDocument,
+  chessDocumentPositionKeys,
   chooseChessBotMove,
   createChessGameDocument,
   evaluateChessPosition,
@@ -16,14 +17,13 @@ import {
   resignChessDocument,
   undoChessDocumentMove,
   validateChessDocument,
-  type BotLevel,
   type ChessAnalysisSummary,
   type ChessDocument,
-  type ChessMode,
   type ChessMove,
   type ChessPosition,
   type ChessStatus,
   type Color,
+  type NewChessGameOptions,
   type Square,
 } from '@asa-lab/chess';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -60,6 +60,7 @@ export function useChessProject(projectId: string) {
   const autosaveTimerRef = useRef<number | null>(null);
   const turnStartedAtRef = useRef(Date.now());
   const timeoutCommittedRef = useRef(false);
+  const botTaskRef = useRef(0);
 
   const position = useMemo(
     () => (document ? parsePosition(document.currentFen) : null),
@@ -70,7 +71,10 @@ export function useChessProject(projectId: string) {
     [position],
   );
   const chessStatus: ChessStatus | null = useMemo(
-    () => (position && document ? getChessStatus(position, []) : null),
+    () =>
+      position && document
+        ? getChessStatus(position, chessDocumentPositionKeys(document))
+        : null,
     [document, position],
   );
   const evaluationCp = useMemo(
@@ -180,31 +184,38 @@ export function useChessProject(projectId: string) {
       !position ||
       document.mode !== 'computer' ||
       document.result !== '*' ||
-      document.bot?.color !== position.turn ||
-      botThinking
+      document.bot?.color !== position.turn
     ) {
       return;
     }
+
+    const taskId = botTaskRef.current + 1;
+    botTaskRef.current = taskId;
     setBotThinking(true);
     const timer = window.setTimeout(() => {
+      if (botTaskRef.current !== taskId) return;
       const choice = chooseChessBotMove(position, document.bot?.level ?? 2);
       if (!choice) {
         setBotThinking(false);
         return;
       }
       const next = playChessDocumentMove(document, choice.uci, 0);
+      setBotThinking(false);
       if (next.ok) {
         commit(next.value, `ASA Bot: ${next.value.moves.at(-1)?.san ?? choice.uci}`);
       } else {
         setNotice(`ASA Bot не смог сделать ход: ${next.message}`);
       }
-      setBotThinking(false);
     }, 300);
+
     return () => {
       window.clearTimeout(timer);
-      setBotThinking(false);
+      if (botTaskRef.current === taskId) {
+        botTaskRef.current += 1;
+        setBotThinking(false);
+      }
     };
-  }, [botThinking, commit, document, position]);
+  }, [commit, document, position]);
 
   function displayClock(color: Color): number | null {
     void clockTick;
@@ -254,29 +265,24 @@ export function useChessProject(projectId: string) {
   }
 
   function moveFromTo(from: Square, to: Square): void {
-    setSelectedSquare(from);
     const candidates = legalMoves.filter((move) => move.from === from && move.to === to);
     if (candidates.length === 1) executeMove(candidates[0]!);
     else if (candidates.length > 1) setPromotion({ from, to, moves: candidates });
+    else setSelectedSquare(from);
   }
 
   function choosePromotion(move: ChessMove): void {
     executeMove(move);
   }
 
-  function startGame(
-    mode: ChessMode,
-    playerColor: Color = 'white',
-    level: BotLevel = 2,
-  ): void {
-    const next = createChessGameDocument({
-      mode,
-      playerColor,
-      botLevel: level,
-      initialMs: 10 * 60 * 1000,
-      incrementMs: 5 * 1000,
-    });
-    commit(next, mode === 'analysis' ? 'Открыта доска анализа.' : 'Начата новая партия 10+5.');
+  function startGame(options: NewChessGameOptions): void {
+    const next = createChessGameDocument(options);
+    commit(
+      next,
+      options.mode === 'analysis'
+        ? 'Открыта доска анализа.'
+        : `Начата новая партия ${Math.round((options.initialMs ?? 600000) / 60000)}+${Math.round((options.incrementMs ?? 5000) / 1000)}.`,
+    );
   }
 
   function undo(): void {
@@ -303,9 +309,10 @@ export function useChessProject(projectId: string) {
 
   function resign(): void {
     if (!document || !position) return;
-    const loser = document.mode === 'computer' && document.bot
-      ? opposite(document.bot.color)
-      : position.turn;
+    const loser =
+      document.mode === 'computer' && document.bot
+        ? opposite(document.bot.color)
+        : position.turn;
     const next = resignChessDocument(document, loser);
     if (next.ok) commit(next.value, 'Партия завершена сдачей.');
   }
@@ -327,7 +334,12 @@ export function useChessProject(projectId: string) {
     if (!document || busy) return;
     setBusy(true);
     const saved = await persist(document, true);
-    const response = saved ? await api.createCheckpoint(projectId, `Позиция после ${document.moves.length} полуходов`) : null;
+    const response = saved
+      ? await api.createCheckpoint(
+          projectId,
+          `Позиция после ${document.moves.length} полуходов`,
+        )
+      : null;
     setBusy(false);
     if (response?.ok) {
       setVersions((current) => [response.data.version, ...current]);
