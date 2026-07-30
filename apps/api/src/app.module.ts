@@ -29,6 +29,7 @@ import {
   ChessLiveService,
   CryptoLiveIds,
   MemoryChessLiveRepository,
+  PgChessLiveRepository,
   SystemLiveClock,
 } from '@asa-lab/chess-live';
 import type { RegisteredModule } from '@asa-lab/module-sdk';
@@ -78,7 +79,11 @@ export class AppModule {
     const projectRepository = (): PgProjectRepository =>
       new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
-    const chessLiveRepository = new MemoryChessLiveRepository();
+    // Health-only composition may be built without a DB. Every normal runtime
+    // with APP_DATABASE_URL uses the durable RLS-protected repository.
+    const chessLiveRepository = pool
+      ? new PgChessLiveRepository(pool)
+      : new MemoryChessLiveRepository();
     const chessLiveService = new ChessLiveService(
       chessLiveRepository,
       new SystemLiveClock(),
