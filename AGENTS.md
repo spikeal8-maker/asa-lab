@@ -11,12 +11,15 @@
 3. `docs/product/CAPABILITY_MAP.yaml` — capability IDs и release dependencies;
 4. `docs/architecture/ARCHITECTURE_BASELINE.md` и профильные архитектурные документы;
 5. принятые исполняемые contracts: OpenAPI, JSON Schema, migrations и event schemas;
-6. `docs/delivery/EXECUTION_MANIFEST.yaml` — task order, Issues, branches, delivery stages, architecture horizons, ports, tests и map nodes;
-7. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md` — человекочитаемая программа Product Alpha и School Pilot;
-8. `docs/delivery/LOCAL_PORT_POLICY.md` — локальные порты и безопасный запуск;
-9. `docs/project-map/project-map.yaml` — текущее состояние, current focus и dependency graph;
-10. GitHub Issue текущей задачи — исполнимый scope одного user flow;
-11. `docs/testing/test-catalog.yaml` — команды обязательных test IDs.
+6. `docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml` + `docs/project-map/infrastructure-focus.yaml`, только когда infrastructure focus имеет `active: true`;
+7. `docs/delivery/EXECUTION_MANIFEST.yaml` — product task order, Issues, branches, delivery stages, architecture horizons, ports, tests и map nodes;
+8. `docs/delivery/DEVELOPMENT_PROGRAM_V1.md` — человекочитаемая программа Product Alpha и School Pilot;
+9. `docs/delivery/LOCAL_PORT_POLICY.md` — локальные порты и безопасный запуск;
+10. `docs/project-map/project-map.yaml` — состояние product queue и frozen product focus;
+11. GitHub Issue текущей задачи — исполнимый scope одного user flow;
+12. `docs/testing/test-catalog.yaml` — команды обязательных product test IDs.
+
+Infrastructure Execution Manifest — отдельная временная дорожка для owner-authorized environment/deployment work. Она не завершает, не переставляет и не заменяет product delivery queue. Пока `infrastructure-focus.yaml` имеет `active: true`, её `current_focus` является исполнимой задачей, а `project-map.yaml::project.current_focus` считается замороженным product focus.
 
 Execution Manifest управляет доставкой, но не может отменить ADR, Product/Capability contract, architecture baseline или уже принятый executable contract. Такое изменение сначала оформляется нормативно.
 
@@ -31,7 +34,37 @@ Execution Manifest управляет доставкой, но не может �
 
 ## 2. Как определяется текущая задача
 
-Агент обязан:
+### 2.1 Infrastructure focus
+
+Перед чтением product current focus агент обязан проверить `docs/project-map/infrastructure-focus.yaml`.
+
+Если файл существует и содержит `active: true`, агент обязан:
+
+1. прочитать `current_focus` из `infrastructure-focus.yaml`;
+2. найти тот же task в `docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml`;
+3. проверить open Issue, status, base branch, work branch и frozen product focus;
+4. выполнить `python tools/validate_infrastructure_focus.py` до product/infrastructure изменений;
+5. продолжить указанную infrastructure branch либо создать её от указанной base branch;
+6. выполнять только infrastructure/deployment scope Issue;
+7. не менять status замороженной product task, кроме отдельной owner-approved governance правки;
+8. не начинать product current focus параллельно.
+
+Infrastructure работа разрешена, если:
+
+```text
+infrastructure_focus.active = true
+TASK-ID = infrastructure_focus.current_focus
+manifest task status = ready | in_progress | in_review
+Issue open
+base branch и work branch соответствуют manifest
+product-map current_focus = product_focus_frozen
+```
+
+После merge или явной отмены infrastructure task отдельный map-only transition обязан установить `active: false`. Затем исполняемым снова становится product current focus из `project-map.yaml`.
+
+### 2.2 Product focus
+
+Если infrastructure focus отсутствует или `active: false`, агент обязан:
 
 1. выполнить `git fetch --all --prune` и проверить рабочее дерево;
 2. прочитать `project.current_focus` в `project-map.yaml`;
@@ -42,7 +75,7 @@ Execution Manifest управляет доставкой, но не может �
 7. прочитать только entry текущей задачи, раздел программы и ссылки `read` из manifest;
 8. получить test IDs только из manifest + `test-catalog.yaml`.
 
-Работа разрешена, если:
+Product работа разрешена, если:
 
 ```text
 TASK-ID = current_focus
@@ -71,6 +104,8 @@ PLAN: максимум 25 строк
 STOP_CRITERION:
 ```
 
+Для infrastructure focus вместо `DELIVERY_STAGE` допускается `INFRASTRUCTURE_STAGE`, а в `DEPENDENCIES` обязательно указываются base branch и frozen product focus.
+
 `delivery_stage` задаёт порядок исполнения. `architecture_horizon` — только архитектурная группировка и может идти не по порядку Product Alpha.
 
 ## 4. Одна задача — один user flow
@@ -93,7 +128,8 @@ one task
 - исправления дефектов текущего flow;
 - security fixes данных текущего flow;
 - необходимые contracts, migrations и tests;
-- review feedback текущего PR.
+- review feedback текущего PR;
+- для owner-authorized infrastructure task: portability, containerization, deployment, environment, backup/restore и доказанные startup/responsive fixes из связанной Issue.
 
 Запрещены:
 
@@ -101,7 +137,7 @@ one task
 - дополнительные роли и страницы;
 - unrelated refactoring;
 - новый framework;
-- Docker/Redis/MinIO/CI polish без прямой необходимости;
+- Docker/Redis/MinIO/CI polish без прямой необходимости или без активной infrastructure Issue;
 - новая большая документационная программа;
 - изменение канонических портов;
 - второй competing PR.
@@ -110,24 +146,32 @@ one task
 
 ## 5. Обязательный map protocol
 
-Статические task contracts находятся в `EXECUTION_MANIFEST.yaml`. Динамическое состояние находится в `project-map.yaml`.
+Статические product task contracts находятся в `EXECUTION_MANIFEST.yaml`. Динамическое product состояние находится в `project-map.yaml`. Временная infrastructure task использует `INFRASTRUCTURE_EXECUTION_MANIFEST.yaml` и `infrastructure-focus.yaml`.
 
-### При начале
+### При начале product task
 
 - current task → `in_progress`;
 - `current_focus` остаётся текущим task;
 - реально затронутые `map_nodes` → `in_progress`;
 - `PROJECT_MAP.md` отражает текущий stage.
 
+### При начале infrastructure task
+
+- `infrastructure-focus.active` → `true`;
+- infrastructure task status → `in_progress`;
+- `product_focus_frozen` точно совпадает с `project-map.yaml::project.current_focus`;
+- product task status не меняется этой задачей;
+- work branch создаётся только от manifest base branch.
+
 ### В Draft PR
 
 - current task → `in_review`;
 - реальные nodes, paths и edges обновлены;
-- `QUALITY_MAP.md` и test catalog совпадают с manifest;
+- `QUALITY_MAP.md` и test catalog совпадают с manifest, если задача использует product test IDs;
 - `nx-project-graph.json` регенерирован при изменении структуры кода;
-- следующая задача остаётся `blocked`.
+- следующая product задача остаётся `blocked`.
 
-### После merge
+### После merge product task
 
 Обязателен map-only transition commit или маленький PR:
 
@@ -140,6 +184,15 @@ one task
 - агент останавливается.
 
 Следующая задача не реализуется в той же сессии.
+
+### После merge/cancel infrastructure task
+
+- infrastructure task → `done` или `cancelled` в её focus-файле;
+- `infrastructure-focus.active` → `false`;
+- frozen product focus не переводится в `done` автоматически;
+- product queue и `project-map.yaml::project.current_focus` возобновляются без перестановки;
+- `python tools/validate_infrastructure_focus.py` обновляется или выполняется в inactive-режиме отдельным transition;
+- агент останавливается.
 
 ## 6. Архитектура
 
@@ -230,10 +283,13 @@ E2E  127.0.0.1:4612
 
 ## 12. Тесты
 
-Источник истины — `docs/testing/test-catalog.yaml`. Состав тестов каждой canonical task вычисляется из профилей `EXECUTION_MANIFEST.yaml` и обязан точно совпадать с `required_for`.
+Источник истины product tasks — `docs/testing/test-catalog.yaml`. Состав тестов каждой canonical product task вычисляется из профилей `EXECUTION_MANIFEST.yaml` и обязан точно совпадать с `required_for`.
+
+Infrastructure task использует полный `required_commands` и `required_artifacts` из `INFRASTRUCTURE_EXECUTION_MANIFEST.yaml` и связанной Issue. В рамках infrastructure PR агент может добавить product test IDs и portable scripts в test catalog, но не удаляет существующие test IDs и не ослабляет assertions.
 
 ```bash
 python tools/run_task_tests.py --task <TASK-ID>
+python tools/validate_infrastructure_focus.py
 ```
 
 - PASS — фактический exit 0;
@@ -250,41 +306,12 @@ Task готова, когда:
 1. полный user flow Issue реализован;
 2. non-goals отсутствуют в diff;
 3. contracts/migrations/security согласованы;
-4. все manifest test IDs фактически PASS;
+4. все manifest test IDs или infrastructure required commands фактически PASS;
 5. automated E2E и screenshots существуют;
 6. canonical ports и clean-session startup подтверждены;
 7. dependency/security gate PASS;
-8. `project-map.yaml`, `PROJECT_MAP.md`, `QUALITY_MAP.md` и Nx graph обновлены;
-9. PR merged;
-10. обязательный post-merge map transition выполнен;
+8. product task обновляет `project-map.yaml`, `PROJECT_MAP.md`, `QUALITY_MAP.md` и Nx graph; infrastructure task обновляет только связанные deployment/evidence files и собственный focus transition;
+9. PR merged в указанную manifest base branch;
+10. обязательный post-merge focus transition выполнен;
 11. task/Issue → done/completed;
-12. next task только разблокирована, но не начата.
-
-## 14. Формат отчёта
-
-```text
-MILESTONE:
-TASK:
-ISSUE:
-STATUS:
-VISIBLE_RESULT:
-CAPABILITIES:
-USER_FLOW:
-  ... PASS|FAIL|BLOCKED
-PORTS:
-BRANCH:
-COMMITS:
-FILES_CHANGED:
-MAP_NODES_CHANGED:
-TESTS_RUN:
-ARTIFACTS:
-DEMO_URLS:
-SCREENSHOTS:
-BLOCKERS:
-RESIDUAL_RISKS:
-WORKING_TREE:
-NEXT_ALLOWED_TASK:
-NEXT_COMMAND:
-```
-
-Отчёт начинается с видимого пользовательского результата, а не с установленных инструментов.
+12. frozen product focus не потерян и не был завершён инфраструктурной задачей.
