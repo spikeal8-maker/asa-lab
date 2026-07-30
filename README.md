@@ -1,138 +1,100 @@
 # ASA Lab
 
-**Единая образовательная платформа для классов, проектов, виртуальных лабораторий, заданий и проверки работ.**
+**Единая образовательная платформа для аккаунтов, личных и школьных пространств, проектов, виртуальных лабораторий, классов и полного учебного цикла.**
 
-ASA Lab создаётся как школьная, а затем многопользовательская платформа. Универсальное ядро управляет организациями, педагогами, детским доступом без обязательного email, классами, проектами, заданиями, submissions, comments, grades, achievements, safety и audit. Предметные среды подключаются как независимые modules.
+ASA Lab строится как модульная платформа: общее ядро управляет идентичностью, доступом, рабочими пространствами, проектами, классами, заданиями, версиями и аудитом, а предметные среды подключаются через общий Module SDK.
 
-Первый приоритетный предметный модуль — **виртуальная лаборатория электроники**. Архитектура также поддерживает Scratch-like block coding, 3D, virtual robotics, checkers/chess, drawing и drafting.
+## Текущее состояние
 
-## Главное определение
-
-> Один безопасный вход, единые классы, проекты, задания, submissions, comments, grades и achievements — множество независимых учебных модулей через Module SDK.
-
-ASA Lab — не один редактор и не набор несвязанных сайтов.
-
-## Канонический контракт разработки
-
-- [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml) — точные task IDs, Issues, branches, delivery stages, architecture horizons, dependencies, test profiles, map nodes и artifacts;
-- [`docs/delivery/DEVELOPMENT_PROGRAM_V1.md`](docs/delivery/DEVELOPMENT_PROGRAM_V1.md) — человекочитаемый Product Alpha → School Pilot;
-- [`docs/delivery/LOCAL_PORT_POLICY.md`](docs/delivery/LOCAL_PORT_POLICY.md) — Web `4610`, API `4611`, E2E `4612`;
-- [Epic №23](https://github.com/spikeal8-maker/asa-lab/issues/23) — общая программа;
-- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — current focus и dynamic statuses;
-- [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml) — команды обязательных test IDs.
-
-`delivery_stage` задаёт порядок выполнения. `architecture_horizon` показывает архитектурный контур и не используется для выбора следующей задачи.
+Принятый владельцем технический Alpha-baseline:
 
 ```text
-Product Definition
-→ Teacher Portal
-→ Universal Project Shell
-→ Checkers Lite reference module
-→ Electronics Alpha
-→ StudentSeat and Child Dashboard
-→ Assignment and Immutable Submission
-→ Comments Review Grade Badge
-→ Full Electronics Classroom Cycle
+7afebdcf9441b027092ce17a37f1f89950af99c6
 ```
 
-Checkers Lite — маленькое доказательство Module SDK. Продуктовый приоритет остаётся у Electronics.
+Baseline технически проверен, но **не является заявлением функциональной полноты**. На нём подтверждены:
 
-## Что пользователь увидит
+- public entry, регистрация и универсальный вход по email или username;
+- `Account`, `Profile`, `Principal`, Personal Workspace и `sessions_v2`;
+- совместимость существующего педагога и сохранность его проектов;
+- Project Hub, Electronics, Chess и Chess Online;
+- PostgreSQL, RLS, migrations, persistence и backup/restore;
+- Linux Docker runtime для WSL2 и обычного Linux host;
+- полный локальный gate: 286 тестов и Playwright 8/8 без неожиданных browser errors.
 
-| Этап | Видимый результат |
-|---|---|
-| Teacher Portal | Педагог входит, создаёт класс, reload сохраняет класс |
-| Project Shell | Создание project, module selector, draft save/reload и checkpoint |
-| Checkers Lite | Board, legal move, validation, save/reload и preview |
-| Electronics Alpha | Source, resistor, LED, wire, netlist, DC calculation и diagnostics |
-| StudentSeat | Access card, вход ребёнка без email, Child Dashboard |
-| Assignment | Педагог назначает; ребёнок сдаёт immutable ProjectVersion |
-| Review | Comment, return, resubmit, rubric, grade и badge |
-| Electronics Classroom | Полный электронный учебный цикл внутри класса |
-
-## Полный образовательный цикл
+Текущая единая рабочая линия:
 
 ```text
-Teacher creates classroom
-→ issues StudentSeats
-→ child logs in without email
-→ teacher assigns ActivityVersion
-→ child opens subject module
-→ project autosaves
-→ child submits immutable ProjectVersion
-→ automatic checks run
-→ teacher comments and requests changes
-→ child resubmits
-→ teacher accepts, grades and awards badge
-→ progress updates in both dashboards
+branch: assistant/docker-linux-bootstrap
+PR:     #70 (Draft)
 ```
 
-## Подключаемые модули
+`main` пока содержит более старый Teacher Portal baseline и **не является источником восстановления текущей Alpha-сборки**. До отдельного owner-решения запрещены merge, release tag, закрытие transfer-only PR и удаление веток.
+
+## Текущая продуктовая задача
 
 ```text
-Classroom Core
-├── Electronics Laboratory
-├── Block Coding / Scratch-like Environment
-├── 3D Modelling and Printer Export
-├── Virtual Robotics
-├── Checkers / Chess
-├── Drawing and Drafting
-├── Programming
-└── Future Learning Modules
+TASK-ACCOUNT-C1-001
+Issue #48
+status: in_progress
 ```
 
-Classroom/Project Core не знает, что такое resistor, LED, checker piece, sprite или 3D mesh. Он знает только module/project/submission contracts.
+Уже реализовано и не должно создаваться повторно:
 
-## Продуктовые документы
+- public entry и adult registration;
+- Account / Profile / Principal;
+- ровно один Personal Workspace;
+- `sessions_v2`, HttpOnly cookie и login по email/username;
+- legacy teacher bridge;
+- principal-aware ownership личных проектов;
+- сохранение Electronics и Chess проектов.
 
-- [`docs/product/PRODUCT_BLUEPRINT.md`](docs/product/PRODUCT_BLUEPRINT.md) — конечная платформа;
-- [`docs/product/CAPABILITY_MAP.yaml`](docs/product/CAPABILITY_MAP.yaml) — capabilities и release dependencies;
-- [`docs/product/CAPABILITY_MAP.md`](docs/product/CAPABILITY_MAP.md) — визуальная карта возможностей;
-- [`docs/product/CLASSROOM_CORE_SPEC.md`](docs/product/CLASSROOM_CORE_SPEC.md) — classroom, StudentSeat, assignments и submissions;
-- [`docs/product/MODULE_PLATFORM_SPEC.md`](docs/product/MODULE_PLATFORM_SPEC.md) — Module SDK и subject editors;
-- [`docs/product/ASSESSMENT_REWARDS_SPEC.md`](docs/product/ASSESSMENT_REWARDS_SPEC.md) — comments, review, grades, badges и progress.
+Оставшийся scope Account C1:
 
-## Архитектура
+- educator self-attestation с серверной возрастной политикой и AuditEvent;
+- provisional educator capability;
+- список доступных workspaces и безопасное переключение ActiveContext;
+- account menu и profile settings;
+- отображение email verification state;
+- список активных sessions;
+- отзыв одной и всех других sessions;
+- реальный Account C1 Chromium flow без mock API.
+
+## Каноническая очередь разработки
 
 ```text
-Modular Monolith Control Plane
-+ Isolated Compute Plane for heavy/untrusted work
-+ Versioned Module SDK
-+ PostgreSQL multi-tenancy
-+ Immutable ProjectVersion and SubmissionAttempt
-+ Transactional Outbox when asynchronous workflows require it
-+ Rust/WASM electronics simulation core
-+ Entitlement-based commercial model
-+ Product/Project/Quality/Nx maps
-+ Executable test registry
+Technical Alpha baseline
+→ Account C1: profile, capabilities, workspace context, sessions
+→ R2 Creator Portal и развитие Personal Workspace
+→ R3 Module Registry, Project Hub и полный project lifecycle
+→ R4 Electronics functional parity
+→ Classroom / StudentSeat / learner shell
+→ portfolio, publication, assignments, review и остальные модули
 ```
 
-Микросервисы не создаются для каждого CRUD. Redis, S3/MinIO, queues и workers не блокируют раннюю функцию, которая их не использует.
+Следующий этап не начинается до owner review, полного gate и нормативного перехода текущего этапа. Параллельные долгоживущие product branches запрещены.
 
-## Карты
+## Источники истины
 
-- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md) — delivery stages, architecture horizons и system graph;
-- [`docs/project-map/viewer.html`](docs/project-map/viewer.html) — интерактивная Obsidian-like карта, объединяющая Project Map и Execution Manifest;
-- [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml) — architecture graph, current focus и statuses;
-- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md) — test profiles и stage gates;
-- [`docs/project-map/nx-project-graph.json`](docs/project-map/nx-project-graph.json) — фактические code dependencies;
-- [`docs/architecture/IMPLEMENTATION_ROADMAP.md`](docs/architecture/IMPLEMENTATION_ROADMAP.md) — долгосрочные architecture horizons.
+Перед любыми изменениями coding-агент обязан читать источники в таком порядке:
 
-## Управление coding-агентом
+1. [`AGENTS.md`](AGENTS.md);
+2. [`docs/project-map/infrastructure-focus.yaml`](docs/project-map/infrastructure-focus.yaml);
+3. [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml);
+4. [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml);
+5. GitHub Issue текущей задачи;
+6. [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml).
 
-- [`AGENTS.md`](AGENTS.md) — обязательный контракт;
-- [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md) — короткий вход;
-- [`docs/delivery/BOT_RUNBOOK.md`](docs/delivery/BOT_RUNBOOK.md) — ORIENT → IMPLEMENT → VERIFY → MAP → PR → MERGE → TRANSITION;
-- [`tools/validate_delivery_program.py`](tools/validate_delivery_program.py) — manifest/map/test/port synchronization;
-- [`tools/run_task_tests.py`](tools/run_task_tests.py) — фактический task gate.
+Человеко-читаемые представления:
 
-Короткая команда:
+- [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md);
+- [`docs/delivery/DEVELOPMENT_PROGRAM_V1.md`](docs/delivery/DEVELOPMENT_PROGRAM_V1.md);
+- [`docs/project-map/PROJECT_MAP.md`](docs/project-map/PROJECT_MAP.md);
+- [`docs/project-map/QUALITY_MAP.md`](docs/project-map/QUALITY_MAP.md).
 
-```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
-```
+## Локальный runtime
 
-## Локальные порты
+Канонические порты:
 
 ```text
 Web  http://127.0.0.1:4610
@@ -140,47 +102,80 @@ API  http://127.0.0.1:4611
 E2E  http://127.0.0.1:4612
 ```
 
-### Просмотр владельцем
-
-После того как coding-бот один раз подготовил локальную базу и demo-учётную запись, владелец запускает интерфейс одной командой:
+Запрещённые legacy-порты:
 
 ```text
-pnpm demo
+3000, 3100, 5173
 ```
 
-`pnpm demo` берёт runtime-credential из `%LOCALAPPDATA%\asa-lab-devenv\app-db.json`, не выводит пароль и запускает обычный Web/API-контур на `4610/4611`. Инженерная команда `pnpm dev` намеренно остаётся fail-closed и требует явный `APP_DATABASE_URL`.
+Docker-профили и инструкции:
 
-Если локальный runtime-credential ещё не подготовлен, `pnpm demo` завершится с понятным `BLOCKED` и попросит coding-бота подготовить demo; пароль не нужно вставлять в терминал или чат.
+- [`docs/deployment/WINDOWS11_WSL2_DOCKER.md`](docs/deployment/WINDOWS11_WSL2_DOCKER.md);
+- [`docs/deployment/LINUX_DOCKER_DEPLOYMENT.md`](docs/deployment/LINUX_DOCKER_DEPLOYMENT.md);
+- [`docs/deployment/DOCKER_BACKUP_RESTORE.md`](docs/deployment/DOCKER_BACKUP_RESTORE.md);
+- [`docs/deployment/DOCKER_TROUBLESHOOTING.md`](docs/deployment/DOCKER_TROUBLESHOOTING.md).
 
-Запрещённые легаси-порты перечислены в Port Policy. Занятый порт не разрешает завершать чужой процесс.
+## Данные и восстановление
 
-## Главные инварианты
+Git сохраняет код и migrations, но не пользовательские данные. Перед сменой компьютера или разрушительными операциями отдельно сохраняются:
 
-- Classroom Core не импортирует subject logic.
-- StudentSeat не требует email.
-- Детский контент закрыт по умолчанию.
-- Tenant context определяется сервером.
+- PostgreSQL dump из `backups/`;
+- локальные `.env` и runtime credentials;
+- seed-пароли вне Git;
+- owner-preview screenshots при необходимости аудита.
+
+Backup, credentials и локальные owner-preview artifacts запрещено коммитить.
+
+## Quality gate
+
+Локальный базовый gate:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm boundaries:check
+pnpm contracts:check
+pnpm build
+pnpm test
+```
+
+Task-specific gate берётся только из `EXECUTION_MANIFEST.yaml` и `test-catalog.yaml`:
+
+```bash
+python tools/run_task_tests.py --task <TASK-ID>
+```
+
+`PASS` существует только после реального exit code `0`. `BLOCKED` и `NOT_RUN` не считаются успешным завершением.
+
+## Главные архитектурные инварианты
+
+- Account, Principal, Workspace, capability и membership — разные сущности.
+- Account session и будущая StudentSeat session не объединяются.
+- Tenant и ActiveContext определяются сервером, не браузером.
 - Каждая tenant-owned сущность имеет `tenant_id`.
+- Personal Project не требует Classroom.
 - ProjectVersion и SubmissionAttempt неизменяемы.
-- Hidden tests не передаются в browser.
+- Classroom/Project Core не импортирует subject logic.
 - Пользовательский код не выполняется в Core API.
-- Форматы проектов версионируются и мигрируются.
-- Одна Issue реализует один user flow.
-- Следующая capability не начинается до merge и map transition текущей.
+- Migrations additive-only до отдельного destructive gate.
+- Существующие педагог, классы, проекты и drafts сохраняются при каждом переходе.
 
-## Структура кода
+## Структура репозитория
 
 ```text
-apps/          web, admin, api, realtime, dispatcher, workers
-packages/      contracts, domain kernel, authz, database, eventing, Module SDK
-contexts/      identity, organization, classroom, projects, content, activities, assessment
-modules/       blank-canvas, checkers-lite, electronics, затем block coding, 3D, robotics, drawing
-crates/        Rust/WASM simulation kernels
-infra/         deployment profiles only when required
-schemas/       OpenAPI, JSON Schema, events and module contracts
-tests/         unit, integration, authz, E2E, accessibility, security and simulation golden
+apps/          Web и API приложения
+packages/      общие contracts, SDK и platform libraries
+contexts/      bounded contexts identity, projects, classroom, chess, electronics
+migrations/    последовательные PostgreSQL migrations с checksum
+schemas/       OpenAPI, JSON Schema и executable contracts
+tests/         unit, integration, authorization, RLS и PostgreSQL tests
+e2e/           реальные Chromium user flows
+compose*.yaml  dev, test и staging Docker profiles
+docs/          product, architecture, delivery, testing и deployment contracts
 ```
 
 ## Правовой статус
 
-Архитектура предусматривает российский primary data plane, минимизацию детских данных и локальную поставку. Документация не заменяет юридическое заключение, локальные акты образовательной организации, модель угроз и регуляторные процедуры.
+Архитектура предусматривает минимизацию детских данных, локальную поставку и возможность российского primary data plane. Документация не заменяет юридическое заключение, модель угроз и локальные нормативные акты образовательной организации.
