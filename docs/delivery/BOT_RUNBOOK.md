@@ -181,6 +181,8 @@ domain/application
 
 ## 9. Порты
 
+Нормативная политика: [LOCAL_PORT_POLICY.md](./LOCAL_PORT_POLICY.md).
+
 ```text
 Web  127.0.0.1:4610
 API  127.0.0.1:4611
