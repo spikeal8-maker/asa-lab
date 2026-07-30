@@ -6,6 +6,7 @@ import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
 import { ChessReviewPage } from './ChessReviewPage';
 import './chess-training.css';
 import './chess-review.css';
+import './chess-surfaces.css';
 
 interface ChessModuleExperienceProps {
   projectId: string;
