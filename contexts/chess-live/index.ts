@@ -91,7 +91,7 @@ export {
   type LivePrincipal,
   type MatchmakingJoinReceipt,
   type SubmitMoveCommand,
-} from './application/chess-live.service.js';
+} from './application/service.js';
 export {
   repositoryConflict,
   type ChessLiveRepositoryPort,
