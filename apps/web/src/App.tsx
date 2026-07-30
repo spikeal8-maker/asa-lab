@@ -8,12 +8,14 @@ import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { AccountPage } from './pages/AccountPage';
 import { PortalHeader, type PortalSection } from './components/PortalHeader';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import './brand/brand.css';
 import './electronics/portal.css';
 import './modules/project-hub.css';
+import './account.css';
 
 type SessionState =
   | { kind: 'checking' }
@@ -47,6 +49,7 @@ function publicViewFromHash(): PublicView {
 type View =
   | { kind: 'my-projects' }
   | { kind: 'classrooms' }
+  | { kind: 'account' }
   | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string }
   | {
       kind: 'editor';
@@ -59,6 +62,7 @@ type View =
 function viewToHash(view: View): string {
   if (view.kind === 'my-projects') return '#/projects';
   if (view.kind === 'classrooms') return '#/classrooms';
+  if (view.kind === 'account') return '#/account';
   if (view.kind === 'classroom-projects') {
     return `#/classrooms/${view.classroomId}/projects?title=${encodeURIComponent(view.classroomTitle)}`;
   }
@@ -101,6 +105,7 @@ function viewFromHash(): View {
     };
   }
   if (path === '/classrooms') return { kind: 'classrooms' };
+  if (path === '/account') return { kind: 'account' };
   return { kind: 'my-projects' };
 }
 
@@ -240,27 +245,32 @@ export function App(): JSX.Element {
   }
 
   const active: PortalSection =
-    canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects')
-      ? 'classes'
-      : 'projects';
+    view.kind === 'account'
+      ? 'account'
+      : canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects')
+        ? 'classes'
+        : 'projects';
   return (
     <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
       <a className="skip-link" href="#main-content">
         Перейти к содержанию
       </a>
       <PortalHeader
-        user={session.session.user}
+        session={session.session}
         active={active}
         canTeach={canTeachHere}
-        onNavigate={(section) =>
-          setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' })
-        }
+        onNavigate={(section) => {
+          if (section === 'account') setView({ kind: 'account' });
+          else setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' });
+        }}
+        onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
         onLoggedOut={() => {
           setSession({ kind: 'anonymous' });
           setPublicView({ kind: 'entry' });
         }}
       />
-      {view.kind === 'my-projects' || !canTeachHere ? (
+      {view.kind === 'my-projects' ||
+      (!canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects')) ? (
         <MyProjectsPage
           onOpenProject={(projectId) =>
             setView({ kind: 'editor', projectId, returnTo: { kind: 'my-projects' } })
@@ -280,6 +290,12 @@ export function App(): JSX.Element {
           classroomTitle={view.classroomTitle}
           onBack={() => setView({ kind: 'classrooms' })}
           onOpenProject={(projectId) => setView({ kind: 'editor', projectId, returnTo: view })}
+        />
+      ) : null}
+      {view.kind === 'account' ? (
+        <AccountPage
+          session={session.session}
+          onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
         />
       ) : null}
     </div>

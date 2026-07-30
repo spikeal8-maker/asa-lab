@@ -1,0 +1,513 @@
+.portal-account {
+  position: relative;
+  min-width: 210px;
+}
+
+.portal-account > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #334957;
+  cursor: pointer;
+  list-style: none;
+}
+
+.portal-account > summary::-webkit-details-marker {
+  display: none;
+}
+
+.portal-account > summary::after {
+  content: '⌄';
+  margin-left: auto;
+  color: #71818d;
+  font-size: 15px;
+}
+
+.portal-account > summary:hover,
+.portal-account[open] > summary,
+.portal-account.active > summary {
+  border-color: #d5e1e8;
+  background: #f5f9fb;
+}
+
+.portal-user-copy {
+  display: grid;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.portal-user-copy strong,
+.portal-user-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-user-copy small {
+  color: #72818d;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.portal-account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 80;
+  width: min(330px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid #d7e0e7;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(23, 45, 61, 0.2);
+}
+
+.portal-account-identity {
+  display: grid;
+  gap: 2px;
+  padding: 18px;
+  border-bottom: 1px solid #e5eaee;
+}
+
+.portal-account-identity span {
+  overflow: hidden;
+  color: #6b7b87;
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+.portal-account-workspaces {
+  padding: 12px 10px;
+  border-bottom: 1px solid #e5eaee;
+}
+
+.portal-account-workspaces p {
+  margin: 0;
+  padding: 0 8px 7px;
+  color: #7b8993;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.portal-account-workspaces button {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #2b3e4b;
+  text-align: left;
+}
+
+.portal-account-workspaces button:hover:not(:disabled) {
+  background: #eef7fb;
+}
+
+.portal-account-workspaces button.current {
+  color: #0f739e;
+  background: #edf7fb;
+}
+
+.portal-account-workspaces button > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.portal-account-workspaces button small {
+  color: #71818d;
+}
+
+.portal-account-settings,
+.portal-account-logout {
+  width: 100%;
+  padding: 13px 18px;
+  border: 0;
+  background: #fff;
+  color: #385364;
+  text-align: left;
+}
+
+.portal-account-settings:hover,
+.portal-account-logout:hover:not(:disabled) {
+  background: #f3f7f9;
+}
+
+.portal-account-logout {
+  border-top: 1px solid #e5eaee;
+  color: #a43d35;
+}
+
+.account-page {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 42px 0 72px;
+}
+
+.account-heading {
+  margin-bottom: 25px;
+}
+
+.account-heading h1 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 44px);
+  letter-spacing: -0.035em;
+}
+
+.account-heading > p:last-child {
+  margin: 9px 0 0;
+  color: #637383;
+  font-size: 16px;
+}
+
+.account-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.account-card {
+  padding: 24px;
+  border: 1px solid #d9e1e7;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(29, 48, 62, 0.045);
+}
+
+.account-profile-card,
+.account-sessions-card {
+  grid-column: 1 / -1;
+}
+
+.account-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.account-card-heading h2 {
+  margin: 2px 0 0;
+  font-size: 23px;
+}
+
+.account-card-kicker {
+  margin: 0;
+  color: #1681b8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-status {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #fff1d8;
+  color: #835810;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-status.verified {
+  background: #e7f6ec;
+  color: #26713f;
+}
+
+.account-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+}
+
+.account-form label {
+  display: grid;
+  gap: 7px;
+  color: #465b68;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-form input {
+  min-height: 43px;
+  padding: 0 12px;
+  border: 1px solid #cfd9e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f3543;
+  font: inherit;
+}
+
+.account-form input:focus {
+  border-color: #168fc8;
+  outline: 3px solid rgba(22, 143, 200, 0.14);
+}
+
+.account-form input:disabled {
+  background: #f4f6f8;
+  color: #657682;
+}
+
+.account-field-note {
+  grid-column: 1 / -1;
+  margin: -11px 0 0;
+  color: #7a8791;
+  font-size: 12px;
+}
+
+.account-readonly-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-readonly-grid span {
+  display: grid;
+  gap: 4px;
+  color: #73818c;
+  font-size: 12px;
+}
+
+.account-readonly-grid strong {
+  color: #344a58;
+  font-size: 14px;
+}
+
+.account-action {
+  align-self: end;
+  justify-self: end;
+  width: auto;
+  min-width: 180px;
+  margin: 0;
+}
+
+.account-message {
+  margin: 0 0 18px;
+  padding: 12px 15px;
+  border-radius: 8px;
+}
+
+.account-message.error {
+  border: 1px solid #efc2bd;
+  background: #fff1ef;
+  color: #97362e;
+}
+
+.account-message.success {
+  border: 1px solid #bce0c7;
+  background: #edf8f0;
+  color: #286e3e;
+}
+
+.account-workspace-list,
+.account-capability-list,
+.account-session-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-workspace-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #dce4e9;
+  border-radius: 9px;
+}
+
+.account-workspace-list li.active {
+  border-color: #a9d6e8;
+  background: #f0f9fc;
+}
+
+.account-workspace-list li > div {
+  display: grid;
+  gap: 3px;
+}
+
+.account-workspace-list li span {
+  color: #70808c;
+  font-size: 12px;
+}
+
+.account-current {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #dff2f9;
+  color: #126f99;
+  font-weight: 700;
+}
+
+.account-capability-list {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.account-capability-list li {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f1f6f8;
+}
+
+.account-capability-list li span {
+  color: #687985;
+  font-size: 12px;
+}
+
+.account-attestation {
+  margin-top: 16px;
+  padding: 17px;
+  border: 1px dashed #b9d2dd;
+  border-radius: 9px;
+  background: #f8fbfc;
+}
+
+.account-attestation h3,
+.account-attestation p {
+  margin: 0;
+}
+
+.account-attestation p {
+  margin: 7px 0 14px;
+  color: #617480;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.account-capability-ready {
+  margin: 16px 0 0;
+  padding: 13px;
+  border-radius: 8px;
+  background: #ebf7ee;
+  color: #347147;
+}
+
+.account-session-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid #e5eaee;
+}
+
+.account-session-list li:first-child {
+  border-top: 0;
+}
+
+.account-session-list li > div:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.account-session-list li span {
+  color: #74838d;
+  font-size: 12px;
+}
+
+.account-session-icon {
+  color: #1591c8;
+}
+
+.account-session-current {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e4f3f8;
+  color: #14769d !important;
+}
+
+.account-revoke {
+  padding: 8px 10px;
+  border: 1px solid #e4c5c1;
+  border-radius: 7px;
+  background: #fff;
+  color: #9b3c34;
+}
+
+.account-loading {
+  padding: 80px 24px;
+  color: #60727f;
+  text-align: center;
+}
+
+@media (max-width: 820px) {
+  .portal-account {
+    min-width: 0;
+  }
+
+  .portal-user-copy {
+    display: none;
+  }
+
+  .portal-account > summary::after {
+    display: none;
+  }
+
+  .portal-account-menu {
+    position: fixed;
+    top: 61px;
+    right: 12px;
+  }
+
+  .account-page {
+    width: calc(100% - 24px);
+    padding-top: 28px;
+  }
+
+  .account-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .account-profile-card,
+  .account-sessions-card {
+    grid-column: auto;
+  }
+
+  .account-form {
+    grid-template-columns: 1fr;
+  }
+
+  .account-action {
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 540px) {
+  .account-card {
+    padding: 18px;
+  }
+
+  .account-card-heading,
+  .account-workspace-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .account-readonly-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-session-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .account-session-list .account-revoke {
+    grid-column: 1 / -1;
+  }
+}

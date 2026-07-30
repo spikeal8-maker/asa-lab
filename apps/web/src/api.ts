@@ -27,6 +27,26 @@ export interface SessionPayload {
   activeWorkspace: { workspaceId: string; kind: string };
 }
 
+export interface AccountProfile {
+  email: string;
+  emailVerificationState: string;
+  username: string;
+  displayName: string;
+  birthDate: string;
+  country: string;
+  capabilities: CapabilityRef[];
+  workspaces: WorkspaceRef[];
+}
+
+export interface AccountSession {
+  id: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  current: boolean;
+  userAgentSummary: string | null;
+}
+
 export interface Classroom {
   id: string;
   title: string;
@@ -199,6 +219,34 @@ export const api = {
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  accountProfile: () => call<AccountProfile>('/api/account/profile'),
+  updateAccountProfile: (username: string, displayName: string) =>
+    call<AccountProfile>('/api/account/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({ username, displayName }),
+    }),
+  listWorkspaces: () =>
+    call<{ items: WorkspaceRef[]; activeWorkspaceId: string }>('/api/workspaces'),
+  switchWorkspace: (workspaceId: string) =>
+    call<{ activeWorkspace: { workspaceId: string; kind: string } }>('/api/session/context', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId }),
+    }),
+  selfAttestEducator: () =>
+    call<{ capability: 'educator'; state: string; created: boolean }>(
+      '/api/capabilities/educator/self-attest',
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+  listAccountSessions: () => call<{ items: AccountSession[] }>('/api/account/sessions'),
+  revokeAccountSession: (sessionId: string) =>
+    call<{ ok: true }>(`/api/account/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    }),
+  revokeOtherAccountSessions: () =>
+    call<{ revoked: number }>('/api/account/sessions/revoke-all', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
   listProjects: (options: ProjectListOptions = {}) => {
