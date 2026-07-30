@@ -1,0 +1,628 @@
+.asa-online-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(8, 127, 164, 0.15), transparent 31rem),
+    linear-gradient(145deg, #eaf0f3, #dce5e9);
+  color: #172431;
+}
+
+.asa-online-header {
+  min-height: 70px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.97);
+  border-bottom: 1px solid #c4d0d7;
+  box-shadow: 0 3px 16px rgba(16, 42, 67, 0.09);
+}
+
+.asa-online-header h1 {
+  margin: 2px 0 0;
+  color: #0b3558;
+  font-size: clamp(20px, 2.5vw, 30px);
+}
+
+.asa-online-header .eyebrow,
+.asa-online-card .eyebrow {
+  color: #087fa4;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.asa-online-rating,
+.asa-online-version {
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #e4f4f8;
+  color: #08708d;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.asa-online-lobby {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.15fr 0.9fr 0.95fr;
+  gap: 16px;
+  padding: 24px;
+  align-items: stretch;
+}
+
+.asa-online-card {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  min-height: 420px;
+  padding: 18px;
+  border: 1px solid #c4d1d8;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 9px 28px rgba(16, 42, 67, 0.12);
+}
+
+.asa-online-card h2 {
+  margin: 0;
+  color: #102a43;
+  font-size: 22px;
+}
+
+.asa-online-card p {
+  margin: 0;
+  color: #627680;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.asa-online-card button,
+.asa-online-controls button,
+.asa-online-draw-offer button,
+.asa-online-notice {
+  min-height: 40px;
+  border: 1px solid #afbec7;
+  border-radius: 9px;
+  background: #fff;
+  color: #173d50;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 7px 11px;
+}
+
+.asa-online-card button:hover,
+.asa-online-controls button:hover:not(:disabled),
+.asa-online-draw-offer button:hover {
+  background: #edf8fb;
+  border-color: #78b6c6;
+}
+
+.asa-online-card button:focus-visible,
+.asa-online-controls button:focus-visible,
+.asa-online-draw-offer button:focus-visible,
+.asa-online-code-field input:focus-visible,
+.asa-online-notice:focus-visible {
+  outline: 3px solid rgba(8, 127, 164, 0.32);
+  outline-offset: 2px;
+}
+
+.asa-online-card button:disabled,
+.asa-online-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.asa-online-card button.danger,
+.asa-online-controls button.danger {
+  color: #aa342f;
+  border-color: #d8aaa7;
+}
+
+.asa-online-time-grid,
+.asa-online-color-grid {
+  display: grid;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.asa-online-time-grid {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.asa-online-color-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.asa-online-time-grid legend,
+.asa-online-color-grid legend {
+  grid-column: 1 / -1;
+  color: #617580;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.asa-online-time-grid button,
+.asa-online-color-grid button {
+  min-height: 36px;
+  padding: 5px;
+  font-size: 12px;
+}
+
+.asa-online-time-grid button.selected,
+.asa-online-color-grid button.selected {
+  border-color: #087fa4;
+  background: #087fa4;
+  color: #fff;
+}
+
+.asa-online-rated-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px;
+  border: 1px solid #d0d9df;
+  border-radius: 10px;
+  background: #f7f9fa;
+  cursor: pointer;
+}
+
+.asa-online-rated-toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: #087fa4;
+}
+
+.asa-online-rated-toggle span {
+  display: grid;
+  gap: 2px;
+}
+
+.asa-online-rated-toggle small {
+  color: #6c7d86;
+  font-size: 10px;
+}
+
+.asa-online-primary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.asa-online-primary-actions button {
+  min-height: 48px;
+  background: #087fa4;
+  border-color: #087fa4;
+  color: #fff;
+}
+
+.asa-online-primary-actions button:last-child {
+  background: #24725d;
+  border-color: #24725d;
+}
+
+.asa-online-code-field {
+  display: grid;
+  gap: 6px;
+}
+
+.asa-online-code-field span {
+  color: #617580;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.asa-online-code-field input {
+  min-height: 52px;
+  width: 100%;
+  border: 1px solid #aebdc6;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #f8fafb;
+  color: #0b3558;
+  font: 800 22px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.asa-online-status-card {
+  text-align: center;
+  place-items: center;
+  align-content: center;
+}
+
+.asa-online-share-code {
+  display: block;
+  padding: 14px 16px;
+  border: 2px dashed #72aebe;
+  border-radius: 12px;
+  background: #edf8fb;
+  color: #075d77;
+  font: 900 clamp(23px, 3vw, 34px)/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+
+.asa-online-search-pulse {
+  display: flex;
+  gap: 8px;
+  min-height: 52px;
+  align-items: center;
+}
+
+.asa-online-search-pulse span {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #087fa4;
+  animation: asa-online-search 1.2s infinite ease-in-out;
+}
+
+.asa-online-search-pulse span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.asa-online-search-pulse span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes asa-online-search {
+  0%, 70%, 100% { transform: scale(0.72); opacity: 0.45; }
+  35% { transform: scale(1); opacity: 1; }
+}
+
+.asa-online-rating-details {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  border: 1px solid #d1dbe0;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.asa-online-rating-details div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border-right: 1px solid #d1dbe0;
+}
+
+.asa-online-rating-details div:last-child {
+  border-right: 0;
+}
+
+.asa-online-rating-details dt {
+  color: #73838b;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.asa-online-rating-details dd {
+  margin: 0;
+  color: #0b3558;
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.asa-online-footer {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 24px;
+  color: #647780;
+  font-size: 11px;
+  text-align: center;
+}
+
+.asa-online-game-layout {
+  max-width: 1300px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(480px, 760px) minmax(320px, 410px);
+  gap: 18px;
+  padding: 18px;
+  align-items: center;
+}
+
+.asa-online-board-column {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.asa-online-board-column .asa-chess-board {
+  width: min(100%, 720px);
+}
+
+.asa-live-player {
+  width: min(100%, 720px);
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 9px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #bcc9d0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.asa-live-player.active {
+  border-color: #087fa4;
+  box-shadow: 0 0 0 2px rgba(8, 127, 164, 0.13);
+}
+
+.asa-live-avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: "Segoe UI Symbol", serif;
+  font-size: 28px;
+}
+
+.asa-live-avatar.white {
+  background: #f5f6f2;
+  color: #293a46;
+  border: 1px solid #aab5bc;
+}
+
+.asa-live-avatar.black {
+  background: #263b49;
+  color: #fff;
+}
+
+.asa-live-player > span:nth-child(2) {
+  display: grid;
+}
+
+.asa-live-player small {
+  color: #687a84;
+}
+
+.asa-live-player time {
+  min-width: 105px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: #e6ecef;
+  color: #102a43;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.asa-live-player.active time {
+  background: #dcf1f6;
+}
+
+.asa-live-player time.low {
+  background: #ffe4df;
+  color: #a52f29;
+}
+
+.asa-online-game-panel {
+  min-height: 610px;
+  max-height: calc(100vh - 110px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  gap: 11px;
+  overflow: hidden;
+  padding: 14px;
+  border: 1px solid #c3cfd6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 26px rgba(16, 42, 67, 0.13);
+}
+
+.asa-online-result,
+.asa-online-draw-offer {
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  border: 1px solid #b9d9e2;
+  border-radius: 9px;
+  background: #edf8fb;
+}
+
+.asa-online-result.finished {
+  background: #f1f3f4;
+  border-color: #c8d0d5;
+}
+
+.asa-online-result span,
+.asa-online-draw-offer span {
+  color: #647780;
+  font-size: 11px;
+}
+
+.asa-online-draw-offer {
+  border-color: #e0c56f;
+  background: #fff8df;
+}
+
+.asa-online-draw-offer > div {
+  display: flex;
+  gap: 7px;
+}
+
+.asa-online-draw-offer button {
+  flex: 1;
+}
+
+.asa-online-moves {
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d3dde2;
+  border-radius: 9px;
+}
+
+.asa-online-moves li {
+  display: grid;
+  grid-template-columns: 42px 1fr 1fr;
+  min-height: 35px;
+  align-items: center;
+  border-bottom: 1px solid #e3e9ec;
+}
+
+.asa-online-moves li:last-child {
+  border-bottom: 0;
+}
+
+.asa-online-moves li:nth-child(even) {
+  background: #f7f9fa;
+}
+
+.asa-online-moves span,
+.asa-online-moves strong {
+  padding: 6px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.asa-online-moves span {
+  background: #edf1f3;
+  color: #6a7b84;
+  text-align: right;
+}
+
+.asa-online-empty {
+  padding: 24px 12px;
+  border: 1px dashed #becad0;
+  border-radius: 9px;
+  color: #6d7f88;
+  text-align: center;
+}
+
+.asa-online-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.asa-online-authority-note {
+  margin: 0;
+  padding: 9px;
+  border-radius: 8px;
+  background: #fff6df;
+  color: #725d20;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.asa-online-notice {
+  min-height: 36px;
+  background: #0b3558;
+  color: #fff;
+  font-size: 11px;
+  text-align: left;
+}
+
+@media (max-width: 1000px) {
+  .asa-online-lobby {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .asa-online-status-card {
+    grid-column: 1 / -1;
+    min-height: 260px;
+  }
+
+  .asa-online-game-layout {
+    grid-template-columns: minmax(430px, 1fr) 340px;
+  }
+}
+
+@media (max-width: 820px) {
+  .asa-online-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    grid-template-columns: auto 1fr;
+    padding: 8px;
+  }
+
+  .asa-online-rating,
+  .asa-online-version {
+    display: none;
+  }
+
+  .asa-online-lobby,
+  .asa-online-game-layout {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .asa-online-status-card {
+    grid-column: auto;
+  }
+
+  .asa-online-game-panel {
+    min-height: 480px;
+    max-height: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .asa-online-lobby,
+  .asa-online-game-layout {
+    padding: 5px;
+    gap: 8px;
+  }
+
+  .asa-online-card {
+    min-height: auto;
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .asa-online-time-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .asa-online-primary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .asa-live-player {
+    min-height: 45px;
+    padding: 5px;
+  }
+
+  .asa-live-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 23px;
+  }
+
+  .asa-live-player time {
+    min-width: 85px;
+    padding: 4px 6px;
+    font-size: 21px;
+  }
+
+  .asa-live-player small {
+    display: none;
+  }
+
+  .asa-online-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asa-online-search-pulse span {
+    animation: none;
+  }
+}
