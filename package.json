@@ -44,7 +44,11 @@
     "chess:contract": "node tools/validate-chess-candidate.mjs",
     "test:chess": "vitest run contexts/chess/testing tests/chess",
     "typecheck:chess": "tsc -p contexts/chess/tsconfig.json --noEmit",
-    "e2e:chess": "playwright test e2e/chess-module.spec.ts"
+    "e2e:chess": "playwright test e2e/chess-module.spec.ts",
+    "chess-live:contract": "node tools/validate-chess-live-candidate.mjs",
+    "test:chess-live": "vitest run contexts/chess-live/testing apps/api/src/chess-live.controller.spec.ts",
+    "typecheck:chess-live": "tsc -p contexts/chess-live/tsconfig.json --noEmit",
+    "e2e:chess-live": "playwright test e2e/chess-live.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
