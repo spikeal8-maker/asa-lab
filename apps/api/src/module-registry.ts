@@ -1,3 +1,4 @@
+import { CHESS_MODULE } from '@asa-lab/chess';
 import { ELECTRONICS_MODULE } from '@asa-lab/electronics';
 import {
   ModuleRegistry,
@@ -28,15 +29,15 @@ const FUTURE_MODULES: readonly RegisteredModule[] = [
   future({
     moduleKey: 'checkers',
     moduleVersion: '0.1.0',
-    displayName: 'Шахматы и шашки',
-    shortDescription: 'Позиции, задачи, партии, ходы и комментарии педагога.',
-    projectType: 'board-position',
+    displayName: 'Шашки',
+    shortDescription: 'Позиции, задачи, партии и учебные комментарии по шашкам.',
+    projectType: 'checkers-game',
     schemaVersion: 1,
     editorRoute: '/projects/:projectId/checkers',
     viewerRoute: '/view/projects/:versionId/checkers',
     safeModeSupported: true,
     previewKind: 'board',
-    iconKey: 'board',
+    iconKey: 'checkers',
     categories: ['logic', 'games'],
   }),
   future({
@@ -85,5 +86,5 @@ const FUTURE_MODULES: readonly RegisteredModule[] = [
 
 /** One server-side source of truth for the create chooser and project core. */
 export function createApiModuleRegistry(): ModuleRegistry {
-  return new ModuleRegistry([ELECTRONICS_MODULE, ...FUTURE_MODULES]);
+  return new ModuleRegistry([ELECTRONICS_MODULE, CHESS_MODULE, ...FUTURE_MODULES]);
 }
