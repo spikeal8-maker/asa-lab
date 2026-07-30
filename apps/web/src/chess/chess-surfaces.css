@@ -1,0 +1,95 @@
+.asa-chess-surface-launchers {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 130;
+  display: grid;
+  gap: 7px;
+}
+
+.asa-chess-surface-launcher {
+  min-width: 136px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  border: 1px solid #1e6d59;
+  border-radius: 13px;
+  background: #24725d;
+  color: #fff;
+  box-shadow: 0 8px 25px rgba(16, 42, 67, 0.28);
+  cursor: pointer;
+  font: inherit;
+}
+
+.asa-chess-surface-launcher.review {
+  border-color: #087fa4;
+  background: #0b5871;
+}
+
+.asa-chess-surface-launcher.online {
+  border-color: #5545a9;
+  background: #42358f;
+}
+
+.asa-chess-surface-launcher:hover {
+  background: #1c604e;
+}
+
+.asa-chess-surface-launcher.review:hover {
+  background: #08485d;
+}
+
+.asa-chess-surface-launcher.online:hover {
+  background: #342a73;
+}
+
+.asa-chess-surface-launcher:focus-visible {
+  outline: 3px solid rgba(10, 145, 182, 0.4);
+  outline-offset: 3px;
+}
+
+.asa-chess-surface-launcher > span:first-child {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffe281;
+  font-size: 18px;
+}
+
+.asa-chess-surface-launcher > span:last-child {
+  display: grid;
+  text-align: left;
+}
+
+.asa-chess-surface-launcher strong {
+  font-size: 13px;
+}
+
+.asa-chess-surface-launcher small {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10px;
+}
+
+@media (max-width: 560px) {
+  .asa-chess-surface-launchers {
+    left: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 5px;
+  }
+
+  .asa-chess-surface-launcher {
+    min-width: 48px;
+    min-height: 44px;
+    padding: 6px;
+  }
+
+  .asa-chess-surface-launcher > span:last-child {
+    display: none;
+  }
+}
