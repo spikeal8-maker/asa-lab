@@ -46,7 +46,7 @@ foundation:
       proves: labels, clocks, results and evaluation copy
     - id: TST-CHESS-E2E-001
       command: pnpm e2e:chess
-      proves: create, play, bot, save, reload, checkpoint, PGN and responsive screenshots
+      proves: create, play, bot, save, reload, checkpoint, PGN, puzzle trainer and responsive screenshots
   aggregate_commands:
     - pnpm chess:contract
     - pnpm typecheck:chess
@@ -60,7 +60,8 @@ foundation:
   required_artifacts:
     - e2e/artifacts/chess-analysis-desktop.png
     - e2e/artifacts/chess-analysis-mobile.png
-  owner_flow: Create ASA Chess project, play local opening, reload, create version, import/export PGN, start bot game and verify a legal persisted reply.
+    - e2e/artifacts/chess-puzzle-desktop.png
+  owner_flow: Create ASA Chess project, play local opening, reload, create version, import/export PGN, start bot game, verify a legal persisted reply, then solve an original ASA puzzle and open the next one.
 
 future_profiles:
   realtime:
