@@ -21,6 +21,15 @@ crates/**/pkg/
 .env
 .env.*
 !.env.example
+seed-teacher-credentials.txt
+*-credentials.txt
+
+# Local database backups and runtime data
+/backups/
+/data/
+
+# Owner-only visual evidence (tracked release screenshots remain allowed)
+/e2e/artifacts/owner-preview/
 
 # Reports (generated artifacts)
 reports/*.json
@@ -42,9 +51,6 @@ Thumbs.db
 coverage/
 playwright-report/
 test-results/
-
-# Local docker data volumes
-/data/
 
 # Python bytecode
 __pycache__/
