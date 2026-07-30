@@ -40,6 +40,7 @@ export {
   type Rank,
   type Square,
 } from './domain/chess.js';
+export { PIECE_SYMBOL } from './domain/symbols.js';
 export {
   botColorCanMove,
   chooseChessBotMove,
