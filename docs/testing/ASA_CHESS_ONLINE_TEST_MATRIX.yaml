@@ -2,6 +2,7 @@ schema_version: 1.0.0
 matrix_id: asa-chess-online-tests
 status: candidate_not_activated
 program_issue: https://github.com/spikeal8-maker/asa-lab/issues/67
+candidate_pull_request: 68
 base_candidate: 66
 source_spec: docs/product/ASA_CHESS_ONLINE_SPEC.md
 context: chess-live
@@ -34,27 +35,47 @@ required_tests:
   - id: TST-CHESS-LIVE-API-001
     command: pnpm vitest run apps/api/src/chess-live.controller.spec.ts
     proves: session-derived authority, body allowlists, idempotency and HTTP error mapping
+  - id: TST-CHESS-LIVE-MIGRATION-001
+    command: pnpm db:migrate:test
+    proves: clean chess-live schema creation, runtime role grants and migration idempotency
+  - id: TST-CHESS-LIVE-PG-001
+    command: pnpm test:chess-live:pg
+    proves: durable restart recovery, forced RLS, expected-version race, append-only events and exactly-once rating ledger
+  - id: TST-CHESS-LIVE-RLS-001
+    command: pnpm test:rls
+    proves: no-context invisibility, exact runtime privileges and cross-tenant denial for every live table
   - id: TST-CHESS-LIVE-E2E-001
     command: pnpm e2e:chess-live
     proves: two authenticated sessions, direct challenge, moves, reconnect, forged body rejection, rated pairing and rating ledger
 
 aggregate_commands:
-  - pnpm chess-live:contract
-  - pnpm typecheck:chess-live
-  - pnpm test:chess-live
+  - pnpm install --lockfile-only
+  - pnpm format
   - pnpm format:check
+  - pnpm chess:contract
+  - pnpm chess-live:contract
+  - pnpm typecheck:chess
+  - pnpm typecheck:chess-live
   - pnpm lint
   - pnpm typecheck
   - pnpm boundaries:check
+  - pnpm graph:report
   - pnpm build
+  - pnpm test:chess
+  - pnpm test:chess-live
+  - pnpm db:test:provision --reset
+  - pnpm db:migrate:test
+  - pnpm test:chess-live:pg
+  - pnpm test:rls
   - pnpm test
+  - pnpm e2e:chess
   - pnpm e2e:chess-live
 
 required_artifacts:
   - e2e/artifacts/chess-online-white-desktop.png
   - e2e/artifacts/chess-online-black-mobile.png
 
-owner_flow: Two teachers in the same isolated tenant create their own Chess projects, open Online, share/accept a code, play e4 e5 Nf3, reconnect from sequence 2, reject forged authority fields, then join rated rapid matchmaking and verify the ASA Elo ledger after resignation.
+owner_flow: Two teachers in the same isolated tenant create their own Chess projects, open Online, share/accept a code, play e4 e5 Nf3, reconnect from sequence 2, reject forged authority fields, restart the repository without losing the game, then join rated rapid matchmaking and verify the immutable ASA Elo ledger after resignation.
 
 invariants:
   - tenant_and_principal_come_only_from_session
@@ -67,19 +88,23 @@ invariants:
   - rating_is_written_at_most_once_per_finished_rated_game
   - non_participant_events_are_delayed_during_active_game
   - one_player_has_at_most_one_queued_ticket
-  - in_memory_repository_is_not_production_persistence
+  - normal_database_runtime_uses_pg_repository
+  - health_only_runtime_may_use_memory_repository
+  - all_live_tables_force_tenant_rls
+  - events_and_rating_ledger_are_append_only
   - blocked_and_not_run_never_count_as_pass
   - ports_3000_3100_5173_are_forbidden
   - no_chess_com_source_protocol_rating_formula_or_assets
 
-future_required_profiles:
-  postgres:
+residual_required_profiles:
+  operations:
     tests:
-      - TST-CHESS-LIVE-MIGRATION-001
-      - TST-CHESS-LIVE-RLS-001
-      - TST-CHESS-LIVE-CONCURRENCY-001
-      - TST-CHESS-LIVE-EVENT-SEQUENCE-001
-      - TST-CHESS-LIVE-RATING-EXACTLY-ONCE-001
+      - TST-CHESS-LIVE-RATING-OUTBOX-001
+      - TST-CHESS-LIVE-SCHEDULER-001
+      - TST-CHESS-LIVE-LAG-POLICY-001
+      - TST-CHESS-LIVE-LOAD-001
+      - TST-CHESS-LIVE-RECOVERY-001
+      - TST-CHESS-LIVE-OBSERVABILITY-001
   websocket:
     tests:
       - TST-CHESS-LIVE-WS-AUTH-001
@@ -87,10 +112,3 @@ future_required_profiles:
       - TST-CHESS-LIVE-WS-HEARTBEAT-001
       - TST-CHESS-LIVE-WS-BACKPRESSURE-001
       - TST-CHESS-LIVE-WS-COMMAND-ACK-001
-  operations:
-    tests:
-      - TST-CHESS-LIVE-LAG-POLICY-001
-      - TST-CHESS-LIVE-SCHEDULER-001
-      - TST-CHESS-LIVE-LOAD-001
-      - TST-CHESS-LIVE-RECOVERY-001
-      - TST-CHESS-LIVE-OBSERVABILITY-001
