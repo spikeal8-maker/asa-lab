@@ -1,0 +1,22 @@
+name: ${COMPOSE_PROJECT_NAME:-asa-lab-staging}
+
+services:
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the private staging environment}
+
+  migration:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in the private staging environment}
+      ASA_APP_DB_PASSWORD: ${ASA_APP_DB_PASSWORD:?set ASA_APP_DB_PASSWORD in the private staging environment}
+      ASA_SEED_DEV: 'false'
+
+  api:
+    restart: always
+    environment:
+      NODE_ENV: production
+      APP_DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in the private staging environment}
+
+  web:
+    restart: always

@@ -1,0 +1,63 @@
+name: ${COMPOSE_PROJECT_NAME:-asa-lab-test}
+
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: asalab_test
+      POSTGRES_USER: asalab_admin
+      POSTGRES_PASSWORD: asa-local-test-admin-change-me
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+
+  migration:
+    environment:
+      DATABASE_URL: postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test
+      ASA_APP_DB_PASSWORD: asa-local-test-runtime-change-me
+      ASA_SEED_DEV: 'false'
+
+  api:
+    environment:
+      ASA_WEB_PORT: 4612
+      APP_DATABASE_URL: postgres://asalab_app:asa-local-test-runtime-change-me@postgres:5432/asalab_test
+
+  web:
+    ports: !override
+      - '127.0.0.1:4612:8080'
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: test
+    image: asa-lab-test:${ASA_IMAGE_TAG:-local}
+    profiles: ['test']
+    init: true
+    shm_size: 1gb
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    working_dir: /workspace
+    environment:
+      TEST_DATABASE_URL: postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test
+      APP_TEST_DATABASE_URL: postgres://asalab_app:asa-local-test-runtime-change-me@postgres:5432/asalab_test
+      ASA_E2E_EXTERNAL: 'true'
+      ASA_E2E_BASE_URL: http://web:8080
+    command: ['pnpm', 'test']
+    tmpfs:
+      - /tmp
+      - /workspace/node_modules/.vite
+    volumes:
+      - ./e2e/artifacts:/workspace/e2e/artifacts
+      - ./reports:/workspace/reports
+    read_only: true
+    user: '${ASA_TEST_UID:-1000}:${ASA_TEST_GID:-1000}'
+    networks:
+      - application
+      - database
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  postgres-test-data:

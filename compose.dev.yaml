@@ -1,0 +1,10 @@
+name: ${COMPOSE_PROJECT_NAME:-asa-lab-dev}
+
+services:
+  migration:
+    environment:
+      ASA_SEED_DEV: 'true'
+
+  api:
+    ports:
+      - '127.0.0.1:${ASA_API_PORT:-4611}:4611'

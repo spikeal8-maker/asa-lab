@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-07-30T10:11:30Z",
+  "composeProject": "asa-lab",
+  "volume": "asa-lab_postgres-data",
+  "database": "asalab",
+  "method": [
+    "created a uniquely named persistence probe",
+    "stopped and removed the Compose containers without removing volumes",
+    "recreated the Compose stack",
+    "read the same probe value after PostgreSQL became healthy",
+    "removed the probe table"
+  ],
+  "marker": "task-docker-linux-001",
+  "markerRecovered": true,
+  "cleanupCompleted": true
+}
