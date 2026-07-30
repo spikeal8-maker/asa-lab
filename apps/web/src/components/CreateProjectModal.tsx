@@ -176,7 +176,9 @@ export function CreateProjectModal({
                     <span className="module-tile-title">{module.displayName}</span>
                     <span className="module-tile-description">{module.shortDescription}</span>
                     <span className="module-tile-meta">
-                      {module.safeModeSupported ? 'Поддерживает безопасный режим' : 'Только взрослым'}
+                      {module.safeModeSupported
+                        ? 'Поддерживает безопасный режим'
+                        : 'Только взрослым'}
                     </span>
                     {!module.creatable ? <span className="module-coming">Скоро</span> : null}
                   </label>

@@ -35,8 +35,11 @@
   place-items: center;
   gap: 9px;
   color: var(--module-accent, #168fc8);
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--module-accent, #168fc8) 11%, white), #f8fafc 62%);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--module-accent, #168fc8) 11%, white),
+    #f8fafc 62%
+  );
 }
 
 .project-module-preview::after {

@@ -3,12 +3,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
-import {
-  e2eAdminPool,
-  seedLegacyTeacherIdentity,
-  seedTeacher,
-  type SeededTeacher,
-} from './seed';
+import { e2eAdminPool, seedLegacyTeacherIdentity, seedTeacher, type SeededTeacher } from './seed';
 
 interface LivePlayerCredentials {
   readonly workspace: string;
@@ -103,7 +98,9 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-test('two teachers create and play one server-authoritative direct challenge', async ({ browser }) => {
+test('two teachers create and play one server-authoritative direct challenge', async ({
+  browser,
+}) => {
   const session = await pages(browser);
   const firstFailures = collectBrowserFailures(session.firstPage, {
     allowAnonymousSessionProbe: true,
@@ -130,7 +127,9 @@ test('two teachers create and play one server-authoritative direct challenge', a
 
     await session.secondPage.getByLabel('Код соперника').fill(code!);
     const acceptResponsePromise = session.secondPage.waitForResponse(
-      (response) => response.url().includes('/api/chess/live/challenges/') && response.url().endsWith('/accept'),
+      (response) =>
+        response.url().includes('/api/chess/live/challenges/') &&
+        response.url().endsWith('/accept'),
     );
     await session.secondPage.getByRole('button', { name: 'Принять вызов' }).click();
     const acceptedResponse = await acceptResponsePromise;
@@ -144,8 +143,12 @@ test('two teachers create and play one server-authoritative direct challenge', a
       version: 1,
     });
 
-    await expect(session.secondPage.getByRole('heading', { name: 'Товарищеская партия' })).toBeVisible();
-    await expect(session.firstPage.getByRole('heading', { name: 'Товарищеская партия' })).toBeVisible({
+    await expect(
+      session.secondPage.getByRole('heading', { name: 'Товарищеская партия' }),
+    ).toBeVisible();
+    await expect(
+      session.firstPage.getByRole('heading', { name: 'Товарищеская партия' }),
+    ).toBeVisible({
       timeout: 8_000,
     });
 
@@ -221,7 +224,9 @@ test('two teachers create and play one server-authoritative direct challenge', a
   }
 });
 
-test('rated matchmaking pairs compatible teachers and writes rating after resignation', async ({ browser }) => {
+test('rated matchmaking pairs compatible teachers and writes rating after resignation', async ({
+  browser,
+}) => {
   const session = await pages(browser);
   const firstFailures = collectBrowserFailures(session.firstPage, {
     allowAnonymousSessionProbe: true,
@@ -248,10 +253,14 @@ test('rated matchmaking pairs compatible teachers and writes rating after resign
     await expect(session.firstPage.getByRole('heading', { name: 'Ищем соперника' })).toBeVisible();
     await session.secondPage.getByRole('button', { name: 'Найти соперника' }).click();
 
-    await expect(session.firstPage.getByRole('heading', { name: 'Рейтинговая партия' })).toBeVisible({
+    await expect(
+      session.firstPage.getByRole('heading', { name: 'Рейтинговая партия' }),
+    ).toBeVisible({
       timeout: 8_000,
     });
-    await expect(session.secondPage.getByRole('heading', { name: 'Рейтинговая партия' })).toBeVisible({
+    await expect(
+      session.secondPage.getByRole('heading', { name: 'Рейтинговая партия' }),
+    ).toBeVisible({
       timeout: 8_000,
     });
     await session.secondPage.getByRole('button', { name: 'Сдаться' }).click();

@@ -9,10 +9,7 @@ export const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 export const WIRE_COLORS = ['#e3212b', '#2a3035', '#149447', '#2c62c9', '#e7a400', '#8d45c7'];
 export const DRAG_MIME = 'application/x-asa-electronics-component';
 
-export type Selection =
-  | { kind: 'component'; id: string }
-  | { kind: 'wire'; id: string }
-  | null;
+export type Selection = { kind: 'component'; id: string } | { kind: 'wire'; id: string } | null;
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
 export interface TerminalRef {
@@ -55,9 +52,12 @@ export function componentTransform(component: SchematicComponent): string {
   const baseWidth = entry.renderWidth;
   const baseHeight = entry.viewBox.height * scale;
   const rotation = component.rotation ?? 0;
-  if (rotation === 90) return `translate(${component.position.x + baseHeight} ${component.position.y}) rotate(90)`;
-  if (rotation === 180) return `translate(${component.position.x + baseWidth} ${component.position.y + baseHeight}) rotate(180)`;
-  if (rotation === 270) return `translate(${component.position.x} ${component.position.y + baseWidth}) rotate(270)`;
+  if (rotation === 90)
+    return `translate(${component.position.x + baseHeight} ${component.position.y}) rotate(90)`;
+  if (rotation === 180)
+    return `translate(${component.position.x + baseWidth} ${component.position.y + baseHeight}) rotate(180)`;
+  if (rotation === 270)
+    return `translate(${component.position.x} ${component.position.y + baseWidth}) rotate(270)`;
   return `translate(${component.position.x} ${component.position.y})`;
 }
 

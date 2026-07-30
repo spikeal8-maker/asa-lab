@@ -1,11 +1,4 @@
-import {
-  applyLegalMove,
-  moveToUci,
-  parseFen,
-  toFen,
-  type Color,
-  type Square,
-} from './chess.js';
+import { applyLegalMove, moveToUci, parseFen, toFen, type Color, type Square } from './chess.js';
 
 export type PuzzleTheme =
   | 'mate'
@@ -47,8 +40,7 @@ export interface ChessPuzzleSession {
 }
 
 export type PuzzleValidationResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly message: string };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string };
 
 export type PuzzleMoveResult =
   | {
@@ -107,11 +99,16 @@ export function validateChessPuzzle(value: unknown): PuzzleValidationResult<Ches
   ]);
   const unknown = Object.keys(raw).find((key) => !allowed.has(key));
   if (unknown) return { ok: false, message: `Puzzle contains unsupported field: ${unknown}.` };
-  if (raw['schemaVersion'] !== 1) return { ok: false, message: 'Unsupported puzzle schemaVersion.' };
+  if (raw['schemaVersion'] !== 1)
+    return { ok: false, message: 'Unsupported puzzle schemaVersion.' };
   if (typeof raw['id'] !== 'string' || !PUZZLE_ID_PATTERN.test(raw['id'])) {
     return { ok: false, message: 'Puzzle id must be safe and non-empty.' };
   }
-  if (typeof raw['title'] !== 'string' || raw['title'].trim().length === 0 || raw['title'].length > 200) {
+  if (
+    typeof raw['title'] !== 'string' ||
+    raw['title'].trim().length === 0 ||
+    raw['title'].length > 200
+  ) {
     return { ok: false, message: 'Puzzle title must be a bounded non-empty string.' };
   }
   if (typeof raw['initialFen'] !== 'string') {
@@ -131,14 +128,18 @@ export function validateChessPuzzle(value: unknown): PuzzleValidationResult<Ches
     !Array.isArray(raw['themes']) ||
     raw['themes'].length === 0 ||
     raw['themes'].length > 12 ||
-    !raw['themes'].every((theme) => typeof theme === 'string' && THEMES.has(theme as PuzzleTheme)) ||
+    !raw['themes'].every(
+      (theme) => typeof theme === 'string' && THEMES.has(theme as PuzzleTheme),
+    ) ||
     new Set(raw['themes']).size !== raw['themes'].length
   ) {
     return { ok: false, message: 'Puzzle themes are invalid or duplicated.' };
   }
   if (
     raw['rating'] !== null &&
-    (!Number.isInteger(raw['rating']) || Number(raw['rating']) < 100 || Number(raw['rating']) > 4000)
+    (!Number.isInteger(raw['rating']) ||
+      Number(raw['rating']) < 100 ||
+      Number(raw['rating']) > 4000)
   ) {
     return { ok: false, message: 'Puzzle rating must be null or an integer from 100 to 4000.' };
   }
@@ -226,7 +227,12 @@ export function playChessPuzzleMove(
   moveUci: string,
 ): PuzzleMoveResult {
   if (session.puzzleId !== puzzle.id) {
-    return { ok: false, outcome: 'invalid', session, message: 'Puzzle session belongs to another puzzle.' };
+    return {
+      ok: false,
+      outcome: 'invalid',
+      session,
+      message: 'Puzzle session belongs to another puzzle.',
+    };
   }
   if (session.status === 'solved') {
     return { ok: false, outcome: 'finished', session, message: 'Puzzle is already solved.' };
@@ -296,13 +302,24 @@ export function requestChessPuzzleHint(
   if (level === 1) {
     return {
       ok: true,
-      value: { level, from, message: `Обратите внимание на фигуру на поле ${from}.`, session: nextSession },
+      value: {
+        level,
+        from,
+        message: `Обратите внимание на фигуру на поле ${from}.`,
+        session: nextSession,
+      },
     };
   }
   if (level === 2) {
     return {
       ok: true,
-      value: { level, from, to, message: `Рассмотрите ход с ${from} на ${to}.`, session: nextSession },
+      value: {
+        level,
+        from,
+        to,
+        message: `Рассмотрите ход с ${from} на ${to}.`,
+        session: nextSession,
+      },
     };
   }
   return {

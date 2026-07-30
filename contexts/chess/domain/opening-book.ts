@@ -115,27 +115,18 @@ function isSanMoveList(value: readonly string[] | ChessDocument): value is reado
 export function exploreChessOpening(
   sanMoves: readonly string[] | ChessDocument,
 ): ChessOpeningExplorerResult {
-  const moves = isSanMoveList(sanMoves)
-    ? sanMoves
-    : sanMoves.moves.map((move) => move.san);
+  const moves = isSanMoveList(sanMoves) ? sanMoves : sanMoves.moves.map((move) => move.san);
   const matched =
     moves.length === 0
       ? null
-      : [...ASA_OPENING_BOOK]
+      : ([...ASA_OPENING_BOOK]
           .filter(
-            (opening) =>
-              isPrefix(opening.sanMoves, moves) ||
-              isPrefix(moves, opening.sanMoves),
+            (opening) => isPrefix(opening.sanMoves, moves) || isPrefix(moves, opening.sanMoves),
           )
-          .sort(
-            (left, right) => right.sanMoves.length - left.sanMoves.length,
-          )[0] ?? null;
-  const suggestions = ASA_OPENING_BOOK
-    .filter(
-      (opening) =>
-        opening.sanMoves.length > moves.length &&
-        isPrefix(moves, opening.sanMoves),
-    )
+          .sort((left, right) => right.sanMoves.length - left.sanMoves.length)[0] ?? null);
+  const suggestions = ASA_OPENING_BOOK.filter(
+    (opening) => opening.sanMoves.length > moves.length && isPrefix(moves, opening.sanMoves),
+  )
     .map((opening) => ({
       san: opening.sanMoves[moves.length]!,
       resultingOpeningId: opening.id,
@@ -161,7 +152,6 @@ export function exploreChessOpening(
     exact: Boolean(matched && matched.sanMoves.length === moves.length),
     suggestions,
     source: 'asa-curated-v1',
-    note:
-      'Curated educational opening guidance. No external game-database statistics or proprietary explorer data are used.',
+    note: 'Curated educational opening guidance. No external game-database statistics or proprietary explorer data are used.',
   };
 }

@@ -143,9 +143,25 @@ describe('ASA Chess project document', () => {
   });
 
   it.each([
-    ['top-level authority over-posting', { tenantId: 'foreign' }, 'Chess document contains unsupported field: tenantId.'],
-    ['analysis clock', { mode: 'analysis', clock: { initialMs: 1, incrementMs: 0, whiteMs: 1, blackMs: 1 } }, 'Analysis mode must not persist a running game clock.'],
-    ['computer without bot', { mode: 'computer', clock: { initialMs: 1000, incrementMs: 0, whiteMs: 1000, blackMs: 1000 }, bot: null }, 'Computer mode requires exactly one bot configuration.'],
+    [
+      'top-level authority over-posting',
+      { tenantId: 'foreign' },
+      'Chess document contains unsupported field: tenantId.',
+    ],
+    [
+      'analysis clock',
+      { mode: 'analysis', clock: { initialMs: 1, incrementMs: 0, whiteMs: 1, blackMs: 1 } },
+      'Analysis mode must not persist a running game clock.',
+    ],
+    [
+      'computer without bot',
+      {
+        mode: 'computer',
+        clock: { initialMs: 1000, incrementMs: 0, whiteMs: 1000, blackMs: 1000 },
+        bot: null,
+      },
+      'Computer mode requires exactly one bot configuration.',
+    ],
   ])('rejects %s', (_name, override, message) => {
     const document = { ...createEmptyChessDocument('analysis'), ...override };
     expect(validateChessDocument(document)).toEqual({ ok: false, message });
@@ -166,9 +182,7 @@ describe('ASA Chess project document', () => {
 
     const forgedAnnotation = {
       ...createEmptyChessDocument('analysis'),
-      annotations: [
-        { id: 'a1', kind: 'comment', ply: 0, text: 'ok', role: 'platform_admin' },
-      ],
+      annotations: [{ id: 'a1', kind: 'comment', ply: 0, text: 'ok', role: 'platform_admin' }],
     };
     expect(validateChessDocument(forgedAnnotation)).toEqual({
       ok: false,

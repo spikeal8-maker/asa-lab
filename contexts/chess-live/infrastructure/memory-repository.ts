@@ -4,11 +4,7 @@ import type {
   ChessRatingState,
 } from '../domain/rating.js';
 import type { MatchmakingTicket } from '../domain/matchmaking.js';
-import type {
-  LiveChessChallenge,
-  LiveChessEvent,
-  LiveChessGame,
-} from '../domain/model.js';
+import type { LiveChessChallenge, LiveChessEvent, LiveChessGame } from '../domain/model.js';
 import type {
   ChessLiveRepositoryPort,
   LiveCommandReceipt,
@@ -294,7 +290,9 @@ export class MemoryChessLiveRepository implements ChessLiveRepositoryPort {
         (entry) =>
           entry.tenantId === tenantId && entry.playerId === playerId && entry.pool === pool,
       )
-      .sort((left, right) => right.createdAtMs - left.createdAtMs || right.id.localeCompare(left.id))
+      .sort(
+        (left, right) => right.createdAtMs - left.createdAtMs || right.id.localeCompare(left.id),
+      )
       .map(clone);
   }
 

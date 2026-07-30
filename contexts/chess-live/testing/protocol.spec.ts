@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CHESS_LIVE_PROTOCOL_VERSION,
-  isChessLiveClientMessage,
-} from '../domain/protocol';
+import { CHESS_LIVE_PROTOCOL_VERSION, isChessLiveClientMessage } from '../domain/protocol';
 
 describe('ASA Chess live transport protocol', () => {
   it('accepts hello, move, control and ping messages', () => {
@@ -39,7 +36,13 @@ describe('ASA Chess live transport protocol', () => {
     null,
     [],
     {},
-    { type: 'client.hello', protocol: 'wrong', gameId: 'g', lastSequence: 0, clientInstanceId: 'c' },
+    {
+      type: 'client.hello',
+      protocol: 'wrong',
+      gameId: 'g',
+      lastSequence: 0,
+      clientInstanceId: 'c',
+    },
     { type: 'game.move', gameId: 'g', commandId: 'c', expectedVersion: 0, uci: 'e2e4' },
     { type: 'game.move', gameId: 'g', commandId: 'c', expectedVersion: 1, uci: 'e2e9' },
     { type: 'game.resign', gameId: 'g', commandId: 'c', expectedVersion: 1, uci: 'e2e4' },

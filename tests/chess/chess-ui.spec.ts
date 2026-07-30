@@ -23,12 +23,8 @@ describe('ASA Chess UI helpers', () => {
 
   it('builds Russian accessible square labels', () => {
     expect(squareAccessibleLabel('e4', null)).toBe('e4, пустое поле');
-    expect(squareAccessibleLabel('g8', { color: 'black', type: 'knight' })).toBe(
-      'g8, чёрные конь',
-    );
-    expect(squareAccessibleLabel('e1', { color: 'white', type: 'king' })).toBe(
-      'e1, белые король',
-    );
+    expect(squareAccessibleLabel('g8', { color: 'black', type: 'knight' })).toBe('g8, чёрные конь');
+    expect(squareAccessibleLabel('e1', { color: 'white', type: 'king' })).toBe('e1, белые король');
   });
 
   it.each([

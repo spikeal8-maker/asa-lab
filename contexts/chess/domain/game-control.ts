@@ -20,18 +20,10 @@ export function createChessGameDocument(options: NewChessGameOptions): ChessDocu
 
   const initialMs = options.initialMs ?? base.clock?.initialMs ?? 10 * 60 * 1000;
   const incrementMs = options.incrementMs ?? base.clock?.incrementMs ?? 5 * 1000;
-  if (
-    !Number.isSafeInteger(initialMs) ||
-    initialMs < 1000 ||
-    initialMs > 7 * 24 * 60 * 60 * 1000
-  ) {
+  if (!Number.isSafeInteger(initialMs) || initialMs < 1000 || initialMs > 7 * 24 * 60 * 60 * 1000) {
     throw new Error('initialMs must be an integer from 1000 to 604800000');
   }
-  if (
-    !Number.isSafeInteger(incrementMs) ||
-    incrementMs < 0 ||
-    incrementMs > 60 * 60 * 1000
-  ) {
+  if (!Number.isSafeInteger(incrementMs) || incrementMs < 0 || incrementMs > 60 * 60 * 1000) {
     throw new Error('incrementMs must be an integer from 0 to 3600000');
   }
   if (options.mode === 'computer') {
@@ -57,10 +49,7 @@ export function createChessGameDocument(options: NewChessGameOptions): ChessDocu
   };
 }
 
-export function flagChessTimeout(
-  document: ChessDocument,
-  loser: Color,
-): ChessDocument {
+export function flagChessTimeout(document: ChessDocument, loser: Color): ChessDocument {
   if (document.result !== '*' || document.termination !== 'ongoing') return document;
   return {
     ...document,

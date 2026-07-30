@@ -33,14 +33,10 @@ export interface LiveCommandReceipt {
 }
 
 export type RepositoryWriteResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly reason: 'conflict' | 'duplicate' };
+  { readonly ok: true } | { readonly ok: false; readonly reason: 'conflict' | 'duplicate' };
 
 export interface ChessLiveRepositoryPort {
-  findCommandReceipt(
-    tenantId: string,
-    commandId: string,
-  ): Promise<LiveCommandReceipt | null>;
+  findCommandReceipt(tenantId: string, commandId: string): Promise<LiveCommandReceipt | null>;
   saveCommandReceipt(receipt: LiveCommandReceipt): Promise<RepositoryWriteResult>;
 
   createChallenge(

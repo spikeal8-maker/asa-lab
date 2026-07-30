@@ -114,9 +114,7 @@ const SPECTATOR_DELAY_MS = 15_000;
 
 function stableFingerprint(value: Readonly<Record<string, unknown>>): string {
   return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
-    ),
+    Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))),
   );
 }
 
@@ -136,10 +134,7 @@ function validateExpectedVersion(expectedVersion: number): LiveChessResult<numbe
       };
 }
 
-function effectiveChallenge(
-  challenge: LiveChessChallenge,
-  nowMs: number,
-): LiveChessChallenge {
+function effectiveChallenge(challenge: LiveChessChallenge, nowMs: number): LiveChessChallenge {
   return effectiveChallengeStatus(challenge, nowMs) === 'expired'
     ? expireLiveChessChallenge(challenge, nowMs)
     : challenge;
@@ -183,10 +178,7 @@ export class ChessLiveService {
     kind: string,
     fingerprint: string,
   ): Promise<LiveChessResult<LiveCommandReceipt | null>> {
-    const existing = await this.repository.findCommandReceipt(
-      principal.tenantId,
-      commandId,
-    );
+    const existing = await this.repository.findCommandReceipt(principal.tenantId, commandId);
     if (!existing) return { ok: true, value: null };
     if (
       existing.actorId !== principal.userId ||
@@ -302,11 +294,7 @@ export class ChessLiveService {
         expiresAtMs: created.value.expiresAtMs,
       },
     });
-    const stored = await this.repository.createChallenge(
-      created.value,
-      event,
-      receipt,
-    );
+    const stored = await this.repository.createChallenge(created.value, event, receipt);
     return stored.ok
       ? { ok: true, value: { challenge: created.value, replayed: false } }
       : {
@@ -320,10 +308,7 @@ export class ChessLiveService {
     principal: LivePrincipal,
     publicCode: string,
   ): Promise<LiveChessResult<LiveChessChallenge>> {
-    const challenge = await this.repository.getChallengeByCode(
-      principal.tenantId,
-      publicCode,
-    );
+    const challenge = await this.repository.getChallengeByCode(principal.tenantId, publicCode);
     return challenge
       ? { ok: true, value: effectiveChallenge(challenge, this.clock.nowMs()) }
       : { ok: false, code: 'not_found', message: 'challenge not found' };
@@ -337,37 +322,22 @@ export class ChessLiveService {
     const commandCheck = validateCommandId(commandId);
     if (!commandCheck.ok) return commandCheck;
     const fingerprint = stableFingerprint({ kind: 'accept_challenge', publicCode });
-    const replay = await this.checkReplay(
-      principal,
-      commandId,
-      'accept_challenge',
-      fingerprint,
-    );
+    const replay = await this.checkReplay(principal, commandId, 'accept_challenge', fingerprint);
     if (!replay.ok) return replay;
     if (replay.value) {
-      const game = await this.repository.getGame(
-        principal.tenantId,
-        replay.value.resourceId,
-      );
+      const game = await this.repository.getGame(principal.tenantId, replay.value.resourceId);
       if (!game) {
         return { ok: false, code: 'not_found', message: 'replayed game no longer exists' };
       }
       const challenge = game.challengeId
-        ? await this.repository.getChallengeById(
-            principal.tenantId,
-            game.challengeId,
-          )
+        ? await this.repository.getChallengeById(principal.tenantId, game.challengeId)
         : null;
       return challenge
         ? {
             ok: true,
             value: {
               challenge,
-              game: liveChessParticipantView(
-                game,
-                principal.userId,
-                this.clock.nowMs(),
-              ),
+              game: liveChessParticipantView(game, principal.userId, this.clock.nowMs()),
               replayed: true,
             },
           }
@@ -378,32 +348,20 @@ export class ChessLiveService {
           };
     }
 
-    const challenge = await this.repository.getChallengeByCode(
-      principal.tenantId,
-      publicCode,
-    );
+    const challenge = await this.repository.getChallengeByCode(principal.tenantId, publicCode);
     if (!challenge) {
       return { ok: false, code: 'not_found', message: 'challenge not found' };
     }
     const nowMs = this.clock.nowMs();
     const gameId = this.ids.nextId('game');
-    const accepted = acceptLiveChessChallenge(
-      challenge,
-      principal.userId,
-      gameId,
-      nowMs,
-    );
+    const accepted = acceptLiveChessChallenge(challenge, principal.userId, gameId, nowMs);
     if (!accepted.ok) return accepted;
 
     const creatorWhite =
       challenge.colorPreference === 'white' ||
       (challenge.colorPreference === 'random' && this.ids.randomBit() === 0);
-    const whitePlayerId = creatorWhite
-      ? challenge.creatorId
-      : principal.userId;
-    const blackPlayerId = creatorWhite
-      ? principal.userId
-      : challenge.creatorId;
+    const whitePlayerId = creatorWhite ? challenge.creatorId : principal.userId;
+    const blackPlayerId = creatorWhite ? principal.userId : challenge.creatorId;
     const createdGame = createLiveChessGame({
       id: gameId,
       tenantId: principal.tenantId,
@@ -469,11 +427,7 @@ export class ChessLiveService {
           ok: true,
           value: {
             challenge: accepted.value,
-            game: liveChessParticipantView(
-              storedGame,
-              principal.userId,
-              nowMs,
-            ),
+            game: liveChessParticipantView(storedGame, principal.userId, nowMs),
             replayed: false,
           },
         }
@@ -492,35 +446,20 @@ export class ChessLiveService {
     const commandCheck = validateCommandId(commandId);
     if (!commandCheck.ok) return commandCheck;
     const fingerprint = stableFingerprint({ kind: 'cancel_challenge', challengeId });
-    const replay = await this.checkReplay(
-      principal,
-      commandId,
-      'cancel_challenge',
-      fingerprint,
-    );
+    const replay = await this.checkReplay(principal, commandId, 'cancel_challenge', fingerprint);
     if (!replay.ok) return replay;
     if (replay.value) {
-      const challenge = await this.repository.getChallengeById(
-        principal.tenantId,
-        challengeId,
-      );
+      const challenge = await this.repository.getChallengeById(principal.tenantId, challengeId);
       return challenge
         ? { ok: true, value: { challenge, replayed: true } }
         : { ok: false, code: 'not_found', message: 'challenge not found' };
     }
-    const challenge = await this.repository.getChallengeById(
-      principal.tenantId,
-      challengeId,
-    );
+    const challenge = await this.repository.getChallengeById(principal.tenantId, challengeId);
     if (!challenge) {
       return { ok: false, code: 'not_found', message: 'challenge not found' };
     }
     const nowMs = this.clock.nowMs();
-    const cancelled = cancelLiveChessChallenge(
-      challenge,
-      principal.userId,
-      nowMs,
-    );
+    const cancelled = cancelLiveChessChallenge(challenge, principal.userId, nowMs);
     if (!cancelled.ok) return cancelled;
     const receipt = this.newReceipt(
       principal,
@@ -577,24 +516,13 @@ export class ChessLiveService {
       expectedVersion: command.expectedVersion,
       ...extraFingerprint,
     });
-    const replay = await this.checkReplay(
-      principal,
-      command.commandId,
-      kind,
-      fingerprint,
-    );
+    const replay = await this.checkReplay(principal, command.commandId, kind, fingerprint);
     if (!replay.ok) return replay;
     if (replay.value) {
-      const game = await this.repository.getGame(
-        principal.tenantId,
-        command.gameId,
-      );
+      const game = await this.repository.getGame(principal.tenantId, command.gameId);
       if (!game) return { ok: false, code: 'not_found', message: 'game not found' };
       const processed = findProcessedLiveCommand(game, command.commandId);
-      const afterSequence = Math.max(
-        0,
-        (processed?.appliedSequence ?? game.sequence) - 1,
-      );
+      const afterSequence = Math.max(0, (processed?.appliedSequence ?? game.sequence) - 1);
       const events = await this.repository.listGameEvents(
         principal.tenantId,
         game.id,
@@ -603,21 +531,14 @@ export class ChessLiveService {
       return {
         ok: true,
         value: {
-          game: liveChessParticipantView(
-            game,
-            principal.userId,
-            this.clock.nowMs(),
-          ),
+          game: liveChessParticipantView(game, principal.userId, this.clock.nowMs()),
           replayed: true,
           event: events.at(-1) ?? null,
         },
       };
     }
 
-    const game = await this.repository.getGame(
-      principal.tenantId,
-      command.gameId,
-    );
+    const game = await this.repository.getGame(principal.tenantId, command.gameId);
     if (!game) return { ok: false, code: 'not_found', message: 'game not found' };
     if (!participantColor(game, principal.userId)) {
       return {
@@ -642,12 +563,7 @@ export class ChessLiveService {
       kind,
     });
     if (!applied.ok) return applied;
-    const events = this.gameEvents(
-      game,
-      applied.value.game,
-      applied.value.events,
-      nowMs,
-    );
+    const events = this.gameEvents(game, applied.value.game, applied.value.events, nowMs);
     const receipt = this.newReceipt(
       principal,
       command.commandId,
@@ -680,11 +596,7 @@ export class ChessLiveService {
     return {
       ok: true,
       value: {
-        game: liveChessParticipantView(
-          applied.value.game,
-          principal.userId,
-          nowMs,
-        ),
+        game: liveChessParticipantView(applied.value.game, principal.userId, nowMs),
         replayed: false,
         event: events.at(-1) ?? null,
       },
@@ -708,65 +620,35 @@ export class ChessLiveService {
     principal: LivePrincipal,
     command: GameCommandInput,
   ): Promise<LiveChessResult<LiveChessCommandReceipt>> {
-    return this.applyGameCommand(
-      principal,
-      command,
-      'offer_draw',
-      {},
-      offerLiveChessDraw,
-    );
+    return this.applyGameCommand(principal, command, 'offer_draw', {}, offerLiveChessDraw);
   }
 
   acceptDraw(
     principal: LivePrincipal,
     command: GameCommandInput,
   ): Promise<LiveChessResult<LiveChessCommandReceipt>> {
-    return this.applyGameCommand(
-      principal,
-      command,
-      'accept_draw',
-      {},
-      acceptLiveChessDraw,
-    );
+    return this.applyGameCommand(principal, command, 'accept_draw', {}, acceptLiveChessDraw);
   }
 
   declineDraw(
     principal: LivePrincipal,
     command: GameCommandInput,
   ): Promise<LiveChessResult<LiveChessCommandReceipt>> {
-    return this.applyGameCommand(
-      principal,
-      command,
-      'decline_draw',
-      {},
-      declineLiveChessDraw,
-    );
+    return this.applyGameCommand(principal, command, 'decline_draw', {}, declineLiveChessDraw);
   }
 
   resign(
     principal: LivePrincipal,
     command: GameCommandInput,
   ): Promise<LiveChessResult<LiveChessCommandReceipt>> {
-    return this.applyGameCommand(
-      principal,
-      command,
-      'resign',
-      {},
-      resignLiveChessGame,
-    );
+    return this.applyGameCommand(principal, command, 'resign', {}, resignLiveChessGame);
   }
 
   claimTimeout(
     principal: LivePrincipal,
     command: GameCommandInput,
   ): Promise<LiveChessResult<LiveChessCommandReceipt>> {
-    return this.applyGameCommand(
-      principal,
-      command,
-      'claim_timeout',
-      {},
-      claimLiveChessTimeout,
-    );
+    return this.applyGameCommand(principal, command, 'claim_timeout', {}, claimLiveChessTimeout);
   }
 
   async getGame(
@@ -784,11 +666,7 @@ export class ChessLiveService {
     }
     return {
       ok: true,
-      value: liveChessParticipantView(
-        game,
-        principal.userId,
-        this.clock.nowMs(),
-      ),
+      value: liveChessParticipantView(game, principal.userId, this.clock.nowMs()),
     };
   }
 
@@ -813,19 +691,11 @@ export class ChessLiveService {
         message: 'user is not a game participant',
       };
     }
-    const events = await this.repository.listGameEvents(
-      principal.tenantId,
-      gameId,
-      afterSequence,
-    );
+    const events = await this.repository.listGameEvents(principal.tenantId, gameId, afterSequence);
     return {
       ok: true,
       value: {
-        snapshot: liveChessParticipantView(
-          game,
-          principal.userId,
-          this.clock.nowMs(),
-        ),
+        snapshot: liveChessParticipantView(game, principal.userId, this.clock.nowMs()),
         events,
         nextSequence: game.sequence,
       },
@@ -883,30 +753,18 @@ export class ChessLiveService {
     );
     if (!replay.ok) return replay;
     if (replay.value) {
-      const ticket = await this.repository.getTicket(
-        principal.tenantId,
-        replay.value.resourceId,
-      );
+      const ticket = await this.repository.getTicket(principal.tenantId, replay.value.resourceId);
       if (!ticket) {
         return { ok: false, code: 'not_found', message: 'matchmaking ticket not found' };
       }
       const game = ticket.pairedGameId
-        ? await this.repository.getGame(
-            principal.tenantId,
-            ticket.pairedGameId,
-          )
+        ? await this.repository.getGame(principal.tenantId, ticket.pairedGameId)
         : null;
       return {
         ok: true,
         value: {
           ticket,
-          game: game
-            ? liveChessParticipantView(
-                game,
-                principal.userId,
-                this.clock.nowMs(),
-              )
-            : null,
+          game: game ? liveChessParticipantView(game, principal.userId, this.clock.nowMs()) : null,
           replayed: true,
         },
       };
@@ -918,17 +776,8 @@ export class ChessLiveService {
       command.timeControl.incrementMs,
     );
     const rating =
-      (await this.repository.getRating(
-        principal.tenantId,
-        principal.userId,
-        pool,
-      )) ??
-      createInitialChessRating(
-        principal.tenantId,
-        principal.userId,
-        pool,
-        nowMs,
-      );
+      (await this.repository.getRating(principal.tenantId, principal.userId, pool)) ??
+      createInitialChessRating(principal.tenantId, principal.userId, pool, nowMs);
     const created = createMatchmakingTicket({
       id: this.ids.nextId('ticket'),
       tenantId: principal.tenantId,
@@ -961,10 +810,7 @@ export class ChessLiveService {
     }
     await this.tryPairMatchmaking(principal.tenantId, nowMs);
     const ticket =
-      (await this.repository.getTicket(
-        principal.tenantId,
-        created.value.id,
-      )) ?? created.value;
+      (await this.repository.getTicket(principal.tenantId, created.value.id)) ?? created.value;
     const game = ticket.pairedGameId
       ? await this.repository.getGame(principal.tenantId, ticket.pairedGameId)
       : null;
@@ -972,22 +818,14 @@ export class ChessLiveService {
       ok: true,
       value: {
         ticket,
-        game: game
-          ? liveChessParticipantView(game, principal.userId, nowMs)
-          : null,
+        game: game ? liveChessParticipantView(game, principal.userId, nowMs) : null,
         replayed: false,
       },
     };
   }
 
-  private async tryPairMatchmaking(
-    tenantId: string,
-    nowMs: number,
-  ): Promise<LiveChessGame | null> {
-    const pair = findMatchmakingPair(
-      await this.repository.listQueuedTickets(tenantId),
-      nowMs,
-    );
+  private async tryPairMatchmaking(tenantId: string, nowMs: number): Promise<LiveChessGame | null> {
+    const pair = findMatchmakingPair(await this.repository.listQueuedTickets(tenantId), nowMs);
     return pair ? this.createGameFromPair(pair, nowMs) : null;
   }
 
@@ -1006,14 +844,8 @@ export class ChessLiveService {
       nowMs,
     });
     if (!created.ok) return null;
-    const white = markMatchmakingTicketPaired(
-      pair.white,
-      created.value.id,
-    );
-    const black = markMatchmakingTicketPaired(
-      pair.black,
-      created.value.id,
-    );
+    const white = markMatchmakingTicketPaired(pair.white, created.value.id);
+    const black = markMatchmakingTicketPaired(pair.black, created.value.id);
     const event = this.newEvent({
       tenantId: created.value.tenantId,
       gameId: created.value.id,
@@ -1068,18 +900,12 @@ export class ChessLiveService {
     );
     if (!replay.ok) return replay;
     if (replay.value) {
-      const ticket = await this.repository.getTicket(
-        principal.tenantId,
-        command.ticketId,
-      );
+      const ticket = await this.repository.getTicket(principal.tenantId, command.ticketId);
       return ticket
         ? { ok: true, value: { ticket, replayed: true } }
         : { ok: false, code: 'not_found', message: 'ticket not found' };
     }
-    const ticket = await this.repository.getTicket(
-      principal.tenantId,
-      command.ticketId,
-    );
+    const ticket = await this.repository.getTicket(principal.tenantId, command.ticketId);
     if (!ticket) return { ok: false, code: 'not_found', message: 'ticket not found' };
     if (ticket.version !== command.expectedVersion) {
       return {
@@ -1089,11 +915,7 @@ export class ChessLiveService {
       };
     }
     const nowMs = this.clock.nowMs();
-    const cancelled = cancelMatchmakingTicket(
-      ticket,
-      principal.userId,
-      nowMs,
-    );
+    const cancelled = cancelMatchmakingTicket(ticket, principal.userId, nowMs);
     if (!cancelled.ok) return cancelled;
     const stored = await this.repository.saveTicket(
       cancelled.value,
@@ -1128,17 +950,8 @@ export class ChessLiveService {
   > {
     const nowMs = this.clock.nowMs();
     const rating =
-      (await this.repository.getRating(
-        principal.tenantId,
-        principal.userId,
-        pool,
-      )) ??
-      createInitialChessRating(
-        principal.tenantId,
-        principal.userId,
-        pool,
-        nowMs,
-      );
+      (await this.repository.getRating(principal.tenantId, principal.userId, pool)) ??
+      createInitialChessRating(principal.tenantId, principal.userId, pool, nowMs);
     const ledger = await this.repository.listRatingLedger(
       principal.tenantId,
       principal.userId,
@@ -1147,38 +960,14 @@ export class ChessLiveService {
     return { ok: true, value: { rating, ledger } };
   }
 
-  private async applyRatingUpdate(
-    game: LiveChessGame,
-    nowMs: number,
-  ): Promise<void> {
-    const pool = ratingPoolForTimeControl(
-      game.timeControl.initialMs,
-      game.timeControl.incrementMs,
-    );
+  private async applyRatingUpdate(game: LiveChessGame, nowMs: number): Promise<void> {
+    const pool = ratingPoolForTimeControl(game.timeControl.initialMs, game.timeControl.incrementMs);
     const white =
-      (await this.repository.getRating(
-        game.tenantId,
-        game.whitePlayerId,
-        pool,
-      )) ??
-      createInitialChessRating(
-        game.tenantId,
-        game.whitePlayerId,
-        pool,
-        nowMs,
-      );
+      (await this.repository.getRating(game.tenantId, game.whitePlayerId, pool)) ??
+      createInitialChessRating(game.tenantId, game.whitePlayerId, pool, nowMs);
     const black =
-      (await this.repository.getRating(
-        game.tenantId,
-        game.blackPlayerId,
-        pool,
-      )) ??
-      createInitialChessRating(
-        game.tenantId,
-        game.blackPlayerId,
-        pool,
-        nowMs,
-      );
+      (await this.repository.getRating(game.tenantId, game.blackPlayerId, pool)) ??
+      createInitialChessRating(game.tenantId, game.blackPlayerId, pool, nowMs);
     const update = calculateChessRatingUpdate(
       game,
       white,
@@ -1186,11 +975,6 @@ export class ChessLiveService {
       [this.ids.nextId('rating'), this.ids.nextId('rating')],
       nowMs,
     );
-    await this.repository.saveRatingUpdate(
-      game.id,
-      update.white,
-      update.black,
-      update.ledger,
-    );
+    await this.repository.saveRatingUpdate(game.id, update.white, update.black, update.ledger);
   }
 }

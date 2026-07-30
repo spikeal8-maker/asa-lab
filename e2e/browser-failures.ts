@@ -25,7 +25,9 @@ const anonymousSessionConsoleText =
 
 function consoleFailure(message: ConsoleMessage): string {
   const location = message.location();
-  const source = location.url ? ` ${location.url}:${location.lineNumber}:${location.columnNumber}` : '';
+  const source = location.url
+    ? ` ${location.url}:${location.lineNumber}:${location.columnNumber}`
+    : '';
   return `${message.text()}${source}`;
 }
 

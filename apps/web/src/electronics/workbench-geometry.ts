@@ -66,8 +66,17 @@ export function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function viewportViewBox(viewport: Viewport, width: number, height: number): { x: number; y: number; width: number; height: number } {
-  return { x: viewport.x, y: viewport.y, width: width / viewport.zoom, height: height / viewport.zoom };
+export function viewportViewBox(
+  viewport: Viewport,
+  width: number,
+  height: number,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: viewport.x,
+    y: viewport.y,
+    width: width / viewport.zoom,
+    height: height / viewport.zoom,
+  };
 }
 
 export function clientToWorld(
