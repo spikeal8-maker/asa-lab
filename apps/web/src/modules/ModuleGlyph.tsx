@@ -20,6 +20,18 @@ export function ModuleGlyph({ module, size = 36 }: { module: ModuleSummary; size
       </svg>
     );
   }
+  if (module.iconKey === 'chess') {
+    return (
+      <svg {...common}>
+        <path
+          d="M31 7c-6.5 1.2-12 6.7-13.5 13.6l6.2 2.4-7.5 8.2h19.5c-1-5.4-4-9-8.6-10.7 3.6-2.8 5.2-7.1 3.9-13.5Z"
+          fill="currentColor"
+        />
+        <circle cx="28.3" cy="12.5" r="1.8" fill="#fff" />
+        <path d="M13 36h25M11 41h29" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      </svg>
+    );
+  }
   if (module.iconKey === 'blocks') {
     return (
       <svg {...common}>
@@ -29,7 +41,7 @@ export function ModuleGlyph({ module, size = 36 }: { module: ModuleSummary; size
       </svg>
     );
   }
-  if (module.iconKey === 'board') {
+  if (module.iconKey === 'board' || module.iconKey === 'checkers') {
     return (
       <svg {...common}>
         <rect x="5" y="5" width="38" height="38" rx="4" stroke="currentColor" strokeWidth="3" />
@@ -69,6 +81,7 @@ export function ModuleGlyph({ module, size = 36 }: { module: ModuleSummary; size
 export function moduleAccent(moduleKey: string): string {
   const accents: Record<string, string> = {
     electronics: '#0f9ec7',
+    chess: '#24725d',
     blocks: '#7b5cd6',
     checkers: '#cc7a24',
     'three-d': '#e25b74',
