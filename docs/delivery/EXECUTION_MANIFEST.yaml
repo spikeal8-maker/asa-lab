@@ -130,7 +130,7 @@ tasks:
     delivery_stage: STAGE-1-TEACHER-PORTAL
     architecture_horizon: PHASE-1
     depends_on: [TASK-PRODUCT-DOC-001]
-    next_task: TASK-ELECTRONICS-SLICE-001
+    next_task: TASK-ACCOUNT-C1-001
     capabilities: [CAP-ORG, CAP-IDENTITY, CAP-CLASSROOM, CAP-PORTAL-BASIC, CAP-SAFETY, CAP-OPERATIONS]
     visible_result: Teacher opens the site, logs in, creates a classroom, reloads it and logs out.
     read:
@@ -144,6 +144,30 @@ tasks:
     artifacts: [playwright-report, portal-screenshot, startup-report, authorization-matrix]
 
   - position: 3
+    task_id: TASK-ACCOUNT-C1-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/48
+    branch: assistant/docker-linux-bootstrap
+    status: in_progress
+    milestone: R1 Account C1
+    track: technical-alpha
+    delivery_stage: STAGE-1A-ACCOUNT-C1
+    architecture_horizon: PHASE-1
+    depends_on: [TASK-PORTAL-001]
+    next_task: TASK-ELECTRONICS-SLICE-001
+    capabilities: [CAP-IDENTITY, CAP-PORTAL-BASIC, CAP-PROJECTS, CAP-SAFETY, CAP-OPERATIONS]
+    visible_result: "Existing Account registration/login/Personal Workspace foundation is preserved; the remaining R1 Account capability is completed: educator self-attestation, workspace context switching, account menu, profile and active session management."
+    read:
+      - AGENTS.md
+      - docs/product/PRODUCT_BLUEPRINT.md
+      - docs/architecture/DATA_SECURITY_AND_TENANCY.md
+      - migrations/0010_account_identity_sessions_v2.sql
+      - https://github.com/spikeal8-maker/asa-lab/issues/48
+    test_profiles: [code_common, tenant_storage]
+    task_tests: [TST-ACCOUNT-REG-001, TST-ACCOUNT-BACKFILL-001, TST-ACCOUNT-LEGACY-COMPAT-001, TST-PERSONAL-WORKSPACE-001, TST-CAPABILITY-001, TST-WORKSPACE-CONTEXT-001, TST-SESSION-V2-001, TST-IDENTITY-RLS-001, TST-E2E-ACCOUNT-C1-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-1, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-PROJECTS, DATA-PG]
+    artifacts: [migration-report, identity-security-report, account-sign-up.png, account-first-workspace.png, account-settings.png, account-sessions.png, account-login-username.png, account-existing-teacher.png]
+
+  - position: 4
     task_id: TASK-ELECTRONICS-SLICE-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/33
     branch: agent/task-electronics-slice-001
@@ -151,7 +175,7 @@ tasks:
     track: technical-alpha
     delivery_stage: STAGE-2-PROJECT-SHELL
     architecture_horizon: PHASE-3
-    depends_on: [TASK-PORTAL-001]
+    depends_on: [TASK-PORTAL-001, TASK-ACCOUNT-C1-001]
     next_task: TASK-CHECKERS-LITE-001
     capabilities: [CAP-PROJECT-SHELL, CAP-PROJECTS, CAP-ELECTRONICS-CORE, CAP-IDENTITY, CAP-CLASSROOM, CAP-SAFETY]
     visible_result: Teacher creates an electronics project, builds a series circuit, sees current and LED state, reloads the schematic and creates an immutable checkpoint.
@@ -164,7 +188,7 @@ tasks:
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-3, CTX-PROJECTS, MOD-ELECTRONICS, APP-WEB, DATA-PG]
     artifacts: [project-document, checkpoint-report, playwright-report, electronics-slice-screenshot]
 
-  - position: 4
+  - position: 5
     task_id: TASK-CHECKERS-LITE-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/25
     branch: agent/task-checkers-lite-001
@@ -185,7 +209,7 @@ tasks:
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-3, MOD-CHECKERS-LITE, SDK-MODULE, APP-WEB]
     artifacts: [checkers-document, preview, playwright-report, checkers-screenshot]
 
-  - position: 5
+  - position: 6
     task_id: TASK-ELECTRONICS-ALPHA-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/26
     branch: agent/task-electronics-alpha-001
@@ -206,7 +230,7 @@ tasks:
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-5, MOD-ELECTRONICS, SDK-MODULE, APP-WEB]
     artifacts: [circuit-document, normalized-netlist, golden-report, parity-report, working-circuit-screenshot, diagnostic-screenshot]
 
-  - position: 6
+  - position: 7
     task_id: TASK-SEAT-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/7
     branch: agent/task-seat-001-child-dashboard
@@ -228,7 +252,7 @@ tasks:
     map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-2, CTX-IDENTITY, CTX-CLASSROOM, APP-WEB, DATA-PG]
     artifacts: [access-card, import-report, security-report, playwright-report, child-dashboard-screenshot]
 
-  - position: 7
+  - position: 8
     task_id: TASK-ACT-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/8
     branch: agent/task-act-001-assignment-submission
@@ -251,7 +275,7 @@ tasks:
     map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-3, CTX-CONTENT, CTX-ACTIVITIES, CTX-PROJECTS, CTX-ASSESSMENT, CTX-NOTIFICATIONS, APP-WEB, DATA-PG]
     artifacts: [activity-fixtures, assignment-report, submission-manifest, playwright-report]
 
-  - position: 8
+  - position: 9
     task_id: TASK-REVIEW-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/20
     branch: agent/task-review-001-comments-grade-badge
@@ -273,7 +297,7 @@ tasks:
     map_nodes: [PROGRAM-ALPHA-001, TRACK-SCHOOL-PILOT, PHASE-4, CTX-ASSESSMENT, CTX-NOTIFICATIONS, APP-WEB, DATA-PG]
     artifacts: [comment-report, review-report, assessment-report, badge-report, playwright-report]
 
-  - position: 9
+  - position: 10
     task_id: TASK-ELEC-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/6
     branch: agent/task-elec-001-classroom-cycle

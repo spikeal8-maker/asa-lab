@@ -4,7 +4,7 @@ project:
   id: asa-lab
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
-  current_focus: TASK-ELECTRONICS-SLICE-001
+  current_focus: TASK-ACCOUNT-C1-001
   source_of_truth: docs/project-map/project-map.yaml
 status_definitions:
   planned: Зафиксировано в плане, но ещё не готово к работе.
@@ -43,7 +43,7 @@ nodes:
 
   - {id: PLANE-CONTROL, label: Modular Monolith Control Plane, kind: plane, layer: architecture, status: planned, summary: "Транзакционно целостное образовательное ядро bounded contexts."}
   - {id: CTX-IDENTITY, label: Identity, kind: bounded_context, layer: control, status: in_progress, summary: "Adult accounts, StudentSeat, credentials и sessions.", path: contexts/identity}
-  - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: done, summary: "Tenant, organization, school, period и TenantPlacement.", path: contexts/organization}
+  - {id: CTX-ORG, label: Organizations, kind: bounded_context, layer: control, status: in_progress, summary: "Tenant, organization, school, period, TenantPlacement and Account workspace compatibility.", path: contexts/organization}
   - {id: CTX-CLASSROOM, label: Classroom, kind: bounded_context, layer: control, status: in_progress, summary: "Classroom, memberships, roster, groups и Safe Mode.", path: contexts/classroom}
   - {id: CTX-CONTENT, label: Learning Content, kind: bounded_context, layer: control, status: planned, summary: "ActivityTemplate и immutable ActivityVersion.", path: contexts/content}
   - {id: CTX-PROJECTS, label: Projects, kind: bounded_context, layer: control, status: in_progress, summary: "Project, draft и immutable ProjectVersion для electronics-среза; универсальный Module SDK ещё не реализован.", path: contexts/projects}
@@ -101,7 +101,7 @@ nodes:
   - {id: TRACK-SCHOOL-PILOT, label: School Pilot, kind: delivery_track, layer: delivery, status: planned, summary: "StudentSeat, assignments, review и полный electronics classroom cycle."}
 
   - {id: PHASE-0, label: Phase 0 Foundation and Product Definition, kind: roadmap_phase, layer: roadmap, status: done, summary: "Foundation merged; Product Blueprint and Development Program are in review."}
-  - {id: PHASE-1, label: Phase 1 Teacher Portal, kind: roadmap_phase, layer: roadmap, status: done, summary: "Teacher login, dashboard and classroom create/list."}
+  - {id: PHASE-1, label: Phase 1 Teacher Portal and Account C1, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Teacher portal plus Account profile, Personal Workspace, capabilities, context and sessions."}
   - {id: PHASE-2, label: Phase 2 Child Access, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and Child Dashboard."}
   - {id: PHASE-3, label: Phase 3 Modules Projects Assignments, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Project Shell, modules, ActivityVersion, Assignment and Submission."}
   - {id: PHASE-4, label: Phase 4 Review Assessment Rewards, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "Comments, review, rubrics, grades, badges and progress."}
@@ -126,7 +126,8 @@ nodes:
 
   - {id: TASK-PRODUCT-DOC-001, label: Product Blueprint and Development Program, kind: task, layer: delivery, status: done, summary: "Product specs, capability map, execution path and port policy in PR 21.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}
   - {id: TASK-PORTAL-001, label: Teacher Portal v0.1, kind: task, layer: delivery, status: done, summary: "Stabilize PR 22: login, classes, security, full gate and canonical ports.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/18}
-  - {id: TASK-ELECTRONICS-SLICE-001, label: Electronics Project Slice, kind: task, layer: delivery, status: in_progress, summary: "Проект и ProjectDraft, редактор схемы, netlist, простой DC-расчёт, диагностика и immutable checkpoint. Project Shell реализуется внутри этого среза.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/33}
+  - {id: TASK-ACCOUNT-C1-001, label: Account C1, kind: task, layer: delivery, status: in_progress, summary: "Account/Profile/Principal foundation, educator self-attestation, Personal Workspace context, account menu and active session management.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/48}
+  - {id: TASK-ELECTRONICS-SLICE-001, label: Electronics Project Slice, kind: task, layer: delivery, status: blocked, summary: "Paused until Account C1 owner acceptance. Проект и ProjectDraft, редактор схемы, netlist, простой DC-расчёт, диагностика и immutable checkpoint сохраняются.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/33}
   - {id: TASK-CHECKERS-LITE-001, label: Checkers Lite Reference Module, kind: task, layer: delivery, status: blocked, summary: "8x8 board, one legal move, validation, save/reload and preview.", phase: PHASE-3, issue: https://github.com/spikeal8-maker/asa-lab/issues/25}
   - {id: TASK-ELECTRONICS-ALPHA-001, label: Electronics Alpha, kind: task, layer: delivery, status: blocked, summary: "Source, resistor, LED, wire, netlist, Rust/WASM DC and diagnostics.", phase: PHASE-5, issue: https://github.com/spikeal8-maker/asa-lab/issues/26}
   - {id: TASK-SEAT-001, label: StudentSeat and Child Dashboard, kind: task, layer: delivery, status: blocked, summary: "Teacher issues child access; child logs in without email and opens own project.", phase: PHASE-2, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
@@ -279,7 +280,9 @@ edges:
   - {from: TASK-BOOT-001, to: TASK-ARCH-001, type: depends_on}
   - {from: TASK-PRODUCT-DOC-001, to: TASK-BOOT-001, type: depends_on}
   - {from: TASK-PORTAL-001, to: TASK-PRODUCT-DOC-001, type: depends_on}
+  - {from: TASK-ACCOUNT-C1-001, to: TASK-PORTAL-001, type: depends_on}
   - {from: TASK-ELECTRONICS-SLICE-001, to: TASK-PORTAL-001, type: depends_on}
+  - {from: TASK-ELECTRONICS-SLICE-001, to: TASK-ACCOUNT-C1-001, type: depends_on}
   - {from: TASK-CHECKERS-LITE-001, to: TASK-ELECTRONICS-SLICE-001, type: depends_on}
   - {from: TASK-ELECTRONICS-ALPHA-001, to: TASK-CHECKERS-LITE-001, type: depends_on}
   - {from: TASK-SEAT-001, to: TASK-ELECTRONICS-ALPHA-001, type: depends_on}
@@ -297,6 +300,7 @@ edges:
   - {from: TASK-PRODUCT-DOC-001, to: DOC-DEVELOPMENT-PROGRAM, type: implements}
   - {from: TASK-PRODUCT-DOC-001, to: DOC-PORT-POLICY, type: implements}
   - {from: TASK-PORTAL-001, to: PHASE-1, type: implements}
+  - {from: TASK-ACCOUNT-C1-001, to: PHASE-1, type: implements}
   - {from: TASK-ELECTRONICS-SLICE-001, to: PHASE-3, type: implements}
   - {from: TASK-CHECKERS-LITE-001, to: MOD-CHECKERS-LITE, type: implements}
   - {from: TASK-ELECTRONICS-ALPHA-001, to: MOD-ELECTRONICS, type: implements}
@@ -313,10 +317,11 @@ edges:
 execution_queue:
   - {position: 1, task_id: TASK-PRODUCT-DOC-001, instruction: "Validate and merge Product Blueprint, Development Program, Port Policy and canonical Issues.", gate: "All Product Doc test IDs PASS and PR 21 merged."}
   - {position: 2, task_id: TASK-PORTAL-001, instruction: "Rebase and stabilize PR 22 strictly by Issue 18 on ports 4610/4611/4612.", gate: "Teacher login, classroom create/reload/logout, full security/quality gate and Playwright PASS."}
-  - {position: 3, task_id: TASK-ELECTRONICS-SLICE-001, instruction: "Deliver the Electronics vertical slice: project, draft, schematic editor, DC result and immutable checkpoint.", gate: "Owner builds a circuit in the browser, sees current and LED state, reloads it and creates a checkpoint."}
-  - {position: 4, task_id: TASK-CHECKERS-LITE-001, instruction: "Implement small Checkers Lite reference module.", gate: "Board, legal move, validation, save/reload and preview E2E PASS."}
-  - {position: 5, task_id: TASK-ELECTRONICS-ALPHA-001, instruction: "Implement Electronics Alpha with source, resistor, LED, wire and DC solver.", gate: "Editor, netlist, diagnostics, native/WASM parity and E2E PASS."}
-  - {position: 6, task_id: TASK-SEAT-001, instruction: "Implement StudentSeat, child login and Child Dashboard.", gate: "Child enters without email, sees class/project and old session is revoked after reset."}
-  - {position: 7, task_id: TASK-ACT-001, instruction: "Implement ActivityVersion, Assignment and immutable Submission.", gate: "Teacher assign, child work/save/submit and teacher queue E2E PASS."}
-  - {position: 8, task_id: TASK-REVIEW-001, instruction: "Implement comments, review, grade, badge and progress.", gate: "Return, revise, accept, grade and badge E2E PASS."}
-  - {position: 9, task_id: TASK-ELEC-001, instruction: "Integrate Electronics Alpha into the full classroom learning cycle.", gate: "Electronics assignment, submission, anchored review, grade and badge E2E PASS."}
+  - {position: 3, task_id: TASK-ACCOUNT-C1-001, instruction: "Complete Account C1 without duplicating registration, Personal Workspace or sessions_v2.", gate: "Educator attestation, workspace context, profile, session management, compatibility and Account Chromium evidence PASS."}
+  - {position: 4, task_id: TASK-ELECTRONICS-SLICE-001, instruction: "Resume the Electronics vertical slice only after Account C1 owner acceptance.", gate: "Owner builds a circuit in the browser, sees current and LED state, reloads it and creates a checkpoint."}
+  - {position: 5, task_id: TASK-CHECKERS-LITE-001, instruction: "Implement small Checkers Lite reference module.", gate: "Board, legal move, validation, save/reload and preview E2E PASS."}
+  - {position: 6, task_id: TASK-ELECTRONICS-ALPHA-001, instruction: "Implement Electronics Alpha with source, resistor, LED, wire and DC solver.", gate: "Editor, netlist, diagnostics, native/WASM parity and E2E PASS."}
+  - {position: 7, task_id: TASK-SEAT-001, instruction: "Implement StudentSeat, child login and Child Dashboard.", gate: "Child enters without email, sees own class/project and old session is revoked after reset."}
+  - {position: 8, task_id: TASK-ACT-001, instruction: "Implement ActivityVersion, Assignment and immutable Submission.", gate: "Teacher assign, child work/save/submit and teacher queue E2E PASS."}
+  - {position: 9, task_id: TASK-REVIEW-001, instruction: "Implement comments, review, grade, badge and progress.", gate: "Return, revise, accept, grade and badge E2E PASS."}
+  - {position: 10, task_id: TASK-ELEC-001, instruction: "Integrate Electronics Alpha into the full classroom learning cycle.", gate: "Electronics assignment, submission, anchored review, grade and badge E2E PASS."}

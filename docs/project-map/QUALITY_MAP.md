@@ -18,6 +18,7 @@
 flowchart LR
     DOC[TASK-PRODUCT-DOC-001]
     PORTAL[TASK-PORTAL-001]
+    ACCOUNT[TASK-ACCOUNT-C1-001]
     PROJECT[TASK-ELECTRONICS-SLICE-001]
     CHECKERS[TASK-CHECKERS-LITE-001]
     EALPHA[TASK-ELECTRONICS-ALPHA-001]
@@ -26,7 +27,7 @@ flowchart LR
     REVIEW[TASK-REVIEW-001]
     EFULL[TASK-ELEC-001]
 
-    DOC --> PORTAL --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
+    DOC --> PORTAL --> ACCOUNT --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
 ```
 
 ## 2. Test profiles
@@ -142,7 +143,36 @@ site opens
 
 Дополнительно: runtime DB URL only, idempotency conflict, users/sessions/classrooms/audit isolation, clean PowerShell startup, canonical ports and accessibility.
 
-## 5. Electronics Project Slice gate
+## 5. Account C1 gate
+
+Profiles: `code_common + tenant_storage`.
+
+Task tests:
+
+```text
+TST-ACCOUNT-REG-001
+TST-ACCOUNT-BACKFILL-001
+TST-ACCOUNT-LEGACY-COMPAT-001
+TST-PERSONAL-WORKSPACE-001
+TST-CAPABILITY-001
+TST-WORKSPACE-CONTEXT-001
+TST-SESSION-V2-001
+TST-IDENTITY-RLS-001
+TST-E2E-ACCOUNT-C1-001
+```
+
+Flow:
+
+```text
+existing Account foundation
+→ adult educator self-attestation
+→ Personal/Organization workspace context
+→ profile update
+→ active session list and revocation
+→ existing teacher/projects preserved
+```
+
+## 6. Electronics Project Slice gate
 
 Визуальная часть среза доказывается browser E2E: авторские SVG на рабочем поле, перетаскивание с сохранением координат, SVG-провода, ток и состояние светодиода, immutable checkpoint.
 
@@ -166,7 +196,7 @@ create project
 → immutable checkpoint
 ```
 
-## 6. Checkers Lite gate
+## 7. Checkers Lite gate
 
 Profiles: `code_common + module_runtime`.
 
@@ -180,7 +210,7 @@ TST-E2E-CHECKERS-LITE-001
 
 Flow: board → legal move → diagnostic → save/reload → preview. Gate также доказывает отсутствие subject imports в Core.
 
-## 7. Electronics Alpha gate
+## 8. Electronics Alpha gate
 
 Profiles: `code_common + module_runtime + electronics_kernel`.
 
@@ -194,7 +224,7 @@ Flow: source/resistor/LED/wire → validation → netlist → native/WASM DC res
 
 Unsupported topology обязана завершаться diagnostic, а не fake numerical success.
 
-## 8. StudentSeat gate
+## 9. StudentSeat gate
 
 Profiles: `code_common + tenant_storage`.
 
@@ -209,7 +239,7 @@ TST-E2E-STUDENT-SEAT-001
 
 Flow: create/import seat → one-time card → child login without email → dashboard/project → reset revokes old session.
 
-## 9. Assignment and Submission gate
+## 10. Assignment and Submission gate
 
 Profiles: `code_common + tenant_storage + module_runtime`.
 
@@ -224,7 +254,7 @@ TST-E2E-ASSIGNMENT-SUBMISSION-001
 
 Flow: publish immutable ActivityVersion → assign → child work/save → exact ProjectVersion submission → teacher queue.
 
-## 10. Review, Grade and Badge gate
+## 11. Review, Grade and Badge gate
 
 Profiles: `code_common + tenant_storage + assessment_common`.
 
@@ -236,7 +266,7 @@ TST-E2E-REVIEW-001
 
 Flow: anchored comment → request changes → resubmit → compare → accept → rubric/grade → badge/progress.
 
-## 11. Full Electronics Classroom gate
+## 12. Full Electronics Classroom gate
 
 Profiles: `code_common + module_runtime + assessment_common + electronics_kernel`.
 
@@ -253,7 +283,7 @@ TST-E2E-ELECTRONICS-CLASSROOM-001
 
 Flow: assign electronics → child circuit → public checks → immutable submission → anchored review → revision → grade/badge.
 
-## 12. Map and evidence gate
+## 13. Map and evidence gate
 
 Каждая product-code task должна изменить или подтвердить:
 
@@ -266,11 +296,11 @@ nx-project-graph.json
 
 `TST-DEVELOPMENT-PROGRAM-001` проверяет наличие map artifacts в product-code diff.
 
-Текущее состояние: `TASK-PORTAL-001` — `done` (merged as `f52d0a9`). Текущий focus — `TASK-ELECTRONICS-SLICE-001` (Issue №33), гейт подтверждается локальным прогоном `python tools/run_task_tests.py --task TASK-ELECTRONICS-SLICE-001`.
+Текущее состояние: `TASK-PORTAL-001` — `done`. Текущий focus — `TASK-ACCOUNT-C1-001` (Issue №48); `TASK-ELECTRONICS-SLICE-001` приостановлен до owner acceptance Account C1.
 
 В Draft PR task имеет `in_review`, next task остаётся `blocked`. После merge отдельный map transition переводит current task в `done`, next в `ready` и сдвигает `current_focus`.
 
-## 13. Правила результата
+## 14. Правила результата
 
 - PASS — команда фактически завершилась exit 0;
 - FAIL — команда фактически упала;

@@ -22,15 +22,16 @@
 flowchart LR
     DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>done]
     PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>done]
-    PROJECT[3 Electronics Project Slice<br/>TASK-ELECTRONICS-SLICE-001<br/>in_progress]
-    CHECKERS[4 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
-    EALPHA[5 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]
-    SEAT[6 StudentSeat<br/>TASK-SEAT-001<br/>blocked]
-    ACT[7 Assignment Submission<br/>TASK-ACT-001<br/>blocked]
-    REVIEW[8 Review Grade Badge<br/>TASK-REVIEW-001<br/>blocked]
-    EFULL[9 Electronics Classroom<br/>TASK-ELEC-001<br/>blocked]
+    ACCOUNT[3 Account C1<br/>TASK-ACCOUNT-C1-001<br/>in_progress]
+    PROJECT[4 Electronics Project Slice<br/>TASK-ELECTRONICS-SLICE-001<br/>blocked]
+    CHECKERS[5 Checkers Lite<br/>TASK-CHECKERS-LITE-001<br/>blocked]
+    EALPHA[6 Electronics Alpha<br/>TASK-ELECTRONICS-ALPHA-001<br/>blocked]
+    SEAT[7 StudentSeat<br/>TASK-SEAT-001<br/>blocked]
+    ACT[8 Assignment Submission<br/>TASK-ACT-001<br/>blocked]
+    REVIEW[9 Review Grade Badge<br/>TASK-REVIEW-001<br/>blocked]
+    EFULL[10 Electronics Classroom<br/>TASK-ELEC-001<br/>blocked]
 
-    DOC --> PORTAL --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
+    DOC --> PORTAL --> ACCOUNT --> PROJECT --> CHECKERS --> EALPHA --> SEAT --> ACT --> REVIEW --> EFULL
 ```
 
 Текущий `current_focus` всегда берётся из YAML. Более поздний узел не выбирается при блокировке текущего.
@@ -43,10 +44,11 @@ flowchart TB
 
     subgraph TECH[Technical Product Alpha]
         P1[Teacher Portal]
-        P2[Electronics Project Slice]
-        P3[Checkers Lite]
-        P4[Electronics Alpha]
-        P1 --> P2 --> P3 --> P4
+        P2[Account C1]
+        P3[Electronics Project Slice]
+        P4[Checkers Lite]
+        P5[Electronics Alpha]
+        P1 --> P2 --> P3 --> P4 --> P5
     end
 
     subgraph PILOT[School Pilot]
@@ -172,6 +174,7 @@ Core не знает `resistor`, `wire`, `LED`, checker piece, sprite или 3D 
 |---|---|
 | Product Definition | Одна очередь, Issues, maps и validators |
 | Teacher Portal | Login, classroom create/list, reload, logout |
+| Account C1 | Educator self-attestation, Account profile, workspace context and active session management |
 | Electronics Project Slice | Create project, build a circuit from the owner’s SVG components, see the DC result, save/reload, immutable checkpoint |
 | Checkers Lite | Board, legal move, diagnostic, preview |
 | Electronics Alpha | Source/resistor/LED/wire, netlist, DC result |

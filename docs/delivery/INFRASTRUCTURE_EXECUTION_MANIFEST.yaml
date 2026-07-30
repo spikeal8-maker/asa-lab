@@ -21,7 +21,9 @@ ports:
 tasks:
   - task_id: TASK-DOCKER-LINUX-001
     issue: https://github.com/spikeal8-maker/asa-lab/issues/69
-    status: in_progress
+    status: done
+    exit_gate_result: PASS
+    completed_sha: 7afebdcf9441b027092ce17a37f1f89950af99c6
     base_branch: assistant/chess-online-core
     branch: assistant/docker-linux-bootstrap
     draft_pr_base: assistant/chess-online-core

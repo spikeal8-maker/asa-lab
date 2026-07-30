@@ -16,6 +16,7 @@ PRODUCT_MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 ALLOWED_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
 FORBIDDEN_PORTS = {3000, 3100, 5173}
 ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
+TERMINAL_STATUSES = {"done", "cancelled", "superseded"}
 
 
 def load_yaml(path: Path, errors: list[str]) -> dict[str, Any]:
@@ -56,14 +57,35 @@ def main() -> int:
     expected_task = "TASK-DOCKER-LINUX-001"
     if task.get("task_id") != expected_task:
         errors.append(f"Infrastructure task must be {expected_task}")
-    if focus.get("active") is not True:
-        errors.append("Infrastructure focus must be active while Docker bootstrap is running")
-    if focus.get("current_focus") != expected_task:
-        errors.append("Infrastructure current_focus must match TASK-DOCKER-LINUX-001")
-    if focus.get("status") not in ACTIVE_STATUSES:
-        errors.append("Infrastructure focus status must be ready/in_progress/in_review")
-    if task.get("status") not in ACTIVE_STATUSES:
-        errors.append("Infrastructure manifest task status must be ready/in_progress/in_review")
+    active = focus.get("active")
+    if not isinstance(active, bool):
+        errors.append("Infrastructure focus active must be a boolean")
+    elif active:
+        if focus.get("current_focus") != expected_task:
+            errors.append("Infrastructure current_focus must match TASK-DOCKER-LINUX-001")
+        if focus.get("status") not in ACTIVE_STATUSES:
+            errors.append("Infrastructure focus status must be ready/in_progress/in_review")
+        if task.get("status") not in ACTIVE_STATUSES:
+            errors.append("Infrastructure manifest task status must be ready/in_progress/in_review")
+    else:
+        focus_status = focus.get("status")
+        task_status = task.get("status")
+        if focus.get("current_focus") is not None:
+            errors.append("Terminal infrastructure current_focus must be null")
+        if focus.get("task_id") != expected_task:
+            errors.append("Terminal infrastructure focus must preserve task_id")
+        if focus_status not in TERMINAL_STATUSES:
+            errors.append("Terminal infrastructure focus status must be done/cancelled/superseded")
+        if task_status != focus_status:
+            errors.append("Terminal infrastructure focus and manifest statuses must match")
+        completed_sha = focus.get("completed_sha")
+        if focus_status == "done":
+            if not isinstance(completed_sha, str) or len(completed_sha) != 40:
+                errors.append("Completed infrastructure focus must declare completed_sha")
+            if task.get("completed_sha") != completed_sha:
+                errors.append("Infrastructure focus and manifest completed_sha must match")
+            if task.get("exit_gate_result") != "PASS":
+                errors.append("Completed infrastructure task exit_gate_result must be PASS")
 
     for field in ("issue", "base_branch", "branch"):
         if focus.get(field) != task.get(field):
@@ -81,12 +103,14 @@ def main() -> int:
     product = product_map.get("project")
     product_focus = product.get("current_focus") if isinstance(product, dict) else None
     frozen = focus.get("product_focus_frozen")
-    if product_focus != frozen:
+    if active and product_focus != frozen:
         errors.append(
             f"Frozen product focus mismatch: expected project-map {product_focus!r}, got {frozen!r}"
         )
     if task.get("product_focus_frozen") != frozen:
         errors.append("Manifest and focus file disagree about the frozen product task")
+    if active is False and focus.get("superseded_by") != product_focus:
+        errors.append("Terminal infrastructure superseded_by must match project current_focus")
 
     ports = manifest.get("ports")
     if not isinstance(ports, dict):
@@ -116,11 +140,12 @@ def main() -> int:
             print(f"- {error}")
         return 1
 
+    mode = "active" if active else "terminal"
     print(
         "Infrastructure focus PASS: "
-        f"task={expected_task}, branch={task['branch']}, "
-        f"product_focus_frozen={frozen}, commands={len(required_commands)}, "
-        f"artifacts={len(required_artifacts)}"
+        f"mode={mode}, task={expected_task}, status={task['status']}, "
+        f"branch={task['branch']}, product_focus_frozen={frozen}, "
+        f"commands={len(required_commands)}, artifacts={len(required_artifacts)}"
     )
     return 0
 

@@ -237,8 +237,8 @@ def validate_manifest(
         (task for task in tasks_raw if isinstance(task, dict)),
         key=lambda task: task.get("position", 0),
     )
-    if len(tasks) != 9:
-        errors.append(f"Execution manifest must contain exactly 9 v1 tasks, got {len(tasks)}")
+    if len(tasks) != 10:
+        errors.append(f"Execution manifest must contain exactly 10 executable tasks, got {len(tasks)}")
     positions = [task.get("position") for task in tasks]
     if positions != list(range(1, len(tasks) + 1)):
         errors.append(f"Execution manifest positions must be contiguous: {positions}")
