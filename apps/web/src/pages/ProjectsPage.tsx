@@ -30,7 +30,7 @@ export function ProjectsPage({
   }, [load]);
 
   return (
-    <main className="portal-content" id="main-content">
+    <main className="portal-content" id="main-content" tabIndex={-1}>
       <button type="button" className="portal-back" onClick={onBack}>
         ← К классам
       </button>

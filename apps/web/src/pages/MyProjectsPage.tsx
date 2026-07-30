@@ -105,7 +105,7 @@ export function MyProjectsPage({
   }
 
   return (
-    <main className="portal-content project-hub" id="main-content">
+    <main className="portal-content project-hub" id="main-content" tabIndex={-1}>
       <section className="portal-hero">
         <div>
           <p className="portal-eyebrow">Личная мастерская педагога</p>

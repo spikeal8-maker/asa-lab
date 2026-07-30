@@ -154,12 +154,12 @@
 .portal-hero p {
   max-width: 670px;
   margin: 9px 0 0;
-  color: #637383;
+  color: #5c6b78;
   font-size: 16px;
   line-height: 1.55;
 }
 .portal-eyebrow {
-  color: #1681b8 !important;
+  color: #0b6f9f !important;
   font-size: 12px !important;
   font-weight: 800;
   letter-spacing: 0.09em;
@@ -174,13 +174,13 @@
   padding: 0 19px;
   border: 0;
   border-radius: 7px;
-  background: #168fc8;
+  background: #0b6f9f;
   color: #fff;
   font-weight: 750;
   box-shadow: 0 5px 14px rgba(22, 143, 200, 0.18);
 }
 .portal-create-button:hover {
-  background: #107bac;
+  background: #075c85;
 }
 .portal-create-button svg {
   width: 18px;

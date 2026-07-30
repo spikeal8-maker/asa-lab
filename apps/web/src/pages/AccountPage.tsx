@@ -172,7 +172,7 @@ export function AccountPage({
 
   if (loading || !profile) {
     return (
-      <main id="main-content" className="account-page" aria-busy="true">
+      <main id="main-content" className="account-page" aria-busy="true" tabIndex={-1}>
         <div className="account-loading" role="status">
           Загружаем настройки аккаунта…
         </div>
@@ -181,7 +181,7 @@ export function AccountPage({
   }
 
   return (
-    <main id="main-content" className="account-page">
+    <main id="main-content" className="account-page" tabIndex={-1}>
       <header className="account-heading">
         <p className="portal-eyebrow">Account C1</p>
         <h1>Аккаунт и рабочие пространства</h1>

@@ -252,7 +252,14 @@ export function App(): JSX.Element {
         : 'projects';
   return (
     <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
-      <a className="skip-link" href="#main-content">
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main-content')?.focus();
+        }}
+      >
         Перейти к содержанию
       </a>
       <PortalHeader
