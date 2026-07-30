@@ -25,8 +25,15 @@ import {
   type ModuleCatalogPort,
   type ProjectModule,
 } from '@asa-lab/projects';
+import {
+  ChessLiveService,
+  CryptoLiveIds,
+  MemoryChessLiveRepository,
+  SystemLiveClock,
+} from '@asa-lab/chess-live';
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
+import { ChessLiveController } from './chess-live.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
@@ -49,7 +56,9 @@ function validationMessage(entry: RegisteredModule, value: unknown): {
   if (!result.ok) {
     return {
       ok: false,
-      message: result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
+      message:
+        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') ||
+        'invalid document',
     };
   }
   return { ok: true, document: result.payload };
@@ -66,8 +75,15 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
-    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
+    const projectRepository = (): PgProjectRepository =>
+      new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
+    const chessLiveRepository = new MemoryChessLiveRepository();
+    const chessLiveService = new ChessLiveService(
+      chessLiveRepository,
+      new SystemLiveClock(),
+      new CryptoLiveIds(),
+    );
     const toProjectModule = (entry: RegisteredModule): ProjectModule => ({
       moduleKey: entry.manifest.moduleKey,
       validateDocument: (value) => validationMessage(entry, value),
@@ -80,9 +96,7 @@ export class AppModule {
       getCreatable: (moduleKey) => {
         const entry = moduleRegistry.getCreatable(moduleKey);
         const provider = entry?.provider;
-        if (!entry || !provider) {
-          return null;
-        }
+        if (!entry || !provider) return null;
         const module: CreatableProjectModule = {
           ...toProjectModule(entry),
           createEmptyProject: () => provider.createEmptyProject(),
@@ -99,10 +113,13 @@ export class AppModule {
         ClassroomsController,
         ModulesController,
         ProjectsController,
+        ChessLiveController,
       ],
       providers: [
         { provide: TOKENS.pool, useValue: pool },
         { provide: TOKENS.moduleRegistry, useValue: moduleRegistry },
+        { provide: TOKENS.chessLiveRepository, useValue: chessLiveRepository },
+        { provide: TOKENS.chessLiveService, useValue: chessLiveService },
         {
           provide: TOKENS.loginUseCase,
           useFactory: () =>
@@ -118,15 +135,18 @@ export class AppModule {
         },
         {
           provide: TOKENS.teachingContextUseCase,
-          useFactory: () => new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
+          useFactory: () =>
+            new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
         },
         {
           provide: TOKENS.createClassroomUseCase,
-          useFactory: () => new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () =>
+            new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
         },
         {
           provide: TOKENS.createProjectUseCase,
-          useFactory: () => new CreateProjectUseCase(projectRepository(), projectModules),
+          useFactory: () =>
+            new CreateProjectUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.listProjectsUseCase,
@@ -142,7 +162,8 @@ export class AppModule {
         },
         {
           provide: TOKENS.saveDraftUseCase,
-          useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
+          useFactory: () =>
+            new SaveDraftUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.createCheckpointUseCase,
@@ -150,7 +171,8 @@ export class AppModule {
         },
         {
           provide: TOKENS.listClassroomsUseCase,
-          useFactory: () => new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () =>
+            new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
         },
       ],
     };
