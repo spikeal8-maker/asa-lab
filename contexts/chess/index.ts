@@ -77,4 +77,34 @@ export {
   flagChessTimeout,
   type NewChessGameOptions,
 } from './domain/game-control.js';
+export {
+  CHESS_FAIR_PLAY_POLICIES,
+  chessCapabilityDecision,
+  requireChessCapability,
+  type ChessCapability,
+  type ChessCapabilityDecision,
+  type ChessFairPlayPolicy,
+  type ChessSessionPolicy,
+} from './domain/fair-play.js';
+export {
+  createChessPuzzleSession,
+  playChessPuzzleMove,
+  requestChessPuzzleHint,
+  resetChessPuzzleSession,
+  validateChessPuzzle,
+  type ChessPuzzle,
+  type ChessPuzzleHint,
+  type ChessPuzzleSession,
+  type PuzzleMoveResult,
+  type PuzzleStatus,
+  type PuzzleTheme,
+  type PuzzleValidationResult,
+} from './domain/puzzle.js';
+export {
+  asaMoveQuality,
+  reviewChessDocument,
+  type AsaGameReview,
+  type AsaMoveClassification,
+  type AsaMoveReview,
+} from './domain/review.js';
 export { CHESS_MODULE, type ChessAnalysisSummary } from './module.js';
