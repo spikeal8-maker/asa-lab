@@ -29,7 +29,13 @@ function context(
   actorId: string,
   commandId: string,
   nowMs: number,
-  kind: 'submit_move' | 'offer_draw' | 'accept_draw' | 'decline_draw' | 'resign' | 'claim_timeout',
+  kind:
+    | 'submit_move'
+    | 'offer_draw'
+    | 'accept_draw'
+    | 'decline_draw'
+    | 'resign'
+    | 'claim_timeout',
 ) {
   return { actorId, commandId, nowMs, kind } as const;
 }
@@ -88,7 +94,11 @@ describe('server-authoritative live game aggregate', () => {
       expect.objectContaining({
         type: 'move_played',
         actorId: 'user:white',
-        payload: expect.objectContaining({ uci: 'e2e4', san: 'e4', activeColor: 'black' }),
+        payload: expect.objectContaining({
+          uci: 'e2e4',
+          san: 'e4',
+          activeColor: 'black',
+        }),
       }),
     ]);
   });
@@ -151,7 +161,7 @@ describe('server-authoritative live game aggregate', () => {
     });
   });
 
-  it('allows the opponent to claim a server-confirmed timeout only after expiry', () => {
+  it('allows timeout claims only after the active server clock reaches zero', () => {
     expect(
       claimLiveChessTimeout(
         game(),
@@ -170,7 +180,11 @@ describe('server-authoritative live game aggregate', () => {
     ).toMatchObject({
       ok: true,
       value: {
-        game: { result: '0-1', termination: 'timeout', winnerId: 'user:black' },
+        game: {
+          result: '0-1',
+          termination: 'timeout',
+          winnerId: 'user:black',
+        },
       },
     });
   });
@@ -182,21 +196,29 @@ describe('server-authoritative live game aggregate', () => {
     );
     expect(offered.ok).toBe(true);
     if (!offered.ok) return;
-    expect(offered.value.game.drawOffer).toEqual({ offeredBy: 'user:white', offeredAtMs: 2_000 });
+    expect(offered.value.game.drawOffer).toEqual({
+      offeredBy: 'user:white',
+      offeredAtMs: 2_000,
+    });
     expect(
       acceptLiveChessDraw(
         offered.value.game,
         context('user:white', 'command:self-accept', 3_000, 'accept_draw'),
       ),
     ).toMatchObject({ ok: false, code: 'forbidden' });
+
     const declined = declineLiveChessDraw(
       offered.value.game,
       context('user:black', 'command:decline', 3_000, 'decline_draw'),
     );
-    expect(declined).toMatchObject({ ok: true, value: { game: { drawOffer: null } } });
+    expect(declined).toMatchObject({
+      ok: true,
+      value: { game: { drawOffer: null } },
+    });
+    if (!declined.ok) return;
 
     const offeredAgain = offerLiveChessDraw(
-      declined.ok ? declined.value.game : game(),
+      declined.value.game,
       context('user:black', 'command:offer:2', 4_000, 'offer_draw'),
     );
     expect(offeredAgain.ok).toBe(true);
@@ -238,19 +260,8 @@ describe('server-authoritative live game aggregate', () => {
     });
   });
 
-  it('detects an automatic checkmate and emits move then finish events', () => {
-    let current = game({
-      currentFen: 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3',
-      clock: {
-        whiteRemainingMs: 60_000,
-        blackRemainingMs: 60_000,
-        activeColor: 'white',
-        turnStartedAtMs: 1_000,
-        lastServerNowMs: 1_000,
-      },
-    });
-    // The supplied FEN is already checkmate; finished games are normally closed by the previous move.
-    // Use Fool's Mate from the start to prove automatic closure instead.
+  it('detects Fool’s Mate and emits move then finish events', () => {
+    let current = game();
     for (const [actor, move, now] of [
       ['user:white', 'f2f3', 2_000],
       ['user:black', 'e7e5', 3_000],
