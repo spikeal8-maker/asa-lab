@@ -4,6 +4,7 @@ ARG NODE_IMAGE=node:22.23.2-bookworm-slim
 
 FROM ${NODE_IMAGE} AS workspace
 
+ARG ASA_BUILD_REVISION=unknown
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 
@@ -44,9 +45,12 @@ USER node
 
 FROM ${NODE_IMAGE} AS runtime
 
+ARG ASA_BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
 ENV NODE_ENV=production
 ENV API_HOST=0.0.0.0
 ENV API_PORT=4611
+ENV ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
 
 WORKDIR /app
 

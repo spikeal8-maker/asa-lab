@@ -1,10 +1,15 @@
 import type { Project, ProjectDraft, ProjectScope, ProjectVersion } from '../domain/project.js';
 
+export interface ProjectActor {
+  readonly principalId: string;
+  readonly userId: string | null;
+}
+
 export interface CreateProjectInput {
   readonly tenantId: string;
   readonly scope: ProjectScope;
   readonly classroomId: string | null;
-  readonly teacherId: string;
+  readonly actor: ProjectActor;
   readonly moduleKey: string;
   readonly title: string;
   readonly idempotencyKey: string;
@@ -26,7 +31,7 @@ export interface ProjectListFilter {
 export interface SaveDraftInput {
   readonly tenantId: string;
   readonly projectId: string;
-  readonly teacherId: string;
+  readonly actor: ProjectActor;
   readonly document: unknown;
 }
 
@@ -51,23 +56,27 @@ export interface ModuleCatalogPort {
 
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
-  listForTeacher(tenantId: string, teacherId: string, filter: ProjectListFilter): Promise<Project[]>;
+  listForActor(
+    tenantId: string,
+    actor: ProjectActor,
+    filter: ProjectListFilter,
+  ): Promise<Project[]>;
   load(
     tenantId: string,
     projectId: string,
-    teacherId: string,
+    actor: ProjectActor,
   ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
   rename(
     tenantId: string,
     projectId: string,
-    teacherId: string,
+    actor: ProjectActor,
     title: string,
   ): Promise<Project | null>;
   saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null>;
   createCheckpoint(
     tenantId: string,
     projectId: string,
-    teacherId: string,
+    actor: ProjectActor,
     label: string | null,
   ): Promise<ProjectVersion | null>;
 }

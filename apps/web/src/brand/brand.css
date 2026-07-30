@@ -1,0 +1,89 @@
+:root {
+  --asa-ink-900: #0b3558;
+  --asa-ink-700: #185272;
+  --asa-cyan-600: #087fa4;
+  --asa-cyan-500: #0aa4c8;
+  --asa-cyan-100: #e5f6fa;
+  --asa-amber-500: #f2a51a;
+  --asa-slate-900: #172431;
+  --asa-slate-700: #455867;
+  --asa-slate-600: #5d6c79;
+  --asa-slate-400: #9aa8b4;
+  --asa-slate-300: #cbd5de;
+  --asa-slate-200: #dce4ea;
+  --asa-slate-100: #f3f6f8;
+  --asa-white: #ffffff;
+  --asa-success: #188353;
+  --asa-warning: #a76400;
+  --asa-danger: #b23a32;
+  --asa-shadow-sm: 0 2px 8px rgba(11, 53, 88, 0.08);
+  --asa-shadow-md: 0 12px 32px rgba(11, 53, 88, 0.14);
+  --asa-radius-sm: 6px;
+  --asa-radius-md: 10px;
+  --asa-radius-lg: 14px;
+}
+
+.asa-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--asa-ink-900);
+}
+
+.asa-brand-mark {
+  display: block;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+}
+
+.asa-brand-copy {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  letter-spacing: -0.025em;
+}
+
+.asa-brand-copy strong {
+  color: var(--asa-ink-900);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.asa-brand-copy span {
+  color: var(--asa-cyan-600);
+  font-size: 18px;
+  font-weight: 720;
+}
+
+.asa-brand-lockup.compact {
+  gap: 0;
+}
+
+.asa-brand-lockup.compact .asa-brand-mark {
+  width: 32px;
+  height: 32px;
+}
+
+.asa-brand-lockup.compact .asa-brand-copy {
+  display: none;
+}
+
+.portal-brand .asa-brand-lockup {
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  .asa-brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+  .asa-brand-copy strong {
+    font-size: 18px;
+  }
+  .asa-brand-copy span {
+    font-size: 16px;
+  }
+}

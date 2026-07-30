@@ -11,7 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import type { SessionContext, SessionUseCase } from '@asa-lab/identity';
+import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
 import {
   type ChessLiveService,
   type ChessRatingPool,
@@ -43,10 +43,7 @@ function reject<T>(result: Extract<LiveChessResult<T>, { ok: false }>): never {
   throw new HttpException(error(result.code, result.message), STATUS_BY_CODE[result.code]);
 }
 
-function requireString(
-  body: Readonly<Record<string, unknown>>,
-  key: string,
-): string {
+function requireString(body: Readonly<Record<string, unknown>>, key: string): string {
   const value = body[key];
   if (typeof value !== 'string') {
     throw new HttpException(error('validation_error', `${key} must be a string`), 400);
@@ -54,10 +51,7 @@ function requireString(
   return value;
 }
 
-function requireBoolean(
-  body: Readonly<Record<string, unknown>>,
-  key: string,
-): boolean {
+function requireBoolean(body: Readonly<Record<string, unknown>>, key: string): boolean {
   const value = body[key];
   if (typeof value !== 'boolean') {
     throw new HttpException(error('validation_error', `${key} must be a boolean`), 400);
@@ -65,10 +59,7 @@ function requireBoolean(
   return value;
 }
 
-function requireInteger(
-  body: Readonly<Record<string, unknown>>,
-  key: string,
-): number {
+function requireInteger(body: Readonly<Record<string, unknown>>, key: string): number {
   const value = body[key];
   if (!Number.isSafeInteger(value)) {
     throw new HttpException(error('validation_error', `${key} must be an integer`), 400);
@@ -100,14 +91,25 @@ function ratingPool(value: string): ChessRatingPool {
 @Controller('api/chess/live')
 export class ChessLiveController {
   constructor(
-    @Inject(TOKENS.sessionUseCase) private readonly sessionUseCase: SessionUseCase,
+    @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+    @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.chessLiveService) private readonly service: ChessLiveService,
   ) {}
 
-  private async principal(request: FastifyRequest): Promise<SessionContext> {
-    const context = await this.sessionUseCase.resolve(request.cookies[SESSION_COOKIE]);
+  private async principal(request: FastifyRequest): Promise<{ tenantId: string; userId: string }> {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    return context;
+    if (context.userId !== null) {
+      return { tenantId: context.tenantId, userId: context.userId };
+    }
+    const legacyActor = await this.accounts.legacyActor(context.accountId);
+    if (legacyActor === null) {
+      throw new HttpException(
+        error('educator_required', 'online chess requires an organization identity'),
+        403,
+      );
+    }
+    return legacyActor;
   }
 
   private idempotency(value: string | undefined): string {
@@ -203,10 +205,7 @@ export class ChessLiveController {
   }
 
   @Get('games/:gameId')
-  async getGame(
-    @Req() request: FastifyRequest,
-    @Param('gameId') gameId: string,
-  ): Promise<unknown> {
+  async getGame(@Req() request: FastifyRequest, @Param('gameId') gameId: string): Promise<unknown> {
     const principal = await this.principal(request);
     const result = await this.service.getGame(
       { tenantId: principal.tenantId, userId: principal.userId },
@@ -408,10 +407,7 @@ export class ChessLiveController {
   }
 
   @Get('ratings/:pool')
-  async getRating(
-    @Req() request: FastifyRequest,
-    @Param('pool') pool: string,
-  ): Promise<unknown> {
+  async getRating(@Req() request: FastifyRequest, @Param('pool') pool: string): Promise<unknown> {
     const principal = await this.principal(request);
     const result = await this.service.getRating(
       { tenantId: principal.tenantId, userId: principal.userId },

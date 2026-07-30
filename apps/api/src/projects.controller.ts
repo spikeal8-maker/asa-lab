@@ -14,7 +14,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { SessionContext, SessionUseCase } from '@asa-lab/identity';
+import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import type {
   CreateCheckpointUseCase,
   CreateProjectUseCase,
@@ -42,7 +42,7 @@ const STATUS_BY_CODE: Record<ProjectErrorCode, number> = {
 @Controller('api/projects')
 export class ProjectsController {
   constructor(
-    @Inject(TOKENS.sessionUseCase) private readonly sessionUseCase: SessionUseCase,
+    @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.moduleRegistry) private readonly moduleRegistry: ModuleRegistry,
     @Inject(TOKENS.createProjectUseCase) private readonly createUseCase: CreateProjectUseCase,
     @Inject(TOKENS.listProjectsUseCase) private readonly listUseCase: ListProjectsUseCase,
@@ -53,12 +53,19 @@ export class ProjectsController {
     private readonly checkpointUseCase: CreateCheckpointUseCase,
   ) {}
 
-  private async requireContext(request: FastifyRequest): Promise<SessionContext> {
-    const context = await this.sessionUseCase.resolve(request.cookies[SESSION_COOKIE]);
+  private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) {
       throw new HttpException(error('unauthorized', 'no active session'), 401);
     }
     return context;
+  }
+
+  private static actorOf(context: ActiveContext): {
+    principalId: string;
+    userId: string | null;
+  } {
+    return { principalId: context.principalId, userId: context.userId };
   }
 
   private static reject(code: ProjectErrorCode, message: string): never {
@@ -81,10 +88,11 @@ export class ProjectsController {
     @Query('classroomId') classroomId: string | undefined,
   ): Promise<{ items: unknown[] }> {
     const context = await this.requireContext(request);
-    const result = await this.listUseCase.execute(context.tenantId, context.userId, {
-      scope,
-      classroomId,
-    });
+    const result = await this.listUseCase.execute(
+      context.tenantId,
+      ProjectsController.actorOf(context),
+      { scope, classroomId },
+    );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return { items: result.value };
   }
@@ -113,7 +121,7 @@ export class ProjectsController {
       tenantId: context.tenantId,
       scope: shape.body['scope'],
       classroomId: shape.body['classroomId'],
-      teacherId: context.userId,
+      actor: ProjectsController.actorOf(context),
       moduleKey: shape.body['module'],
       title: shape.body['title'],
       idempotencyKey: keyCheck.key,
@@ -129,7 +137,11 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
   ): Promise<{ project: unknown; draft: unknown; versions: unknown[]; result: unknown }> {
     const context = await this.requireContext(request);
-    const result = await this.openUseCase.execute(context.tenantId, projectId, context.userId);
+    const result = await this.openUseCase.execute(
+      context.tenantId,
+      projectId,
+      ProjectsController.actorOf(context),
+    );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return {
       project: result.value.project,
@@ -151,7 +163,7 @@ export class ProjectsController {
     const result = await this.renameUseCase.execute({
       tenantId: context.tenantId,
       projectId,
-      teacherId: context.userId,
+      actor: ProjectsController.actorOf(context),
       title: shape.body['title'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
@@ -170,11 +182,15 @@ export class ProjectsController {
     const result = await this.saveUseCase.execute({
       tenantId: context.tenantId,
       projectId,
-      teacherId: context.userId,
+      actor: ProjectsController.actorOf(context),
       document: shape.body['document'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
-    const opened = await this.openUseCase.execute(context.tenantId, projectId, context.userId);
+    const opened = await this.openUseCase.execute(
+      context.tenantId,
+      projectId,
+      ProjectsController.actorOf(context),
+    );
     if (!opened.ok) ProjectsController.reject(opened.code, opened.message);
     return {
       draft: result.value,
@@ -195,7 +211,7 @@ export class ProjectsController {
     const result = await this.checkpointUseCase.execute({
       tenantId: context.tenantId,
       projectId,
-      teacherId: context.userId,
+      actor: ProjectsController.actorOf(context),
       label: shape.body['label'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);

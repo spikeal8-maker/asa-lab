@@ -1,10 +1,15 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import type pg from 'pg';
 import {
+  AccountLoginUseCase,
+  ActiveContextUseCase,
   LoginUseCase,
+  PgAccountDirectory,
   PgSessionStore,
+  PgSessionV2Store,
   PgTenantLocator,
   PgUserDirectory,
+  RegisterAccountUseCase,
   SessionUseCase,
 } from '@asa-lab/identity';
 import { GetTeachingContextUseCase, PgTeachingContext } from '@asa-lab/organization';
@@ -39,16 +44,22 @@ import { ClassroomsController } from './classrooms.controller.js';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { TOKENS } from './tokens.js';
 
-function validationMessage(entry: RegisteredModule, value: unknown): {
-  readonly ok: true;
-  readonly document: unknown;
-} | {
-  readonly ok: false;
-  readonly message: string;
-} {
+function validationMessage(
+  entry: RegisteredModule,
+  value: unknown,
+):
+  | {
+      readonly ok: true;
+      readonly document: unknown;
+    }
+  | {
+      readonly ok: false;
+      readonly message: string;
+    } {
   const provider = entry.provider;
   if (!provider) {
     return { ok: false, message: `module "${entry.manifest.moduleKey}" has no provider` };
@@ -58,8 +69,7 @@ function validationMessage(entry: RegisteredModule, value: unknown): {
     return {
       ok: false,
       message:
-        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') ||
-        'invalid document',
+        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
     };
   }
   return { ok: true, document: result.payload };
@@ -76,14 +86,12 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
-    const projectRepository = (): PgProjectRepository =>
-      new PgProjectRepository(requirePool());
+    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
     // with APP_DATABASE_URL uses the durable RLS-protected repository.
     const persistentChessLiveRepository = pool ? new PgChessLiveRepository(pool) : null;
-    const chessLiveRepository =
-      persistentChessLiveRepository ?? new MemoryChessLiveRepository();
+    const chessLiveRepository = persistentChessLiveRepository ?? new MemoryChessLiveRepository();
     const chessLiveService = new ChessLiveService(
       chessLiveRepository,
       new SystemLiveClock(),
@@ -119,6 +127,7 @@ export class AppModule {
         ModulesController,
         ProjectsController,
         ChessLiveController,
+        VersionController,
       ],
       providers: [
         { provide: TOKENS.pool, useValue: pool },
@@ -139,19 +148,41 @@ export class AppModule {
           useFactory: () => new SessionUseCase(new PgSessionStore(requirePool())),
         },
         {
-          provide: TOKENS.teachingContextUseCase,
+          provide: TOKENS.accountDirectory,
+          useFactory: () => new PgAccountDirectory(requirePool()),
+        },
+        {
+          provide: TOKENS.activeContextUseCase,
           useFactory: () =>
-            new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
+            new ActiveContextUseCase(
+              new PgSessionV2Store(requirePool()),
+              new PgSessionStore(requirePool()),
+              new PgAccountDirectory(requirePool()),
+            ),
+        },
+        {
+          provide: TOKENS.registerAccountUseCase,
+          useFactory: () => new RegisterAccountUseCase(new PgAccountDirectory(requirePool())),
+        },
+        {
+          provide: TOKENS.accountLoginUseCase,
+          useFactory: () =>
+            new AccountLoginUseCase(
+              new PgAccountDirectory(requirePool()),
+              new PgSessionV2Store(requirePool()),
+            ),
+        },
+        {
+          provide: TOKENS.teachingContextUseCase,
+          useFactory: () => new GetTeachingContextUseCase(new PgTeachingContext(requirePool())),
         },
         {
           provide: TOKENS.createClassroomUseCase,
-          useFactory: () =>
-            new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () => new CreateClassroomUseCase(new PgClassroomRepository(requirePool())),
         },
         {
           provide: TOKENS.createProjectUseCase,
-          useFactory: () =>
-            new CreateProjectUseCase(projectRepository(), projectModules),
+          useFactory: () => new CreateProjectUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.listProjectsUseCase,
@@ -167,8 +198,7 @@ export class AppModule {
         },
         {
           provide: TOKENS.saveDraftUseCase,
-          useFactory: () =>
-            new SaveDraftUseCase(projectRepository(), projectModules),
+          useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.createCheckpointUseCase,
@@ -176,8 +206,7 @@ export class AppModule {
         },
         {
           provide: TOKENS.listClassroomsUseCase,
-          useFactory: () =>
-            new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
+          useFactory: () => new ListClassroomsUseCase(new PgClassroomRepository(requirePool())),
         },
       ],
     };

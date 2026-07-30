@@ -13,6 +13,7 @@ export type {
   CreateProjectResult,
   ModuleCatalogPort,
   ProjectDocumentValidation,
+  ProjectActor,
   ProjectListFilter,
   ProjectModule,
   ProjectRepositoryPort,

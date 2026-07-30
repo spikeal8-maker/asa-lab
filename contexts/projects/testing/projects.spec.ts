@@ -40,14 +40,15 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
     createWithDraft: async (input) => {
       creates.push(input);
       const previous = creates.find(
-        (entry, index) => index < creates.length - 1 && entry.idempotencyKey === input.idempotencyKey,
+        (entry, index) =>
+          index < creates.length - 1 && entry.idempotencyKey === input.idempotencyKey,
       );
       if (previous && previous.requestFingerprint !== input.requestFingerprint) {
         return { kind: 'conflict' };
       }
       return { kind: previous ? 'existing' : 'created', project: personalProject };
     },
-    listForTeacher: async () => [personalProject],
+    listForActor: async () => [personalProject],
     load: async () => ({
       project: personalProject,
       draft: {
@@ -94,7 +95,7 @@ const personalInput = {
   tenantId: 't1',
   scope: 'personal' as const,
   classroomId: null,
-  teacherId: 'u1',
+  actor: { principalId: 'principal:1', userId: 'u1' },
   moduleKey: 'electronics',
   title: 'Схема',
   idempotencyKey: 'k1',
@@ -119,7 +120,11 @@ describe('create project', () => {
     const empty = { schemaVersion: 1, components: [], connections: [] };
     const result = await new CreateProjectUseCase(port, catalog(empty)).execute(personalInput);
     expect(result.ok && result.value.created).toBe(true);
-    expect(creates[0]).toMatchObject({ scope: 'personal', classroomId: null, initialDocument: empty });
+    expect(creates[0]).toMatchObject({
+      scope: 'personal',
+      classroomId: null,
+      initialDocument: empty,
+    });
     expect(creates[0]?.requestFingerprint).toBe(
       projectRequestFingerprint({
         scope: 'personal',
@@ -168,15 +173,29 @@ describe('list, rename, draft and checkpoint', () => {
   it('passes personal and classroom filters to the repository', async () => {
     const seen: unknown[] = [];
     const { port } = repo({
-      listForTeacher: async (_tenantId, _teacherId, filter) => {
+      listForActor: async (_tenantId, _actor, filter) => {
         seen.push(filter);
         return [personalProject];
       },
     });
     const usecase = new ListProjectsUseCase(port);
-    expect((await usecase.execute('t1', 'u1', { scope: 'personal' })).ok).toBe(true);
     expect(
-      (await usecase.execute('t1', 'u1', { scope: 'classroom', classroomId: 'c1' })).ok,
+      (
+        await usecase.execute(
+          't1',
+          { principalId: 'principal:1', userId: 'u1' },
+          { scope: 'personal' },
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await usecase.execute(
+          't1',
+          { principalId: 'principal:1', userId: 'u1' },
+          { scope: 'classroom', classroomId: 'c1' },
+        )
+      ).ok,
     ).toBe(true);
     expect(seen).toEqual([{ scope: 'personal' }, { scope: 'classroom', classroomId: 'c1' }]);
   });
@@ -185,9 +204,19 @@ describe('list, rename, draft and checkpoint', () => {
     const { port } = repo();
     const usecase = new ListProjectsUseCase(port);
     expect(
-      await usecase.execute('t1', 'u1', { scope: 'personal', classroomId: 'c1' }),
+      await usecase.execute(
+        't1',
+        { principalId: 'principal:1', userId: 'u1' },
+        { scope: 'personal', classroomId: 'c1' },
+      ),
     ).toMatchObject({ ok: false, code: 'validation_error' });
-    expect(await usecase.execute('t1', 'u1', { scope: 'classroom' })).toMatchObject({
+    expect(
+      await usecase.execute(
+        't1',
+        { principalId: 'principal:1', userId: 'u1' },
+        { scope: 'classroom' },
+      ),
+    ).toMatchObject({
       ok: false,
       code: 'validation_error',
     });
@@ -199,12 +228,17 @@ describe('list, rename, draft and checkpoint', () => {
     const renamed = await usecase.execute({
       tenantId: 't1',
       projectId: 'p1',
-      teacherId: 'u1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
       title: '  Новое имя  ',
     });
     expect(renamed.ok && renamed.value.title).toBe('Новое имя');
     expect(
-      await usecase.execute({ tenantId: 't1', projectId: 'p1', teacherId: 'u1', title: ' ' }),
+      await usecase.execute({
+        tenantId: 't1',
+        projectId: 'p1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
+        title: ' ',
+      }),
     ).toMatchObject({ ok: false, code: 'validation_error' });
   });
 
@@ -215,14 +249,14 @@ describe('list, rename, draft and checkpoint', () => {
       await new SaveDraftUseCase(port, invalidCatalog).execute({
         tenantId: 't1',
         projectId: 'p1',
-        teacherId: 'u1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
         document: {},
       }),
     ).toMatchObject({ ok: false, code: 'validation_error' });
     const saved = await new SaveDraftUseCase(port, catalog()).execute({
       tenantId: 't1',
       projectId: 'p1',
-      teacherId: 'u1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
       document: {},
     });
     expect(saved.ok && saved.value.revision).toBe(2);
@@ -233,7 +267,7 @@ describe('list, rename, draft and checkpoint', () => {
     const checkpoint = await new CreateCheckpointUseCase(port).execute({
       tenantId: 't1',
       projectId: 'p1',
-      teacherId: 'u1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
       label: '  Первая версия  ',
     });
     expect(checkpoint.ok && checkpoint.value.versionNo).toBe(1);
@@ -246,15 +280,17 @@ describe('list, rename, draft and checkpoint', () => {
       saveDraft: async () => null,
       createCheckpoint: async () => null,
     });
-    expect(await new OpenProjectUseCase(port).execute('t1', 'ghost', 'u1')).toMatchObject({
-      ok: false,
-      code: 'project_not_found',
-    });
+    expect(
+      await new OpenProjectUseCase(port).execute('t1', 'ghost', {
+        principalId: 'principal:1',
+        userId: 'u1',
+      }),
+    ).toMatchObject({ ok: false, code: 'project_not_found' });
     expect(
       await new RenameProjectUseCase(port).execute({
         tenantId: 't1',
         projectId: 'ghost',
-        teacherId: 'u1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
         title: 'X',
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });
@@ -262,7 +298,7 @@ describe('list, rename, draft and checkpoint', () => {
       await new SaveDraftUseCase(port, catalog()).execute({
         tenantId: 't1',
         projectId: 'ghost',
-        teacherId: 'u1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
         document: {},
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });
@@ -270,7 +306,7 @@ describe('list, rename, draft and checkpoint', () => {
       await new CreateCheckpointUseCase(port).execute({
         tenantId: 't1',
         projectId: 'ghost',
-        teacherId: 'u1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
         label: undefined,
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });

@@ -6,19 +6,34 @@ import {
   HttpException,
   Inject,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { LoginUseCase, SessionUseCase } from '@asa-lab/identity';
+import type {
+  AccountDirectoryPort,
+  AccountLoginUseCase,
+  ActiveContext,
+  ActiveContextUseCase,
+  LoginUseCase,
+  RegisterAccountUseCase,
+} from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 
 interface PublicUser {
   id: string;
-  role: 'teacher';
   displayName: string;
   email: string;
+}
+
+interface SessionPayload {
+  authenticated: true;
+  user: PublicUser;
+  capabilities: { capability: string; state: string }[];
+  workspaces: { workspaceId: string; kind: string; title: string; role: string }[];
+  activeWorkspace: { workspaceId: string; kind: string };
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -28,24 +43,160 @@ function error(code: string, message: string): { error: { code: string; message:
 @Controller('api/auth')
 export class AuthController {
   constructor(
-    @Inject(TOKENS.loginUseCase) private readonly loginUseCase: LoginUseCase,
-    @Inject(TOKENS.sessionUseCase) private readonly sessionUseCase: SessionUseCase,
+    @Inject(TOKENS.loginUseCase) private readonly legacyLoginUseCase: LoginUseCase,
+    @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+    @Inject(TOKENS.registerAccountUseCase) private readonly registerUseCase: RegisterAccountUseCase,
+    @Inject(TOKENS.accountLoginUseCase) private readonly accountLoginUseCase: AccountLoginUseCase,
+    @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
   ) {}
+
+  private setSessionCookie(reply: FastifyReply, token: string): void {
+    reply.setCookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      secure: process.env['NODE_ENV'] === 'production',
+      maxAge: 12 * 60 * 60,
+    });
+  }
+
+  private async payload(context: ActiveContext): Promise<SessionPayload> {
+    const [capabilities, workspaces] = await Promise.all([
+      this.accounts.capabilities(context.accountId),
+      this.accounts.workspaces(context.accountId),
+    ]);
+    return {
+      authenticated: true,
+      user: {
+        id: context.accountId,
+        displayName: context.displayName,
+        email: context.email,
+      },
+      capabilities: capabilities.map((entry) => ({
+        capability: entry.capability,
+        state: entry.state,
+      })),
+      workspaces: workspaces.map((entry) => ({
+        workspaceId: entry.workspaceId,
+        kind: entry.kind,
+        title: entry.title,
+        role: entry.role,
+      })),
+      activeWorkspace: {
+        workspaceId: context.workspaceId,
+        kind: context.workspaceKind,
+      },
+    };
+  }
+
+  private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) {
+      throw new HttpException(error('unauthorized', 'no active session'), 401);
+    }
+    return context;
+  }
+
+  @Post('register')
+  @HttpCode(201)
+  async register(
+    @Body() rawBody: unknown,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    const shape = checkBodyShape(rawBody, [
+      'email',
+      'password',
+      'username',
+      'displayName',
+      'birthDate',
+      'country',
+    ]);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.registerUseCase.execute({
+      email: shape.body['email'],
+      password: shape.body['password'],
+      username: shape.body['username'],
+      displayName: shape.body['displayName'],
+      birthDate: shape.body['birthDate'],
+      country: shape.body['country'],
+    });
+    if (!result.ok) {
+      if (result.code === 'age_routed') {
+        throw new HttpException(
+          { error: { code: result.code, message: result.message, routes: result.routes } },
+          422,
+        );
+      }
+      const status = result.code === 'email_taken' || result.code === 'username_taken' ? 409 : 400;
+      throw new HttpException(error(result.code, result.message), status);
+    }
+    this.setSessionCookie(reply, result.token);
+    const context = await this.activeContext.resolve(result.token);
+    if (!context) {
+      throw new HttpException(error('server_error', 'session was not created'), 500);
+    }
+    return this.payload(context);
+  }
+
+  @Get('username-available')
+  async usernameAvailable(
+    @Query('username') username: string | undefined,
+  ): Promise<{ available: boolean }> {
+    if (typeof username !== 'string' || username.trim().length < 3) {
+      return { available: false };
+    }
+    return { available: await this.accounts.isUsernameAvailable(username.trim().toLowerCase()) };
+  }
 
   @Post('login')
   @HttpCode(200)
   async login(
     @Body() rawBody: unknown,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<{ user: PublicUser }> {
-    const shape = checkBodyShape(rawBody, ['workspace', 'email', 'password']);
+  ): Promise<SessionPayload> {
+    const shape = checkBodyShape(rawBody, ['workspace', 'identifier', 'email', 'password']);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
     }
-    const result = await this.loginUseCase.execute({
-      workspace: shape.body['workspace'],
-      email: shape.body['email'],
-      password: shape.body['password'],
+    const token =
+      shape.body['workspace'] === undefined
+        ? await this.accountSignIn(shape.body)
+        : await this.legacySignIn(shape.body);
+    this.setSessionCookie(reply, token);
+    const context = await this.activeContext.resolve(token);
+    if (!context) {
+      throw new HttpException(error('server_error', 'session was not created'), 500);
+    }
+    return this.payload(context);
+  }
+
+  private async accountSignIn(body: Record<string, unknown>): Promise<string> {
+    const result = await this.accountLoginUseCase.execute({
+      identifier: body['identifier'] ?? body['email'],
+      password: body['password'],
+    });
+    if (!result.ok) {
+      if (result.code === 'validation_error') {
+        throw new HttpException(
+          error('validation_error', 'identifier and password are required'),
+          400,
+        );
+      }
+      throw new HttpException(
+        error('invalid_credentials', 'invalid email, username or password'),
+        401,
+      );
+    }
+    return result.token;
+  }
+
+  private async legacySignIn(body: Record<string, unknown>): Promise<string> {
+    const result = await this.legacyLoginUseCase.execute({
+      workspace: body['workspace'],
+      email: body['email'],
+      password: body['password'],
     });
     if (!result.ok) {
       if (result.code === 'validation_error') {
@@ -59,22 +210,7 @@ export class AuthController {
         401,
       );
     }
-    reply.setCookie(SESSION_COOKIE, result.token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      secure: process.env['NODE_ENV'] === 'production',
-      maxAge: 12 * 60 * 60,
-    });
-    const { context } = result;
-    return {
-      user: {
-        id: context.userId,
-        role: 'teacher',
-        displayName: context.displayName,
-        email: context.email,
-      },
-    };
+    return result.token;
   }
 
   @Post('logout')
@@ -83,24 +219,16 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ ok: true }> {
-    await this.sessionUseCase.logout(request.cookies[SESSION_COOKIE]);
+    await this.activeContext.logout(request.cookies[SESSION_COOKIE]);
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
   }
 
   @Get('me')
-  async me(@Req() request: FastifyRequest): Promise<{ user: PublicUser }> {
-    const context = await this.sessionUseCase.resolve(request.cookies[SESSION_COOKIE]);
-    if (!context) {
-      throw new HttpException(error('unauthorized', 'no active session'), 401);
+  async me(@Req() request: FastifyRequest): Promise<SessionPayload | { authenticated: false }> {
+    if (request.cookies[SESSION_COOKIE] === undefined) {
+      return { authenticated: false };
     }
-    return {
-      user: {
-        id: context.userId,
-        role: 'teacher',
-        displayName: context.displayName,
-        email: context.email,
-      },
-    };
+    return this.payload(await this.requireContext(request));
   }
 }

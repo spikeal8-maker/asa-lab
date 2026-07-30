@@ -8,13 +8,15 @@ import {
   type ProjectScope,
   type ProjectVersion,
 } from '../domain/project.js';
-import type { ModuleCatalogPort, ProjectListFilter, ProjectRepositoryPort } from './ports.js';
+import type {
+  ModuleCatalogPort,
+  ProjectActor,
+  ProjectListFilter,
+  ProjectRepositoryPort,
+} from './ports.js';
 
 export type ProjectErrorCode =
-  | 'validation_error'
-  | 'idempotency_conflict'
-  | 'classroom_not_found'
-  | 'project_not_found';
+  'validation_error' | 'idempotency_conflict' | 'classroom_not_found' | 'project_not_found';
 
 export type UseCaseResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -43,7 +45,7 @@ export class CreateProjectUseCase {
     tenantId: string;
     scope: unknown;
     classroomId: unknown;
-    teacherId: string;
+    actor: ProjectActor;
     moduleKey: unknown;
     title: unknown;
     idempotencyKey: string;
@@ -78,7 +80,7 @@ export class CreateProjectUseCase {
       tenantId: input.tenantId,
       scope: input.scope,
       classroomId,
-      teacherId: input.teacherId,
+      actor: input.actor,
       moduleKey: module.moduleKey,
       title,
       idempotencyKey: input.idempotencyKey,
@@ -109,7 +111,7 @@ export class ListProjectsUseCase {
 
   async execute(
     tenantId: string,
-    teacherId: string,
+    actor: ProjectActor,
     rawFilter: { scope?: unknown; classroomId?: unknown },
   ): Promise<UseCaseResult<Project[]>> {
     let scope: ProjectScope | undefined;
@@ -136,7 +138,7 @@ export class ListProjectsUseCase {
     if (filter.scope === 'classroom' && !filter.classroomId) {
       return fail('validation_error', 'classroomId is required for classroom projects');
     }
-    return { ok: true, value: await this.repository.listForTeacher(tenantId, teacherId, filter) };
+    return { ok: true, value: await this.repository.listForActor(tenantId, actor, filter) };
   }
 }
 
@@ -146,9 +148,9 @@ export class OpenProjectUseCase {
   async execute(
     tenantId: string,
     projectId: string,
-    teacherId: string,
+    actor: ProjectActor,
   ): Promise<UseCaseResult<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] }>> {
-    const loaded = await this.repository.load(tenantId, projectId, teacherId);
+    const loaded = await this.repository.load(tenantId, projectId, actor);
     return loaded === null
       ? fail('project_not_found', 'project not found')
       : { ok: true, value: loaded };
@@ -161,7 +163,7 @@ export class RenameProjectUseCase {
   async execute(input: {
     tenantId: string;
     projectId: string;
-    teacherId: string;
+    actor: ProjectActor;
     title: unknown;
   }): Promise<UseCaseResult<Project>> {
     if (!isValidProjectTitle(input.title)) {
@@ -170,7 +172,7 @@ export class RenameProjectUseCase {
     const project = await this.repository.rename(
       input.tenantId,
       input.projectId,
-      input.teacherId,
+      input.actor,
       input.title.trim(),
     );
     return project === null
@@ -188,10 +190,10 @@ export class SaveDraftUseCase {
   async execute(input: {
     tenantId: string;
     projectId: string;
-    teacherId: string;
+    actor: ProjectActor;
     document: unknown;
   }): Promise<UseCaseResult<ProjectDraft>> {
-    const loaded = await this.repository.load(input.tenantId, input.projectId, input.teacherId);
+    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
     if (!loaded) {
       return fail('project_not_found', 'project not found');
     }
@@ -206,7 +208,7 @@ export class SaveDraftUseCase {
     const draft = await this.repository.saveDraft({
       tenantId: input.tenantId,
       projectId: input.projectId,
-      teacherId: input.teacherId,
+      actor: input.actor,
       document: parsed.document,
     });
     return draft === null
@@ -221,7 +223,7 @@ export class CreateCheckpointUseCase {
   async execute(input: {
     tenantId: string;
     projectId: string;
-    teacherId: string;
+    actor: ProjectActor;
     label: unknown;
   }): Promise<UseCaseResult<ProjectVersion>> {
     if (!isValidCheckpointLabel(input.label)) {
@@ -232,7 +234,7 @@ export class CreateCheckpointUseCase {
     const version = await this.repository.createCheckpoint(
       input.tenantId,
       input.projectId,
-      input.teacherId,
+      input.actor,
       label,
     );
     return version === null

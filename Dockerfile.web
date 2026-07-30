@@ -5,8 +5,10 @@ ARG CADDY_IMAGE=caddy:2.10.2-alpine
 
 FROM ${NODE_IMAGE} AS build
 
+ARG ASA_BUILD_REVISION=unknown
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
+ENV VITE_ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
 
 RUN corepack enable \
     && corepack prepare pnpm@9.15.9 --activate
@@ -19,6 +21,8 @@ RUN pnpm nx run web:build
 
 FROM ${CADDY_IMAGE} AS runtime
 
+ARG ASA_BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
 ENV XDG_CONFIG_HOME=/tmp/caddy-config
 ENV XDG_DATA_HOME=/tmp/caddy-data
 

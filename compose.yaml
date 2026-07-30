@@ -28,6 +28,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
       target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
     image: asa-lab-api:${ASA_IMAGE_TAG:-local}
     entrypoint: ['/app/docker/migrate-entrypoint.sh']
     restart: 'no'
@@ -58,6 +60,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
       target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
     image: asa-lab-api:${ASA_IMAGE_TAG:-local}
     restart: unless-stopped
     init: true
@@ -91,6 +95,8 @@ services:
       context: .
       dockerfile: Dockerfile.web
       target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
     image: asa-lab-web:${ASA_IMAGE_TAG:-local}
     restart: unless-stopped
     init: true

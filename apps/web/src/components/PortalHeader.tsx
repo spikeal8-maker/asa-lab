@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import { api, type PublicUser } from '../api';
 import { ClassesIcon, FolderIcon, UserIcon } from '../electronics/workbench-icons';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
 export type PortalSection = 'projects' | 'classes';
 
 export function PortalHeader({
   user,
   active,
+  canTeach,
   onNavigate,
   onLoggedOut,
 }: {
   user: PublicUser;
   active: PortalSection;
+  canTeach: boolean;
   onNavigate: (section: PortalSection) => void;
   onLoggedOut: () => void;
 }): JSX.Element {
@@ -25,17 +28,17 @@ export function PortalHeader({
     const result = await api.logout();
     setBusy(false);
     if (result.ok) onLoggedOut();
-    else setError(result.status === 0 ? 'Сервер недоступен — сессия не завершена.' : 'Не удалось выйти.');
+    else
+      setError(
+        result.status === 0 ? 'Сервер недоступен — сессия не завершена.' : 'Не удалось выйти.',
+      );
   }
 
   return (
     <>
       <header className="portal-header">
         <button type="button" className="portal-brand" onClick={() => onNavigate('projects')}>
-          <span className="portal-brand-mark" aria-hidden="true">
-            <span>A</span><span>S</span><span>A</span><span>LAB</span>
-          </span>
-          <span>ASA Lab</span>
+          <AsaLabWordmark />
         </button>
         <nav className="portal-nav" aria-label="Основная навигация">
           <button
@@ -46,27 +49,44 @@ export function PortalHeader({
             <FolderIcon />
             Мои проекты
           </button>
-          <button
-            type="button"
-            className={active === 'classes' ? 'portal-nav-item active' : 'portal-nav-item'}
-            onClick={() => onNavigate('classes')}
+          {canTeach ? (
+            <button
+              type="button"
+              className={active === 'classes' ? 'portal-nav-item active' : 'portal-nav-item'}
+              onClick={() => onNavigate('classes')}
+            >
+              <ClassesIcon />
+              Классы
+            </button>
+          ) : null}
+          <span
+            className="portal-nav-item disabled"
+            aria-disabled="true"
+            title="Появится в следующих этапах"
           >
-            <ClassesIcon />
-            Классы
-          </button>
-          <span className="portal-nav-item disabled" aria-disabled="true" title="Появится в следующих этапах">
             Учебные материалы
           </span>
         </nav>
         <div className="portal-user">
-          <span className="portal-user-avatar" aria-hidden="true"><UserIcon /></span>
+          <span className="portal-user-avatar" aria-hidden="true">
+            <UserIcon />
+          </span>
           <span className="portal-user-name">{user.displayName}</span>
-          <button type="button" className="portal-logout" disabled={busy} onClick={() => void logout()}>
+          <button
+            type="button"
+            className="portal-logout"
+            disabled={busy}
+            onClick={() => void logout()}
+          >
             {busy ? 'Выходим…' : 'Выйти'}
           </button>
         </div>
       </header>
-      {error ? <p className="portal-global-error" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="portal-global-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </>
   );
 }

@@ -32,7 +32,8 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+select {
   font: inherit;
   width: 100%;
   padding: 0.6rem 0.75rem;
@@ -42,6 +43,7 @@ input {
 }
 
 input:focus-visible,
+select:focus-visible,
 button:focus-visible,
 a:focus-visible {
   outline: 3px solid rgba(36, 86, 214, 0.45);
@@ -70,6 +72,104 @@ label {
   border-radius: var(--radius);
   padding: 2rem;
   box-shadow: 0 12px 32px rgba(23, 33, 45, 0.08);
+}
+
+.brand-heading {
+  margin: 0 0 1.1rem;
+}
+
+.entry-card {
+  width: min(100%, 660px);
+  padding: clamp(2rem, 6vw, 4rem);
+  border: 1px solid rgba(11, 53, 88, 0.12);
+  border-radius: 24px;
+  background: radial-gradient(circle at 90% 0%, rgba(10, 164, 200, 0.12), transparent 36%), #fff;
+  box-shadow: 0 24px 70px rgba(11, 53, 88, 0.14);
+}
+
+.entry-card h2 {
+  max-width: 520px;
+  margin: 1.7rem 0 0.55rem;
+  color: var(--asa-ink-900);
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.entry-kicker {
+  margin: 1.6rem 0 0;
+  color: var(--asa-cyan-600);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.entry-actions {
+  display: grid;
+  grid-template-columns: minmax(190px, 230px) 1fr;
+  align-items: center;
+  gap: 0.75rem 1.1rem;
+  margin-top: 2rem;
+}
+
+.entry-action {
+  width: 100%;
+  margin: 0;
+}
+
+.entry-action-hint,
+.legacy-hint {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.entry-back {
+  margin: -0.65rem 0 0.85rem -0.75rem;
+}
+
+.login-links {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--asa-cyan-600);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-muted {
+  color: var(--muted);
+}
+
+.legacy-note {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  margin: 1.15rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.legacy-banner,
+.route-notice {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 10px;
+  background: var(--asa-cyan-100);
+}
+
+.route-notice strong {
+  color: var(--asa-ink-900);
 }
 
 .brand {
@@ -334,6 +434,19 @@ label {
 }
 
 @media (max-width: 640px) {
+  .entry-card {
+    padding: 1.5rem;
+    border-radius: 18px;
+  }
+
+  .entry-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-action-hint {
+    margin: -0.35rem 0 0.45rem;
+  }
+
   .topbar {
     align-items: flex-start;
     gap: 0.75rem;
