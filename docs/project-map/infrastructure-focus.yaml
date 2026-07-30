@@ -1,4 +1,4 @@
-schema_version: 1.1.0
+schema_version: 1.0.0
 active: true
 current_focus: TASK-DOCKER-LINUX-001
 status: in_progress
