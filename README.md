@@ -102,11 +102,9 @@ API  http://127.0.0.1:4611
 E2E  http://127.0.0.1:4612
 ```
 
-Запрещённые legacy-порты:
-
-```text
-3000, 3100, 5173
-```
+Legacy-порты запрещены нормативной
+[`LOCAL_PORT_POLICY.md`](docs/delivery/LOCAL_PORT_POLICY.md); deny-list здесь не
+дублируется.
 
 Docker-профили и инструкции:
 
