@@ -32,7 +32,7 @@ export function useWorkbenchProjectState(projectId: string) {
 
   const load = useCallback(async () => {
     setStatus('loading');
-    const response = await api.openProject(projectId);
+    const response = await api.openProject<SchematicDocument, SolveResult>(projectId);
     if (!response.ok) {
       setStatus('error');
       return;
@@ -47,7 +47,9 @@ export function useWorkbenchProjectState(projectId: string) {
     setStatus('ready');
   }, [initialiseHistory, projectId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const pushHistory = useCallback((next: SchematicDocument): void => {
     const state = historyRef.current;
@@ -69,7 +71,9 @@ export function useWorkbenchProjectState(projectId: string) {
   );
 
   const canUndo = historyRef.current.cursor > 0;
-  const canRedo = historyRef.current.cursor >= 0 && historyRef.current.cursor < historyRef.current.entries.length - 1;
+  const canRedo =
+    historyRef.current.cursor >= 0 &&
+    historyRef.current.cursor < historyRef.current.entries.length - 1;
   void historyTick;
 
   function undo(): void {
@@ -95,7 +99,7 @@ export function useWorkbenchProjectState(projectId: string) {
   const persist = useCallback(
     async (nextDocument: SchematicDocument, quiet = false): Promise<SolveResult | null> => {
       setSaveStatus('saving');
-      const response = await api.saveDraft(projectId, nextDocument);
+      const response = await api.saveDraft<SchematicDocument, SolveResult>(projectId, nextDocument);
       if (!response.ok) {
         setSaveStatus('error');
         if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
@@ -112,7 +116,9 @@ export function useWorkbenchProjectState(projectId: string) {
   useEffect(() => {
     if (!document || saveStatus !== 'dirty') return;
     if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(() => { void persist(document, true); }, simulationRunning ? 700 : 1800);
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void persist(document, true);
+    }, simulationRunning ? 700 : 1800);
     return () => {
       if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
     };
