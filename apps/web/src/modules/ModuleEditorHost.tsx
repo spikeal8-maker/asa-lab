@@ -1,5 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
+import { ChessEditor } from '../chess/ChessEditor';
 import { SchematicEditor } from '../pages/SchematicEditor';
 
 interface ModuleEditorProps {
@@ -10,6 +11,7 @@ interface ModuleEditorProps {
 
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
   electronics: SchematicEditor,
+  chess: ChessEditor,
 };
 
 type HostState =
