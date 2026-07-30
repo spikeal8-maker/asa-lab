@@ -6,7 +6,7 @@ name: ASA Lab Governance and Code Gates
       - main
       - "agent/**"
       - "assistant/**"
-  pull_request:
+  pull_request: {}
 
 permissions:
   contents: read
@@ -26,13 +26,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
@@ -70,7 +70,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -125,7 +125,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
