@@ -101,4 +101,5 @@ export {
   type RepositoryWriteResult,
 } from './application/ports.js';
 export { MemoryChessLiveRepository } from './infrastructure/memory-repository.js';
+export { PgChessLiveRepository } from './infrastructure/pg-repository.js';
 export { CryptoLiveIds, SystemLiveClock } from './infrastructure/runtime.js';
