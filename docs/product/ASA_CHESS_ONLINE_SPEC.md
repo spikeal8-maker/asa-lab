@@ -1,8 +1,9 @@
 # ASA Chess Online — server-authoritative candidate
 
 **Issue:** #67  
-**Stack:** `assistant/chess-online-core` on Draft PR #66  
-**Status:** implementation candidate, local gates `NOT_RUN`  
+**Draft PR:** #68  
+**Stack:** `assistant/chess-online-core` on Chess Foundation Draft PR #66  
+**Status:** implementation candidate, all local gates `NOT_RUN`  
 **Merge rule:** do not merge before R0, Module Registry and Chess Foundation acceptance.
 
 ## Product outcome
@@ -17,6 +18,7 @@ Player A opens ASA Chess Online
 → both clients receive the authoritative state
 → reconnect returns snapshot plus missed events
 → rated finished game writes an immutable ASA Elo v1 ledger
+→ PostgreSQL preserves the game across API restarts
 ```
 
 The candidate is an original ASA Lab implementation. It does not copy Chess.com source code, protocol, visual assets, rating formula, private fair-play rules or user text.
@@ -59,7 +61,9 @@ Every write uses:
 - tenant-scoped repository lookup;
 - participant authorization;
 - server timestamp;
-- strict request-body shape.
+- strict request-body shape;
+- transaction-local tenant context;
+- forced PostgreSQL RLS in the durable adapter.
 
 ## Domain model
 
@@ -168,7 +172,7 @@ Tickets are compatible only when they share:
 
 Initial search window is 100 points. It expands by 50 points every 30 seconds up to 600. The oldest ticket is considered first and paired with the closest compatible rating deterministically.
 
-One player can have only one queued ticket in the candidate repository.
+PostgreSQL enforces one queued ticket per tenant/player through a partial unique index.
 
 ## ASA Elo v1
 
@@ -209,7 +213,48 @@ game ID
 algorithm version
 ```
 
-Rating is updated once per rated finished game.
+The database has a unique `(tenant_id, game_id, player_id)` constraint and an append-only trigger. A repeated command therefore cannot produce a second ledger row for the same player/game.
+
+## Durable PostgreSQL adapter
+
+Implemented files:
+
+```text
+migrations/0006_chess_live.sql
+migrations/0007_chess_live_privilege_tightening.sql
+contexts/chess-live/infrastructure/pg-repository.ts
+```
+
+Tables:
+
+```text
+chess_live_challenges
+chess_live_games
+chess_live_events
+chess_live_command_receipts
+chess_matchmaking_tickets
+chess_ratings
+chess_rating_ledger
+```
+
+Database guarantees:
+
+- UUID resource identities;
+- tenant-composite foreign keys;
+- forced RLS on every live table;
+- transaction-local `app.tenant_id` from `@asa-lab/database`;
+- optimistic `WHERE version = expectedVersion` writes;
+- unique command receipt per tenant/command;
+- unique challenge code per tenant;
+- unique event sequence per tenant/game;
+- one queued matchmaking ticket per tenant/player;
+- at-most-once rating ledger per tenant/game/player;
+- append-only events and rating ledger;
+- least-privilege runtime grants.
+
+Normal API composition with `APP_DATABASE_URL` uses `PgChessLiveRepository`. `MemoryChessLiveRepository` remains only for health-only composition without a database and for fast deterministic unit tests.
+
+The implementation and migration are not considered proven until the isolated `_test` database gate actually passes.
 
 ## Candidate API
 
@@ -252,28 +297,26 @@ The Chess module exposes an `Онлайн` surface with:
 - resign and timeout check;
 - version/sequence indicator;
 - desktop and mobile layouts;
-- explicit candidate and authority notices.
+- explicit server-authority notices.
 
-## Current persistence limitation
+The first transport is same-origin REST plus polling. This is deliberate: it proves authority, persistence and reconnect semantics before adding WebSocket operations.
 
-The composition root intentionally uses `MemoryChessLiveRepository` for the implementation candidate. This proves aggregate, API and two-session browser behavior but is not durable or horizontally scalable.
+## Known residual risks
 
-Before production acceptance it must be replaced by a PostgreSQL repository with:
-
-- tenant RLS;
-- atomic expected-version writes;
-- unique command receipts;
-- append-only event sequence;
-- unique challenge codes per tenant;
-- one queued matchmaking ticket per player;
-- exactly-once rating ledger per game/player;
-- migration, rollback and isolated `_test` database evidence.
+- rating finalization is invoked after the game-state transaction; database uniqueness prevents duplicate ledgers, but production needs an outbox/reconciliation path for a crash between game finish and rating write;
+- active clock expiry currently closes on a command or timeout claim; production needs a durable scheduler for unattended expiration;
+- polling is not a production replacement for WebSocket push;
+- no reconnect token/device binding yet;
+- no lag-compensation policy;
+- no distributed locking/load evidence;
+- migration order and exact privileges still require a real clean `_test` database run;
+- no production observability/SLO dashboard yet.
 
 ## Not implemented or claimed
 
-- durable PostgreSQL live repository;
 - production WebSocket gateway;
 - distributed clock scheduler;
+- rating outbox/reconciliation worker;
 - reconnect token/device management;
 - premoves;
 - public game directory;
@@ -297,9 +340,14 @@ pnpm typecheck:chess
 pnpm typecheck:chess-live
 pnpm typecheck
 pnpm boundaries:check
+pnpm graph:report
 pnpm build
 pnpm test:chess
 pnpm test:chess-live
+pnpm db:test:provision --reset
+pnpm db:migrate:test
+pnpm test:chess-live:pg
+pnpm test:rls
 pnpm test
 pnpm e2e:chess-live
 ```
