@@ -49,7 +49,10 @@
     "test:chess-live": "vitest run contexts/chess-live/testing apps/api/src/chess-live.controller.spec.ts",
     "test:chess-live:pg": "vitest run tests/chess-live/pg-repository.spec.ts",
     "typecheck:chess-live": "tsc -p contexts/chess-live/tsconfig.json --noEmit",
-    "e2e:chess-live": "playwright test e2e/chess-live.spec.ts"
+    "e2e:chess-live": "playwright test e2e/chess-live.spec.ts",
+    "test:account-c1": "node tools/task-not-implemented.mjs test:account-c1",
+    "test:account-c1:pg": "node tools/task-not-implemented.mjs test:account-c1:pg",
+    "e2e:account-c1": "node tools/task-not-implemented.mjs e2e:account-c1"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
