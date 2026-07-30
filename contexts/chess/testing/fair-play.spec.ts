@@ -19,8 +19,8 @@ describe('ASA Chess fair-play policy', () => {
       serverAuthoritativeClock: true,
       spectatorDelayMs: 0,
     });
-    expect(CHESS_FAIR_PLAY_POLICIES.protected_live_rated.allowed).not.toContain('undo');
-    expect(CHESS_FAIR_PLAY_POLICIES.protected_live_rated.allowed).not.toContain('move_hints');
+    expect(CHESS_FAIR_PLAY_POLICIES.protected_live_rated.allowed.has('undo')).toBe(false);
+    expect(CHESS_FAIR_PLAY_POLICIES.protected_live_rated.allowed.has('move_hints')).toBe(false);
   });
 
   it('requires a spectator delay and denies hidden live analysis', () => {
