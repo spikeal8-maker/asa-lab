@@ -42,7 +42,7 @@
     "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts",
     "e2e:electronics": "playwright test e2e/electronics-slice.spec.ts",
     "chess:contract": "node tools/validate-chess-candidate.mjs",
-    "test:chess": "vitest run contexts/chess/testing tests/chess",
+    "test:chess": "vitest run contexts/chess/testing tests/chess/",
     "typecheck:chess": "tsc -p contexts/chess/tsconfig.json --noEmit",
     "e2e:chess": "playwright test e2e/chess-module.spec.ts",
     "chess-live:contract": "node tools/validate-chess-live-candidate.mjs",
