@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "verifiedAt": "2026-07-30T10:11:30Z",
+  "verifiedAt": "2026-07-30T13:44:11Z",
   "composeProject": "asa-lab",
   "volume": "asa-lab_postgres-data",
   "database": "asalab",
@@ -11,7 +11,7 @@
     "read the same probe value after PostgreSQL became healthy",
     "removed the probe table"
   ],
-  "marker": "task-docker-linux-001",
+  "marker": "task-docker-linux-001-v4",
   "markerRecovered": true,
   "cleanupCompleted": true
 }
