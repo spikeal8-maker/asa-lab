@@ -1,0 +1,1 @@
+Canonical Docker task: TASK-DOCKER-LINUX-001 (Issue #69). Work branch: assistant/docker-linux-bootstrap. Base: assistant/chess-online-core. Main remains unchanged. The implementation branch must update EXECUTION_MANIFEST.yaml and project.current_focus before any Docker implementation.
