@@ -81,6 +81,7 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await expectNoHorizontalOverflow(page);
   await page.setViewportSize({ width: 1280, height: 800 });
 
+  await page.locator('.portal-account > summary').click();
   await page.getByRole('button', { name: 'Выйти' }).click();
   await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
   failures.assertEmpty();
