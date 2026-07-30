@@ -236,8 +236,9 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
             </button>
           </div>
           <p className="asa-puzzle-disclaimer">
-            Это небольшой оригинальный набор для проверки механики. Он не является копией базы задач
-            Chess.com.
+            {
+              'Это небольшой оригинальный набор для проверки механики. Он не является копией базы задач Chess.com.'
+            }
           </p>
         </aside>
       </div>
