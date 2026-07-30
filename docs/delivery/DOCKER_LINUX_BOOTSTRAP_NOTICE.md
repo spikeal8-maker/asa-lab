@@ -1,0 +1,1 @@
+Owner-approved task: TASK-DOCKER-LINUX-001 / Issue #69. Canonical implementation branch: assistant/docker-linux-bootstrap. The branch must activate this task in EXECUTION_MANIFEST.yaml and project-map.yaml before infrastructure changes.
