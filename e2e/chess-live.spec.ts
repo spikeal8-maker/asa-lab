@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import pg from 'pg';
+import { collectBrowserFailures } from './browser-failures';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 interface LivePlayerCredentials {
@@ -13,20 +14,6 @@ interface LivePlayerCredentials {
 let admin: pg.Pool;
 let first: SeededTeacher;
 let second: LivePlayerCredentials;
-
-function browserFailures(page: Page): string[] {
-  const failures: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') failures.push(`console: ${message.text()}`);
-  });
-  page.on('pageerror', (error) => failures.push(`pageerror: ${error.message}`));
-  page.on('requestfailed', (request) => {
-    failures.push(
-      `requestfailed: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`,
-    );
-  });
-  return failures;
-}
 
 async function seedSecondPlayer(): Promise<LivePlayerCredentials> {
   const email = `teacher-chess-live-second-${Date.now()}@test.local`;
@@ -101,6 +88,12 @@ test.afterAll(async () => {
 
 test('two teachers create and play one server-authoritative direct challenge', async ({ browser }) => {
   const session = await pages(browser);
+  const firstFailures = collectBrowserFailures(session.firstPage, {
+    allowAnonymousSessionProbe: true,
+  });
+  const secondFailures = collectBrowserFailures(session.secondPage, {
+    allowAnonymousSessionProbe: true,
+  });
   try {
     await login(session.firstPage, {
       workspace: first.workspace,
@@ -109,8 +102,6 @@ test('two teachers create and play one server-authoritative direct challenge', a
       userId: first.teacherId,
     });
     await login(session.secondPage, second);
-    const firstFailures = browserFailures(session.firstPage);
-    const secondFailures = browserFailures(session.secondPage);
     await createChessProject(session.firstPage, 'Онлайн — белые');
     await createChessProject(session.secondPage, 'Онлайн — чёрные');
 
@@ -206,8 +197,8 @@ test('two teachers create and play one server-authoritative direct challenge', a
       path: 'e2e/artifacts/chess-online-black-mobile.png',
       fullPage: true,
     });
-    expect(firstFailures).toEqual([]);
-    expect(secondFailures).toEqual([]);
+    firstFailures.assertEmpty();
+    secondFailures.assertEmpty();
   } finally {
     await session.close();
   }
@@ -215,6 +206,12 @@ test('two teachers create and play one server-authoritative direct challenge', a
 
 test('rated matchmaking pairs compatible teachers and writes rating after resignation', async ({ browser }) => {
   const session = await pages(browser);
+  const firstFailures = collectBrowserFailures(session.firstPage, {
+    allowAnonymousSessionProbe: true,
+  });
+  const secondFailures = collectBrowserFailures(session.secondPage, {
+    allowAnonymousSessionProbe: true,
+  });
   try {
     await login(session.firstPage, {
       workspace: first.workspace,
@@ -255,6 +252,8 @@ test('rated matchmaking pairs compatible teachers and writes rating after resign
       rating: { rating: 1176, games: 1, algorithm: 'asa-elo-v1' },
       ledger: [{ delta: -24 }],
     });
+    firstFailures.assertEmpty();
+    secondFailures.assertEmpty();
   } finally {
     await session.close();
   }

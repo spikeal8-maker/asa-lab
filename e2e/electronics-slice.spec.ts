@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
+import { collectBrowserFailures } from './browser-failures';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-E2E-ELECTRONICS-SLICE-001: a teacher creates a personal project without
@@ -72,6 +73,7 @@ test.afterAll(async () => {
 test('teacher builds and preserves a personal circuit in the Tinkercad-style workbench', async ({
   page,
 }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createPersonalProject(page, 'Демонстрация закона Ома');
 
@@ -121,9 +123,11 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'e2e/artifacts/electronics-mobile.png', fullPage: true });
+  failures.assertEmpty();
 });
 
 test('classes remain a separate teacher workspace from personal projects', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await page.getByRole('button', { name: 'Классы' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
@@ -134,4 +138,5 @@ test('classes remain a separate teacher workspace from personal projects', async
   ).toBeVisible();
   await page.getByRole('button', { name: 'Мои проекты' }).click();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  failures.assertEmpty();
 });

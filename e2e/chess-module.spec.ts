@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
+import { collectBrowserFailures } from './browser-failures';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
@@ -43,6 +44,7 @@ test.afterAll(async () => {
 });
 
 test('teacher creates, plays, reloads and versions an ASA Chess project', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createChessProject(page, 'Испанская партия — анализ');
 
@@ -77,9 +79,11 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await page.screenshot({ path: 'e2e/artifacts/chess-analysis-mobile.png', fullPage: true });
+  failures.assertEmpty();
 });
 
 test('ASA Bot makes a legal persisted reply', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createChessProject(page, 'Партия против ASA Bot');
   await page.getByRole('button', { name: 'Новая', exact: true }).click();
@@ -92,9 +96,11 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await page.reload();
   await expect(page.locator('.asa-chess-moves li').first()).toContainText('e4');
+  failures.assertEmpty();
 });
 
 test('learner opens the original ASA puzzle trainer and solves a mate in one', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createChessProject(page, 'Тренировка по тактике');
   await page.getByRole('button', { name: 'Открыть шахматные задачи' }).click();
@@ -106,4 +112,5 @@ test('learner opens the original ASA puzzle trainer and solves a mate in one', a
   await expect(page.getByRole('heading', { name: 'Мат по последней горизонтали' })).toBeVisible();
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.screenshot({ path: 'e2e/artifacts/chess-puzzle-desktop.png', fullPage: true });
+  failures.assertEmpty();
 });

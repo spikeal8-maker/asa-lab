@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import pg from 'pg';
+import { collectBrowserFailures } from './browser-failures';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-E2E-PORTAL-001: real browser flow —
@@ -39,6 +40,7 @@ test.afterAll(async () => {
 });
 
 test('teacher logs in, creates a classroom and it survives reload', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'ASA Lab' })).toBeVisible();
 
@@ -86,4 +88,5 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
 
   await page.getByRole('button', { name: 'Выйти' }).click();
   await expect(page.getByLabel(organizationCodeField)).toBeVisible();
+  failures.assertEmpty();
 });
