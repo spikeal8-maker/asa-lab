@@ -1,27 +1,42 @@
 # BOT_RUNBOOK — рабочий процесс coding-агента ASA Lab
 
-## 1. Короткая команда владельца
+## 1. Назначение
+
+Coding-агент реализует только одну текущую product task, сохраняет данные и существующий функционал, доказывает результат тестами и останавливается для owner review.
+
+Короткая команда владельца:
 
 ```text
-Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, current_focus и соответствующий entry в docs/delivery/EXECUTION_MANIFEST.yaml. Открой указанную GitHub Issue и выполни только её. Следующую задачу не начинай.
+Работай в spikeal8-maker/asa-lab. Прочитай AGENTS.md, infrastructure focus, current_focus, соответствующий entry в EXECUTION_MANIFEST.yaml и GitHub Issue. Выполни только текущую задачу в существующей канонической линии. Следующую задачу не начинай.
 ```
 
-Владелец не пересказывает ТЗ вручную.
+Владелец не обязан пересказывать полный scope вручную.
 
 ## 2. Источники выполнения
 
+Порядок чтения:
+
 ```text
-Product Blueprint                 что строим
-Capability Map                   какие возможности и зависимости
-EXECUTION_MANIFEST.yaml          task order, Issue, branch, stage, tests, map nodes
-DEVELOPMENT_PROGRAM_V1.md        человекочитаемый путь
-LOCAL_PORT_POLICY.md             порты и безопасный запуск
-project-map.yaml                 current focus и динамические statuses
-GitHub Issue                     scope одного user flow
-test-catalog.yaml                команды test IDs
+AGENTS.md
+→ docs/project-map/infrastructure-focus.yaml
+→ docs/project-map/project-map.yaml
+→ docs/delivery/EXECUTION_MANIFEST.yaml
+→ GitHub Issue текущей задачи
+→ docs/testing/test-catalog.yaml
+→ manifest read-links
 ```
 
-Конфликт не разрешается догадкой. Чат не меняет task ID, capability, dependency, branch, scope, port, test ID или exit gate.
+Дополнительные представления:
+
+```text
+README.md
+START_HERE_FOR_AI.md
+docs/delivery/DEVELOPMENT_PROGRAM_V1.md
+docs/project-map/PROJECT_MAP.md
+docs/project-map/QUALITY_MAP.md
+```
+
+Конфликт не разрешается догадкой. Чат не заменяет task ID, Issue, branch, dependencies, scope, ports и exit gate. Нормативный переход должен быть опубликован в репозитории.
 
 ## 3. ORIENT
 
@@ -29,67 +44,142 @@ test-catalog.yaml                команды test IDs
 git remote -v
 git status --short --branch
 git fetch --all --prune
+git rev-parse HEAD
 git branch --all
 ```
 
-Затем:
+После этого:
 
-1. прочитать `project.current_focus`;
-2. найти task entry в `EXECUTION_MANIFEST.yaml`;
-3. проверить status и manifest `depends_on` против map edges;
-4. открыть manifest Issue;
-5. продолжить manifest branch/PR либо создать её от актуального `main`;
-6. прочитать manifest `read` links;
-7. получить обязательные tests из manifest profiles и test catalog;
-8. проверить Port Policy для server/UI задачи.
+1. прочитать `AGENTS.md`;
+2. проверить `infrastructure-focus.yaml`;
+3. если infrastructure focus активен — выполнять только infrastructure manifest;
+4. если focus terminal/inactive — проверить `python tools/validate_infrastructure_focus.py`;
+5. прочитать `project.current_focus`;
+6. найти тот же task в `EXECUTION_MANIFEST.yaml`;
+7. проверить status, `depends_on`, Issue и branch;
+8. получить test IDs из manifest и `test-catalog.yaml`;
+9. проверить Port Policy;
+10. продолжить существующую каноническую линию.
 
-Разрешена работа только с current focus или существующим PR этого task. `planned`, `blocked`, `done`, `deprecated` не выполняются.
+Не создавай новую ветку автоматически. Ветка создаётся только когда manifest прямо требует новую линию и владелец не зафиксировал продолжение существующей.
 
-## 4. CAPABILITY CHECK и PLAN
+## 4. Текущий repository state
 
-До изменения кода:
+Принятый технический Alpha-baseline:
+
+```text
+7afebdcf9441b027092ce17a37f1f89950af99c6
+```
+
+Текущая линия:
+
+```text
+branch: assistant/docker-linux-bootstrap
+PR: #70 Draft
+```
+
+`main` пока содержит более старый baseline. До отдельного convergence decision запрещено:
+
+- переключать текущую разработку на `main`;
+- создавать ещё одну product branch;
+- merge;
+- release tag;
+- закрытие/удаление старых PR и веток;
+- destructive cleanup.
+
+## 5. Текущая задача
+
+```text
+TASK-ACCOUNT-C1-001
+Issue #48
+status: in_progress
+```
+
+Уже существует и не реализуется повторно:
+
+- public entry;
+- adult registration;
+- Account / Profile / Principal;
+- Personal Workspace;
+- sessions_v2;
+- login по email/username;
+- current-session logout;
+- legacy teacher bridge;
+- principal-aware project ownership;
+- Electronics, Chess и Chess Online projects.
+
+Оставшийся scope:
+
+- educator self-attestation;
+- provisional audited educator grant;
+- workspace list и безопасное ActiveContext switching;
+- account menu/profile;
+- email verification state display;
+- active sessions list;
+- revoke one/all other sessions;
+- Account C1 Chromium E2E;
+- regression сохранности существующего педагога и проектов.
+
+## 6. CAPABILITY CHECK и PLAN
+
+До кода вывести максимум 25 строк:
 
 ```text
 TASK:
 ISSUE:
-MILESTONE:
-DELIVERY_STAGE:
-ARCHITECTURE_HORIZON:
-CAPABILITIES:
+BRANCH:
+HEAD:
+BASELINE:
+STATUS:
 DEPENDENCIES:
+ALREADY_IMPLEMENTED:
 USER_FLOW:
 NON_GOALS:
 PORTS:
-PLAN: максимум 25 строк
+FOCUSED_TESTS:
 STOP_CRITERION:
 ```
 
-`delivery_stage` — порядок выполнения. `architecture_horizon` — информационная архитектурная группировка и может идти не по порядку Product Alpha.
+Не запрашивать merge target, tag или имя следующей ветки: для текущего slice они не нужны.
 
-## 5. Scope freeze
+## 7. Scope freeze
 
-После начала task разрешены только defect/security/contract/migration/test fixes текущего flow и review feedback текущего PR.
+После начала task разрешены только:
 
-Запрещены следующая capability, дополнительные роли/страницы, unrelated refactoring, новый framework, Docker/Redis/MinIO/CI polish без прямой необходимости, изменение портов и второй competing PR.
+- domain/application изменения текущего user flow;
+- additive migration;
+- repository/API/UI текущего flow;
+- security, RLS и compatibility fixes;
+- focused tests, E2E и evidence;
+- review feedback текущего PR.
 
-## 6. IMPLEMENT
+Запрещены:
+
+- следующая capability;
+- Electronics/Chess expansion;
+- StudentSeat, publication, assignments и admin;
+- unrelated refactoring;
+- второй Account/Principal/Workspace/Session model;
+- изменение применённой migration `0010`;
+- ослабление tests, RLS, contracts и validation.
+
+## 8. IMPLEMENT
 
 Один task реализует один вертикальный user flow:
 
 ```text
 domain/application
-→ migration/repository
+→ additive migration/repository
 → API
 → UI
-→ automated E2E
+→ focused tests
+→ real browser E2E
 → evidence/maps
 ```
 
-Если существует PR, сохранять рабочий код и продолжать его. Переписывание с нуля требует доказанного blocker.
+Если реализация уже существует, расширять её. Переписывание с нуля требует доказанного технического blocker.
 
-Архитектурные правила находятся в `AGENTS.md`; Issue определяет точный scope.
-
-## 7. Порты
+## 9. Порты
 
 ```text
 Web  127.0.0.1:4610
@@ -97,146 +187,160 @@ API  127.0.0.1:4611
 E2E  127.0.0.1:4612
 ```
 
-Запрещены `3000`, `3100`, `5173`. При занятом порте:
+Запрещены `3000`, `3100`, `5173`.
 
-- не kill процесс;
+При занятом порте:
+
+- не завершать чужой процесс;
 - не выбирать другой порт молча;
-- вывести точный `BLOCKED`;
-- остановить текущий запуск.
+- сообщить `BLOCKED` с владельцем процесса;
+- остановить только текущий запуск.
 
-## 8. Промежуточные milestones
+## 10. VERIFY
 
-После завершённого внутреннего результата, а не каждой команды:
+Во время реализации запускать focused tests. Полную матрицу запускать один раз после завершения UI и focused PASS.
 
-```text
-MILESTONE:
-STATUS: completed | blocked
-VISIBLE_RESULT:
-TESTS:
-DEMO_URLS:
-SCREENSHOTS:
-BLOCKERS:
-NEXT_INTERNAL_MILESTONE:
-```
-
-Checkpoint не меняет scope и не разблокирует следующую Issue.
-
-## 9. VERIFY
+Task gate:
 
 ```bash
-python tools/run_task_tests.py --task <TASK-ID>
+python tools/run_task_tests.py --task TASK-ACCOUNT-C1-001
 ```
 
-Runner поддерживает многочастные IDs (`TASK-PROJECT-SHELL-001`) и передаёт текущий TASK-ID validators.
+Обязательный общий минимум:
 
-- PASS — фактический exit 0;
-- FAIL — фактический non-zero;
-- BLOCKED — обязательная среда отсутствует;
-- NOT_RUN — команда не запускалась.
+```bash
+python tools/validate_infrastructure_focus.py
+python tools/validate_project_map.py
+python tools/validate_test_catalog.py
+python tools/validate_delivery_program.py
+pnpm install --frozen-lockfile
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm boundaries:check
+pnpm contracts:check
+pnpm build
+pnpm test
+```
 
-`BLOCKED`/`NOT_RUN` не закрывают gate. Нельзя удалять test ID, сокращать `required_for` или заменять automated E2E ручным просмотром.
+Для tenant data обязательны:
 
-Для UI обязательны keyboard/focus/accessibility, Playwright и screenshots. Для tenant data обязательны отрицательные authz tests, отдельный test DB, runtime-role checks и отсутствие admin credentials в API.
+- isolated `*_test` database;
+- migration empty/existing/repeat checks;
+- runtime DB role;
+- RLS negative matrix;
+- cross-account/workspace denial;
+- отсутствие admin credentials в Web/API runtime.
 
-## 10. UPDATE MAPS
+Для UI обязательны:
 
-Машиночитаемый map protocol находится в `EXECUTION_MANIFEST.yaml`.
+- keyboard/focus/accessibility;
+- Playwright без mock API;
+- browser failure collector;
+- screenshots owner-review surfaces.
 
-### При начале
+Статусы:
 
-- task → `in_progress`;
-- implementation nodes из `map_nodes` → `in_progress` по факту;
-- `current_focus` остаётся task.
+- `PASS` — реальный exit `0`;
+- `FAIL` — выполненная команда вернула non-zero;
+- `BLOCKED` — обязательная среда/runner отсутствует;
+- `NOT_RUN` — команда не запускалась.
 
-### В Draft PR
+`BLOCKED` и `NOT_RUN` не закрывают gate.
 
-- task → `in_review`;
-- `project-map.yaml` и `PROJECT_MAP.md` отражают реальные nodes/paths/edges;
-- `QUALITY_MAP.md` и test catalog отражают точный gate;
-- `nx-project-graph.json` регенерирован при изменении структуры кода;
-- next task остаётся `blocked`.
+## 11. GitHub Actions
 
-Product-code diff без этих map artifacts должен падать на `TST-DEVELOPMENT-PROGRAM-001`.
+Workflow должен запускаться для `main`, `agent/**` и `assistant/**`.
 
-## 11. DRAFT PR
+Если job завершился до первого шага, список steps пуст и logs отсутствуют:
 
-Один task — один Draft PR. Body содержит:
+- не объявлять validator/code FAIL;
+- зафиксировать external Actions runner/configuration blocker;
+- проверить repository Actions settings, hosted-runner availability и spending/usage limit;
+- локальный полный gate остаётся обязательным;
+- CI не считается PASS до реального выполнения steps.
 
-- TASK/Issue/Milestone/Capabilities;
-- visible result и user flow;
-- non-goals;
+## 12. MAPS и документы
+
+При изменении product code:
+
+- task status и current focus остаются фактическими;
+- `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
+- `QUALITY_MAP.md` и test catalog содержат реальный gate;
+- `nx-project-graph.json` обновляется при изменении code structure;
+- README/START_HERE не должны показывать старую очередь.
+
+Test ID нельзя регистрировать как выполненный, если его команда ещё не существует. До реализации команда должна честно давать `BLOCKED`, а не ложный PASS.
+
+## 13. Commits и push
+
+Разделять изменения:
+
+```text
+feat(account): ...
+feat(session): ...
+test(account): ...
+docs(account): ...
+```
+
+Запрещены:
+
+- force-push;
+- rewrite опубликованной истории;
+- массовое несвязанное форматирование;
+- commit backup/dump/credential;
+- merge и изменение main.
+
+Публикация:
+
+```bash
+git push origin HEAD:assistant/docker-linux-bootstrap
+```
+
+Обычный fast-forward обязателен.
+
+## 14. Draft PR
+
+PR №70 остаётся Draft. Body содержит:
+
+- current head и accepted runtime baseline;
+- текущий task/Issue;
+- already implemented и remaining scope;
 - API/data/security impact;
-- ports;
-- map/Nx changes;
+- migrations;
 - test IDs и реальные статусы;
-- demo URLs;
-- screenshots/artifacts;
+- browser counters и screenshots;
 - rollout/rollback;
-- `NEXT_ALLOWED_TASK`.
+- residual risks;
+- отдельный historical Docker PASS section.
 
-Draft разрешён с честными FAIL/BLOCKED/NOT_RUN. Ready/merge требуют полного PASS.
+Нельзя переносить PASS старого SHA на новый product head.
 
-## 12. MERGE и обязательный map transition
-
-После review и полного exit gate:
-
-1. merge task PR;
-2. синхронизировать `main`;
-3. сделать map-only transition commit/PR:
-   - task → `done`;
-   - next task → `ready`, если dependencies done;
-   - `current_focus` → `next_task`;
-   - implementation nodes/stage обновлены;
-   - `project-map.yaml` и `PROJECT_MAP.md` синхронизированы;
-4. запустить governance validators;
-5. Issue → completed;
-6. остановиться.
-
-Если repository не разрешает прямой map-only commit в `main`, открыть и объединить маленький transition PR. Product code в нём запрещён.
-
-Следующая задача не реализуется в той же сессии.
-
-## 13. Финальный отчёт
+## 15. Каноническая очередь
 
 ```text
-MILESTONE:
-TASK:
-ISSUE:
-STATUS:
-VISIBLE_RESULT:
-CAPABILITIES:
-USER_FLOW:
-  ... PASS|FAIL|BLOCKED
-PORTS:
-BRANCH:
-COMMITS:
-FILES_CHANGED:
-MAP_NODES_CHANGED:
-TESTS_RUN:
-ARTIFACTS:
-DEMO_URLS:
-SCREENSHOTS:
-BLOCKERS:
-RESIDUAL_RISKS:
-WORKING_TREE:
-NEXT_ALLOWED_TASK:
-NEXT_COMMAND:
+TASK-PRODUCT-DOC-001       done
+→ TASK-PORTAL-001          done
+→ TASK-ACCOUNT-C1-001      in_progress
+→ R2 Creator Portal        blocked
+→ R3 Project lifecycle     blocked
+→ R4 Electronics parity    blocked
+→ Classroom / StudentSeat  blocked
+→ Publication / learning   blocked
+→ Additional modules       blocked
 ```
 
-Отчёт начинается с видимого результата, не с установленных инструментов.
+Старые Electronics/Checkers task IDs сохраняются только для traceability и не обходят R1–R4 порядок.
 
-## 14. Каноническая очередь
+## 16. Stop condition
 
-```text
-TASK-PRODUCT-DOC-001
-→ TASK-PORTAL-001
-→ TASK-PROJECT-SHELL-001
-→ TASK-CHECKERS-LITE-001
-→ TASK-ELECTRONICS-ALPHA-001
-→ TASK-SEAT-001
-→ TASK-ACT-001
-→ TASK-REVIEW-001
-→ TASK-ELEC-001
-```
+Остановиться после:
 
-Очередь изменяется только синхронной правкой Execution Manifest, Development Program, Project Map, Issues и test catalog в нормативном PR.
+1. завершённого текущего user flow;
+2. focused PASS;
+3. owner preview;
+4. полной матрицы на одном итоговом SHA;
+5. обновлённого UTF-8 отчёта;
+6. PR остаётся Draft/open.
+
+Следующую task не начинать в той же сессии.
