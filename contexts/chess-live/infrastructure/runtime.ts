@@ -10,7 +10,7 @@ export class SystemLiveClock implements LiveClockPort {
 }
 
 export class CryptoLiveIds implements LiveIdPort {
-  nextId(_prefix: 'challenge' | 'game' | 'event' | 'ticket' | 'rating'): string {
+  nextId(): string {
     return randomUUID();
   }
 

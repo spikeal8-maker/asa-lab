@@ -41,7 +41,7 @@ describe('ASA Chess live transport protocol', () => {
     {},
     { type: 'client.hello', protocol: 'wrong', gameId: 'g', lastSequence: 0, clientInstanceId: 'c' },
     { type: 'game.move', gameId: 'g', commandId: 'c', expectedVersion: 0, uci: 'e2e4' },
-    { type: 'game.move', gameId: 'g', commandId: 'c', expectedVersion: 1, uci: 'e2e5' },
+    { type: 'game.move', gameId: 'g', commandId: 'c', expectedVersion: 1, uci: 'e2e9' },
     { type: 'game.resign', gameId: 'g', commandId: 'c', expectedVersion: 1, uci: 'e2e4' },
     { type: 'client.ping', sentAtMs: -1 },
     { type: 'unknown' },

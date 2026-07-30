@@ -117,7 +117,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<LiveApiResult<
   try {
     body = await response.json();
   } catch {
-    body = null;
+    // Non-JSON responses use the initialized null body.
   }
   if (response.ok) return { ok: true, status: response.status, data: body as T };
   return {
@@ -132,6 +132,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<LiveApiResult<
 function commandHeaders(commandId: string): Record<string, string> {
   return { 'idempotency-key': commandId };
 }
+
+const matchmakingBodies = new Map<string, string>();
 
 export const chessLiveApi = {
   createChallenge: (input: {
@@ -211,21 +213,26 @@ export const chessLiveApi = {
     rated: boolean;
     colorPreference: LiveColorPreference;
     expiresInMs: number;
-  }) =>
-    call<{ ticket: MatchmakingTicketView; game: LiveGameView | null; replayed: boolean }>(
+  }) => {
+    const body =
+      matchmakingBodies.get(input.commandId) ??
+      JSON.stringify({
+        initialMs: input.initialMs,
+        incrementMs: input.incrementMs,
+        rated: input.rated,
+        colorPreference: input.colorPreference,
+        expiresInMs: input.expiresInMs,
+      });
+    matchmakingBodies.set(input.commandId, body);
+    return call<{ ticket: MatchmakingTicketView; game: LiveGameView | null; replayed: boolean }>(
       '/api/chess/live/matchmaking',
       {
         method: 'POST',
         headers: commandHeaders(input.commandId),
-        body: JSON.stringify({
-          initialMs: input.initialMs,
-          incrementMs: input.incrementMs,
-          rated: input.rated,
-          colorPreference: input.colorPreference,
-          expiresInMs: input.expiresInMs,
-        }),
+        body,
       },
-    ),
+    );
+  },
   cancelMatchmaking: (ticketId: string, expectedVersion: number, commandId: string) =>
     call<{ ticket: MatchmakingTicketView; replayed: boolean }>(
       `/api/chess/live/matchmaking/${encodeURIComponent(ticketId)}/cancel`,
