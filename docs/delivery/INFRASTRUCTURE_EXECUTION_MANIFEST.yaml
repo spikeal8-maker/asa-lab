@@ -1,4 +1,4 @@
-schema_version: 1.1.0
+schema_version: 1.0.0
 program_id: INFRA-BOOTSTRAP-001
 owner_issue: https://github.com/spikeal8-maker/asa-lab/issues/69
 state_source: docs/project-map/infrastructure-focus.yaml
