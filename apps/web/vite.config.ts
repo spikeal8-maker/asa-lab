@@ -31,7 +31,13 @@ const apiPort = resolvePort('ASA_API_PORT', 4611);
 export default defineConfig({
   root,
   plugins: [react()],
-  build: { outDir: 'dist', emptyOutDir: true },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    commonjsOptions: {
+      include: [/node_modules/, /contexts\/chess\/dist/],
+    },
+  },
   server: {
     port: webPort,
     strictPort: true,

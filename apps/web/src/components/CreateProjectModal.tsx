@@ -94,7 +94,7 @@ export function CreateProjectModal({
     setError(null);
     const result = await api.createProject({
       scope,
-      classroomId: scope === 'classroom' ? classroomId : null,
+      classroomId: scope === 'classroom' ? (classroomId ?? null) : null,
       title: trimmed,
       module: selectedModule,
       idempotencyKey: crypto.randomUUID(),

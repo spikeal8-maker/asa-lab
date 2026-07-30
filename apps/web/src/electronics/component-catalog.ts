@@ -146,14 +146,16 @@ function future(options: {
     keywords: [options.label.toLowerCase(), options.key],
     preview: options.preview,
     asset: options.asset ? `${ASSET_ROOT}/${options.asset}` : null,
-    stateAssets: options.stateAssets
-      ? Object.fromEntries(
-          Object.entries(options.stateAssets).map(([state, file]) => [
-            state,
-            `${ASSET_ROOT}/${file}`,
-          ]),
-        )
-      : undefined,
+    ...(options.stateAssets
+      ? {
+          stateAssets: Object.fromEntries(
+            Object.entries(options.stateAssets).map(([state, file]) => [
+              state,
+              `${ASSET_ROOT}/${file}`,
+            ]),
+          ),
+        }
+      : {}),
     viewBox: { width: 100, height: 80 },
     renderWidth: 100,
     terminals: null,
