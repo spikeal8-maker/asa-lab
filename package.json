@@ -42,7 +42,8 @@
     "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts",
     "e2e:electronics": "playwright test e2e/electronics-slice.spec.ts",
     "test:chess": "vitest run contexts/chess/testing tests/chess",
-    "typecheck:chess": "tsc -p contexts/chess/tsconfig.json --noEmit"
+    "typecheck:chess": "tsc -p contexts/chess/tsconfig.json --noEmit",
+    "e2e:chess": "playwright test e2e/chess-module.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
