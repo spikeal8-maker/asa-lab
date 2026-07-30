@@ -15,7 +15,11 @@ export class AccountLoginUseCase {
     private readonly sessions: SessionV2StorePort,
   ) {}
 
-  async execute(input: { identifier: unknown; password: unknown }): Promise<AccountLoginResult> {
+  async execute(input: {
+    identifier: unknown;
+    password: unknown;
+    userAgentSummary?: string;
+  }): Promise<AccountLoginResult> {
     if (
       typeof input.identifier !== 'string' ||
       input.identifier.trim().length === 0 ||
@@ -46,6 +50,7 @@ export class AccountLoginUseCase {
       personal.workspaceId,
       hashSessionToken(token),
       SESSION_TTL_HOURS,
+      input.userAgentSummary,
     );
     return { ok: true, token, accountId: account.id };
   }

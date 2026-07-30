@@ -40,6 +40,31 @@ function error(code: string, message: string): { error: { code: string; message:
   return { error: { code, message } };
 }
 
+function summarizeUserAgent(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const browser = /Edg\//.test(value)
+    ? 'Edge'
+    : /Firefox\//.test(value)
+      ? 'Firefox'
+      : /Chrome\//.test(value)
+        ? 'Chrome'
+        : /Safari\//.test(value)
+          ? 'Safari'
+          : 'Браузер';
+  const platform = /Windows/.test(value)
+    ? 'Windows'
+    : /Android/.test(value)
+      ? 'Android'
+      : /iPhone|iPad/.test(value)
+        ? 'iOS'
+        : /Macintosh/.test(value)
+          ? 'macOS'
+          : /Linux/.test(value)
+            ? 'Linux'
+            : 'устройство';
+  return `${browser} · ${platform}`;
+}
+
 @Controller('api/auth')
 export class AuthController {
   constructor(
@@ -154,6 +179,7 @@ export class AuthController {
   @HttpCode(200)
   async login(
     @Body() rawBody: unknown,
+    @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
     const shape = checkBodyShape(rawBody, ['workspace', 'identifier', 'email', 'password']);
@@ -162,7 +188,7 @@ export class AuthController {
     }
     const token =
       shape.body['workspace'] === undefined
-        ? await this.accountSignIn(shape.body)
+        ? await this.accountSignIn(shape.body, summarizeUserAgent(request.headers['user-agent']))
         : await this.legacySignIn(shape.body);
     this.setSessionCookie(reply, token);
     const context = await this.activeContext.resolve(token);
@@ -172,11 +198,16 @@ export class AuthController {
     return this.payload(context);
   }
 
-  private async accountSignIn(body: Record<string, unknown>): Promise<string> {
-    const result = await this.accountLoginUseCase.execute({
+  private async accountSignIn(
+    body: Record<string, unknown>,
+    userAgentSummary: string | undefined,
+  ): Promise<string> {
+    const credentials = {
       identifier: body['identifier'] ?? body['email'],
       password: body['password'],
-    });
+      ...(userAgentSummary === undefined ? {} : { userAgentSummary }),
+    };
+    const result = await this.accountLoginUseCase.execute(credentials);
     if (!result.ok) {
       if (result.code === 'validation_error') {
         throw new HttpException(

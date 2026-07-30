@@ -1,6 +1,8 @@
 import type pg from 'pg';
 import type {
   AccountDirectoryPort,
+  AccountProfileRecord,
+  EducatorAttestation,
   RegistrationConflict,
   AccountRecord,
   CapabilityRef,
@@ -11,6 +13,10 @@ import type {
   RegisteredAccount,
   WorkspaceRef,
 } from '../application/account.ports.js';
+
+function dateOnly(value: unknown): string {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
 
 export class PgAccountDirectory implements AccountDirectoryPort {
   constructor(private readonly pool: pg.Pool) {}
@@ -110,6 +116,49 @@ export class PgAccountDirectory implements AccountDirectoryPort {
     }));
   }
 
+  async profile(accountId: string): Promise<AccountProfileRecord | null> {
+    const result = await this.pool.query(
+      `SELECT email, email_verification_state, username, display_name, birth_date, country
+         FROM auth_account_profile($1)`,
+      [accountId],
+    );
+    return this.toProfile(result.rows[0]);
+  }
+
+  async updateProfile(
+    accountId: string,
+    username: string,
+    displayName: string,
+  ): Promise<AccountProfileRecord | RegistrationConflict | null> {
+    try {
+      const result = await this.pool.query(
+        `SELECT email, email_verification_state, username, display_name, birth_date, country
+           FROM auth_update_account_profile($1, $2, $3)`,
+        [accountId, username, displayName],
+      );
+      return this.toProfile(result.rows[0]);
+    } catch (error) {
+      const failure = error as { code?: string; constraint?: string };
+      if (failure.code === '23505' && failure.constraint === 'profiles_username_ci_idx') {
+        return { conflict: 'username' };
+      }
+      throw error;
+    }
+  }
+
+  async selfAttestEducator(accountId: string): Promise<EducatorAttestation> {
+    const result = await this.pool.query(
+      `SELECT eligible, grant_state, created FROM auth_self_attest_educator($1)`,
+      [accountId],
+    );
+    const row = result.rows[0];
+    return {
+      eligible: row?.eligible === true,
+      state: typeof row?.grant_state === 'string' ? row.grant_state : null,
+      created: row?.created === true,
+    };
+  }
+
   async accountForUser(tenantId: string, userId: string): Promise<LinkedAccount | null> {
     const result = await this.pool.query(
       `SELECT account_id, principal_id, workspace_id FROM auth_account_for_user($1, $2)`,
@@ -140,6 +189,19 @@ export class PgAccountDirectory implements AccountDirectoryPort {
           id: row['id'] as string,
           email: row['email'] as string,
           passwordHash: row['password_hash'] as string,
+        }
+      : null;
+  }
+
+  private toProfile(row: Record<string, unknown> | undefined): AccountProfileRecord | null {
+    return row
+      ? {
+          email: row['email'] as string,
+          emailVerificationState: row['email_verification_state'] as string,
+          username: row['username'] as string,
+          displayName: row['display_name'] as string,
+          birthDate: dateOnly(row['birth_date']),
+          country: row['country'] as string,
         }
       : null;
   }

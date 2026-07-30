@@ -30,9 +30,12 @@ export {
 } from './domain/account-policy.js';
 export type {
   AccountDirectoryPort,
+  AccountProfileRecord,
   AccountRecord,
+  AccountSessionRef,
   ActiveContext,
   CapabilityRef,
+  EducatorAttestation,
   LinkedAccount,
   LegacyActor,
   PersonalWorkspaceRef,
@@ -51,6 +54,12 @@ export {
   AccountLoginUseCase,
   type AccountLoginResult,
 } from './application/account-login.usecase.js';
+export {
+  AccountManagementUseCase,
+  type AccountProfileView,
+  type EducatorAttestationResult,
+  type UpdateProfileResult,
+} from './application/account-management.usecase.js';
 export { ActiveContextUseCase } from './application/active-context.usecase.js';
 export { PgAccountDirectory } from './infrastructure/pg-account.adapter.js';
 export { PgSessionV2Store } from './infrastructure/pg-session-v2.store.js';

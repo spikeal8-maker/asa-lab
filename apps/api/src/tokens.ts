@@ -7,6 +7,7 @@ export const TOKENS = {
   activeContextUseCase: 'ACTIVE_CONTEXT_USECASE',
   registerAccountUseCase: 'REGISTER_ACCOUNT_USECASE',
   accountLoginUseCase: 'ACCOUNT_LOGIN_USECASE',
+  accountManagementUseCase: 'ACCOUNT_MANAGEMENT_USECASE',
   accountDirectory: 'ACCOUNT_DIRECTORY',
   teachingContextUseCase: 'TEACHING_CONTEXT_USECASE',
   createClassroomUseCase: 'CREATE_CLASSROOM_USECASE',
