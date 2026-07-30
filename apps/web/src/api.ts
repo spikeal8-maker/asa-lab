@@ -44,9 +44,9 @@ export interface ModuleSummary {
   creatable: boolean;
 }
 
-export interface ProjectDraft {
+export interface ProjectDraft<TDocument = unknown> {
   projectId: string;
-  document: SchematicDocument;
+  document: TDocument;
   revision: number;
   updatedAt: string;
 }
@@ -184,15 +184,15 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ title }),
     }),
-  openProject: (projectId: string) =>
+  openProject: <TDocument = unknown, TResult = unknown>(projectId: string) =>
     call<{
       project: Project;
-      draft: ProjectDraft;
+      draft: ProjectDraft<TDocument>;
       versions: ProjectVersion[];
-      result: SolveResult | null;
+      result: TResult | null;
     }>(`/api/projects/${encodeURIComponent(projectId)}`),
-  saveDraft: (projectId: string, document: SchematicDocument) =>
-    call<{ draft: ProjectDraft; result: SolveResult | null }>(
+  saveDraft: <TDocument = unknown, TResult = unknown>(projectId: string, document: TDocument) =>
+    call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
       { method: 'PUT', body: JSON.stringify({ document }) },
     ),
