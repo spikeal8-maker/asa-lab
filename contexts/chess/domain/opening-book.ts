@@ -108,15 +108,28 @@ function isPrefix(prefix: readonly string[], value: readonly string[]): boolean 
   return prefix.length <= value.length && prefix.every((move, index) => value[index] === move);
 }
 
+function isSanMoveList(value: readonly string[] | ChessDocument): value is readonly string[] {
+  return Array.isArray(value);
+}
+
 export function exploreChessOpening(
   sanMoves: readonly string[] | ChessDocument,
 ): ChessOpeningExplorerResult {
-  const moves = Array.isArray(sanMoves)
+  const moves = isSanMoveList(sanMoves)
     ? sanMoves
     : sanMoves.moves.map((move) => move.san);
-  const matched = [...ASA_OPENING_BOOK]
-    .filter((opening) => isPrefix(opening.sanMoves, moves) || isPrefix(moves, opening.sanMoves))
-    .sort((left, right) => right.sanMoves.length - left.sanMoves.length)[0] ?? null;
+  const matched =
+    moves.length === 0
+      ? null
+      : [...ASA_OPENING_BOOK]
+          .filter(
+            (opening) =>
+              isPrefix(opening.sanMoves, moves) ||
+              isPrefix(moves, opening.sanMoves),
+          )
+          .sort(
+            (left, right) => right.sanMoves.length - left.sanMoves.length,
+          )[0] ?? null;
   const suggestions = ASA_OPENING_BOOK
     .filter(
       (opening) =>

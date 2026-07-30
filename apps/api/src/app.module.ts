@@ -81,9 +81,9 @@ export class AppModule {
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
     // with APP_DATABASE_URL uses the durable RLS-protected repository.
-    const chessLiveRepository = pool
-      ? new PgChessLiveRepository(pool)
-      : new MemoryChessLiveRepository();
+    const persistentChessLiveRepository = pool ? new PgChessLiveRepository(pool) : null;
+    const chessLiveRepository =
+      persistentChessLiveRepository ?? new MemoryChessLiveRepository();
     const chessLiveService = new ChessLiveService(
       chessLiveRepository,
       new SystemLiveClock(),

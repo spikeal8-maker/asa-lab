@@ -101,7 +101,8 @@ ASA Chess — самостоятельная шахматная образова
 - opening explorer adapter;
 - save reviewed annotations into exact ProjectVersion.
 
-No Chess.com Accuracy/CAPS formula is copied or claimed.
+Классификация ходов ASA — это не Chess.com Accuracy/CAPS: чужая формула не
+копируется и не заявляется.
 
 ### CH-C3 — Puzzles and learning
 
@@ -248,7 +249,7 @@ authorization denied
 
 The first candidate does **not** claim:
 
-- production online multiplayer;
+- production realtime multiplayer;
 - ratings or matchmaking;
 - tournaments, clubs or chat;
 - Stockfish-depth review;

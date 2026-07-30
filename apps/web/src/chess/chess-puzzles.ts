@@ -1,8 +1,8 @@
 import type { ChessPuzzle } from '@asa-lab/chess';
 
 /**
- * Небольшой оригинальный набор ASA Lab для проверки механики тренажёра. Он не
- * скопирован из Chess.com и не выдаётся за production-каталог шахматных задач.
+ * Небольшой оригинальный набор ASA Lab для проверки механики тренажёра. Он не скопирован
+ * из Chess.com и не выдаётся за production-каталог шахматных задач.
  */
 export const ASA_STARTER_PUZZLES: readonly ChessPuzzle[] = [
   {
