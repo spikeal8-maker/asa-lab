@@ -1,0 +1,366 @@
+.asa-chess-experience {
+  position: relative;
+  min-height: 100vh;
+}
+
+.asa-chess-training-launcher {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 130;
+  min-width: 128px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  border: 1px solid #1e6d59;
+  border-radius: 13px;
+  background: #24725d;
+  color: #fff;
+  box-shadow: 0 8px 25px rgba(16, 42, 67, 0.28);
+  cursor: pointer;
+  font: inherit;
+}
+
+.asa-chess-training-launcher:hover {
+  background: #1c604e;
+}
+
+.asa-chess-training-launcher:focus-visible {
+  outline: 3px solid rgba(10, 145, 182, 0.4);
+  outline-offset: 3px;
+}
+
+.asa-chess-training-launcher > span:first-child {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffe281;
+  font-size: 18px;
+}
+
+.asa-chess-training-launcher > span:last-child {
+  display: grid;
+  text-align: left;
+}
+
+.asa-chess-training-launcher strong {
+  font-size: 13px;
+}
+
+.asa-chess-training-launcher small {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10px;
+}
+
+.asa-puzzle-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 100% 0, rgba(36, 114, 93, 0.18), transparent 34rem),
+    linear-gradient(145deg, #eef3f1, #dfe8e5);
+  color: #172431;
+}
+
+.asa-puzzle-header {
+  min-height: 70px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid #c8d4d0;
+  box-shadow: 0 3px 15px rgba(18, 56, 48, 0.08);
+}
+
+.asa-puzzle-header h1 {
+  margin: 2px 0 0;
+  color: #123d35;
+  font-size: clamp(20px, 2.4vw, 30px);
+}
+
+.asa-puzzle-header .eyebrow {
+  color: #24725d;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.asa-puzzle-counter {
+  min-width: 74px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #e5f4ee;
+  color: #1b604e;
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.asa-puzzle-layout {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(480px, 760px) minmax(310px, 400px);
+  gap: 20px;
+  align-items: center;
+  padding: 22px;
+}
+
+.asa-puzzle-board-card {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(68, 100, 91, 0.32);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 35px rgba(18, 55, 46, 0.18);
+}
+
+.asa-puzzle-board-card .asa-chess-board {
+  width: 100%;
+  max-width: 730px;
+  margin: auto;
+}
+
+.asa-puzzle-panel {
+  display: grid;
+  align-content: start;
+  gap: 15px;
+  padding: 17px;
+  border: 1px solid #c4d0cc;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 9px 28px rgba(18, 55, 46, 0.12);
+}
+
+.asa-puzzle-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.asa-puzzle-rating {
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: #eef3f1;
+  color: #49675f;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.asa-puzzle-themes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.asa-puzzle-themes span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #e2f4ee;
+  color: #1f684f;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.asa-puzzle-progress {
+  display: flex;
+  gap: 5px;
+}
+
+.asa-puzzle-progress span {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #dbe3e0;
+}
+
+.asa-puzzle-progress span.complete {
+  background: #26966a;
+}
+
+.asa-puzzle-progress span.current {
+  background: #f1b63b;
+}
+
+.asa-puzzle-feedback {
+  min-height: 128px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #c5d8d1;
+  border-radius: 11px;
+  background: #f3faf7;
+}
+
+.asa-puzzle-feedback.solved {
+  border-color: #8fc8a8;
+  background: #e9f8ef;
+}
+
+.asa-puzzle-feedback strong {
+  color: #174d3e;
+  font-size: 18px;
+}
+
+.asa-puzzle-feedback p {
+  margin: 0;
+  color: #506860;
+  line-height: 1.45;
+}
+
+.asa-puzzle-hint {
+  padding: 8px;
+  border-radius: 7px;
+  background: #fff5d8;
+  color: #73570b !important;
+  font-weight: 700;
+}
+
+.asa-puzzle-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  border: 1px solid #d1dcd8;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.asa-puzzle-stats div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  text-align: center;
+  border-right: 1px solid #d1dcd8;
+}
+
+.asa-puzzle-stats div:last-child {
+  border-right: 0;
+}
+
+.asa-puzzle-stats dt {
+  color: #70827c;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.asa-puzzle-stats dd {
+  margin: 0;
+  color: #173e34;
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.asa-puzzle-actions,
+.asa-puzzle-navigation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.asa-puzzle-actions button,
+.asa-puzzle-navigation button {
+  min-height: 40px;
+  border: 1px solid #adbbb6;
+  border-radius: 9px;
+  background: #fff;
+  color: #183f35;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.asa-puzzle-actions button:hover,
+.asa-puzzle-navigation button:hover:not(:disabled) {
+  background: #eef8f4;
+  border-color: #6eaa92;
+}
+
+.asa-puzzle-navigation button:disabled,
+.asa-puzzle-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.asa-puzzle-navigation .primary-button {
+  background: #24725d;
+  border-color: #24725d;
+  color: #fff;
+}
+
+.asa-puzzle-disclaimer {
+  margin: 0;
+  padding: 9px;
+  border-radius: 8px;
+  background: #f4f6f5;
+  color: #6a7874;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (max-width: 900px) {
+  .asa-puzzle-layout {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .asa-puzzle-board-card {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 560px) {
+  .asa-chess-training-launcher {
+    left: 8px;
+    bottom: 8px;
+    min-width: 50px;
+    padding: 7px;
+  }
+
+  .asa-chess-training-launcher > span:last-child {
+    display: none;
+  }
+
+  .asa-puzzle-header {
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .asa-puzzle-header .asa-chess-back {
+    font-size: 0;
+    width: 42px;
+  }
+
+  .asa-puzzle-header .asa-chess-back span {
+    font-size: 20px;
+  }
+
+  .asa-puzzle-counter {
+    display: none;
+  }
+
+  .asa-puzzle-layout {
+    padding: 6px;
+    gap: 9px;
+  }
+
+  .asa-puzzle-board-card {
+    border-radius: 9px;
+  }
+
+  .asa-puzzle-panel {
+    padding: 11px;
+    border-radius: 9px;
+  }
+}
