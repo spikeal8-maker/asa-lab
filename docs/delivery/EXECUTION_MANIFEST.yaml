@@ -22,6 +22,10 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
+  active_checkpoint: owner_visual_asset_and_breadboard_rework
+  rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
+  owner_directive_pr_comment: https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5145281700
+  owner_directive_issue_comment: https://github.com/spikeal8-maker/asa-lab/issues/63#issuecomment-5145285731
 
 roadmap_after_current:
   - release: R3B
@@ -31,7 +35,7 @@ roadmap_after_current:
     activation: deferred_by_owner
   - release: R4-M2
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-    name: Electronics follow-up beyond M1
+    name: Electronics follow-up beyond accepted M1
     status: blocked
     activation: separate_owner_transition_after_M1
 
@@ -51,6 +55,10 @@ map_protocol:
   draft_pr:
     - current task becomes in_review only after implementation and focused PASS
     - maps and quality evidence reflect the exact diff
+  owner_rejection:
+    - current task returns to in_progress with an explicit corrective checkpoint
+    - rejected evidence is preserved and must not be called accepted
+    - future milestones remain blocked
   after_merge:
     - accepted task becomes done
     - project.current_focus becomes null unless another task is separately activated
@@ -172,6 +180,8 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_progress
+    checkpoint: owner_visual_asset_and_breadboard_rework
+    owner_acceptance: rejected_at_1abc608ef6a8c45efa3205c817dfb6054c289e5e
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
     base_branch: main
@@ -182,11 +192,21 @@ tasks:
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
     next_task: null
     capabilities: [CAP-PROJECTS]
-    visible_result: A real Electronics editor and deterministic DC simulator support eight active components, series and parallel circuits, editing, diagnostics and persistence.
-    user_flow: Create Electronics project -> place and wire components -> simulate -> inspect current and voltage -> diagnose -> save/reload -> checkpoint.
-    non_goals: [breadboard, instruments, Arduino, microbit, transient analysis, AC analysis, R4-M2, R5]
-    read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63]
+    visible_result: Owner-supplied transparent assets, full state families, exact pins, one physical scale and working breadboard placement/connectivity are accepted before simulation UI continues.
+    user_flow: Audit owner archives -> approve transparent assets and state families -> place native components on breadboard -> verify hole connectivity -> only then return to wiring and simulation.
+    required_scope:
+      - full_owner_archive_inventory
+      - transparent_owner_svg_only
+      - parametric_resistor_bands
+      - complete_led_colour_and_brightness_families
+      - battery_lead_end_contacts
+      - breadboard_hole_map_and_internal_connectivity
+      - pin_to_hole_snap_and_placement_validation
+      - exact_pin_anchor_tolerance
+      - physical_scale_and_10mm_calibration
+    non_goals: [instruments, Arduino, microbit, transient analysis, AC analysis, R4-M2, R5, new solver features before visual acceptance]
+    read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5145281700]
     test_profiles: []
-    task_tests: [TST-ELECTRONICS-M1-DOMAIN-001, TST-ELECTRONICS-M1-EDITOR-001, TST-ELECTRONICS-M1-PERSISTENCE-001, TST-ELECTRONICS-M1-E2E-001]
+    task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]
-    artifacts: [empty.png, components.png, wired.png, running.png, diagnostic.png, reload.png, focused-test-report]
+    artifacts: [transparency-audit.png, physical-scale.png, state-families.png, breadboard-fit-connectivity.png, owner-asset-manifest, focused-test-report]
