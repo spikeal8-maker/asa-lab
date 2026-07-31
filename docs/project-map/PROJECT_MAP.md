@@ -2,161 +2,137 @@
 
 Человекочитаемое представление [`project-map.yaml`](project-map.yaml).
 
-Связанные источники:
+Источники:
 
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — единственная executable queue;
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — текущая программа и owner-gated roadmap;
-- [`QUALITY_MAP.md`](QUALITY_MAP.md) — обязательные gates;
-- [`viewer.html`](viewer.html) — интерактивный граф.
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml);
+- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md);
+- [`QUALITY_MAP.md`](QUALITY_MAP.md);
+- [`viewer.html`](viewer.html).
 
-## Текущее состояние
+## Каноническое состояние
 
 ```text
-accepted technical Alpha baseline:
-7afebdcf9441b027092ce17a37f1f89950af99c6
-
-current_focus:
-TASK-ACCOUNT-C1-001
-
-canonical branch:
-assistant/docker-linux-bootstrap
+main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+PR #70:                  merged
+Account C1:              done
+current_focus:            null
 ```
 
-Функциональная полнота не заявляется. `main` пока содержит более старый baseline.
+Функциональная полнота всей платформы не заявляется.
 
-## Исполняемая очередь
+## Завершённая executable queue
 
 ```mermaid
 flowchart LR
-    DOC[1 Product Docs<br/>TASK-PRODUCT-DOC-001<br/>done]
-    PORTAL[2 Teacher Portal<br/>TASK-PORTAL-001<br/>done]
-    ACCOUNT[3 Account C1<br/>TASK-ACCOUNT-C1-001<br/>in_progress]
-    STOP[Owner review<br/>no automatic next task]
+    DOC[Product Docs<br/>done]
+    PORTAL[Teacher Portal<br/>done]
+    ACCOUNT[Account C1<br/>done]
+    STOP[No active task]
 
     DOC --> PORTAL --> ACCOUNT --> STOP
 ```
 
-После Account C1 поле `next_task` равно `null`. Coding-агент не имеет права самостоятельно выбрать Electronics или другую capability.
+Coding-агент не выбирает следующий этап самостоятельно.
 
-## Owner-gated roadmap
+## Blocked roadmap
 
 ```mermaid
 flowchart LR
-    ACCOUNT[Account C1 acceptance]
-    R2[R2 Creator Portal<br/>Issue №62<br/>blocked]
-    R3[R3 Project lifecycle<br/>Issue №37<br/>blocked]
-    R4[R4 Electronics parity<br/>Issue №63<br/>blocked]
-    SCHOOL[Classroom / StudentSeat / learning cycle<br/>blocked]
+    R2[R2 Creator Portal<br/>Issue 62<br/>blocked]
+    R3[R3 Project Lifecycle<br/>Issue 37<br/>blocked]
+    R4[R4 Electronics Parity<br/>Issue 63<br/>blocked]
+    PILOT[School Pilot<br/>blocked]
 
-    ACCOUNT -. separate transition .-> R2
-    R2 -. separate transition .-> R3
-    R3 -. separate transition .-> R4
-    R4 -. separate transition .-> SCHOOL
+    R2 -. owner transition .-> R3
+    R3 -. owner transition .-> R4
+    R4 -. owner transition .-> PILOT
 ```
 
-Roadmap arrows are not executable transitions. Каждый этап требует owner acceptance и отдельной синхронной правки manifest/map/Issue/test catalog.
+Roadmap arrows не являются executable transitions.
 
-## Текущий Account C1
+## Что находится в `main`
 
-Уже интегрировано и сохраняется:
-
-- public entry;
-- adult registration;
+- public entry и adult registration;
 - Account / Profile / Principal;
-- Personal Workspace;
-- sessions_v2;
+- Personal Workspace и `sessions_v2`;
 - login по email или username;
+- educator self-attestation и AuditEvent;
+- workspace list и ActiveContext switching;
+- account profile и active session management;
 - legacy teacher compatibility;
 - principal-aware project ownership;
-- Project Hub, Electronics, Chess и Chess Online.
+- Project Hub, Electronics, ASA Chess и Chess Online;
+- PostgreSQL/RLS/additive migrations;
+- Docker deployment, persistence и backup/restore.
 
-Оставшийся результат:
+## Quality state
 
 ```text
-educator self-attestation
-→ provisional audited educator capability
-→ workspaces
-→ safe ActiveContext switch
-→ account menu/profile
-→ email verification state
-→ active sessions
-→ revoke one/all other sessions
-→ real Chromium Account C1 evidence
+Account gate:       28/28 PASS
+Regression:         298/298 PASS
+Playwright:         9/9 PASS
+Browser errors:     0
+Docker lifecycle:   PASS
+Persistence:        PASS
+Backup/restore:     PASS
+Hosted Actions:     BLOCKED before first step
 ```
+
+Exact-SHA local evidence относится к `35c06c4…`; merge commit `e01ac850…` содержит этот commit вторым родителем.
 
 ## Архитектурные границы
 
 ```mermaid
 flowchart TB
-    WEB[Web / PWA]
-    ID[Identity<br/>Account Principal SessionV2]
-    ORG[Organization / Workspace Membership]
-    PROJECTS[Project lifecycle]
-    CLASS[Classroom]
-    REGISTRY[Module Registry]
+    WEB[Web/PWA]
+    API[API composition root]
+    ID[Identity]
+    ORG[Workspace Membership]
+    PROJECTS[Projects]
+    CLASSROOM[Classroom]
+    SDK[Module SDK]
     ELEC[Electronics]
-    CHESS[Chess]
+    CHESS[ASA Chess]
     PG[(PostgreSQL / RLS)]
 
-    WEB --> ID
-    WEB --> PROJECTS
-    ID --> ORG
+    WEB --> API
+    API --> ID
+    API --> ORG
+    API --> PROJECTS
+    API --> CLASSROOM
     ID --> PG
     ORG --> PG
     PROJECTS --> PG
-    CLASS --> PG
-    PROJECTS -. R3 .-> REGISTRY
-    REGISTRY -. R4+ .-> ELEC
-    REGISTRY -. existing Alpha .-> CHESS
+    CLASSROOM --> PG
+    PROJECTS --> SDK
+    SDK --> ELEC
+    SDK --> CHESS
 ```
 
-Главные инварианты:
+Инварианты:
 
 - Account, Principal, Workspace, capability и membership различаются;
-- tenant/workspace context определяется сервером;
+- tenant/workspace/principal context определяется сервером;
 - Personal Project не требует Classroom;
-- Account session не объединяется с будущей StudentSeat session;
-- migrations additive-only до отдельного destructive gate;
-- subject logic не импортируется в Classroom/Project Core;
-- существующие педагог, классы, проекты и drafts сохраняются.
+- migrations не переписываются после применения;
+- subject logic не переносится в Project/Classroom Core;
+- будущие R2/R3/R4 требуют отдельной активации.
 
-## Исторические task nodes
+## Старые PR и ветки
 
-Старые `TASK-ELECTRONICS-SLICE-001`, `TASK-CHECKERS-LITE-001` и `TASK-ELECTRONICS-ALPHA-001` остаются в YAML/test catalog для traceability, но помечены `deprecated` и отсутствуют в `execution_queue`.
+Их аудит выполняется отдельно по категориям:
 
-Полезные реализации уже перенесены в единую Alpha-линию. Будущее расширение Electronics выполняется по R4 / Issue №63, а не через автоматическое возобновление старой ветки.
+```text
+contained
+superseded
+still valuable
+obsolete
+```
 
-## Quality state
+Старые PR не merge и не удаляются автоматически.
 
-- local baseline gate на `7afebdc…`: PASS;
-- GitHub workflow definition: опубликован;
-- GitHub hosted runner: BLOCKED до первого step, logs отсутствуют;
-- текущий docs/governance head не имеет нового runtime/Playwright PASS;
-- Account C1 focused tests должны быть реализованы и затем выполнены;
-- старый PASS нельзя переносить на новый product SHA.
-
-## Map protocol
-
-### Start
-
-- current task → `in_progress`;
-- `current_focus` остаётся task;
-- roadmap остаётся blocked.
-
-### Draft review
-
-- task → `in_review` только после focused PASS и owner-visible result;
-- Project Map, Quality Map, test catalog и Nx graph синхронизированы;
-- PR остаётся Draft.
-
-### After acceptance
-
-- owner определяет convergence/merge action;
-- task может стать `done` только после принятого gate;
-- отдельный governance transition решает, активировать ли R2;
-- coding-агент останавливается.
-
-## Канонические порты
+## Порты
 
 ```text
 Web  http://127.0.0.1:4610
@@ -164,4 +140,4 @@ API  http://127.0.0.1:4611
 E2E  http://127.0.0.1:4612
 ```
 
-Запрещены `3000`, `3100`, `5173`. Чужие процессы и контейнеры не останавливаются.
+Запрещены `3000`, `3100`, `5173`.
