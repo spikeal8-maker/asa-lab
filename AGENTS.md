@@ -5,14 +5,15 @@
 ## 1. Каноническое состояние
 
 ```text
-main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+canonical branch:        main
+product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
 verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
 merged PR:               #70
 Account C1 / Issue #48:  completed
 active product task:     none
 ```
 
-Технический Alpha принят без заявления функциональной полноты.
+Технический Alpha принят без заявления функциональной полноты. Post-merge governance-коммиты могут делать текущий head `main` новее product merge SHA.
 
 Новая product task не активирована. R2, R3 и R4 остаются blocked roadmap. Агент не начинает их самостоятельно.
 
@@ -57,7 +58,7 @@ Product code разрешён только когда одновременно �
 
 ```text
 project.current_focus содержит task ID
-tот же task есть в EXECUTION_MANIFEST.yaml
+тот же task есть в EXECUTION_MANIFEST.yaml
 status = ready | in_progress | in_review
 все depends_on = done
 Issue открыта и не blocked
