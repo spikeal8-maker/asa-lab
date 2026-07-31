@@ -31,6 +31,7 @@ interface PublicUser {
 interface SessionPayload {
   authenticated: true;
   user: PublicUser;
+  account: PublicUser;
   capabilities: { capability: string; state: string }[];
   workspaces: { workspaceId: string; kind: string; title: string; role: string }[];
   activeWorkspace: { workspaceId: string; kind: string };
@@ -96,13 +97,15 @@ export class AuthController {
         entry.capability === 'educator' &&
         (entry.state === 'verified' || entry.state === 'provisional'),
     );
+    const account = {
+      id: context.accountId,
+      displayName: context.displayName,
+      email: context.email,
+    };
     return {
       authenticated: true,
-      user: {
-        id: context.accountId,
-        displayName: context.displayName,
-        email: context.email,
-      },
+      user: account,
+      account,
       capabilities: capabilities.map((entry) => ({
         capability: entry.capability,
         state: entry.state,

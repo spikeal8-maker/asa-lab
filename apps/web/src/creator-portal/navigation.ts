@@ -128,7 +128,7 @@ export function recentProjects(projects: readonly Project[], limit = 4): readonl
   return [...projects]
     .sort((left, right) => {
       const timeDifference =
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
       return timeDifference === 0 ? left.title.localeCompare(right.title, 'ru') : timeDifference;
     })
     .slice(0, limit);

@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 
 const defaultFiles = [
+  'tests/portal/auth-response-contract.spec.ts',
   'tests/portal/creator-home.spec.ts',
   'tests/portal/capability-navigation.spec.ts',
   'tests/portal/creator-routing.spec.ts',

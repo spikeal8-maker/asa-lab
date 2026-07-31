@@ -40,9 +40,9 @@ Registry: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yam
 
 ```text
 governance after activation: PASS
-R2 focused tests: PASS (16/16)
+R2 focused tests: PASS (17/17)
 R2 E2E: PASS (2/2)
-full Vitest regression: PASS (314/314)
+full Vitest regression: PASS (315/315)
 full Playwright regression: PASS (22/22)
 Docker health and image revision: PASS
 PostgreSQL persistence after API/Web restart: PASS
@@ -50,15 +50,21 @@ isolated backup/restore: PASS
 console/pageerror/requestfailed/HTTP 5xx collector: PASS (0 failures)
 ```
 
+These results are published against one exact corrective SHA in Draft PR #71.
+The owner audit did not activate R3 or R4.
+
 ## Review evidence
 
 ```text
-e2e/artifacts/owner-preview/r2-creator-portal/01-creator-home-desktop.png
-e2e/artifacts/owner-preview/r2-creator-portal/02-learning-desktop.png
-e2e/artifacts/owner-preview/r2-creator-portal/03-account-shell-desktop.png
-e2e/artifacts/owner-preview/r2-creator-portal/04-challenges-tablet.png
-e2e/artifacts/owner-preview/r2-creator-portal/05-creator-home-mobile.png
-e2e/artifacts/owner-preview/r2-creator-portal/06-educator-capability-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/01-creator-home-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/02-projects-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/03-learning-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/04-account-menu-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/05-account-shell-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/06-challenges-tablet.png
+docs/review/TASK_CREATOR_PORTAL_001/07-creator-home-mobile.png
+docs/review/TASK_CREATOR_PORTAL_001/08-workspace-isolation-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/09-educator-classes-desktop.png
 ```
 
 ## Preservation

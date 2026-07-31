@@ -5,7 +5,8 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
-const EVIDENCE_DIR = 'e2e/artifacts/owner-preview/r2-creator-portal';
+const EVIDENCE_DIR =
+  process.env['ASA_OWNER_EVIDENCE_DIR'] ?? 'e2e/artifacts/owner-preview/r2-creator-portal';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
@@ -28,7 +29,7 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 async function createProjectThroughApi(
   page: Page,
   input: { module: 'electronics' | 'chess'; title: string; key: string },
-): Promise<void> {
+): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
       origin: new URL(page.url()).origin,
@@ -42,6 +43,8 @@ async function createProjectThroughApi(
     },
   });
   expect(response.status()).toBe(201);
+  const body = (await response.json()) as { project: { id: string } };
+  return body.project.id;
 }
 
 test.beforeAll(async () => {
@@ -80,12 +83,12 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
   await expect(page.getByText('Здесь появятся ваши проекты')).toBeVisible();
 
-  await createProjectThroughApi(page, {
+  const electronicsProjectId = await createProjectThroughApi(page, {
     module: 'electronics',
     title: 'Личная схема',
     key: `r2-electronics-${unique}`,
   });
-  await createProjectThroughApi(page, {
+  const chessProjectId = await createProjectThroughApi(page, {
     module: 'chess',
     title: 'Шахматный разбор',
     key: `r2-chess-${unique}`,
@@ -93,13 +96,40 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await page.reload();
   await expect(page.getByTestId('creator-recent-projects')).toContainText('Личная схема');
   await expect(page.getByTestId('creator-recent-projects')).toContainText('Шахматный разбор');
+  await expect(page.getByRole('heading', { name: 'Уведомления' })).toBeVisible();
+  await expect(page.getByText('Новых уведомлений нет')).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-creator-home-desktop.png`, fullPage: true });
+
+  await page
+    .getByTestId('creator-recent-projects')
+    .getByRole('button', { name: /Личная схема/ })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`#\\/home\\/${electronicsProjectId}$`));
+  await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
+
+  await page
+    .getByTestId('creator-recent-projects')
+    .getByRole('button', { name: /Шахматный разбор/ })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`#\\/home\\/${chessProjectId}$`));
+  await expect(page.getByTestId('asa-chess-board')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
+  await expect(page).toHaveURL(/#\/projects$/);
+  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await expect(page.getByText('Личная схема')).toBeVisible();
+  await expect(page.getByText('Шахматный разбор')).toBeVisible();
+  await page.screenshot({ path: `${EVIDENCE_DIR}/02-projects-desktop.png`, fullPage: true });
 
   await page.getByRole('button', { name: 'Обучение', exact: true }).click();
   await expect(page).toHaveURL(/#\/learning$/);
   await expect(page.getByRole('heading', { name: 'Обучение', exact: true })).toBeVisible();
-  await page.screenshot({ path: `${EVIDENCE_DIR}/02-learning-desktop.png`, fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE_DIR}/03-learning-desktop.png`, fullPage: true });
 
   await page.getByRole('button', { name: 'Коллекции', exact: true }).click();
   await expect(page.getByText('Сохранённых коллекций пока нет')).toBeVisible();
@@ -114,6 +144,8 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page.getByRole('heading', { name: 'Помощь', exact: true })).toBeVisible();
 
   await page.locator('.portal-account > summary').click();
+  await expect(page.locator('.portal-account-menu')).toBeVisible();
+  await page.screenshot({ path: `${EVIDENCE_DIR}/04-account-menu-desktop.png`, fullPage: true });
   await page.getByRole('button', { name: 'Профиль и активные сессии' }).click();
   await expect(page.getByRole('heading', { name: 'Аккаунт и рабочие пространства' })).toBeVisible();
   await expect(page.getByText('Создание проектов')).toBeVisible();
@@ -124,19 +156,19 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(
     page.getByText('Статус обновлён. Автоматическая отправка писем пока не подключена.'),
   ).toBeVisible();
-  await page.screenshot({ path: `${EVIDENCE_DIR}/03-account-shell-desktop.png`, fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE_DIR}/05-account-shell-desktop.png`, fullPage: true });
 
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto('/#/challenges');
   await expect(page.getByRole('heading', { name: 'Испытания', exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
-  await page.screenshot({ path: `${EVIDENCE_DIR}/04-challenges-tablet.png`, fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE_DIR}/06-challenges-tablet.png`, fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/home');
   await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
-  await page.screenshot({ path: `${EVIDENCE_DIR}/05-creator-home-mobile.png`, fullPage: true });
+  await page.screenshot({ path: `${EVIDENCE_DIR}/07-creator-home-mobile.png`, fullPage: true });
 
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,
@@ -171,8 +203,18 @@ test('educator navigation follows server capability and active workspace scope',
   const session = (await sessionResponse.json()) as {
     user: { id: string };
     capabilities: Array<{ capability: string; state: string }>;
+    activeWorkspace: { workspaceId: string };
   };
   expect(session.capabilities.some((entry) => entry.capability === 'educator')).toBe(false);
+  await createProjectThroughApi(page, {
+    module: 'electronics',
+    title: 'Только личное пространство',
+    key: `r2-personal-isolation-${unique}`,
+  });
+  await page.reload();
+  await expect(page.getByTestId('creator-recent-projects')).toContainText(
+    'Только личное пространство',
+  );
 
   await page.locator('.portal-account > summary').click();
   await page.getByRole('button', { name: 'Профиль и активные сессии' }).click();
@@ -217,6 +259,45 @@ test('educator navigation follows server capability and active workspace scope',
     classroomManagement: false,
   });
 
+  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.getByText('Только личное пространство')).toHaveCount(0);
+  await createProjectThroughApi(page, {
+    module: 'chess',
+    title: 'Только пространство школы',
+    key: `r2-organization-isolation-${unique}`,
+  });
+  await page.reload();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.getByTestId('creator-recent-projects')).toContainText(
+    'Только пространство школы',
+  );
+  await expect(page.getByText('Только личное пространство')).toHaveCount(0);
+  await page.screenshot({
+    path: `${EVIDENCE_DIR}/08-workspace-isolation-desktop.png`,
+    fullPage: true,
+  });
+
+  await page.locator('.portal-account > summary').click();
+  await page.locator('.portal-account-workspaces button').filter({ hasText: 'Личное' }).click();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.getByTestId('creator-recent-projects')).toContainText(
+    'Только личное пространство',
+  );
+  await expect(page.getByText('Только пространство школы')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('creator-recent-projects')).toContainText(
+    'Только личное пространство',
+  );
+  await expect(page.getByText('Только пространство школы')).toHaveCount(0);
+
+  await page.locator('.portal-account > summary').click();
+  await page
+    .locator('.portal-account-workspaces button')
+    .filter({ hasText: 'R2 Creator School' })
+    .click();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Классы подключены' })).toBeVisible();
 
@@ -234,7 +315,7 @@ test('educator navigation follows server capability and active workspace scope',
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({
-    path: `${EVIDENCE_DIR}/06-educator-capability-desktop.png`,
+    path: `${EVIDENCE_DIR}/09-educator-classes-desktop.png`,
     fullPage: true,
   });
 

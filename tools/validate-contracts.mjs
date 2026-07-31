@@ -19,6 +19,34 @@ async function validateOpenApi() {
     failures += 1;
     return;
   }
+  const requiredSessionFields = [
+    'authenticated',
+    'user',
+    'account',
+    'capabilities',
+    'workspaces',
+    'activeWorkspace',
+    'navigation',
+  ];
+  const userEnvelope = raw.components?.schemas?.UserEnvelope;
+  const declaredFields = new Set(userEnvelope?.required ?? []);
+  for (const field of requiredSessionFields) {
+    if (!declaredFields.has(field) || userEnvelope?.properties?.[field] === undefined) {
+      console.error(`OpenAPI UserEnvelope must declare required field ${field}`);
+      failures += 1;
+    }
+  }
+  for (const path of [
+    '/api/auth/register',
+    '/api/auth/login',
+    '/api/auth/me',
+    '/api/session/context',
+  ]) {
+    if (raw.paths?.[path] === undefined) {
+      console.error(`OpenAPI must declare runtime path ${path}`);
+      failures += 1;
+    }
+  }
   try {
     const api = await SwaggerParser.dereference(OPENAPI_PATH);
     const pathCount = Object.keys(api.paths ?? {}).length;

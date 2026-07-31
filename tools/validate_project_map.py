@@ -14,6 +14,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
+MANIFEST_PATH = ROOT / "docs/delivery/EXECUTION_MANIFEST.yaml"
+RENDERED_MAP_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
 
 ALLOWED_STATUSES = {
     "planned",
@@ -81,6 +83,21 @@ def load_map(errors: list[str]) -> dict[str, Any]:
         return {}
     if not isinstance(value, dict):
         errors.append("Project map root must be an object")
+        return {}
+    return value
+
+
+def load_manifest(errors: list[str]) -> dict[str, Any]:
+    if not MANIFEST_PATH.is_file():
+        errors.append(f"Missing execution manifest: {MANIFEST_PATH.relative_to(ROOT)}")
+        return {}
+    try:
+        value = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        errors.append(f"Cannot parse execution manifest YAML: {exc}")
+        return {}
+    if not isinstance(value, dict):
+        errors.append("Execution manifest root must be an object")
         return {}
     return value
 
@@ -316,10 +333,50 @@ def validate_map_change_policy(errors: list[str]) -> None:
         errors.append("project-map.yaml changed without PROJECT_MAP.md update")
 
 
+def validate_delivery_alignment(
+    document: dict[str, Any],
+    manifest: dict[str, Any],
+    nodes: dict[str, dict[str, Any]],
+    errors: list[str],
+) -> None:
+    canonical_state = manifest.get("canonical_state")
+    tasks = manifest.get("tasks")
+    if not isinstance(canonical_state, dict) or not isinstance(tasks, list):
+        errors.append("Execution manifest must expose canonical_state and tasks")
+        return
+    active_task = canonical_state.get("active_task")
+    manifest_task = next(
+        (
+            task
+            for task in tasks
+            if isinstance(task, dict) and task.get("task_id") == active_task
+        ),
+        None,
+    )
+    if not isinstance(active_task, str) or not isinstance(manifest_task, dict):
+        errors.append("Execution manifest active task is missing from tasks")
+        return
+    status = manifest_task.get("status")
+    if document.get("project", {}).get("current_focus") != active_task:
+        errors.append("Project map current_focus differs from execution manifest")
+    for node_id in (active_task, manifest_task.get("architecture_horizon"), "ACT-AGENT"):
+        node = nodes.get(str(node_id))
+        if not isinstance(node, dict) or node.get("status") != status:
+            errors.append(f"Project map node {node_id} must match manifest status {status!r}")
+    rendered = (
+        RENDERED_MAP_PATH.read_text(encoding="utf-8")
+        if RENDERED_MAP_PATH.is_file()
+        else ""
+    )
+    if f"status {status}" not in rendered:
+        errors.append(f"PROJECT_MAP.md must display manifest status {status!r}")
+
+
 def main() -> int:
     errors: list[str] = []
     validate_required_files(errors)
     document = load_map(errors)
+    manifest = load_manifest(errors)
     if not document:
         return fail(errors)
     if document.get("schema_version") != "1.0.0":
@@ -329,6 +386,7 @@ def main() -> int:
     validate_task_dependencies(nodes, edges, errors)
     queue_ids = validate_execution_queue(document, nodes, errors)
     validate_focus(document, nodes, queue_ids, errors)
+    validate_delivery_alignment(document, manifest, nodes, errors)
     validate_map_change_policy(errors)
     if errors:
         return fail(errors)

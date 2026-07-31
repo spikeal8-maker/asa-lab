@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { api, type ModuleSummary, type Project, type SessionPayload } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { PlusIcon } from '../electronics/workbench-icons';
@@ -35,13 +35,18 @@ export function CreatorHomePage({
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const loadSequence = useRef(0);
+  const activeWorkspaceId = session.activeWorkspace.workspaceId;
 
   const load = useCallback(async (): Promise<void> => {
+    const sequence = ++loadSequence.current;
+    setProjects(null);
     setError(null);
     const [projectsResult, modulesResult] = await Promise.all([
       api.listProjects({ scope: 'personal' }),
       api.listModules(),
     ]);
+    if (sequence !== loadSequence.current) return;
     if (!projectsResult.ok || !modulesResult.ok) {
       setError(
         projectsResult.status === 0 || modulesResult.status === 0
@@ -52,10 +57,13 @@ export function CreatorHomePage({
     }
     setProjects(projectsResult.data.items);
     setModules(modulesResult.data.items);
-  }, []);
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     void load();
+    return () => {
+      loadSequence.current += 1;
+    };
   }, [load]);
 
   const modulesByKey = useMemo(
@@ -192,7 +200,8 @@ export function CreatorHomePage({
                     <span className="creator-project-copy">
                       <strong>{project.title}</strong>
                       <small>
-                        {module?.displayName ?? project.moduleKey} · {formatDate(project.createdAt)}
+                        {module?.displayName ?? project.moduleKey} · изменено{' '}
+                        {formatDate(project.updatedAt)}
                       </small>
                     </span>
                     <span className="creator-project-open">Открыть</span>
@@ -202,6 +211,28 @@ export function CreatorHomePage({
             })}
           </ul>
         ) : null}
+      </section>
+
+      <section className="creator-notifications" aria-labelledby="creator-notifications-title">
+        <div className="creator-section-heading">
+          <div>
+            <p className="creator-section-kicker">Центр событий</p>
+            <h2 id="creator-notifications-title">Уведомления</h2>
+          </div>
+        </div>
+        <div className="creator-notification-empty">
+          <span aria-hidden="true">✓</span>
+          <div>
+            <strong>Новых уведомлений нет</strong>
+            <p>
+              Важные изменения проектов и рабочих пространств появятся здесь, когда для них будет
+              доступно серверное событие.
+            </p>
+          </div>
+          <button type="button" className="creator-text-action" onClick={() => onNavigate('help')}>
+            Как работает кабинет
+          </button>
+        </div>
       </section>
 
       <section className="creator-discover" aria-labelledby="creator-discover-title">

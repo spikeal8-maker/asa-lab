@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { Project } from '../../apps/web/src/api';
 import { creatorHomeState, recentProjects } from '../../apps/web/src/creator-portal/navigation';
 
-function project(id: string, title: string, createdAt: string): Project {
+function project(id: string, title: string, createdAt: string, updatedAt = createdAt): Project {
   return {
     id,
     title,
     createdAt,
+    updatedAt,
     scope: 'personal',
     classroomId: null,
     moduleKey: 'electronics',
@@ -24,9 +25,14 @@ describe('Creator Home', () => {
     );
   });
 
-  it('shows the four newest real projects without mutating the API result', () => {
+  it('shows the four most recently changed projects without mutating the API result', () => {
     const projects = [
-      project('one', 'Старый', '2026-07-01T10:00:00Z'),
+      project(
+        'one',
+        'Старый, но недавно изменённый',
+        '2026-07-01T10:00:00Z',
+        '2026-07-06T10:00:00Z',
+      ),
       project('two', 'Новый', '2026-07-05T10:00:00Z'),
       project('three', 'Средний', '2026-07-03T10:00:00Z'),
       project('four', 'Ещё один', '2026-07-04T10:00:00Z'),
@@ -34,10 +40,10 @@ describe('Creator Home', () => {
     ];
 
     expect(recentProjects(projects).map((entry) => entry.id)).toEqual([
+      'one',
       'two',
       'four',
       'three',
-      'five',
     ]);
     expect(projects.map((entry) => entry.id)).toEqual(['one', 'two', 'three', 'four', 'five']);
   });

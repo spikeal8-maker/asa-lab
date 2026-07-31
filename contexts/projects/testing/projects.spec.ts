@@ -29,6 +29,7 @@ const personalProject: Project = {
   title: 'Схема',
   status: 'active',
   createdAt: 'now',
+  updatedAt: 'now',
 };
 
 function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
