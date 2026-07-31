@@ -18,17 +18,60 @@ current_focus          null
 
 R2, R3 и R4 остаются blocked roadmap. Для них нет активного exit gate до отдельного owner transition.
 
+## Обязательные governance test IDs
+
+```text
+TST-ARCH-001
+TST-MAP-001
+TST-CATALOG-001
+TST-DEVELOPMENT-PROGRAM-001
+```
+
+Связанные команды:
+
+```bash
+python tools/validate_architecture.py
+python tools/validate_project_map.py
+python tools/validate_test_catalog.py
+python tools/validate_delivery_program.py
+python tools/validate_infrastructure_focus.py
+```
+
+Governance считается PASS только после фактического exit `0` каждой обязательной команды на одном текущем SHA.
+
 ## Проверенный implementation SHA
 
 ```text
 35c06c42012672b9b4cb2626b85ba1f21b973bc0
 ```
 
-Merge commit в `main`:
+Product merge commit:
 
 ```text
 e01ac85095ddaabef19ed618964deac3aa5b2406
 ```
+
+## Post-merge verification
+
+Проверенная точка до governance corrective commits:
+
+```text
+main SHA:              5e1ae647e545dd99421c3265f635b4d1e1eee784
+governance:            4/6 PASS
+frozen install:        PASS
+format/lint/typecheck: PASS
+boundaries/contracts:  PASS
+secrets/dependencies:  PASS
+build:                 22/22
+Docker smoke:          PASS
+/api/version:          exact 5e1ae647...
+health:                PostgreSQL/API/Web PASS
+persistence:           PASS
+isolated backup:       PASS
+restore migrations:    10
+```
+
+Два найденных governance-дефекта относятся к terminal infrastructure successor semantics и историческим task references/test-document markers. После их исправления validators должны быть перезапущены на новом head. Runtime/data PASS SHA `5e1ae647...` не переносится автоматически на более новый commit, хотя corrective diff не содержит product code.
 
 ## Финальная Account C1 матрица
 
