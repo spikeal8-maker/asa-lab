@@ -22,11 +22,11 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-  active_checkpoint: production_vector_and_animation_rework
+  active_checkpoint: production_editor_integration
   reference_audit_sha: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
+  production_evidence_sha: e604762057a839c2683c5788e83e1b686273828c
   rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
-  owner_directive_pr_comment: https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5146193982
-  owner_directive_issue_comment: https://github.com/spikeal8-maker/asa-lab/issues/63#issuecomment-5146201925
+  owner_directive_pr_comment: https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5147079314
 
 roadmap_after_current:
   - release: R3B
@@ -60,6 +60,10 @@ map_protocol:
     - current task returns to in_progress with an explicit corrective checkpoint
     - rejected evidence is preserved and must not be called accepted
     - future milestones remain blocked
+  owner_integration_request:
+    - accepted evidence becomes an integration input, not a completed product claim
+    - standalone review surfaces do not satisfy the user-visible result
+    - the real product route must consume the integrated contracts before review
   after_merge:
     - accepted task becomes done
     - project.current_focus becomes null unless another task is separately activated
@@ -181,8 +185,8 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_progress
-    checkpoint: production_vector_and_animation_rework
-    owner_acceptance: rejected_at_1abc608ef6a8c45efa3205c817dfb6054c289e5e
+    checkpoint: production_editor_integration
+    owner_acceptance: integration_requested_at_e604762057a839c2683c5788e83e1b686273828c
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
     base_branch: main
@@ -193,22 +197,27 @@ tasks:
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
     next_task: null
     capabilities: [CAP-PROJECTS]
-    visible_result: Every catalog item has immutable reference evidence and a separate transparent production-vector candidate with physical scale, pins, typed state and breadboard contracts.
-    user_flow: Compare reference to production -> verify one physical scale -> exercise LED/RGB and display/motion states -> verify breadboard fit/connectivity -> stop for owner acceptance.
+    visible_result: The actual Electronics project editor uses the production catalog, physical scale, pins, typed states and breadboard connectivity instead of the old eight hard-coded assets.
+    user_flow: Open real Electronics project -> place breadboard -> snap production components -> exercise resistor/LED/RGB/display states -> connect rails -> save/reload/checkpoint -> owner review.
     required_scope:
-      - immutable_reference_evidence_at_9654ce3
-      - transparent_production_svg_candidates
-      - exact_owner_svg_or_derived_from_owner_reference
-      - single_world_units_per_mm
-      - complete_led_and_rgb_typed_state_contracts
-      - seven_segment_semantic_groups_and_real_pins
-      - button_spdt_potentiometer_lamp_motor_servo_animation_contracts
-      - pin_anchor_tolerance_at_most_0_25_mm
-      - breadboards_170_420_882_fit_snap_and_connectivity
-      - five_separate_owner_review_pages
-    non_goals: [solver changes, product UI changes, new runtime functions, transient analysis, AC analysis, R4-M2, R5]
-    read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63#issuecomment-5146201925, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5146193982]
+      - production_manifest_runtime_adapter
+      - remove_old_hard_coded_catalog_from_new_projects
+      - legacy_document_asset_migration
+      - battery_holders_1_2_3_4_6_8_variants
+      - ordinary_led_six_colours_brightness_and_faults
+      - parametric_resistor_bands
+      - four_pin_momentary_button
+      - three_pin_spdt
+      - potentiometer_diode_and_lamp_runtime_states
+      - rgb_led_four_pin_channel_mixing
+      - seven_segment_physical_pins_segments_masks_and_brightness
+      - breadboards_170_420_882_holes_rails_snap_and_netlist
+      - single_world_units_per_mm_and_exact_pin_anchors
+      - additive_schema_and_save_reload_checkpoint
+      - actual_editor_e2e_and_screenshots
+    non_goals: [full repository matrix before owner review, merge, R4-M2, R5, new branch, additional permanent Compose projects, fake simulation for unsupported catalog candidates]
+    read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5147079314]
     test_profiles: []
-    task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001]
+    task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001, TST-ELECTRONICS-M1-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]
-    artifacts: [reference-manifest, production-manifest, state-animation-contracts, breadboard-connectivity-map, reference-vs-production.png, physical-scale.png, led-rgb-state-lab.png, display-and-motion-state-lab.png, breadboard-fit-connectivity.png, focused-test-report]
+    artifacts: [production-manifest-adapter, legacy-migration-report, breadboard-connectivity-map, library-production.png, breadboard-empty.png, breadboard-components-snapped.png, led-rgb-display-states.png, connected-running.png, reload-checkpoint.png, focused-test-report]
