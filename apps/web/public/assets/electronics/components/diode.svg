@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 90" role="img" aria-labelledby="title desc">
+  <title id="title">ASA Lab diode</title><desc id="desc">Axial silicon diode with polarity band</desc>
+  <defs><linearGradient id="d" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#202a31"/><stop offset=".5" stop-color="#596873"/><stop offset="1" stop-color="#1b242a"/></linearGradient></defs>
+  <path d="M10 45h56M154 45h56" stroke="#88939a" stroke-width="8" stroke-linecap="round"/>
+  <rect x="62" y="25" width="96" height="40" rx="18" fill="url(#d)" stroke="#12191d" stroke-width="3"/>
+  <rect x="132" y="25" width="12" height="40" fill="#d9dde0"/>
+  <text x="105" y="50" text-anchor="middle" fill="#f2f5f6" font-family="sans-serif" font-size="12">D</text>
+</svg>

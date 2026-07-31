@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { SchematicComponent, SchematicDocument } from '../api';
+import type { SchematicComponent, SchematicDocument, Terminal } from '../api';
 import { catalogEntry } from './component-catalog';
 import type { Point, Viewport } from './workbench-geometry';
 
@@ -9,19 +9,22 @@ export const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 export const WIRE_COLORS = ['#e3212b', '#2a3035', '#149447', '#2c62c9', '#e7a400', '#8d45c7'];
 export const DRAG_MIME = 'application/x-asa-electronics-component';
 
-export type Selection = { kind: 'component'; id: string } | { kind: 'wire'; id: string } | null;
+export type Selection =
+  { kind: 'component'; id: string; ids: string[] } | { kind: 'wire'; id: string } | null;
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
 export interface TerminalRef {
   componentId: string;
-  terminal: 'a' | 'b';
+  terminal: Terminal;
 }
 
 export interface ComponentDrag {
   componentId: string;
+  componentIds: string[];
   pointerId: number;
   offset: Point;
   startedAt: Point;
+  startedPositions: Record<string, Point>;
 }
 
 export interface PanDrag {
@@ -30,9 +33,26 @@ export interface PanDrag {
   startViewport: Viewport;
 }
 
+export interface MarqueeDrag {
+  pointerId: number;
+  start: Point;
+  current: Point;
+  additive: boolean;
+}
+
+export interface VertexDrag {
+  pointerId: number;
+  wireId: string;
+  vertexIndex: number;
+}
+
 export interface HistoryState {
   entries: SchematicDocument[];
   cursor: number;
+}
+
+export function selectedComponentIds(selection: Selection): string[] {
+  return selection?.kind === 'component' ? selection.ids : [];
 }
 
 export function initials(name: string): string {

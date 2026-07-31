@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, visualAsset, type ComponentCategory } from './component-catalog';
+import type { Terminal } from '../api';
 import { ComponentPreview } from './component-preview';
 import {
   CollapseIcon,
@@ -14,11 +15,24 @@ import {
 import { DRAG_MIME, WIRE_COLORS } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
+function valueLabel(kind: string): string {
+  if (kind === 'source') return 'Напряжение';
+  if (kind === 'led' || kind === 'diode') return 'Прямое падение';
+  return 'Сопротивление';
+}
+
+function formatCurrent(value: number): string {
+  return `${(value * 1000).toFixed(2)} мА`;
+}
+
 export function WorkbenchSidebars({
   controller: c,
 }: {
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
+  const measurement = c.selectedComponent
+    ? c.resultByComponent.get(c.selectedComponent.id)
+    : undefined;
   return (
     <>
       <aside
@@ -40,7 +54,7 @@ export function WorkbenchSidebars({
                 <span>Компоненты</span>
                 <select
                   value={c.category}
-                  onChange={(e) => c.setCategory(e.target.value as ComponentCategory)}
+                  onChange={(event) => c.setCategory(event.target.value as ComponentCategory)}
                   aria-label="Категория компонентов"
                 >
                   {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -58,7 +72,7 @@ export function WorkbenchSidebars({
               <span className="sr-only">Поиск компонентов</span>
               <input
                 value={c.libraryQuery}
-                onChange={(e) => c.setLibraryQuery(e.target.value)}
+                onChange={(event) => c.setLibraryQuery(event.target.value)}
                 placeholder="Поиск"
               />
               <SearchIcon />
@@ -68,31 +82,26 @@ export function WorkbenchSidebars({
                 <button
                   key={entry.key}
                   type="button"
-                  className={`workbench-catalog-card${entry.enabled ? '' : ' disabled'}`}
-                  disabled={!entry.enabled}
-                  draggable={entry.enabled}
-                  onDragStart={(e) => {
-                    if (entry.kind) {
-                      e.dataTransfer.setData(DRAG_MIME, entry.kind);
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }
+                  className="workbench-catalog-card"
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData(DRAG_MIME, entry.kind);
+                    event.dataTransfer.effectAllowed = 'copy';
                   }}
-                  onClick={() => entry.kind && entry.kind !== 'wire' && c.addComponent(entry.kind)}
-                  title={
-                    entry.enabled ? `Добавить: ${entry.label}` : `${entry.label}: появится позже`
-                  }
+                  onClick={() => c.addComponent(entry.kind)}
+                  title={`Добавить: ${entry.label}`}
                 >
                   <span className="workbench-catalog-art">
                     <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
                   </span>
                   <span>{entry.label}</span>
-                  {!entry.enabled ? <small>Скоро</small> : null}
                 </button>
               ))}
             </div>
           </>
         ) : null}
       </aside>
+
       {c.selection ? (
         <aside
           className={`workbench-inspector${c.libraryOpen ? '' : ' library-hidden'}`}
@@ -101,9 +110,13 @@ export function WorkbenchSidebars({
           <div className="workbench-inspector-heading">
             <div>
               <span>
-                {c.selection.kind === 'wire' ? 'Провод' : (c.selectedEntry?.label ?? 'Компонент')}
+                {c.selection.kind === 'wire'
+                  ? 'Провод'
+                  : c.selection.ids.length > 1
+                    ? `Выбрано: ${c.selection.ids.length}`
+                    : (c.selectedEntry?.label ?? 'Компонент')}
               </span>
-              <small>{c.selection.kind === 'wire' ? 'Соединение' : 'Параметры компонента'}</small>
+              <small>{c.selection.kind === 'wire' ? 'Соединение' : 'Инспектор компонента'}</small>
             </div>
             <button
               type="button"
@@ -113,6 +126,7 @@ export function WorkbenchSidebars({
               <MinusIcon />
             </button>
           </div>
+
           {c.selectedComponent && c.selectedEntry ? (
             <div className="workbench-inspector-body">
               <div className="workbench-inspector-preview">
@@ -122,44 +136,85 @@ export function WorkbenchSidebars({
                 />
               </div>
               <label>
-                <span>
-                  {c.selectedComponent.kind === 'resistor'
-                    ? 'Сопротивление'
-                    : c.selectedComponent.kind === 'source'
-                      ? 'Напряжение'
-                      : 'Падение напряжения'}
-                </span>
-                <div className="workbench-value-field">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={c.selectedComponent.value}
-                    onChange={(e) => c.updateSelectedValue(Number(e.target.value))}
-                  />
-                  <span>{c.selectedEntry.unit}</span>
-                </div>
+                <span>Имя</span>
+                <input
+                  type="text"
+                  maxLength={120}
+                  value={c.selectedComponent.name ?? c.selectedEntry.label}
+                  onChange={(event) => c.updateSelectedName(event.target.value)}
+                />
               </label>
-              {c.simulationRunning && c.resultByComponent.get(c.selectedComponent.id) ? (
+              {!['button', 'switch'].includes(c.selectedComponent.kind) ? (
+                <label>
+                  <span>{valueLabel(c.selectedComponent.kind)}</span>
+                  <div className="workbench-value-field">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={c.selectedComponent.value}
+                      onChange={(event) => c.updateSelectedValue(Number(event.target.value))}
+                    />
+                    <span>{c.selectedEntry.unit}</span>
+                  </div>
+                </label>
+              ) : null}
+              {c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button' ? (
+                <label className="workbench-toggle-property">
+                  <span>
+                    {c.selectedComponent.kind === 'button' ? 'Кнопка нажата' : 'Контакт замкнут'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={c.selectedComponent.state === true}
+                    onChange={(event) => c.setSelectedState(event.target.checked)}
+                  />
+                </label>
+              ) : null}
+              {c.selectedComponent.kind === 'potentiometer' ? (
+                <label>
+                  <span>
+                    Положение движка: {Math.round((c.selectedComponent.wiperPosition ?? 0.5) * 100)}
+                    %
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={c.selectedComponent.wiperPosition ?? 0.5}
+                    onChange={(event) => c.setSelectedWiper(Number(event.target.value))}
+                  />
+                </label>
+              ) : null}
+
+              <dl className="workbench-terminal-list">
+                {Object.entries(c.selectedEntry.terminals).map(([terminal, spec]) => (
+                  <div key={terminal}>
+                    <dt>Вывод {spec?.label ?? terminal}</dt>
+                    <dd>
+                      {c.simulationRunning
+                        ? `${measurement?.terminalVoltages[terminal as Terminal]?.toFixed(3) ?? '—'} В`
+                        : '—'}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              {c.simulationRunning && measurement ? (
                 <dl className="workbench-measurements">
                   <div>
                     <dt>Ток</dt>
-                    <dd>
-                      {(c.resultByComponent.get(c.selectedComponent.id)?.current ?? 0) * 1000} мА
-                    </dd>
+                    <dd>{formatCurrent(measurement.current)}</dd>
                   </div>
                   <div>
                     <dt>Падение</dt>
-                    <dd>{c.resultByComponent.get(c.selectedComponent.id)?.voltageDrop ?? 0} В</dd>
+                    <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
                   </div>
-                  {c.selectedComponent.kind === 'led' ? (
+                  {c.selectedComponent.kind === 'led' || c.selectedComponent.kind === 'lamp' ? (
                     <div>
                       <dt>Состояние</dt>
-                      <dd>
-                        {c.resultByComponent.get(c.selectedComponent.id)?.lit
-                          ? 'Горит'
-                          : 'Не горит'}
-                      </dd>
+                      <dd>{measurement.lit ? 'Горит' : 'Не горит'}</dd>
                     </div>
                   ) : null}
                 </dl>
@@ -177,6 +232,7 @@ export function WorkbenchSidebars({
               </div>
             </div>
           ) : null}
+
           {c.selectedWire ? (
             <div className="workbench-inspector-body">
               <p>Цвет провода</p>
@@ -192,9 +248,18 @@ export function WorkbenchSidebars({
                   />
                 ))}
               </div>
-              <div className="workbench-inspector-actions">
+              <div className="workbench-inspector-actions vertical">
                 <button type="button" onClick={c.toggleWireRoute}>
-                  <WireIcon /> Изгиб
+                  <WireIcon /> Добавить/изменить изгиб
+                </button>
+                <button type="button" onClick={c.removeWireBends}>
+                  Убрать изгибы
+                </button>
+                <button type="button" onClick={() => c.beginReconnect('from')}>
+                  Переподключить начало
+                </button>
+                <button type="button" onClick={() => c.beginReconnect('to')}>
+                  Переподключить конец
                 </button>
                 <button type="button" className="danger" onClick={c.removeSelection}>
                   <DeleteIcon /> Удалить

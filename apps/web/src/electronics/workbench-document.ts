@@ -3,6 +3,7 @@ import type {
   SchematicComponent,
   SchematicConnection,
   SchematicDocument,
+  Terminal,
 } from '../api';
 import {
   ACTIVE_COMPONENTS,
@@ -27,6 +28,11 @@ export function addComponentToDocument(
     position: { x: snap(center.x - size.width / 2), y: snap(center.y - size.height / 2) },
     value: entry.defaultValue,
     rotation: 0,
+    name: entry.label,
+    ...(entry.defaultState === undefined ? {} : { state: entry.defaultState }),
+    ...(entry.defaultWiperPosition === undefined
+      ? {}
+      : { wiperPosition: entry.defaultWiperPosition }),
   };
   return { component, document: { ...document, components: [...document.components, component] } };
 }
@@ -35,16 +41,45 @@ export function duplicateComponentInDocument(
   document: SchematicDocument,
   selection: Selection,
   id: string,
-): { document: SchematicDocument; component: SchematicComponent } | null {
+): {
+  document: SchematicDocument;
+  component: SchematicComponent;
+  components: readonly SchematicComponent[];
+} | null {
   if (selection?.kind !== 'component') return null;
-  const source = document.components.find((item) => item.id === selection.id);
-  if (!source) return null;
-  const component: SchematicComponent = {
+  const selectedIds = new Set(selection.ids);
+  const sources = document.components.filter((item) => selectedIds.has(item.id));
+  if (sources.length === 0) return null;
+  const idMap = new Map<string, string>();
+  sources.forEach((source, index) => idMap.set(source.id, `${id}-${index + 1}`));
+  const components = sources.map((source) => ({
     ...source,
-    id,
+    id: idMap.get(source.id) as string,
+    name: `${source.name ?? source.kind} — копия`,
     position: { x: source.position.x + 28, y: source.position.y + 28 },
+  }));
+  const connections = document.connections
+    .filter(
+      (wire) => selectedIds.has(wire.from.componentId) && selectedIds.has(wire.to.componentId),
+    )
+    .map((wire, index) => ({
+      ...wire,
+      id: `${id}-wire-${index + 1}`,
+      from: { ...wire.from, componentId: idMap.get(wire.from.componentId) as string },
+      to: { ...wire.to, componentId: idMap.get(wire.to.componentId) as string },
+      ...(wire.vertices
+        ? { vertices: wire.vertices.map((vertex) => ({ x: vertex.x + 28, y: vertex.y + 28 })) }
+        : {}),
+    }));
+  return {
+    component: components[0] as SchematicComponent,
+    components,
+    document: {
+      ...document,
+      components: [...document.components, ...components],
+      connections: [...document.connections, ...connections],
+    },
   };
-  return { component, document: { ...document, components: [...document.components, component] } };
 }
 
 export function removeSelectionFromDocument(
@@ -57,11 +92,12 @@ export function removeSelectionFromDocument(
       connections: document.connections.filter((item) => item.id !== selection.id),
     };
   }
+  const ids = new Set(selection.ids);
   return {
     ...document,
-    components: document.components.filter((item) => item.id !== selection.id),
+    components: document.components.filter((item) => !ids.has(item.id)),
     connections: document.connections.filter(
-      (wire) => wire.from.componentId !== selection.id && wire.to.componentId !== selection.id,
+      (wire) => !ids.has(wire.from.componentId) && !ids.has(wire.to.componentId),
     ),
   };
 }
@@ -71,10 +107,11 @@ export function rotateSelectionInDocument(
   selection: Selection,
 ): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
+  const ids = new Set(selection.ids);
   return {
     ...document,
     components: document.components.map((item) =>
-      item.id === selection.id
+      ids.has(item.id)
         ? { ...item, rotation: (((item.rotation ?? 0) + 90) % 360) as 0 | 90 | 180 | 270 }
         : item,
     ),
@@ -87,10 +124,61 @@ export function updateSelectionValue(
   value: number,
 ): SchematicDocument | null {
   if (selection?.kind !== 'component' || !Number.isFinite(value) || value < 0) return null;
+  const ids = new Set(selection.ids);
+  return {
+    ...document,
+    components: document.components.map((item) => (ids.has(item.id) ? { ...item, value } : item)),
+  };
+}
+
+export function updateSelectionName(
+  document: SchematicDocument,
+  selection: Selection,
+  name: string,
+): SchematicDocument | null {
+  if (selection?.kind !== 'component' || name.length > 120) return null;
   return {
     ...document,
     components: document.components.map((item) =>
-      item.id === selection.id ? { ...item, value } : item,
+      item.id === selection.id ? { ...item, name } : item,
+    ),
+  };
+}
+
+export function updateSelectionState(
+  document: SchematicDocument,
+  selection: Selection,
+  state: boolean,
+): SchematicDocument | null {
+  if (selection?.kind !== 'component') return null;
+  const target = document.components.find((item) => item.id === selection.id);
+  if (!target || (target.kind !== 'switch' && target.kind !== 'button')) return null;
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === selection.id ? { ...item, state } : item,
+    ),
+  };
+}
+
+export function updateWiperPosition(
+  document: SchematicDocument,
+  selection: Selection,
+  wiperPosition: number,
+): SchematicDocument | null {
+  if (
+    selection?.kind !== 'component' ||
+    !Number.isFinite(wiperPosition) ||
+    wiperPosition < 0 ||
+    wiperPosition > 1
+  )
+    return null;
+  const target = document.components.find((item) => item.id === selection.id);
+  if (target?.kind !== 'potentiometer') return null;
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === selection.id ? { ...item, wiperPosition } : item,
     ),
   };
 }
@@ -147,6 +235,57 @@ export function toggleSelectedWireRoute(
   };
 }
 
+export function removeSelectedWireBends(
+  document: SchematicDocument,
+  selection: Selection,
+): SchematicDocument | null {
+  if (selection?.kind !== 'wire') return null;
+  return {
+    ...document,
+    connections: document.connections.map((item) =>
+      item.id === selection.id ? { ...item, vertices: [] } : item,
+    ),
+  };
+}
+
+export function moveWireVertex(
+  document: SchematicDocument,
+  wireId: string,
+  vertexIndex: number,
+  point: Point,
+): SchematicDocument {
+  return {
+    ...document,
+    connections: document.connections.map((wire) => {
+      if (wire.id !== wireId || !wire.vertices?.[vertexIndex]) return wire;
+      return {
+        ...wire,
+        vertices: wire.vertices.map((vertex, index) =>
+          index === vertexIndex ? { x: snap(point.x), y: snap(point.y) } : vertex,
+        ),
+      };
+    }),
+  };
+}
+
+export function reconnectWireEndpoint(
+  document: SchematicDocument,
+  wireId: string,
+  endpoint: 'from' | 'to',
+  target: { componentId: string; terminal: Terminal },
+): SchematicDocument | null {
+  const wire = document.connections.find((item) => item.id === wireId);
+  if (!wire) return null;
+  const other = endpoint === 'from' ? wire.to : wire.from;
+  if (other.componentId === target.componentId && other.terminal === target.terminal) return null;
+  return {
+    ...document,
+    connections: document.connections.map((item) =>
+      item.id === wireId ? { ...item, [endpoint]: { ...target } } : item,
+    ),
+  };
+}
+
 export function connectTerminals(
   document: SchematicDocument,
   from: TerminalRef,
@@ -185,6 +324,18 @@ export function moveComponentInDocument(
     ...document,
     components: document.components.map((item) =>
       item.id === componentId ? { ...item, position } : item,
+    ),
+  };
+}
+
+export function moveComponentsInDocument(
+  document: SchematicDocument,
+  positions: Readonly<Record<string, Point>>,
+): SchematicDocument {
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      positions[item.id] ? { ...item, position: positions[item.id] } : item,
     ),
   };
 }

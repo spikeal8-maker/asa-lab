@@ -9,6 +9,20 @@ import {
 import { cloneJson } from './workbench-geometry';
 import type { HistoryState, SaveStatus } from './workbench-model';
 
+function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument {
+  const legacy = document as SchematicDocument & {
+    schemaVersion?: number;
+    viewport?: SchematicDocument['viewport'];
+    simulation?: SchematicDocument['simulation'];
+  };
+  return {
+    ...document,
+    schemaVersion: 2,
+    viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
+    simulation: legacy.simulation ?? { running: false, maxIterations: 24 },
+  };
+}
+
 export function useWorkbenchProjectState(projectId: string) {
   const [project, setProject] = useState<Project | null>(null);
   const [document, setDocument] = useState<SchematicDocument | null>(null);
@@ -39,11 +53,13 @@ export function useWorkbenchProjectState(projectId: string) {
     }
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
-    setDocument(response.data.draft.document);
+    const nextDocument = normalizeLoadedDocument(response.data.draft.document);
+    setDocument(nextDocument);
     setResult(response.data.result);
     setVersions(response.data.versions);
     setSaveStatus('saved');
-    initialiseHistory(response.data.draft.document);
+    setSimulationRunning(nextDocument.simulation.running);
+    initialiseHistory(nextDocument);
     setStatus('ready');
   }, [initialiseHistory, projectId]);
 
@@ -137,17 +153,44 @@ export function useWorkbenchProjectState(projectId: string) {
   async function toggleSimulation(): Promise<void> {
     if (!document || busy) return;
     if (simulationRunning) {
+      const nextDocument = {
+        ...document,
+        simulation: { ...document.simulation, running: false },
+      };
+      setDocument(nextDocument);
+      pushHistory(nextDocument);
+      setSaveStatus('dirty');
       setSimulationRunning(false);
       setNotice('Моделирование остановлено.');
       return;
     }
     setBusy(true);
-    const nextResult = await persist(document, true);
+    const nextDocument = {
+      ...document,
+      simulation: { ...document.simulation, running: true },
+    };
+    setDocument(nextDocument);
+    pushHistory(nextDocument);
+    const nextResult = await persist(nextDocument, true);
     setBusy(false);
     if (nextResult) {
       setSimulationRunning(true);
       setNotice('Моделирование запущено. Изменения схемы пересчитываются автоматически.');
     }
+  }
+
+  function resetSimulation(): void {
+    if (!document) return;
+    const nextDocument = {
+      ...document,
+      simulation: { ...document.simulation, running: false },
+    };
+    setDocument(nextDocument);
+    pushHistory(nextDocument);
+    setSaveStatus('dirty');
+    setSimulationRunning(false);
+    setResult(null);
+    setNotice('Моделирование сброшено. Схема и соединения сохранены.');
   }
 
   async function checkpoint(): Promise<void> {
@@ -212,6 +255,7 @@ export function useWorkbenchProjectState(projectId: string) {
     commitDocument,
     saveNow,
     toggleSimulation,
+    resetSimulation,
     checkpoint,
     renameProject,
   };

@@ -191,6 +191,14 @@ export function WorkbenchHeader({
           <button
             type="button"
             className="workbench-pill"
+            onClick={c.resetSimulation}
+            disabled={c.busy}
+          >
+            Сброс
+          </button>
+          <button
+            type="button"
+            className="workbench-pill"
             onClick={() => void c.checkpoint()}
             disabled={c.busy}
           >

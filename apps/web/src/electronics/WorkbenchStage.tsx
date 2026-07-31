@@ -1,4 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { Terminal } from '../api';
 import { catalogEntry, renderedSize, terminalPosition, visualAsset } from './component-catalog';
 import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
 import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
@@ -78,6 +79,19 @@ export function WorkbenchStage({
                     c.setSelection({ kind: 'wire', id: wire.id });
                   }}
                 />
+                {selected
+                  ? (wire.vertices ?? []).map((vertex, index) => (
+                      <circle
+                        key={`${wire.id}-vertex-${index}`}
+                        className="workbench-wire-vertex"
+                        cx={vertex.x}
+                        cy={vertex.y}
+                        r="9"
+                        onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
+                        aria-label={`Изгиб провода ${index + 1}`}
+                      />
+                    ))
+                  : null}
                 {selected ? <path className="workbench-wire-selection" d={path} /> : null}
                 <path
                   data-testid="schematic-wire"
@@ -107,13 +121,17 @@ export function WorkbenchStage({
             if (!entry?.asset || !entry.terminals) return null;
             const baseSize = renderedSize(entry, 0);
             const boxSize = renderedSize(entry, component.rotation ?? 0);
-            const selected = c.selection?.kind === 'component' && c.selection.id === component.id;
+            const selected =
+              c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
             const asset = visualAsset(entry, c.componentVisualState(component));
+            const diagnostics = [...(c.diagnosticCodesByComponent.get(component.id) ?? [])];
             return (
               <g
                 key={component.id}
+                className={diagnostics.length > 0 ? 'workbench-component-diagnostic' : undefined}
                 data-testid="schematic-component"
                 data-kind={component.kind}
+                data-diagnostics={diagnostics.join(',')}
                 data-x={component.position.x}
                 data-y={component.position.y}
               >
@@ -133,7 +151,13 @@ export function WorkbenchStage({
                   onPointerDown={(e) => c.startComponentDrag(e, component)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    c.setSelection({ kind: 'component', id: component.id });
+                    c.selectComponent(component.id, e.shiftKey);
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (component.kind === 'switch' || component.kind === 'button') {
+                      c.toggleComponentState(component.id);
+                    }
                   }}
                   role="button"
                   tabIndex={0}
@@ -141,7 +165,7 @@ export function WorkbenchStage({
                   onKeyDown={(e: ReactKeyboardEvent<SVGGElement>) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      c.setSelection({ kind: 'component', id: component.id });
+                      c.selectComponent(component.id, e.shiftKey);
                     }
                   }}
                 >
@@ -154,7 +178,9 @@ export function WorkbenchStage({
                     />
                   ) : null}
                 </g>
-                {(['a', 'b'] as const).map((terminal) => {
+                {(Object.keys(entry.terminals) as Terminal[]).map((terminal) => {
+                  const terminalSpec = entry.terminals[terminal];
+                  if (!terminalSpec) return null;
                   const point = terminalPosition(
                     component.kind,
                     component.position,
@@ -181,7 +207,7 @@ export function WorkbenchStage({
                         }}
                         role="button"
                         tabIndex={0}
-                        aria-label={`${entry.label}: вывод ${entry.terminals?.[terminal].label ?? terminal.toUpperCase()}`}
+                        aria-label={`${entry.label}: вывод ${terminalSpec.label}`}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
@@ -192,7 +218,7 @@ export function WorkbenchStage({
                       <circle className="workbench-terminal-dot" r="5.5" />
                       {selected || c.pendingTerminal ? (
                         <text x="0" y="-12" textAnchor="middle">
-                          {entry.terminals?.[terminal].label}
+                          {terminalSpec.label}
                         </text>
                       ) : null}
                     </g>
@@ -201,6 +227,15 @@ export function WorkbenchStage({
               </g>
             );
           })}
+        {c.marquee ? (
+          <rect
+            className="workbench-marquee"
+            x={Math.min(c.marquee.start.x, c.marquee.current.x)}
+            y={Math.min(c.marquee.start.y, c.marquee.current.y)}
+            width={Math.abs(c.marquee.current.x - c.marquee.start.x)}
+            height={Math.abs(c.marquee.current.y - c.marquee.start.y)}
+          />
+        ) : null}
       </svg>
       {document.components.filter((item) => item.kind !== 'wire').length === 0 ? (
         <div className="workbench-empty-stage">
@@ -246,7 +281,8 @@ export function WorkbenchStage({
           <ul data-testid="diagnostics">
             {(c.result?.diagnostics ?? []).slice(0, 3).map((d, i) => (
               <li key={`${d.code}-${i}`} className={d.severity}>
-                {d.message}
+                <span>{d.message}</span>
+                {d.suggestedAction ? <small>{d.suggestedAction}</small> : null}
               </li>
             ))}
           </ul>

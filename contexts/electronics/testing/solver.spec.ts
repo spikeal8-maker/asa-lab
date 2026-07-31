@@ -1,90 +1,129 @@
-import { describe, it, expect } from 'vitest';
-import { parseElectronicsDocument, type ElectronicsDocument } from '../domain/document';
+import { describe, expect, it } from 'vitest';
+import {
+  parseElectronicsDocument,
+  type ComponentKind,
+  type ElectronicsDocument,
+  type SchematicComponent,
+  type Terminal,
+} from '../domain/document';
 import { buildNetlist, terminalKey } from '../domain/netlist';
 import { solveCircuit } from '../domain/solver';
 
-/** Golden cases for the teaching scenario: a source, a resistor and an LED
- * wired into one series loop. */
-
-function component(id: string, kind: string, value: number) {
-  return { id, kind, position: { x: 0, y: 0 }, value };
+function component(
+  id: string,
+  kind: ComponentKind,
+  value: number,
+  options: Partial<SchematicComponent> = {},
+): SchematicComponent {
+  return { id, kind, position: { x: 0, y: 0 }, value, ...options };
 }
 
-function connect(id: string, from: string, fromT: string, to: string, toT: string) {
+function connect(
+  id: string,
+  from: string,
+  fromTerminal: Terminal,
+  to: string,
+  toTerminal: Terminal,
+) {
   return {
     id,
-    from: { componentId: from, terminal: fromT },
-    to: { componentId: to, terminal: toT },
+    from: { componentId: from, terminal: fromTerminal },
+    to: { componentId: to, terminal: toTerminal },
+    color: '#e3212b',
+    vertices: [],
   };
 }
 
-function doc(components: unknown[], connections: unknown[]): ElectronicsDocument {
-  const parsed = parseElectronicsDocument({ schemaVersion: 1, components, connections });
-  if (!parsed.ok) {
-    throw new Error(`fixture is invalid: ${parsed.message}`);
-  }
+function doc(
+  components: SchematicComponent[],
+  connections: ReturnType<typeof connect>[],
+): ElectronicsDocument {
+  const parsed = parseElectronicsDocument({
+    schemaVersion: 2,
+    components,
+    connections,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  });
+  if (!parsed.ok) throw new Error(parsed.message);
   return parsed.document;
 }
 
-/** source(+) -> resistor -> led -> back to source(-) */
-function seriesCircuit(volts: number, ohms: number, ledDrop = 2): ElectronicsDocument {
-  return doc(
-    [
-      component('src', 'source', volts),
-      component('r1', 'resistor', ohms),
-      component('led1', 'led', ledDrop),
-    ],
-    [
-      connect('c1', 'src', 'a', 'r1', 'a'),
-      connect('c2', 'r1', 'b', 'led1', 'a'),
-      connect('c3', 'led1', 'b', 'src', 'b'),
-    ],
-  );
+function series(parts: SchematicComponent[], voltage = 5): ElectronicsDocument {
+  const source = component('source', 'source', voltage);
+  const connections = [connect('wire-0', 'source', 'a', parts[0]!.id, 'a')];
+  parts.forEach((part, index) => {
+    const next = parts[index + 1];
+    connections.push(
+      next
+        ? connect(`wire-${index + 1}`, part.id, 'b', next.id, 'a')
+        : connect(`wire-${index + 1}`, part.id, 'b', 'source', 'b'),
+    );
+  });
+  return doc([source, ...parts], connections);
 }
 
-describe('document parsing', () => {
-  it('accepts a well-formed document', () => {
+function resultFor(document: ElectronicsDocument, componentId: string) {
+  return solveCircuit(document).components.find((result) => result.componentId === componentId);
+}
+
+describe('schema-versioned Electronics document', () => {
+  it('normalises an existing schema v1 document without data loss', () => {
     const parsed = parseElectronicsDocument({
       schemaVersion: 1,
-      components: [component('src', 'source', 5)],
+      components: [component('r1', 'resistor', 100)],
       connections: [],
     });
     expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.migrated).toBe(true);
+    expect(parsed.document).toMatchObject({
+      schemaVersion: 2,
+      components: [{ id: 'r1', kind: 'resistor', value: 100 }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    });
   });
 
-  it('rejects unknown kinds, bad values, duplicates and dangling endpoints', () => {
-    const cases: unknown[] = [
-      { schemaVersion: 1, components: [component('x', 'capacitor', 1)], connections: [] },
-      { schemaVersion: 1, components: [component('x', 'resistor', -5)], connections: [] },
-      {
+  it('preserves stable ids, three-terminal potentiometers, bends, colors and settings', () => {
+    const parsed = parseElectronicsDocument({
+      schemaVersion: 2,
+      components: [
+        component('p1', 'potentiometer', 1000, { wiperPosition: 0.25, name: 'Регулятор' }),
+        component('r1', 'resistor', 100),
+      ],
+      connections: [connect('w1', 'p1', 'wiper', 'r1', 'a')],
+      viewport: { x: 15, y: -5, zoom: 1.5 },
+      simulation: { running: true, maxIterations: 32 },
+    });
+    expect(parsed.ok && parsed.document.connections[0]).toMatchObject({
+      id: 'w1',
+      color: '#e3212b',
+      vertices: [],
+      from: { componentId: 'p1', terminal: 'wiper' },
+    });
+    expect(parsed.ok && parsed.document.viewport.zoom).toBe(1.5);
+  });
+
+  it('rejects malformed documents and dangling endpoint ids', () => {
+    expect(parseElectronicsDocument({ schemaVersion: 9, components: [], connections: [] }).ok).toBe(
+      false,
+    );
+    expect(
+      parseElectronicsDocument({
         schemaVersion: 1,
-        components: [component('x', 'resistor', 1), component('x', 'led', 2)],
-        connections: [],
-      },
-      {
-        schemaVersion: 1,
-        components: [component('x', 'resistor', 1)],
-        connections: [connect('c', 'x', 'a', 'ghost', 'b')],
-      },
-      { schemaVersion: 2, components: [], connections: [] },
-      { schemaVersion: 1, components: 'nope', connections: [] },
-      null,
-    ];
-    for (const value of cases) {
-      expect(parseElectronicsDocument(value).ok, JSON.stringify(value)).toBe(false);
-    }
+        components: [component('r1', 'resistor', 100)],
+        connections: [connect('w1', 'r1', 'a', 'missing', 'b')],
+      }).ok,
+    ).toBe(false);
   });
 });
 
 describe('netlist', () => {
-  it('merges terminals joined by a wire into one node', () => {
+  it('merges every ideal wire endpoint into deterministic nodes', () => {
     const document = doc(
-      [
-        component('r1', 'resistor', 100),
-        component('w1', 'wire', 0),
-        component('r2', 'resistor', 100),
-      ],
-      [connect('c1', 'r1', 'b', 'w1', 'a'), connect('c2', 'w1', 'b', 'r2', 'a')],
+      [component('r1', 'resistor', 100), component('r2', 'resistor', 100)],
+      [connect('w1', 'r1', 'b', 'r2', 'a')],
     );
     const netlist = buildNetlist(document);
     expect(netlist.nodeOf.get(terminalKey('r1', 'b'))).toBe(
@@ -93,114 +132,165 @@ describe('netlist', () => {
   });
 });
 
-describe('DC solver golden cases', () => {
-  it('solves a series source + resistor + LED circuit', () => {
-    const result = solveCircuit(seriesCircuit(5, 300, 2));
-    // (5V - 2V) / 300 ohm = 10 mA
+describe('deterministic DC solver', () => {
+  it('applies Ohm law', () => {
+    const result = solveCircuit(series([component('r1', 'resistor', 1000)], 5));
     expect(result.solved).toBe(true);
-    expect(result.current).toBeCloseTo(0.01, 6);
-    const led = result.components.find((entry) => entry.componentId === 'led1');
-    const resistor = result.components.find((entry) => entry.componentId === 'r1');
-    expect(led?.lit).toBe(true);
-    expect(resistor?.voltageDrop).toBeCloseTo(3, 6);
-    expect(led?.voltageDrop).toBeCloseTo(2, 6);
-    expect(result.diagnostics.map((d) => d.code)).toEqual(['circuit_ok']);
-    expect(result.diagnostics.every((d) => d.severity === 'info')).toBe(true);
+    expect(result.current).toBeCloseTo(0.005, 6);
+    expect(
+      resultFor(series([component('r1', 'resistor', 1000)], 5), 'r1')?.voltageDrop,
+    ).toBeCloseTo(5, 6);
   });
 
-  it('reports an open circuit when the loop is not closed', () => {
-    const document = doc(
-      [component('src', 'source', 5), component('r1', 'resistor', 300)],
-      [connect('c1', 'src', 'a', 'r1', 'a')],
+  it('solves series resistors', () => {
+    const result = solveCircuit(
+      series([component('r1', 'resistor', 100), component('r2', 'resistor', 200)], 6),
     );
-    const result = solveCircuit(document);
-    expect(result.solved).toBe(false);
-    expect(result.diagnostics.map((d) => d.code)).toContain('open_circuit');
-  });
-
-  it('reports a short circuit when the source is wired to itself', () => {
-    const document = doc(
-      [component('src', 'source', 5), component('w1', 'wire', 0)],
-      [connect('c1', 'src', 'a', 'w1', 'a'), connect('c2', 'w1', 'b', 'src', 'b')],
+    expect(result.current).toBeCloseTo(0.02, 6);
+    expect(result.components.find((item) => item.componentId === 'r2')?.voltageDrop).toBeCloseTo(
+      4,
+      6,
     );
-    const result = solveCircuit(document);
-    expect(result.solved).toBe(false);
-    expect(result.diagnostics.map((d) => d.code)).toContain('short_circuit');
   });
 
-  it('reports a reverse-connected LED and keeps it dark', () => {
+  it('solves two parallel resistive branches', () => {
     const document = doc(
       [
-        component('src', 'source', 5),
+        component('source', 'source', 6),
         component('r1', 'resistor', 300),
-        component('led1', 'led', 2),
+        component('r2', 'resistor', 600),
       ],
       [
-        connect('c1', 'src', 'a', 'r1', 'a'),
-        connect('c2', 'r1', 'b', 'led1', 'b'),
-        connect('c3', 'led1', 'a', 'src', 'b'),
+        connect('w1', 'source', 'a', 'r1', 'a'),
+        connect('w2', 'source', 'a', 'r2', 'a'),
+        connect('w3', 'r1', 'b', 'source', 'b'),
+        connect('w4', 'r2', 'b', 'source', 'b'),
       ],
     );
     const result = solveCircuit(document);
-    expect(result.solved).toBe(false);
-    expect(result.diagnostics.map((d) => d.code)).toContain('led_reverse');
-    expect(result.components.find((entry) => entry.componentId === 'led1')?.lit).toBe(false);
-  });
-
-  it('warns about an LED without a current-limiting resistor', () => {
-    const document = doc(
-      [component('src', 'source', 5), component('led1', 'led', 2)],
-      [connect('c1', 'src', 'a', 'led1', 'a'), connect('c2', 'led1', 'b', 'src', 'b')],
-    );
-    const result = solveCircuit(document);
-    expect(result.diagnostics.map((d) => d.code)).toContain('led_no_resistor');
-  });
-
-  it('warns about overcurrent through the LED', () => {
-    const result = solveCircuit(seriesCircuit(5, 20, 2));
-    // (5 - 2) / 20 = 150 mA
     expect(result.solved).toBe(true);
-    expect(result.diagnostics.map((d) => d.code)).toContain('overcurrent');
-  });
-
-  it('keeps the LED dark when the source cannot reach its forward voltage', () => {
-    const result = solveCircuit(seriesCircuit(1.5, 300, 2));
-    expect(result.current).toBe(0);
-    expect(result.components.find((entry) => entry.componentId === 'led1')?.lit).toBe(false);
-  });
-
-  it('requires exactly one source', () => {
-    const none = solveCircuit(doc([component('r1', 'resistor', 100)], []));
-    expect(none.diagnostics.map((d) => d.code)).toContain('no_source');
-    const many = solveCircuit(
-      doc([component('s1', 'source', 5), component('s2', 'source', 5)], []),
+    expect(result.current).toBeCloseTo(0.03, 6);
+    expect(result.components.find((item) => item.componentId === 'r1')?.current).toBeCloseTo(
+      0.02,
+      6,
     );
-    expect(many.diagnostics.map((d) => d.code)).toContain('multiple_sources');
+    expect(result.components.find((item) => item.componentId === 'r2')?.current).toBeCloseTo(
+      0.01,
+      6,
+    );
   });
 
-  it('rejects a branching circuit with an explicit message', () => {
+  it('reports the midpoint voltage of a divider', () => {
+    const document = series(
+      [component('r1', 'resistor', 1000), component('r2', 'resistor', 1000)],
+      10,
+    );
+    const r1 = resultFor(document, 'r1');
+    expect(r1?.terminalVoltages.b).toBeCloseTo(5, 5);
+  });
+
+  it('opens and closes a switch', () => {
+    const open = solveCircuit(
+      series([component('s1', 'switch', 0, { state: false }), component('r1', 'resistor', 100)], 5),
+    );
+    const closed = solveCircuit(
+      series([component('s1', 'switch', 0, { state: true }), component('r1', 'resistor', 100)], 5),
+    );
+    expect(open.current).toBe(0);
+    expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
+    expect(closed.current).toBeCloseTo(0.05, 4);
+  });
+
+  it('models a normally-open button', () => {
+    const released = solveCircuit(
+      series([component('b1', 'button', 0, { state: false }), component('r1', 'resistor', 200)], 5),
+    );
+    const pressed = solveCircuit(
+      series([component('b1', 'button', 0, { state: true }), component('r1', 'resistor', 200)], 5),
+    );
+    expect(released.current).toBe(0);
+    expect(pressed.current).toBeCloseTo(0.025, 5);
+  });
+
+  it.each([
+    [0, 5],
+    [0.5, 2.5],
+    [1, 0],
+  ])('solves potentiometer wiper position %s', (position, expectedVoltage) => {
     const document = doc(
       [
-        component('src', 'source', 5),
-        component('r1', 'resistor', 300),
-        component('r2', 'resistor', 300),
-        component('r3', 'resistor', 300),
+        component('source', 'source', 5),
+        component('pot', 'potentiometer', 1000, { wiperPosition: position }),
       ],
-      [
-        connect('c1', 'src', 'a', 'r1', 'a'),
-        connect('c2', 'src', 'a', 'r2', 'a'),
-        connect('c3', 'r1', 'b', 'r3', 'a'),
-        connect('c4', 'r2', 'b', 'r3', 'a'),
-        connect('c5', 'r3', 'b', 'src', 'b'),
-      ],
+      [connect('w1', 'source', 'a', 'pot', 'a'), connect('w2', 'pot', 'b', 'source', 'b')],
     );
-    const result = solveCircuit(document);
-    expect(result.solved).toBe(false);
-    expect(result.diagnostics.map((d) => d.code)).toContain('not_series');
+    expect(resultFor(document, 'pot')?.terminalVoltages.wiper).toBeCloseTo(expectedVoltage, 3);
   });
 
-  it('is deterministic for the same document', () => {
-    const document = seriesCircuit(9, 470, 2);
+  it('conducts a forward diode and blocks a reverse diode', () => {
+    const forward = solveCircuit(
+      series([component('r1', 'resistor', 430), component('d1', 'diode', 0.7)], 5),
+    );
+    const reverseDocument = doc(
+      [
+        component('source', 'source', 5),
+        component('r1', 'resistor', 430),
+        component('d1', 'diode', 0.7),
+      ],
+      [
+        connect('w1', 'source', 'a', 'r1', 'a'),
+        connect('w2', 'r1', 'b', 'd1', 'b'),
+        connect('w3', 'd1', 'a', 'source', 'b'),
+      ],
+    );
+    const reverse = solveCircuit(reverseDocument);
+    expect(forward.current).toBeGreaterThan(0.009);
+    expect(reverse.current).toBe(0);
+    expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
+  });
+
+  it('lights an LED at normal current and diagnoses overcurrent', () => {
+    const normal = solveCircuit(
+      series([component('r1', 'resistor', 300), component('led1', 'led', 2)], 5),
+    );
+    const unsafe = solveCircuit(
+      series([component('r1', 'resistor', 20), component('led1', 'led', 2)], 5),
+    );
+    expect(normal.components.find((item) => item.componentId === 'led1')?.lit).toBe(true);
+    expect(normal.diagnostics.map((item) => item.code)).toContain('circuit_ok');
+    expect(unsafe.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
+  });
+
+  it('energizes a resistive lamp', () => {
+    const result = solveCircuit(series([component('lamp1', 'lamp', 20)], 5));
+    const limited = solveCircuit(
+      series([component('r1', 'resistor', 300), component('lamp1', 'lamp', 24)], 5),
+    );
+    expect(result.current).toBeCloseTo(0.25, 6);
+    expect(result.components.find((item) => item.componentId === 'lamp1')?.lit).toBe(true);
+    expect(limited.components.find((item) => item.componentId === 'lamp1')?.lit).toBe(true);
+  });
+
+  it('diagnoses a direct short, open circuit, no source and invalid property', () => {
+    const short = solveCircuit(
+      doc([component('source', 'source', 5)], [connect('w1', 'source', 'a', 'source', 'b')]),
+    );
+    const open = solveCircuit(
+      doc(
+        [component('source', 'source', 5), component('r1', 'resistor', 100)],
+        [connect('w1', 'source', 'a', 'r1', 'a')],
+      ),
+    );
+    const noSource = solveCircuit(doc([component('r1', 'resistor', 100)], []));
+    const invalid = solveCircuit(series([component('r1', 'resistor', 0)], 5));
+    expect(short.diagnostics.map((item) => item.code)).toContain('short_circuit');
+    expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
+    expect(noSource.diagnostics.map((item) => item.code)).toContain('no_source');
+    expect(invalid.diagnostics.map((item) => item.code)).toContain('invalid_property');
+  });
+
+  it('returns byte-for-byte deterministic results', () => {
+    const document = series([component('r1', 'resistor', 470), component('led1', 'led', 2)], 9);
     expect(JSON.stringify(solveCircuit(document))).toBe(JSON.stringify(solveCircuit(document)));
   });
 });

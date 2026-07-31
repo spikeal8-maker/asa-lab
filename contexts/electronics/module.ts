@@ -8,11 +8,11 @@ import { solveCircuit, type SolveResult } from './domain/solver.js';
 
 const ELECTRONICS_MANIFEST = {
   moduleKey: 'electronics',
-  moduleVersion: '1.0.0',
+  moduleVersion: '2.0.0',
   displayName: 'Электроника',
   shortDescription: 'Создание электрических схем, соединение компонентов и моделирование.',
   projectType: 'circuit',
-  schemaVersion: 1,
+  schemaVersion: 2,
   editorRoute: '/projects/:projectId/electronics',
   viewerRoute: '/view/projects/:versionId/electronics',
   safeModeSupported: true,

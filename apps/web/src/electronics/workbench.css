@@ -191,6 +191,63 @@
   opacity: 0.3;
   cursor: default;
 }
+
+.workbench-marquee {
+  fill: rgba(20, 148, 201, 0.12);
+  stroke: #1494c9;
+  stroke-width: 2;
+  stroke-dasharray: 8 5;
+  pointer-events: none;
+}
+
+.workbench-wire-vertex {
+  fill: #fff;
+  stroke: #137db6;
+  stroke-width: 4;
+  cursor: move;
+}
+
+.workbench-component-diagnostic > .workbench-part {
+  filter: drop-shadow(0 0 7px rgba(211, 74, 48, 0.75));
+}
+
+.workbench-terminal-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.workbench-terminal-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f2f6f8;
+}
+
+.workbench-terminal-list dt,
+.workbench-terminal-list dd {
+  margin: 0;
+}
+
+.workbench-toggle-property {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.workbench-inspector-actions.vertical {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.workbench-results-card li small {
+  display: block;
+  margin-top: 3px;
+  color: #596d7a;
+}
 .workbench-toolbar-divider {
   align-self: center;
   width: 1px;

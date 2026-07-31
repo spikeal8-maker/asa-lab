@@ -100,7 +100,9 @@ export interface ProjectVersion {
   createdAt: string;
 }
 
-export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+export type ComponentKind =
+  'source' | 'resistor' | 'led' | 'button' | 'switch' | 'potentiometer' | 'diode' | 'lamp' | 'wire';
+export type Terminal = 'a' | 'b' | 'wiper';
 
 export interface SchematicComponent {
   id: string;
@@ -108,20 +110,25 @@ export interface SchematicComponent {
   position: { x: number; y: number };
   value: number;
   rotation?: 0 | 90 | 180 | 270;
+  name?: string;
+  state?: boolean;
+  wiperPosition?: number;
 }
 
 export interface SchematicConnection {
   id: string;
-  from: { componentId: string; terminal: 'a' | 'b' };
-  to: { componentId: string; terminal: 'a' | 'b' };
+  from: { componentId: string; terminal: Terminal };
+  to: { componentId: string; terminal: Terminal };
   color?: string;
   vertices?: { x: number; y: number }[];
 }
 
 export interface SchematicDocument {
-  schemaVersion: 1;
+  schemaVersion: 2;
   components: SchematicComponent[];
   connections: SchematicConnection[];
+  viewport: { x: number; y: number; zoom: number };
+  simulation: { running: boolean; maxIterations: number };
 }
 
 export interface Diagnostic {
@@ -129,20 +136,27 @@ export interface Diagnostic {
   severity: 'info' | 'warning' | 'error';
   message: string;
   componentIds?: string[];
+  wireIds?: string[];
+  netIds?: string[];
+  suggestedAction?: string;
 }
 
 export interface ComponentResult {
   componentId: string;
   voltageDrop: number;
   current: number;
+  terminalVoltages: Partial<Record<Terminal, number>>;
   lit?: boolean;
+  energized?: boolean;
 }
 
 export interface SolveResult {
   solved: boolean;
   current: number;
   components: ComponentResult[];
+  nodes: { id: string; voltage: number; terminals: string[] }[];
   diagnostics: Diagnostic[];
+  iterations: number;
 }
 
 export interface ApiError {

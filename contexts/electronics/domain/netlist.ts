@@ -1,6 +1,4 @@
-import type { ElectronicsDocument, Terminal } from './document.js';
-
-/** Netlist: terminals joined by wires and direct links collapse into nodes. */
+import { terminalsForKind, type ElectronicsDocument, type Terminal } from './document.js';
 
 export interface TerminalRef {
   readonly componentId: string;
@@ -8,9 +6,9 @@ export interface TerminalRef {
 }
 
 export interface Netlist {
-  /** node index per "componentId:terminal" key */
   readonly nodeOf: ReadonlyMap<string, number>;
   readonly nodeCount: number;
+  readonly terminalsByNode: ReadonlyMap<number, readonly string[]>;
 }
 
 export function terminalKey(componentId: string, terminal: Terminal): string {
@@ -26,9 +24,7 @@ class UnionFind {
       this.parent.set(key, key);
       return key;
     }
-    if (seen === key) {
-      return key;
-    }
+    if (seen === key) return key;
     const root = this.find(seen);
     this.parent.set(key, root);
     return root;
@@ -37,21 +33,16 @@ class UnionFind {
   union(left: string, right: string): void {
     const a = this.find(left);
     const b = this.find(right);
-    if (a !== b) {
-      this.parent.set(a, b);
-    }
+    if (a !== b) this.parent.set(a, b);
   }
 }
 
-/**
- * Build the netlist. Wires are not circuit elements: both of their terminals
- * belong to the same node, so a wire simply merges what it connects.
- */
+/** Connections are ideal wires; legacy `wire` components also collapse to a node. */
 export function buildNetlist(document: ElectronicsDocument): Netlist {
   const union = new UnionFind();
   for (const component of document.components) {
-    union.find(terminalKey(component.id, 'a'));
-    union.find(terminalKey(component.id, 'b'));
+    const terminals = terminalsForKind(component.kind);
+    for (const terminal of terminals) union.find(terminalKey(component.id, terminal));
     if (component.kind === 'wire') {
       union.union(terminalKey(component.id, 'a'), terminalKey(component.id, 'b'));
     }
@@ -65,8 +56,9 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
 
   const nodeOf = new Map<string, number>();
   const rootToIndex = new Map<string, number>();
+  const terminalsByNode = new Map<number, string[]>();
   for (const component of document.components) {
-    for (const terminal of ['a', 'b'] as const) {
+    for (const terminal of terminalsForKind(component.kind)) {
       const key = terminalKey(component.id, terminal);
       const root = union.find(key);
       let index = rootToIndex.get(root);
@@ -75,7 +67,10 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
         rootToIndex.set(root, index);
       }
       nodeOf.set(key, index);
+      const members = terminalsByNode.get(index) ?? [];
+      members.push(key);
+      terminalsByNode.set(index, members);
     }
   }
-  return { nodeOf, nodeCount: rootToIndex.size };
+  return { nodeOf, nodeCount: rootToIndex.size, terminalsByNode };
 }

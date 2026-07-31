@@ -7,7 +7,12 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import { type ComponentKind, type SchematicComponent } from '../api';
+import {
+  type ComponentKind,
+  type ComponentResult,
+  type SchematicComponent,
+  type Terminal,
+} from '../api';
 import {
   WORKBENCH_CATALOG,
   catalogEntry,
@@ -31,12 +36,19 @@ import {
   connectTerminals,
   duplicateComponentInDocument,
   moveComponentInDocument,
+  moveComponentsInDocument,
+  moveWireVertex,
+  reconnectWireEndpoint,
+  removeSelectedWireBends,
   removeSelectionFromDocument,
   rotateSelectionInDocument,
   sceneBounds,
   toggleSelectedWireRoute,
   updateSelectedWireColor,
+  updateSelectionName,
+  updateSelectionState,
   updateSelectionValue,
+  updateWiperPosition,
 } from './workbench-document';
 import {
   DEFAULT_VIEWPORT,
@@ -44,9 +56,11 @@ import {
   STAGE_HEIGHT,
   STAGE_WIDTH,
   type ComponentDrag,
+  type MarqueeDrag,
   type PanDrag,
   type Selection,
   type TerminalRef,
+  type VertexDrag,
 } from './workbench-model';
 
 export function useElectronicsWorkbench(projectId: string) {
@@ -75,6 +89,7 @@ export function useElectronicsWorkbench(projectId: string) {
     commitDocument,
     saveNow,
     toggleSimulation,
+    resetSimulation,
     checkpoint,
     renameProject,
   } = projectState;
@@ -88,12 +103,16 @@ export function useElectronicsWorkbench(projectId: string) {
   const [category, setCategory] = useState<ComponentCategory>('all');
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [panning, setPanning] = useState(false);
+  const [marquee, setMarquee] = useState<MarqueeDrag | null>(null);
+  const [reconnectEndpoint, setReconnectEndpoint] = useState<'from' | 'to' | null>(null);
 
   const stageRef = useRef<SVGSVGElement>(null);
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
+  const vertexDragRef = useRef<VertexDrag | null>(null);
   const spacePressedRef = useRef(false);
   const counterRef = useRef(0);
+  const viewportProjectRef = useRef<string | null>(null);
   function nextId(prefix: string): string {
     counterRef.current += 1;
     return `${prefix}-${Date.now().toString(36)}-${counterRef.current}`;
@@ -104,15 +123,38 @@ export function useElectronicsWorkbench(projectId: string) {
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   }
 
+  function applyViewport(next: Viewport): void {
+    setViewport(next);
+    if (document) {
+      setDocument({ ...document, viewport: next });
+      setSaveStatus('dirty');
+    }
+  }
+
+  useEffect(() => {
+    if (project && document && viewportProjectRef.current !== project.id) {
+      viewportProjectRef.current = project.id;
+      setViewport(document.viewport ?? DEFAULT_VIEWPORT);
+    }
+  }, [document, project]);
+
   function addComponent(kind: Exclude<ComponentKind, 'wire'>, at?: Point): void {
     if (!document) return;
-    const added = addComponentToDocument(document, kind, at ?? visibleCenter(), nextId(kind));
+    const placedCount = document.components.filter((component) => component.kind !== 'wire').length;
+    const box = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const column = placedCount % 3;
+    const row = Math.floor(placedCount / 3);
+    const catalogPosition = {
+      x: box.x + box.width * (0.17 + column * 0.22),
+      y: box.y + 150 + row * 235,
+    };
+    const added = addComponentToDocument(document, kind, at ?? catalogPosition, nextId(kind));
     const entry = catalogEntry(kind);
     commitDocument(
       added.document,
       `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
     );
-    setSelection({ kind: 'component', id: added.component.id });
+    setSelection({ kind: 'component', id: added.component.id, ids: [added.component.id] });
   }
 
   function duplicateSelected(): void {
@@ -120,7 +162,12 @@ export function useElectronicsWorkbench(projectId: string) {
     const duplicated = duplicateComponentInDocument(document, selection, nextId(selection.id));
     if (!duplicated) return;
     commitDocument(duplicated.document, 'Создана копия элемента.');
-    setSelection({ kind: 'component', id: duplicated.component.id });
+    const duplicatedIds = duplicated.components.map((component) => component.id);
+    setSelection({
+      kind: 'component',
+      id: duplicated.component.id,
+      ids: duplicatedIds,
+    });
   }
 
   function removeSelection(): void {
@@ -144,6 +191,36 @@ export function useElectronicsWorkbench(projectId: string) {
     if (next) commitDocument(next);
   }
 
+  function updateSelectedName(name: string): void {
+    if (!document) return;
+    const next = updateSelectionName(document, selection, name);
+    if (next) commitDocument(next);
+  }
+
+  function setSelectedState(state: boolean): void {
+    if (!document) return;
+    const next = updateSelectionState(document, selection, state);
+    if (next) commitDocument(next, state ? 'Контакт замкнут.' : 'Контакт разомкнут.');
+  }
+
+  function toggleComponentState(componentId: string): void {
+    if (!document) return;
+    const component = document.components.find((item) => item.id === componentId);
+    if (!component || (component.kind !== 'switch' && component.kind !== 'button')) return;
+    const target = { kind: 'component' as const, id: componentId, ids: [componentId] };
+    const next = updateSelectionState(document, target, !component.state);
+    if (next) {
+      setSelection(target);
+      commitDocument(next, component.state ? 'Контакт разомкнут.' : 'Контакт замкнут.');
+    }
+  }
+
+  function setSelectedWiper(position: number): void {
+    if (!document) return;
+    const next = updateWiperPosition(document, selection, position);
+    if (next) commitDocument(next, `Положение движка: ${Math.round(position * 100)}%.`);
+  }
+
   function setWireColor(color: string): void {
     setActiveWireColor(color);
     if (!document) return;
@@ -157,8 +234,29 @@ export function useElectronicsWorkbench(projectId: string) {
     if (next) commitDocument(next);
   }
 
-  function clickTerminal(componentId: string, terminal: 'a' | 'b'): void {
+  function removeWireBends(): void {
     if (!document) return;
+    const next = removeSelectedWireBends(document, selection);
+    if (next) commitDocument(next, 'Изгибы провода удалены.');
+  }
+
+  function beginReconnect(endpoint: 'from' | 'to'): void {
+    if (selection?.kind !== 'wire') return;
+    setReconnectEndpoint(endpoint);
+    setNotice('Выберите новый вывод для переподключения провода.');
+  }
+
+  function clickTerminal(componentId: string, terminal: Terminal): void {
+    if (!document) return;
+    if (reconnectEndpoint && selection?.kind === 'wire') {
+      const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, {
+        componentId,
+        terminal,
+      });
+      if (next) commitDocument(next, 'Конец провода переподключён.');
+      setReconnectEndpoint(null);
+      return;
+    }
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
       setNotice('Выберите второй вывод. Провод будет проложен автоматически.');
@@ -189,6 +287,23 @@ export function useElectronicsWorkbench(projectId: string) {
     setWirePreviewEnd(null);
   }
 
+  function selectComponent(componentId: string, additive = false): void {
+    setSelection((current) => {
+      if (!additive || current?.kind !== 'component') {
+        return { kind: 'component', id: componentId, ids: [componentId] };
+      }
+      const ids = current.ids.includes(componentId)
+        ? current.ids.filter((id) => id !== componentId)
+        : [...current.ids, componentId];
+      if (ids.length === 0) return null;
+      return {
+        kind: 'component',
+        id: ids.includes(current.id) ? current.id : (ids[0] as string),
+        ids,
+      };
+    });
+  }
+
   function toWorld(event: PointerEvent | DragEvent | WheelEvent): Point {
     const stage = stageRef.current;
     if (!stage) return { x: 0, y: 0 };
@@ -207,27 +322,53 @@ export function useElectronicsWorkbench(projectId: string) {
     component: SchematicComponent,
   ): void {
     if (event.button !== 0 || pendingTerminal) return;
+    if (event.shiftKey) {
+      event.stopPropagation();
+      return;
+    }
     const point = toWorld(event);
+    const componentIds =
+      selection?.kind === 'component' && selection.ids.includes(component.id)
+        ? selection.ids
+        : [component.id];
+    const startedPositions = Object.fromEntries(
+      document?.components
+        .filter((item) => componentIds.includes(item.id))
+        .map((item) => [item.id, item.position]) ?? [],
+    );
     componentDragRef.current = {
       componentId: component.id,
+      componentIds,
       pointerId: event.pointerId,
       offset: { x: point.x - component.position.x, y: point.y - component.position.y },
       startedAt: component.position,
+      startedPositions,
     };
     stageRef.current?.setPointerCapture(event.pointerId);
-    setSelection({ kind: 'component', id: component.id });
+    if (selection?.kind !== 'component' || !selection.ids.includes(component.id)) {
+      setSelection({ kind: 'component', id: component.id, ids: [component.id] });
+    }
     event.stopPropagation();
-    event.preventDefault();
   }
 
   function startPan(event: PointerEvent<SVGSVGElement>): void {
     const shouldPan = event.button === 1 || (event.button === 0 && spacePressedRef.current);
     if (!shouldPan) {
       if (
-        event.target === event.currentTarget ||
+        event.button === 0 &&
         (event.target as Element).classList.contains('workbench-grid-hit')
-      )
-        setSelection(null);
+      ) {
+        const start = toWorld(event);
+        const next = {
+          pointerId: event.pointerId,
+          start,
+          current: start,
+          additive: event.shiftKey,
+        };
+        setMarquee(next);
+        event.currentTarget.setPointerCapture(event.pointerId);
+        if (!event.shiftKey) setSelection(null);
+      }
       return;
     }
     panDragRef.current = {
@@ -242,6 +383,16 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
     const world = toWorld(event);
+    const vertexDrag = vertexDragRef.current;
+    if (vertexDrag?.pointerId === event.pointerId && document) {
+      setDocument(moveWireVertex(document, vertexDrag.wireId, vertexDrag.vertexIndex, world));
+      setSaveStatus('dirty');
+      return;
+    }
+    if (marquee?.pointerId === event.pointerId) {
+      setMarquee({ ...marquee, current: world });
+      return;
+    }
     if (pendingTerminal) setWirePreviewEnd(world);
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
@@ -254,7 +405,18 @@ export function useElectronicsWorkbench(projectId: string) {
         x: snap(clamp(world.x - drag.offset.x, -1000 + margin, 5000 - size.width - margin)),
         y: snap(clamp(world.y - drag.offset.y, -1000 + margin, 4000 - size.height - margin)),
       };
-      setDocument(moveComponentInDocument(document, drag.componentId, next));
+      const delta = { x: next.x - drag.startedAt.x, y: next.y - drag.startedAt.y };
+      const positions = Object.fromEntries(
+        drag.componentIds.map((id) => {
+          const start = drag.startedPositions[id] ?? drag.startedAt;
+          return [id, { x: start.x + delta.x, y: start.y + delta.y }];
+        }),
+      );
+      setDocument(
+        drag.componentIds.length === 1
+          ? moveComponentInDocument(document, drag.componentId, next)
+          : moveComponentsInDocument(document, positions),
+      );
       setSaveStatus('dirty');
       return;
     }
@@ -263,7 +425,7 @@ export function useElectronicsWorkbench(projectId: string) {
       const rect = event.currentTarget.getBoundingClientRect();
       const scaleX = STAGE_WIDTH / pan.startViewport.zoom / rect.width;
       const scaleY = STAGE_HEIGHT / pan.startViewport.zoom / rect.height;
-      setViewport({
+      applyViewport({
         ...pan.startViewport,
         x: pan.startViewport.x - (event.clientX - pan.startClient.x) * scaleX,
         y: pan.startViewport.y - (event.clientY - pan.startClient.y) * scaleY,
@@ -272,6 +434,39 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function finishPointer(event: PointerEvent<SVGSVGElement>): void {
+    const vertexDrag = vertexDragRef.current;
+    if (vertexDrag?.pointerId === event.pointerId) {
+      vertexDragRef.current = null;
+      if (document) pushHistory(document);
+      setNotice('Изгиб провода перемещён.');
+    }
+    if (marquee?.pointerId === event.pointerId && document) {
+      const left = Math.min(marquee.start.x, marquee.current.x);
+      const right = Math.max(marquee.start.x, marquee.current.x);
+      const top = Math.min(marquee.start.y, marquee.current.y);
+      const bottom = Math.max(marquee.start.y, marquee.current.y);
+      const ids = document.components
+        .filter((component) => {
+          const entry = catalogEntry(component.kind);
+          if (!entry) return false;
+          const size = renderedSize(entry, component.rotation ?? 0);
+          return (
+            component.position.x <= right &&
+            component.position.x + size.width >= left &&
+            component.position.y <= bottom &&
+            component.position.y + size.height >= top
+          );
+        })
+        .map((component) => component.id);
+      const existing = marquee.additive && selection?.kind === 'component' ? selection.ids : [];
+      const combined = [...new Set([...existing, ...ids])];
+      setSelection(
+        combined.length > 0
+          ? { kind: 'component', id: combined[0] as string, ids: combined }
+          : null,
+      );
+      setMarquee(null);
+    }
     const drag = componentDragRef.current;
     if (drag?.pointerId === event.pointerId) {
       componentDragRef.current = null;
@@ -297,6 +492,17 @@ export function useElectronicsWorkbench(projectId: string) {
     }
   }
 
+  function startVertexDrag(
+    event: PointerEvent<SVGCircleElement>,
+    wireId: string,
+    vertexIndex: number,
+  ): void {
+    vertexDragRef.current = { pointerId: event.pointerId, wireId, vertexIndex };
+    stageRef.current?.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
   function handleWheel(event: WheelEvent<SVGSVGElement>): void {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
@@ -306,13 +512,13 @@ export function useElectronicsWorkbench(projectId: string) {
     const visibleHeight = STAGE_HEIGHT / zoom;
     const rx = (event.clientX - rect.left) / rect.width;
     const ry = (event.clientY - rect.top) / rect.height;
-    setViewport({ x: before.x - rx * visibleWidth, y: before.y - ry * visibleHeight, zoom });
+    applyViewport({ x: before.x - rx * visibleWidth, y: before.y - ry * visibleHeight, zoom });
   }
 
   function zoomBy(factor: number): void {
     const center = visibleCenter();
     const zoom = clamp(viewport.zoom * factor, 0.35, 3.2);
-    setViewport({
+    applyViewport({
       x: center.x - STAGE_WIDTH / zoom / 2,
       y: center.y - STAGE_HEIGHT / zoom / 2,
       zoom,
@@ -321,17 +527,17 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function fitScene(): void {
     if (!document || document.components.length === 0) {
-      setViewport(DEFAULT_VIEWPORT);
+      applyViewport(DEFAULT_VIEWPORT);
       return;
     }
     const bounds = sceneBounds(document);
-    setViewport(bounds ? fitViewport(bounds, STAGE_WIDTH, STAGE_HEIGHT) : DEFAULT_VIEWPORT);
+    applyViewport(bounds ? fitViewport(bounds, STAGE_WIDTH, STAGE_HEIGHT) : DEFAULT_VIEWPORT);
   }
 
   function handleDrop(event: DragEvent<SVGSVGElement>): void {
     event.preventDefault();
     const kind = event.dataTransfer.getData(DRAG_MIME) as Exclude<ComponentKind, 'wire'>;
-    if (!['source', 'resistor', 'led'].includes(kind)) return;
+    if (!catalogEntry(kind)) return;
     addComponent(kind, toWorld(event));
   }
 
@@ -362,6 +568,7 @@ export function useElectronicsWorkbench(projectId: string) {
         setPendingTerminal(null);
         setWirePreviewEnd(null);
         setSelection(null);
+        setReconnectEndpoint(null);
       }
     }
     function keyUp(event: globalThis.KeyboardEvent): void {
@@ -396,7 +603,7 @@ export function useElectronicsWorkbench(projectId: string) {
       : null;
   const selectedEntry = selectedComponent ? catalogEntry(selectedComponent.kind) : null;
   const resultByComponent = useMemo(() => {
-    const map = new Map<string, { current: number; voltageDrop: number; lit?: boolean }>();
+    const map = new Map<string, ComponentResult>();
     for (const item of result?.components ?? []) map.set(item.componentId, item);
     return map;
   }, [result]);
@@ -414,11 +621,16 @@ export function useElectronicsWorkbench(projectId: string) {
   }, [result]);
 
   function componentVisualState(component: SchematicComponent): ComponentVisualState {
+    if (component.kind === 'switch') return component.state ? 'on' : 'default';
+    if (component.kind === 'button') return component.state ? 'pressed' : 'default';
+    if (component.kind === 'lamp' && simulationRunning) {
+      return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
+    }
     if (component.kind !== 'led' || !simulationRunning) return 'default';
     const codes = diagnosticCodesByComponent.get(component.id);
-    if (codes?.has('led_reverse')) return 'reverse';
-    if (codes?.has('led_no_resistor') || codes?.has('short_circuit')) return 'burned';
-    if (codes?.has('overcurrent')) return 'overcurrent';
+    if (codes?.has('reverse_polarity')) return 'reverse';
+    if (codes?.has('short_circuit')) return 'burned';
+    if (codes?.has('led_overcurrent')) return 'overcurrent';
     return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
   }
 
@@ -473,10 +685,19 @@ export function useElectronicsWorkbench(projectId: string) {
     removeSelection,
     rotateSelected,
     updateSelectedValue,
+    updateSelectedName,
+    setSelectedState,
+    toggleComponentState,
+    setSelectedWiper,
     setWireColor,
     toggleWireRoute,
+    removeWireBends,
+    beginReconnect,
+    reconnectEndpoint,
     clickTerminal,
     startComponentDrag,
+    selectComponent,
+    startVertexDrag,
     startPan,
     handlePointerMove,
     finishPointer,
@@ -486,6 +707,7 @@ export function useElectronicsWorkbench(projectId: string) {
     handleDrop,
     saveNow,
     toggleSimulation,
+    resetSimulation,
     checkpoint,
     renameProject,
     filteredCatalog,
@@ -493,11 +715,13 @@ export function useElectronicsWorkbench(projectId: string) {
     selectedWire,
     selectedEntry,
     resultByComponent,
+    diagnosticCodesByComponent,
     componentVisualState,
     viewBox,
     pendingStart,
     busy,
     panning,
+    marquee,
     addComponent,
   };
 }
