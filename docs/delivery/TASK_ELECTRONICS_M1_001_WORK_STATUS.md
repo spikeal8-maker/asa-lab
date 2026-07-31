@@ -7,9 +7,10 @@ Current PR: #72
 ```text
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
-status: in_progress / owner_visual_rework
+status: in_progress / electronics_asset_foundation_audit
 rejected checkpoint: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
 owner directive: PR #72 comment 5145281700
+owner-confirmed full archive SHA-256: c5bfd26760db7a92d06e0b51b0bde3bb45595278a762bab3ab9198abb04b4d75
 ```
 
 Portal shell is merged by PR #71. The short R3A Electronics Gateway remains
@@ -28,24 +29,17 @@ Breadboard visual and connectivity foundation is now mandatory within M1 by the
 owner decision recorded in Issue #63 comment `5145285731`. The previous text
 that treated breadboard as an R4-M2-only item is superseded.
 
-Current corrective checkpoint:
+The owner cancelled the narrow corrective implementation checkpoint and supplied
+the canonical full component ZIP. The active checkpoint is now audit-only:
 
-1. audit both owner archives completely;
-2. accept only transparent owner-supplied SVG assets;
-3. restore parametric resistor bands and complete LED state families;
-4. place exact contacts on physical leads and battery wire ends;
-5. restore the owner breadboard with 2.54 mm hole pitch, stable hole IDs,
-   internal terminal-strip/power-rail connectivity and pin-to-hole snapping;
-6. show native components fitted to breadboard at one calibrated physical scale.
+1. classify every canonical, nested and unique supplemental owner file;
+2. produce the complete logical component manifest;
+3. produce physical-dimensions, pin, breadboard-footprint and state-family maps;
+4. show every known component family on the owner contact sheet;
+5. mark missing or unverified data explicitly without drawing replacements.
 
-Required owner screenshots:
-
-```text
-transparency-audit.png
-physical-scale.png
-state-families.png
-breadboard-fit-connectivity.png
-```
+Solver, wiring behavior and the product Electronics UI are not changed in this
+checkpoint.
 
 Until the owner accepts all four checkpoints:
 

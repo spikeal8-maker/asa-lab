@@ -1,0 +1,4842 @@
+{
+  "schema": "asa-lab.owner-electronics-pin-map.v1",
+  "provenance": "owner_supplied",
+  "components": [
+    {
+      "componentId": "arduino-uno",
+      "pinCount": 31,
+      "pins": [
+        {
+          "id": "a0",
+          "label": "a0",
+          "xRatio": 0.830421,
+          "yRatio": 0.888073,
+          "sourceX": 1059.62,
+          "sourceY": 555.93,
+          "confidence": "manual"
+        },
+        {
+          "id": "a1",
+          "label": "a1",
+          "xRatio": 0.848794,
+          "yRatio": 0.888073,
+          "sourceX": 1083.06,
+          "sourceY": 555.93,
+          "confidence": "manual"
+        },
+        {
+          "id": "a2",
+          "label": "a2",
+          "xRatio": 0.866642,
+          "yRatio": 0.888073,
+          "sourceX": 1105.84,
+          "sourceY": 555.93,
+          "confidence": "manual"
+        },
+        {
+          "id": "a3",
+          "label": "a3",
+          "xRatio": 0.885278,
+          "yRatio": 0.888073,
+          "sourceX": 1129.61,
+          "sourceY": 555.93,
+          "confidence": "manual"
+        },
+        {
+          "id": "a4",
+          "label": "a4",
+          "xRatio": 0.903389,
+          "yRatio": 0.888073,
+          "sourceX": 1152.72,
+          "sourceY": 555.93,
+          "confidence": "manual"
+        },
+        {
+          "id": "a5",
+          "label": "a5",
+          "xRatio": 0.921762,
+          "yRatio": 0.888608,
+          "sourceX": 1176.17,
+          "sourceY": 556.27,
+          "confidence": "manual"
+        },
+        {
+          "id": "aref",
+          "label": "aref",
+          "xRatio": 0.636161,
+          "yRatio": 0.17867,
+          "sourceX": 811.74,
+          "sourceY": 111.85,
+          "confidence": "manual"
+        },
+        {
+          "id": "d0",
+          "label": "d0",
+          "xRatio": 0.92113,
+          "yRatio": 0.17942,
+          "sourceX": 1175.36,
+          "sourceY": 112.32,
+          "confidence": "manual"
+        },
+        {
+          "id": "d1",
+          "label": "d1",
+          "xRatio": 0.903492,
+          "yRatio": 0.179045,
+          "sourceX": 1152.86,
+          "sourceY": 112.08,
+          "confidence": "manual"
+        },
+        {
+          "id": "d10",
+          "label": "d10",
+          "xRatio": 0.727293,
+          "yRatio": 0.179419,
+          "sourceX": 928.03,
+          "sourceY": 112.32,
+          "confidence": "manual"
+        },
+        {
+          "id": "d11",
+          "label": "d11",
+          "xRatio": 0.709654,
+          "yRatio": 0.179419,
+          "sourceX": 905.52,
+          "sourceY": 112.32,
+          "confidence": "manual"
+        },
+        {
+          "id": "d12",
+          "label": "d12",
+          "xRatio": 0.690914,
+          "yRatio": 0.17867,
+          "sourceX": 881.61,
+          "sourceY": 111.85,
+          "confidence": "manual"
+        },
+        {
+          "id": "d13",
+          "label": "d13",
+          "xRatio": 0.67254,
+          "yRatio": 0.178296,
+          "sourceX": 858.16,
+          "sourceY": 111.61,
+          "confidence": "manual"
+        },
+        {
+          "id": "d2",
+          "label": "d2",
+          "xRatio": 0.885302,
+          "yRatio": 0.180169,
+          "sourceX": 1129.65,
+          "sourceY": 112.79,
+          "confidence": "manual"
+        },
+        {
+          "id": "d3",
+          "label": "d3",
+          "xRatio": 0.867113,
+          "yRatio": 0.179045,
+          "sourceX": 1106.44,
+          "sourceY": 112.08,
+          "confidence": "manual"
+        },
+        {
+          "id": "d4",
+          "label": "d4",
+          "xRatio": 0.848372,
+          "yRatio": 0.179794,
+          "sourceX": 1082.52,
+          "sourceY": 112.55,
+          "confidence": "manual"
+        },
+        {
+          "id": "d5",
+          "label": "d5",
+          "xRatio": 0.829999,
+          "yRatio": 0.179045,
+          "sourceX": 1059.08,
+          "sourceY": 112.08,
+          "confidence": "manual"
+        },
+        {
+          "id": "d6",
+          "label": "d6",
+          "xRatio": 0.811809,
+          "yRatio": 0.17942,
+          "sourceX": 1035.87,
+          "sourceY": 112.32,
+          "confidence": "manual"
+        },
+        {
+          "id": "d7",
+          "label": "d7",
+          "xRatio": 0.79362,
+          "yRatio": 0.17867,
+          "sourceX": 1012.66,
+          "sourceY": 111.85,
+          "confidence": "manual"
+        },
+        {
+          "id": "d8",
+          "label": "d8",
+          "xRatio": 0.764223,
+          "yRatio": 0.179419,
+          "sourceX": 975.15,
+          "sourceY": 112.32,
+          "confidence": "manual"
+        },
+        {
+          "id": "d9",
+          "label": "d9",
+          "xRatio": 0.746033,
+          "yRatio": 0.178296,
+          "sourceX": 951.94,
+          "sourceY": 111.61,
+          "confidence": "manual"
+        },
+        {
+          "id": "gnd-top",
+          "label": "gnd-top",
+          "xRatio": 0.654167,
+          "yRatio": 0.17867,
+          "sourceX": 834.72,
+          "sourceY": 111.85,
+          "confidence": "manual"
+        },
+        {
+          "id": "ioref",
+          "label": "ioref",
+          "xRatio": 0.683381,
+          "yRatio": 0.887618,
+          "sourceX": 871.99,
+          "sourceY": 555.65,
+          "confidence": "manual"
+        },
+        {
+          "id": "power-3v3",
+          "label": "power-3v3",
+          "xRatio": 0.721046,
+          "yRatio": 0.887618,
+          "sourceX": 920.05,
+          "sourceY": 555.65,
+          "confidence": "manual"
+        },
+        {
+          "id": "power-5v",
+          "label": "power-5v",
+          "xRatio": 0.738684,
+          "yRatio": 0.888741,
+          "sourceX": 942.56,
+          "sourceY": 556.35,
+          "confidence": "manual"
+        },
+        {
+          "id": "power-gnd-1",
+          "label": "power-gnd-1",
+          "xRatio": 0.756873,
+          "yRatio": 0.887618,
+          "sourceX": 965.77,
+          "sourceY": 555.65,
+          "confidence": "manual"
+        },
+        {
+          "id": "power-gnd-2",
+          "label": "power-gnd-2",
+          "xRatio": 0.774879,
+          "yRatio": 0.887992,
+          "sourceX": 988.75,
+          "sourceY": 555.88,
+          "confidence": "manual"
+        },
+        {
+          "id": "reset",
+          "label": "reset",
+          "xRatio": 0.702305,
+          "yRatio": 0.887992,
+          "sourceX": 896.14,
+          "sourceY": 555.88,
+          "confidence": "manual"
+        },
+        {
+          "id": "scl",
+          "label": "scl",
+          "xRatio": 0.599782,
+          "yRatio": 0.179794,
+          "sourceX": 765.32,
+          "sourceY": 112.55,
+          "confidence": "manual"
+        },
+        {
+          "id": "sda",
+          "label": "sda",
+          "xRatio": 0.617788,
+          "yRatio": 0.17867,
+          "sourceX": 788.3,
+          "sourceY": 111.85,
+          "confidence": "manual"
+        },
+        {
+          "id": "vin",
+          "label": "vin",
+          "xRatio": 0.792885,
+          "yRatio": 0.887992,
+          "sourceX": 1011.72,
+          "sourceY": 555.88,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "battery-1.5v",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "battery-3v",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "battery-6v",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "battery-9v",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "negative",
+          "label": "negative",
+          "xRatio": 0.063094,
+          "yRatio": 0.441894,
+          "sourceX": 63.09,
+          "sourceY": 218.3,
+          "confidence": "manual"
+        },
+        {
+          "id": "positive",
+          "label": "positive",
+          "xRatio": 0.063094,
+          "yRatio": 0.521446,
+          "sourceX": 63.09,
+          "sourceY": 257.59,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "battery-holder-aa-1",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "BAT-",
+          "electricalRole": "negative",
+          "positionMm": {
+            "x": 7.7104,
+            "y": 6.05
+          }
+        },
+        {
+          "id": "BAT+",
+          "electricalRole": "positive",
+          "positionMm": {
+            "x": 17.8704,
+            "y": 6.05
+          }
+        }
+      ],
+      "status": "owner_internal_snap_points_rejected_as_wire_end_contacts",
+      "source": "owner v6 battery-holder model"
+    },
+    {
+      "componentId": "battery-holder-aa-2",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "BAT-",
+          "electricalRole": "negative",
+          "positionMm": {
+            "x": 16.8399,
+            "y": 6.05
+          }
+        },
+        {
+          "id": "BAT+",
+          "electricalRole": "positive",
+          "positionMm": {
+            "x": 26.9999,
+            "y": 6.05
+          }
+        }
+      ],
+      "status": "owner_internal_snap_points_rejected_as_wire_end_contacts",
+      "source": "owner v6 battery-holder model"
+    },
+    {
+      "componentId": "battery-holder-aa-3",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "BAT-",
+          "electricalRole": "negative",
+          "positionMm": {
+            "x": 25.9695,
+            "y": 6.05
+          }
+        },
+        {
+          "id": "BAT+",
+          "electricalRole": "positive",
+          "positionMm": {
+            "x": 36.1295,
+            "y": 6.05
+          }
+        }
+      ],
+      "status": "owner_internal_snap_points_rejected_as_wire_end_contacts",
+      "source": "owner v6 battery-holder model"
+    },
+    {
+      "componentId": "battery-holder-aa-4",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "BAT-",
+          "electricalRole": "negative",
+          "positionMm": {
+            "x": 35.099,
+            "y": 6.05
+          }
+        },
+        {
+          "id": "BAT+",
+          "electricalRole": "positive",
+          "positionMm": {
+            "x": 45.259,
+            "y": 6.05
+          }
+        }
+      ],
+      "status": "owner_internal_snap_points_rejected_as_wire_end_contacts",
+      "source": "owner v6 battery-holder model"
+    },
+    {
+      "componentId": "battery-holder-aa-5",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "battery-holder-aa-6",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "BAT-",
+          "electricalRole": "negative",
+          "positionMm": {
+            "x": 53.3581,
+            "y": 6.05
+          }
+        },
+        {
+          "id": "BAT+",
+          "electricalRole": "positive",
+          "positionMm": {
+            "x": 63.5181,
+            "y": 6.05
+          }
+        }
+      ],
+      "status": "owner_internal_snap_points_rejected_as_wire_end_contacts",
+      "source": "owner v6 battery-holder model"
+    },
+    {
+      "componentId": "battery-holder-aa-8",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "BAT-",
+          "electricalRole": "negative",
+          "positionMm": {
+            "x": 71.6172,
+            "y": 6.05
+          }
+        },
+        {
+          "id": "BAT+",
+          "electricalRole": "positive",
+          "positionMm": {
+            "x": 81.7772,
+            "y": 6.05
+          }
+        }
+      ],
+      "status": "owner_internal_snap_points_rejected_as_wire_end_contacts",
+      "source": "owner v6 battery-holder model"
+    },
+    {
+      "componentId": "breadboard-small",
+      "pinCount": 420,
+      "pins": [
+        {
+          "id": "a1",
+          "label": "a1",
+          "xRatio": 0.085766,
+          "yRatio": 0.725725,
+          "sourceX": 70.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a10",
+          "label": "a10",
+          "xRatio": 0.341241,
+          "yRatio": 0.725725,
+          "sourceX": 280.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a11",
+          "label": "a11",
+          "xRatio": 0.369951,
+          "yRatio": 0.725725,
+          "sourceX": 304.1,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a12",
+          "label": "a12",
+          "xRatio": 0.398418,
+          "yRatio": 0.725725,
+          "sourceX": 327.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a13",
+          "label": "a13",
+          "xRatio": 0.426764,
+          "yRatio": 0.725725,
+          "sourceX": 350.8,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a14",
+          "label": "a14",
+          "xRatio": 0.455109,
+          "yRatio": 0.725725,
+          "sourceX": 374.1,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a15",
+          "label": "a15",
+          "xRatio": 0.483577,
+          "yRatio": 0.725725,
+          "sourceX": 397.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a16",
+          "label": "a16",
+          "xRatio": 0.512044,
+          "yRatio": 0.725725,
+          "sourceX": 420.9,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a17",
+          "label": "a17",
+          "xRatio": 0.540389,
+          "yRatio": 0.725725,
+          "sourceX": 444.2,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a18",
+          "label": "a18",
+          "xRatio": 0.568735,
+          "yRatio": 0.725725,
+          "sourceX": 467.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a19",
+          "label": "a19",
+          "xRatio": 0.597202,
+          "yRatio": 0.725725,
+          "sourceX": 490.9,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a2",
+          "label": "a2",
+          "xRatio": 0.114234,
+          "yRatio": 0.725725,
+          "sourceX": 93.9,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a20",
+          "label": "a20",
+          "xRatio": 0.625791,
+          "yRatio": 0.725725,
+          "sourceX": 514.4,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a21",
+          "label": "a21",
+          "xRatio": 0.653893,
+          "yRatio": 0.725725,
+          "sourceX": 537.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a22",
+          "label": "a22",
+          "xRatio": 0.682482,
+          "yRatio": 0.725725,
+          "sourceX": 561,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a23",
+          "label": "a23",
+          "xRatio": 0.711071,
+          "yRatio": 0.725725,
+          "sourceX": 584.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a24",
+          "label": "a24",
+          "xRatio": 0.739051,
+          "yRatio": 0.725725,
+          "sourceX": 607.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a25",
+          "label": "a25",
+          "xRatio": 0.767762,
+          "yRatio": 0.725725,
+          "sourceX": 631.1,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a26",
+          "label": "a26",
+          "xRatio": 0.796229,
+          "yRatio": 0.725725,
+          "sourceX": 654.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a27",
+          "label": "a27",
+          "xRatio": 0.824453,
+          "yRatio": 0.725725,
+          "sourceX": 677.7,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a28",
+          "label": "a28",
+          "xRatio": 0.85292,
+          "yRatio": 0.725725,
+          "sourceX": 701.1,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a29",
+          "label": "a29",
+          "xRatio": 0.881387,
+          "yRatio": 0.725725,
+          "sourceX": 724.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a3",
+          "label": "a3",
+          "xRatio": 0.142579,
+          "yRatio": 0.725725,
+          "sourceX": 117.2,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a30",
+          "label": "a30",
+          "xRatio": 0.909732,
+          "yRatio": 0.725725,
+          "sourceX": 747.8,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a4",
+          "label": "a4",
+          "xRatio": 0.170925,
+          "yRatio": 0.725725,
+          "sourceX": 140.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a5",
+          "label": "a5",
+          "xRatio": 0.199392,
+          "yRatio": 0.725725,
+          "sourceX": 163.9,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a6",
+          "label": "a6",
+          "xRatio": 0.227981,
+          "yRatio": 0.725725,
+          "sourceX": 187.4,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a7",
+          "label": "a7",
+          "xRatio": 0.256083,
+          "yRatio": 0.725725,
+          "sourceX": 210.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a8",
+          "label": "a8",
+          "xRatio": 0.284672,
+          "yRatio": 0.725725,
+          "sourceX": 234,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "a9",
+          "label": "a9",
+          "xRatio": 0.31326,
+          "yRatio": 0.725725,
+          "sourceX": 257.5,
+          "sourceY": 400.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b1",
+          "label": "b1",
+          "xRatio": 0.085766,
+          "yRatio": 0.684058,
+          "sourceX": 70.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b10",
+          "label": "b10",
+          "xRatio": 0.341241,
+          "yRatio": 0.684058,
+          "sourceX": 280.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b11",
+          "label": "b11",
+          "xRatio": 0.369951,
+          "yRatio": 0.684058,
+          "sourceX": 304.1,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b12",
+          "label": "b12",
+          "xRatio": 0.398418,
+          "yRatio": 0.684058,
+          "sourceX": 327.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b13",
+          "label": "b13",
+          "xRatio": 0.426764,
+          "yRatio": 0.684058,
+          "sourceX": 350.8,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b14",
+          "label": "b14",
+          "xRatio": 0.455109,
+          "yRatio": 0.684058,
+          "sourceX": 374.1,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b15",
+          "label": "b15",
+          "xRatio": 0.483577,
+          "yRatio": 0.684058,
+          "sourceX": 397.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b16",
+          "label": "b16",
+          "xRatio": 0.512044,
+          "yRatio": 0.684058,
+          "sourceX": 420.9,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b17",
+          "label": "b17",
+          "xRatio": 0.540389,
+          "yRatio": 0.684058,
+          "sourceX": 444.2,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b18",
+          "label": "b18",
+          "xRatio": 0.568735,
+          "yRatio": 0.684058,
+          "sourceX": 467.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b19",
+          "label": "b19",
+          "xRatio": 0.597202,
+          "yRatio": 0.684058,
+          "sourceX": 490.9,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b2",
+          "label": "b2",
+          "xRatio": 0.114234,
+          "yRatio": 0.684058,
+          "sourceX": 93.9,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b20",
+          "label": "b20",
+          "xRatio": 0.625791,
+          "yRatio": 0.684058,
+          "sourceX": 514.4,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b21",
+          "label": "b21",
+          "xRatio": 0.653893,
+          "yRatio": 0.684058,
+          "sourceX": 537.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b22",
+          "label": "b22",
+          "xRatio": 0.682482,
+          "yRatio": 0.684058,
+          "sourceX": 561,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b23",
+          "label": "b23",
+          "xRatio": 0.711071,
+          "yRatio": 0.684058,
+          "sourceX": 584.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b24",
+          "label": "b24",
+          "xRatio": 0.739051,
+          "yRatio": 0.684058,
+          "sourceX": 607.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b25",
+          "label": "b25",
+          "xRatio": 0.767762,
+          "yRatio": 0.684058,
+          "sourceX": 631.1,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b26",
+          "label": "b26",
+          "xRatio": 0.796229,
+          "yRatio": 0.684058,
+          "sourceX": 654.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b27",
+          "label": "b27",
+          "xRatio": 0.824453,
+          "yRatio": 0.684058,
+          "sourceX": 677.7,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b28",
+          "label": "b28",
+          "xRatio": 0.85292,
+          "yRatio": 0.684058,
+          "sourceX": 701.1,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b29",
+          "label": "b29",
+          "xRatio": 0.881387,
+          "yRatio": 0.684058,
+          "sourceX": 724.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b3",
+          "label": "b3",
+          "xRatio": 0.142579,
+          "yRatio": 0.684058,
+          "sourceX": 117.2,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b30",
+          "label": "b30",
+          "xRatio": 0.909732,
+          "yRatio": 0.684058,
+          "sourceX": 747.8,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b4",
+          "label": "b4",
+          "xRatio": 0.170925,
+          "yRatio": 0.684058,
+          "sourceX": 140.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b5",
+          "label": "b5",
+          "xRatio": 0.199392,
+          "yRatio": 0.684058,
+          "sourceX": 163.9,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b6",
+          "label": "b6",
+          "xRatio": 0.227981,
+          "yRatio": 0.684058,
+          "sourceX": 187.4,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b7",
+          "label": "b7",
+          "xRatio": 0.256083,
+          "yRatio": 0.684058,
+          "sourceX": 210.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b8",
+          "label": "b8",
+          "xRatio": 0.284672,
+          "yRatio": 0.684058,
+          "sourceX": 234,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "b9",
+          "label": "b9",
+          "xRatio": 0.31326,
+          "yRatio": 0.684058,
+          "sourceX": 257.5,
+          "sourceY": 377.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-1",
+          "label": "bottom-minus-1",
+          "xRatio": 0.085701,
+          "yRatio": 0.853152,
+          "sourceX": 70.45,
+          "sourceY": 470.94,
+          "confidence": "manual"
+        },
+        {
+          "id": "bottom-minus-10",
+          "label": "-10",
+          "xRatio": 0.341241,
+          "yRatio": 0.852536,
+          "sourceX": 280.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-11",
+          "label": "-11",
+          "xRatio": 0.369951,
+          "yRatio": 0.852536,
+          "sourceX": 304.1,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-12",
+          "label": "-12",
+          "xRatio": 0.398418,
+          "yRatio": 0.852536,
+          "sourceX": 327.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-13",
+          "label": "-13",
+          "xRatio": 0.426764,
+          "yRatio": 0.852536,
+          "sourceX": 350.8,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-14",
+          "label": "-14",
+          "xRatio": 0.455109,
+          "yRatio": 0.852536,
+          "sourceX": 374.1,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-15",
+          "label": "-15",
+          "xRatio": 0.483577,
+          "yRatio": 0.852536,
+          "sourceX": 397.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-16",
+          "label": "-16",
+          "xRatio": 0.512044,
+          "yRatio": 0.852536,
+          "sourceX": 420.9,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-17",
+          "label": "-17",
+          "xRatio": 0.540389,
+          "yRatio": 0.852536,
+          "sourceX": 444.2,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-18",
+          "label": "-18",
+          "xRatio": 0.568735,
+          "yRatio": 0.852536,
+          "sourceX": 467.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-19",
+          "label": "-19",
+          "xRatio": 0.597202,
+          "yRatio": 0.852536,
+          "sourceX": 490.9,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-2",
+          "label": "-2",
+          "xRatio": 0.114234,
+          "yRatio": 0.852536,
+          "sourceX": 93.9,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-20",
+          "label": "-20",
+          "xRatio": 0.625791,
+          "yRatio": 0.852536,
+          "sourceX": 514.4,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-21",
+          "label": "-21",
+          "xRatio": 0.653893,
+          "yRatio": 0.852536,
+          "sourceX": 537.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-22",
+          "label": "-22",
+          "xRatio": 0.682482,
+          "yRatio": 0.852536,
+          "sourceX": 561,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-23",
+          "label": "-23",
+          "xRatio": 0.711071,
+          "yRatio": 0.852536,
+          "sourceX": 584.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-24",
+          "label": "-24",
+          "xRatio": 0.739051,
+          "yRatio": 0.852536,
+          "sourceX": 607.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-25",
+          "label": "-25",
+          "xRatio": 0.767762,
+          "yRatio": 0.852536,
+          "sourceX": 631.1,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-26",
+          "label": "-26",
+          "xRatio": 0.796229,
+          "yRatio": 0.852536,
+          "sourceX": 654.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-27",
+          "label": "-27",
+          "xRatio": 0.824453,
+          "yRatio": 0.852536,
+          "sourceX": 677.7,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-28",
+          "label": "-28",
+          "xRatio": 0.85292,
+          "yRatio": 0.852536,
+          "sourceX": 701.1,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-29",
+          "label": "-29",
+          "xRatio": 0.881387,
+          "yRatio": 0.852536,
+          "sourceX": 724.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-3",
+          "label": "-3",
+          "xRatio": 0.142579,
+          "yRatio": 0.852536,
+          "sourceX": 117.2,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-30",
+          "label": "-30",
+          "xRatio": 0.909732,
+          "yRatio": 0.852536,
+          "sourceX": 747.8,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-4",
+          "label": "-4",
+          "xRatio": 0.170925,
+          "yRatio": 0.852536,
+          "sourceX": 140.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-5",
+          "label": "-5",
+          "xRatio": 0.199392,
+          "yRatio": 0.852536,
+          "sourceX": 163.9,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-6",
+          "label": "-6",
+          "xRatio": 0.227981,
+          "yRatio": 0.852536,
+          "sourceX": 187.4,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-7",
+          "label": "-7",
+          "xRatio": 0.256083,
+          "yRatio": 0.852536,
+          "sourceX": 210.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-8",
+          "label": "-8",
+          "xRatio": 0.284672,
+          "yRatio": 0.852536,
+          "sourceX": 234,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-minus-9",
+          "label": "-9",
+          "xRatio": 0.31326,
+          "yRatio": 0.852536,
+          "sourceX": 257.5,
+          "sourceY": 470.6,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-1",
+          "label": "+1",
+          "xRatio": 0.085766,
+          "yRatio": 0.895109,
+          "sourceX": 70.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-10",
+          "label": "+10",
+          "xRatio": 0.341241,
+          "yRatio": 0.895109,
+          "sourceX": 280.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-11",
+          "label": "+11",
+          "xRatio": 0.369951,
+          "yRatio": 0.895109,
+          "sourceX": 304.1,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-12",
+          "label": "+12",
+          "xRatio": 0.398418,
+          "yRatio": 0.895109,
+          "sourceX": 327.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-13",
+          "label": "+13",
+          "xRatio": 0.426764,
+          "yRatio": 0.895109,
+          "sourceX": 350.8,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-14",
+          "label": "+14",
+          "xRatio": 0.455109,
+          "yRatio": 0.895109,
+          "sourceX": 374.1,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-15",
+          "label": "+15",
+          "xRatio": 0.483577,
+          "yRatio": 0.895109,
+          "sourceX": 397.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-16",
+          "label": "+16",
+          "xRatio": 0.512044,
+          "yRatio": 0.895109,
+          "sourceX": 420.9,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-17",
+          "label": "+17",
+          "xRatio": 0.540389,
+          "yRatio": 0.895109,
+          "sourceX": 444.2,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-18",
+          "label": "+18",
+          "xRatio": 0.568735,
+          "yRatio": 0.895109,
+          "sourceX": 467.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-19",
+          "label": "+19",
+          "xRatio": 0.597202,
+          "yRatio": 0.895109,
+          "sourceX": 490.9,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-2",
+          "label": "+2",
+          "xRatio": 0.114234,
+          "yRatio": 0.895109,
+          "sourceX": 93.9,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-20",
+          "label": "+20",
+          "xRatio": 0.625791,
+          "yRatio": 0.895109,
+          "sourceX": 514.4,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-21",
+          "label": "+21",
+          "xRatio": 0.653893,
+          "yRatio": 0.895109,
+          "sourceX": 537.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-22",
+          "label": "+22",
+          "xRatio": 0.682482,
+          "yRatio": 0.895109,
+          "sourceX": 561,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-23",
+          "label": "+23",
+          "xRatio": 0.711071,
+          "yRatio": 0.895109,
+          "sourceX": 584.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-24",
+          "label": "+24",
+          "xRatio": 0.739051,
+          "yRatio": 0.895109,
+          "sourceX": 607.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-25",
+          "label": "+25",
+          "xRatio": 0.767762,
+          "yRatio": 0.895109,
+          "sourceX": 631.1,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-26",
+          "label": "+26",
+          "xRatio": 0.796229,
+          "yRatio": 0.895109,
+          "sourceX": 654.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-27",
+          "label": "+27",
+          "xRatio": 0.824453,
+          "yRatio": 0.895109,
+          "sourceX": 677.7,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-28",
+          "label": "+28",
+          "xRatio": 0.85292,
+          "yRatio": 0.895109,
+          "sourceX": 701.1,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-29",
+          "label": "+29",
+          "xRatio": 0.881387,
+          "yRatio": 0.895109,
+          "sourceX": 724.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-3",
+          "label": "+3",
+          "xRatio": 0.142579,
+          "yRatio": 0.895109,
+          "sourceX": 117.2,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-30",
+          "label": "+30",
+          "xRatio": 0.909732,
+          "yRatio": 0.895109,
+          "sourceX": 747.8,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-4",
+          "label": "+4",
+          "xRatio": 0.170925,
+          "yRatio": 0.895109,
+          "sourceX": 140.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-5",
+          "label": "+5",
+          "xRatio": 0.199392,
+          "yRatio": 0.895109,
+          "sourceX": 163.9,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-6",
+          "label": "+6",
+          "xRatio": 0.227981,
+          "yRatio": 0.895109,
+          "sourceX": 187.4,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-7",
+          "label": "+7",
+          "xRatio": 0.256083,
+          "yRatio": 0.895109,
+          "sourceX": 210.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-8",
+          "label": "+8",
+          "xRatio": 0.284672,
+          "yRatio": 0.895109,
+          "sourceX": 234,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "bottom-plus-9",
+          "label": "+9",
+          "xRatio": 0.31326,
+          "yRatio": 0.895109,
+          "sourceX": 257.5,
+          "sourceY": 494.1,
+          "confidence": "high"
+        },
+        {
+          "id": "c1",
+          "label": "c1",
+          "xRatio": 0.085766,
+          "yRatio": 0.641667,
+          "sourceX": 70.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c10",
+          "label": "c10",
+          "xRatio": 0.341241,
+          "yRatio": 0.641667,
+          "sourceX": 280.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c11",
+          "label": "c11",
+          "xRatio": 0.369951,
+          "yRatio": 0.641667,
+          "sourceX": 304.1,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c12",
+          "label": "c12",
+          "xRatio": 0.398418,
+          "yRatio": 0.641667,
+          "sourceX": 327.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c13",
+          "label": "c13",
+          "xRatio": 0.426764,
+          "yRatio": 0.641667,
+          "sourceX": 350.8,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c14",
+          "label": "c14",
+          "xRatio": 0.455109,
+          "yRatio": 0.641667,
+          "sourceX": 374.1,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c15",
+          "label": "c15",
+          "xRatio": 0.483577,
+          "yRatio": 0.641667,
+          "sourceX": 397.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c16",
+          "label": "c16",
+          "xRatio": 0.512044,
+          "yRatio": 0.641667,
+          "sourceX": 420.9,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c17",
+          "label": "c17",
+          "xRatio": 0.540389,
+          "yRatio": 0.641667,
+          "sourceX": 444.2,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c18",
+          "label": "c18",
+          "xRatio": 0.568735,
+          "yRatio": 0.641667,
+          "sourceX": 467.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c19",
+          "label": "c19",
+          "xRatio": 0.597202,
+          "yRatio": 0.641667,
+          "sourceX": 490.9,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c2",
+          "label": "c2",
+          "xRatio": 0.114234,
+          "yRatio": 0.641667,
+          "sourceX": 93.9,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c20",
+          "label": "c20",
+          "xRatio": 0.625791,
+          "yRatio": 0.641667,
+          "sourceX": 514.4,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c21",
+          "label": "c21",
+          "xRatio": 0.653893,
+          "yRatio": 0.641667,
+          "sourceX": 537.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c22",
+          "label": "c22",
+          "xRatio": 0.682482,
+          "yRatio": 0.641667,
+          "sourceX": 561,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c23",
+          "label": "c23",
+          "xRatio": 0.711071,
+          "yRatio": 0.641667,
+          "sourceX": 584.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c24",
+          "label": "c24",
+          "xRatio": 0.739051,
+          "yRatio": 0.641667,
+          "sourceX": 607.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c25",
+          "label": "c25",
+          "xRatio": 0.767762,
+          "yRatio": 0.641667,
+          "sourceX": 631.1,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c26",
+          "label": "c26",
+          "xRatio": 0.796229,
+          "yRatio": 0.641667,
+          "sourceX": 654.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c27",
+          "label": "c27",
+          "xRatio": 0.824453,
+          "yRatio": 0.641667,
+          "sourceX": 677.7,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c28",
+          "label": "c28",
+          "xRatio": 0.85292,
+          "yRatio": 0.641667,
+          "sourceX": 701.1,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c29",
+          "label": "c29",
+          "xRatio": 0.881387,
+          "yRatio": 0.641667,
+          "sourceX": 724.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c3",
+          "label": "c3",
+          "xRatio": 0.142579,
+          "yRatio": 0.641667,
+          "sourceX": 117.2,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c30",
+          "label": "c30",
+          "xRatio": 0.909732,
+          "yRatio": 0.641667,
+          "sourceX": 747.8,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c4",
+          "label": "c4",
+          "xRatio": 0.170925,
+          "yRatio": 0.641667,
+          "sourceX": 140.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c5",
+          "label": "c5",
+          "xRatio": 0.199392,
+          "yRatio": 0.641667,
+          "sourceX": 163.9,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c6",
+          "label": "c6",
+          "xRatio": 0.227981,
+          "yRatio": 0.641667,
+          "sourceX": 187.4,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c7",
+          "label": "c7",
+          "xRatio": 0.256083,
+          "yRatio": 0.641667,
+          "sourceX": 210.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c8",
+          "label": "c8",
+          "xRatio": 0.284672,
+          "yRatio": 0.641667,
+          "sourceX": 234,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "c9",
+          "label": "c9",
+          "xRatio": 0.31326,
+          "yRatio": 0.641667,
+          "sourceX": 257.5,
+          "sourceY": 354.2,
+          "confidence": "high"
+        },
+        {
+          "id": "d1",
+          "label": "d1",
+          "xRatio": 0.085766,
+          "yRatio": 0.599275,
+          "sourceX": 70.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d10",
+          "label": "d10",
+          "xRatio": 0.341241,
+          "yRatio": 0.599275,
+          "sourceX": 280.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d11",
+          "label": "d11",
+          "xRatio": 0.369951,
+          "yRatio": 0.599275,
+          "sourceX": 304.1,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d12",
+          "label": "d12",
+          "xRatio": 0.398418,
+          "yRatio": 0.599275,
+          "sourceX": 327.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d13",
+          "label": "d13",
+          "xRatio": 0.426764,
+          "yRatio": 0.599275,
+          "sourceX": 350.8,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d14",
+          "label": "d14",
+          "xRatio": 0.455109,
+          "yRatio": 0.599275,
+          "sourceX": 374.1,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d15",
+          "label": "d15",
+          "xRatio": 0.483577,
+          "yRatio": 0.599275,
+          "sourceX": 397.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d16",
+          "label": "d16",
+          "xRatio": 0.512044,
+          "yRatio": 0.599275,
+          "sourceX": 420.9,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d17",
+          "label": "d17",
+          "xRatio": 0.540389,
+          "yRatio": 0.599275,
+          "sourceX": 444.2,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d18",
+          "label": "d18",
+          "xRatio": 0.568735,
+          "yRatio": 0.599275,
+          "sourceX": 467.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d19",
+          "label": "d19",
+          "xRatio": 0.597202,
+          "yRatio": 0.599275,
+          "sourceX": 490.9,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d2",
+          "label": "d2",
+          "xRatio": 0.114234,
+          "yRatio": 0.599275,
+          "sourceX": 93.9,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d20",
+          "label": "d20",
+          "xRatio": 0.625791,
+          "yRatio": 0.599275,
+          "sourceX": 514.4,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d21",
+          "label": "d21",
+          "xRatio": 0.653893,
+          "yRatio": 0.599275,
+          "sourceX": 537.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d22",
+          "label": "d22",
+          "xRatio": 0.682482,
+          "yRatio": 0.599275,
+          "sourceX": 561,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d23",
+          "label": "d23",
+          "xRatio": 0.711071,
+          "yRatio": 0.599275,
+          "sourceX": 584.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d24",
+          "label": "d24",
+          "xRatio": 0.739051,
+          "yRatio": 0.599275,
+          "sourceX": 607.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d25",
+          "label": "d25",
+          "xRatio": 0.767762,
+          "yRatio": 0.599275,
+          "sourceX": 631.1,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d26",
+          "label": "d26",
+          "xRatio": 0.796229,
+          "yRatio": 0.599275,
+          "sourceX": 654.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d27",
+          "label": "d27",
+          "xRatio": 0.824453,
+          "yRatio": 0.599275,
+          "sourceX": 677.7,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d28",
+          "label": "d28",
+          "xRatio": 0.85292,
+          "yRatio": 0.599275,
+          "sourceX": 701.1,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d29",
+          "label": "d29",
+          "xRatio": 0.881387,
+          "yRatio": 0.599275,
+          "sourceX": 724.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d3",
+          "label": "d3",
+          "xRatio": 0.142579,
+          "yRatio": 0.599275,
+          "sourceX": 117.2,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d30",
+          "label": "d30",
+          "xRatio": 0.909732,
+          "yRatio": 0.599275,
+          "sourceX": 747.8,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d4",
+          "label": "d4",
+          "xRatio": 0.170925,
+          "yRatio": 0.599275,
+          "sourceX": 140.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d5",
+          "label": "d5",
+          "xRatio": 0.199392,
+          "yRatio": 0.599275,
+          "sourceX": 163.9,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d6",
+          "label": "d6",
+          "xRatio": 0.227981,
+          "yRatio": 0.599275,
+          "sourceX": 187.4,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d7",
+          "label": "d7",
+          "xRatio": 0.256083,
+          "yRatio": 0.599275,
+          "sourceX": 210.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d8",
+          "label": "d8",
+          "xRatio": 0.284672,
+          "yRatio": 0.599275,
+          "sourceX": 234,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "d9",
+          "label": "d9",
+          "xRatio": 0.31326,
+          "yRatio": 0.599275,
+          "sourceX": 257.5,
+          "sourceY": 330.8,
+          "confidence": "high"
+        },
+        {
+          "id": "e1",
+          "label": "e1",
+          "xRatio": 0.085766,
+          "yRatio": 0.557065,
+          "sourceX": 70.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e10",
+          "label": "e10",
+          "xRatio": 0.341241,
+          "yRatio": 0.557065,
+          "sourceX": 280.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e11",
+          "label": "e11",
+          "xRatio": 0.369951,
+          "yRatio": 0.557065,
+          "sourceX": 304.1,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e12",
+          "label": "e12",
+          "xRatio": 0.398418,
+          "yRatio": 0.557065,
+          "sourceX": 327.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e13",
+          "label": "e13",
+          "xRatio": 0.426764,
+          "yRatio": 0.557065,
+          "sourceX": 350.8,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e14",
+          "label": "e14",
+          "xRatio": 0.455109,
+          "yRatio": 0.557065,
+          "sourceX": 374.1,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e15",
+          "label": "e15",
+          "xRatio": 0.483577,
+          "yRatio": 0.557065,
+          "sourceX": 397.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e16",
+          "label": "e16",
+          "xRatio": 0.512044,
+          "yRatio": 0.557065,
+          "sourceX": 420.9,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e17",
+          "label": "e17",
+          "xRatio": 0.540389,
+          "yRatio": 0.557065,
+          "sourceX": 444.2,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e18",
+          "label": "e18",
+          "xRatio": 0.568735,
+          "yRatio": 0.557065,
+          "sourceX": 467.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e19",
+          "label": "e19",
+          "xRatio": 0.597202,
+          "yRatio": 0.557065,
+          "sourceX": 490.9,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e2",
+          "label": "e2",
+          "xRatio": 0.114234,
+          "yRatio": 0.557065,
+          "sourceX": 93.9,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e20",
+          "label": "e20",
+          "xRatio": 0.625791,
+          "yRatio": 0.557065,
+          "sourceX": 514.4,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e21",
+          "label": "e21",
+          "xRatio": 0.653893,
+          "yRatio": 0.557065,
+          "sourceX": 537.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e22",
+          "label": "e22",
+          "xRatio": 0.682482,
+          "yRatio": 0.557065,
+          "sourceX": 561,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e23",
+          "label": "e23",
+          "xRatio": 0.711071,
+          "yRatio": 0.557065,
+          "sourceX": 584.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e24",
+          "label": "e24",
+          "xRatio": 0.739051,
+          "yRatio": 0.557065,
+          "sourceX": 607.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e25",
+          "label": "e25",
+          "xRatio": 0.767762,
+          "yRatio": 0.557065,
+          "sourceX": 631.1,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e26",
+          "label": "e26",
+          "xRatio": 0.796229,
+          "yRatio": 0.557065,
+          "sourceX": 654.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e27",
+          "label": "e27",
+          "xRatio": 0.824453,
+          "yRatio": 0.557065,
+          "sourceX": 677.7,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e28",
+          "label": "e28",
+          "xRatio": 0.85292,
+          "yRatio": 0.557065,
+          "sourceX": 701.1,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e29",
+          "label": "e29",
+          "xRatio": 0.881387,
+          "yRatio": 0.557065,
+          "sourceX": 724.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e3",
+          "label": "e3",
+          "xRatio": 0.142579,
+          "yRatio": 0.557065,
+          "sourceX": 117.2,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e30",
+          "label": "e30",
+          "xRatio": 0.909732,
+          "yRatio": 0.557065,
+          "sourceX": 747.8,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e4",
+          "label": "e4",
+          "xRatio": 0.170925,
+          "yRatio": 0.557065,
+          "sourceX": 140.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e5",
+          "label": "e5",
+          "xRatio": 0.199392,
+          "yRatio": 0.557065,
+          "sourceX": 163.9,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e6",
+          "label": "e6",
+          "xRatio": 0.227981,
+          "yRatio": 0.557065,
+          "sourceX": 187.4,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e7",
+          "label": "e7",
+          "xRatio": 0.256083,
+          "yRatio": 0.557065,
+          "sourceX": 210.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e8",
+          "label": "e8",
+          "xRatio": 0.284672,
+          "yRatio": 0.557065,
+          "sourceX": 234,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "e9",
+          "label": "e9",
+          "xRatio": 0.31326,
+          "yRatio": 0.557065,
+          "sourceX": 257.5,
+          "sourceY": 307.5,
+          "confidence": "high"
+        },
+        {
+          "id": "f1",
+          "label": "f1",
+          "xRatio": 0.085766,
+          "yRatio": 0.42971,
+          "sourceX": 70.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f10",
+          "label": "f10",
+          "xRatio": 0.341241,
+          "yRatio": 0.42971,
+          "sourceX": 280.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f11",
+          "label": "f11",
+          "xRatio": 0.369951,
+          "yRatio": 0.42971,
+          "sourceX": 304.1,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f12",
+          "label": "f12",
+          "xRatio": 0.398418,
+          "yRatio": 0.42971,
+          "sourceX": 327.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f13",
+          "label": "f13",
+          "xRatio": 0.426764,
+          "yRatio": 0.42971,
+          "sourceX": 350.8,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f14",
+          "label": "f14",
+          "xRatio": 0.455109,
+          "yRatio": 0.42971,
+          "sourceX": 374.1,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f15",
+          "label": "f15",
+          "xRatio": 0.483577,
+          "yRatio": 0.42971,
+          "sourceX": 397.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f16",
+          "label": "f16",
+          "xRatio": 0.512044,
+          "yRatio": 0.42971,
+          "sourceX": 420.9,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f17",
+          "label": "f17",
+          "xRatio": 0.540389,
+          "yRatio": 0.42971,
+          "sourceX": 444.2,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f18",
+          "label": "f18",
+          "xRatio": 0.568735,
+          "yRatio": 0.42971,
+          "sourceX": 467.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f19",
+          "label": "f19",
+          "xRatio": 0.597202,
+          "yRatio": 0.42971,
+          "sourceX": 490.9,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f2",
+          "label": "f2",
+          "xRatio": 0.114234,
+          "yRatio": 0.42971,
+          "sourceX": 93.9,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f20",
+          "label": "f20",
+          "xRatio": 0.625791,
+          "yRatio": 0.42971,
+          "sourceX": 514.4,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f21",
+          "label": "f21",
+          "xRatio": 0.653893,
+          "yRatio": 0.42971,
+          "sourceX": 537.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f22",
+          "label": "f22",
+          "xRatio": 0.682482,
+          "yRatio": 0.42971,
+          "sourceX": 561,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f23",
+          "label": "f23",
+          "xRatio": 0.711071,
+          "yRatio": 0.42971,
+          "sourceX": 584.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f24",
+          "label": "f24",
+          "xRatio": 0.739051,
+          "yRatio": 0.42971,
+          "sourceX": 607.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f25",
+          "label": "f25",
+          "xRatio": 0.767762,
+          "yRatio": 0.42971,
+          "sourceX": 631.1,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f26",
+          "label": "f26",
+          "xRatio": 0.796229,
+          "yRatio": 0.42971,
+          "sourceX": 654.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f27",
+          "label": "f27",
+          "xRatio": 0.824453,
+          "yRatio": 0.42971,
+          "sourceX": 677.7,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f28",
+          "label": "f28",
+          "xRatio": 0.85292,
+          "yRatio": 0.42971,
+          "sourceX": 701.1,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f29",
+          "label": "f29",
+          "xRatio": 0.881387,
+          "yRatio": 0.42971,
+          "sourceX": 724.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f3",
+          "label": "f3",
+          "xRatio": 0.142579,
+          "yRatio": 0.42971,
+          "sourceX": 117.2,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f30",
+          "label": "f30",
+          "xRatio": 0.909732,
+          "yRatio": 0.42971,
+          "sourceX": 747.8,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f4",
+          "label": "f4",
+          "xRatio": 0.170925,
+          "yRatio": 0.42971,
+          "sourceX": 140.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f5",
+          "label": "f5",
+          "xRatio": 0.199392,
+          "yRatio": 0.42971,
+          "sourceX": 163.9,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f6",
+          "label": "f6",
+          "xRatio": 0.227981,
+          "yRatio": 0.42971,
+          "sourceX": 187.4,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f7",
+          "label": "f7",
+          "xRatio": 0.256083,
+          "yRatio": 0.42971,
+          "sourceX": 210.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f8",
+          "label": "f8",
+          "xRatio": 0.284672,
+          "yRatio": 0.42971,
+          "sourceX": 234,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "f9",
+          "label": "f9",
+          "xRatio": 0.31326,
+          "yRatio": 0.42971,
+          "sourceX": 257.5,
+          "sourceY": 237.2,
+          "confidence": "high"
+        },
+        {
+          "id": "g1",
+          "label": "g1",
+          "xRatio": 0.085766,
+          "yRatio": 0.3875,
+          "sourceX": 70.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g10",
+          "label": "g10",
+          "xRatio": 0.341241,
+          "yRatio": 0.3875,
+          "sourceX": 280.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g11",
+          "label": "g11",
+          "xRatio": 0.369951,
+          "yRatio": 0.3875,
+          "sourceX": 304.1,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g12",
+          "label": "g12",
+          "xRatio": 0.398418,
+          "yRatio": 0.3875,
+          "sourceX": 327.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g13",
+          "label": "g13",
+          "xRatio": 0.426764,
+          "yRatio": 0.3875,
+          "sourceX": 350.8,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g14",
+          "label": "g14",
+          "xRatio": 0.455109,
+          "yRatio": 0.3875,
+          "sourceX": 374.1,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g15",
+          "label": "g15",
+          "xRatio": 0.483577,
+          "yRatio": 0.3875,
+          "sourceX": 397.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g16",
+          "label": "g16",
+          "xRatio": 0.512044,
+          "yRatio": 0.3875,
+          "sourceX": 420.9,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g17",
+          "label": "g17",
+          "xRatio": 0.540389,
+          "yRatio": 0.3875,
+          "sourceX": 444.2,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g18",
+          "label": "g18",
+          "xRatio": 0.568735,
+          "yRatio": 0.3875,
+          "sourceX": 467.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g19",
+          "label": "g19",
+          "xRatio": 0.597202,
+          "yRatio": 0.3875,
+          "sourceX": 490.9,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g2",
+          "label": "g2",
+          "xRatio": 0.114234,
+          "yRatio": 0.3875,
+          "sourceX": 93.9,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g20",
+          "label": "g20",
+          "xRatio": 0.625791,
+          "yRatio": 0.3875,
+          "sourceX": 514.4,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g21",
+          "label": "g21",
+          "xRatio": 0.653893,
+          "yRatio": 0.3875,
+          "sourceX": 537.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g22",
+          "label": "g22",
+          "xRatio": 0.682482,
+          "yRatio": 0.3875,
+          "sourceX": 561,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g23",
+          "label": "g23",
+          "xRatio": 0.711071,
+          "yRatio": 0.3875,
+          "sourceX": 584.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g24",
+          "label": "g24",
+          "xRatio": 0.739051,
+          "yRatio": 0.3875,
+          "sourceX": 607.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g25",
+          "label": "g25",
+          "xRatio": 0.767762,
+          "yRatio": 0.3875,
+          "sourceX": 631.1,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g26",
+          "label": "g26",
+          "xRatio": 0.796229,
+          "yRatio": 0.3875,
+          "sourceX": 654.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g27",
+          "label": "g27",
+          "xRatio": 0.824453,
+          "yRatio": 0.3875,
+          "sourceX": 677.7,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g28",
+          "label": "g28",
+          "xRatio": 0.85292,
+          "yRatio": 0.3875,
+          "sourceX": 701.1,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g29",
+          "label": "g29",
+          "xRatio": 0.881387,
+          "yRatio": 0.3875,
+          "sourceX": 724.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g3",
+          "label": "g3",
+          "xRatio": 0.142579,
+          "yRatio": 0.3875,
+          "sourceX": 117.2,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g30",
+          "label": "g30",
+          "xRatio": 0.909732,
+          "yRatio": 0.3875,
+          "sourceX": 747.8,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g4",
+          "label": "g4",
+          "xRatio": 0.170925,
+          "yRatio": 0.3875,
+          "sourceX": 140.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g5",
+          "label": "g5",
+          "xRatio": 0.199392,
+          "yRatio": 0.3875,
+          "sourceX": 163.9,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g6",
+          "label": "g6",
+          "xRatio": 0.227981,
+          "yRatio": 0.3875,
+          "sourceX": 187.4,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g7",
+          "label": "g7",
+          "xRatio": 0.256083,
+          "yRatio": 0.3875,
+          "sourceX": 210.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g8",
+          "label": "g8",
+          "xRatio": 0.284672,
+          "yRatio": 0.3875,
+          "sourceX": 234,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "g9",
+          "label": "g9",
+          "xRatio": 0.31326,
+          "yRatio": 0.3875,
+          "sourceX": 257.5,
+          "sourceY": 213.9,
+          "confidence": "high"
+        },
+        {
+          "id": "h1",
+          "label": "h1",
+          "xRatio": 0.085766,
+          "yRatio": 0.345109,
+          "sourceX": 70.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h10",
+          "label": "h10",
+          "xRatio": 0.341241,
+          "yRatio": 0.345109,
+          "sourceX": 280.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h11",
+          "label": "h11",
+          "xRatio": 0.369951,
+          "yRatio": 0.345109,
+          "sourceX": 304.1,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h12",
+          "label": "h12",
+          "xRatio": 0.398418,
+          "yRatio": 0.345109,
+          "sourceX": 327.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h13",
+          "label": "h13",
+          "xRatio": 0.426764,
+          "yRatio": 0.345109,
+          "sourceX": 350.8,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h14",
+          "label": "h14",
+          "xRatio": 0.455109,
+          "yRatio": 0.345109,
+          "sourceX": 374.1,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h15",
+          "label": "h15",
+          "xRatio": 0.483577,
+          "yRatio": 0.345109,
+          "sourceX": 397.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h16",
+          "label": "h16",
+          "xRatio": 0.512044,
+          "yRatio": 0.345109,
+          "sourceX": 420.9,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h17",
+          "label": "h17",
+          "xRatio": 0.540389,
+          "yRatio": 0.345109,
+          "sourceX": 444.2,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h18",
+          "label": "h18",
+          "xRatio": 0.568735,
+          "yRatio": 0.345109,
+          "sourceX": 467.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h19",
+          "label": "h19",
+          "xRatio": 0.597202,
+          "yRatio": 0.345109,
+          "sourceX": 490.9,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h2",
+          "label": "h2",
+          "xRatio": 0.114234,
+          "yRatio": 0.345109,
+          "sourceX": 93.9,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h20",
+          "label": "h20",
+          "xRatio": 0.625791,
+          "yRatio": 0.345109,
+          "sourceX": 514.4,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h21",
+          "label": "h21",
+          "xRatio": 0.653893,
+          "yRatio": 0.345109,
+          "sourceX": 537.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h22",
+          "label": "h22",
+          "xRatio": 0.682482,
+          "yRatio": 0.345109,
+          "sourceX": 561,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h23",
+          "label": "h23",
+          "xRatio": 0.711071,
+          "yRatio": 0.345109,
+          "sourceX": 584.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h24",
+          "label": "h24",
+          "xRatio": 0.739051,
+          "yRatio": 0.345109,
+          "sourceX": 607.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h25",
+          "label": "h25",
+          "xRatio": 0.767762,
+          "yRatio": 0.345109,
+          "sourceX": 631.1,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h26",
+          "label": "h26",
+          "xRatio": 0.796229,
+          "yRatio": 0.345109,
+          "sourceX": 654.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h27",
+          "label": "h27",
+          "xRatio": 0.824453,
+          "yRatio": 0.345109,
+          "sourceX": 677.7,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h28",
+          "label": "h28",
+          "xRatio": 0.85292,
+          "yRatio": 0.345109,
+          "sourceX": 701.1,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h29",
+          "label": "h29",
+          "xRatio": 0.881387,
+          "yRatio": 0.345109,
+          "sourceX": 724.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h3",
+          "label": "h3",
+          "xRatio": 0.142579,
+          "yRatio": 0.345109,
+          "sourceX": 117.2,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h30",
+          "label": "h30",
+          "xRatio": 0.909732,
+          "yRatio": 0.345109,
+          "sourceX": 747.8,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h4",
+          "label": "h4",
+          "xRatio": 0.170925,
+          "yRatio": 0.345109,
+          "sourceX": 140.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h5",
+          "label": "h5",
+          "xRatio": 0.199392,
+          "yRatio": 0.345109,
+          "sourceX": 163.9,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h6",
+          "label": "h6",
+          "xRatio": 0.227981,
+          "yRatio": 0.345109,
+          "sourceX": 187.4,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h7",
+          "label": "h7",
+          "xRatio": 0.256083,
+          "yRatio": 0.345109,
+          "sourceX": 210.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h8",
+          "label": "h8",
+          "xRatio": 0.284672,
+          "yRatio": 0.345109,
+          "sourceX": 234,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "h9",
+          "label": "h9",
+          "xRatio": 0.31326,
+          "yRatio": 0.345109,
+          "sourceX": 257.5,
+          "sourceY": 190.5,
+          "confidence": "high"
+        },
+        {
+          "id": "i1",
+          "label": "i1",
+          "xRatio": 0.085766,
+          "yRatio": 0.302899,
+          "sourceX": 70.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i10",
+          "label": "i10",
+          "xRatio": 0.341241,
+          "yRatio": 0.302899,
+          "sourceX": 280.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i11",
+          "label": "i11",
+          "xRatio": 0.369951,
+          "yRatio": 0.302899,
+          "sourceX": 304.1,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i12",
+          "label": "i12",
+          "xRatio": 0.398418,
+          "yRatio": 0.302899,
+          "sourceX": 327.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i13",
+          "label": "i13",
+          "xRatio": 0.426764,
+          "yRatio": 0.302899,
+          "sourceX": 350.8,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i14",
+          "label": "i14",
+          "xRatio": 0.455109,
+          "yRatio": 0.302899,
+          "sourceX": 374.1,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i15",
+          "label": "i15",
+          "xRatio": 0.483577,
+          "yRatio": 0.302899,
+          "sourceX": 397.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i16",
+          "label": "i16",
+          "xRatio": 0.512044,
+          "yRatio": 0.302899,
+          "sourceX": 420.9,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i17",
+          "label": "i17",
+          "xRatio": 0.540389,
+          "yRatio": 0.302899,
+          "sourceX": 444.2,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i18",
+          "label": "i18",
+          "xRatio": 0.568735,
+          "yRatio": 0.302899,
+          "sourceX": 467.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i19",
+          "label": "i19",
+          "xRatio": 0.597202,
+          "yRatio": 0.302899,
+          "sourceX": 490.9,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i2",
+          "label": "i2",
+          "xRatio": 0.114234,
+          "yRatio": 0.302899,
+          "sourceX": 93.9,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i20",
+          "label": "i20",
+          "xRatio": 0.625791,
+          "yRatio": 0.302899,
+          "sourceX": 514.4,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i21",
+          "label": "i21",
+          "xRatio": 0.653893,
+          "yRatio": 0.302899,
+          "sourceX": 537.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i22",
+          "label": "i22",
+          "xRatio": 0.682482,
+          "yRatio": 0.302899,
+          "sourceX": 561,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i23",
+          "label": "i23",
+          "xRatio": 0.711071,
+          "yRatio": 0.302899,
+          "sourceX": 584.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i24",
+          "label": "i24",
+          "xRatio": 0.739051,
+          "yRatio": 0.302899,
+          "sourceX": 607.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i25",
+          "label": "i25",
+          "xRatio": 0.767762,
+          "yRatio": 0.302899,
+          "sourceX": 631.1,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i26",
+          "label": "i26",
+          "xRatio": 0.796229,
+          "yRatio": 0.302899,
+          "sourceX": 654.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i27",
+          "label": "i27",
+          "xRatio": 0.824453,
+          "yRatio": 0.302899,
+          "sourceX": 677.7,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i28",
+          "label": "i28",
+          "xRatio": 0.85292,
+          "yRatio": 0.302899,
+          "sourceX": 701.1,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i29",
+          "label": "i29",
+          "xRatio": 0.881387,
+          "yRatio": 0.302899,
+          "sourceX": 724.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i3",
+          "label": "i3",
+          "xRatio": 0.142579,
+          "yRatio": 0.302899,
+          "sourceX": 117.2,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i30",
+          "label": "i30",
+          "xRatio": 0.909732,
+          "yRatio": 0.302899,
+          "sourceX": 747.8,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i4",
+          "label": "i4",
+          "xRatio": 0.170925,
+          "yRatio": 0.302899,
+          "sourceX": 140.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i5",
+          "label": "i5",
+          "xRatio": 0.199392,
+          "yRatio": 0.302899,
+          "sourceX": 163.9,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i6",
+          "label": "i6",
+          "xRatio": 0.227981,
+          "yRatio": 0.302899,
+          "sourceX": 187.4,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i7",
+          "label": "i7",
+          "xRatio": 0.256083,
+          "yRatio": 0.302899,
+          "sourceX": 210.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i8",
+          "label": "i8",
+          "xRatio": 0.284672,
+          "yRatio": 0.302899,
+          "sourceX": 234,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "i9",
+          "label": "i9",
+          "xRatio": 0.31326,
+          "yRatio": 0.302899,
+          "sourceX": 257.5,
+          "sourceY": 167.2,
+          "confidence": "high"
+        },
+        {
+          "id": "j1",
+          "label": "j1",
+          "xRatio": 0.085766,
+          "yRatio": 0.260326,
+          "sourceX": 70.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j10",
+          "label": "j10",
+          "xRatio": 0.341241,
+          "yRatio": 0.260326,
+          "sourceX": 280.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j11",
+          "label": "j11",
+          "xRatio": 0.369951,
+          "yRatio": 0.260326,
+          "sourceX": 304.1,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j12",
+          "label": "j12",
+          "xRatio": 0.398418,
+          "yRatio": 0.260326,
+          "sourceX": 327.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j13",
+          "label": "j13",
+          "xRatio": 0.426764,
+          "yRatio": 0.260326,
+          "sourceX": 350.8,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j14",
+          "label": "j14",
+          "xRatio": 0.455109,
+          "yRatio": 0.260326,
+          "sourceX": 374.1,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j15",
+          "label": "j15",
+          "xRatio": 0.483577,
+          "yRatio": 0.260326,
+          "sourceX": 397.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j16",
+          "label": "j16",
+          "xRatio": 0.512044,
+          "yRatio": 0.260326,
+          "sourceX": 420.9,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j17",
+          "label": "j17",
+          "xRatio": 0.540389,
+          "yRatio": 0.260326,
+          "sourceX": 444.2,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j18",
+          "label": "j18",
+          "xRatio": 0.568735,
+          "yRatio": 0.260326,
+          "sourceX": 467.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j19",
+          "label": "j19",
+          "xRatio": 0.597202,
+          "yRatio": 0.260326,
+          "sourceX": 490.9,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j2",
+          "label": "j2",
+          "xRatio": 0.114234,
+          "yRatio": 0.260326,
+          "sourceX": 93.9,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j20",
+          "label": "j20",
+          "xRatio": 0.625791,
+          "yRatio": 0.260326,
+          "sourceX": 514.4,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j21",
+          "label": "j21",
+          "xRatio": 0.653893,
+          "yRatio": 0.260326,
+          "sourceX": 537.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j22",
+          "label": "j22",
+          "xRatio": 0.682482,
+          "yRatio": 0.260326,
+          "sourceX": 561,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j23",
+          "label": "j23",
+          "xRatio": 0.711071,
+          "yRatio": 0.260326,
+          "sourceX": 584.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j24",
+          "label": "j24",
+          "xRatio": 0.739051,
+          "yRatio": 0.260326,
+          "sourceX": 607.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j25",
+          "label": "j25",
+          "xRatio": 0.767762,
+          "yRatio": 0.260326,
+          "sourceX": 631.1,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j26",
+          "label": "j26",
+          "xRatio": 0.796229,
+          "yRatio": 0.260326,
+          "sourceX": 654.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j27",
+          "label": "j27",
+          "xRatio": 0.824453,
+          "yRatio": 0.260326,
+          "sourceX": 677.7,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j28",
+          "label": "j28",
+          "xRatio": 0.85292,
+          "yRatio": 0.260326,
+          "sourceX": 701.1,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j29",
+          "label": "j29",
+          "xRatio": 0.881387,
+          "yRatio": 0.260326,
+          "sourceX": 724.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j3",
+          "label": "j3",
+          "xRatio": 0.142579,
+          "yRatio": 0.260326,
+          "sourceX": 117.2,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j30",
+          "label": "j30",
+          "xRatio": 0.909732,
+          "yRatio": 0.260326,
+          "sourceX": 747.8,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j4",
+          "label": "j4",
+          "xRatio": 0.170925,
+          "yRatio": 0.260326,
+          "sourceX": 140.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j5",
+          "label": "j5",
+          "xRatio": 0.199392,
+          "yRatio": 0.260326,
+          "sourceX": 163.9,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j6",
+          "label": "j6",
+          "xRatio": 0.227981,
+          "yRatio": 0.260326,
+          "sourceX": 187.4,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j7",
+          "label": "j7",
+          "xRatio": 0.256083,
+          "yRatio": 0.260326,
+          "sourceX": 210.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j8",
+          "label": "j8",
+          "xRatio": 0.284672,
+          "yRatio": 0.260326,
+          "sourceX": 234,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "j9",
+          "label": "j9",
+          "xRatio": 0.31326,
+          "yRatio": 0.260326,
+          "sourceX": 257.5,
+          "sourceY": 143.7,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-1",
+          "label": "-1",
+          "xRatio": 0.085766,
+          "yRatio": 0.091304,
+          "sourceX": 70.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-10",
+          "label": "-10",
+          "xRatio": 0.341241,
+          "yRatio": 0.091304,
+          "sourceX": 280.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-11",
+          "label": "-11",
+          "xRatio": 0.369951,
+          "yRatio": 0.091304,
+          "sourceX": 304.1,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-12",
+          "label": "-12",
+          "xRatio": 0.398418,
+          "yRatio": 0.091304,
+          "sourceX": 327.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-13",
+          "label": "-13",
+          "xRatio": 0.426764,
+          "yRatio": 0.091304,
+          "sourceX": 350.8,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-14",
+          "label": "-14",
+          "xRatio": 0.455109,
+          "yRatio": 0.091304,
+          "sourceX": 374.1,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-15",
+          "label": "-15",
+          "xRatio": 0.483577,
+          "yRatio": 0.091304,
+          "sourceX": 397.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-16",
+          "label": "-16",
+          "xRatio": 0.512044,
+          "yRatio": 0.091304,
+          "sourceX": 420.9,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-17",
+          "label": "-17",
+          "xRatio": 0.540389,
+          "yRatio": 0.091304,
+          "sourceX": 444.2,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-18",
+          "label": "-18",
+          "xRatio": 0.568735,
+          "yRatio": 0.091304,
+          "sourceX": 467.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-19",
+          "label": "-19",
+          "xRatio": 0.597202,
+          "yRatio": 0.091304,
+          "sourceX": 490.9,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-2",
+          "label": "-2",
+          "xRatio": 0.114234,
+          "yRatio": 0.091304,
+          "sourceX": 93.9,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-20",
+          "label": "-20",
+          "xRatio": 0.625791,
+          "yRatio": 0.091304,
+          "sourceX": 514.4,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-21",
+          "label": "-21",
+          "xRatio": 0.653893,
+          "yRatio": 0.091304,
+          "sourceX": 537.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-22",
+          "label": "-22",
+          "xRatio": 0.682482,
+          "yRatio": 0.091304,
+          "sourceX": 561,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-23",
+          "label": "-23",
+          "xRatio": 0.711071,
+          "yRatio": 0.091304,
+          "sourceX": 584.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-24",
+          "label": "-24",
+          "xRatio": 0.739051,
+          "yRatio": 0.091304,
+          "sourceX": 607.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-25",
+          "label": "-25",
+          "xRatio": 0.767762,
+          "yRatio": 0.091304,
+          "sourceX": 631.1,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-26",
+          "label": "-26",
+          "xRatio": 0.796229,
+          "yRatio": 0.091304,
+          "sourceX": 654.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-27",
+          "label": "-27",
+          "xRatio": 0.824453,
+          "yRatio": 0.091304,
+          "sourceX": 677.7,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-28",
+          "label": "-28",
+          "xRatio": 0.85292,
+          "yRatio": 0.091304,
+          "sourceX": 701.1,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-29",
+          "label": "-29",
+          "xRatio": 0.881387,
+          "yRatio": 0.091304,
+          "sourceX": 724.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-3",
+          "label": "-3",
+          "xRatio": 0.142579,
+          "yRatio": 0.091304,
+          "sourceX": 117.2,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-30",
+          "label": "-30",
+          "xRatio": 0.909732,
+          "yRatio": 0.091304,
+          "sourceX": 747.8,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-4",
+          "label": "-4",
+          "xRatio": 0.170925,
+          "yRatio": 0.091304,
+          "sourceX": 140.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-5",
+          "label": "-5",
+          "xRatio": 0.199392,
+          "yRatio": 0.091304,
+          "sourceX": 163.9,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-6",
+          "label": "-6",
+          "xRatio": 0.227981,
+          "yRatio": 0.091304,
+          "sourceX": 187.4,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-7",
+          "label": "-7",
+          "xRatio": 0.256083,
+          "yRatio": 0.091304,
+          "sourceX": 210.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-8",
+          "label": "-8",
+          "xRatio": 0.284672,
+          "yRatio": 0.091304,
+          "sourceX": 234,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-minus-9",
+          "label": "-9",
+          "xRatio": 0.31326,
+          "yRatio": 0.091304,
+          "sourceX": 257.5,
+          "sourceY": 50.4,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-1",
+          "label": "+1",
+          "xRatio": 0.085766,
+          "yRatio": 0.133333,
+          "sourceX": 70.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-10",
+          "label": "+10",
+          "xRatio": 0.341241,
+          "yRatio": 0.133333,
+          "sourceX": 280.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-11",
+          "label": "+11",
+          "xRatio": 0.369951,
+          "yRatio": 0.133333,
+          "sourceX": 304.1,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-12",
+          "label": "+12",
+          "xRatio": 0.398418,
+          "yRatio": 0.133333,
+          "sourceX": 327.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-13",
+          "label": "+13",
+          "xRatio": 0.426764,
+          "yRatio": 0.133333,
+          "sourceX": 350.8,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-14",
+          "label": "+14",
+          "xRatio": 0.455109,
+          "yRatio": 0.133333,
+          "sourceX": 374.1,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-15",
+          "label": "+15",
+          "xRatio": 0.483577,
+          "yRatio": 0.133333,
+          "sourceX": 397.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-16",
+          "label": "+16",
+          "xRatio": 0.512044,
+          "yRatio": 0.133333,
+          "sourceX": 420.9,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-17",
+          "label": "+17",
+          "xRatio": 0.540389,
+          "yRatio": 0.133333,
+          "sourceX": 444.2,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-18",
+          "label": "+18",
+          "xRatio": 0.568735,
+          "yRatio": 0.133333,
+          "sourceX": 467.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-19",
+          "label": "+19",
+          "xRatio": 0.597202,
+          "yRatio": 0.133333,
+          "sourceX": 490.9,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-2",
+          "label": "+2",
+          "xRatio": 0.114234,
+          "yRatio": 0.133333,
+          "sourceX": 93.9,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-20",
+          "label": "+20",
+          "xRatio": 0.625791,
+          "yRatio": 0.133333,
+          "sourceX": 514.4,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-21",
+          "label": "+21",
+          "xRatio": 0.653893,
+          "yRatio": 0.133333,
+          "sourceX": 537.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-22",
+          "label": "+22",
+          "xRatio": 0.682482,
+          "yRatio": 0.133333,
+          "sourceX": 561,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-23",
+          "label": "+23",
+          "xRatio": 0.711071,
+          "yRatio": 0.133333,
+          "sourceX": 584.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-24",
+          "label": "+24",
+          "xRatio": 0.739051,
+          "yRatio": 0.133333,
+          "sourceX": 607.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-25",
+          "label": "+25",
+          "xRatio": 0.767762,
+          "yRatio": 0.133333,
+          "sourceX": 631.1,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-26",
+          "label": "+26",
+          "xRatio": 0.796229,
+          "yRatio": 0.133333,
+          "sourceX": 654.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-27",
+          "label": "+27",
+          "xRatio": 0.824453,
+          "yRatio": 0.133333,
+          "sourceX": 677.7,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-28",
+          "label": "+28",
+          "xRatio": 0.85292,
+          "yRatio": 0.133333,
+          "sourceX": 701.1,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-29",
+          "label": "+29",
+          "xRatio": 0.881387,
+          "yRatio": 0.133333,
+          "sourceX": 724.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-3",
+          "label": "+3",
+          "xRatio": 0.142579,
+          "yRatio": 0.133333,
+          "sourceX": 117.2,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-30",
+          "label": "+30",
+          "xRatio": 0.909732,
+          "yRatio": 0.133333,
+          "sourceX": 747.8,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-4",
+          "label": "+4",
+          "xRatio": 0.170925,
+          "yRatio": 0.133333,
+          "sourceX": 140.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-5",
+          "label": "+5",
+          "xRatio": 0.199392,
+          "yRatio": 0.133333,
+          "sourceX": 163.9,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-6",
+          "label": "+6",
+          "xRatio": 0.227981,
+          "yRatio": 0.133333,
+          "sourceX": 187.4,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-7",
+          "label": "+7",
+          "xRatio": 0.256083,
+          "yRatio": 0.133333,
+          "sourceX": 210.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-8",
+          "label": "+8",
+          "xRatio": 0.284672,
+          "yRatio": 0.133333,
+          "sourceX": 234,
+          "sourceY": 73.6,
+          "confidence": "high"
+        },
+        {
+          "id": "top-plus-9",
+          "label": "+9",
+          "xRatio": 0.31326,
+          "yRatio": 0.133333,
+          "sourceX": 257.5,
+          "sourceY": 73.6,
+          "confidence": "high"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "breadboard-medium",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "breadboard-large",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "button-tactile-6mm",
+      "pinCount": 4,
+      "pins": [
+        {
+          "id": "SW-A1",
+          "positionMm": {
+            "x": 2.65,
+            "y": 1.2
+          },
+          "electricalRole": "paired-a"
+        },
+        {
+          "id": "SW-B1",
+          "positionMm": {
+            "x": 7.35,
+            "y": 1.2
+          },
+          "electricalRole": "paired-b"
+        },
+        {
+          "id": "SW-A2",
+          "positionMm": {
+            "x": 2.65,
+            "y": 8.8
+          },
+          "electricalRole": "paired-a"
+        },
+        {
+          "id": "SW-B2",
+          "positionMm": {
+            "x": 7.35,
+            "y": 8.8
+          },
+          "electricalRole": "paired-b"
+        }
+      ],
+      "status": "owner_declared",
+      "source": "owner SVG metadata/comments"
+    },
+    {
+      "componentId": "switch-spdt",
+      "pinCount": 3,
+      "pins": [
+        {
+          "id": "throw-left",
+          "positionMm": {
+            "x": 6.46,
+            "y": 9.0
+          },
+          "electricalRole": "throw"
+        },
+        {
+          "id": "common",
+          "positionMm": {
+            "x": 9.0,
+            "y": 9.0
+          },
+          "electricalRole": "common"
+        },
+        {
+          "id": "throw-right",
+          "positionMm": {
+            "x": 11.54,
+            "y": 9.0
+          },
+          "electricalRole": "throw"
+        }
+      ],
+      "status": "owner_declared",
+      "source": "owner SVG metadata/comments"
+    },
+    {
+      "componentId": "resistor-axial",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "lead-1",
+          "label": "lead-1",
+          "xRatio": 0.528107,
+          "yRatio": 0.080587,
+          "sourceX": 55.98,
+          "sourceY": 22.73,
+          "confidence": "manual"
+        },
+        {
+          "id": "lead-2",
+          "label": "lead-2",
+          "xRatio": 0.528107,
+          "yRatio": 0.935408,
+          "sourceX": 55.98,
+          "sourceY": 263.79,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "potentiometer",
+      "pinCount": 3,
+      "pins": [
+        {
+          "id": "terminal-1",
+          "label": "terminal-1",
+          "xRatio": 0.313809,
+          "yRatio": 0.944622,
+          "sourceX": 102.3,
+          "sourceY": 348.57,
+          "confidence": "manual"
+        },
+        {
+          "id": "terminal-2",
+          "label": "terminal-2",
+          "xRatio": 0.684615,
+          "yRatio": 0.942575,
+          "sourceX": 223.18,
+          "sourceY": 347.81,
+          "confidence": "manual"
+        },
+        {
+          "id": "wiper",
+          "label": "wiper",
+          "xRatio": 0.499212,
+          "yRatio": 0.944622,
+          "sourceX": 162.74,
+          "sourceY": 348.57,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "electrolytic-capacitor",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "negative",
+          "label": "negative",
+          "xRatio": 0.287019,
+          "yRatio": 0.877647,
+          "sourceX": 132.89,
+          "sourceY": 569.59,
+          "confidence": "manual"
+        },
+        {
+          "id": "positive",
+          "label": "positive",
+          "xRatio": 0.73865,
+          "yRatio": 0.876605,
+          "sourceX": 341.99,
+          "sourceY": 568.92,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "photoresistor",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "lead-1",
+          "label": "lead-1",
+          "xRatio": 0.61322,
+          "yRatio": 0.855755,
+          "sourceX": 318.26,
+          "sourceY": 433.87,
+          "confidence": "manual"
+        },
+        {
+          "id": "lead-2",
+          "label": "lead-2",
+          "xRatio": 0.336288,
+          "yRatio": 0.855755,
+          "sourceX": 174.53,
+          "sourceY": 433.87,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "led-5mm",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "pin-anode-anchor",
+          "pinId": "anode",
+          "pinName": "A",
+          "cx": 83,
+          "cy": 372
+        },
+        {
+          "id": "pin-cathode-anchor",
+          "pinId": "cathode",
+          "pinName": "K",
+          "cx": 209,
+          "cy": 372
+        }
+      ],
+      "status": "owner_declared",
+      "source": "Копмоненты SVG/Светодиод/led_brightness_pack_v6/led_component_metadata_v6.json"
+    },
+    {
+      "componentId": "rgb-led",
+      "pinCount": 4,
+      "pins": [
+        {
+          "id": "red",
+          "name": "R",
+          "role": "channel-red",
+          "x": -22.4,
+          "y": 372.0,
+          "holeId": "E10",
+          "mmX": 0.0,
+          "mmY": 0.0,
+          "color": "#ff4040"
+        },
+        {
+          "id": "common",
+          "name": "COM",
+          "role": "common",
+          "x": 79.2,
+          "y": 372.0,
+          "holeId": "E11",
+          "mmX": 2.54,
+          "mmY": 0.0,
+          "color": "#30363a"
+        },
+        {
+          "id": "green",
+          "name": "G",
+          "role": "channel-green",
+          "x": 180.8,
+          "y": 372.0,
+          "holeId": "E12",
+          "mmX": 5.08,
+          "mmY": 0.0,
+          "color": "#36d468"
+        },
+        {
+          "id": "blue",
+          "name": "B",
+          "role": "channel-blue",
+          "x": 282.4,
+          "y": 372.0,
+          "holeId": "E13",
+          "mmX": 7.62,
+          "mmY": 0.0,
+          "color": "#3f8cff"
+        }
+      ],
+      "status": "owner_declared",
+      "source": "Копмоненты SVG/RGB - светодиод/rgb_led_v7_visible_body_on_our_breadboard_package/data/components/rgb_led/rgb_led_v7_pin_points.json"
+    },
+    {
+      "componentId": "diode-do35",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "diode-do41",
+      "pinCount": 0,
+      "pins": [],
+      "status": "not_declared_in_owner_package",
+      "source": null
+    },
+    {
+      "componentId": "transistor-npn",
+      "pinCount": 3,
+      "pins": [
+        {
+          "id": "base",
+          "label": "base",
+          "xRatio": 0.507226,
+          "yRatio": 0.8446,
+          "sourceX": 221.66,
+          "sourceY": 415.54,
+          "confidence": "manual"
+        },
+        {
+          "id": "collector",
+          "label": "collector",
+          "xRatio": 0.279591,
+          "yRatio": 0.84716,
+          "sourceX": 122.18,
+          "sourceY": 416.8,
+          "confidence": "manual"
+        },
+        {
+          "id": "emitter",
+          "label": "emitter",
+          "xRatio": 0.734861,
+          "yRatio": 0.84716,
+          "sourceX": 321.13,
+          "sourceY": 416.8,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "incandescent-lamp",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "L1",
+          "positionMm": {
+            "x": 8.73,
+            "y": 29.0
+          },
+          "electricalRole": "passive-terminal"
+        },
+        {
+          "id": "L2",
+          "positionMm": {
+            "x": 11.27,
+            "y": 29.0
+          },
+          "electricalRole": "passive-terminal"
+        }
+      ],
+      "status": "owner_declared",
+      "source": "owner SVG metadata/comments"
+    },
+    {
+      "componentId": "dc-motor",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "negative",
+          "label": "negative",
+          "xRatio": 0.409776,
+          "yRatio": 0.913364,
+          "sourceX": 438.46,
+          "sourceY": 772.71,
+          "confidence": "manual"
+        },
+        {
+          "id": "positive",
+          "label": "positive",
+          "xRatio": 0.567847,
+          "yRatio": 0.912555,
+          "sourceX": 607.6,
+          "sourceY": 772.02,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "servo-motor",
+      "pinCount": 3,
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "gnd",
+          "xRatio": 0.60283,
+          "yRatio": 0.075601,
+          "sourceX": 216.42,
+          "sourceY": 55.72,
+          "confidence": "manual"
+        },
+        {
+          "id": "signal",
+          "label": "signal",
+          "xRatio": 0.400542,
+          "yRatio": 0.07654,
+          "sourceX": 143.79,
+          "sourceY": 56.41,
+          "confidence": "manual"
+        },
+        {
+          "id": "vcc",
+          "label": "vcc",
+          "xRatio": 0.500722,
+          "yRatio": 0.075601,
+          "sourceX": 179.76,
+          "sourceY": 55.72,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "piezo",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "negative",
+          "label": "negative",
+          "xRatio": 0.72696,
+          "yRatio": 0.875679,
+          "sourceX": 325.68,
+          "sourceY": 401.06,
+          "confidence": "manual"
+        },
+        {
+          "id": "positive",
+          "label": "positive",
+          "xRatio": 0.294606,
+          "yRatio": 0.875679,
+          "sourceX": 131.98,
+          "sourceY": 401.06,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "seven-segment-display",
+      "pinCount": 10,
+      "pins": [
+        {
+          "componentPin": "top-1",
+          "holeId": "H7",
+          "xMm": 18.42,
+          "yMm": 8.61,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "top-2",
+          "holeId": "H8",
+          "xMm": 20.96,
+          "yMm": 8.61,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "top-3",
+          "holeId": "H9",
+          "xMm": 23.5,
+          "yMm": 8.61,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "top-4",
+          "holeId": "H10",
+          "xMm": 26.04,
+          "yMm": 8.61,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "top-5",
+          "holeId": "H11",
+          "xMm": 28.58,
+          "yMm": 8.61,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "bottom-1",
+          "holeId": "D7",
+          "xMm": 18.42,
+          "yMm": 23.85,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "bottom-2",
+          "holeId": "D8",
+          "xMm": 20.96,
+          "yMm": 23.85,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "bottom-3",
+          "holeId": "D9",
+          "xMm": 23.5,
+          "yMm": 23.85,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "bottom-4",
+          "holeId": "D10",
+          "xMm": 26.04,
+          "yMm": 23.85,
+          "errorMm": 0.0
+        },
+        {
+          "componentPin": "bottom-5",
+          "holeId": "D11",
+          "xMm": 28.58,
+          "yMm": 23.85,
+          "errorMm": 0.0
+        }
+      ],
+      "status": "owner_declared_and_fit_verified",
+      "source": "Копмоненты SVG/Семисегментный индикатор/seven_segment_breadboard_fit_report.json"
+    },
+    {
+      "componentId": "multimeter",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "com",
+          "label": "com",
+          "xRatio": 0.461111,
+          "yRatio": 0.869905,
+          "sourceX": 611.89,
+          "sourceY": 520.2,
+          "confidence": "manual"
+        },
+        {
+          "id": "v-ohm-ma",
+          "label": "v-ohm-ma",
+          "xRatio": 0.525439,
+          "yRatio": 0.867192,
+          "sourceX": 697.26,
+          "sourceY": 518.58,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    },
+    {
+      "componentId": "regulated-power-supply",
+      "pinCount": 2,
+      "pins": [
+        {
+          "id": "negative",
+          "label": "negative",
+          "xRatio": 0.537911,
+          "yRatio": 0.81935,
+          "sourceX": 663.24,
+          "sourceY": 787.4,
+          "confidence": "manual"
+        },
+        {
+          "id": "positive",
+          "label": "positive",
+          "xRatio": 0.46118,
+          "yRatio": 0.820967,
+          "sourceX": 568.64,
+          "sourceY": 788.95,
+          "confidence": "manual"
+        }
+      ],
+      "status": "owner_manual_map",
+      "source": "Electro-venik-reference-lab/visual-canon-lab/exports/visual-canon-pins.manual.json"
+    }
+  ]
+}

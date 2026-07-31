@@ -22,7 +22,7 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-  active_checkpoint: owner_visual_asset_and_breadboard_rework
+  active_checkpoint: electronics_asset_foundation_audit
   rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
   owner_directive_pr_comment: https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5145281700
   owner_directive_issue_comment: https://github.com/spikeal8-maker/asa-lab/issues/63#issuecomment-5145285731
@@ -180,7 +180,7 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_progress
-    checkpoint: owner_visual_asset_and_breadboard_rework
+    checkpoint: electronics_asset_foundation_audit
     owner_acceptance: rejected_at_1abc608ef6a8c45efa3205c817dfb6054c289e5e
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
@@ -192,21 +192,23 @@ tasks:
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
     next_task: null
     capabilities: [CAP-PROJECTS]
-    visible_result: Owner-supplied transparent assets, full state families, exact pins, one physical scale and working breadboard placement/connectivity are accepted before simulation UI continues.
-    user_flow: Audit owner archives -> approve transparent assets and state families -> place native components on breadboard -> verify hole connectivity -> only then return to wiring and simulation.
+    visible_result: Every component and state in the owner-confirmed archive is classified with provenance, hashes, dimensions, pins and breadboard metadata before any simulator work continues.
+    user_flow: Audit canonical owner archive -> review the complete component contact sheet and all maps -> stop for owner acceptance.
     required_scope:
       - full_owner_archive_inventory
       - transparent_owner_svg_only
-      - parametric_resistor_bands
       - complete_led_colour_and_brightness_families
-      - battery_lead_end_contacts
-      - breadboard_hole_map_and_internal_connectivity
-      - pin_to_hole_snap_and_placement_validation
-      - exact_pin_anchor_tolerance
-      - physical_scale_and_10mm_calibration
-    non_goals: [instruments, Arduino, microbit, transient analysis, AC analysis, R4-M2, R5, new solver features before visual acceptance]
+      - all_battery_holder_variants
+      - all_display_components
+      - arduino_microcontroller_inventory_if_present
+      - sensors_motors_switches_and_passives_inventory
+      - physical_dimensions_map
+      - pin_map
+      - breadboard_footprint_map
+      - state_family_map
+    non_goals: [solver changes, product UI changes, new runtime functions, transient analysis, AC analysis, R4-M2, R5]
     read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5145281700]
     test_profiles: []
     task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]
-    artifacts: [transparency-audit.png, physical-scale.png, state-families.png, breadboard-fit-connectivity.png, owner-asset-manifest, focused-test-report]
+    artifacts: [complete-owner-contact-sheet.png, battery-holder-family.png, led-state-family.png, breadboard-inventory.png, owner-asset-manifest, physical-dimensions-map, pin-map, breadboard-footprint-map, state-family-map, focused-test-report]

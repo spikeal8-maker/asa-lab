@@ -14,46 +14,68 @@ tests:
     owner: experience-platform
     artifacts: [console-report, gateway-source-audit]
 
-  - id: TST-ELECTRONICS-M1-DOMAIN-001
-    title: Electronics M1 document, netlist, solver and diagnostics
-    suite: simulation
+  - id: TST-ELECTRONICS-ASSET-MANIFEST-001
+    title: Complete owner archive inventory and hash provenance
+    suite: contracts
+    level: repository
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [owner-asset-manifest, archive-hash-inventory, vitest-report]
+
+  - id: TST-ELECTRONICS-TRANSPARENCY-001
+    title: Exact owner SVG transparency and external-reference audit
+    suite: security
+    level: repository
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [owner-asset-manifest, transparency-audit, vitest-report]
+
+  - id: TST-ELECTRONICS-PHYSICAL-SCALE-001
+    title: Owner component physical-dimensions map
+    suite: contracts
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm test:electronics
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [vitest-report]
+    artifacts: [physical-dimensions-map, vitest-report]
 
-  - id: TST-ELECTRONICS-M1-EDITOR-001
-    title: Electronics M1 editor operations and canonical persistence document
-    suite: integration
-    level: application
+  - id: TST-ELECTRONICS-PIN-ANCHOR-001
+    title: Owner component pin map and terminal provenance
+    suite: contracts
+    level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [vitest-report]
+    artifacts: [pin-map, vitest-report]
 
-  - id: TST-ELECTRONICS-M1-PERSISTENCE-001
-    title: Electronics M1 API ownership, RLS, save, reload and checkpoint
-    suite: integration
-    level: system
+  - id: TST-ELECTRONICS-STATE-FAMILIES-001
+    title: Complete LED, RGB LED and battery-holder state families
+    suite: contracts
+    level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run tests/portal/projects-api.spec.ts
-    timeout_seconds: 1200
-    owner: data-platform
-    artifacts: [postgres-report, rls-report]
-
-  - id: TST-ELECTRONICS-M1-E2E-001
-    title: Electronics M1 focused browser flow and six owner screenshots
-    suite: e2e
-    level: system
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm e2e:electronics
-    timeout_seconds: 1800
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    timeout_seconds: 900
     owner: electronics
-    artifacts: [playwright-report, empty.png, components.png, wired.png, running.png, diagnostic.png, reload.png]
+    artifacts: [state-family-map, vitest-report]
+
+  - id: TST-ELECTRONICS-BREADBOARD-001
+    title: Complete owner breadboard hole groups and component footprints
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [breadboard-footprint-map, vitest-report]

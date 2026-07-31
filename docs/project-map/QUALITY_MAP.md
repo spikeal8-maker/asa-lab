@@ -25,25 +25,25 @@ TST-DEVELOPMENT-PROGRAM-001
 
 ```text
 TST-R3A-MODULE-GATEWAY-001
-TST-ELECTRONICS-M1-DOMAIN-001
-TST-ELECTRONICS-M1-EDITOR-001
-TST-ELECTRONICS-M1-PERSISTENCE-001
-TST-ELECTRONICS-M1-E2E-001
+TST-ELECTRONICS-ASSET-MANIFEST-001
+TST-ELECTRONICS-TRANSPARENCY-001
+TST-ELECTRONICS-PHYSICAL-SCALE-001
+TST-ELECTRONICS-PIN-ANCHOR-001
+TST-ELECTRONICS-STATE-FAMILIES-001
+TST-ELECTRONICS-BREADBOARD-001
 ```
 
-The current Electronics results are currently `NOT_RUN` until implementation
-reaches each focused gate. The full repository matrix is intentionally not run
-before owner visual acceptance.
+The current audit commands run as one focused asset-foundation suite. The full
+repository matrix and the Electronics solver/editor gates remain intentionally
+out of scope before owner visual acceptance.
 
 ## Required browser evidence
 
 ```text
-empty.png
-components.png
-wired.png
-running.png
-diagnostic.png
-reload.png
+complete-owner-contact-sheet.png
+battery-holder-family.png
+led-state-family.png
+breadboard-inventory.png
 console errors = 0
 pageerror = 0
 unexpected requestfailed = 0
