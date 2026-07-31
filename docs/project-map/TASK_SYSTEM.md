@@ -1,230 +1,116 @@
 # Система задач ASA Lab
 
-## 1. Источники task contract
+## Источники
 
 ```text
 AGENTS.md
 → docs/project-map/infrastructure-focus.yaml
 → docs/project-map/project-map.yaml
 → docs/delivery/EXECUTION_MANIFEST.yaml
-→ GitHub Issue текущей задачи
+→ GitHub Issue активной задачи
 → docs/testing/test-catalog.yaml
 ```
 
-Чат не заменяет task ID, branch, dependencies, ports, test gate или scope. При конфликте агент останавливается до опубликованной нормативной правки.
-
-## 2. Infrastructure и product state
-
-Сначала проверяется `infrastructure-focus.yaml`.
-
-- `active: true` — исполняется только infrastructure manifest;
-- `active: false` — state обязан быть terminal и пройти `validate_infrastructure_focus.py`;
-- после этого task берётся из `project.current_focus`.
-
-Текущий infrastructure state:
+## Текущее состояние
 
 ```text
-TASK-DOCKER-LINUX-001 done
-completed_sha 7afebdcf9441b027092ce17a37f1f89950af99c6
-active false
+main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+TASK-ACCOUNT-C1-001:     done
+Issue #48:               completed
+current_focus:            null
+active task:              none
 ```
 
-## 3. Как выбирается задача
-
-Product code разрешён только когда одновременно верно:
-
-```text
-task_id = project.current_focus
-task присутствует в EXECUTION_MANIFEST.yaml
-status = ready | in_progress | in_review
-все depends_on = done
-Issue открыта и не помечена blocked
-branch соответствует manifest
-required test IDs существуют в test catalog
-```
-
-Агент не выбирает roadmap task и не создаёт branch самостоятельно.
-
-## 4. Текущая executable queue
+## Завершённая очередь
 
 ```text
 TASK-PRODUCT-DOC-001  done
 → TASK-PORTAL-001     done
-→ TASK-ACCOUNT-C1-001 in_progress
-→ owner review / stop
+→ TASK-ACCOUNT-C1-001 done
+→ stop
 ```
 
-У текущей задачи:
+При `current_focus: null` coding-агент выводит `NO_ACTIVE_TASK` и не пишет product code.
+
+## Blocked roadmap
 
 ```text
-next_task: null
+R2 Issue №62  Creator Portal      blocked
+R3 Issue №37  Project lifecycle   blocked
+R4 Issue №63  Electronics parity  blocked
 ```
 
-Это означает: после Account C1 никакая следующая capability не активируется автоматически.
+Roadmap не является executable queue.
 
-## 5. Owner-gated roadmap
+## Активация будущей задачи
 
-```text
-R2 Issue №62  Creator Portal          blocked
-R3 Issue №37  Project lifecycle       blocked
-R4 Issue №63  Electronics parity      blocked
-```
+Отдельный owner transition синхронно изменяет:
 
-Roadmap task становится executable только отдельным governance transition, который одновременно обновляет:
-
-- `EXECUTION_MANIFEST.yaml`;
+- [`EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml);
 - `project-map.yaml` и `PROJECT_MAP.md`;
 - `QUALITY_MAP.md` и test catalog;
-- GitHub Issue status/scope;
-- canonical branch;
-- owner stop condition.
+- GitHub Issue;
+- task branch;
+- scope/non-goals/tests/stop condition.
 
-## 6. Текущий Account C1
+После этого только одна task может иметь status `ready | in_progress | in_review`.
 
-**Task:** `TASK-ACCOUNT-C1-001`  
-**Issue:** №48  
-**Branch:** `assistant/docker-linux-bootstrap`
-
-Уже реализовано и не дублируется:
-
-- registration;
-- Account / Profile / Principal;
-- Personal Workspace;
-- sessions_v2;
-- login email/username;
-- legacy teacher bridge;
-- principal-aware project ownership.
-
-Оставшийся flow:
-
-```text
-educator self-attestation
-→ audited provisional capability
-→ workspace list/context switch
-→ profile
-→ active sessions
-→ revoke one/all other sessions
-→ Chromium evidence
-```
-
-## 7. Status semantics
+## Status semantics
 
 | Status | Значение |
 |---|---|
-| `planned` | roadmap capability без разрешения на реализацию |
+| `planned` | roadmap без разрешения на реализацию |
 | `blocked` | dependency или owner activation отсутствует |
-| `ready` | задача опубликована и может быть начата |
-| `in_progress` | один исполнитель работает в canonical branch |
-| `in_review` | user flow завершён и находится на owner review |
-| `done` | owner acceptance и утверждённый convergence transition |
+| `ready` | task опубликована и может быть начата |
+| `in_progress` | один coding-агент работает |
+| `in_review` | flow завершён и ожидает owner review |
+| `done` | gate принят и merge/governance transition завершён |
 | `deprecated` | historical task, не executable |
 
-`done` не означает только наличие кода или локальный test report.
+## Разделение работы
 
-## 8. Scope freeze
+Coding-агент:
 
-После `in_progress` разрешены только:
+- пишет код только активной task;
+- запускает focused/full gates;
+- готовит browser evidence;
+- останавливается для review.
 
-- domain/application текущего flow;
-- additive migration;
-- API/UI текущего flow;
-- security/RLS/compatibility fixes;
-- focused tests, E2E и evidence;
-- review feedback.
+GitHub/governance работа:
 
-Запрещены:
+- ведёт документы и карты;
+- аудитирует старые PR;
+- классифицирует `contained / superseded / still valuable / obsolete`;
+- не выдаётся coding-агенту вместо product task.
 
-- future roadmap capability;
-- competing branch;
-- unrelated refactoring;
-- изменение применённой migration;
-- ослабление tests/contracts/RLS;
-- destructive cleanup.
+## Scope freeze
 
-## 9. Test lifecycle
+После `in_progress` запрещены следующая capability, competing branch, unrelated refactoring, rewrite migrations и ослабление tests/RLS.
 
-Test ID регистрируется в `test-catalog.yaml` с реальной командой.
-
-Если suite ещё не реализован, команда обязана вернуть:
-
-```text
-BLOCKED
-exit code 78
-```
-
-Она не может отсутствовать или возвращать фиктивный PASS.
-
-Текущие Account placeholders:
-
-```text
-pnpm test:account-c1
-pnpm test:account-c1:pg
-pnpm e2e:account-c1
-```
-
-Product implementation заменяет их реальными suites.
+## Test lifecycle
 
 Task runner:
 
 ```bash
-python tools/run_task_tests.py --task TASK-ACCOUNT-C1-001
+python tools/run_task_tests.py --task <TASK-ID>
 ```
 
-## 10. Map lifecycle
+- `PASS` — exit 0;
+- `FAIL` — non-zero;
+- `BLOCKED` — обязательная среда отсутствует;
+- `NOT_RUN` — команда не запускалась.
 
-### Start
+`BLOCKED` и `NOT_RUN` не закрывают gate.
 
-```text
-task = in_progress
-current_focus = task
-roadmap = blocked
-```
+## Git rules
 
-### Draft review
+- будущая product branch создаётся только от актуального `main` после task activation;
+- force-push и rewrite истории запрещены;
+- старые PR/branches не merge/close/delete без preservation audit;
+- backups, dumps и credentials не коммитятся.
 
-```text
-focused gate PASS
-owner-visible result exists
-task may become in_review
-next_task remains null
-maps/tests/Nx synchronized
-```
-
-### Acceptance
-
-```text
-owner decides merge/convergence separately
-current task may become done
-future task remains blocked until separate activation
-agent stops
-```
-
-## 11. Git rules
-
-- одна canonical product line;
-- обычный fast-forward push;
-- no force-push;
-- no automatic branch creation;
-- no merge/main/tag without owner instruction;
-- backups, dumps and credentials are never committed;
-- old transfer-only branches remain historical until convergence decision.
-
-## 12. Evidence
-
-Каждый product review содержит:
-
-- exact final SHA;
-- user-visible result;
-- migration and preservation report;
-- test IDs with PASS/FAIL/BLOCKED/NOT_RUN;
-- PostgreSQL/RLS negative evidence;
-- Playwright and browser counters;
-- screenshots;
-- clean tracked working tree;
-- residual risks;
-- confirmation that future capability is absent.
-
-## 13. Validators
+## Validators
 
 ```bash
 python tools/validate_infrastructure_focus.py
@@ -232,5 +118,3 @@ python tools/validate_project_map.py
 python tools/validate_test_catalog.py
 python tools/validate_delivery_program.py
 ```
-
-Validators must agree on current task, exact executable queue and test mapping.
