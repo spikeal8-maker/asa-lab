@@ -1,0 +1,59 @@
+schema_version: 1.0.0
+active_task: TASK-CREATOR-PORTAL-001
+source_of_truth: docs/testing/active-task-tests.yaml
+result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
+tests:
+  - id: TST-R2-STATIC-001
+    title: R2 static and full regression gate
+    suite: static
+    level: repository
+    phase_available: PHASE-3
+    required_for: [TASK-CREATOR-PORTAL-001]
+    command: node tools/run-r2-static.mjs
+    timeout_seconds: 3600
+    owner: developer-experience
+    artifacts: [console-report, build-manifest, regression-report]
+
+  - id: TST-R2-CREATOR-HOME-001
+    title: Creator Home recent projects and visible states
+    suite: integration
+    level: system
+    phase_available: PHASE-3
+    required_for: [TASK-CREATOR-PORTAL-001]
+    command: pnpm test:creator-portal -- --run tests/portal/creator-home.spec.ts
+    timeout_seconds: 900
+    owner: experience-platform
+    artifacts: [junit, creator-home-report]
+
+  - id: TST-R2-CAPABILITY-NAV-001
+    title: Server-authorized capability navigation and workspace scope
+    suite: authorization
+    level: system
+    phase_available: PHASE-3
+    required_for: [TASK-CREATOR-PORTAL-001]
+    command: pnpm test:creator-portal -- --run tests/portal/capability-navigation.spec.ts
+    timeout_seconds: 1200
+    owner: identity-and-experience
+    artifacts: [junit, capability-navigation-matrix]
+
+  - id: TST-R2-ROUTING-001
+    title: Creator Portal refresh deep-link Back and Forward routing
+    suite: integration
+    level: system
+    phase_available: PHASE-3
+    required_for: [TASK-CREATOR-PORTAL-001]
+    command: pnpm test:creator-portal -- --run tests/portal/creator-routing.spec.ts
+    timeout_seconds: 900
+    owner: experience-platform
+    artifacts: [junit, routing-report]
+
+  - id: TST-R2-E2E-001
+    title: Live Creator Portal desktop tablet and mobile flow
+    suite: e2e
+    level: system
+    phase_available: PHASE-3
+    required_for: [TASK-CREATOR-PORTAL-001]
+    command: pnpm e2e:creator-portal
+    timeout_seconds: 2400
+    owner: experience-platform
+    artifacts: [playwright-report, screenshots, browser-failure-report]
