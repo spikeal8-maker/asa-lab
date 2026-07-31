@@ -88,10 +88,11 @@ describe('Electronics production vector foundation', () => {
     const missing = manifest.components.filter((item) => item.status === 'missing_reference');
     expect(missing.map((item) => item.componentId)).toEqual(['battery-holder-aa-5']);
     for (const count of [1, 2, 3, 4, 6, 8]) {
-      expect(
-        manifest.components.find((item) => item.componentId === `battery-holder-aa-${count}`)
-          ?.status,
-      ).toBe('candidate_for_owner_review');
+      const holder = manifest.components.find(
+        (item) => item.componentId === `battery-holder-aa-${count}`,
+      );
+      expect(holder?.status).toBe('candidate_for_owner_review');
+      expect(holder?.provenance).toBe('exact_owner_svg');
     }
   });
 
@@ -105,9 +106,53 @@ describe('Electronics production vector foundation', () => {
     ).toBe(false);
     for (const path of files) {
       const svg = readFileSync(path, 'utf8');
+      const root = svg.match(/<svg\b[^>]*>/)?.[0] ?? '';
       expect(svg, path).not.toMatch(/<image\b|data:image|base64|<foreignObject\b|<script\b/i);
       expect(svg, path).not.toMatch(/(?:href|xlink:href)=["']https?:\/\//i);
       expect(svg, path).not.toMatch(/checkerboard|transparency-grid|pixel-vector/i);
+      expect(root.match(/data-component-id=/g)?.length ?? 0, path).toBeLessThanOrEqual(1);
+      expect(root.match(/data-provenance=/g)?.length ?? 0, path).toBeLessThanOrEqual(1);
+    }
+    for (const component of manifest.components.filter((item) => item.productionSvg !== null)) {
+      expect(component.productionSvg, component.componentId).toMatch(/\.svg$/);
+    }
+  });
+
+  it('uses owner-reference contour traces instead of simplified replacement art for PNG-only items', () => {
+    const tracedIds = [
+      'arduino-uno',
+      'battery-1.5v',
+      'battery-3v',
+      'battery-6v',
+      'battery-9v',
+      'resistor-axial',
+      'potentiometer',
+      'electrolytic-capacitor',
+      'photoresistor',
+      'transistor-npn',
+      'dc-motor',
+      'servo-motor',
+      'piezo',
+      'multimeter',
+      'regulated-power-supply',
+    ];
+    for (const componentId of tracedIds) {
+      const component = manifest.components.find((item) => item.componentId === componentId);
+      const svgPath = resolve(publicRoot, (component?.productionSvg as string).replace(/^\//, ''));
+      const svg = readFileSync(svgPath, 'utf8');
+      expect(component?.provenance, componentId).toBe('derived_from_owner_reference');
+      expect(svg, componentId).toContain('id="owner-reference-vector-trace"');
+      expect(svg.match(/<path\b/g)?.length ?? 0, componentId).toBeGreaterThan(10);
+      expect(svg, componentId).not.toContain('<rect');
+    }
+  });
+
+  it('keeps the owner resistor body and exposes its four real colour zones as state channels', () => {
+    const component = manifest.components.find((item) => item.componentId === 'resistor-axial');
+    const svgPath = resolve(publicRoot, (component?.productionSvg as string).replace(/^\//, ''));
+    const svg = readFileSync(svgPath, 'utf8');
+    for (const band of ['digit-1', 'digit-2', 'multiplier', 'tolerance']) {
+      expect(svg).toContain(`data-resistor-band="${band}"`);
     }
   });
 

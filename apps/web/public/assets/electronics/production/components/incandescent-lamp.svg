@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="20.0mm" height="30.0mm" viewBox="0 0 20.0 30.0" role="img" aria-label="Miniature incandescent lamp module T-1 bi-pin 6V OFF" data-component-id="lamp-incandescent-t1-bipin-6v" data-state="off" data-pin-pitch-mm="2.54" data-pin-pitch-label="2.5 mm" data-package-version="v10-bright-full-glow">
+<svg data-provenance="exact_owner_svg" xmlns="http://www.w3.org/2000/svg" width="20.0mm" height="30.0mm" viewBox="0 0 20.0 30.0" role="img" aria-label="Miniature incandescent lamp module T-1 bi-pin 6V OFF" data-component-id="lamp-incandescent-t1-bipin-6v" data-state="off" data-pin-pitch-mm="2.54" data-pin-pitch-label="2.5 mm" data-package-version="v10-bright-full-glow">
   <metadata><![CDATA[
 {
   "schemaVersion": "1.0.0",

@@ -21,6 +21,7 @@ ASSET_ROOT = ROOT / "apps/web/public/assets/electronics"
 AUDIT_ROOT = ASSET_ROOT / "owner-audit"
 REFERENCE_ROOT = ASSET_ROOT / "reference"
 PRODUCTION_ROOT = ASSET_ROOT / "production"
+VECTOR_SOURCE_ROOT = ROOT / "tools/electronics-production-vectors"
 WORLD_UNITS_PER_MM = 5
 REFERENCE_AUDIT_SHA = "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
 
@@ -336,6 +337,7 @@ HOLDER_DEFAULTS = {
 
 STATE_CONTRACTS: dict[str, dict[str, Any]] = {
     "led-5mm": {"type": "ordinary_led", "colors": ["blue", "green", "orange", "red", "white", "yellow"], "brightness": {"min": 0, "max": 100, "step": 1}, "specialStates": ["reverse", "overcurrent", "burned"]},
+    "resistor-axial": {"type": "resistor_colour_code", "bands": ["digit-1", "digit-2", "multiplier", "tolerance"], "resistanceOhms": {"min": 0.1, "max": 99000000000}, "tolerancePercent": [1, 2, 5, 10]},
     "rgb-led": {"type": "rgb_led", "channels": {"red": [0, 100], "green": [0, 100], "blue": [0, 100]}, "mixing": "additive", "commonVariants": ["common-anode", "common-cathode"], "pinCount": 4},
     "seven-segment-display": {"type": "seven_segment", "groups": ["a", "b", "c", "d", "e", "f", "g", "dp"], "brightness": [0, 100], "commonVariants": ["common-anode", "common-cathode"], "glyphs": [*map(str, range(10)), "A", "b", "C", "d", "E", "F"], "arbitraryMask": True},
     "button-tactile-6mm": {"type": "momentary", "states": ["released", "pressed"], "transition": ["released", "pressed", "released"]},
@@ -364,6 +366,7 @@ def state_contract(component_id: str) -> dict[str, Any]:
 def animation_contract(component_id: str) -> dict[str, Any]:
     channels = {
         "led-5mm": ["brightness", "fault"],
+        "resistor-axial": ["resistance", "tolerance"],
         "rgb-led": ["red", "green", "blue"],
         "seven-segment-display": ["segments", "brightness"],
         "button-tactile-6mm": ["pressed"],
@@ -455,6 +458,17 @@ def exact_pins(component_id: str, dimensions: tuple[float, float]) -> list[dict[
     return pins
 
 
+def ensure_svg_metadata(text: str, component_id: str, provenance: str) -> str:
+    attributes = []
+    if "data-component-id=" not in text:
+        attributes.append(f'data-component-id="{component_id}"')
+    if "data-provenance=" not in text:
+        attributes.append(f'data-provenance="{provenance}"')
+    if not attributes:
+        return text
+    return re.sub(r"<svg\b", "<svg " + " ".join(attributes), text, count=1)
+
+
 def inject_pin_anchors(target: Path, component_id: str, dimensions: tuple[float, float], pins: list[dict[str, Any]]) -> None:
     text = target.read_text(encoding="utf-8")
     view_box = re.search(r'viewBox="([^"]+)"', text)
@@ -470,13 +484,29 @@ def inject_pin_anchors(target: Path, component_id: str, dimensions: tuple[float,
             f'<circle id="pin-{pin["id"]}" data-pin-id="{pin["id"]}" cx="{n(x)}" cy="{n(y)}" r="0.01" fill="none"/>'
         )
     anchors.append("</g>")
-    text = re.sub(
-        r"<svg\\b",
-        f'<svg data-component-id="{component_id}" data-provenance="exact_owner_svg"',
-        text,
-        count=1,
-    )
+    text = ensure_svg_metadata(text, component_id, "exact_owner_svg")
     text = text.replace("</svg>", "\n" + "".join(anchors) + "\n</svg>")
+    target.write_text(text, encoding="utf-8")
+
+
+def inject_resistor_band_contract(target: Path) -> None:
+    """Tag the four existing owner-reference zones for typed resistance updates."""
+    text = target.read_text(encoding="utf-8")
+    zones = {
+        "#685f2f": "digit-1",
+        "#ff0000": "digit-2",
+        "#000000": "multiplier",
+        "#8b4513": "tolerance",
+    }
+    for colour, band in zones.items():
+        marker = f'<path fill="{colour}"'
+        replacement = (
+            f'<path id="resistor-band-{band}" data-resistor-band="{band}" '
+            f'data-state-channel="resistance" fill="{colour}"'
+        )
+        if text.count(marker) != 1:
+            raise RuntimeError(f"Expected one owner resistor zone {colour} in {target}")
+        text = text.replace(marker, replacement, 1)
     target.write_text(text, encoding="utf-8")
 
 
@@ -538,13 +568,7 @@ def add_battery_wire_anchors(source: Path, target: Path, component_id: str, widt
         pin["yMm"] = 0.0
         pin["anchorSource"] = "derived_wire_end_from_owner_terminal"
     wire_group.append("</g>")
-    if "data-provenance=" not in text:
-        text = re.sub(
-            r"<svg\\b",
-            f'<svg data-component-id="{component_id}" data-provenance="derived_from_owner_reference"',
-            text,
-            count=1,
-        )
+    text = ensure_svg_metadata(text, component_id, "exact_owner_svg")
     text = text.replace("</svg>", "\n" + "".join(wire_group) + "\n</svg>")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
@@ -636,11 +660,16 @@ def main() -> None:
         if component_id in DERIVED_DIMENSIONS:
             width, height, dimension_source = DERIVED_DIMENSIONS[component_id]
             pins = manual_pins(component_id, (width, height))
-            svg = derived_svg(component_id, width, height, pins)
             target_relative = f"components/{component_id}.svg"
             target = PRODUCTION_ROOT / target_relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(svg, encoding="utf-8")
+            vector_source = VECTOR_SOURCE_ROOT / f"{component_id}.svg"
+            if not vector_source.is_file():
+                raise FileNotFoundError(f"Run tools/vectorize_owner_references.py first: {vector_source}")
+            shutil.copyfile(vector_source, target)
+            if component_id == "resistor-axial":
+                inject_resistor_band_contract(target)
+            inject_pin_anchors(target, component_id, (width, height), pins)
             provenance = "derived_from_owner_reference"
         elif component_id.startswith("battery-holder-aa-"):
             width, height = exact_dimensions(component)
@@ -650,7 +679,7 @@ def main() -> None:
             target_relative = f"components/{component_id}.svg"
             target = PRODUCTION_ROOT / target_relative
             add_battery_wire_anchors(AUDIT_ROOT / source_relative, target, component_id, width, pins)
-            provenance = "derived_from_owner_reference"
+            provenance = "exact_owner_svg"
         else:
             width, height = exact_dimensions(component)
             dimension_source = component["physicalDimensions"]["source"]

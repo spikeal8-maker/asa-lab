@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 400" role="img" aria-label="red LED 0.0%" data-component="led" data-version="v9-from-v6-verified" data-color="red" data-intensity="0" data-fault="none" data-render-quality="high" style="--led-body-opacity: 0; --led-rim-opacity: 0; --led-inner-opacity: 0; --led-outer-glow-opacity: 0; --led-die-opacity: 0.12; --led-wire-opacity: 0.14; --led-label-opacity: 0">
+<svg data-component-id="led-5mm" data-provenance="exact_owner_svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 400" role="img" aria-label="red LED 0.0%" data-component="led" data-version="v9-from-v6-verified" data-color="red" data-intensity="0" data-fault="none" data-render-quality="high" style="--led-body-opacity: 0; --led-rim-opacity: 0; --led-inner-opacity: 0; --led-outer-glow-opacity: 0; --led-die-opacity: 0.12; --led-wire-opacity: 0.14; --led-label-opacity: 0">
       <g data-layer="v6-locked-visual"><defs>
     <style><![CDATA[
       .connection-pin { opacity: 0; pointer-events: all; }

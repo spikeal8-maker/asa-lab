@@ -8,6 +8,20 @@ export type SevenSegmentId = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'dp';
 export type SpdtThrow = 'left' | 'right';
 export type MotorDirection = 'clockwise' | 'counterclockwise' | 'stopped';
 export type LampState = 'off' | 'dim' | 'on' | 'max';
+export type ResistorBandColour =
+  | 'black'
+  | 'brown'
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'violet'
+  | 'grey'
+  | 'white'
+  | 'gold'
+  | 'silver';
+export type ResistorTolerancePercent = 1 | 2 | 5 | 10;
 
 export interface PhysicalSizeMm {
   readonly width: number;
@@ -32,6 +46,17 @@ export interface SevenSegmentState {
   readonly brightness: number;
 }
 
+export interface ResistorBandState {
+  readonly resistanceOhms: number;
+  readonly tolerancePercent: ResistorTolerancePercent;
+  readonly bands: readonly [
+    ResistorBandColour,
+    ResistorBandColour,
+    ResistorBandColour,
+    ResistorBandColour,
+  ];
+}
+
 export interface ProductionReviewStatus {
   readonly vector_reconstruction_ready: boolean;
   readonly transparency_pass: boolean;
@@ -44,6 +69,56 @@ export interface ProductionReviewStatus {
 }
 
 const clampPercent = (value: number): number => Math.round(Math.min(100, Math.max(0, value)));
+
+const RESISTOR_DIGIT_COLOURS = [
+  'black',
+  'brown',
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'violet',
+  'grey',
+  'white',
+] as const;
+
+const RESISTOR_MULTIPLIER_COLOURS: Readonly<Record<number, ResistorBandColour>> = {
+  [-2]: 'silver',
+  [-1]: 'gold',
+  0: 'black',
+  1: 'brown',
+  2: 'red',
+  3: 'orange',
+  4: 'yellow',
+  5: 'green',
+  6: 'blue',
+  7: 'violet',
+  8: 'grey',
+  9: 'white',
+};
+
+const RESISTOR_TOLERANCE_COLOURS: Readonly<Record<ResistorTolerancePercent, ResistorBandColour>> = {
+  1: 'brown',
+  2: 'red',
+  5: 'gold',
+  10: 'silver',
+};
+
+export const RESISTOR_BAND_CSS: Readonly<Record<ResistorBandColour, string>> = {
+  black: '#111111',
+  brown: '#8b4513',
+  red: '#e41f26',
+  orange: '#f28c18',
+  yellow: '#f3d328',
+  green: '#228b45',
+  blue: '#1769aa',
+  violet: '#7c3f98',
+  grey: '#8b8b8b',
+  white: '#f5f5f5',
+  gold: '#c8a43b',
+  silver: '#b8bec4',
+};
 
 export function physicalToWorld(size: PhysicalSizeMm): PhysicalSizeMm {
   return { width: size.width * WORLD_UNITS_PER_MM, height: size.height * WORLD_UNITS_PER_MM };
@@ -110,6 +185,31 @@ export function sevenSegmentState(
   const active = new Set<SevenSegmentId>(SEVEN_SEGMENT_GLYPHS[glyph] ?? []);
   if (decimalPoint) active.add('dp');
   return { active, brightness: clampPercent(brightness) };
+}
+
+export function resistorBandState(
+  requestedOhms: number,
+  tolerancePercent: ResistorTolerancePercent = 5,
+): ResistorBandState {
+  const resistanceOhms = Math.min(99_000_000_000, Math.max(0.1, requestedOhms));
+  let exponent = Math.floor(Math.log10(resistanceOhms)) - 1;
+  let significant = Math.round(resistanceOhms / 10 ** exponent);
+  if (significant >= 100) {
+    significant = 10;
+    exponent += 1;
+  }
+  exponent = Math.min(9, Math.max(-2, exponent));
+  significant = Math.min(99, Math.max(10, significant));
+  return {
+    resistanceOhms,
+    tolerancePercent,
+    bands: [
+      RESISTOR_DIGIT_COLOURS[Math.floor(significant / 10)],
+      RESISTOR_DIGIT_COLOURS[significant % 10],
+      RESISTOR_MULTIPLIER_COLOURS[exponent],
+      RESISTOR_TOLERANCE_COLOURS[tolerancePercent],
+    ],
+  };
 }
 
 export function buttonContactPairs(pressed: boolean): readonly (readonly [string, string])[] {

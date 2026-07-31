@@ -27,7 +27,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/arduino-uno.svg",
-      "productionSha256": "d05839ceac46774b285f79359103b736b49f0f016711156aee09debbd41184d8",
+      "productionSha256": "ac54f8188eae5e64c33aca156053dc6c1a2256c20d4f0dada9010ca9028e5c5d",
       "physicalWidthMm": 138.942,
       "physicalHeightMm": 68.164,
       "dimensionSource": "owner_physical_scale_manifest",
@@ -332,7 +332,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-1.5v.svg",
-      "productionSha256": "0a0dab0ca98be37536c32b4b30d717b8591a378dcc9ac79367f67bfdc94fbdac",
+      "productionSha256": "2a6cca9df5c740a58ca8caa6b318dfeefcabc51a7cc90dd8cdadd0b9a9bff306",
       "physicalWidthMm": 23.524,
       "physicalHeightMm": 66.87,
       "dimensionSource": "owner_physical_scale_manifest",
@@ -408,7 +408,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-3v.svg",
-      "productionSha256": "9248acfcf32ec18e7994c6636668186aa76774dd50caafd18c5e29101d97db87",
+      "productionSha256": "31309f129ad01e454223fdd368005f3790b87e1c8242bc1c72e127291517f41c",
       "physicalWidthMm": 31.423,
       "physicalHeightMm": 56.855,
       "dimensionSource": "owner_physical_scale_manifest",
@@ -484,7 +484,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-6v.svg",
-      "productionSha256": "590cc4014ce52842076eca57d85fb7c0627590bc06ed820d0cae4499a3b209b3",
+      "productionSha256": "e6ae71866bd16b7e3456c5dc528fb2ac5dc303331601a7714dcf2c51876c341a",
       "physicalWidthMm": 68.507,
       "physicalHeightMm": 65.043,
       "dimensionSource": "owner_physical_scale_manifest",
@@ -560,7 +560,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-9v.svg",
-      "productionSha256": "09392c9bd78619c724bf12b98cc27eff864f5b6097c049b46effd7de8c399e54",
+      "productionSha256": "0a0c461a63088e9b39a08bd6c1c1fcd927a4bbcddb23c5893b57e16c20aa3796",
       "physicalWidthMm": 52.667,
       "physicalHeightMm": 26.8,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -627,7 +627,7 @@
       "displayName": "Батарейный отсек 1×AA",
       "category": "power",
       "status": "candidate_for_owner_review",
-      "provenance": "derived_from_owner_reference",
+      "provenance": "exact_owner_svg",
       "referenceFiles": [
         {
           "file": "/assets/electronics/reference/components/battery-holder-aa-1.svg",
@@ -636,7 +636,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-holder-aa-1.svg",
-      "productionSha256": "cf0d8413d9250ae04e27ab475617dc17f4dae93eee20e15469426f0dccd07d3b",
+      "productionSha256": "4d7dfc5d753c52fa7f982079ef8540d15f5e6bd82bfd7e976e0d2e603365b992",
       "physicalWidthMm": 25.5808,
       "physicalHeightMm": 76.2,
       "dimensionSource": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_1x_sketch_exact_v6.model.json",
@@ -703,7 +703,7 @@
       "displayName": "Батарейный отсек 2×AA",
       "category": "power",
       "status": "candidate_for_owner_review",
-      "provenance": "derived_from_owner_reference",
+      "provenance": "exact_owner_svg",
       "referenceFiles": [
         {
           "file": "/assets/electronics/reference/components/battery-holder-aa-2.svg",
@@ -712,7 +712,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-holder-aa-2.svg",
-      "productionSha256": "50179feff34792aa6d2219c3483f44039e387a4f2be8b4f729992f2298824d0c",
+      "productionSha256": "ff710efd9d21393a6098b49a2061a5932c41f6481849ead2a3f35c1c7d4f07d5",
       "physicalWidthMm": 43.8399,
       "physicalHeightMm": 76.2,
       "dimensionSource": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_2x_sketch_exact_v6.model.json",
@@ -779,7 +779,7 @@
       "displayName": "Батарейный отсек 3×AA",
       "category": "power",
       "status": "candidate_for_owner_review",
-      "provenance": "derived_from_owner_reference",
+      "provenance": "exact_owner_svg",
       "referenceFiles": [
         {
           "file": "/assets/electronics/reference/components/battery-holder-aa-3.svg",
@@ -788,7 +788,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-holder-aa-3.svg",
-      "productionSha256": "f37b89ad8db90d58c0e08769434e92261b907439e891885e61ed7649c38e938d",
+      "productionSha256": "7a4d1c4710c53a84a26d3e1445b0ac110e445b5ea5b7e637cb9aeaafa1c0fee1",
       "physicalWidthMm": 62.0989,
       "physicalHeightMm": 76.2,
       "dimensionSource": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_3x_sketch_exact_v6.model.json",
@@ -855,7 +855,7 @@
       "displayName": "Батарейный отсек 4×AA",
       "category": "power",
       "status": "candidate_for_owner_review",
-      "provenance": "derived_from_owner_reference",
+      "provenance": "exact_owner_svg",
       "referenceFiles": [
         {
           "file": "/assets/electronics/reference/components/battery-holder-aa-4.svg",
@@ -864,7 +864,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-holder-aa-4.svg",
-      "productionSha256": "a0f44944be6a4f129b8584f503e6d350be80cfdef64522a428b6dfdeaabb5f93",
+      "productionSha256": "7b0c44fbff1fa5f39f69c0abd7b957fd1e9f232f9593a41e3d8d42cf704df99e",
       "physicalWidthMm": 80.358,
       "physicalHeightMm": 76.2,
       "dimensionSource": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_4x_sketch_exact_v6.model.json",
@@ -966,7 +966,7 @@
       "displayName": "Батарейный отсек 6×AA",
       "category": "power",
       "status": "candidate_for_owner_review",
-      "provenance": "derived_from_owner_reference",
+      "provenance": "exact_owner_svg",
       "referenceFiles": [
         {
           "file": "/assets/electronics/reference/components/battery-holder-aa-6.svg",
@@ -975,7 +975,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-holder-aa-6.svg",
-      "productionSha256": "7b499c991f6551df9b772ce6d2186128c4c918ce0fdfb39fa88145b1417fd0b0",
+      "productionSha256": "eb4ac2d2a0f9f6a13ef43e403a1fbcff6ce82a074f226c012bd6c01b07836f0a",
       "physicalWidthMm": 116.8762,
       "physicalHeightMm": 76.2,
       "dimensionSource": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_6x_sketch_exact_v6.model.json",
@@ -1042,7 +1042,7 @@
       "displayName": "Батарейный отсек 8×AA",
       "category": "power",
       "status": "candidate_for_owner_review",
-      "provenance": "derived_from_owner_reference",
+      "provenance": "exact_owner_svg",
       "referenceFiles": [
         {
           "file": "/assets/electronics/reference/components/battery-holder-aa-8.svg",
@@ -1051,7 +1051,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/battery-holder-aa-8.svg",
-      "productionSha256": "7a39a18e6b5e05419e0a925256fe3b01cfb38b7f4558af62fc07d9356fdb96a2",
+      "productionSha256": "1e7bdf679704c8a8bc2ac21f981f292490dfb8c29b909613af47719351711b55",
       "physicalWidthMm": 153.3943,
       "physicalHeightMm": 76.2,
       "dimensionSource": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_8x_sketch_exact_v6.model.json",
@@ -1127,7 +1127,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/breadboard-small.svg",
-      "productionSha256": "a41d02851d61a925d9841bd5b4ae00eeffc1ddece3329a051f59f6843abe6a9d",
+      "productionSha256": "e5c07f7f0a7db87e5608a8792c87c3d5573cdd5a763bb4372b38ffee8f671b70",
       "physicalWidthMm": 47.0,
       "physicalHeightMm": 35.0,
       "dimensionSource": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/small-170.model.json",
@@ -2549,7 +2549,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/breadboard-medium.svg",
-      "productionSha256": "baa224154acd45203b77e8f8b4a27edd5bc5f6614e5698cfdf64118486391f73",
+      "productionSha256": "5952a973778203b6087ec2dbf728e4eccfad7b987a354b08f77ab09d38cde1a4",
       "physicalWidthMm": 83.0,
       "physicalHeightMm": 55.0,
       "dimensionSource": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/medium-reference-420.model.json",
@@ -5971,7 +5971,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/breadboard-large.svg",
-      "productionSha256": "51020f830be6f4b550bbca60dbafbe1310b5b233897f0114b5cdcc3bf891ab45",
+      "productionSha256": "57080bafa0c2207ce9021af206aefbda943c12ee174cd9210a7dd3e87ba7a22c",
       "physicalWidthMm": 165.1,
       "physicalHeightMm": 54.6,
       "dimensionSource": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/large-reference-882.model.json",
@@ -13089,7 +13089,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/button-tactile-6mm.svg",
-      "productionSha256": "9771250ddf296a5cbb9ae054d632494bf8d59caf7c86a4b2391e8a35305412eb",
+      "productionSha256": "fb363b7a0fcf95d9e49ec47f967ffc91c9e7d0685e482339fb9495e20e841830",
       "physicalWidthMm": 10.0,
       "physicalHeightMm": 10.0,
       "dimensionSource": "owner_svg_mm_canvas; body 6x6 mm",
@@ -13226,7 +13226,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/switch-spdt.svg",
-      "productionSha256": "0aca6361c00ec2494eef409aa4c73358016be17629ef5434f9810f5d04ccd365",
+      "productionSha256": "75d57bd4575a49529e4e5c422d1fcd194ab7a7e633e372822e3cb24cd1ee9333",
       "physicalWidthMm": 18.0,
       "physicalHeightMm": 10.0,
       "dimensionSource": "owner_svg_mm_canvas",
@@ -13347,7 +13347,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/resistor-axial.svg",
-      "productionSha256": "1639607d48d5a8364a70017eface9c4523ce7154d171787de7df108135e523fe",
+      "productionSha256": "25b44d11a63f790fa52af5a9edcbfc3d56d400456f30b873c7f74f60de45e6b6",
       "physicalWidthMm": 4.354,
       "physicalHeightMm": 11.582,
       "dimensionSource": "owner_physical_scale_manifest",
@@ -13396,13 +13396,31 @@
         ]
       },
       "stateContract": {
-        "type": "static",
-        "state": "static"
+        "type": "resistor_colour_code",
+        "bands": [
+          "digit-1",
+          "digit-2",
+          "multiplier",
+          "tolerance"
+        ],
+        "resistanceOhms": {
+          "min": 0.1,
+          "max": 99000000000
+        },
+        "tolerancePercent": [
+          1,
+          2,
+          5,
+          10
+        ]
       },
       "animationContract": {
-        "driver": "none",
+        "driver": "simulation_state",
         "decorativeLoop": false,
-        "channels": []
+        "channels": [
+          "resistance",
+          "tolerance"
+        ]
       },
       "stateAssets": null,
       "reviewStatus": {
@@ -13432,7 +13450,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/potentiometer.svg",
-      "productionSha256": "ad5b8f19a8ba0ed79e14be0a3b4275ee5d9bf0f7ec1d50d4b8a9df6e33d13d19",
+      "productionSha256": "5c9abb185de3cd4a0a29ff1db2f59b5c3f0cf10b645bc97932a0d5625d7df841",
       "physicalWidthMm": 12.131,
       "physicalHeightMm": 13.66,
       "dimensionSource": "owner_physical_scale_manifest",
@@ -13522,7 +13540,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/electrolytic-capacitor.svg",
-      "productionSha256": "9f1d8d333e3866cc7eee5a3c0f256f8c77f1727cbf80c521a6cf93d0b196dd37",
+      "productionSha256": "d33c19ea18c896011990ff4e98612a5ceaf9a2406dab5fd3389ac5cb76ed8479",
       "physicalWidthMm": 8.667,
       "physicalHeightMm": 14.133,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -13595,7 +13613,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/photoresistor.svg",
-      "productionSha256": "93901c5ee2a3f9d9edfe61bfdc78c60de5ee3ed9a7e87cf7abc79cc55ce25441",
+      "productionSha256": "b909209ddab51f17371ef47c1d2dfbf789b51cea840b4f76073ad58459dc7027",
       "physicalWidthMm": 8.133,
       "physicalHeightMm": 12.133,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -13671,7 +13689,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/led-5mm.svg",
-      "productionSha256": "e67b4945664215848ac84ddfca22e5f8c0c92eaae614db0852261806fe25464a",
+      "productionSha256": "317cd1979e27d634004770642881da39c5513395c0897adda934e5efb4dfd42c",
       "physicalWidthMm": 7.735,
       "physicalHeightMm": 11.735,
       "dimensionSource": "reference-lab runtime component contract",
@@ -16835,7 +16853,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/rgb-led.svg",
-      "productionSha256": "97b674e2da96c52c403f739733a2af10176ea65b4c9fc563af2b3f71d89d03d1",
+      "productionSha256": "99c02b88f0441db641dac7b4aa39f3fc8ccc4d38c9d3bf4f7c35e7ab64116fa4",
       "physicalWidthMm": 8.75,
       "physicalHeightMm": 10.125,
       "dimensionSource": "owner_svg viewBox divided by declared 40 SVG units/mm",
@@ -17065,7 +17083,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/diode-do35.svg",
-      "productionSha256": "3dc5e54e28ff942f0292a9ddae329693cd6a4be9be620565972bea8eb07b4162",
+      "productionSha256": "439d3064febc7c4c1b52203951dd1d63b0a1d2b7e9eb85fd19046cab7b236f31",
       "physicalWidthMm": 20.0,
       "physicalHeightMm": 7.0,
       "dimensionSource": "owner_svg_mm_canvas",
@@ -17150,7 +17168,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/diode-do41.svg",
-      "productionSha256": "00808ae2e28dfeccaad243829068a8c69d09a57f2f982b30a5b42831f5f7d2e8",
+      "productionSha256": "d59843d08ff619552ef1b667c1444abef82507f68d4ad6db9f84ce9903a99402",
       "physicalWidthMm": 20.0,
       "physicalHeightMm": 7.0,
       "dimensionSource": "owner_svg_mm_canvas",
@@ -17235,7 +17253,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/transistor-npn.svg",
-      "productionSha256": "866f425fb77cf0896304b0491017c2eaa2d0bdd95daf07211fe769e4320bcda0",
+      "productionSha256": "8471d4678932afe112c0fce85004a362500176a8628fdbe29311a035214060e9",
       "physicalWidthMm": 8.267,
       "physicalHeightMm": 13.333,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -17316,7 +17334,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/incandescent-lamp.svg",
-      "productionSha256": "b8adf1174ef3f3e0c6368a042e788b33d1667f8c43fb17c1c64e69cc62aa2cfa",
+      "productionSha256": "735e8ef23ef77662784d3ad77e4af767335af39c6037fd4997ce1a6bbd597429",
       "physicalWidthMm": 20.0,
       "physicalHeightMm": 30.0,
       "dimensionSource": "owner_svg_mm_canvas",
@@ -17420,7 +17438,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/dc-motor.svg",
-      "productionSha256": "4fe25a461e44f69fdd77c05a1473d595d08f2d5d31cb360e40aaa652247d7cc4",
+      "productionSha256": "99ee6efbf894a4923b6f382eb389289265c1c27a97a2aed5b68d5e40596e5ab2",
       "physicalWidthMm": 25.333,
       "physicalHeightMm": 19.333,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -17504,7 +17522,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/servo-motor.svg",
-      "productionSha256": "a9136a175777f68c7142364d98c0d67c128d27b780fe992defecdc93e64bb062",
+      "productionSha256": "7b6f0bb6b8c51938199ee5c1402c5f770bcf34ff81abb3ecc5cc6c5691739493",
       "physicalWidthMm": 15.2,
       "physicalHeightMm": 38.533,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -17590,7 +17608,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/piezo.svg",
-      "productionSha256": "86f9d443266bf1bcb8f0bd891e3dc590a01c9efd7f8b9880279660419d7b0e76",
+      "productionSha256": "32e9fb62a47013d9e3f136ca1f8dd0cf79808937938e8223f9899c715dcef778",
       "physicalWidthMm": 22.133,
       "physicalHeightMm": 22.0,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -17666,7 +17684,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/seven-segment-display.svg",
-      "productionSha256": "9d4e19048f76e278401404c71f1f599f89f7a03be0300bfdef819c67c8e8fa81",
+      "productionSha256": "64f1c0b98981e96a54f10905a18639cf3d19d4ec3ab6978f4fbac7cc5d1b8fce",
       "physicalWidthMm": 12.7,
       "physicalHeightMm": 19.05,
       "dimensionSource": "owner_svg_data_body_dimensions",
@@ -17886,7 +17904,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/multimeter.svg",
-      "productionSha256": "bfc8d944d15becd870c85d97c47fd309bf08642d1632e3657159c70d22c2f84f",
+      "productionSha256": "b0d2500c140a05e3d330caaa7bbd37b46f20c0b16193ef6f26f8a1325c2905f0",
       "physicalWidthMm": 36.4,
       "physicalHeightMm": 14.0,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",
@@ -17960,7 +17978,7 @@
         }
       ],
       "productionSvg": "/assets/electronics/production/components/regulated-power-supply.svg",
-      "productionSha256": "5424167b29ea0f9855647e3836b1e37087b6b124d6a014e7a500d7fbe1255583",
+      "productionSha256": "e1c4426ebe102a30386e49c0db339efa174157fcf997a897f892c1a3bb01ab9f",
       "physicalWidthMm": 28.667,
       "physicalHeightMm": 22.8,
       "dimensionSource": "owner_scale_sheet_ratio_anchor",

@@ -64,6 +64,10 @@ Required production scope includes the complete catalog, not an M1 subset:
 - pin anchors within 0.25 mm of the physical lead, wire end or breadboard hole;
 - provenance distinguishes `exact_owner_svg` from
   `derived_from_owner_reference`;
+- existing battery-holder artwork is reused directly from the owner SVG family;
+  the PNG reconstruction pipeline is not applied to those six variants;
+- the axial resistor retains the owner-reference contour and exposes four
+  physical colour zones driven by resistance and tolerance state;
 - production animation is driven by typed simulation state, not decorative GIF
   or an unrelated CSS loop.
 
@@ -97,7 +101,7 @@ Focused evidence for this checkpoint:
 
 ```text
 owner audit + production assets + state contracts + breadboard contracts
-23 tests PASS
+26 tests PASS
 web strict typecheck PASS
 full matrix NOT_RUN by owner directive
 ```

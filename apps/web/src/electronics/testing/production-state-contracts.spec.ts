@@ -8,6 +8,7 @@ import {
   potentiometerKnobAngle,
   rgbLedColour,
   rgbLedState,
+  resistorBandState,
   sevenSegmentState,
   servoAngle,
   spdtConnections,
@@ -45,6 +46,12 @@ describe('typed Electronics state and animation contracts', () => {
       'g',
     ]);
     expect([...sevenSegmentState('1', 34).active]).toEqual(['b', 'c']);
+  });
+
+  it('derives four physical resistor colour zones from resistance and tolerance', () => {
+    expect(resistorBandState(220, 5).bands).toEqual(['red', 'red', 'brown', 'gold']);
+    expect(resistorBandState(4_700, 5).bands).toEqual(['yellow', 'violet', 'red', 'gold']);
+    expect(resistorBandState(1_000_000, 1).bands).toEqual(['brown', 'black', 'green', 'brown']);
   });
 
   it('models momentary four-pin button and three-pin SPDT connectivity', () => {

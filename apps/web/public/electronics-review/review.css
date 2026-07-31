@@ -25,7 +25,7 @@
 }
 body {
   margin: 0;
-  min-width: 1180px;
+  min-width: 0;
   color: var(--ink);
   background:
     radial-gradient(circle at 10% -10%, #24414b 0, transparent 34rem),
@@ -583,6 +583,28 @@ h1 {
 .error {
   color: var(--red);
 }
+.band-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+.band-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.band-chip i {
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+}
 
 @media (max-width: 1300px) {
   .catalog-grid {
@@ -590,5 +612,51 @@ h1 {
   }
   .motion-grid {
     grid-template-columns: repeat(2, minmax(260px, 1fr));
+  }
+}
+
+@media (max-width: 1350px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    gap: 8px 16px;
+  }
+  .nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .checkpoint {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .stats {
+    flex-wrap: wrap;
+  }
+  .catalog-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lab-grid,
+  .breadboard-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+  .lab-canvas > div {
+    gap: 26px !important;
+  }
+  .lab-component img,
+  .inline-svg {
+    width: 210px;
+    height: 300px;
+  }
+  .pin-strip {
+    gap: 5px;
+  }
+  .pin {
+    min-width: 46px;
+    padding: 6px;
   }
 }

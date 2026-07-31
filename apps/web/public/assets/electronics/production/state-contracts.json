@@ -235,13 +235,31 @@
     },
     "resistor-axial": {
       "stateContract": {
-        "type": "static",
-        "state": "static"
+        "type": "resistor_colour_code",
+        "bands": [
+          "digit-1",
+          "digit-2",
+          "multiplier",
+          "tolerance"
+        ],
+        "resistanceOhms": {
+          "min": 0.1,
+          "max": 99000000000
+        },
+        "tolerancePercent": [
+          1,
+          2,
+          5,
+          10
+        ]
       },
       "animationContract": {
-        "driver": "none",
+        "driver": "simulation_state",
         "decorativeLoop": false,
-        "channels": []
+        "channels": [
+          "resistance",
+          "tolerance"
+        ]
       }
     },
     "potentiometer": {

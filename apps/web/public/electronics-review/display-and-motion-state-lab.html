@@ -21,12 +21,13 @@
       );
       setStats([
         ['8', 'segments'],
+        ['4', 'resistor zones'],
         ['0–180°', 'servo'],
-        ['±', 'motor'],
       ]);
       main.insertAdjacentHTML(
         'beforeend',
         `<section class="motion-grid">
+          <article class="motion-card"><h3>Resistor colour code</h3><p>Четыре реальные зоны owner-эталона меняются из значения сопротивления и допуска.</p><div class="motion-viewport inline-svg" id="resistor-svg"></div><div class="control"><label>Resistance <output id="resistance-out">4.7 kΩ</output></label><select id="resistance"><option value="10">10 Ω</option><option value="47">47 Ω</option><option value="100">100 Ω</option><option value="220">220 Ω</option><option value="1000">1 kΩ</option><option value="4700" selected>4.7 kΩ</option><option value="10000">10 kΩ</option><option value="100000">100 kΩ</option><option value="1000000">1 MΩ</option></select></div><div class="control"><label>Tolerance</label><select id="resistor-tolerance"><option value="1">±1%</option><option value="2">±2%</option><option value="5" selected>±5%</option><option value="10">±10%</option></select></div><div class="band-label" id="resistor-bands"></div></article>
           <article class="motion-card"><h3>Seven segment</h3><p>Реальные группы a,b,c,d,e,f,g,dp и 10 физических pins.</p><div class="motion-viewport inline-svg" id="segment-svg"></div><div class="control"><label>Glyph <output id="glyph-out">8.</output></label><select id="glyph">${['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'b', 'C', 'd', 'E', 'F'].map((x) => `<option>${x}</option>`).join('')}</select></div><div class="control"><label>Brightness <output id="segment-brightness-out">82%</output></label><input id="segment-brightness" type="range" min="0" max="100" value="82"/></div><label><input id="decimal" type="checkbox" checked/> decimal point</label></article>
           <article class="motion-card"><h3>Potentiometer</h3><p>Угол ручки точно следует wiper position 0–100%.</p><div class="motion-viewport inline-svg" id="pot-svg"></div><div class="control"><label>Wiper <output id="wiper-out">50% · 0°</output></label><input id="wiper" type="range" min="0" max="100" value="50"/></div></article>
           <article class="motion-card"><h3>DC motor</h3><p>Speed и direction управляют ротором; 0 означает stopped.</p><div class="motion-viewport inline-svg" id="motor-svg"></div><div class="control"><label>Speed <output id="speed-out">65%</output></label><input id="speed" type="range" min="0" max="100" value="65"/></div><select id="direction"><option value="1">clockwise</option><option value="-1">counterclockwise</option></select></article>
@@ -36,7 +37,11 @@
           <article class="motion-card"><h3>SPDT</h3><p>Common соединяется ровно с left либо right.</p><div class="motion-viewport"><img id="switch" src="/assets/electronics/production/states/switch/left.svg" alt="SPDT state"/></div><button id="throw">common → left</button></article>
         </section>`,
       );
-      const [segmentSvg, potSvg, motorSvg, servoSvg] = await Promise.all([
+      const [resistorSvg, segmentSvg, potSvg, motorSvg, servoSvg] = await Promise.all([
+        inlineSvg(
+          '/assets/electronics/production/components/resistor-axial.svg',
+          document.querySelector('#resistor-svg'),
+        ),
         inlineSvg(
           '/assets/electronics/production/components/seven-segment-display.svg',
           document.querySelector('#segment-svg'),
@@ -54,6 +59,86 @@
           document.querySelector('#servo-svg'),
         ),
       ]);
+      const resistorColours = [
+        'black',
+        'brown',
+        'red',
+        'orange',
+        'yellow',
+        'green',
+        'blue',
+        'violet',
+        'grey',
+        'white',
+      ];
+      const multiplierColours = {
+        '-2': 'silver',
+        '-1': 'gold',
+        0: 'black',
+        1: 'brown',
+        2: 'red',
+        3: 'orange',
+        4: 'yellow',
+        5: 'green',
+        6: 'blue',
+        7: 'violet',
+        8: 'grey',
+        9: 'white',
+      };
+      const toleranceColours = { 1: 'brown', 2: 'red', 5: 'gold', 10: 'silver' };
+      const bandCss = {
+        black: '#111111',
+        brown: '#8b4513',
+        red: '#e41f26',
+        orange: '#f28c18',
+        yellow: '#f3d328',
+        green: '#228b45',
+        blue: '#1769aa',
+        violet: '#7c3f98',
+        grey: '#8b8b8b',
+        white: '#f5f5f5',
+        gold: '#c8a43b',
+        silver: '#b8bec4',
+      };
+      const formatOhms = (value) =>
+        value >= 1_000_000
+          ? `${value / 1_000_000} MΩ`
+          : value >= 1_000
+            ? `${value / 1_000} kΩ`
+            : `${value} Ω`;
+      const updateResistor = () => {
+        const resistance = Number(document.querySelector('#resistance').value);
+        const tolerance = Number(document.querySelector('#resistor-tolerance').value);
+        let exponent = Math.floor(Math.log10(resistance)) - 1;
+        let significant = Math.round(resistance / 10 ** exponent);
+        if (significant >= 100) {
+          significant = 10;
+          exponent += 1;
+        }
+        exponent = Math.min(9, Math.max(-2, exponent));
+        significant = Math.min(99, Math.max(10, significant));
+        const bands = [
+          resistorColours[Math.floor(significant / 10)],
+          resistorColours[significant % 10],
+          multiplierColours[exponent],
+          toleranceColours[tolerance],
+        ];
+        ['digit-1', 'digit-2', 'multiplier', 'tolerance'].forEach((slot, index) => {
+          resistorSvg.querySelector(`[data-resistor-band="${slot}"]`).style.fill =
+            bandCss[bands[index]];
+        });
+        document.querySelector('#resistance-out').textContent =
+          `${formatOhms(resistance)} · ±${tolerance}%`;
+        document.querySelector('#resistor-bands').innerHTML = bands
+          .map(
+            (band) =>
+              `<span class="band-chip"><i style="background:${bandCss[band]}"></i>${band}</span>`,
+          )
+          .join('');
+      };
+      ['resistance', 'resistor-tolerance'].forEach((id) =>
+        document.querySelector(`#${id}`).addEventListener('input', updateResistor),
+      );
       const masks = {
         0: 'abcdef',
         1: 'bc',
@@ -149,6 +234,7 @@
           `/assets/electronics/production/states/switch/${right ? 'right' : 'left'}.svg`;
         event.currentTarget.textContent = `common → ${right ? 'right' : 'left'}`;
       });
+      updateResistor();
       updateSegments();
       updatePot();
       updateMotor();

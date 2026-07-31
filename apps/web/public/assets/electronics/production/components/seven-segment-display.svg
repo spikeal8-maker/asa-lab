@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="seven-segment-indicator"
+<svg data-component-id="seven-segment-display" data-provenance="exact_owner_svg" id="seven-segment-indicator"
      class="seven-seg"
      xmlns="http://www.w3.org/2000/svg"
      width="12.7mm" height="19.05mm"
