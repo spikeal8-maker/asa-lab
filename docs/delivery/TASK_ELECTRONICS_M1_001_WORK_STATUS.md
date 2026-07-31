@@ -8,103 +8,117 @@ Current PR: #72
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
 status: in_progress
-checkpoint: component_library_information_architecture_and_family_grouping
+checkpoint: owner_reference_component_shelf_and_parametric_resistor
 rejected runtime SHA: f78a9ac7578787a3a5aed73f1f2113cd36801825
 owner directive: PR #72 comment 5147079314
 ```
 
-Portal shell and R3A gateway remain preserved. R3B, R4-M2 and later stages are
-blocked. The production assets, physical scale, pin metadata, state contracts,
-breadboard data and editor integration are retained; the current correction does
-not rebuild those foundations.
+Portal shell, R3A gateway, production assets, physical scale, pin metadata,
+state contracts, breadboard data and editor integration remain preserved. R3B,
+R4-M2 and later stages remain blocked.
 
-## Why the current checkpoint was rejected
+## Why the current runtime was rejected
 
-The real editor successfully reads production assets, but the library is not an
-acceptable product surface:
+The editor consumes production assets, but its component shelf does not follow
+the supplied owner reference:
 
-- all manifest entries are flattened into one long grid;
-- variants of the same physical family are duplicated as separate cards;
-- derived/reference battery images appear beside exact AA holder variants;
-- unsupported visual-only candidates remain draggable;
-- categories collapse unrelated electronics classes;
-- default `Все компоненты` and three cramped columns do not follow the owner
-  reference/Tinkercad library workflow.
+- the previous specification incorrectly requested two columns;
+- the current reference clearly uses three columns;
+- Breadboard 420 and AA holder 2×AA were incorrectly placed before the resistor;
+- family grouping and supported/preview separation were incomplete;
+- the resistor visual did not have a clean transparent body and precisely aligned
+  dynamic colour bands.
 
-## Active checkpoint
+## Canonical visible order in «Основные»
 
-```text
-component_library_information_architecture_and_family_grouping
-```
-
-Required result:
-
-1. one family card with variant picker;
-2. deterministic category tree and ordering;
-3. default `Основные` curated supported set;
-4. supported and disabled preview components strictly separated;
-5. no PNG-derived `battery-1.5v`, `battery-3v`, `battery-6v`, `battery-9v` in
-   the runtime library;
-6. AA holders grouped as one family with 1/2/3/4/6/8×AA variants;
-7. breadboards grouped as one family with 170/420/882 variants;
-8. diodes grouped as one family with DO-35/DO-41 variants;
-9. LED colour/brightness and resistor value remain inspector properties, not
-   duplicate library cards;
-10. variant selection survives save/reload/checkpoint.
-
-## Required category structure
+The supplied screenshots prove this first visible sequence, read left-to-right
+and top-to-bottom:
 
 ```text
-Основные
-Все компоненты
-Питание
-Макетки и монтаж
-Пассивные
-Полупроводники
-Ввод и управление
-Вывод и индикация
-Датчики
-Двигатели и приводы
-Контроллеры
-Измерительные приборы
-В разработке
+01 Резистор
+02 Светодиод
+03 Кнопка
+04 Потенциометр
+05 Конденсатор
+06 Ползунковый переключатель
+07 Батарея 9 В
+08 Кнопочная батарея 3 В
+09 Батарея 1,5 В
+10 Малая макетная плата
+11 micro:bit
+12 Arduino Uno R3
+13 Вибромотор
+14 Двигатель постоянного тока
+15 Микросерво
 ```
 
-`Основные` contains, in order: Breadboard 420, AA holder 2×AA, resistor, LED,
-button, SPDT, potentiometer, DO-41 diode, RGB LED, seven-segment and lamp.
+The ordering below the visible screenshot must come only from owner-video/catalog
+evidence; it must not be invented.
 
-Unsupported candidates are visible only in `В разработке`, disabled, not
-clickable/draggable and unable to create a project component. They must not be
-mixed into `Основные` or `Все компоненты`.
+## Required shelf behavior
 
-## Required library UX
+- default category `Основные`;
+- panel width 320–330 px;
+- three compact columns;
+- category selector, grid/list toggle and a separate search row;
+- one card per family;
+- normalized thumbnails in the shelf, physical scale on stage;
+- max two text lines per card;
+- variant choice in inspector or compact popover;
+- one result per family and deterministic search/order;
+- category body scrolls while category/search controls remain fixed.
 
-- category dropdown defaults to `Основные`;
-- search across family, variants and aliases;
-- grid/list toggle;
-- two-column default grid;
-- single family search result;
-- compact variant picker;
-- deterministic sorting;
-- sticky search/category controls;
-- actual editor only, not standalone review pages.
+Unsupported positions may occupy their canonical slot, but they are disabled,
+not draggable and cannot create a document component. Raw PNG/reference assets
+are forbidden in runtime. AA holders remain one family under `Питание`; they do
+not replace the reference battery cards in `Основные`.
 
-## Focused evidence
+## Parametric resistor correction
 
-Required tests and screenshots are defined in PR #72 comment `5147079314`.
-Only focused family/category/search/variant/browser checks run before owner
-review. Full repository matrix remains `NOT_RUN`.
+Added to the active branch:
 
-## Prohibited until acceptance
+```text
+apps/web/public/assets/electronics/production/components/resistor-axial-body.svg
+apps/web/public/assets/electronics/production/components/resistor-axial-preview.svg
+apps/web/src/electronics/ProductionComponentVisual.tsx
+apps/web/src/electronics/component-preview.tsx
+apps/web/src/electronics/testing/resistor-visual.spec.ts
+apps/web/src/electronics/workbench-tinkercad-parity.css
+```
 
-- merge PR #72;
-- full repository matrix;
-- R4-M2;
-- new branch;
-- additional permanent Compose projects;
-- new solver features;
-- flat manifest-entry catalog;
-- runtime placement of reference/PNG-derived battery entries.
+The body is transparent and physically sized at `4.354 × 11.582 mm`. Four
+semantic band zones are driven by resistance and tolerance. The shelf preview is
+`300 Ω ±5%`; stage visuals must be checked at `220 Ω`, `300 Ω`, `330 Ω`, `1 kΩ`,
+`4.7 kΩ`, `10 kΩ` and `1 MΩ`, with tolerances `±1/2/5/10%`.
 
-Deploy the exact corrective SHA only in the existing `asa-lab-dev`, leave the
-real Electronics project open and stop for owner review.
+The production manifest/adapter still must be reconciled to this single resistor
+asset contract; return to the old opaque pixel-vector resistor is forbidden.
+
+## Focused evidence required
+
+- resistor visual and band-contract tests;
+- exact order tests for positions 01–15;
+- three-column/grid/list tests;
+- one-card-per-family and search-order tests;
+- disabled unsupported behavior;
+- variant save/reload/checkpoint;
+- actual editor browser smoke;
+- console/pageerror/requestfailed/HTTP 5xx = 0.
+
+Screenshots from the actual editor:
+
+```text
+library-basic-exact-order
+library-basic-three-columns
+library-power-holder-family
+library-disabled-future-items
+resistor-220ohm
+resistor-4k7
+resistor-1m
+resistor-after-reload
+```
+
+Full repository matrix remains `NOT_RUN`. Merge, R4-M2, new branches, new solver
+features and additional permanent Compose projects are prohibited. Deploy only
+the exact corrective SHA to the existing `asa-lab-dev`, leave the real project
+open and stop for owner review.
