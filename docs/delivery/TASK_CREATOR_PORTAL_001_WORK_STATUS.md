@@ -1,7 +1,7 @@
 # TASK-CREATOR-PORTAL-001 — Work Status
 
 ```text
-status: ready
+status: in_review
 Issue: #62
 branch: agent/r2-creator-portal
 base: main
@@ -36,13 +36,29 @@ TST-R2-E2E-001
 
 Registry: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml).
 
-## Initial result state
+## Review result state
 
 ```text
-governance after activation: NOT_RUN
-R2 focused tests: NOT_RUN
-R2 E2E: NOT_RUN
-full regression on R2 head: NOT_RUN
+governance after activation: PASS
+R2 focused tests: PASS (16/16)
+R2 E2E: PASS (2/2)
+full Vitest regression: PASS (314/314)
+full Playwright regression: PASS (22/22)
+Docker health and image revision: PASS
+PostgreSQL persistence after API/Web restart: PASS
+isolated backup/restore: PASS
+console/pageerror/requestfailed/HTTP 5xx collector: PASS (0 failures)
+```
+
+## Review evidence
+
+```text
+e2e/artifacts/owner-preview/r2-creator-portal/01-creator-home-desktop.png
+e2e/artifacts/owner-preview/r2-creator-portal/02-learning-desktop.png
+e2e/artifacts/owner-preview/r2-creator-portal/03-account-shell-desktop.png
+e2e/artifacts/owner-preview/r2-creator-portal/04-challenges-tablet.png
+e2e/artifacts/owner-preview/r2-creator-portal/05-creator-home-mobile.png
+e2e/artifacts/owner-preview/r2-creator-portal/06-educator-capability-desktop.png
 ```
 
 ## Preservation
