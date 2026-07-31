@@ -1,139 +1,95 @@
 # Стратегия тестирования ASA Lab
 
-Тестирование является частью каждой executable task.
+Execution source: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)  
+Stable registry: [`test-catalog.yaml`](test-catalog.yaml)  
+Active registry: [`active-task-tests.yaml`](active-task-tests.yaml)  
+Quality view: [`../project-map/QUALITY_MAP.md`](../project-map/QUALITY_MAP.md)
 
-## Источники
-
-```text
-docs/delivery/EXECUTION_MANIFEST.yaml
-docs/testing/test-catalog.yaml
-docs/project-map/QUALITY_MAP.md
-GitHub Issue активной задачи
-```
-
-## Текущее состояние
+## Current task
 
 ```text
-TASK-ACCOUNT-C1-001  done
-current_focus         null
-active test gate      none
+TASK-CREATOR-PORTAL-001
+Issue #62
+branch agent/r2-creator-portal
 ```
 
-R2, R3 и R4 остаются blocked roadmap. Их test gate не активирован.
-
-## Completed Account C1 gate
-
-Exact implementation SHA:
+## Mandatory R2 tests
 
 ```text
-35c06c42012672b9b4cb2626b85ba1f21b973bc0
+TST-R2-STATIC-001
+TST-R2-CREATOR-HOME-001
+TST-R2-CAPABILITY-NAV-001
+TST-R2-ROUTING-001
+TST-R2-E2E-001
 ```
 
-Результаты:
+The active registry is temporary for the current task. After accepted merge, stable reusable tests may be moved into `test-catalog.yaml`; they are never deleted merely to make a gate green.
+
+## Levels
+
+- governance: manifests, maps and registries;
+- static: format, lint, types, boundaries, contracts and build;
+- unit/integration: Creator Home, routing and capability navigation;
+- authorization: server-derived capability and workspace scope;
+- regression: existing Account, Portal, Projects, Electronics and Chess;
+- E2E: live API/PostgreSQL desktop/tablet/mobile flow;
+- accessibility: keyboard, focus, semantics and responsive navigation.
+
+## Command lifecycle
+
+The coding agent must implement:
 
 ```text
-Task runner:       28/28 PASS
-Regression:        298/298 PASS
-Account PG:        6/6 PASS
-Chess Online PG:   6/6 PASS
-RLS:               15/15 PASS
-Accessibility/UI:  11/11 PASS
-Playwright:        9/9 PASS
-Browser errors:    0
-Docker lifecycle:  PASS
-Persistence:       PASS
-Backup/restore:    PASS
+test:creator-portal
+e2e:creator-portal
 ```
 
-Merge SHA:
+Before implementation these commands are `BLOCKED`; they must never return a placeholder PASS.
 
-```text
-e01ac85095ddaabef19ed618964deac3aa5b2406
+Task runner:
+
+```bash
+python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
 ```
 
-## Уровни
+## R2 security matrix
 
-| Уровень | Назначение |
-|---|---|
-| Governance | manifest, project map, catalog, product contracts |
-| Static | format, lint, types, build, boundaries |
-| Unit | domain rules |
-| Contract | OpenAPI, JSON Schema, Module SDK |
-| Integration | PostgreSQL, repositories, migrations |
-| Authorization | account/tenant/workspace/project denial matrix и RLS |
-| E2E | live browser/API/DB user flow |
-| Security | secrets, advisories, credentials |
-| Accessibility | keyboard, semantics, focus and contrast |
-| Recovery | persistence, backup and restore |
+- capability and workspace scope come from the server;
+- creator cannot forge educator navigation;
+- workspace switching does not grant capability;
+- foreign/suspended workspace is denied;
+- Account/Profile/Sessions remain isolated;
+- existing project ownership remains intact;
+- no second identity/workspace/session model.
 
-## Result states
+## R2 browser matrix
 
-- `PASS` — команда выполнена с exit `0`;
-- `FAIL` — выполненная команда вернула non-zero;
-- `BLOCKED` — обязательная среда отсутствует;
-- `NOT_RUN` — команда не запускалась.
-
-`BLOCKED` и `NOT_RUN` не закрывают gate.
-
-## Honest command lifecycle
-
-Каждый test ID имеет исполняемую command. Placeholder до реализации обязан вернуть `BLOCKED`/exit `78`, а не ложный PASS.
-
-После реализации Account C1 команды:
-
-```text
-pnpm test:account-c1
-pnpm test:account-c1:pg
-pnpm e2e:account-c1
-```
-
-являются реальными suites и прошли в canonical task runner.
-
-## Test data
-
-- production data не копируются без обезличивания;
-- tests используют отдельный `TEST_DATABASE_URL` с `*_test` guard;
-- credentials, raw tokens и password hashes не попадают в artifacts;
-- cross-account и cross-workspace negatives обязательны;
-- existing teacher/project preservation проверяется без DB reset.
-
-## Migration gate
-
-- applied migration не переписывается;
-- новая migration additive;
-- empty/existing/repeat apply проверяются;
-- failure rollback обязателен;
-- backup/restore выполняется в isolated database.
-
-## Browser evidence
-
-Для UI task обязательны:
-
-```text
-live API/PostgreSQL
-Playwright assertions
-accessibility assertions
-browser failure collector
-owner screenshots
-```
-
-Expected counters:
+- Creator Home default route;
+- recent project open/continue;
+- creator navigation;
+- educator navigation with Classes;
+- workspace switch and refresh;
+- Learning/Collections/Challenges/Help states;
+- Account menu and profile/session access;
+- desktop 1440×900, tablet and mobile 390×844;
+- loading, empty, error and restricted states.
 
 ```text
 console errors = 0
-page errors = 0
+pageerror = 0
 unexpected requestfailed = 0
 unexpected HTTP 5xx = 0
 ```
 
-Manual smoke и screenshot не заменяют assertions.
+## Result states
 
-## Будущая task
+- `PASS`: executed exit `0`;
+- `FAIL`: executed non-zero defect;
+- `BLOCKED`: required command or environment unavailable;
+- `NOT_RUN`: not executed.
 
-После owner activation новая task получает полный test mapping в [`EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) и catalog до начала product code.
+## Preservation
 
-Coding-агент не запускает roadmap tests самостоятельно.
+Tests must prove that the current Accounts, teacher, classes, projects, drafts, sessions, Electronics, Chess and Chess Online survive unchanged.
 
-## Hosted GitHub Actions
-
-Hosted runner сейчас завершается до первого шага (`steps: []`). Статус — external `BLOCKED`, не PASS и не code FAIL.
+R3 and R4 tests are not activated by R2.
