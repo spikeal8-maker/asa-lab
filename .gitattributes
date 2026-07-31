@@ -15,3 +15,6 @@
 *.zip binary
 *.pdf binary
 *.wasm binary
+
+# Preserve owner-supplied SVG evidence byte-for-byte with its recorded SHA-256.
+apps/web/public/assets/electronics/owner-supplied/*.svg binary

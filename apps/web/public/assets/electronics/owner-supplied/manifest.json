@@ -1,0 +1,486 @@
+{
+  "schema": "asa-lab.owner-supplied-electronics-manifest.v1",
+  "provenance": "owner_supplied",
+  "contactSheetScope": "TASK-ELECTRONICS-M1-001 active component families",
+  "worldUnitsPerMm": 8,
+  "sourceArchives": [
+    {
+      "name": "Компоненты.zip",
+      "sha256": "c7b0fb2e541ed740b160aa9c84458b5951d0140afbce4f95c4c06eba20ec836e",
+      "fileCount": 1476,
+      "backupFile": "owner-supplied-electronics-components-20260731T152248Z.zip",
+      "backupVerified": true,
+      "committedToGit": false
+    },
+    {
+      "name": "Electro-venik-reference-lab.zip",
+      "sha256": "36c13aca5f60e4a048e788ff1826707db7355287c3731a37e4866cd2fca48ea7",
+      "fileCount": 749,
+      "backupFile": "owner-supplied-electronics-reference-lab-20260731T152727Z.zip",
+      "backupVerified": true,
+      "committedToGit": false
+    }
+  ],
+  "components": [
+    {
+      "id": "battery-holder-aa-2",
+      "displayName": "Батарейный отсек 2×AA",
+      "sourceArchive": "Компоненты.zip",
+      "sourceFile": "Компоненты/Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/svg/aa_holder_2x_sketch_exact_v6.svg",
+      "sha256": "1131d2d2a1ec696dd98a2ae3267134d55388279706c95856f9e015a3c14fc1ce",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 43.84,
+      "physicalHeightMm": 76.2,
+      "viewBox": "0 0 485 843",
+      "stateVariants": [
+        {
+          "state": "default",
+          "file": "battery-holder-aa-2.svg",
+          "sha256": "1131d2d2a1ec696dd98a2ae3267134d55388279706c95856f9e015a3c14fc1ce"
+        }
+      ],
+      "pinCount": 2,
+      "pins": [
+        {
+          "pinId": "BAT-",
+          "pinPosition": { "xMm": 16.8399, "yMm": 6.05, "xViewBox": 190.5, "yViewBox": 74 },
+          "electricalRole": "negative-terminal",
+          "polarity": "negative"
+        },
+        {
+          "pinId": "BAT+",
+          "pinPosition": { "xMm": 27, "yMm": 6.05, "xViewBox": 295.5, "yViewBox": 74 },
+          "electricalRole": "positive-terminal",
+          "polarity": "positive"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "integrationStatus": "blocked_pending_owner_contact_sheet_acceptance"
+      }
+    },
+    {
+      "id": "resistor-axial",
+      "displayName": "Осевой резистор",
+      "sourceArchive": "Electro-venik-reference-lab.zip",
+      "sourceFile": "Electro-venik-reference-lab/runtime-ready-pack/components-svg/resistor-axial.svg",
+      "sha256": "7656396f8101eb409cc6d883c71a426a5822e4463aca9ed3d3f6b2862886f4af",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 4.354,
+      "physicalHeightMm": 11.582,
+      "viewBox": "0 0 106 282",
+      "stateVariants": [
+        {
+          "state": "default",
+          "file": "resistor-axial.svg",
+          "sha256": "7656396f8101eb409cc6d883c71a426a5822e4463aca9ed3d3f6b2862886f4af"
+        }
+      ],
+      "pinCount": 2,
+      "pins": [
+        {
+          "pinId": "lead-1",
+          "pinPosition": { "xMm": 2.28, "yMm": 0.698, "xViewBox": 55.5, "yViewBox": 17 },
+          "electricalRole": "passive-terminal",
+          "polarity": "none"
+        },
+        {
+          "pinId": "lead-2",
+          "pinPosition": { "xMm": 2.28, "yMm": 11.048, "xViewBox": 55.5, "yViewBox": 269 },
+          "electricalRole": "passive-terminal",
+          "polarity": "none"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "integrationStatus": "blocked_pending_owner_contact_sheet_acceptance"
+      }
+    },
+    {
+      "id": "led-red-5mm",
+      "displayName": "Светодиод 5 мм",
+      "sourceArchive": "Компоненты.zip",
+      "sourceFile": "Компоненты/Копмоненты SVG/Светодиод/led_v9_verified_pack/exports/by_1_percent/red/led_red_i000.svg",
+      "sha256": "c6157f78eed8837f55bd23ac059487173199ee690875e76afcb9c7808fa6cc17",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 7.735,
+      "physicalHeightMm": 11.735,
+      "viewBox": "0 0 240 400",
+      "stateVariants": [
+        {
+          "state": "off",
+          "file": "led-red-off.svg",
+          "sha256": "c6157f78eed8837f55bd23ac059487173199ee690875e76afcb9c7808fa6cc17"
+        },
+        {
+          "state": "on",
+          "file": "led-red-on.svg",
+          "sha256": "48ffc116b5d8f6a5430f151307cbb950e8a861843fcacc7ea70ac7827ed5f714"
+        },
+        {
+          "state": "reverse-polarity",
+          "file": "led-red-reverse.svg",
+          "sha256": "ecf7f7a01bd0f4fe035a8260b19b8eef8918c29b1bdc854378017a17774c98d8"
+        },
+        {
+          "state": "overcurrent",
+          "file": "led-red-overcurrent.svg",
+          "sha256": "b98d05800cb8e7f84fcce1745a569d77ea1caaace6ec066e34839e8b3db23ace"
+        },
+        {
+          "state": "burned",
+          "file": "led-red-burned.svg",
+          "sha256": "544abb611175f3ee449cfb32ba687308cc0ea633fbe19450631d638150f26f72"
+        }
+      ],
+      "pinCount": 2,
+      "pins": [
+        {
+          "pinId": "anode",
+          "pinPosition": { "xMm": 2.675, "yMm": 10.914, "xViewBox": 83, "yViewBox": 372 },
+          "electricalRole": "anode",
+          "polarity": "positive"
+        },
+        {
+          "pinId": "cathode",
+          "pinPosition": { "xMm": 6.735, "yMm": 10.914, "xViewBox": 209, "yViewBox": 372 },
+          "electricalRole": "cathode",
+          "polarity": "negative"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "integrationStatus": "blocked_pending_owner_contact_sheet_acceptance"
+      }
+    },
+    {
+      "id": "button-tactile-6mm",
+      "displayName": "Кнопка 6×6 мм, 4 контакта",
+      "sourceArchive": "Компоненты.zip",
+      "sourceFile": "Компоненты/Копмоненты SVG/Кнопка/tactile_button_6x6mm_up.svg",
+      "sha256": "0835719db300c9a254f7ee2f87faacdcdd83e77be4db84f811929a81c588c918",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 10,
+      "physicalHeightMm": 10,
+      "packageBodyMm": { "width": 6, "height": 6 },
+      "viewBox": "0 0 10 10",
+      "stateVariants": [
+        {
+          "state": "released",
+          "file": "button-up.svg",
+          "sha256": "0835719db300c9a254f7ee2f87faacdcdd83e77be4db84f811929a81c588c918"
+        },
+        {
+          "state": "pressed",
+          "file": "button-down.svg",
+          "sha256": "5e3f08f710a9b25b08d13cbb71a5ea3581b608fceef5a129fc98dd947334a67c"
+        },
+        {
+          "state": "animated",
+          "file": "button-animated.svg",
+          "sha256": "7498cc5a39c45c6bf1d3fa6876c31375d4e014fc82203c2fc3b11dfa86110b85"
+        }
+      ],
+      "pinCount": 4,
+      "pins": [
+        {
+          "pinId": "SW-A1",
+          "pinPosition": { "xMm": 2.65, "yMm": 1.2, "xViewBox": 2.65, "yViewBox": 1.2 },
+          "electricalRole": "terminal-a-paired",
+          "polarity": "none"
+        },
+        {
+          "pinId": "SW-B1",
+          "pinPosition": { "xMm": 7.35, "yMm": 1.2, "xViewBox": 7.35, "yViewBox": 1.2 },
+          "electricalRole": "terminal-b-paired",
+          "polarity": "none"
+        },
+        {
+          "pinId": "SW-A2",
+          "pinPosition": { "xMm": 2.65, "yMm": 8.8, "xViewBox": 2.65, "yViewBox": 8.8 },
+          "electricalRole": "terminal-a-paired",
+          "polarity": "none"
+        },
+        {
+          "pinId": "SW-B2",
+          "pinPosition": { "xMm": 7.35, "yMm": 8.8, "xViewBox": 7.35, "yViewBox": 8.8 },
+          "electricalRole": "terminal-b-paired",
+          "polarity": "none"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "topologyParity": false,
+        "integrationStatus": "blocked_until_four_pin_mapping_is_reconciled"
+      }
+    },
+    {
+      "id": "switch-slide-spdt",
+      "displayName": "Переключатель SPDT, 3 контакта",
+      "sourceArchive": "Компоненты.zip",
+      "sourceFile": "Компоненты/Копмоненты SVG/Переключатель/slide_switch_spdt_3pin_left.svg",
+      "sha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 18,
+      "physicalHeightMm": 10,
+      "viewBox": "0 0 18 10",
+      "stateVariants": [
+        {
+          "state": "left",
+          "file": "switch-left.svg",
+          "sha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720"
+        },
+        {
+          "state": "right",
+          "file": "switch-right.svg",
+          "sha256": "8622c1ef205518170b1a615ade4287b60489d718e409ecf5184312167ad41b25"
+        },
+        {
+          "state": "animated",
+          "file": "switch-animated.svg",
+          "sha256": "aea68b190b406c2a98723f76581e58a8b5d9a820b80ac527b0fe543ad1f6e515"
+        }
+      ],
+      "pinCount": 3,
+      "pins": [
+        {
+          "pinId": "throw-left",
+          "pinPosition": { "xMm": 6.46, "yMm": 9, "xViewBox": 6.46, "yViewBox": 9 },
+          "electricalRole": "throw-left",
+          "polarity": "none"
+        },
+        {
+          "pinId": "common",
+          "pinPosition": { "xMm": 9, "yMm": 9, "xViewBox": 9, "yViewBox": 9 },
+          "electricalRole": "common",
+          "polarity": "none"
+        },
+        {
+          "pinId": "throw-right",
+          "pinPosition": { "xMm": 11.54, "yMm": 9, "xViewBox": 11.54, "yViewBox": 9 },
+          "electricalRole": "throw-right",
+          "polarity": "none"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "topologyParity": false,
+        "integrationStatus": "blocked_until_three_pin_mapping_is_reconciled"
+      }
+    },
+    {
+      "id": "potentiometer-rotary",
+      "displayName": "Поворотный потенциометр",
+      "sourceArchive": "Electro-venik-reference-lab.zip",
+      "sourceFile": "Electro-venik-reference-lab/runtime-ready-pack/components-svg/potentiometer-rotary.svg",
+      "sha256": "63d1d5be8f3a04056391d92494d8fabc0826d71b3a0ded483924e71c30686e86",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 12.131,
+      "physicalHeightMm": 13.66,
+      "viewBox": "0 0 326 369",
+      "stateVariants": [
+        {
+          "state": "default",
+          "file": "potentiometer-rotary.svg",
+          "sha256": "63d1d5be8f3a04056391d92494d8fabc0826d71b3a0ded483924e71c30686e86"
+        }
+      ],
+      "pinCount": 3,
+      "pins": [
+        {
+          "pinId": "terminal-1",
+          "pinPosition": { "xMm": 3.796, "yMm": 13.105, "xViewBox": 102, "yViewBox": 354 },
+          "electricalRole": "resistive-end-a",
+          "polarity": "none"
+        },
+        {
+          "pinId": "wiper",
+          "pinPosition": { "xMm": 6.047, "yMm": 13.105, "xViewBox": 162.5, "yViewBox": 354 },
+          "electricalRole": "wiper",
+          "polarity": "none"
+        },
+        {
+          "pinId": "terminal-2",
+          "pinPosition": { "xMm": 8.28, "yMm": 13.105, "xViewBox": 222.5, "yViewBox": 354 },
+          "electricalRole": "resistive-end-b",
+          "polarity": "none"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "integrationStatus": "blocked_pending_owner_contact_sheet_acceptance"
+      }
+    },
+    {
+      "id": "diode-do41",
+      "displayName": "Диод DO-41",
+      "sourceArchive": "Компоненты.zip",
+      "sourceFile": "Компоненты/Копмоненты SVG/Диод/diode_do41_horizontal_4pitch.svg",
+      "sha256": "361a65bd0ccbd563f07f1a0c5b2c7ba2e249747717eb87609b339de2821dee11",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 20,
+      "physicalHeightMm": 7,
+      "viewBox": "0 0 20 7",
+      "stateVariants": [
+        {
+          "state": "default",
+          "file": "diode-do41.svg",
+          "sha256": "361a65bd0ccbd563f07f1a0c5b2c7ba2e249747717eb87609b339de2821dee11"
+        }
+      ],
+      "pinCount": 2,
+      "pins": [
+        {
+          "pinId": "anode",
+          "pinPosition": { "xMm": 3.5, "yMm": 3.5, "xViewBox": 3.5, "yViewBox": 3.5 },
+          "electricalRole": "anode",
+          "polarity": "positive"
+        },
+        {
+          "pinId": "cathode",
+          "pinPosition": { "xMm": 13.66, "yMm": 3.5, "xViewBox": 13.66, "yViewBox": 3.5 },
+          "electricalRole": "cathode",
+          "polarity": "negative"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "integrationStatus": "blocked_pending_owner_contact_sheet_acceptance"
+      }
+    },
+    {
+      "id": "lamp-incandescent-t1",
+      "displayName": "Лампа накаливания T-1",
+      "sourceArchive": "Компоненты.zip",
+      "sourceFile": "Компоненты/Копмоненты SVG/Лампа накаливания/incandescent_lamp_t1_bipin_v10_bright_full_glow/incandescent_lamp_t1_bipin_v10_bright_full_glow/assets/svg/lamp-incandescent-t1-bipin-6v.off.svg",
+      "sha256": "083f65a6a2b9ce37fb1ef9c8d38c4bfeb676feb0dbdeceaeadf5162555b0bb15",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 20,
+      "physicalHeightMm": 30,
+      "viewBox": "0 0 20 30",
+      "stateVariants": [
+        {
+          "state": "off",
+          "file": "lamp-off.svg",
+          "sha256": "083f65a6a2b9ce37fb1ef9c8d38c4bfeb676feb0dbdeceaeadf5162555b0bb15"
+        },
+        {
+          "state": "dim",
+          "file": "lamp-dim.svg",
+          "sha256": "5bbadb15e28743074a4416ed84c3628d7ed51bc35188da0dbb8cdd3212bf1e27"
+        },
+        {
+          "state": "on",
+          "file": "lamp-on.svg",
+          "sha256": "4268a1ec8f911cd01f0d98359045dbb3dd6252c8e98f11140303b25a9aa98948"
+        },
+        {
+          "state": "max",
+          "file": "lamp-max.svg",
+          "sha256": "60e7a117d635d10ebcc2ff7d24a5673bc5fe7b7c4d58cebb75ea727958991a37"
+        }
+      ],
+      "pinCount": 2,
+      "pins": [
+        {
+          "pinId": "L1",
+          "pinPosition": { "xMm": 8.73, "yMm": 29, "xViewBox": 8.73, "yViewBox": 29 },
+          "electricalRole": "passive-terminal",
+          "polarity": "none"
+        },
+        {
+          "pinId": "L2",
+          "pinPosition": { "xMm": 11.27, "yMm": 29, "xViewBox": 11.27, "yViewBox": 29 },
+          "electricalRole": "passive-terminal",
+          "polarity": "none"
+        }
+      ],
+      "simulationSupport": {
+        "available": true,
+        "integrationStatus": "blocked_pending_owner_contact_sheet_acceptance"
+      }
+    }
+  ],
+  "unconfirmedCurrentAssets": [
+    {
+      "file": "button-down.svg",
+      "sha256": "5f6e6aed51bdfe7e9e1161ef84ec48b1020daeb095808dd4d09ac705f82e4d0d",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "button-up.svg",
+      "sha256": "df03f256c0aae4d6775677709cbb496f91e1ee09a8b2321eee75c1cac20d05f4",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "diode.svg",
+      "sha256": "c4181f6429eef2c47f7b888d4f95c946035cfabd27492c5940c755467e8175d4",
+      "status": "self_made_current_pr_not_owner_accepted"
+    },
+    {
+      "file": "lamp-off.svg",
+      "sha256": "73d20ea22e0d93983844562114ad4edb82e37525e13e4a1ce0c60be85ba986a6",
+      "status": "self_made_current_pr_not_owner_accepted"
+    },
+    {
+      "file": "lamp-on.svg",
+      "sha256": "f85defd4255645c969dea0acbc42b63ccc375361bcf64c8059f5a15e31e56155",
+      "status": "self_made_current_pr_not_owner_accepted"
+    },
+    {
+      "file": "led-red-burned.svg",
+      "sha256": "34c2d2b23ab2513ea9c90043497139dbea1464221b344488d695d9969053c10b",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "led-red-lit.svg",
+      "sha256": "520efeb87e4c22f6d20ea1a3297bde47b548ad6df70f922a6f47530e2fcc8222",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "led-red-off.svg",
+      "sha256": "ca9e617965995a03ebb163eb0b39785baff9d262f14b39cbebe1008ee0cfc7f4",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "led-red-overcurrent.svg",
+      "sha256": "b81b79ec1b332a49905c4c67ef90bf8e4d280ffb81e3ab61a249d6fbf230613f",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "led-red-reverse.svg",
+      "sha256": "6cbe343575dd044fa68639f5728bba326ed5aacfd9c2cfd26d7643a7aa6291a8",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "led.svg",
+      "sha256": "034d4696b9e3d95daec3e21679fa70e1ed95efb0377894f69c999dc9d7a205ea",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "potentiometer.svg",
+      "sha256": "4d3c1091a03da45a038812dfaae74a530a2c922125a22844c6678dfc6797e4a7",
+      "status": "self_made_current_pr_not_owner_accepted"
+    },
+    {
+      "file": "power-source.svg",
+      "sha256": "41deae78eb7f0262ee8ae640c32db4ff5e4aee9971b16f8e22c6c99b69f5ac36",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "resistor.svg",
+      "sha256": "101b043a7e8a9ba8c2d4719c512800e61e155221dec583f26c24861cc456f55c",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "switch-left.svg",
+      "sha256": "a6a79d87351f5c9f02d1fdf1f74ae2deaa3986e24dfc82793619292d0a133ddc",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    },
+    {
+      "file": "switch-right.svg",
+      "sha256": "7353fb8e461622431bf9cf95593d4553117b3aa408d1fe04b038a5ebb1364e8a",
+      "status": "unconfirmed_no_exact_owner_archive_hash"
+    }
+  ]
+}

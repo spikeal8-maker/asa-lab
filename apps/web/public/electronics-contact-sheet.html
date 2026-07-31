@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ASA Lab — проверка комплекта владельца</title>
+    <link rel="stylesheet" href="/electronics-contact-sheet.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <p class="eyebrow">OWNER VISUAL CHECKPOINT · PR №72</p>
+        <h1>Исходный комплект электронных компонентов</h1>
+        <p class="lead">
+          Только файлы из архивов владельца. Один масштаб, точные физические размеры и контакты.
+          Соединения и симуляция намеренно отключены.
+        </p>
+        <div class="status-row" aria-label="Статус проверки">
+          <span class="status status-ok">Архив найден и проверен</span>
+          <span class="status">8 семейств · 19 SVG</span>
+          <span class="status status-stop">Симуляция остановлена</span>
+        </div>
+      </header>
+
+      <section class="panel" aria-labelledby="scale-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ФИЗИЧЕСКОЕ СРАВНЕНИЕ</p>
+            <h2 id="scale-title">Один масштаб для всех компонентов</h2>
+          </div>
+          <p class="scale-value" id="scale-value">1 мм = 8 экранных единиц</p>
+        </div>
+        <div class="legend">
+          <span><i class="legend-dot"></i> точный электрический контакт</span>
+          <span><i class="legend-grid"></i> малая клетка 1 мм</span>
+          <span><i class="legend-grid legend-grid-major"></i> большая клетка 10 мм</span>
+        </div>
+        <div class="world-scroll" aria-label="Физическое сравнение компонентов">
+          <div class="world-stage" id="comparison-stage">
+            <div class="ruler" id="ruler"><span>10 мм</span></div>
+          </div>
+        </div>
+        <p class="scale-note">
+          Кнопка показана в полном монтажном envelope 10×10 мм; её корпус — 6×6 мм. Размеры
+          изображений вычисляются только из <code>physicalWidthMm</code>,
+          <code>physicalHeightMm</code> и общего <code>worldUnitsPerMm</code>.
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="variant-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ИСХОДНЫЕ СОСТОЯНИЯ</p>
+            <h2 id="variant-title">Все 19 восстановленных SVG</h2>
+          </div>
+          <p class="scale-value">Тот же масштаб · без проводов</p>
+        </div>
+        <div class="world-scroll" aria-label="Состояния компонентов">
+          <div class="world-stage variants-stage" id="variants-stage"></div>
+        </div>
+      </section>
+
+      <section class="panel audit-panel" aria-labelledby="audit-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ПРОИСХОЖДЕНИЕ</p>
+            <h2 id="audit-title">Архивы и неподтверждённые файлы</h2>
+          </div>
+        </div>
+        <div class="audit-grid">
+          <article>
+            <h3>Проверенные архивы владельца</h3>
+            <div id="archive-list" class="audit-list"></div>
+          </article>
+          <article>
+            <h3>Не допущены как owner assets</h3>
+            <p class="muted">Эти текущие файлы не используются на данном листе.</p>
+            <div id="unconfirmed-list" class="file-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <footer>
+        Визуальная проверка комплекта · дальнейшая работа редактора заблокирована до решения
+        владельца.
+      </footer>
+    </main>
+    <script type="module" src="/electronics-contact-sheet.js"></script>
+  </body>
+</html>
