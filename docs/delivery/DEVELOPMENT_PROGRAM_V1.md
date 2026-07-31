@@ -1,168 +1,106 @@
 # ASA Lab — Development Program
 
-**Machine contract:** [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml)  
-**Current state:** [`../project-map/project-map.yaml`](../project-map/project-map.yaml)  
-**Quality:** [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)
+Machine contract: [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml)  
+Current state: [`../project-map/project-map.yaml`](../project-map/project-map.yaml)  
+Stable tests: [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)  
+Active tests: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
 
-## Назначение
-
-Этот документ объясняет текущий delivery state. Исполняемая задача определяется только `EXECUTION_MANIFEST.yaml`, Project Map и активной GitHub Issue.
-
-## Каноническое состояние
+## Current executable queue
 
 ```text
-main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
-verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
-PR #70:                  merged
-TASK-ACCOUNT-C1-001:     done
-Issue #48:               completed
-active task:             none
+TASK-PRODUCT-DOC-001      done
+→ TASK-PORTAL-001         done
+→ TASK-ACCOUNT-C1-001     done
+→ TASK-CREATOR-PORTAL-001 ready
+→ owner review / stop
 ```
 
-Функциональная полнота конечного продукта не заявляется.
+Current branch: `agent/r2-creator-portal`. Issue: №62.
 
-## Delivery stage и architecture horizon
-
-- **delivery stage** — owner-controlled порядок пользовательских результатов;
-- **architecture horizon** — техническая область, а не разрешение начать следующую работу.
-
-## Завершённая executable queue
+## R2 user result
 
 ```text
-TASK-PRODUCT-DOC-001  done
-→ TASK-PORTAL-001     done
-→ TASK-ACCOUNT-C1-001 done
-→ STOP
+Account login
+→ Creator Home
+→ recent projects
+→ Projects / Learning / Collections / Challenges
+→ capability-aware Classes
+→ Help
+→ Account and workspace switcher
 ```
 
-`project.current_focus = null`. Roadmap не активируется автоматически.
+R2 turns the current technical Alpha UI into a coherent, useful cabinet. It does not claim final product completeness.
 
-## Technical Product Alpha
+## Required scope
 
-В `main` находятся:
+- useful Creator Home as default route;
+- recent projects and next actions;
+- loading, empty, error and restricted states;
+- capability-aware navigation from server state;
+- workspace switcher that changes scope only;
+- Classes visible only to educator capability;
+- honest Learning/Collections/Challenges/Help surfaces;
+- integrated Account/Profile/Sessions;
+- desktop, tablet and mobile;
+- route/context persistence through refresh and history navigation;
+- preservation of all existing data and flows.
 
-- public entry и adult registration;
-- Account / Profile / Principal;
-- Personal Workspace и sessions_v2;
-- login по email или username;
-- educator self-attestation и AuditEvent;
-- workspace list и ActiveContext switching;
-- profile и active session management;
-- legacy teacher compatibility;
-- Project Hub, Electronics, ASA Chess и Chess Online;
-- Docker/PostgreSQL/RLS/persistence/backup foundation.
+## Frozen foundation
 
-### Milestone: Account C1 completed
+Do not recreate or replace:
 
-**Task:** `TASK-ACCOUNT-C1-001`  
-**Issue:** №48  
-**Architecture horizon:** `PHASE-1`
-
-Проверенный результат:
-
-```text
-Account gate 28/28
-Regression 298/298
-Playwright 9/9
-Browser errors 0
-Docker/persistence/backup-restore PASS
-```
-
-## Blocked roadmap
-
-### R2 — Creator Portal
-
-**Issue №62** — Creator Home and capability-aware Portal shell.
-
-Status: `blocked`. Требуется отдельный owner transition.
-
-### R3 — Project lifecycle
-
-**Issue №37** — Module Registry, Project Hub and shared Editor Host.
-
-Status: `blocked`. Не начинается до принятого R2.
-
-### R4 — Electronics parity
-
-**Issue №63** — complete Circuits and Electronics functional parity.
-
-Status: `blocked`. Не начинается до принятого R3.
-
-## School Pilot
-
-School Pilot остаётся roadmap:
-
-```text
-Classroom / StudentSeat
-→ learner workspace
-→ Assignment
-→ immutable submission
-→ review
-→ grade and badge
-```
-
-Ни одна из этих задач сейчас не executable.
+- Account/Profile/Principal/Personal Workspace;
+- sessions_v2 and Account C1 APIs;
+- Teacher Portal;
+- Project Hub;
+- Electronics, Chess and Chess Online;
+- PostgreSQL/RLS/Docker/recovery.
 
 ## Scope freeze
 
-После активации будущей task разрешены только её user flow, migrations, API, UI, security, tests и review feedback.
+Not part of R2:
 
-Запрещено:
+- R3 Module Registry or shared Editor Host rewrite;
+- R4 Electronics parity;
+- StudentSeat provisioning;
+- publication/community backend;
+- assignments/review/grades;
+- administration/billing;
+- audit or closure of old PRs.
 
-- начинать следующий release автоматически;
-- создавать competing product branch;
-- ослаблять RLS, contracts или tests;
-- переписывать применённую migration;
-- выполнять destructive cleanup без отдельного gate.
-
-## Map protocol
-
-### Start
-
-Owner transition одновременно публикует:
-
-```text
-task ID
-Issue
-branch
-scope
-status ready/in_progress
-current_focus
-test IDs
-```
-
-### Review
-
-Task становится `in_review` только после focused PASS и owner-visible result.
-
-### After merge
-
-- task → `done`;
-- merge SHA и verified SHA фиксируются;
-- `current_focus` → `null`, если следующая task отдельно не активирована;
-- coding-агент останавливается.
-
-## Порты
-
-```text
-Web  127.0.0.1:4610
-API  127.0.0.1:4611
-E2E  127.0.0.1:4612
-```
-
-Запрещены `3000`, `3100`, `5173`.
-
-## Проверка текущего governance state
+## Gate
 
 ```bash
 python tools/validate_infrastructure_focus.py
 python tools/validate_project_map.py
 python tools/validate_test_catalog.py
 python tools/validate_delivery_program.py
+python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
 ```
 
-Hosted GitHub Actions остаётся BLOCKED до первого шага; это не считается PASS.
+The coding agent implements real `test:creator-portal` and `e2e:creator-portal` commands. PASS requires real exit `0` on one final SHA.
 
-## Следующее действие
+## Browser evidence
 
-Активной задачи нет. Coding-агент не пишет product code до отдельного owner-approved transition.
+Creator and educator, desktop/tablet/mobile, live API/PostgreSQL, existing Electronics/Chess projects, workspace switching and route persistence.
+
+```text
+console errors = 0
+pageerror = 0
+unexpected requestfailed = 0
+unexpected HTTP 5xx = 0
+```
+
+## Roadmap after R2
+
+```text
+R3 Issue №37  blocked
+R4 Issue №63  blocked
+School Pilot  blocked
+```
+
+R3 becomes executable only through a separate owner transition after R2 acceptance.
+
+## Stop
+
+Open a Draft PR from `agent/r2-creator-portal` to `main`, publish the exact SHA, tests and screenshots, then stop. No merge or release tag is included.
