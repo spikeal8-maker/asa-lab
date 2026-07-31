@@ -9,13 +9,24 @@ import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { AccountPage } from './pages/AccountPage';
-import { PortalHeader, type PortalSection } from './components/PortalHeader';
+import { CreatorHomePage } from './pages/CreatorHomePage';
+import { CreatorResourcePage } from './pages/CreatorResourcePage';
+import { PortalHeader } from './components/PortalHeader';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
+import {
+  canUseClasses,
+  creatorViewFromHash,
+  creatorViewToHash,
+  sectionForView,
+  type CreatorPortalSection,
+  type CreatorPortalView,
+} from './creator-portal/navigation';
 import './brand/brand.css';
 import './electronics/portal.css';
 import './modules/project-hub.css';
 import './account.css';
+import './creator-portal/creator-portal.css';
 
 type SessionState =
   | { kind: 'checking' }
@@ -46,77 +57,16 @@ function publicViewFromHash(): PublicView {
   return PUBLIC_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'entry' };
 }
 
-type View =
-  | { kind: 'my-projects' }
-  | { kind: 'classrooms' }
-  | { kind: 'account' }
-  | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string }
-  | {
-      kind: 'editor';
-      projectId: string;
-      returnTo:
-        | { kind: 'my-projects' }
-        | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
-    };
-
-function viewToHash(view: View): string {
-  if (view.kind === 'my-projects') return '#/projects';
-  if (view.kind === 'classrooms') return '#/classrooms';
-  if (view.kind === 'account') return '#/account';
-  if (view.kind === 'classroom-projects') {
-    return `#/classrooms/${view.classroomId}/projects?title=${encodeURIComponent(view.classroomTitle)}`;
-  }
-  if (view.returnTo.kind === 'classroom-projects') {
-    return `#/classrooms/${view.returnTo.classroomId}/projects/${view.projectId}?title=${encodeURIComponent(view.returnTo.classroomTitle)}`;
-  }
-  return `#/projects/${view.projectId}`;
-}
-
-function viewFromHash(): View {
-  const raw = window.location.hash.replace(/^#/, '');
-  const [path, query] = raw.split('?');
-  const title = new URLSearchParams(query ?? '').get('title') ?? 'Класс';
-  const classEditor = /^\/classrooms\/([^/]+)\/projects\/([^/]+)$/.exec(path ?? '');
-  if (classEditor) {
-    return {
-      kind: 'editor',
-      projectId: classEditor[2] as string,
-      returnTo: {
-        kind: 'classroom-projects',
-        classroomId: classEditor[1] as string,
-        classroomTitle: title,
-      },
-    };
-  }
-  const classProjects = /^\/classrooms\/([^/]+)\/projects$/.exec(path ?? '');
-  if (classProjects) {
-    return {
-      kind: 'classroom-projects',
-      classroomId: classProjects[1] as string,
-      classroomTitle: title,
-    };
-  }
-  const personalEditor = /^\/projects\/([^/]+)$/.exec(path ?? '');
-  if (personalEditor) {
-    return {
-      kind: 'editor',
-      projectId: personalEditor[1] as string,
-      returnTo: { kind: 'my-projects' },
-    };
-  }
-  if (path === '/classrooms') return { kind: 'classrooms' };
-  if (path === '/account') return { kind: 'account' };
-  return { kind: 'my-projects' };
-}
-
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
   const [publicView, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
-  const [view, setViewState] = useState<View>(() => viewFromHash());
+  const [view, setViewState] = useState<CreatorPortalView>(() =>
+    creatorViewFromHash(window.location.hash),
+  );
 
-  const setView = useCallback((next: View) => {
+  const setView = useCallback((next: CreatorPortalView) => {
     setViewState(next);
-    const hash = viewToHash(next);
+    const hash = creatorViewToHash(next);
     if (window.location.hash !== hash) window.history.pushState(null, '', hash);
   }, []);
 
@@ -128,7 +78,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const sync = (): void => {
-      setViewState(viewFromHash());
+      setViewState(creatorViewFromHash(window.location.hash));
       setPublicViewState(publicViewFromHash());
     };
     window.addEventListener('popstate', sync);
@@ -184,7 +134,7 @@ export function App(): JSX.Element {
   if (session.kind === 'anonymous') {
     const signedIn = (payload: SessionPayload): void => {
       setSession({ kind: 'authenticated', session: payload });
-      setView({ kind: 'my-projects' });
+      setView({ kind: 'home' });
     };
 
     if (publicView.kind === 'sign-up') {
@@ -227,12 +177,11 @@ export function App(): JSX.Element {
     );
   }
 
-  const isEducator = session.session.capabilities.some(
-    (entry) =>
-      entry.capability === 'educator' &&
-      (entry.state === 'verified' || entry.state === 'provisional'),
+  const canTeachHere = canUseClasses(
+    session.session.navigation,
+    session.session.activeWorkspace.kind,
   );
-  const canTeachHere = isEducator && session.session.activeWorkspace.kind === 'organization';
+  const canManageClasses = canTeachHere && session.session.navigation.classroomManagement;
 
   if (view.kind === 'editor') {
     return (
@@ -244,12 +193,18 @@ export function App(): JSX.Element {
     );
   }
 
-  const active: PortalSection =
-    view.kind === 'account'
-      ? 'account'
-      : canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects')
-        ? 'classes'
-        : 'projects';
+  const active = sectionForView(view, canTeachHere);
+  const navigate = (section: CreatorPortalSection): void => {
+    if (section === 'home') setView({ kind: 'home' });
+    else if (section === 'projects') setView({ kind: 'my-projects' });
+    else if (section === 'learning') setView({ kind: 'learning' });
+    else if (section === 'collections') setView({ kind: 'collections' });
+    else if (section === 'challenges') setView({ kind: 'challenges' });
+    else if (section === 'classes') setView({ kind: 'classrooms' });
+    else if (section === 'help') setView({ kind: 'help' });
+    else setView({ kind: 'account' });
+  };
+
   return (
     <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
       <a
@@ -266,38 +221,82 @@ export function App(): JSX.Element {
         session={session.session}
         active={active}
         canTeach={canTeachHere}
-        onNavigate={(section) => {
-          if (section === 'account') setView({ kind: 'account' });
-          else setView(section === 'projects' ? { kind: 'my-projects' } : { kind: 'classrooms' });
-        }}
+        onNavigate={navigate}
         onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
         onLoggedOut={() => {
           setSession({ kind: 'anonymous' });
           setPublicView({ kind: 'entry' });
         }}
       />
-      {view.kind === 'my-projects' ||
-      (!canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects')) ? (
+      {view.kind === 'home' ? (
+        <CreatorHomePage
+          session={session.session}
+          canTeach={canTeachHere}
+          onNavigate={navigate}
+          onOpenProject={(projectId) =>
+            setView({ kind: 'editor', projectId, returnTo: { kind: 'home' } })
+          }
+        />
+      ) : null}
+      {view.kind === 'my-projects' ? (
         <MyProjectsPage
           onOpenProject={(projectId) =>
             setView({ kind: 'editor', projectId, returnTo: { kind: 'my-projects' } })
           }
         />
       ) : null}
-      {view.kind === 'classrooms' && canTeachHere ? (
+      {view.kind === 'learning' ||
+      view.kind === 'collections' ||
+      view.kind === 'challenges' ||
+      view.kind === 'help' ? (
+        <CreatorResourcePage section={view.kind} onNavigate={navigate} />
+      ) : null}
+      {view.kind === 'classrooms' && canManageClasses ? (
         <DashboardPage
           onOpenProjects={(classroomId, classroomTitle) =>
             setView({ kind: 'classroom-projects', classroomId, classroomTitle })
           }
         />
       ) : null}
-      {view.kind === 'classroom-projects' && canTeachHere ? (
+      {view.kind === 'classroom-projects' && canManageClasses ? (
         <ProjectsPage
           classroomId={view.classroomId}
           classroomTitle={view.classroomTitle}
           onBack={() => setView({ kind: 'classrooms' })}
           onOpenProject={(projectId) => setView({ kind: 'editor', projectId, returnTo: view })}
         />
+      ) : null}
+      {canTeachHere &&
+      !canManageClasses &&
+      (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
+        <main className="portal-content" id="main-content" tabIndex={-1}>
+          <section className="creator-access-message">
+            <p className="portal-eyebrow">Организационное пространство</p>
+            <h1>Классы подключены</h1>
+            <p>
+              Возможность педагога активна. Управление учениками и заданиями станет доступно после
+              привязки профиля педагога к учебной организации.
+            </p>
+            <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
+              Проверить рабочее пространство
+            </button>
+          </section>
+        </main>
+      ) : null}
+      {!canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
+        <main className="portal-content" id="main-content" tabIndex={-1}>
+          <section className="creator-access-message">
+            <p className="portal-eyebrow">Доступ по роли</p>
+            <h1>Классы недоступны в этом пространстве</h1>
+            <p>
+              Раздел появляется только для аккаунта педагога в организационном рабочем пространстве.
+              Переключение пространства само по себе не выдаёт эту возможность.
+            </p>
+            <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
+              Открыть настройки аккаунта
+            </button>
+          </section>
+        </main>
       ) : null}
       {view.kind === 'account' ? (
         <AccountPage

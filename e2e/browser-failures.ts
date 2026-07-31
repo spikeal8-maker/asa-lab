@@ -4,6 +4,7 @@ export interface BrowserFailureCounts {
   readonly consoleErrors: number;
   readonly pageErrors: number;
   readonly failedRequests: number;
+  readonly httpServerErrors: number;
   readonly allowedAnonymousSessionProbes: number;
 }
 
@@ -35,6 +36,10 @@ function requestFailure(request: Request): string {
   return `${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown error'}`;
 }
 
+function serverResponseFailure(status: number, method: string, url: string): string {
+  return `${status} ${method} ${url}`;
+}
+
 function isAnonymousSessionProbe(message: ConsoleMessage): boolean {
   if (message.text() !== anonymousSessionConsoleText) return false;
   try {
@@ -51,6 +56,7 @@ export function collectBrowserFailures(
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   const failedRequests: string[] = [];
+  const httpServerErrors: string[] = [];
   let allowedAnonymousSessionProbes = 0;
 
   page.on('console', (message) => {
@@ -67,6 +73,13 @@ export function collectBrowserFailures(
   });
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('requestfailed', (request) => failedRequests.push(requestFailure(request)));
+  page.on('response', (response) => {
+    if (response.status() >= 500) {
+      httpServerErrors.push(
+        serverResponseFailure(response.status(), response.request().method(), response.url()),
+      );
+    }
+  });
 
   return {
     get counts() {
@@ -74,6 +87,7 @@ export function collectBrowserFailures(
         consoleErrors: consoleErrors.length,
         pageErrors: pageErrors.length,
         failedRequests: failedRequests.length,
+        httpServerErrors: httpServerErrors.length,
         allowedAnonymousSessionProbes,
       };
     },
@@ -81,6 +95,7 @@ export function collectBrowserFailures(
       expect(consoleErrors, 'browser console errors').toEqual([]);
       expect(pageErrors, 'uncaught browser page errors').toEqual([]);
       expect(failedRequests, 'unexpected failed browser requests').toEqual([]);
+      expect(httpServerErrors, 'unexpected HTTP 5xx responses').toEqual([]);
     },
   };
 }

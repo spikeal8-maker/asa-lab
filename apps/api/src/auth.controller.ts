@@ -34,6 +34,7 @@ interface SessionPayload {
   capabilities: { capability: string; state: string }[];
   workspaces: { workspaceId: string; kind: string; title: string; role: string }[];
   activeWorkspace: { workspaceId: string; kind: string };
+  navigation: { classes: boolean; classroomManagement: boolean };
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -90,6 +91,11 @@ export class AuthController {
       this.accounts.capabilities(context.accountId),
       this.accounts.workspaces(context.accountId),
     ]);
+    const educator = capabilities.some(
+      (entry) =>
+        entry.capability === 'educator' &&
+        (entry.state === 'verified' || entry.state === 'provisional'),
+    );
     return {
       authenticated: true,
       user: {
@@ -110,6 +116,11 @@ export class AuthController {
       activeWorkspace: {
         workspaceId: context.workspaceId,
         kind: context.workspaceKind,
+      },
+      navigation: {
+        classes: educator && context.workspaceKind === 'organization',
+        classroomManagement:
+          educator && context.workspaceKind === 'organization' && context.userId !== null,
       },
     };
   }

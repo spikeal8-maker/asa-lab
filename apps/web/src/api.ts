@@ -25,6 +25,7 @@ export interface SessionPayload {
   capabilities: CapabilityRef[];
   workspaces: WorkspaceRef[];
   activeWorkspace: { workspaceId: string; kind: string };
+  navigation: { classes: boolean; classroomManagement: boolean };
 }
 
 export interface AccountProfile {

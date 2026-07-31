@@ -52,7 +52,9 @@
     "e2e:chess-live": "playwright test e2e/chess-live.spec.ts",
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
-    "e2e:account-c1": "playwright test e2e/account-c1.spec.ts"
+    "e2e:account-c1": "playwright test e2e/account-c1.spec.ts",
+    "test:creator-portal": "node tools/run-creator-portal-tests.mjs",
+    "e2e:creator-portal": "playwright test e2e/creator-portal.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
