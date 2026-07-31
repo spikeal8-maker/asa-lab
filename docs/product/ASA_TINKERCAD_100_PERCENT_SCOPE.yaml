@@ -1,0 +1,164 @@
+schema_version: 1.0.0
+scope_id: asa-tinkercad-functional-parity
+status: owner_review_required
+principle: 100_percent_functional_parity_of_approved_reference_scope
+literal_copy:
+  source_code: forbidden
+  trademarks_and_branding: forbidden
+  proprietary_text_and_assets: forbidden
+  pixel_identical_ui: not_required
+  functional_flows_and_tool_capabilities: required
+  original_asa_brand_code_assets: required
+
+completion_rule:
+  parity_percent_formula: confirmed_capability_points_passed / confirmed_capability_points_total
+  may_claim_100_percent_only_when:
+    - every parity_required capability is parity_pass
+    - every evidence_required capability is resolved by reference capture or owner decision
+    - every approved deviation is recorded in TINKERCAD_PARITY_DEVIATIONS.yaml
+    - desktop_and_mobile_owner_flows_pass
+    - accessibility_security_and_child_safety_gates_pass
+    - no capability is counted from documentation or unit tests alone
+  current_claim: not_100_percent
+
+reference_sources:
+  - id: REF-OFFICIAL-LEARN
+    kind: official_current
+    url: https://www.tinkercad.com/learn/
+    confirms: [three_d_design, circuits, codeblocks, challenges, classroom_projects, curriculum]
+  - id: REF-OFFICIAL-3D
+    kind: official_current
+    url: https://www.tinkercad.com/3d-design
+    confirms: [shape_library, import_shape, workplane, exact_dimensions, combine, align, duplicate, ruler, printing_learning]
+  - id: REF-OFFICIAL-CIRCUITS
+    kind: official_current
+    url: https://www.tinkercad.com/learn/circuits
+    confirms: [virtual_electronics_simulation, circuits_learning, microbit_learning]
+  - id: REF-OFFICIAL-ARDUINO
+    kind: official_current
+    url: https://www.tinkercad.com/learn/circuits/collection/arduino
+    confirms: [arduino_learning]
+  - id: REF-OFFICIAL-SIMLAB
+    kind: official_current
+    url: https://www.tinkercad.com/simlab
+    confirms: [materials, mass_friction_bounce, gravity, shake, connectors, motors, block_robot_control, traces_graphs, dynamic_static, throw_objects, video_still_share]
+  - id: REF-OFFICIAL-IPAD
+    kind: official_current
+    url: https://www.tinkercad.com/ipad-app
+    confirms: [touch_editor, apple_pencil, circuits_mobile, codeblocks_mobile, augmented_reality, stl_obj_svg_import_export, classroom_progress, coteachers, google_apple_classroom]
+  - id: REF-OFFICIAL-LOGIN
+    kind: official_current
+    url: https://www.tinkercad.com/login
+    confirms: [educator_login, class_code_student, registered_student, personal_account]
+  - id: REF-OFFICIAL-BADGES
+    kind: official_current
+    url: https://www.tinkercad.com/design-make
+    confirms: [teacher_assigned_skill_badges, badge_on_student_dashboard]
+  - id: REF-OWNER-VIDEOS
+    kind: owner_evidence
+    path: docs/product/reference/
+    confirms: [portal_layout, classroom_workspace, roster, studentseat, teacher_project_viewer, owner_specific_visual_details]
+
+capability_groups:
+  - id: GROUP-PLATFORM
+    name: Creative platform and project lifecycle
+    target_releases: [R1, R2, R3, R7, R8]
+    capabilities:
+      - { id: PLATFORM-ACCOUNT, points: 5, requirement: universal account and school/personal entry flows, evidence: confirmed_official, status: partial }
+      - { id: PLATFORM-HOME, points: 4, requirement: creator home with recent projects and capability-aware navigation, evidence: owner_video, status: absent }
+      - { id: PLATFORM-PROJECTS, points: 6, requirement: create/list/search/filter/rename/duplicate/archive/delete projects, evidence: owner_video, status: partial }
+      - { id: PLATFORM-VERSIONS, points: 5, requirement: autosave mutable draft and immutable addressable versions, evidence: owner_video, status: partial }
+      - { id: PLATFORM-SHARE, points: 5, requirement: private/unlisted/public share to exact immutable version, evidence: owner_video, status: absent }
+      - { id: PLATFORM-REMIX, points: 4, requirement: copy/remix with lineage and attribution, evidence: owner_video, status: absent }
+      - { id: PLATFORM-PROFILE, points: 3, requirement: privacy-aware profile and portfolio, evidence: owner_video, status: absent }
+      - { id: PLATFORM-EXPLORE, points: 4, requirement: gallery/search/featured/recent/popular/collections, evidence: confirmed_official, status: absent }
+      - { id: PLATFORM-LEARN, points: 3, requirement: tutorials/projects/curriculum/challenges surfaces, evidence: confirmed_official, status: absent }
+      - { id: PLATFORM-BADGES, points: 3, requirement: teacher assigned skills visible on student dashboard, evidence: confirmed_official, status: absent }
+
+  - id: GROUP-CLASSROOM
+    name: Classroom and learning cycle
+    target_releases: [R5, R6, R9]
+    capabilities:
+      - { id: CLASSROOM-LIFECYCLE, points: 5, requirement: create/archive/restore class with overview and policies, evidence: owner_video, status: partial }
+      - { id: CLASSROOM-JOIN, points: 5, requirement: join by code/link as StudentSeat or registered account, evidence: confirmed_official, status: absent }
+      - { id: CLASSROOM-STUDENTSEAT, points: 6, requirement: no-email seat issuance, handle credential reset revoke print QR, evidence: owner_video, status: absent }
+      - { id: CLASSROOM-ROSTER, points: 4, requirement: roster status last active safe mode badges and row actions, evidence: owner_video, status: absent }
+      - { id: CLASSROOM-COTEACHER, points: 3, requirement: explicit co-teacher grants and moderation, evidence: confirmed_official, status: absent }
+      - { id: CLASSROOM-PROGRESS, points: 5, requirement: activities assigned and student progress monitored, evidence: confirmed_official, status: absent }
+      - { id: CLASSROOM-PROJECT-VIEWER, points: 5, requirement: teacher views current draft and exact versions without silent edit, evidence: owner_video, status: absent }
+      - { id: CLASSROOM-ASSISTANCE, points: 3, requirement: visible audited teacher assistance mode, evidence: owner_improvement, status: absent }
+      - { id: CLASSROOM-ASSIGNMENT, points: 6, requirement: immutable starter work copy submit review revise accept, evidence: owner_video, status: absent }
+      - { id: CLASSROOM-GRADE, points: 4, requirement: rubric grade badge tied to exact submission evidence, evidence: confirmed_official, status: absent }
+      - { id: CLASSROOM-SAFE-MODE, points: 5, requirement: private defaults and child social/publication restrictions, evidence: owner_video, status: partial }
+
+  - id: GROUP-CIRCUITS
+    name: Circuits and electronics simulator
+    target_releases: [R3, R4]
+    capabilities:
+      - { id: CIRCUITS-WORKBENCH, points: 6, requirement: full-screen circuit stage library inspector toolbar and shared project chrome, evidence: owner_video, status: in_review }
+      - { id: CIRCUITS-COMPONENTS, points: 8, requirement: reference-derived component families with terminals properties previews and searchable categories, evidence: evidence_required, status: partial }
+      - { id: CIRCUITS-BREADBOARD, points: 4, requirement: breadboard and realistic terminal connectivity model, evidence: evidence_required, status: absent }
+      - { id: CIRCUITS-WIRING, points: 6, requirement: create select delete recolor reroute bend and reconnect wires, evidence: owner_video, status: partial }
+      - { id: CIRCUITS-EDITING, points: 4, requirement: select multi-select move rotate duplicate delete undo redo zoom pan fit, evidence: owner_video, status: partial }
+      - { id: CIRCUITS-INSPECTOR, points: 4, requirement: component properties measured values and validation, evidence: owner_video, status: partial }
+      - { id: CIRCUITS-SIMULATION, points: 8, requirement: deterministic supported topology simulation and honest unsupported diagnostics, evidence: confirmed_official, status: partial }
+      - { id: CIRCUITS-INSTRUMENTS, points: 6, requirement: multimeter oscilloscope and other reference-confirmed instruments, evidence: evidence_required, status: absent }
+      - { id: CIRCUITS-ARDUINO, points: 8, requirement: Arduino component pin model code compile run serial and circuit interaction, evidence: confirmed_official, status: absent }
+      - { id: CIRCUITS-MICROBIT, points: 6, requirement: microbit component sensors code and simulation, evidence: confirmed_official, status: absent }
+      - { id: CIRCUITS-CODE-MODES, points: 6, requirement: block text and mixed code modes where reference-confirmed, evidence: evidence_required, status: absent }
+      - { id: CIRCUITS-SERIAL-MONITOR, points: 3, requirement: serial input output log clear and baud behavior where reference-confirmed, evidence: evidence_required, status: absent }
+      - { id: CIRCUITS-SCHEMATIC, points: 3, requirement: schematic or equivalent alternate circuit representation if confirmed, evidence: evidence_required, status: absent }
+      - { id: CIRCUITS-EXPORT, points: 3, requirement: safe export of circuit data/code/parts list where approved, evidence: evidence_required, status: absent }
+
+  - id: GROUP-3D
+    name: 3D Design
+    target_releases: [R10]
+    capabilities:
+      - { id: THREE-D-SHAPES, points: 6, requirement: shapes panel and custom/imported shapes, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-TRANSFORM, points: 6, requirement: move rotate scale exact dimensions and workplane, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-COMBINE, points: 4, requirement: group hole combine and custom shapes, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-ALIGN, points: 3, requirement: preview alignment on axes and reference object, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-DUPLICATE, points: 3, requirement: duplicate and repeat transformation, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-RULER, points: 3, requirement: ruler measurements and exact placement, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-IMPORT-EXPORT, points: 5, requirement: STL OBJ SVG import/export and printable output, evidence: confirmed_official, status: absent }
+      - { id: THREE-D-CAMERA, points: 3, requirement: orbit pan zoom fit view cube and orthographic/perspective where confirmed, evidence: evidence_required, status: absent }
+      - { id: THREE-D-AR, points: 3, requirement: mobile augmented reality viewer or approved ASA equivalent, evidence: confirmed_official, status: absent }
+
+  - id: GROUP-CODEBLOCKS
+    name: Codeblocks 3D coding
+    target_releases: [R10]
+    capabilities:
+      - { id: CODEBLOCKS-WORKSPACE, points: 5, requirement: block palette workspace generated 3D preview and run controls, evidence: confirmed_official, status: absent }
+      - { id: CODEBLOCKS-CONTROL, points: 4, requirement: loops variables math transforms and reusable procedures where reference-confirmed, evidence: evidence_required, status: absent }
+      - { id: CODEBLOCKS-EXPORT, points: 3, requirement: generated 3D result participates in project version and export lifecycle, evidence: confirmed_official, status: absent }
+
+  - id: GROUP-SIMLAB
+    name: Physics and robotics Sim Lab
+    target_releases: [R10]
+    capabilities:
+      - { id: SIMLAB-MATERIALS, points: 4, requirement: material mass friction and bounciness, evidence: confirmed_official, status: absent }
+      - { id: SIMLAB-FORCES, points: 4, requirement: gravity strength shake and runtime object interactions, evidence: confirmed_official, status: absent }
+      - { id: SIMLAB-CONNECTORS, points: 5, requirement: axle slider pivot and motor connections, evidence: confirmed_official, status: absent }
+      - { id: SIMLAB-ROBOT-CODE, points: 5, requirement: block-controlled motors controller and simulation conditions, evidence: confirmed_official, status: absent }
+      - { id: SIMLAB-TRACES, points: 5, requirement: traces graphs position velocity acceleration and measurements, evidence: confirmed_official, status: absent }
+      - { id: SIMLAB-DYNAMIC-STATIC, points: 2, requirement: dynamic and static bodies, evidence: confirmed_official, status: absent }
+      - { id: SIMLAB-SHARE, points: 2, requirement: export stills and videos in supported ratios, evidence: confirmed_official, status: absent }
+
+  - id: GROUP-MOBILE-INTEGRATIONS
+    name: Mobile and external ecosystem
+    target_releases: [R10]
+    capabilities:
+      - { id: MOBILE-TOUCH, points: 3, requirement: touch and pen operation for critical editors, evidence: confirmed_official, status: absent }
+      - { id: MOBILE-AR, points: 3, requirement: AR viewing or approved ASA equivalent, evidence: confirmed_official, status: absent }
+      - { id: INTEGRATION-GOOGLE-CLASSROOM, points: 2, requirement: Google Classroom compatible roster/activity exchange or approved deviation, evidence: confirmed_official, status: absent }
+      - { id: INTEGRATION-APPLE-CLASSROOM, points: 2, requirement: Apple Classroom compatible deployment or approved deviation, evidence: confirmed_official, status: absent }
+      - { id: INTEGRATION-FUSION, points: 2, requirement: professional CAD handoff equivalent or approved deviation, evidence: confirmed_official, status: absent }
+      - { id: INTEGRATION-FORMA, points: 2, requirement: site-design handoff equivalent or approved deviation, evidence: confirmed_official, status: absent }
+
+required_follow_up:
+  - create_complete_surface_catalog
+  - create_electronics_tool_and_component_contract
+  - create_admin_console_contract
+  - create_student_experience_contract
+  - resolve_all_evidence_required_items_by_reference_capture
+  - map_every_capability_to_release_test_and_owner_screenshot

@@ -1,0 +1,133 @@
+schema_version: 1.0.0
+evidence_id: tinkercad-educator-classroom-video-2026-07-27
+source:
+  kind: owner_reference_video
+  filename: 2026-07-27 21-12-34.mp4
+  duration_seconds: 715.266667
+  resolution: 1920x1080
+  fps: 60
+  frame_count: 42916
+  size_bytes: 57124940
+  sha256: 1842b4328f345494a8fd7399ea1a9e3290abd6aa6f446d9ff5336af9f1904ca3
+  contains_personal_data: false
+  contains_synthetic_test_data: true
+  repository_storage: permitted_private_repo
+  public_redistribution: owner_approval_required
+analysis:
+  full_video_indexed: true
+  periodic_interval_seconds: 5
+  periodic_samples: 143
+  scene_change_frames: 48
+  focused_full_resolution_frames: 56
+  reviewed_at: 2026-07-27
+verified_rules:
+  adult_registration:
+    country_and_birthdate_before_credentials: true
+    credentials: [email, password, terms_acceptance]
+    account_created_without_visible_email_confirmation: true
+    anti_abuse_challenge: true
+  educator_activation:
+    source: profile_role_selection
+    explicit_attestation: true
+    privacy_notice: true
+    irreversible_for_user_in_reference: true
+    organization_required_before_first_class: false
+  adult_publication:
+    visibility: [private, unlisted, public]
+    first_publication_display_name: true
+    description_and_tags: true
+    license_selection: true
+    anti_abuse_challenge: true
+  class_creation:
+    required_fields: [title, age_or_grade_band]
+    optional_fields: [subject]
+    safe_mode_policy_control: true
+  class_workspace:
+    tabs: [students, activities, projects, moderation, coteachers]
+    controls: [class_code, share_link, class_safe_mode, help]
+  student_seat:
+    email_required: false
+    password_required: false
+    fields: [display_label, assigned_username]
+    individual_create: true
+    bulk_create: true
+    printable_roster: true
+  roster:
+    columns: [learner, principal_type, last_active, badge_count, safe_mode, actions]
+    class_wide_safe_mode: true
+    per_learner_safe_mode: true
+    row_actions:
+      - assign_badge
+      - edit_profile_settings
+      - rename_student
+      - add_to_class
+      - remove_from_class
+      - suspend
+      - delete
+  join:
+    class_code: true
+    share_link: true
+    join_paths: [studentseat_nickname, existing_registered_account]
+    confirmation_after_code: true
+  learner_portal:
+    creator_home: true
+    classes: true
+    projects: true
+    collections: true
+    tutorials: true
+    challenges: true
+  teacher_supervision:
+    learner_switcher: true
+    module_tabs: true
+    grid_list: true
+    exact_project_preview: true
+    simulation: true
+    version_journal: true
+    reactions: true
+    teacher_edit_action: true
+  activities:
+    templates: true
+    create_from_scratch: true
+    custom_instructions_links_files: visible_in_intro
+architecture_decisions:
+  educator_capability:
+    self_attestation_allowed_for_eligible_adult: true
+    server_granted: true
+    audited: true
+    admin_revocable: true
+  organization:
+    prerequisite_for_first_class: false
+  studentseat_and_registered_student:
+    separate_principal_types: true
+    same_class_code_entry: true
+  teacher_student_project_edit:
+    parity_required: true
+    explicit_context_banner: true
+    audit_required: true
+  safe_mode:
+    class_policy: true
+    per_learner_policy: true
+    blocks_public_social_capabilities: true
+    does_not_block_creation: true
+  publication:
+    private_username_separate_from_public_display_name: true
+unknowns:
+  - exact_minimum_educator_age
+  - email_verification_policy_beyond_observed_flow
+  - organization_and_school_admin_onboarding
+  - class_archive_and_coteacher_invitation_forms
+  - detailed_activity_authoring
+  - assignment_submission_grade_flow
+  - learner_notification_of_teacher_edits
+  - class_code_rotation_ui
+  - billing_checkout
+implementation_order:
+  - adult_creator_registration_and_educator_attestation
+  - class_creation_and_policy
+  - studentseat_individual_and_bulk_provisioning
+  - class_code_and_dual_join_paths
+  - roster_safe_mode_and_lifecycle_actions
+  - learner_creator_portal
+  - learner_portfolio_project_viewer_version_journal
+  - audited_teacher_assisted_edit
+  - activities_and_coteachers
