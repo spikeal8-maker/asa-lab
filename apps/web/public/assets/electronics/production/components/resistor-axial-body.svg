@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="4.354mm"
+     height="11.582mm"
+     viewBox="0 0 62 258"
+     role="img"
+     aria-labelledby="resistor-title resistor-description"
+     data-component="resistor-axial"
+     data-visual-contract="asa-resistor-parametric-v1">
+  <title id="resistor-title">Осевой резистор — прозрачный параметрический корпус</title>
+  <desc id="resistor-description">Прозрачный SVG без подложки. Цветовые полосы накладываются из значения сопротивления и допуска.</desc>
+  <defs>
+    <linearGradient id="lead-metal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#777f84"/>
+      <stop offset="0.24" stop-color="#d8dcde"/>
+      <stop offset="0.5" stop-color="#f5f6f6"/>
+      <stop offset="0.76" stop-color="#b8bec1"/>
+      <stop offset="1" stop-color="#697176"/>
+    </linearGradient>
+    <linearGradient id="ceramic" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a97935"/>
+      <stop offset="0.12" stop-color="#c99a52"/>
+      <stop offset="0.34" stop-color="#efd38d"/>
+      <stop offset="0.52" stop-color="#f7dda0"/>
+      <stop offset="0.72" stop-color="#dfb968"/>
+      <stop offset="0.9" stop-color="#bd8742"/>
+      <stop offset="1" stop-color="#98672f"/>
+    </linearGradient>
+    <linearGradient id="ceramic-light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3c7" stop-opacity="0.82"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#7d4e20" stop-opacity="0.28"/>
+    </linearGradient>
+  </defs>
+
+  <g id="pins" fill="url(#lead-metal)" stroke="#687176" stroke-width="0.7">
+    <rect id="lead-top" x="28" y="0" width="6" height="66" rx="3"/>
+    <rect id="lead-bottom" x="28" y="192" width="6" height="66" rx="3"/>
+  </g>
+
+  <g id="body">
+    <path id="ceramic-body"
+          d="M31 57
+             C23.5 57 20.4 65.4 20 75.8
+             C19.7 85.1 15.1 91.2 13.4 104.5
+             L13.4 153.5
+             C15.1 166.8 19.7 172.9 20 182.2
+             C20.4 192.6 23.5 201 31 201
+             C38.5 201 41.6 192.6 42 182.2
+             C42.3 172.9 46.9 166.8 48.6 153.5
+             L48.6 104.5
+             C46.9 91.2 42.3 85.1 42 75.8
+             C41.6 65.4 38.5 57 31 57Z"
+          fill="url(#ceramic)"
+          stroke="#855727"
+          stroke-width="1.25"/>
+    <path id="body-highlight"
+          d="M24.8 66.5 C20.6 82.5 18.2 96 18.2 111 L18.2 151 C19.2 165.5 21.3 176.8 24.7 187"
+          fill="none"
+          stroke="url(#ceramic-light)"
+          stroke-width="3.1"
+          stroke-linecap="round"
+          opacity="0.58"/>
+    <path id="body-right-shadow"
+          d="M40.2 70 C44 88 45.4 100 45.4 115 L45.4 150 C44.4 166 42.5 178 39.5 188"
+          fill="none"
+          stroke="#71451f"
+          stroke-width="2.3"
+          stroke-linecap="round"
+          opacity="0.24"/>
+    <path id="top-shoulder" d="M22 72 C25 67.5 37 67.5 40 72" fill="none" stroke="#f5dfa6" stroke-width="1.1" opacity="0.55"/>
+    <path id="bottom-shoulder" d="M22 186 C25 190.5 37 190.5 40 186" fill="none" stroke="#7c4d21" stroke-width="1.1" opacity="0.42"/>
+  </g>
+
+  <g id="band-anchors" fill="none" stroke="none" aria-hidden="true">
+    <rect id="band-zone-1" x="14" y="84" width="34" height="13" rx="2"/>
+    <rect id="band-zone-2" x="14" y="111" width="34" height="13" rx="2"/>
+    <rect id="band-zone-3" x="14" y="139" width="34" height="13" rx="2"/>
+    <rect id="band-zone-4" x="14" y="171" width="34" height="13" rx="2"/>
+  </g>
+
+  <g id="connection-pins" opacity="0" pointer-events="none">
+    <circle id="lead-1" data-pin-id="lead-1" cx="31" cy="3" r="3"/>
+    <circle id="lead-2" data-pin-id="lead-2" cx="31" cy="255" r="3"/>
+  </g>
+</svg>
