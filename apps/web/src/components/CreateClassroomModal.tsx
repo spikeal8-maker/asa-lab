@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { api, type Classroom } from '../api';
+import { newClientId } from '../client-id';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -33,7 +34,7 @@ export function CreateClassroomModal({
   const errorId = useId();
   // One idempotency key per modal lifetime: retrying the same intent cannot
   // create a duplicate classroom.
-  const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const idempotencyKey = useMemo(() => newClientId(), []);
 
   useLayoutEffect(() => {
     const previousOverflow = document.body.style.overflow;

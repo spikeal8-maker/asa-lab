@@ -1,0 +1,125 @@
+name: ${COMPOSE_PROJECT_NAME:-asa-lab}
+
+services:
+  postgres:
+    image: postgres:17.7-bookworm
+    user: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asalab}
+      POSTGRES_USER: ${POSTGRES_USER:-asalab_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asa-local-admin-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - database
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
+    image: asa-lab-api:${ASA_IMAGE_TAG:-local}
+    entrypoint: ['/app/docker/migrate-entrypoint.sh']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://asalab_admin:asa-local-admin-change-me@postgres:5432/asalab}
+      ASA_APP_DB_PASSWORD: ${ASA_APP_DB_PASSWORD:-asa-local-runtime-change-me}
+      ASA_SEED_DEV: ${ASA_SEED_DEV:-false}
+      ASA_SEED_WORKSPACE: ${ASA_SEED_WORKSPACE:-school-1580}
+      ASA_SEED_TEACHER_EMAIL: ${ASA_SEED_TEACHER_EMAIL:-teacher@school-1580.local}
+      ASA_SEED_TEACHER_PASSWORD: ${ASA_SEED_TEACHER_PASSWORD:-asa-local-teacher-change-me}
+      LOCALAPPDATA: /tmp/asa-lab-devenv
+    tmpfs:
+      - /tmp
+    read_only: true
+    user: node
+    networks:
+      - database
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
+    image: asa-lab-api:${ASA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 4611
+      ASA_WEB_PORT: ${ASA_WEB_PORT:-4610}
+      APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
+    expose:
+      - '4611'
+    tmpfs:
+      - /tmp
+    read_only: true
+    user: node
+    networks:
+      - application
+      - database
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: runtime
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
+    image: asa-lab-web:${ASA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${ASA_WEB_PORT:-4610}:8080'
+    tmpfs:
+      - /tmp
+    read_only: true
+    user: '65534:65534'
+    networks:
+      - application
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  application:
+  database:
+    internal: true
+
+volumes:
+  postgres-data:

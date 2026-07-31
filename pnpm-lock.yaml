@@ -131,21 +131,36 @@ importers:
 
   apps/api:
     dependencies:
+      '@asa-lab/chess':
+        specifier: workspace:*
+        version: link:../../contexts/chess
+      '@asa-lab/chess-live':
+        specifier: workspace:*
+        version: link:../../contexts/chess-live
       '@asa-lab/classroom':
         specifier: workspace:*
         version: link:../../contexts/classroom
       '@asa-lab/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@asa-lab/electronics':
+        specifier: workspace:*
+        version: link:../../contexts/electronics
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
       '@asa-lab/observability':
         specifier: workspace:*
         version: link:../../packages/observability
       '@asa-lab/organization':
         specifier: workspace:*
         version: link:../../contexts/organization
+      '@asa-lab/projects':
+        specifier: workspace:*
+        version: link:../../contexts/projects
       '@fastify/cookie':
         specifier: 11.0.1
         version: 11.0.1
@@ -176,6 +191,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@asa-lab/chess':
+        specifier: workspace:*
+        version: link:../../contexts/chess
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -183,11 +201,32 @@ importers:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
 
+  contexts/chess:
+    dependencies:
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
+
+  contexts/chess-live:
+    dependencies:
+      '@asa-lab/chess':
+        specifier: workspace:*
+        version: link:../chess
+      '@asa-lab/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+
   contexts/classroom:
     dependencies:
       '@asa-lab/database':
         specifier: workspace:*
         version: link:../../packages/database
+
+  contexts/electronics:
+    dependencies:
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
 
   contexts/identity: {}
 
@@ -197,7 +236,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
 
+  contexts/projects:
+    dependencies:
+      '@asa-lab/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+
   packages/database: {}
+
+  packages/module-sdk: {}
 
   packages/observability:
     dependencies:

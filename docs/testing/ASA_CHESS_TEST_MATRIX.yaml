@@ -1,0 +1,114 @@
+schema_version: 1.0.0
+matrix_id: asa-chess-platform-tests
+status: candidate_not_activated
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/65
+candidate_pull_request: 66
+source_spec: docs/product/ASA_CHESS_PLATFORM_SPEC.md
+module_key: chess
+
+result_states:
+  PASS: command or owner flow actually passed
+  FAIL: an assertion or required flow failed
+  BLOCKED: mandatory environment unavailable
+  NOT_RUN: test was not executed
+
+foundation:
+  required_tests:
+    - id: TST-CHESS-RULES-001
+      command: pnpm vitest run contexts/chess/testing/chess.spec.ts
+      proves: legal standard moves, castling, en passant, promotion, checks and draws
+    - id: TST-CHESS-PERFT-001
+      command: pnpm vitest run contexts/chess/testing/chess.spec.ts
+      proves: initial perft 1/20/400/8902
+    - id: TST-CHESS-FEN-SAN-PGN-001
+      command: pnpm vitest run contexts/chess/testing/chess.spec.ts contexts/chess/testing/document.spec.ts contexts/chess/testing/pgn.spec.ts
+      proves: notation and import/export round trips including comments
+    - id: TST-CHESS-DOCUMENT-001
+      command: pnpm vitest run contexts/chess/testing/document.spec.ts
+      proves: strict replay validation, clocks, results and over-posting rejection
+    - id: TST-CHESS-BOT-001
+      command: pnpm vitest run contexts/chess/testing/bot.spec.ts
+      proves: deterministic legal ASA Bot levels
+    - id: TST-CHESS-REVIEW-001
+      command: pnpm vitest run contexts/chess/testing/review.spec.ts
+      proves: transparent ASA Quality and move classification
+    - id: TST-CHESS-PUZZLE-001
+      command: pnpm vitest run contexts/chess/testing/puzzle.spec.ts
+      proves: legal solution, mistakes, automatic replies, hints and solve
+    - id: TST-CHESS-FAIR-PLAY-001
+      command: pnpm vitest run contexts/chess/testing/fair-play.spec.ts
+      proves: protected live policy denies analysis, hints, explorer and undo
+    - id: TST-CHESS-MODULE-001
+      command: pnpm vitest run contexts/chess/testing/module.spec.ts apps/api/src/modules.controller.spec.ts
+      proves: registry, create/validate/preview/analyse and creatable API summary
+    - id: TST-CHESS-UI-001
+      command: pnpm vitest run tests/chess/chess-ui.spec.ts
+      proves: labels, clocks, results and evaluation copy
+    - id: TST-CHESS-E2E-001
+      command: pnpm e2e:chess
+      proves: create, play, bot, save, reload, checkpoint, PGN, puzzle trainer and responsive screenshots
+  aggregate_commands:
+    - pnpm chess:contract
+    - pnpm typecheck:chess
+    - pnpm test:chess
+    - pnpm format:check
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm build
+    - pnpm test
+    - pnpm e2e:chess
+  required_artifacts:
+    - e2e/artifacts/chess-analysis-desktop.png
+    - e2e/artifacts/chess-analysis-mobile.png
+    - e2e/artifacts/chess-puzzle-desktop.png
+  owner_flow: Create ASA Chess project, play local opening, reload, create version, import/export PGN, start bot game, verify a legal persisted reply, then solve an original ASA puzzle and open the next one.
+
+future_profiles:
+  realtime:
+    tests:
+      - TST-CHESS-ONLINE-AUTHORITY-001
+      - TST-CHESS-CLOCK-RECONNECT-001
+      - TST-CHESS-PREMOVE-001
+      - TST-CHESS-CHALLENGE-001
+      - TST-CHESS-MATCHMAKING-001
+      - TST-CHESS-SPECTATOR-DELAY-001
+  rating_and_events:
+    tests:
+      - TST-CHESS-RATING-001
+      - TST-CHESS-ARENA-001
+      - TST-CHESS-SWISS-001
+      - TST-CHESS-TEAM-MATCH-001
+      - TST-CHESS-LEADERBOARD-001
+  learning:
+    tests:
+      - TST-CHESS-PUZZLE-RATING-001
+      - TST-CHESS-PUZZLE-RUSH-001
+      - TST-CHESS-LESSON-001
+      - TST-CHESS-OPENING-EXPLORER-001
+      - TST-CHESS-DRILLS-001
+  classroom:
+    tests:
+      - TST-CHESS-ASSIGNMENT-001
+      - TST-CHESS-PAIRED-PLAY-001
+      - TST-CHESS-CLASS-TOURNAMENT-001
+      - TST-CHESS-TEACHER-VIEWER-001
+      - TST-CHESS-MOVE-COMMENT-001
+      - TST-CHESS-GRADE-BADGE-001
+      - TST-CHESS-STUDENTSEAT-SAFETY-001
+  fair_play:
+    tests:
+      - TST-CHESS-LIVE-ENGINE-DENIAL-001
+      - TST-CHESS-SERVER-MOVE-AUTHORITY-001
+      - TST-CHESS-SERVER-CLOCK-AUTHORITY-001
+      - TST-CHESS-REPORT-MODERATION-001
+      - TST-CHESS-APPEAL-001
+
+activation_rules:
+  - foundation_candidate_does_not_bypass_r0
+  - package_lock_must_be_synchronized
+  - blocked_and_not_run_never_count_as_pass
+  - local_bot_is_not_stockfish_or_online_rating_parity
+  - asa_quality_is_not_chess_com_accuracy_caps
+  - engine_analysis_is_forbidden_in_protected_live_rated_context
+  - browser_and_owner_evidence_are_required_before_transfer
+  - ports_3000_3100_5173_are_forbidden

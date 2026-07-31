@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-07-30T13:44:11Z",
+  "sourceDatabase": "asalab",
+  "backup": {
+    "path": "backups/task-docker-linux-001-v4.dump",
+    "format": "PostgreSQL custom",
+    "sizeBytes": 100539
+  },
+  "restoreDatabase": "asalab_restore_v4_test",
+  "restoreGuard": "*_test",
+  "schemaMigrations": 8,
+  "cleanupCompleted": true
+}

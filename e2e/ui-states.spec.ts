@@ -1,19 +1,14 @@
 import { test, expect } from '@playwright/test';
 import pg from 'pg';
+import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
-const organizationCodeField = 'Код организации';
-const teacherEmailField = 'Email педагога';
-
 async function login(page: import('@playwright/test').Page): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
-  await page.getByLabel(teacherEmailField).fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
+  await loginWithOrganization(page, teacher);
+  await page.getByRole('button', { name: 'Классы' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 }
 
@@ -40,12 +35,14 @@ test('session-check failure is explicit and can be retried', async ({ page }) =>
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('Не удалось проверить активную сессию');
   await page.getByRole('button', { name: 'Повторить' }).click();
-  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
+  await page.getByTestId('entry-sign-in').click();
+  await page.getByRole('button', { name: 'Вход через организацию' }).click();
+  await expect(page.getByLabel('Код организации')).toBeVisible();
 });
 
 test('create dialog exposes validation and idempotency conflict states', async ({ page }) => {
   await login(page);
-  await page.getByRole('button', { name: 'Создать класс' }).click();
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Создать класс' });
 
   await dialog.getByRole('button', { name: 'Создать' }).click();
@@ -86,7 +83,7 @@ test('create dialog exposes a server-error state without closing', async ({ page
     await route.continue();
   });
 
-  await page.getByRole('button', { name: 'Создать класс' }).click();
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Создать класс' });
   await page.getByLabel('Название класса').fill('Ошибка сервера');
   await dialog.getByRole('button', { name: 'Создать' }).click();
@@ -108,7 +105,7 @@ test('classroom loading failure can be retried', async ({ page }) => {
   await login(page);
   await expect(page.getByRole('alert')).toContainText('Сервер недоступен');
   await page.getByRole('button', { name: 'Повторить' }).click();
-  await expect(page.getByText('Классов пока нет.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Создайте первый класс' })).toBeVisible();
 });
 
 test('logout failure keeps the authenticated dashboard visible', async ({ page }) => {
@@ -121,7 +118,8 @@ test('logout failure keeps the authenticated dashboard visible', async ({ page }
     });
   });
 
+  await page.locator('.portal-account > summary').click();
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await expect(page.getByRole('alert')).toContainText('Не удалось завершить сессию');
+  await expect(page.getByRole('alert')).toContainText('Не удалось выйти.');
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 });

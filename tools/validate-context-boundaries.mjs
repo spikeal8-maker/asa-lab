@@ -15,7 +15,14 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript';
 
 const ROOT = resolve(process.cwd());
-const CONTEXTS = ['identity', 'organization', 'classroom'];
+const CONTEXT_RULES = {
+  identity: [],
+  organization: [],
+  classroom: [],
+  chess: [],
+  'chess-live': ['chess'],
+};
+const CONTEXTS = Object.keys(CONTEXT_RULES);
 const CONTEXT_ROOT = join(ROOT, 'contexts');
 const REPORT_DIR = join(ROOT, 'reports');
 const REPORT_FILE = join(REPORT_DIR, 'context-boundaries.json');
@@ -88,6 +95,15 @@ function asRepoPath(path) {
   return relative(ROOT, path).split(sep).join('/');
 }
 
+function importedContext(specifier) {
+  for (const context of CONTEXTS) {
+    if (specifier === `@asa-lab/${context}` || specifier.startsWith(`@asa-lab/${context}/`)) {
+      return context;
+    }
+  }
+  return null;
+}
+
 const errors = [];
 const checkedFiles = [];
 const contextSummary = {};
@@ -101,8 +117,13 @@ for (const context of CONTEXTS) {
     errors.push(`${asRepoPath(projectFile)} must include tag ${expectedTag}`);
   }
 
+  const allowedContexts = new Set([context, ...CONTEXT_RULES[context]]);
   const files = walk(root);
-  contextSummary[context] = { files: files.length, imports: 0 };
+  contextSummary[context] = {
+    files: files.length,
+    imports: 0,
+    allowedContexts: [...allowedContexts],
+  };
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     const imports = importsOf(file, source);
@@ -110,15 +131,15 @@ for (const context of CONTEXTS) {
     checkedFiles.push(asRepoPath(file));
 
     for (const specifier of imports) {
-      for (const other of CONTEXTS) {
-        if (
-          other !== context &&
-          (specifier === `@asa-lab/${other}` || specifier.startsWith(`@asa-lab/${other}/`))
-        ) {
-          errors.push(`${asRepoPath(file)} imports bounded context ${other} via ${specifier}`);
-        }
+      const target = importedContext(specifier);
+      if (target && !allowedContexts.has(target)) {
+        errors.push(
+          `${asRepoPath(file)} imports disallowed bounded context ${target} via ${specifier}`,
+        );
       }
 
+      // Even an allowed context dependency must go through its package root.
+      // Relative traversal couples internal folders and is always forbidden.
       if (specifier.startsWith('.')) {
         const resolved = resolve(dirname(file), specifier);
         const targetContext = contextOfResolvedPath(resolved);
@@ -153,6 +174,18 @@ try {
       );
     }
   }
+
+  const liveDependencies = graph?.graph?.dependencies?.['chess-live'] ?? [];
+  const hasChessEdge = liveDependencies.some((dependency) => dependency?.target === 'chess');
+  if (!hasChessEdge) {
+    errors.push(
+      'nx-project-graph.json is stale: chess-live must have a public dependency edge to chess',
+    );
+  }
+  const chessDependencies = graph?.graph?.dependencies?.chess ?? [];
+  if (chessDependencies.some((dependency) => dependency?.target === 'chess-live')) {
+    errors.push('chess rules context must never depend on chess-live');
+  }
 } catch (error) {
   errors.push(
     `cannot validate nx-project-graph.json: ${error instanceof Error ? error.message : String(error)}`,
@@ -163,6 +196,10 @@ const report = {
   generatedAt: new Date().toISOString(),
   contexts: contextSummary,
   filesChecked: checkedFiles.length,
+  dependencyPolicy: {
+    chess: [],
+    'chess-live': ['chess'],
+  },
   errors,
 };
 mkdirSync(REPORT_DIR, { recursive: true });
@@ -178,4 +215,5 @@ if (errors.length > 0) {
 console.log(
   `context-boundaries PASS: ${checkedFiles.length} file(s), ${CONTEXTS.length} isolated context(s), domain layers framework-free`,
 );
+console.log('- chess dependency direction: chess-live → chess only');
 console.log(`report: ${asRepoPath(REPORT_FILE)}`);

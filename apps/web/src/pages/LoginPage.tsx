@@ -1,96 +1,104 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
-import { api, type PublicUser } from '../api';
+import { api, type SessionPayload } from '../api';
+import { AsaLabWordmark } from '../brand/AsaLabBrand';
 
-export function LoginPage({ onLoggedIn }: { onLoggedIn: (user: PublicUser) => void }): JSX.Element {
-  const [workspace, setWorkspace] = useState('');
-  const [email, setEmail] = useState('');
+export function LoginPage({
+  onSignedIn,
+  onCreateAccount,
+  onOrganizationLogin,
+  onBack,
+}: {
+  onSignedIn: (session: SessionPayload) => void;
+  onCreateAccount: () => void;
+  onOrganizationLogin: () => void;
+  onBack: () => void;
+}): JSX.Element {
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const errorId = useId();
-  const workspaceHintId = useId();
-  const workspaceRef = useRef<HTMLInputElement>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const messageId = useId();
+  const identifierRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
-    setError(null);
-    if (!workspace.trim() || !email.trim() || !password) {
-      setError('Заполните код организации, email и пароль.');
-      workspaceRef.current?.focus();
+    setMessage(null);
+    if (!identifier.trim() || !password) {
+      setMessage('Введите email или имя пользователя и пароль.');
+      identifierRef.current?.focus();
       return;
     }
     setBusy(true);
-    const result = await api.login(workspace.trim(), email.trim(), password);
+    const result = await api.login(identifier.trim(), password);
     setBusy(false);
     if (result.ok) {
-      onLoggedIn(result.data.user);
+      onSignedIn(result.data);
       return;
     }
     if (result.status === 400 || result.status === 401) {
-      setError('Неверный код организации, email или пароль.');
+      setMessage('Неверные данные для входа.');
     } else if (result.status === 0) {
-      setError('Сервер недоступен. Попробуйте ещё раз.');
+      setMessage('Сервер недоступен. Попробуйте ещё раз.');
     } else {
-      setError('Ошибка сервера. Попробуйте ещё раз.');
+      setMessage('Ошибка сервера. Попробуйте ещё раз.');
     }
-    workspaceRef.current?.focus();
+    identifierRef.current?.focus();
   }
 
   return (
     <div className="page-center">
       <main className="login-card" aria-busy={busy}>
-        <h1 className="brand">ASA Lab</h1>
-        <p className="subtitle">Вход для педагога</p>
+        <button type="button" className="btn-ghost entry-back" onClick={onBack}>
+          ← Назад
+        </button>
+        <h1 className="brand-heading">
+          <AsaLabWordmark />
+        </h1>
+        <p className="subtitle">Вход в ASA Lab</p>
         <form onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="workspace">Код организации</label>
+          <label htmlFor="identifier">Email или имя пользователя</label>
           <input
-            ref={workspaceRef}
+            id="identifier"
+            ref={identifierRef}
             autoFocus
-            id="workspace"
-            name="workspace"
-            autoComplete="organization"
-            value={workspace}
-            disabled={busy}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={`${workspaceHintId}${error ? ` ${errorId}` : ''}`}
-            onChange={(event) => setWorkspace(event.target.value)}
-          />
-          <p id={workspaceHintId} className="field-hint">
-            Код выдаёт администратор школы или образовательной организации.
-          </p>
-          <label htmlFor="email">Email педагога</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
             autoComplete="username"
-            value={email}
+            spellCheck={false}
+            value={identifier}
             disabled={busy}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? errorId : undefined}
-            onChange={(event) => setEmail(event.target.value)}
+            aria-invalid={message ? 'true' : undefined}
+            aria-describedby={message ? messageId : undefined}
+            onChange={(event) => setIdentifier(event.target.value)}
           />
           <label htmlFor="password">Пароль</label>
           <input
             id="password"
-            name="password"
             type="password"
             autoComplete="current-password"
             value={password}
             disabled={busy}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? errorId : undefined}
+            aria-invalid={message ? 'true' : undefined}
+            aria-describedby={message ? messageId : undefined}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {error ? (
-            <p id={errorId} className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
+          <p id={messageId} className="form-error" role="alert" hidden={!message}>
+            {message}
+          </p>
           <button type="submit" className="btn-primary" disabled={busy}>
             {busy ? 'Входим…' : 'Войти'}
           </button>
         </form>
+
+        <nav className="login-links" aria-label="Другие способы">
+          <button type="button" className="link-button" onClick={onCreateAccount}>
+            Создать аккаунт
+          </button>
+        </nav>
+        <p className="legacy-note">
+          <button type="button" className="link-button link-muted" onClick={onOrganizationLogin}>
+            Вход через организацию
+          </button>
+          <span className="legacy-hint">Для школ, ранее подключённых по коду организации.</span>
+        </p>
       </main>
     </div>
   );

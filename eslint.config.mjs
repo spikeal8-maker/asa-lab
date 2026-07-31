@@ -8,6 +8,8 @@ import nxPlugin from '@nx/eslint-plugin';
  * - core code never imports subject modules;
  * - subject modules never import core internals;
  * - identity, organization and classroom do not depend on one another;
+ * - chess rules stay transport-independent;
+ * - chess-live may depend on chess rules, never the reverse;
  * - applications compose contexts through their public package roots.
  */
 export const depConstraints = [
@@ -42,6 +44,19 @@ export const depConstraints = [
   {
     sourceTag: 'context:classroom',
     onlyDependOnLibsWithTags: ['context:classroom', 'scope:shared', 'scope:contract'],
+  },
+  {
+    sourceTag: 'context:chess',
+    onlyDependOnLibsWithTags: ['context:chess', 'scope:shared', 'scope:contract'],
+  },
+  {
+    sourceTag: 'context:chess-live',
+    onlyDependOnLibsWithTags: [
+      'context:chess-live',
+      'context:chess',
+      'scope:shared',
+      'scope:contract',
+    ],
   },
   {
     sourceTag: 'type:app',

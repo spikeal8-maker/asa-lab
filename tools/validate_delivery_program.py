@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Validate the canonical ASA Lab Product Alpha → School Pilot contract.
+"""Validate the current ASA Lab executable delivery contract.
 
-This validator treats delivery stage and architecture horizon as different axes
-and cross-checks Execution Manifest, Project Map, test catalog, port policy,
-interactive viewer and required map evidence.
+Only owner-activated tasks belong to EXECUTION_MANIFEST.yaml. Future R2/R3/R4
+Issues are roadmap entries and cannot become executable until a separate
+owner-approved transition publishes them in the manifest and project map.
 """
 
 from __future__ import annotations
@@ -50,6 +50,16 @@ ACTIVE_TASK_STATUSES = {"ready", "in_progress", "in_review"}
 STARTED_TASK_STATUSES = {"in_progress", "in_review"}
 FUTURE_TASK_STATUSES = {"blocked", "planned"}
 ACTIVE_MAP_NODE_STATUSES = {"in_progress", "in_review"}
+EXPECTED_EXECUTABLE_TASKS = [
+    "TASK-PRODUCT-DOC-001",
+    "TASK-PORTAL-001",
+    "TASK-ACCOUNT-C1-001",
+]
+EXPECTED_ROADMAP_ISSUES = {
+    "R2": "https://github.com/spikeal8-maker/asa-lab/issues/62",
+    "R3": "https://github.com/spikeal8-maker/asa-lab/issues/37",
+    "R4": "https://github.com/spikeal8-maker/asa-lab/issues/63",
+}
 CODE_PREFIXES = (
     "apps/",
     "packages/",
@@ -138,9 +148,9 @@ def validate_documents(errors: list[str]) -> None:
         for marker in (
             "technical product alpha",
             "school pilot",
-            "task-project-shell-001",
-            "task-checkers-lite-001",
-            "task-electronics-alpha-001",
+            "task-account-c1-001",
+            "issue №62",
+            "issue №37",
             "scope freeze",
             "milestone:",
             "architecture horizon",
@@ -205,6 +215,26 @@ def expand_profiles(
     return result
 
 
+def validate_roadmap(manifest: dict[str, Any], errors: list[str]) -> None:
+    roadmap = manifest.get("roadmap_after_current")
+    if not isinstance(roadmap, list):
+        errors.append("Execution manifest must contain roadmap_after_current")
+        return
+    actual: dict[str, str] = {}
+    for entry in roadmap:
+        if not isinstance(entry, dict):
+            errors.append("roadmap_after_current entries must be objects")
+            continue
+        release = entry.get("release")
+        issue = entry.get("issue")
+        if isinstance(release, str) and isinstance(issue, str):
+            actual[release] = issue
+        if entry.get("status") != "blocked":
+            errors.append(f"Roadmap release {release} must remain blocked until activation")
+    if actual != EXPECTED_ROADMAP_ISSUES:
+        errors.append(f"Roadmap issues mismatch: expected {EXPECTED_ROADMAP_ISSUES}, got {actual}")
+
+
 def validate_manifest(
     manifest: dict[str, Any], catalog: dict[str, Any], errors: list[str]
 ) -> list[dict[str, Any]]:
@@ -212,6 +242,10 @@ def validate_manifest(
         errors.append("Unsupported execution manifest schema_version")
     if manifest.get("program_id") != "PROGRAM-ALPHA-001":
         errors.append("Execution manifest program_id must be PROGRAM-ALPHA-001")
+    if manifest.get("semantics", {}).get("no_automatic_future_activation") is not True:
+        errors.append("Execution manifest must forbid automatic future task activation")
+
+    validate_roadmap(manifest, errors)
 
     protocol = manifest.get("map_protocol")
     if not isinstance(protocol, dict):
@@ -237,8 +271,11 @@ def validate_manifest(
         (task for task in tasks_raw if isinstance(task, dict)),
         key=lambda task: task.get("position", 0),
     )
-    if len(tasks) != 9:
-        errors.append(f"Execution manifest must contain exactly 9 v1 tasks, got {len(tasks)}")
+    task_ids = [task.get("task_id") for task in tasks]
+    if task_ids != EXPECTED_EXECUTABLE_TASKS:
+        errors.append(
+            f"Executable tasks must be exactly {EXPECTED_EXECUTABLE_TASKS}, got {task_ids}"
+        )
     positions = [task.get("position") for task in tasks]
     if positions != list(range(1, len(tasks) + 1)):
         errors.append(f"Execution manifest positions must be contiguous: {positions}")
@@ -310,8 +347,6 @@ def validate_manifest(
             errors.append(f"Task {task_id} map_nodes must include its architecture horizon")
         if task.get("track") == "technical-alpha" and "TRACK-TECH-ALPHA" not in map_nodes:
             errors.append(f"Task {task_id} map_nodes must include TRACK-TECH-ALPHA")
-        if task.get("track") == "school-pilot" and "TRACK-SCHOOL-PILOT" not in map_nodes:
-            errors.append(f"Task {task_id} map_nodes must include TRACK-SCHOOL-PILOT")
 
         expected_next = tasks[index + 1].get("task_id") if index + 1 < len(tasks) else None
         if task.get("next_task") != expected_next:
@@ -502,12 +537,12 @@ def main() -> int:
 
     focus = project_map.get("project", {}).get("current_focus")
     print("ASA Lab execution contract validation: PASS")
-    print(f"- canonical tasks: {len(tasks)}")
+    print(f"- executable tasks: {len(tasks)}")
     print(f"- current focus: {focus}")
+    print("- future roadmap: R2 Issue 62 -> R3 Issue 37 -> R4 Issue 63 (blocked)")
     print("- ports: web=4610 api=4611 e2e=4612")
     print("- task/test/map synchronization: PASS")
-    print("- delivery stages vs architecture horizons: PASS")
-    print("- map node lifecycle and interactive viewer contract: PASS")
+    print("- automatic future activation: forbidden")
     return 0
 
 

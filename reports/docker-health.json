@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "baseUrl": "http://127.0.0.1:4610",
+  "webStatus": 200,
+  "live": {
+    "status": "live"
+  },
+  "ready": {
+    "status": "ready",
+    "dependencies": {
+      "database": "up"
+    }
+  }
+}

@@ -45,6 +45,54 @@ export interface SeededTeacher {
   password: string;
 }
 
+export async function seedLegacyTeacherIdentity(
+  admin: pg.Pool,
+  input: {
+    tenantId: string;
+    userId: string;
+    email: string;
+    passwordHash: string;
+    displayName: string;
+    workspaceId: string;
+  },
+): Promise<void> {
+  const account = await admin.query(
+    `INSERT INTO accounts (email, password_hash, birth_date, country)
+     VALUES ($1, $2, DATE '1990-01-01', 'RU') RETURNING id`,
+    [input.email, input.passwordHash],
+  );
+  const accountId = account.rows[0].id as string;
+  await admin.query(
+    `INSERT INTO profiles (account_id, username, display_name)
+     VALUES ($1, $2, $3)`,
+    [accountId, `edu-${accountId.replaceAll('-', '').slice(0, 10)}`, input.displayName],
+  );
+  const principal = await admin.query(
+    `INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id`,
+    [accountId],
+  );
+  const principalId = principal.rows[0].id as string;
+  await admin.query(
+    `INSERT INTO capability_grants
+       (account_id, capability, state, policy_version, granted_by)
+     VALUES
+       ($1, 'creator', 'verified', 'asa-lab-2026-07', 'migration'),
+       ($1, 'educator', 'verified', 'asa-lab-2026-07', 'migration')`,
+    [accountId],
+  );
+  await admin.query(
+    `INSERT INTO workspace_memberships (account_id, workspace_id, role)
+     VALUES ($1, $2, 'educator')`,
+    [accountId, input.workspaceId],
+  );
+  await admin.query(
+    `INSERT INTO legacy_user_account_links
+       (tenant_id, user_id, account_id, principal_id)
+     VALUES ($1, $2, $3, $4)`,
+    [input.tenantId, input.userId, accountId, principalId],
+  );
+}
+
 let n = 0;
 
 export async function seedTeacher(
@@ -79,17 +127,33 @@ export async function seedTeacher(
      VALUES ($1, $2, 'Период', '2026-09-01', '2027-06-30', $3) RETURNING id`,
     [tenantId, schoolId, withActivePeriod],
   );
+  const passwordHash = hashPassword(password);
   const teacher = await admin.query(
     `INSERT INTO users (tenant_id, school_id, role, email, display_name, password_hash)
      VALUES ($1, $2, 'teacher', $3, $4, $5) RETURNING id`,
-    [tenantId, withSchool ? schoolId : null, email, `Педагог ${label}`, hashPassword(password)],
+    [tenantId, withSchool ? schoolId : null, email, `Педагог ${label}`, passwordHash],
   );
+  const teacherId = teacher.rows[0].id as string;
+  const workspaceResult = await admin.query(
+    `INSERT INTO workspaces (tenant_id, kind, title)
+     VALUES ($1, 'organization', $2) RETURNING id`,
+    [tenantId, `Тест ${label}`],
+  );
+  const workspaceId = workspaceResult.rows[0].id as string;
+  await seedLegacyTeacherIdentity(admin, {
+    tenantId,
+    userId: teacherId,
+    email,
+    passwordHash,
+    displayName: `Педагог ${label}`,
+    workspaceId,
+  });
   return {
     tenantId,
     workspace,
     schoolId,
     periodId: period.rows[0].id as string,
-    teacherId: teacher.rows[0].id as string,
+    teacherId,
     email,
     password,
   };

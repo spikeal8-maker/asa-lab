@@ -37,8 +37,11 @@ afterAll(async () => {
 
 describe('authentication negatives', () => {
   it('anonymous requests are rejected with 401', async () => {
+    const publicSession = await inject(app, { method: 'GET', url: '/api/auth/me' });
+    expect(publicSession.statusCode).toBe(200);
+    expect(publicSession.json()).toEqual({ authenticated: false });
+
     for (const [method, url] of [
-      ['GET', '/api/auth/me'],
       ['GET', '/api/classrooms'],
       ['POST', '/api/classrooms'],
     ] as const) {

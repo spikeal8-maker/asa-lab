@@ -1,0 +1,181 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpException,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
+import type {
+  AccountManagementUseCase,
+  ActiveContext,
+  ActiveContextUseCase,
+} from '@asa-lab/identity';
+import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { checkBodyShape } from './validation.js';
+
+function error(code: string, message: string): { error: { code: string; message: string } } {
+  return { error: { code, message } };
+}
+
+@Controller('api')
+export class AccountC1Controller {
+  constructor(
+    @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+    @Inject(TOKENS.accountManagementUseCase)
+    private readonly account: AccountManagementUseCase,
+  ) {}
+
+  private token(request: FastifyRequest): string | undefined {
+    return request.cookies[SESSION_COOKIE];
+  }
+
+  private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
+    const context = await this.activeContext.resolve(this.token(request));
+    if (!context) {
+      throw new HttpException(error('unauthorized', 'no active session'), 401);
+    }
+    return context;
+  }
+
+  @Get('workspaces')
+  async workspaces(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    const profile = await this.account.profile(context.accountId);
+    if (!profile) throw new HttpException(error('not_found', 'account was not found'), 404);
+    return {
+      items: profile.workspaces,
+      activeWorkspaceId: context.workspaceId,
+    };
+  }
+
+  @Post('session/context')
+  async switchContext(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['workspaceId']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.account.switchContext(this.token(request), shape.body['workspaceId']);
+    if (result === 'validation_error') {
+      throw new HttpException(error('validation_error', 'workspaceId must be a UUID'), 400);
+    }
+    if (result === 'unauthorized') {
+      throw new HttpException(error('unauthorized', 'no active session'), 401);
+    }
+    if (result === 'forbidden') {
+      throw new HttpException(
+        error('workspace_forbidden', 'workspace is unavailable for this account'),
+        403,
+      );
+    }
+    const context = await this.requireContext(request);
+    return {
+      activeWorkspace: { workspaceId: context.workspaceId, kind: context.workspaceKind },
+    };
+  }
+
+  @Post('capabilities/educator/self-attest')
+  async selfAttestEducator(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody ?? {}, []);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.account.selfAttestEducator(context.accountId);
+    if (!result.ok) {
+      const status = result.code === 'underage' ? 403 : 409;
+      const message =
+        result.code === 'underage'
+          ? 'подтверждение педагога доступно только совершеннолетним'
+          : 'educator capability is suspended or revoked';
+      throw new HttpException(error(result.code, message), status);
+    }
+    return {
+      capability: 'educator',
+      state: result.state,
+      created: result.created,
+    };
+  }
+
+  @Get('account/profile')
+  async profile(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    const profile = await this.account.profile(context.accountId);
+    if (!profile) throw new HttpException(error('not_found', 'account was not found'), 404);
+    return profile;
+  }
+
+  @Patch('account/profile')
+  async updateProfile(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['username', 'displayName']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.account.updateProfile(context.accountId, {
+      username: shape.body['username'],
+      displayName: shape.body['displayName'],
+    });
+    if (!result.ok) {
+      if (result.code === 'username_taken') {
+        throw new HttpException(error(result.code, 'это имя пользователя уже занято'), 409);
+      }
+      const status = result.code === 'not_found' ? 404 : 400;
+      throw new HttpException(
+        error(result.code, 'проверьте имя пользователя и отображаемое имя'),
+        status,
+      );
+    }
+    return result.profile;
+  }
+
+  @Get('account/sessions')
+  async sessions(@Req() request: FastifyRequest) {
+    await this.requireContext(request);
+    const items = await this.account.listSessions(this.token(request));
+    if (items === null) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    return { items };
+  }
+
+  @Delete('account/sessions/:id')
+  async revokeSession(@Req() request: FastifyRequest, @Param('id') sessionId: string) {
+    await this.requireContext(request);
+    const result = await this.account.revokeSession(this.token(request), sessionId);
+    if (result === 'validation_error') {
+      throw new HttpException(error('validation_error', 'session id must be a UUID'), 400);
+    }
+    if (result === 'unauthorized') {
+      throw new HttpException(error('unauthorized', 'no active session'), 401);
+    }
+    if (result === 'current_session') {
+      throw new HttpException(
+        error('current_session', 'use logout to end the current session'),
+        409,
+      );
+    }
+    if (result === 'not_found') {
+      throw new HttpException(error('not_found', 'session was not found'), 404);
+    }
+    return { ok: true };
+  }
+
+  @Post('account/sessions/revoke-all')
+  async revokeOtherSessions(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    await this.requireContext(request);
+    const shape = checkBodyShape(rawBody ?? {}, []);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const revoked = await this.account.revokeOtherSessions(this.token(request));
+    if (revoked === null) {
+      throw new HttpException(error('unauthorized', 'no active session'), 401);
+    }
+    return { revoked };
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": ["index.ts", "domain/**/*.ts", "application/**/*.ts", "infrastructure/**/*.ts"],
+  "exclude": ["dist", "testing"]
+}

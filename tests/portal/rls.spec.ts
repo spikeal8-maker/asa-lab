@@ -107,12 +107,51 @@ describe('runtime role hardening', () => {
       'academic_periods:SELECT',
       'audit_events:INSERT',
       'audit_events:SELECT',
+      'chess_live_challenges:INSERT',
+      'chess_live_challenges:SELECT',
+      'chess_live_challenges:UPDATE',
+      'chess_live_command_receipts:INSERT',
+      'chess_live_command_receipts:SELECT',
+      'chess_live_events:INSERT',
+      'chess_live_events:SELECT',
+      'chess_live_games:INSERT',
+      'chess_live_games:SELECT',
+      'chess_live_games:UPDATE',
+      'chess_matchmaking_tickets:INSERT',
+      'chess_matchmaking_tickets:SELECT',
+      'chess_matchmaking_tickets:UPDATE',
+      'chess_rating_ledger:INSERT',
+      'chess_rating_ledger:SELECT',
+      'chess_ratings:INSERT',
+      'chess_ratings:SELECT',
+      'chess_ratings:UPDATE',
       'classroom_memberships:INSERT',
       'classroom_memberships:SELECT',
       'classrooms:INSERT',
       'classrooms:SELECT',
+      'project_drafts:INSERT',
+      'project_drafts:SELECT',
+      'project_drafts:UPDATE',
+      'project_versions:INSERT',
+      'project_versions:SELECT',
+      'projects:INSERT',
+      'projects:SELECT',
       'schools:SELECT',
     ]);
+    const projectUpdateColumns = await runtime.query(
+      `SELECT table_name, column_name, privilege_type
+         FROM information_schema.role_column_grants
+        WHERE grantee = current_user
+          AND table_schema = 'public'
+          AND table_name = 'projects'
+          AND privilege_type = 'UPDATE'
+        ORDER BY column_name`,
+    );
+    expect(
+      projectUpdateColumns.rows.map(
+        (row) => `${row.table_name}:${row.column_name}:${row.privilege_type}`,
+      ),
+    ).toEqual(['projects:title:UPDATE']);
     const sequences = await runtime.query(
       `SELECT c.relname,
               has_sequence_privilege(current_user, c.oid, 'USAGE') AS usage
@@ -121,8 +160,9 @@ describe('runtime role hardening', () => {
         WHERE c.relkind = 'S' AND n.nspname = 'public'
         ORDER BY c.relname`,
     );
+    const allowedSequences = new Set(['audit_events_id_seq', 'chess_live_command_receipts_id_seq']);
     for (const row of sequences.rows) {
-      expect(row.usage).toBe(row.relname === 'audit_events_id_seq');
+      expect(row.usage).toBe(allowedSequences.has(row.relname));
     }
   });
 
@@ -167,9 +207,20 @@ describe('runtime role hardening', () => {
 });
 
 describe('row level security', () => {
-  it('without a tenant context the runtime role sees no classroom rows', async () => {
-    const rows = await runtime.query(`SELECT count(*)::int AS n FROM classrooms`);
-    expect(rows.rows[0].n).toBe(0);
+  it('without a tenant context the runtime role sees no classroom or chess-live rows', async () => {
+    for (const table of [
+      'classrooms',
+      'chess_live_challenges',
+      'chess_live_games',
+      'chess_live_events',
+      'chess_live_command_receipts',
+      'chess_matchmaking_tickets',
+      'chess_ratings',
+      'chess_rating_ledger',
+    ]) {
+      const rows = await runtime.query(`SELECT count(*)::int AS n FROM ${table}`);
+      expect(rows.rows[0].n).toBe(0);
+    }
   });
 
   it('tenant B cannot read tenant A classrooms/memberships/audit via direct SQL', async () => {

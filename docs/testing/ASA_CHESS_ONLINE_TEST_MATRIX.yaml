@@ -1,0 +1,114 @@
+schema_version: 1.0.0
+matrix_id: asa-chess-online-tests
+status: candidate_not_activated
+program_issue: https://github.com/spikeal8-maker/asa-lab/issues/67
+candidate_pull_request: 68
+base_candidate: 66
+source_spec: docs/product/ASA_CHESS_ONLINE_SPEC.md
+context: chess-live
+
+result_states:
+  PASS: command or flow actually passed
+  FAIL: assertion or mandatory flow failed
+  BLOCKED: mandatory environment unavailable
+  NOT_RUN: test was not executed
+
+required_tests:
+  - id: TST-CHESS-LIVE-CHALLENGE-001
+    command: pnpm vitest run contexts/chess-live/testing/challenge.spec.ts
+    proves: create, expiry, owner cancellation, self-accept denial and exactly-once acceptance rules
+  - id: TST-CHESS-LIVE-GAME-001
+    command: pnpm vitest run contexts/chess-live/testing/game.spec.ts
+    proves: legal moves, server clocks, increment, timeout, draw, resignation and automatic checkmate
+  - id: TST-CHESS-LIVE-SERVICE-001
+    command: pnpm vitest run contexts/chess-live/testing/service.spec.ts
+    proves: tenant isolation, idempotency, optimistic version, reconnect, spectator delay, pairing and one-time rating
+  - id: TST-CHESS-LIVE-MATCHMAKING-001
+    command: pnpm vitest run contexts/chess-live/testing/matchmaking.spec.ts
+    proves: pool/time/rated/color/rating compatibility and deterministic pairing
+  - id: TST-CHESS-LIVE-RATING-001
+    command: pnpm vitest run contexts/chess-live/testing/rating.spec.ts
+    proves: ASA Elo v1 pools, expected score, K factors, updates and ledger
+  - id: TST-CHESS-LIVE-PROTOCOL-001
+    command: pnpm vitest run contexts/chess-live/testing/protocol.spec.ts
+    proves: strict hello, command, ping and malformed transport messages
+  - id: TST-CHESS-LIVE-API-001
+    command: pnpm vitest run apps/api/src/chess-live.controller.spec.ts
+    proves: session-derived authority, body allowlists, idempotency and HTTP error mapping
+  - id: TST-CHESS-LIVE-MIGRATION-001
+    command: pnpm db:migrate:test
+    proves: clean chess-live schema creation, runtime role grants and migration idempotency
+  - id: TST-CHESS-LIVE-PG-001
+    command: pnpm test:chess-live:pg
+    proves: durable restart recovery, forced RLS, expected-version race, append-only events and exactly-once rating ledger
+  - id: TST-CHESS-LIVE-RLS-001
+    command: pnpm test:rls
+    proves: no-context invisibility, exact runtime privileges and cross-tenant denial for every live table
+  - id: TST-CHESS-LIVE-E2E-001
+    command: pnpm e2e:chess-live
+    proves: two authenticated sessions, direct challenge, moves, reconnect, forged body rejection, rated pairing and rating ledger
+
+aggregate_commands:
+  - pnpm install --lockfile-only
+  - pnpm format
+  - pnpm format:check
+  - pnpm chess:contract
+  - pnpm chess-live:contract
+  - pnpm typecheck:chess
+  - pnpm typecheck:chess-live
+  - pnpm lint
+  - pnpm typecheck
+  - pnpm boundaries:check
+  - pnpm graph:report
+  - pnpm build
+  - pnpm test:chess
+  - pnpm test:chess-live
+  - pnpm db:test:provision --reset
+  - pnpm db:migrate:test
+  - pnpm test:chess-live:pg
+  - pnpm test:rls
+  - pnpm test
+  - pnpm e2e:chess
+  - pnpm e2e:chess-live
+
+required_artifacts:
+  - e2e/artifacts/chess-online-white-desktop.png
+  - e2e/artifacts/chess-online-black-mobile.png
+
+owner_flow: Two teachers in the same isolated tenant create their own Chess projects, open Online, share/accept a code, play e4 e5 Nf3, reconnect from sequence 2, reject forged authority fields, restart the repository without losing the game, then join rated rapid matchmaking and verify the immutable ASA Elo ledger after resignation.
+
+invariants:
+  - tenant_and_principal_come_only_from_session
+  - client_never_sets_fen_san_clock_result_winner_or_rating
+  - every_write_requires_safe_command_id
+  - command_id_payload_reuse_is_conflict
+  - expected_version_is_mandatory_for_game_and_ticket_mutations
+  - every_move_is_revalidated_by_server_rules_engine
+  - active_clock_uses_monotonic_server_time
+  - rating_is_written_at_most_once_per_finished_rated_game
+  - non_participant_events_are_delayed_during_active_game
+  - one_player_has_at_most_one_queued_ticket
+  - normal_database_runtime_uses_pg_repository
+  - health_only_runtime_may_use_memory_repository
+  - all_live_tables_force_tenant_rls
+  - events_and_rating_ledger_are_append_only
+  - blocked_and_not_run_never_count_as_pass
+  - ports_3000_3100_5173_are_forbidden
+  - no_chess_com_source_protocol_rating_formula_or_assets
+
+residual_required_profiles:
+  operations:
+    tests:
+      - TST-CHESS-LIVE-RATING-OUTBOX-001
+      - TST-CHESS-LIVE-SCHEDULER-001
+      - TST-CHESS-LIVE-LAG-POLICY-001
+      - TST-CHESS-LIVE-LOAD-001
+      - TST-CHESS-LIVE-RECOVERY-001
+      - TST-CHESS-LIVE-OBSERVABILITY-001
+  websocket:
+    tests:
+      - TST-CHESS-LIVE-WS-AUTH-001
+      - TST-CHESS-LIVE-WS-RECONNECT-001
+      - TST-CHESS-LIVE-WS-HEARTBEAT-001
+      - TST-CHESS-LIVE-WS-BACKPRESSURE-001
+      - TST-CHESS-LIVE-WS-COMMAND-ACK-001

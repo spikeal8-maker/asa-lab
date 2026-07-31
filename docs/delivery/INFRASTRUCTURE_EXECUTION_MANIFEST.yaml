@@ -1,0 +1,155 @@
+schema_version: 1.0.0
+program_id: INFRA-BOOTSTRAP-001
+owner_issue: https://github.com/spikeal8-maker/asa-lab/issues/69
+state_source: docs/project-map/infrastructure-focus.yaml
+product_state_source: docs/project-map/project-map.yaml
+
+semantics:
+  purpose: Temporary owner-authorized infrastructure lane that does not reorder or complete the product delivery queue.
+  product_focus_rule: The product current_focus remains frozen while infrastructure_focus.active is true.
+  resume_rule: After the infrastructure PR is merged or explicitly cancelled, infrastructure_focus.active becomes false and the frozen product focus resumes.
+  scope_rule: Only portability, containerization, deployment, environment, migration, recovery and verification work described by Issue 69 is allowed.
+  baseline_preflight_rule: Mandatory commands must be green before Docker runtime evidence. Pre-existing defects already present on the exact base SHA may be corrected in this infrastructure branch only under the bounded baseline_preflight contract below.
+
+ports:
+  bind: 127.0.0.1
+  web: 4610
+  api: 4611
+  e2e: 4612
+  forbidden: [3000, 3100, 5173]
+
+tasks:
+  - task_id: TASK-DOCKER-LINUX-001
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/69
+    status: done
+    exit_gate_result: PASS
+    completed_sha: 7afebdcf9441b027092ce17a37f1f89950af99c6
+    base_branch: assistant/chess-online-core
+    branch: assistant/docker-linux-bootstrap
+    draft_pr_base: assistant/chess-online-core
+    architecture_horizon: PHASE-0
+    product_focus_frozen: TASK-ELECTRONICS-SLICE-001
+    depends_on: [TASK-PORTAL-001]
+    visible_result: ASA Lab runs from one portable Linux Docker configuration on Windows 11 WSL2 and a regular Linux Docker host, with persistent PostgreSQL, migrations, health checks, backup/restore and responsive browser evidence.
+    read:
+      - AGENTS.md
+      - docs/delivery/LOCAL_PORT_POLICY.md
+      - docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml
+      - docs/delivery/TASK_DOCKER_LINUX_001_ACTIVATION.md
+      - docs/project-map/infrastructure-focus.yaml
+      - https://github.com/spikeal8-maker/asa-lab/issues/69
+    allowed_paths:
+      - AGENTS.md
+      - Dockerfile.api
+      - Dockerfile.web
+      - .dockerignore
+      - compose.yaml
+      - compose.dev.yaml
+      - compose.test.yaml
+      - compose.staging.yaml
+      - .env.docker.example
+      - docker/**
+      - tools/**
+      - docs/deployment/**
+      - docs/delivery/INFRASTRUCTURE_EXECUTION_MANIFEST.yaml
+      - docs/delivery/TASK_DOCKER_LINUX_001_ACTIVATION.md
+      - docs/project-map/infrastructure-focus.yaml
+      - docs/product/ASA_CHESS_PLATFORM_SPEC.md
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - nx.json
+      - docs/project-map/nx-project-graph.json
+      - packages/**
+      - tests/**
+      - e2e/**
+      - apps/**
+      - contexts/**
+      - migrations/**
+      - schemas/**
+    product_code_rule: >-
+      New product capabilities, routes, roles, pages, schemas and behavior expansions are forbidden.
+      Product and shared-code files may be changed only for one of two reasons: (1) Linux portability,
+      container startup, health, graceful shutdown, same-origin routing, migration, test isolation or
+      responsive defects proven by this task; or (2) the smallest correction needed to make a mandatory
+      baseline command pass when that failure is reproducible on the exact base SHA before Docker runtime
+      changes. Baseline corrections must preserve documented behavior, must not broaden capability scope,
+      and must include before/after command evidence in Draft PR 70.
+    baseline_preflight:
+      stage: before_docker_runtime_work
+      trigger: One or more required_commands fail on the exact base SHA before Docker implementation changes.
+      authorized_existing_failures:
+        - Existing ASA Chess unit-test failures.
+        - Existing opening-book TypeScript errors.
+        - Existing lint failures in the frozen Electronics slice.
+        - Missing required contract markers in docs/product/ASA_CHESS_PLATFORM_SPEC.md.
+        - Existing formatting drift in packages/** and tools/**.
+      correction_constraints:
+        - Reproduce and record each failure before editing the failing path.
+        - Use a separate fix(baseline) commit or a small series of clearly scoped baseline commits.
+        - Change only the minimum lines necessary for the exact required command to pass.
+        - Do not add capabilities, routes, pages, roles, migrations, dependencies or public API surface unless the failing executable contract already requires them.
+        - Do not weaken assertions, lint rules, type strictness, contract markers, architecture boundaries, RLS, idempotency or security checks.
+        - Product focus remains frozen and is not marked done or in_review by these corrections.
+        - After each focused correction, rerun the focused failing command and then the aggregate required commands.
+      required_evidence:
+        - Exact base SHA and failing command output summary.
+        - Modified paths grouped by original failure.
+        - Focused before/after result as FAIL to PASS.
+        - Full baseline command matrix before Docker runtime work.
+        - Confirmation that no new product capability was introduced.
+      stop_conditions:
+        - Intended behavior is ambiguous or conflicts with a higher-priority product or architecture contract.
+        - The correction requires a new dependency, migration, route, role, page or capability not already required by the failing contract.
+        - A proposed fix would remove or weaken a test, assertion, lint rule, strict type, contract marker or security boundary.
+    workflow_order:
+      - Synchronize lockfile and Nx graph.
+      - Run governance validators.
+      - Reproduce all mandatory baseline failures on the exact base-derived branch.
+      - Apply only bounded baseline_preflight corrections until mandatory non-Docker commands pass.
+      - Implement Docker and Linux portability scope.
+      - Run PostgreSQL, Compose, persistence, backup/restore and browser evidence gates.
+    required_commands:
+      - pnpm install --lockfile-only
+      - pnpm install --frozen-lockfile
+      - pnpm format:check
+      - pnpm chess:contract
+      - pnpm chess-live:contract
+      - pnpm lint
+      - pnpm typecheck:chess
+      - pnpm typecheck:chess-live
+      - pnpm typecheck
+      - pnpm boundaries:check
+      - pnpm contracts:check
+      - pnpm compose:check
+      - pnpm build
+      - pnpm test:chess
+      - pnpm test:chess-live
+      - pnpm test:chess-live:pg
+      - pnpm test:rls
+      - pnpm test
+      - docker compose config
+      - docker compose build --no-cache
+      - docker compose up -d
+      - docker compose ps
+      - pnpm e2e:chess
+      - pnpm e2e:chess-live
+    required_artifacts:
+      - e2e/artifacts/docker-mobile-390.png
+      - e2e/artifacts/docker-tablet-768.png
+      - e2e/artifacts/docker-desktop-1366.png
+      - e2e/artifacts/docker-electronics.png
+      - e2e/artifacts/docker-chess-online.png
+      - reports/docker-health.json
+      - reports/docker-persistence.json
+      - reports/docker-backup-restore.json
+    exit_gate:
+      - WSL2 Ubuntu repository checkout is inside the Linux filesystem and the working tree is clean.
+      - The same Linux-container Compose configuration works on Windows 11 WSL2 and is portable to a normal Linux host.
+      - PostgreSQL, migration, API and Web lifecycle is healthy and repeat-safe.
+      - Restart and down/up preserve project and chess data.
+      - Backup and restore pass against an isolated test database.
+      - Containers run non-root without privileged mode, host networking or Docker socket mounts.
+      - Ports 4610, 4611 and 4612 are respected; 3000, 3100 and 5173 are untouched.
+      - All required commands are PASS; BLOCKED and NOT_RUN do not close the task.
+      - Draft PR targets assistant/chess-online-core and is not merged automatically.

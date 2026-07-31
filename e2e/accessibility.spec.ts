@@ -1,20 +1,15 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import pg from 'pg';
+import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
-const organizationCodeField = 'Код организации';
-const teacherEmailField = 'Email педагога';
-
 async function login(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel(organizationCodeField).fill(teacher.workspace);
-  await page.getByLabel(teacherEmailField).fill(teacher.email);
-  await page.getByLabel('Пароль').fill(teacher.password);
-  await page.getByRole('button', { name: 'Войти' }).click();
+  await loginWithOrganization(page, teacher);
+  await page.getByRole('button', { name: 'Классы' }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 }
 
@@ -49,18 +44,22 @@ test('dashboard and create dialog pass automated WCAG A/AA checks', async ({ pag
   await login(page);
   await expectNoWcagViolations(page);
 
-  await page.getByRole('button', { name: 'Создать класс' }).click();
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Создать класс' })).toBeVisible();
   await expectNoWcagViolations(page);
 });
 
 test('skip link moves keyboard focus to the dashboard content', async ({ page }) => {
   await login(page);
+  await page.evaluate(() => {
+    document.body.tabIndex = -1;
+    document.body.focus();
+  });
   await page.keyboard.press('Tab');
   const skip = page.getByRole('link', { name: 'Перейти к содержанию' });
   await expect(skip).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('main#classes')).toBeFocused();
+  await expect(page.locator('main#main-content')).toBeFocused();
 });
 
 test('dialog supports initial focus, focus trap, Escape and focus restoration', async ({
@@ -68,7 +67,7 @@ test('dialog supports initial focus, focus trap, Escape and focus restoration', 
 }) => {
   await login(page);
 
-  const trigger = page.getByRole('button', { name: 'Создать класс' });
+  const trigger = page.getByRole('button', { name: 'Создать класс' }).first();
   await trigger.focus();
   await page.keyboard.press('Enter');
 
@@ -98,10 +97,12 @@ test('critical controls have names and reduced motion disables skeleton animatio
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
-  await expect(page.getByLabel(organizationCodeField)).toBeVisible();
-  await expect(page.getByLabel(teacherEmailField)).toBeVisible();
+  await page.getByTestId('entry-sign-in').click();
+  await page.getByRole('button', { name: 'Вход через организацию' }).click();
+  await expect(page.getByLabel('Код организации')).toBeVisible();
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Пароль')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Войти' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Войти через организацию' })).toBeVisible();
 
   const animationName = await page.evaluate(() => {
     const probe = document.createElement('div');

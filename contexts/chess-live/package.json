@@ -1,0 +1,17 @@
+{
+  "name": "@asa-lab/chess-live",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@asa-lab/chess": "workspace:*",
+    "@asa-lab/database": "workspace:*"
+  }
+}
