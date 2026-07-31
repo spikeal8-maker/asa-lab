@@ -26,16 +26,20 @@ interface Props {
   className?: string;
 }
 
+const RESISTOR_PREVIEW_ASSET =
+  '/assets/electronics/production/components/resistor-axial-preview.svg';
+
 /**
  * Catalogue thumbnail. Real sanitised SVG artwork always wins. The compact
  * inline drawings below are fallbacks only for archive gaps.
  */
 export function ComponentPreview({ preview, asset, className = '' }: Props): JSX.Element {
-  if (asset) {
+  const resolvedAsset = preview === 'resistor' ? RESISTOR_PREVIEW_ASSET : asset;
+  if (resolvedAsset) {
     return (
       <img
         className={`workbench-component-preview ${className}`}
-        src={asset}
+        src={resolvedAsset}
         alt=""
         draggable={false}
         loading="lazy"
