@@ -7,132 +7,103 @@ Current PR: #72
 ```text
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
-status: in_progress / owner_visual_review
-production evidence checkpoint: pending final integration commit
-owner integration directive: PR #72 comment 5147079314
-owner-confirmed full archive SHA-256: c5bfd26760db7a92d06e0b51b0bde3bb45595278a762bab3ab9198abb04b4d75
+status: in_progress / component_library_information_architecture_and_family_grouping
+rejected runtime SHA: f78a9ac7578787a3a5aed73f1f2113cd36801825
+owner directive: PR #72 comment 5147079314
 ```
 
-Portal shell is merged by PR #71. R3A Electronics Gateway remains completed.
-R3B is blocked/deferred; full R3 completion is not claimed.
+Portal shell and R3A gateway remain preserved. R3B, R4-M2 and later stages are
+blocked. The production assets, physical scale, pin metadata, state contracts,
+breadboard data and editor integration are retained; the current correction does
+not rebuild those foundations.
 
-## What is already preserved
+## Why the current checkpoint was rejected
 
-The branch contains:
+The real editor successfully reads production assets, but the library is not an
+acceptable product surface:
 
-- full owner archive inventory and immutable reference evidence;
-- transparent production SVG candidates;
-- one physical-scale contract;
-- ordinary LED colour/brightness frames;
-- RGB, seven-segment, resistor-band and motion/state contracts;
-- breadboard visuals, hole maps and connectivity metadata;
-- standalone review pages and focused evidence.
-
-Those standalone pages are retained only as reference evidence. The actual
-Electronics editor now consumes the production manifest through a typed adapter;
-new projects no longer select legacy component images.
+- all manifest entries are flattened into one long grid;
+- variants of the same physical family are duplicated as separate cards;
+- derived/reference battery images appear beside exact AA holder variants;
+- unsupported visual-only candidates remain draggable;
+- categories collapse unrelated electronics classes;
+- default `Все компоненты` and three cramped columns do not follow the owner
+  reference/Tinkercad library workflow.
 
 ## Active checkpoint
 
 ```text
-owner_visual_review
+component_library_information_architecture_and_family_grouping
 ```
 
-The working project route consumes the production manifest, renders production
-SVG at physical scale, uses production pins/footprints and persists component
-variants, state, positions, hole bindings, wires and checkpoints.
+Required result:
 
-Required live editor scope:
+1. one family card with variant picker;
+2. deterministic category tree and ordering;
+3. default `Основные` curated supported set;
+4. supported and disabled preview components strictly separated;
+5. no PNG-derived `battery-1.5v`, `battery-3v`, `battery-6v`, `battery-9v` in
+   the runtime library;
+6. AA holders grouped as one family with 1/2/3/4/6/8×AA variants;
+7. breadboards grouped as one family with 170/420/882 variants;
+8. diodes grouped as one family with DO-35/DO-41 variants;
+9. LED colour/brightness and resistor value remain inspector properties, not
+   duplicate library cards;
+10. variant selection survives save/reload/checkpoint.
 
-- battery holders 1/2/3/4/6/8×AA; 5×AA remains missing;
-- parametric resistor;
-- ordinary LED colours, brightness and faults;
-- 4-pin momentary tactile button;
-- 3-pin SPDT;
-- 3-pin potentiometer;
-- diode and lamp;
-- RGB LED;
-- seven-segment display;
-- breadboards 170/420/882.
-
-Other production candidates appear in the full library as honest
-`visual_only / simulation_not_yet_supported` items until a typed electrical model
-exists.
-
-## Integration rules
-
-- new runtime catalog comes from `/assets/electronics/production/manifest.json`;
-- `/assets/electronics/components` is legacy migration fallback only;
-- review status `integration_candidate` is allowed in Draft runtime;
-- `production_ready` remains false until owner accepts the integrated editor;
-- only one `WORLD_UNITS_PER_MM` is used;
-- pin anchors come from production manifest;
-- battery contacts are at free lead ends, never arbitrary body points;
-- breadboard hole/rail groups participate in netlist;
-- save/reload/checkpoint preserve variants, states and hole bindings;
-- legacy schema-v1/v2 opens additively without data loss;
-- fake numerical success for unsupported candidates is forbidden.
-
-## Implemented integration checkpoint
-
-- the runtime library is adapted from
-  `/assets/electronics/production/manifest.json`;
-- the 32 review candidates are available in the real editor, while 5×AA remains
-  an explicit missing reference;
-- battery holders 1/2/3/4/6/8×AA, resistor, ordinary LED, RGB LED,
-  seven-segment display, tactile button, SPDT, potentiometer, diode, lamp and
-  breadboards 170/420/882 use production SVG and manifest pins;
-- breadboards expose stable 2.54 mm hole IDs, contact groups, rail breaks,
-  snapping and internal connectivity;
-- the resistor bands, LED colour/brightness, RGB channels, display glyph/mask,
-  button, SPDT, potentiometer and lamp state are controlled in the real editor;
-- save/reload restored 14 components, 3 wires, the 420-hole breadboard, 2 LED
-  bindings, 4 button bindings, 4 display states, the 4.7 kOhm resistor and
-  immutable version number 1;
-- the connected battery-resistor-LED circuit reports 0.2 mA and the resistor
-  inspector reports 3.000 V / 2.002 V / 0.21 mA / 0.998 V.
-
-## Owner acceptance flow
-
-The checkpoint is shown inside a real project on `localhost:4610`:
-
-1. breadboard 420 on the actual stage;
-2. battery holder 2×AA connected by lead ends to rails;
-3. resistor, LED, tactile button and SPDT snapped into holes;
-4. RGB LED and seven-segment snapped with correct pitch;
-5. resistor bands change from resistance/tolerance;
-6. ordinary LED colour and brightness change;
-7. RGB channels mix;
-8. seven-segment shows `0`, `8`, `A` and arbitrary mask;
-9. internal breadboard connectivity and diagnostics work;
-10. save/reload restores exact positions, variants, state and holes;
-11. immutable checkpoint is created.
-
-Required screenshots come from the real editor:
+## Required category structure
 
 ```text
-library-production
-breadboard-empty
-breadboard-components-snapped
-led-rgb-display-states
-connected-running
-reload-checkpoint
+Основные
+Все компоненты
+Питание
+Макетки и монтаж
+Пассивные
+Полупроводники
+Ввод и управление
+Вывод и индикация
+Датчики
+Двигатели и приводы
+Контроллеры
+Измерительные приборы
+В разработке
 ```
 
-## Focused checks
+`Основные` contains, in order: Breadboard 420, AA holder 2×AA, resistor, LED,
+button, SPDT, potentiometer, DO-41 diode, RGB LED, seven-segment and lamp.
 
-Only focused adapter, migration, scale, pin, breadboard, LED/RGB/display state
-and real-editor browser checks run before owner review. The full repository
-matrix remains `NOT_RUN` by owner directive.
+Unsupported candidates are visible only in `В разработке`, disabled, not
+clickable/draggable and unable to create a project component. They must not be
+mixed into `Основные` or `Все компоненты`.
 
-## Prohibited until owner acceptance
+## Required library UX
 
-- full repository matrix;
+- category dropdown defaults to `Основные`;
+- search across family, variants and aliases;
+- grid/list toggle;
+- two-column default grid;
+- single family search result;
+- compact variant picker;
+- deterministic sorting;
+- sticky search/category controls;
+- actual editor only, not standalone review pages.
+
+## Focused evidence
+
+Required tests and screenshots are defined in PR #72 comment `5147079314`.
+Only focused family/category/search/variant/browser checks run before owner
+review. Full repository matrix remains `NOT_RUN`.
+
+## Prohibited until acceptance
+
 - merge PR #72;
+- full repository matrix;
 - R4-M2;
 - new branch;
 - additional permanent Compose projects;
-- claiming standalone labs as integrated product functionality.
+- new solver features;
+- flat manifest-entry catalog;
+- runtime placement of reference/PNG-derived battery entries.
 
-Deploy exact final SHA only to the existing `asa-lab-dev`, leave the actual
-Electronics project open and stop for owner review.
+Deploy the exact corrective SHA only in the existing `asa-lab-dev`, leave the
+real Electronics project open and stop for owner review.
