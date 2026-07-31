@@ -1,89 +1,85 @@
 # Стратегия тестирования ASA Lab
 
-Тестирование является частью каждой executable task, а не отдельным этапом после разработки.
+Тестирование является частью каждой executable task.
 
-## 1. Источники истины
-
-```text
-docs/delivery/EXECUTION_MANIFEST.yaml  test profiles executable tasks
-docs/testing/test-catalog.yaml         stable test IDs and commands
-docs/project-map/QUALITY_MAP.md        visual gate representation
-GitHub Issue                            acceptance current user flow
-```
-
-`tools/validate_delivery_program.py` разворачивает profiles manifest и требует точного совпадения с `required_for` test catalog. После начала task нельзя удалить test ID ради зелёного результата.
-
-## 2. Executable и roadmap tests
-
-Тестовый gate существует только для task, опубликованной в `EXECUTION_MANIFEST.yaml`.
-
-Текущая executable task:
+## Источники
 
 ```text
-TASK-ACCOUNT-C1-001
+docs/delivery/EXECUTION_MANIFEST.yaml
+docs/testing/test-catalog.yaml
+docs/project-map/QUALITY_MAP.md
+GitHub Issue активной задачи
 ```
 
-R2 Issue №62, R3 Issue №37 и R4 Issue №63 остаются blocked roadmap. Их будущие tests не активируются автоматически.
+## Текущее состояние
 
-`phase_available` — architecture horizon, а не разрешение выполнить task вне очереди.
+```text
+TASK-ACCOUNT-C1-001  done
+current_focus         null
+active test gate      none
+```
 
-## 3. Уровни
+R2, R3 и R4 остаются blocked roadmap. Их test gate не активирован.
+
+## Completed Account C1 gate
+
+Exact implementation SHA:
+
+```text
+35c06c42012672b9b4cb2626b85ba1f21b973bc0
+```
+
+Результаты:
+
+```text
+Task runner:       28/28 PASS
+Regression:        298/298 PASS
+Account PG:        6/6 PASS
+Chess Online PG:   6/6 PASS
+RLS:               15/15 PASS
+Accessibility/UI:  11/11 PASS
+Playwright:        9/9 PASS
+Browser errors:    0
+Docker lifecycle:  PASS
+Persistence:       PASS
+Backup/restore:    PASS
+```
+
+Merge SHA:
+
+```text
+e01ac85095ddaabef19ed618964deac3aa5b2406
+```
+
+## Уровни
 
 | Уровень | Назначение |
 |---|---|
-| Governance | Product, capability, manifest, project map, catalog |
-| Static | format, lint, strict types, build, boundaries |
-| Unit | domain rules and deterministic algorithms |
-| Contract | OpenAPI, JSON Schema, Module SDK, events/jobs |
-| Integration | PostgreSQL, repositories, migrations, application use cases |
-| Authorization | account/tenant/workspace/project negative matrix and RLS |
-| E2E | critical user flow through browser/API/DB |
-| Security | secrets, advisories, credentials and port safety |
-| Accessibility | keyboard, semantics, focus, contrast and reduced motion |
-| Simulation | deterministic golden and parity tests |
-| Load/Recovery | measured scale and restore drills |
+| Governance | manifest, project map, catalog, product contracts |
+| Static | format, lint, types, build, boundaries |
+| Unit | domain rules |
+| Contract | OpenAPI, JSON Schema, Module SDK |
+| Integration | PostgreSQL, repositories, migrations |
+| Authorization | account/tenant/workspace/project denial matrix и RLS |
+| E2E | live browser/API/DB user flow |
+| Security | secrets, advisories, credentials |
+| Accessibility | keyboard, semantics, focus and contrast |
+| Recovery | persistence, backup and restore |
 
-## 4. Profiles
+## Result states
 
-Reusable profiles are defined in `EXECUTION_MANIFEST.yaml`:
+- `PASS` — команда выполнена с exit `0`;
+- `FAIL` — выполненная команда вернула non-zero;
+- `BLOCKED` — обязательная среда отсутствует;
+- `NOT_RUN` — команда не запускалась.
 
-- `product_docs`;
-- `code_common`;
-- `tenant_storage`;
-- `module_runtime`;
-- `assessment_common`;
-- `electronics_kernel`.
+`BLOCKED` и `NOT_RUN` не закрывают gate.
 
-Only profiles listed by the current task enter its gate.
+## Honest command lifecycle
 
-Account C1 uses:
+Каждый test ID имеет исполняемую command. Placeholder до реализации обязан вернуть `BLOCKED`/exit `78`, а не ложный PASS.
 
-```text
-code_common + tenant_storage
-```
-
-plus nine task-specific Account IDs.
-
-## 5. Honest command lifecycle
-
-Каждый test ID имеет исполняемую command.
-
-Если suite зарегистрирован, но ещё не реализован, команда обязана:
-
-```text
-print BLOCKED reason
-exit 78
-```
-
-Запрещены:
-
-- отсутствующая package command;
-- пустая команда;
-- placeholder с exit 0;
-- перенос PASS другого SHA;
-- удаление failing security/compatibility test.
-
-Текущие Account placeholders:
+После реализации Account C1 команды:
 
 ```text
 pnpm test:account-c1
@@ -91,74 +87,35 @@ pnpm test:account-c1:pg
 pnpm e2e:account-c1
 ```
 
-Product implementation заменяет их реальными Vitest/Playwright suites.
+являются реальными suites и прошли в canonical task runner.
 
-## 6. Общий минимум Account C1
+## Test data
 
-1. infrastructure terminal-state validation;
-2. project map/capability/delivery/test catalog validation;
-3. frozen install;
-4. format/lint/typecheck/build/boundaries;
-5. contracts;
-6. full unit/integration regression;
-7. migration empty/existing/repeat;
-8. tenant/workspace/account authorization and RLS;
-9. secret/dependency checks;
-10. canonical ports and startup;
-11. accessibility;
-12. real Chromium Account C1 E2E;
-13. existing Portal/Projects/Electronics/Chess regressions;
-14. map/Nx evidence.
+- production data не копируются без обезличивания;
+- tests используют отдельный `TEST_DATABASE_URL` с `*_test` guard;
+- credentials, raw tokens и password hashes не попадают в artifacts;
+- cross-account и cross-workspace negatives обязательны;
+- existing teacher/project preservation проверяется без DB reset.
 
-Неприменимость выражается manifest/test catalog до начала task, а не устным исключением после падения.
+## Migration gate
 
-## 7. Test data
+- applied migration не переписывается;
+- новая migration additive;
+- empty/existing/repeat apply проверяются;
+- failure rollback обязателен;
+- backup/restore выполняется в isolated database.
 
-- Production data не копируются без обезличивания.
-- Integration/E2E используют synthetic accounts, workspaces, teachers and projects.
-- `TEST_DATABASE_URL` отделён от development/production и защищён `*_test` guard.
-- Минимум два Account/tenant contexts используются для negative tests.
-- Credentials, raw tokens, password hashes и user content отсутствуют в artifacts.
-- Suite выполняет cleanup или работает в isolated database/schema.
-- UUID/time/randomness контролируются для детерминированности.
-- Existing teacher/project preservation проверяется отдельно без DB reset.
+## Browser evidence
 
-## 8. Migration gate
+Для UI task обязательны:
 
-- применённая migration `0010` не редактируется;
-- новая migration additive-only;
-- checksum applied migrations неизменен;
-- empty DB apply PASS;
-- existing DB apply PASS;
-- second apply adds zero migrations;
-- failure rolls back transaction;
-- backup/restore выполняется на isolated DB.
-
-## 9. Authorization gate
-
-Account C1 обязан доказать:
-
-- client cannot forge capability/role/tenant/workspace;
-- under-18 educator self-attestation denied;
-- workspace switch limited to current Account memberships;
-- suspended/foreign workspace denied;
-- personal projects isolated cross-account;
-- session list never exposes token hash;
-- cross-account session revoke denied;
-- revoked session immediately receives 401;
-- legacy bridge cannot resolve another tenant/account;
-- school_admin does not imply platform_admin.
-
-## 10. Browser evidence
-
-Каждая UI task предоставляет:
-
-- Playwright through live API/PostgreSQL without mocks;
-- screenshot основного состояния;
-- screenshot error/security state where applicable;
-- accessibility assertions;
-- canonical demo URL;
-- shared browser failure collector.
+```text
+live API/PostgreSQL
+Playwright assertions
+accessibility assertions
+browser failure collector
+owner screenshots
+```
 
 Expected counters:
 
@@ -171,55 +128,12 @@ unexpected HTTP 5xx = 0
 
 Manual smoke и screenshot не заменяют assertions.
 
-## 11. Result states
+## Будущая task
 
-- `PASS` — команда выполнена, exit `0`;
-- `FAIL` — команда выполнена, non-zero defect;
-- `BLOCKED` — обязательная среда/runner/suite отсутствует, обычно exit `78`;
-- `NOT_RUN` — команда не запускалась.
+После owner activation новая task получает полный test mapping в [`EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) и catalog до начала product code.
 
-`BLOCKED` и `NOT_RUN` не закрывают gate.
+Coding-агент не запускает roadmap tests самостоятельно.
 
-## 12. Task runner
+## Hosted GitHub Actions
 
-```bash
-python tools/run_task_tests.py --task TASK-ACCOUNT-C1-001
-```
-
-Runner:
-
-- выбирает все tests по `required_for`;
-- передаёт `ASA_TASK_ID` и `ASA_TEST_ID`;
-- фиксирует commit SHA, branch и working-tree state;
-- возвращает exit 0 только при полном PASS.
-
-## 13. Map evidence
-
-Product-code PR обновляет или подтверждает:
-
-```text
-project-map.yaml
-PROJECT_MAP.md
-QUALITY_MAP.md
-nx-project-graph.json
-```
-
-После owner acceptance future task **не** становится ready автоматически. Отдельный governance transition добавляет её в manifest/map/test catalog или оставляет roadmap blocked.
-
-## 14. Local-first и GitHub Actions
-
-GitHub workflow опубликован для `main`, `agent/**`, `assistant/**`, но hosted runner сейчас завершается до первого step без logs. Статус — external `BLOCKED`, не PASS и не code FAIL.
-
-До устранения runner/settings/spending blocker обязательным источником gate остаётся локальный task runner с exact SHA. Это не разрешает ослаблять tests.
-
-## 15. Изменение gate
-
-Добавление/удаление test ID синхронно обновляет:
-
-- `EXECUTION_MANIFEST.yaml`;
-- test catalog;
-- `QUALITY_MAP.md`;
-- current Issue;
-- Project Map при изменении task/phase scope.
-
-Security, authz, preservation и compatibility tests нельзя удалить ради зелёного отчёта.
+Hosted runner сейчас завершается до первого шага (`steps: []`). Статус — external `BLOCKED`, не PASS и не code FAIL.
