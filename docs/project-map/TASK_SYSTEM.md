@@ -1,120 +1,98 @@
 # Система задач ASA Lab
 
-## Источники
+Machine contract: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
+
+## Current task
 
 ```text
-AGENTS.md
-→ docs/project-map/infrastructure-focus.yaml
-→ docs/project-map/project-map.yaml
-→ docs/delivery/EXECUTION_MANIFEST.yaml
-→ GitHub Issue активной задачи
-→ docs/testing/test-catalog.yaml
+TASK-CREATOR-PORTAL-001
+Issue #62
+branch agent/r2-creator-portal
+status ready
+current_focus TASK-CREATOR-PORTAL-001
 ```
 
-## Текущее состояние
+Coding-агент не выбирает другой task и не занимается аудитом старых PR.
+
+## Task selection
+
+Product code разрешён только когда одновременно верно:
 
 ```text
-main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
-verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
-TASK-ACCOUNT-C1-001:     done
-Issue #48:               completed
-current_focus:            null
-active task:              none
+task_id = project.current_focus
+task is present in EXECUTION_MANIFEST.yaml
+status = ready | in_progress | in_review
+dependencies = done
+Issue is open
+branch matches manifest
+active test IDs are registered
 ```
 
-## Завершённая очередь
+## Queue
 
 ```text
-TASK-PRODUCT-DOC-001  done
-→ TASK-PORTAL-001     done
-→ TASK-ACCOUNT-C1-001 done
-→ stop
+TASK-PRODUCT-DOC-001      done
+→ TASK-PORTAL-001         done
+→ TASK-ACCOUNT-C1-001     done
+→ TASK-CREATOR-PORTAL-001 ready
+→ owner review / stop
 ```
 
-При `current_focus: null` coding-агент выводит `NO_ACTIVE_TASK` и не пишет product code.
+R3 and R4 are blocked and absent from the executable queue.
 
-## Blocked roadmap
+## R2 lifecycle
+
+### Start
 
 ```text
-R2 Issue №62  Creator Portal      blocked
-R3 Issue №37  Project lifecycle   blocked
-R4 Issue №63  Electronics parity  blocked
+branch = agent/r2-creator-portal
+current_focus = TASK-CREATOR-PORTAL-001
+status = ready -> in_progress
 ```
 
-Roadmap не является executable queue.
+### Review
 
-## Активация будущей задачи
+```text
+focused gate PASS
+full regression PASS
+owner screenshots exist
+Draft PR to main
+status may become in_review
+```
 
-Отдельный owner transition синхронно изменяет:
+### Acceptance
 
-- [`EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml);
-- `project-map.yaml` и `PROJECT_MAP.md`;
-- `QUALITY_MAP.md` и test catalog;
-- GitHub Issue;
-- task branch;
-- scope/non-goals/tests/stop condition.
+```text
+owner decides merge separately
+task may become done
+R3 remains blocked until separate transition
+```
 
-После этого только одна task может иметь status `ready | in_progress | in_review`.
+## Evidence
 
-## Status semantics
+- exact final SHA;
+- changed user flow;
+- test IDs and exact results;
+- desktop/tablet/mobile screenshots;
+- browser counters;
+- data-preservation evidence;
+- clean tracked tree;
+- confirmation that R3 was not started.
 
-| Status | Значение |
-|---|---|
-| `planned` | roadmap без разрешения на реализацию |
-| `blocked` | dependency или owner activation отсутствует |
-| `ready` | task опубликована и может быть начата |
-| `in_progress` | один coding-агент работает |
-| `in_review` | flow завершён и ожидает owner review |
-| `done` | gate принят и merge/governance transition завершён |
-| `deprecated` | historical task, не executable |
+## Tests
 
-## Разделение работы
-
-Coding-агент:
-
-- пишет код только активной task;
-- запускает focused/full gates;
-- готовит browser evidence;
-- останавливается для review.
-
-GitHub/governance работа:
-
-- ведёт документы и карты;
-- аудитирует старые PR;
-- классифицирует `contained / superseded / still valuable / obsolete`;
-- не выдаётся coding-агенту вместо product task.
-
-## Scope freeze
-
-После `in_progress` запрещены следующая capability, competing branch, unrelated refactoring, rewrite migrations и ослабление tests/RLS.
-
-## Test lifecycle
-
-Task runner:
+Stable registry: [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)  
+Active registry: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
 
 ```bash
-python tools/run_task_tests.py --task <TASK-ID>
+python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
 ```
-
-- `PASS` — exit 0;
-- `FAIL` — non-zero;
-- `BLOCKED` — обязательная среда отсутствует;
-- `NOT_RUN` — команда не запускалась.
-
-`BLOCKED` и `NOT_RUN` не закрывают gate.
 
 ## Git rules
 
-- будущая product branch создаётся только от актуального `main` после task activation;
-- force-push и rewrite истории запрещены;
-- старые PR/branches не merge/close/delete без preservation audit;
-- backups, dumps и credentials не коммитятся.
-
-## Validators
-
-```bash
-python tools/validate_infrastructure_focus.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
-python tools/validate_delivery_program.py
-```
+- one active product branch;
+- no force-push or history rewrite;
+- no automatic branch creation;
+- no merge/tag without owner decision;
+- old PRs and branches are untouched during R2;
+- backups and credentials are never committed.
