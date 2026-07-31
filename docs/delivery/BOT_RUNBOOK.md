@@ -15,6 +15,14 @@ AGENTS.md
 → docs/testing/test-catalog.yaml
 ```
 
+Человеко-читаемые нормативные представления:
+
+- [`DEVELOPMENT_PROGRAM_V1.md`](DEVELOPMENT_PROGRAM_V1.md);
+- [`LOCAL_PORT_POLICY.md`](LOCAL_PORT_POLICY.md);
+- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml);
+- [`../project-map/PROJECT_MAP.md`](../project-map/PROJECT_MAP.md);
+- [`../project-map/QUALITY_MAP.md`](../project-map/QUALITY_MAP.md).
+
 ## ORIENT
 
 ```bash
@@ -30,7 +38,8 @@ git rev-parse origin/main
 ## Каноническое состояние
 
 ```text
-main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+canonical branch:        main
+product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
 verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
 PR #70:                  merged
 TASK-ACCOUNT-C1-001:     done
@@ -38,7 +47,7 @@ Issue #48:               completed
 active task:             none
 ```
 
-`main` — источник текущей Alpha-сборки.
+Текущий head `main` всегда определяется через `git rev-parse origin/main`; post-merge governance commits делают его новее product merge SHA. `main` — источник текущей Alpha-сборки.
 
 ## Когда active task отсутствует
 
@@ -135,7 +144,7 @@ E2E  127.0.0.1:4612
 
 ## Проверки
 
-Точная матрица активной задачи берётся из [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml) и test catalog.
+Точная матрица активной задачи берётся из [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml) и [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml).
 
 Общий governance минимум:
 
