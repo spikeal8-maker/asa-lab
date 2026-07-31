@@ -6,28 +6,24 @@ state_source: docs/project-map/project-map.yaml
 quality_source: docs/testing/test-catalog.yaml
 
 semantics:
-  execution_order: Defined only by tasks.position in this manifest and execution_queue in project-map.yaml.
-  architecture_horizon: Informational architecture grouping; it is not execution order.
-  issue_scope: A linked GitHub Issue is executable only while the task is active.
+  execution_order: Defined only by tasks.position and project-map execution_queue.
+  architecture_horizon: Informational grouping; it is not execution order.
+  issue_scope: The linked GitHub Issue is the executable scope.
   current_release_rule: Only owner-activated tasks are executable.
-  completed_queue_rule: When every listed task is done, project.current_focus must be null.
-  next_task_rule: A roadmap task becomes executable only through a separate owner-approved transition.
+  next_task_rule: A future task becomes executable only through a separate owner transition.
   no_automatic_future_activation: true
 
 canonical_state:
   branch: main
-  merge_sha: e01ac85095ddaabef19ed618964deac3aa5b2406
-  verified_implementation_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+  product_merge_sha: e01ac85095ddaabef19ed618964deac3aa5b2406
+  verified_account_implementation_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
   merged_pr: 70
   functional_completeness: false
-  active_task: null
+  active_task: TASK-CREATOR-PORTAL-001
+  active_branch: agent/r2-creator-portal
+  active_issue: https://github.com/spikeal8-maker/asa-lab/issues/62
 
 roadmap_after_current:
-  - release: R2
-    issue: https://github.com/spikeal8-maker/asa-lab/issues/62
-    name: Creator Home and capability-aware Portal shell
-    status: blocked
-    activation: separate_owner_transition
   - release: R3
     issue: https://github.com/spikeal8-maker/asa-lab/issues/37
     name: Module Registry, Project Hub and full project lifecycle
@@ -49,78 +45,24 @@ ports:
 
 map_protocol:
   start:
-    - owner transition sets one task to ready or in_progress
+    - one task becomes ready or in_progress
     - project.current_focus becomes that task
     - branch, Issue, scope and tests are published together
   draft_pr:
-    - current task becomes in_review only after implementation and focused gate
-    - Project Map and Quality Map reflect the exact diff and exit gate
+    - current task becomes in_review only after implementation and focused PASS
+    - maps and quality evidence reflect the exact diff
   after_merge:
     - accepted task becomes done
-    - merge SHA and verified implementation SHA are recorded
     - project.current_focus becomes null unless another task is separately activated
-    - roadmap remains blocked
     - coding agent stops
 
 report_contract:
-  required_fields:
-    - MILESTONE
-    - TASK
-    - ISSUE
-    - STATUS
-    - VISIBLE_RESULT
-    - USER_FLOW
-    - PORTS
-    - DEMO_URLS
-    - SCREENSHOTS
-    - TESTS_RUN
-    - MAP_NODES_CHANGED
-    - WORKING_TREE
-    - NEXT_ALLOWED_TASK
+  required_fields: [MILESTONE, TASK, ISSUE, STATUS, VISIBLE_RESULT, USER_FLOW, PORTS, DEMO_URLS, SCREENSHOTS, TESTS_RUN, MAP_NODES_CHANGED, WORKING_TREE, NEXT_ALLOWED_TASK]
 
 test_profiles:
-  product_docs:
-    - TST-ARCH-001
-    - TST-MAP-001
-    - TST-CAPABILITY-MAP-001
-    - TST-DEVELOPMENT-PROGRAM-001
-    - TST-CATALOG-001
-    - TST-YAML-001
-    - TST-LINKS-001
-  code_common:
-    - TST-MAP-001
-    - TST-CAPABILITY-MAP-001
-    - TST-DEVELOPMENT-PROGRAM-001
-    - TST-FORMAT-001
-    - TST-LINT-001
-    - TST-TYPE-001
-    - TST-BOUNDARY-001
-    - TST-BUILD-001
-    - TST-CONTRACT-001
-    - TST-UNIT-001
-    - TST-SECRET-001
-    - TST-DEPENDENCY-001
-    - TST-PORTS-001
-    - TST-STARTUP-001
-    - TST-A11Y-001
-  tenant_storage:
-    - TST-MIGRATION-001
-    - TST-TENANT-001
-    - TST-RLS-001
-    - TST-AUTHZ-001
-  module_runtime:
-    - TST-MODULE-CONTRACT-001
-    - TST-AUTHZ-001
-  assessment_common:
-    - TST-COMMENTS-001
-    - TST-REVIEW-LIFECYCLE-001
-    - TST-ASSESSMENT-REVISION-001
-    - TST-BADGE-EVIDENCE-001
-  electronics_kernel:
-    - TST-ELECTRONICS-SCHEMA-001
-    - TST-ELECTRONICS-NETLIST-001
-    - TST-ELECTRONICS-GOLDEN-001
-    - TST-ELECTRONICS-WASM-PARITY-001
+  product_docs: [TST-ARCH-001, TST-MAP-001, TST-CAPABILITY-MAP-001, TST-DEVELOPMENT-PROGRAM-001, TST-CATALOG-001, TST-YAML-001, TST-LINKS-001]
+  code_common: [TST-MAP-001, TST-CAPABILITY-MAP-001, TST-DEVELOPMENT-PROGRAM-001, TST-FORMAT-001, TST-LINT-001, TST-TYPE-001, TST-BOUNDARY-001, TST-BUILD-001, TST-CONTRACT-001, TST-UNIT-001, TST-SECRET-001, TST-DEPENDENCY-001, TST-PORTS-001, TST-STARTUP-001, TST-A11Y-001]
+  tenant_storage: [TST-MIGRATION-001, TST-TENANT-001, TST-RLS-001, TST-AUTHZ-001]
 
 tasks:
   - position: 1
@@ -135,16 +77,11 @@ tasks:
     depends_on: [TASK-BOOT-001]
     next_task: TASK-PORTAL-001
     capabilities: []
-    visible_result: Product Blueprint, Capability Map, Development Program, Port Policy and executable Issues are consistent and machine-validated.
-    read:
-      - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md
-      - docs/delivery/LOCAL_PORT_POLICY.md
-      - docs/product/PRODUCT_BLUEPRINT.md
-      - docs/product/CAPABILITY_MAP.yaml
+    visible_result: Product and delivery contracts are machine-validated.
+    read: [AGENTS.md, docs/delivery/DEVELOPMENT_PROGRAM_V1.md, docs/product/PRODUCT_BLUEPRINT.md, docs/product/CAPABILITY_MAP.yaml]
     test_profiles: [product_docs]
     task_tests: []
-    map_nodes: [PROGRAM-ALPHA-001, PHASE-0, DOC-PRODUCT-BLUEPRINT, DOC-CAPABILITY-MAP, DOC-CLASSROOM-SPEC, DOC-MODULE-SPEC, DOC-ASSESSMENT-SPEC, DOC-DEVELOPMENT-PROGRAM, DOC-PORT-POLICY]
+    map_nodes: [PROGRAM-ALPHA-001, PHASE-0, DOC-PROGRAM]
     artifacts: [validator-reports, execution-queue]
 
   - position: 2
@@ -158,17 +95,13 @@ tasks:
     architecture_horizon: PHASE-1
     depends_on: [TASK-PRODUCT-DOC-001]
     next_task: TASK-ACCOUNT-C1-001
-    capabilities: [CAP-ORG, CAP-IDENTITY, CAP-CLASSROOM, CAP-PORTAL-BASIC, CAP-SAFETY, CAP-OPERATIONS]
-    visible_result: Teacher Portal baseline is preserved in the merged Alpha line.
-    read:
-      - AGENTS.md
-      - docs/delivery/DEVELOPMENT_PROGRAM_V1.md
-      - docs/product/CLASSROOM_CORE_SPEC.md
-      - docs/architecture/DATA_SECURITY_AND_TENANCY.md
+    capabilities: [CAP-ORG, CAP-IDENTITY, CAP-CLASSROOM, CAP-PORTAL-BASIC]
+    visible_result: Teacher Portal baseline is preserved in main.
+    read: [AGENTS.md, docs/product/CLASSROOM_CORE_SPEC.md]
     test_profiles: [code_common, tenant_storage]
     task_tests: [TST-PORTAL-API-001, TST-E2E-PORTAL-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-1, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-CLASSROOM, DATA-PG]
-    artifacts: [playwright-report, portal-screenshot, startup-report, authorization-matrix]
+    artifacts: [playwright-report, portal-screenshot, authorization-matrix]
 
   - position: 3
     task_id: TASK-ACCOUNT-C1-001
@@ -180,35 +113,36 @@ tasks:
     delivery_stage: STAGE-1A-ACCOUNT-C1
     architecture_horizon: PHASE-1
     depends_on: [TASK-PORTAL-001]
-    next_task: null
+    next_task: TASK-CREATOR-PORTAL-001
     completed_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
     merged_sha: e01ac85095ddaabef19ed618964deac3aa5b2406
     merged_pr: 70
     capabilities: [CAP-IDENTITY, CAP-PORTAL-BASIC, CAP-PROJECTS, CAP-SAFETY, CAP-OPERATIONS]
-    visible_result: Account, educator capability, workspace context, profile and active session management are completed and merged.
-    completed_scope:
-      - public entry and adult registration
-      - Account, Profile and Principal
-      - exactly one Personal Workspace
-      - sessions_v2 and email or username login
-      - legacy teacher compatibility
-      - principal-aware project ownership
-      - adult educator self-attestation and AuditEvent
-      - workspace list and ActiveContext switching
-      - account menu and profile
-      - email verification state display
-      - active session list and revocation
-      - real Chromium Account C1 flow
-    read:
-      - AGENTS.md
-      - README.md
-      - START_HERE_FOR_AI.md
-      - docs/product/PRODUCT_BLUEPRINT.md
-      - docs/architecture/DATA_SECURITY_AND_TENANCY.md
-      - migrations/0010_account_identity_sessions_v2.sql
-      - migrations/0011_account_c1_management.sql
-      - https://github.com/spikeal8-maker/asa-lab/issues/48
+    visible_result: Account, educator capability, workspace context, profile and session management are completed.
+    read: [AGENTS.md, README.md, docs/architecture/DATA_SECURITY_AND_TENANCY.md]
     test_profiles: [code_common, tenant_storage]
     task_tests: [TST-ACCOUNT-REG-001, TST-ACCOUNT-BACKFILL-001, TST-ACCOUNT-LEGACY-COMPAT-001, TST-PERSONAL-WORKSPACE-001, TST-CAPABILITY-001, TST-WORKSPACE-CONTEXT-001, TST-SESSION-V2-001, TST-IDENTITY-RLS-001, TST-E2E-ACCOUNT-C1-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-TECH-ALPHA, PHASE-1, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-PROJECTS, DATA-PG]
-    artifacts: [migration-report, identity-security-report, account-sign-up.png, account-first-workspace.png, account-settings.png, account-sessions.png, account-login-username.png, account-existing-teacher.png]
+    artifacts: [migration-report, identity-security-report, account-screenshots]
+
+  - position: 4
+    task_id: TASK-CREATOR-PORTAL-001
+    status: ready
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/62
+    branch: agent/r2-creator-portal
+    base_branch: main
+    milestone: R2 Creator Portal
+    track: product-roadmap
+    delivery_stage: STAGE-2-CREATOR-PORTAL
+    architecture_horizon: PHASE-R2
+    depends_on: [TASK-ACCOUNT-C1-001]
+    next_task: null
+    capabilities: [CAP-IDENTITY, CAP-PORTAL-BASIC, CAP-PROJECTS, CAP-CLASSROOM, CAP-SAFETY]
+    visible_result: A useful capability-aware Creator Home and coherent Portal shell replace the sparse technical cabinet.
+    user_flow: Account login -> Creator Home -> recent projects -> Projects/Learning/Collections/Challenges -> capability-aware Classes -> Account.
+    non_goals: [Module Registry rewrite, Electronics parity, StudentSeat provisioning, publication backend, assignments, admin, old PR audit]
+    read: [AGENTS.md, README.md, START_HERE_FOR_AI.md, docs/delivery/DEVELOPMENT_PROGRAM_V1.md, docs/product/PRODUCT_BLUEPRINT.md, https://github.com/spikeal8-maker/asa-lab/issues/62]
+    test_profiles: []
+    task_tests: [TST-R2-STATIC-001, TST-R2-CREATOR-HOME-001, TST-R2-CAPABILITY-NAV-001, TST-R2-ROUTING-001, TST-R2-E2E-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R2, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-PROJECTS]
+    artifacts: [creator-home-desktop.png, creator-home-mobile.png, capability-navigation-matrix, playwright-report, accessibility-report]
