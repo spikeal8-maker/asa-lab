@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the current ASA Lab delivery contract.
-
-The executable queue may be fully completed with no current focus. R2/R3/R4
-remain roadmap-only until a separate owner-approved transition activates one.
-"""
+"""Validate the owner-activated ASA Lab delivery contract."""
 
 from __future__ import annotations
 
@@ -21,19 +17,22 @@ PORT_PATH = ROOT / "docs/delivery/LOCAL_PORT_POLICY.md"
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
 
-CANONICAL_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
-FORBIDDEN_PORTS = {3000, 3100, 5173}
-EXPECTED_EXECUTABLE_TASKS = [
+EXPECTED_TASKS = [
     "TASK-PRODUCT-DOC-001",
     "TASK-PORTAL-001",
     "TASK-ACCOUNT-C1-001",
+    "TASK-CREATOR-PORTAL-001",
 ]
-EXPECTED_ROADMAP_ISSUES = {
-    "R2": "https://github.com/spikeal8-maker/asa-lab/issues/62",
+ACTIVE_TASK = "TASK-CREATOR-PORTAL-001"
+ACTIVE_BRANCH = "agent/r2-creator-portal"
+ACTIVE_ISSUE = "https://github.com/spikeal8-maker/asa-lab/issues/62"
+ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
+EXPECTED_ROADMAP = {
     "R3": "https://github.com/spikeal8-maker/asa-lab/issues/37",
     "R4": "https://github.com/spikeal8-maker/asa-lab/issues/63",
 }
-ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
+CANONICAL_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
+FORBIDDEN_PORTS = {3000, 3100, 5173}
 
 
 def load_yaml(path: Path, errors: list[str]) -> dict[str, Any]:
@@ -71,26 +70,17 @@ def validate_documents(errors: list[str]) -> None:
         ROOT / "README.md",
         ROOT / "AGENTS.md",
         ROOT / "START_HERE_FOR_AI.md",
+        ROOT / "docs/delivery/BOT_RUNBOOK.md",
         ROOT / "docs/project-map/PROJECT_MAP.md",
         ROOT / "docs/project-map/QUALITY_MAP.md",
         ROOT / "docs/project-map/README.md",
-        ROOT / "docs/project-map/viewer.html",
+        ROOT / "docs/project-map/TASK_SYSTEM.md",
+        ROOT / "docs/testing/TEST_STRATEGY.md",
     )
     for path in required:
         if not path.is_file():
             errors.append(f"Missing delivery document: {path.relative_to(ROOT)}")
-
-    for path in (
-        ROOT / "README.md",
-        ROOT / "AGENTS.md",
-        ROOT / "START_HERE_FOR_AI.md",
-        ROOT / "docs/delivery/BOT_RUNBOOK.md",
-        ROOT / "docs/project-map/TASK_SYSTEM.md",
-        ROOT / "docs/testing/TEST_STRATEGY.md",
-        PROGRAM_PATH,
-        ROOT / "docs/project-map/PROJECT_MAP.md",
-        ROOT / "docs/project-map/QUALITY_MAP.md",
-    ):
+    for path in required[5:]:
         if path.is_file() and "EXECUTION_MANIFEST.yaml" not in path.read_text(encoding="utf-8"):
             errors.append(f"{path.relative_to(ROOT)} must reference EXECUTION_MANIFEST.yaml")
 
@@ -117,7 +107,7 @@ def validate_roadmap(manifest: dict[str, Any], errors: list[str]) -> None:
     actual: dict[str, str] = {}
     for entry in roadmap:
         if not isinstance(entry, dict):
-            errors.append("roadmap_after_current entries must be objects")
+            errors.append("roadmap entries must be objects")
             continue
         release = entry.get("release")
         issue = entry.get("issue")
@@ -125,13 +115,11 @@ def validate_roadmap(manifest: dict[str, Any], errors: list[str]) -> None:
             actual[release] = issue
         if entry.get("status") != "blocked":
             errors.append(f"Roadmap release {release} must remain blocked")
-    if actual != EXPECTED_ROADMAP_ISSUES:
-        errors.append(f"Roadmap issues mismatch: {actual}")
+    if actual != EXPECTED_ROADMAP:
+        errors.append(f"Roadmap mismatch: expected {EXPECTED_ROADMAP}, got {actual}")
 
 
-def expand_profiles(
-    task: dict[str, Any], profiles: dict[str, list[str]], errors: list[str]
-) -> set[str]:
+def expand_profiles(task: dict[str, Any], profiles: dict[str, list[str]], errors: list[str]) -> set[str]:
     result: set[str] = set()
     for name in string_list(task.get("test_profiles"), f"{task.get('task_id')}.test_profiles", errors):
         tests = profiles.get(name)
@@ -143,9 +131,7 @@ def expand_profiles(
     return result
 
 
-def validate_manifest(
-    manifest: dict[str, Any], catalog: dict[str, Any], errors: list[str]
-) -> list[dict[str, Any]]:
+def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors: list[str]) -> list[dict[str, Any]]:
     if manifest.get("schema_version") != "1.0.0":
         errors.append("Unsupported execution manifest schema_version")
     if manifest.get("program_id") != "PROGRAM-ALPHA-001":
@@ -159,35 +145,33 @@ def validate_manifest(
     else:
         if state.get("branch") != "main":
             errors.append("canonical_state.branch must be main")
-        if state.get("merge_sha") != "e01ac85095ddaabef19ed618964deac3aa5b2406":
-            errors.append("canonical merge SHA mismatch")
-        if state.get("verified_implementation_sha") != "35c06c42012672b9b4cb2626b85ba1f21b973bc0":
-            errors.append("verified implementation SHA mismatch")
-        if state.get("active_task") is not None:
-            errors.append("canonical_state.active_task must be null")
+        if state.get("product_merge_sha") != "e01ac85095ddaabef19ed618964deac3aa5b2406":
+            errors.append("product merge SHA mismatch")
+        if state.get("verified_account_implementation_sha") != "35c06c42012672b9b4cb2626b85ba1f21b973bc0":
+            errors.append("verified Account implementation SHA mismatch")
+        if state.get("active_task") != ACTIVE_TASK:
+            errors.append(f"canonical_state.active_task must be {ACTIVE_TASK}")
+        if state.get("active_branch") != ACTIVE_BRANCH:
+            errors.append(f"canonical_state.active_branch must be {ACTIVE_BRANCH}")
+        if state.get("active_issue") != ACTIVE_ISSUE:
+            errors.append(f"canonical_state.active_issue must be {ACTIVE_ISSUE}")
 
     validate_roadmap(manifest, errors)
 
     raw_profiles = manifest.get("test_profiles")
-    if not isinstance(raw_profiles, dict) or not raw_profiles:
-        errors.append("test_profiles must be a non-empty object")
+    if not isinstance(raw_profiles, dict):
+        errors.append("test_profiles must be an object")
         raw_profiles = {}
-    profiles = {
-        str(name): string_list(value, f"test_profiles.{name}", errors)
-        for name, value in raw_profiles.items()
-    }
+    profiles = {str(name): string_list(value, f"test_profiles.{name}", errors) for name, value in raw_profiles.items()}
 
     raw_tasks = manifest.get("tasks")
     if not isinstance(raw_tasks, list):
         errors.append("tasks must be an array")
         return []
-    tasks = sorted(
-        (task for task in raw_tasks if isinstance(task, dict)),
-        key=lambda task: task.get("position", 0),
-    )
+    tasks = sorted((task for task in raw_tasks if isinstance(task, dict)), key=lambda task: task.get("position", 0))
     ids = [task.get("task_id") for task in tasks]
-    if ids != EXPECTED_EXECUTABLE_TASKS:
-        errors.append(f"Executable tasks must be exactly {EXPECTED_EXECUTABLE_TASKS}, got {ids}")
+    if ids != EXPECTED_TASKS:
+        errors.append(f"Executable tasks must be exactly {EXPECTED_TASKS}, got {ids}")
     if [task.get("position") for task in tasks] != list(range(1, len(tasks) + 1)):
         errors.append("Task positions must be contiguous")
 
@@ -195,11 +179,7 @@ def validate_manifest(
     if not isinstance(catalog_tests, list):
         errors.append("Test catalog tests must be an array")
         catalog_tests = []
-    known = {
-        item.get("id")
-        for item in catalog_tests
-        if isinstance(item, dict) and isinstance(item.get("id"), str)
-    }
+    known_tests = {item.get("id") for item in catalog_tests if isinstance(item, dict) and isinstance(item.get("id"), str)}
     actual_by_task: dict[str, set[str]] = defaultdict(set)
     for item in catalog_tests:
         if not isinstance(item, dict) or not isinstance(item.get("id"), str):
@@ -210,23 +190,19 @@ def validate_manifest(
 
     for index, task in enumerate(tasks):
         task_id = task.get("task_id")
-        if task.get("status") != "done":
-            errors.append(f"Completed queue task {task_id} must be done")
-        for field in (
-            "issue",
-            "branch",
-            "milestone",
-            "track",
-            "delivery_stage",
-            "architecture_horizon",
-            "visible_result",
-        ):
+        expected_status = ACTIVE_STATUSES if task_id == ACTIVE_TASK else {"done"}
+        if task.get("status") not in expected_status:
+            errors.append(f"Task {task_id} has invalid status {task.get('status')!r}")
+        for field in ("issue", "branch", "milestone", "track", "delivery_stage", "architecture_horizon", "visible_result"):
             value = task.get(field)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"Task {task_id} has empty {field}")
         expected_next = tasks[index + 1].get("task_id") if index + 1 < len(tasks) else None
         if task.get("next_task") != expected_next:
             errors.append(f"Task {task_id} next_task must be {expected_next!r}")
+        dependencies = string_list(task.get("depends_on"), f"{task_id}.depends_on", errors)
+        if task_id == ACTIVE_TASK and dependencies != ["TASK-ACCOUNT-C1-001"]:
+            errors.append("R2 must depend only on completed Account C1")
         map_nodes = string_list(task.get("map_nodes"), f"{task_id}.map_nodes", errors)
         if "PROGRAM-ALPHA-001" not in map_nodes:
             errors.append(f"Task {task_id} map_nodes must include PROGRAM-ALPHA-001")
@@ -234,62 +210,41 @@ def validate_manifest(
             errors.append(f"Task {task_id} map_nodes must include architecture horizon")
 
         expected_tests = expand_profiles(task, profiles, errors)
-        unknown = expected_tests - known
+        unknown = expected_tests - known_tests
         if unknown:
             errors.append(f"Task {task_id} references unknown tests: {sorted(unknown)}")
         actual = actual_by_task.get(str(task_id), set())
         if expected_tests != actual:
-            errors.append(
-                f"Task {task_id} test mapping mismatch: missing={sorted(expected_tests-actual)} extra={sorted(actual-expected_tests)}"
-            )
+            errors.append(f"Task {task_id} test mapping mismatch: missing={sorted(expected_tests-actual)} extra={sorted(actual-expected_tests)}")
 
     account = next((task for task in tasks if task.get("task_id") == "TASK-ACCOUNT-C1-001"), None)
-    if not account:
-        errors.append("Missing Account C1 task")
-    else:
-        if account.get("completed_sha") != "35c06c42012672b9b4cb2626b85ba1f21b973bc0":
-            errors.append("Account C1 completed_sha mismatch")
-        if account.get("merged_sha") != "e01ac85095ddaabef19ed618964deac3aa5b2406":
-            errors.append("Account C1 merged_sha mismatch")
-        if account.get("merged_pr") != 70:
-            errors.append("Account C1 merged_pr must be 70")
+    if not account or account.get("completed_sha") != "35c06c42012672b9b4cb2626b85ba1f21b973bc0" or account.get("merged_sha") != "e01ac85095ddaabef19ed618964deac3aa5b2406" or account.get("merged_pr") != 70:
+        errors.append("Account C1 completion evidence mismatch")
     return tasks
 
 
-def validate_map(
-    tasks: list[dict[str, Any]], document: dict[str, Any], errors: list[str]
-) -> None:
+def validate_map(tasks: list[dict[str, Any]], document: dict[str, Any], errors: list[str]) -> None:
     nodes_raw = document.get("nodes")
     queue_raw = document.get("execution_queue")
-    edges_raw = document.get("edges")
-    if not isinstance(nodes_raw, list) or not isinstance(queue_raw, list) or not isinstance(edges_raw, list):
-        errors.append("Project map must contain nodes, edges and execution_queue")
+    if not isinstance(nodes_raw, list) or not isinstance(queue_raw, list):
+        errors.append("Project map must contain nodes and execution_queue")
         return
-    nodes = {
-        item.get("id"): item
-        for item in nodes_raw
-        if isinstance(item, dict) and isinstance(item.get("id"), str)
-    }
+    nodes = {item.get("id"): item for item in nodes_raw if isinstance(item, dict) and isinstance(item.get("id"), str)}
     canonical_ids = [task["task_id"] for task in tasks]
-    queue_ids = [
-        item.get("task_id")
-        for item in sorted(
-            (item for item in queue_raw if isinstance(item, dict)),
-            key=lambda item: item.get("position", 0),
-        )
-    ]
+    queue_ids = [item.get("task_id") for item in sorted((item for item in queue_raw if isinstance(item, dict)), key=lambda item: item.get("position", 0))]
     if queue_ids != canonical_ids:
         errors.append("Project map execution_queue differs from manifest")
     focus = document.get("project", {}).get("current_focus")
-    if focus is not None:
-        errors.append(f"Completed queue requires current_focus null, got {focus!r}")
+    if focus != ACTIVE_TASK:
+        errors.append(f"Project map current_focus must be {ACTIVE_TASK}, got {focus!r}")
     for task in tasks:
         node = nodes.get(task["task_id"])
         if not isinstance(node, dict):
             errors.append(f"Project map misses task node {task['task_id']}")
             continue
-        if node.get("status") != "done":
-            errors.append(f"Project map task {task['task_id']} must be done")
+        expected = ACTIVE_STATUSES if task["task_id"] == ACTIVE_TASK else {"done"}
+        if node.get("status") not in expected:
+            errors.append(f"Project map task {task['task_id']} has invalid status {node.get('status')!r}")
         if node.get("issue") != task.get("issue"):
             errors.append(f"Project map Issue mismatch for {task['task_id']}")
         if node.get("phase") != task.get("architecture_horizon"):
@@ -310,10 +265,12 @@ def main() -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
+    active = next(task for task in tasks if task["task_id"] == ACTIVE_TASK)
     print("ASA Lab execution contract validation: PASS")
-    print(f"- executable tasks: {len(tasks)} (all done)")
-    print("- current focus: none")
-    print("- future roadmap: R2 -> R3 -> R4 (blocked)")
+    print(f"- executable tasks: {len(tasks)}")
+    print(f"- current focus: {ACTIVE_TASK} ({active['status']})")
+    print(f"- branch: {ACTIVE_BRANCH}")
+    print("- future roadmap: R3 -> R4 (blocked)")
     print("- automatic future activation: forbidden")
     return 0
 
