@@ -10,8 +10,8 @@ completed gateway:       TASK-R3A-ELECTRONICS-GATEWAY-001
 active task:             TASK-ELECTRONICS-M1-001
 active issue:            #63
 active branch:           agent/r4-electronics-m1
-status:                  in_progress / production_editor_integration
-production evidence SHA: e604762057a839c2683c5788e83e1b686273828c
+status:                  in_progress / component_library_information_architecture_and_family_grouping
+rejected runtime SHA:    f78a9ac7578787a3a5aed73f1f2113cd36801825
 owner directive:         PR #72 comment 5147079314
 owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
 ```
@@ -22,7 +22,7 @@ R4-M2 and R5+ are not activated.
 
 ## 2. Источники истины
 
-Читать в таком порядке:
+Читать строго в таком порядке:
 
 1. `AGENTS.md`;
 2. `docs/project-map/infrastructure-focus.yaml`;
@@ -33,9 +33,9 @@ R4-M2 and R5+ are not activated.
 7. `docs/testing/test-catalog.yaml`;
 8. `docs/testing/active-task-tests.yaml`.
 
-При конфликте остановиться и назвать точные источники. Standalone review pages
-не являются пользовательским результатом. Текущий результат должен работать в
-реальном маршруте Electronics project `/projects/:projectId`.
+При конфликте остановиться и назвать точные источники. Текущий результат должен
+работать в настоящем Electronics route `/projects/:projectId`; standalone review
+pages не являются product delivery.
 
 ## 3. Ветка и Git
 
@@ -43,170 +43,177 @@ R4-M2 and R5+ are not activated.
 - не создавать дополнительные ветки;
 - не менять `main`, не merge, не tag, не force-push и не rebase опубликованной истории;
 - не трогать PR #29 и `assistant/map-ux-owner-view`;
-- не коммитить backups, dumps, credentials и приватные исходные ZIP;
-- reference evidence, production SVG, manifests и owner screenshots допускаются только в PR #72.
+- не коммитить backups, dumps, credentials и приватные ZIP;
+- все commits push только в PR #72.
 
-## 4. R3A Gateway
+## 4. Что уже сохраняется
 
-Gateway завершён как короткая проверка существующей архитектуры:
+Не переписывать заново:
 
-- один server-side `ModuleRegistry`;
-- Electronics и Chess подключены через manifest/provider;
-- Project Core не ветвится по `moduleKey`;
-- общий `ModuleEditorHost` монтирует зарегистрированный editor key;
-- create/open/rename/save/reload/checkpoint остаются module-neutral;
-- personal project не требует Classroom;
-- существующие Electronics и Chess документы открываются без потери данных.
+- full owner archive inventory;
+- reference и production SVG packages;
+- один `WORLD_UNITS_PER_MM`;
+- physical dimensions и production pin anchors;
+- ordinary LED/RGB/seven-segment state contracts;
+- breadboard visuals, hole IDs и connectivity metadata;
+- additive schema, save/reload/checkpoint;
+- текущий solver/editor foundation.
 
-Полный R3 не заявляется: R3B остаётся blocked/deferred.
+Текущий runtime SHA `f78a9ac...` не принят из-за неправильной информационной
+архитектуры библиотеки, variant duplication и смешения supported/preview assets.
 
-## 5. TASK-ELECTRONICS-M1-001 — production editor integration
+## 5. TASK-ELECTRONICS-M1-001 — component library IA and family grouping
 
-Reference audit `9654ce3...` и production-vector/state evidence
-`e604762...` сохраняются. Теперь задача — применить их в рабочем Electronics
-editor. Отдельные review-labs остаются доказательством и не считаются delivery.
+### 5.1. Runtime family model
 
-### 5.1. Runtime catalog
-
-- hard-coded `/assets/electronics/components` не является источником новых проектов;
-- runtime catalog строится из `/assets/electronics/production/manifest.json` через типизированный adapter;
-- старые assets допускаются только как migration fallback для legacy documents;
-- в Draft runtime допускается статус `integration_candidate`;
-- `production_ready` и merge-ready acceptance остаются false до отдельного owner review.
-
-### 5.2. Обязательные интегрированные компоненты
-
-Existing M1 electrical parts:
-
-- battery holders 1×AA, 2×AA, 3×AA, 4×AA, 6×AA, 8×AA;
-- 5×AA остаётся `missing_reference`;
-- parametric resistor;
-- ordinary LED: 6 colours, brightness 0–100, reverse/overcurrent/burned;
-- tactile button: 4 pins, momentary press/release, корректные paired contacts;
-- SPDT: common + throw-left + throw-right;
-- potentiometer: 3 pins, angle follows wiper;
-- diode with lead-end anchors;
-- lamp off/dim/on/max.
-
-Required new editor parts:
-
-- RGB LED: 4 pins, common-anode/common-cathode, independent R/G/B channels;
-- seven-segment: physical pins, groups `a,b,c,d,e,f,g,dp`, glyph/mask and brightness;
-- breadboards 170/420/882.
-
-Остальные найденные production candidates показываются в полной библиотеке как
-`visual_only / simulation_not_yet_supported`. Они не возвращают fake current,
-voltage или successful simulation.
-
-### 5.3. One physical scale
+Production manifest остаётся источником asset, physical mm, pins и footprint.
+Поверх него требуется family-level catalog model:
 
 ```text
-renderedWidth  = physicalWidthMm  × WORLD_UNITS_PER_MM
-renderedHeight = physicalHeightMm × WORLD_UNITS_PER_MM
-```
-
-Произвольный `renderWidth` запрещён. Pin anchor находится в центре физической
-ножки, breadboard hole или свободного конца реального провода с допуском не хуже
-`0.25 mm`.
-
-Battery holder использует variant с выводными проводами. Если такого exact
-reference нет, variant остаётся blocked; контакты на корпусе запрещены.
-
-### 5.4. Breadboard as electrical object
-
-Для 170/420/882 обязательны:
-
-- pitch 2.54 mm;
-- stable hole IDs;
-- terminal-strip groups;
-- power rails и реальные разрывы;
-- internal connectivity в netlist;
-- pin-to-hole snap;
-- placement validation;
-- footprint preview;
-- сохранение board/hole bindings;
-- battery leads и jumpers подключаются к holes/rails.
-
-Показать реальные посадки resistor, diode, ordinary LED, RGB LED, tactile
-button, SPDT, seven-segment и совместимого potentiometer.
-
-### 5.5. Runtime states and animations
-
-- resistor bands update from resistance/tolerance;
-- ordinary LED asset follows colour, calculated brightness and fault state;
-- RGB LED follows calculated R/G/B channel intensities;
-- seven-segment follows segment currents or explicit typed state;
-- button is momentary for pointer and keyboard;
-- SPDT switches common between two throws;
-- potentiometer angle follows wiper;
-- lamp state follows power;
-- motor/servo/buzzer candidates activate only with supported typed models.
-
-Decorative infinite CSS/GIF animation is forbidden.
-
-### 5.6. Document schema and migration
-
-Additively store:
-
-```text
-componentTypeId
+familyId
 variantId
-physical placement
-pin bindings
-breadboardId / hole bindings
-state properties
-simulation properties
+familyLabel
+categoryId
+subcategoryId
+catalogTier: core | supported | preview
+catalogOrder
+defaultVariantId
+variants[]
+searchAliases[]
+simulationStatus
+assetProvenance
 ```
 
-Legacy schema-v1/v2 documents must open without data loss. Old kind IDs migrate
-to production IDs. Save/reload/checkpoint preserve variants, state and hole
-bindings.
+Каждая карточка каталога представляет family, а не отдельный manifest asset.
 
-## 6. Owner-visible acceptance flow
+### 5.2. Семейства вместо дублей
 
-Show only the real editor on `http://localhost:4610`:
+В рабочем каталоге должна быть ровно одна карточка:
 
-1. create/open a real Electronics project;
-2. place breadboard 420;
-3. place battery holder 2×AA outside the board and connect lead ends to rails;
-4. snap resistor, ordinary LED, button and SPDT into holes;
-5. snap RGB LED and seven-segment with correct physical pitch;
-6. change resistor value and see its bands change on stage;
-7. change ordinary LED colour/brightness;
-8. change RGB channels;
-9. show seven-segment `0`, `8`, `A` and arbitrary mask;
-10. prove rail/strip connectivity and placement diagnostics;
-11. save/reload with identical positions, variants, states and hole bindings;
-12. create immutable checkpoint.
+- `AA battery holder` с variants `1×AA / 2×AA / 3×AA / 4×AA / 6×AA / 8×AA`, default `2×AA`;
+- `Breadboard` с variants `170 / 420 / 882`;
+- `Diode` с variants `DO-35 / DO-41`;
+- `LED 5 mm`, где цвет/яркость выбираются в inspector;
+- `Resistor`, где номинал/допуск управляют полосами;
+- `Button 6×6`, `SPDT`, `Potentiometer`, `RGB LED`, `Seven-segment`, `Lamp`.
 
-Old visual assets must not appear in new library cards or on the stage.
+`5×AA` остаётся missing и не показывается как доступный variant.
 
-## 7. Focused checks only
+Variant picker размещается в compact popover до placement либо в inspector.
+Смена variant обязана обновлять asset, physical size, pins, defaults и сохраняться
+через `variantId` после reload/checkpoint.
 
-Before owner review run only:
+### 5.3. Удалить лишние reference/PNG-derived battery entries
 
-- production-manifest adapter tests;
-- legacy migration tests;
-- physical-scale and pin-anchor tests;
-- breadboard hole/connectivity/snap tests;
-- ordinary LED/RGB/seven-segment runtime-state tests;
-- real editor E2E for the flow above;
-- browser collectors: console/pageerror/requestfailed/HTTP 5xx = 0.
+Следующие entries не экспортируются в runtime catalog до отдельного owner
+acceptance точного production SVG:
 
-Full repository matrix remains forbidden.
+```text
+battery-1.5v
+battery-3v
+battery-6v
+battery-9v
+```
 
-## 8. Deployment and stop condition
+Их evidence можно хранить, но они не показываются и не размещаются в editor.
 
-- deploy exact final SHA only in existing `asa-lab-dev`;
-- keep `localhost:4610` open on the actual Electronics project;
-- publish editor screenshots:
-  - `library-production`;
-  - `breadboard-empty`;
-  - `breadboard-components-snapped`;
-  - `led-rgb-display-states`;
-  - `connected-running`;
-  - `reload-checkpoint`;
-- after focused PASS stop for owner visual review.
+### 5.4. Категории
 
-Until owner acceptance: no merge, no full matrix, no R4-M2, no new branch and no
-additional permanent Compose project.
+Dropdown по умолчанию открывается в `Основные`, не в `Все компоненты`.
+
+Обязательная структура:
+
+1. `Основные`;
+2. `Все компоненты` — только supported families;
+3. `Питание`;
+4. `Макетки и монтаж`;
+5. `Пассивные`;
+6. `Полупроводники`;
+7. `Ввод и управление`;
+8. `Вывод и индикация`;
+9. `Датчики`;
+10. `Двигатели и приводы`;
+11. `Контроллеры`;
+12. `Измерительные приборы`;
+13. `В разработке` — disabled preview only.
+
+Curated order в `Основные`:
+
+```text
+Breadboard 420
+AA battery holder 2×AA
+Resistor
+LED 5 mm
+Button 6×6
+SPDT
+Potentiometer
+Diode DO-41
+RGB LED
+Seven-segment
+Lamp
+```
+
+### 5.5. Supported и preview
+
+- `core`/`supported`: draggable и clickable;
+- `preview`: только категория `В разработке`, disabled и не draggable;
+- preview item не создаёт document component;
+- убрать badge `визуально` из основного каталога;
+- unsupported components не возвращают fake simulation result;
+- Arduino, motors, sensors, instruments и другие unsupported candidates не
+  смешиваются с `Основные` или `Все компоненты`.
+
+### 5.6. Tinkercad-like library UX
+
+Без копирования бренда реализовать тот же рабочий принцип owner reference:
+
+- category dropdown;
+- search;
+- grid/list toggle;
+- default two-column grid с читаемой preview;
+- family card вместо variant duplicates;
+- compact variant picker;
+- deterministic order;
+- sticky category/search header;
+- search по family/variant/aliases на русском и английском;
+- один search result на family;
+- library preview может быть нормализован для узнаваемости, stage остаётся в
+  едином физическом масштабе.
+
+## 6. Focused checks
+
+До owner review запускать только:
+
+- family/variant adapter tests;
+- default category и deterministic ordering;
+- one-card-per-family tests;
+- hidden PNG-derived battery tests;
+- category separation tests;
+- supported/preview disabled behavior;
+- variant create/save/reload/checkpoint tests;
+- search и grid/list keyboard navigation;
+- actual-editor browser smoke;
+- console/pageerror/requestfailed/HTTP 5xx = 0.
+
+Full repository matrix запрещена.
+
+## 7. Owner-visible evidence
+
+Screenshots только из настоящего editor:
+
+```text
+library-basic-default
+library-category-power
+library-family-battery-variants
+library-search-led
+library-supported-vs-preview
+library-list-view
+variant-persisted-after-reload
+```
+
+Развернуть exact final SHA только в существующем `asa-lab-dev`, оставить
+настоящий Electronics project открытым на `localhost:4610` и остановиться для
+owner review.
+
+До принятия запрещены merge, full matrix, R4-M2, новая ветка, новые solver
+features и дополнительные permanent Compose projects.
