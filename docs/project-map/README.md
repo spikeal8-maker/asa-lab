@@ -1,67 +1,38 @@
 # Project Map
 
-Карта ASA Lab хранится как код и версионируется вместе с системой.
+- [`project-map.yaml`](project-map.yaml) — current machine state;
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — executable queue;
+- [`PROJECT_MAP.md`](PROJECT_MAP.md) — human-readable map;
+- [`QUALITY_MAP.md`](QUALITY_MAP.md) — current gate;
+- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml) — stable tests;
+- [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml) — active R2 tests;
+- [`viewer.html`](viewer.html) — interactive graph.
 
-## Файлы
-
-- [`project-map.yaml`](project-map.yaml) — architecture graph и dynamic state;
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml) — completed executable queue и blocked roadmap;
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md) — человеко-читаемая программа;
-- [`PROJECT_MAP.md`](PROJECT_MAP.md) — Mermaid-представление;
-- [`viewer.html`](viewer.html) — интерактивный graph;
-- [`QUALITY_MAP.md`](QUALITY_MAP.md) — Account C1 evidence;
-- [`TASK_SYSTEM.md`](TASK_SYSTEM.md) — правила task activation;
-- [`nx-project-graph.json`](nx-project-graph.json) — code dependencies.
-
-## Текущее состояние
+## Current focus
 
 ```text
-product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
-verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
-current_focus:            null
+TASK-CREATOR-PORTAL-001
+Issue #62
+branch agent/r2-creator-portal
+status ready
 ```
-
-Исполняемая очередь полностью завершена:
 
 ```text
-TASK-PRODUCT-DOC-001 done
-→ TASK-PORTAL-001 done
-→ TASK-ACCOUNT-C1-001 done
-→ stop
+Product Docs done
+→ Teacher Portal done
+→ Account C1 done
+→ Creator Portal ready
+→ owner review / stop
 ```
 
-R2 Issue №62, R3 Issue №37 и R4 Issue №63 остаются blocked roadmap.
+R3 and R4 remain blocked. Architecture horizon does not allow the coding agent to skip the queue.
 
-## Просмотр
-
-Из корня репозитория:
-
-```bash
-python -m http.server 8080
-```
-
-Открыть:
-
-```text
-http://127.0.0.1:8080/docs/project-map/viewer.html
-```
-
-Viewer сверяет `EXECUTION_MANIFEST.yaml` и `project-map.yaml`. `current_focus: null` валиден, когда все executable tasks имеют status `done`.
-
-## Lifecycle
-
-```text
-no task      current_focus null; coding agent stops
-activation   owner publishes task/Issue/branch/tests
-work         one task in_progress
-review       focused PASS and owner-visible result
-merge        task done; merge SHA recorded
-transition   focus null unless a future task is separately activated
-```
-
-## Проверка
+## Validation
 
 ```bash
 python tools/validate_project_map.py
 python tools/validate_delivery_program.py
+python tools/validate_test_catalog.py
 ```
+
+The viewer must show the same order as `EXECUTION_MANIFEST.yaml`. A mismatch is governance FAIL.
