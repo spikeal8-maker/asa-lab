@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the ASA Lab project knowledge graph and task queue."""
+"""Validate the ASA Lab project knowledge graph and executable queue."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ ALLOWED_STATUSES = {
     "done",
     "deprecated",
 }
-
+ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
 ALLOWED_RELATIONS = {
     "contains",
     "uses",
@@ -38,7 +38,6 @@ ALLOWED_RELATIONS = {
     "serves",
     "next",
 }
-
 REQUIRED_MAP_FILES = (
     ROOT / "docs/project-map/README.md",
     ROOT / "docs/project-map/PROJECT_MAP.md",
@@ -46,7 +45,6 @@ REQUIRED_MAP_FILES = (
     ROOT / "docs/project-map/viewer.html",
     ROOT / "docs/architecture/structurizr/workspace.dsl",
 )
-
 ARCHITECTURE_SENSITIVE_PREFIXES = (
     "apps/",
     "packages/",
@@ -57,7 +55,6 @@ ARCHITECTURE_SENSITIVE_PREFIXES = (
     "schemas/",
     "docs/architecture/",
 )
-
 ARCHITECTURE_SENSITIVE_FILES = {
     "AGENTS.md",
     "START_HERE_FOR_AI.md",
@@ -77,17 +74,15 @@ def load_map(errors: list[str]) -> dict[str, Any]:
     if not MAP_PATH.is_file():
         errors.append(f"Missing project map: {MAP_PATH.relative_to(ROOT)}")
         return {}
-
     try:
-        document = yaml.safe_load(MAP_PATH.read_text(encoding="utf-8"))
+        value = yaml.safe_load(MAP_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
         errors.append(f"Cannot parse project map YAML: {exc}")
         return {}
-
-    if not isinstance(document, dict):
+    if not isinstance(value, dict):
         errors.append("Project map root must be an object")
         return {}
-    return document
+    return value
 
 
 def validate_required_files(errors: list[str]) -> None:
@@ -97,71 +92,59 @@ def validate_required_files(errors: list[str]) -> None:
 
 
 def validate_nodes(document: dict[str, Any], errors: list[str]) -> dict[str, dict[str, Any]]:
-    nodes = document.get("nodes")
-    if not isinstance(nodes, list):
+    raw = document.get("nodes")
+    if not isinstance(raw, list):
         errors.append("nodes must be an array")
         return {}
 
-    index: dict[str, dict[str, Any]] = {}
-    required_fields = {"id", "label", "kind", "layer", "status", "summary"}
-
-    for position, node in enumerate(nodes, start=1):
+    nodes: dict[str, dict[str, Any]] = {}
+    required = {"id", "label", "kind", "layer", "status", "summary"}
+    for position, node in enumerate(raw, start=1):
         if not isinstance(node, dict):
             errors.append(f"Node #{position} must be an object")
             continue
-
-        missing = required_fields - set(node)
+        missing = required - set(node)
         if missing:
-            errors.append(
-                f"Node #{position} misses fields: {', '.join(sorted(missing))}"
-            )
+            errors.append(f"Node #{position} misses fields: {', '.join(sorted(missing))}")
             continue
-
         node_id = node.get("id")
         if not isinstance(node_id, str) or not node_id.strip():
             errors.append(f"Node #{position} has invalid id")
             continue
-        if node_id in index:
+        if node_id in nodes:
             errors.append(f"Duplicate node id: {node_id}")
             continue
-
         if node.get("status") not in ALLOWED_STATUSES:
             errors.append(f"Node {node_id} has invalid status: {node.get('status')!r}")
         for field in ("label", "kind", "layer", "summary"):
             value = node.get(field)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"Node {node_id} has empty {field}")
+        nodes[node_id] = node
 
-        index[node_id] = node
-
-    if len(index) < 40:
-        errors.append(f"Project map is unexpectedly small: {len(index)} nodes")
-    return index
+    if len(nodes) < 40:
+        errors.append(f"Project map is unexpectedly small: {len(nodes)} nodes")
+    return nodes
 
 
 def validate_edges(
-    document: dict[str, Any],
-    nodes: dict[str, dict[str, Any]],
-    errors: list[str],
+    document: dict[str, Any], nodes: dict[str, dict[str, Any]], errors: list[str]
 ) -> list[dict[str, Any]]:
-    edges = document.get("edges")
-    if not isinstance(edges, list):
+    raw = document.get("edges")
+    if not isinstance(raw, list):
         errors.append("edges must be an array")
         return []
 
-    normalized: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str]] = set()
-
-    for position, edge in enumerate(edges, start=1):
+    for position, edge in enumerate(raw, start=1):
         if not isinstance(edge, dict):
             errors.append(f"Edge #{position} must be an object")
             continue
-
         source = edge.get("from")
         target = edge.get("to")
         relation = edge.get("type")
         label = edge.get("label", "")
-
         if source not in nodes:
             errors.append(f"Edge #{position} has unknown source: {source!r}")
         if target not in nodes:
@@ -170,22 +153,19 @@ def validate_edges(
             errors.append(f"Edge #{position} has invalid relation: {relation!r}")
         if source == target:
             errors.append(f"Self edge is not allowed: {source}")
-
         key = (str(source), str(target), str(relation), str(label))
         if key in seen:
             errors.append(f"Duplicate edge: {key}")
         seen.add(key)
-        normalized.append(edge)
+        edges.append(edge)
 
-    if len(normalized) < 60:
-        errors.append(f"Project map is unexpectedly sparse: {len(normalized)} edges")
-    return normalized
+    if len(edges) < 60:
+        errors.append(f"Project map is unexpectedly sparse: {len(edges)} edges")
+    return edges
 
 
 def validate_task_dependencies(
-    nodes: dict[str, dict[str, Any]],
-    edges: list[dict[str, Any]],
-    errors: list[str],
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]], errors: list[str]
 ) -> None:
     task_ids = {node_id for node_id, node in nodes.items() if node.get("kind") == "task"}
     dependencies: dict[str, set[str]] = {task_id: set() for task_id in task_ids}
@@ -197,9 +177,7 @@ def validate_task_dependencies(
         source = edge.get("from")
         target = edge.get("to")
         if source not in task_ids or target not in task_ids:
-            errors.append(
-                f"Task dependency must connect two task nodes: {source} -> {target}"
-            )
+            errors.append(f"Task dependency must connect task nodes: {source} -> {target}")
             continue
         dependencies[source].add(target)
         reverse[target].add(source)
@@ -214,20 +192,10 @@ def validate_task_dependencies(
             indegree[dependent] -= 1
             if indegree[dependent] == 0:
                 queue.append(dependent)
-
     if visited != len(task_ids):
-        cycle_nodes = sorted(task_id for task_id, count in indegree.items() if count > 0)
-        errors.append("Task dependency cycle detected: " + ", ".join(cycle_nodes))
-
-    active = [
-        task_id
-        for task_id in task_ids
-        if nodes[task_id].get("status") == "in_progress"
-    ]
-    if len(active) > 1:
         errors.append(
-            "Before Bootstrap only one in_progress task is allowed: "
-            + ", ".join(sorted(active))
+            "Task dependency cycle detected: "
+            + ", ".join(sorted(task_id for task_id, count in indegree.items() if count > 0))
         )
 
     for task_id in sorted(task_ids):
@@ -237,7 +205,7 @@ def validate_task_dependencies(
             for dependency in dependencies[task_id]
             if nodes[dependency].get("status") != "done"
         ]
-        if status in {"ready", "in_progress", "in_review", "done"} and unfinished:
+        if status in ACTIVE_STATUSES | {"done"} and unfinished:
             if task_id == "TASK-ARCH-001" and status == "in_review":
                 continue
             errors.append(
@@ -247,82 +215,80 @@ def validate_task_dependencies(
 
 
 def validate_execution_queue(
-    document: dict[str, Any],
-    nodes: dict[str, dict[str, Any]],
-    errors: list[str],
-) -> None:
-    queue = document.get("execution_queue")
-    if not isinstance(queue, list) or not queue:
+    document: dict[str, Any], nodes: dict[str, dict[str, Any]], errors: list[str]
+) -> list[str]:
+    raw = document.get("execution_queue")
+    if not isinstance(raw, list) or not raw:
         errors.append("execution_queue must be a non-empty array")
-        return
+        return []
 
-    positions: set[int] = set()
-    task_ids: set[str] = set()
-    for item in queue:
-        if not isinstance(item, dict):
-            errors.append("execution_queue item must be an object")
-            continue
+    ordered = sorted((item for item in raw if isinstance(item, dict)), key=lambda item: item.get("position", 0))
+    positions = [item.get("position") for item in ordered]
+    if positions != list(range(1, len(ordered) + 1)):
+        errors.append(f"Execution queue positions must be contiguous: {positions}")
 
-        position = item.get("position")
+    task_ids: list[str] = []
+    for item in ordered:
         task_id = item.get("task_id")
-        if not isinstance(position, int) or position <= 0:
-            errors.append(f"Invalid execution queue position: {position!r}")
-        elif position in positions:
-            errors.append(f"Duplicate execution queue position: {position}")
-        positions.add(position)
-
         if task_id not in nodes or nodes[task_id].get("kind") != "task":
             errors.append(f"Execution queue references non-task node: {task_id!r}")
-        elif task_id in task_ids:
+            continue
+        if task_id in task_ids:
             errors.append(f"Duplicate task in execution queue: {task_id}")
-        task_ids.add(str(task_id))
-
+        task_ids.append(task_id)
         for field in ("instruction", "gate"):
             value = item.get(field)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"Execution queue task {task_id} has empty {field}")
-
-    expected = list(range(1, len(queue) + 1))
-    if sorted(positions) != expected:
-        errors.append(
-            f"Execution queue positions must be contiguous 1..{len(queue)}"
-        )
+    return task_ids
 
 
 def validate_focus(
-    document: dict[str, Any],
-    nodes: dict[str, dict[str, Any]],
-    errors: list[str],
+    document: dict[str, Any], nodes: dict[str, dict[str, Any]], queue_ids: list[str], errors: list[str]
 ) -> None:
     project = document.get("project")
     if not isinstance(project, dict):
         errors.append("project must be an object")
         return
 
+    active_tasks = sorted(
+        node_id
+        for node_id, node in nodes.items()
+        if node.get("kind") == "task" and node.get("status") in ACTIVE_STATUSES
+    )
+    if len(active_tasks) > 1:
+        errors.append("Only one active task is allowed: " + ", ".join(active_tasks))
+
     focus = project.get("current_focus")
+    if focus is None:
+        if active_tasks:
+            errors.append(f"current_focus is null but active tasks exist: {active_tasks}")
+        unfinished = [task_id for task_id in queue_ids if nodes[task_id].get("status") != "done"]
+        if unfinished:
+            errors.append(
+                "current_focus may be null only when the executable queue is complete: "
+                + ", ".join(unfinished)
+            )
+        return
+
     if focus not in nodes:
         errors.append(f"current_focus references unknown node: {focus!r}")
         return
     if nodes[focus].get("kind") != "task":
         errors.append("current_focus must reference a task node")
-    if nodes[focus].get("status") in {"done", "deprecated"}:
-        errors.append("current_focus cannot be done or deprecated")
+    if nodes[focus].get("status") not in ACTIVE_STATUSES:
+        errors.append(f"current_focus must be active, got {nodes[focus].get('status')!r}")
+    if active_tasks and active_tasks != [focus]:
+        errors.append(f"current_focus {focus} does not match active task {active_tasks}")
 
 
 def changed_files_against_base() -> set[str]:
     base_ref = os.getenv("GITHUB_BASE_REF", "").strip()
     if not base_ref:
         return set()
-
-    command = [
-        "git",
-        "diff",
-        "--name-only",
-        f"origin/{base_ref}...HEAD",
-    ]
     try:
         result = subprocess.run(
-            command,
+            ["git", "diff", "--name-only", f"origin/{base_ref}...HEAD"],
             cwd=ROOT,
             check=True,
             text=True,
@@ -330,7 +296,6 @@ def changed_files_against_base() -> set[str]:
         )
     except (OSError, subprocess.CalledProcessError):
         return set()
-
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
@@ -338,23 +303,17 @@ def validate_map_change_policy(errors: list[str]) -> None:
     changed = changed_files_against_base()
     if not changed:
         return
-
     architecture_changed = any(
         path in ARCHITECTURE_SENSITIVE_FILES
         or path.startswith(ARCHITECTURE_SENSITIVE_PREFIXES)
         for path in changed
     )
     map_changed = "docs/project-map/project-map.yaml" in changed
-    rendered_map_changed = "docs/project-map/PROJECT_MAP.md" in changed
-
+    rendered_changed = "docs/project-map/PROJECT_MAP.md" in changed
     if architecture_changed and not map_changed:
-        errors.append(
-            "Architecture-sensitive files changed without project-map.yaml update"
-        )
-    if map_changed and not rendered_map_changed:
-        errors.append(
-            "project-map.yaml changed without PROJECT_MAP.md review/update"
-        )
+        errors.append("Architecture-sensitive files changed without project-map.yaml update")
+    if map_changed and not rendered_changed:
+        errors.append("project-map.yaml changed without PROJECT_MAP.md update")
 
 
 def main() -> int:
@@ -363,26 +322,22 @@ def main() -> int:
     document = load_map(errors)
     if not document:
         return fail(errors)
-
     if document.get("schema_version") != "1.0.0":
         errors.append("Unsupported project map schema_version")
-
     nodes = validate_nodes(document, errors)
     edges = validate_edges(document, nodes, errors)
     validate_task_dependencies(nodes, edges, errors)
-    validate_execution_queue(document, nodes, errors)
-    validate_focus(document, nodes, errors)
+    queue_ids = validate_execution_queue(document, nodes, errors)
+    validate_focus(document, nodes, queue_ids, errors)
     validate_map_change_policy(errors)
-
     if errors:
         return fail(errors)
-
-    tasks = sum(1 for node in nodes.values() if node.get("kind") == "task")
+    focus = document.get("project", {}).get("current_focus")
     print("ASA Lab project map validation: PASS")
-    print(f"nodes={len(nodes)}")
-    print(f"edges={len(edges)}")
-    print(f"tasks={tasks}")
-    print(f"currentFocus={document['project']['current_focus']}")
+    print(f"- nodes: {len(nodes)}")
+    print(f"- edges: {len(edges)}")
+    print(f"- current focus: {focus}")
+    print(f"- executable tasks: {len(queue_ids)}")
     return 0
 
 
