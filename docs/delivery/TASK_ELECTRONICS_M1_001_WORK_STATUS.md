@@ -7,114 +7,113 @@ Current PR: #72
 ```text
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
-status: in_progress / production_vector_and_animation_rework
-reference audit checkpoint: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
-owner directive: PR #72 comment 5146193982
-issue scope correction: Issue #63 comment 5146201925
+status: in_progress / production_editor_integration
+production evidence checkpoint: e604762057a839c2683c5788e83e1b686273828c
+owner integration directive: PR #72 comment 5147079314
 owner-confirmed full archive SHA-256: c5bfd26760db7a92d06e0b51b0bde3bb45595278a762bab3ab9198abb04b4d75
 ```
 
-Portal shell is merged by PR #71. The short R3A Electronics Gateway remains
-completed. R3B is blocked/deferred; full R3 completion is not claimed.
+Portal shell is merged by PR #71. R3A Electronics Gateway remains completed.
+R3B is blocked/deferred; full R3 completion is not claimed.
 
-## Reference audit result
+## What is already preserved
 
-The archive inventory is preserved and useful. It found the broader owner scope,
-including battery-holder families, ordinary and RGB LED evidence, seven-segment
-displays, breadboards 170/420/882, sensors, motors, switches, passives and other
-components.
+The branch contains:
 
-The audit does **not** make those files production-ready. PNG, screenshots and
-opaque pixel-vector SVG are reference evidence only. They may be displayed on
-review surfaces but may not be used by the working Electronics library.
+- full owner archive inventory and immutable reference evidence;
+- transparent production SVG candidates;
+- one physical-scale contract;
+- ordinary LED colour/brightness frames;
+- RGB, seven-segment, resistor-band and motion/state contracts;
+- breadboard visuals, hole maps and connectivity metadata;
+- standalone review pages and focused evidence.
 
-## Current corrective checkpoint
+Those standalone pages are no longer the delivery result. The actual Electronics
+editor still uses the old hard-coded eight-entry runtime catalog and old asset
+root. The owner explicitly requires integration into a real project.
 
-Create a separate production asset package for every logical component:
-
-```text
-reference evidence
-→ faithful transparent vector reconstruction
-→ physical scale
-→ exact pins and footprint
-→ state/animation contract
-→ breadboard fit where applicable
-→ owner acceptance
-→ production_ready
-```
-
-Required production scope includes the complete catalog, not an M1 subset:
-
-- battery holders 1×AA, 2×AA, 3×AA, 4×AA, 6×AA and 8×AA;
-- 5×AA remains an explicit missing reference;
-- ordinary LED colours, brightness 0–100 and special states;
-- RGB LED with four pins, channel mixing and common variants;
-- seven-segment displays with semantic segment groups and real pins;
-- breadboards 170/420/882 with 2.54 mm pitch, stable holes and connectivity;
-- stateful buttons, SPDT, potentiometers, lamps, motors, servo, buzzer, displays
-  and sensors found in the owner pack.
-
-## Production asset rules
-
-- transparent SVG only;
-- no raster `<image>`, base64, full-canvas opaque background, embedded
-  checkerboard, captions or card backgrounds;
-- one `worldUnitsPerMm` for the whole stage;
-- dimensions computed from physical millimetres, not arbitrary `renderWidth`;
-- pin anchors within 0.25 mm of the physical lead, wire end or breadboard hole;
-- provenance distinguishes `exact_owner_svg` from
-  `derived_from_owner_reference`;
-- existing battery-holder artwork is reused directly from the owner SVG family;
-  the PNG reconstruction pipeline is not applied to those six variants;
-- the axial resistor retains the owner-reference contour and exposes four
-  physical colour zones driven by resistance and tolerance state;
-- production animation is driven by typed simulation state, not decorative GIF
-  or an unrelated CSS loop.
-
-## Owner review surfaces
-
-The next live checkpoint must contain:
-
-1. reference image versus production SVG;
-2. one physical scale with a 10 mm ruler;
-3. ordinary LED and RGB state/brightness laboratory;
-4. seven-segment and moving/stateful component laboratory;
-5. breadboard fit and connectivity for representative components.
-
-Implemented review routes:
+## Active checkpoint
 
 ```text
-/electronics-review/reference-vs-production.html
-/electronics-review/physical-scale.html
-/electronics-review/led-rgb-state-lab.html
-/electronics-review/display-and-motion-state-lab.html
-/electronics-review/breadboard-fit-connectivity.html
+production_editor_integration
 ```
 
-The production package currently contains 33 logical entries: 32 transparent
-SVG candidates and the explicit `battery-holder-aa-5 = missing_reference` entry.
-The package contains no accepted editor assets: every candidate remains
-`owner_accepted: false`, `production_ready: false` and
-`libraryEligible: false` until the visual checkpoint is accepted.
+The working route `/projects/:projectId` must consume the production manifest,
+render production SVG at physical scale, use production pins/footprints and
+persist state/hole bindings.
 
-Focused evidence for this checkpoint:
+Required live editor scope:
+
+- battery holders 1/2/3/4/6/8×AA; 5×AA remains missing;
+- parametric resistor;
+- ordinary LED colours, brightness and faults;
+- 4-pin momentary tactile button;
+- 3-pin SPDT;
+- 3-pin potentiometer;
+- diode and lamp;
+- RGB LED;
+- seven-segment display;
+- breadboards 170/420/882.
+
+Other production candidates appear in the full library as honest
+`visual_only / simulation_not_yet_supported` items until a typed electrical model
+exists.
+
+## Integration rules
+
+- new runtime catalog comes from `/assets/electronics/production/manifest.json`;
+- `/assets/electronics/components` is legacy migration fallback only;
+- review status `integration_candidate` is allowed in Draft runtime;
+- `production_ready` remains false until owner accepts the integrated editor;
+- only one `WORLD_UNITS_PER_MM` is used;
+- pin anchors come from production manifest;
+- battery contacts are at free lead ends, never arbitrary body points;
+- breadboard hole/rail groups participate in netlist;
+- save/reload/checkpoint preserve variants, states and hole bindings;
+- legacy schema-v1/v2 opens additively without data loss;
+- fake numerical success for unsupported candidates is forbidden.
+
+## Owner acceptance flow
+
+The next checkpoint must be shown inside a real project on `localhost:4610`:
+
+1. breadboard 420 on the actual stage;
+2. battery holder 2×AA connected by lead ends to rails;
+3. resistor, LED, tactile button and SPDT snapped into holes;
+4. RGB LED and seven-segment snapped with correct pitch;
+5. resistor bands change from resistance/tolerance;
+6. ordinary LED colour and brightness change;
+7. RGB channels mix;
+8. seven-segment shows `0`, `8`, `A` and arbitrary mask;
+9. internal breadboard connectivity and diagnostics work;
+10. save/reload restores exact positions, variants, state and holes;
+11. immutable checkpoint is created.
+
+Required screenshots come from the real editor:
 
 ```text
-owner audit + production assets + state contracts + breadboard contracts
-26 tests PASS
-web strict typecheck PASS
-full matrix NOT_RUN by owner directive
+library-production
+breadboard-empty
+breadboard-components-snapped
+led-rgb-display-states
+connected-running
+reload-checkpoint
 ```
+
+## Focused checks
+
+Only focused adapter, migration, scale, pin, breadboard, LED/RGB/display state
+and real-editor browser checks run before owner review. Browser collectors must
+report zero unexpected console/page/request/HTTP 5xx errors.
 
 ## Prohibited until owner acceptance
 
 - full repository matrix;
 - merge PR #72;
 - R4-M2;
-- new solver features;
-- PNG or pixel-vector assets in the production editor;
-- guessed or simplified artwork;
-- claiming a component complete because its source file was discovered.
+- new branch;
+- additional permanent Compose projects;
+- claiming standalone labs as integrated product functionality.
 
-After focused asset, state, animation and breadboard checks, deploy the exact SHA
-only to the existing `asa-lab-dev` runtime and stop for owner review.
+Deploy exact final SHA only to the existing `asa-lab-dev`, leave the actual
+Electronics project open and stop for owner review.
