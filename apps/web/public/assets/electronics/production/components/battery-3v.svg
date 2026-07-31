@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="31.423mm" height="56.855mm" viewBox="0 0 31.423 56.855" data-component-id="battery-3v" data-provenance="derived_from_owner_reference" role="img">
+<defs><linearGradient id="case" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#35383a"/><stop offset="1" stop-color="#25282a"/></linearGradient></defs>
+  <g id="leads"><line x1="10.998" y1="0" x2="13.801" y2="7.3911" stroke="#292d30" stroke-width="0.55" stroke-linecap="round"/><line x1="20.4249" y1="0" x2="17.622" y2="7.3911" stroke="#bd1d24" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="holder"><rect x="3.7708" y="7.3911" width="23.8815" height="43.2098" rx="1.5" fill="url(#case)"/><g id="cell-1"><rect x="4.1208" y="8.6912" width="11.4157" height="40.6098" rx="1" fill="#2f7e84"/><rect x="4.1208" y="32.4528" width="11.4157" height="10.8025" fill="#47c1c4" opacity=".92"/><rect x="7.5455" y="7.5911" width="4.5663" height="1.4" rx=".25" fill="#b9c0c1"/></g><g id="cell-2"><rect x="15.8865" y="8.6912" width="11.4157" height="40.6098" rx="1" fill="#2f7e84"/><rect x="15.8865" y="32.4528" width="11.4157" height="10.8025" fill="#47c1c4" opacity=".92"/><rect x="19.3112" y="7.5911" width="4.5663" height="1.4" rx=".25" fill="#b9c0c1"/></g></g>
+  <g id="pin-anchors" aria-hidden="true"><circle id="pin-negative" data-pin-id="negative" cx="10.998" cy="0" r="0.06" fill="none"/><circle id="pin-positive" data-pin-id="positive" cx="20.4249" cy="0" r="0.06" fill="none"/></g>
+</svg>

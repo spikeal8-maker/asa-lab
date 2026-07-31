@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="23.524mm" height="66.87mm" viewBox="0 0 23.524 66.87" data-component-id="battery-1.5v" data-provenance="derived_from_owner_reference" role="img">
+<defs><linearGradient id="case" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#35383a"/><stop offset="1" stop-color="#25282a"/></linearGradient></defs>
+  <g id="leads"><line x1="8.2334" y1="0" x2="10.3317" y2="8.6931" stroke="#292d30" stroke-width="0.55" stroke-linecap="round"/><line x1="15.2906" y1="0" x2="13.1923" y2="8.6931" stroke="#bd1d24" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="holder"><rect x="2.8229" y="8.6931" width="17.8782" height="50.8212" rx="1.5" fill="url(#case)"/><g id="cell-1"><rect x="3.1729" y="9.9931" width="17.1782" height="48.2212" rx="1" fill="#2f7e84"/><rect x="3.1729" y="38.1694" width="17.1782" height="12.7053" fill="#47c1c4" opacity=".92"/><rect x="8.3264" y="8.8931" width="6.8713" height="1.4" rx=".25" fill="#b9c0c1"/></g></g>
+  <g id="pin-anchors" aria-hidden="true"><circle id="pin-negative" data-pin-id="negative" cx="8.2334" cy="0" r="0.06" fill="none"/><circle id="pin-positive" data-pin-id="positive" cx="15.2906" cy="0" r="0.06" fill="none"/></g>
+</svg>

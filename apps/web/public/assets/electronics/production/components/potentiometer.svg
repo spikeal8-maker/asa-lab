@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="12.131mm" height="13.66mm" viewBox="0 0 12.131 13.66" data-component-id="potentiometer" data-provenance="derived_from_owner_reference" role="img">
+<g id="leads"><line x1="3.8068" y1="12.9035" x2="3.8068" y2="10.6548" stroke="#777" stroke-width="0.55" stroke-linecap="round"/><line x1="8.3051" y1="12.8756" x2="8.3051" y2="10.6548" stroke="#777" stroke-width="0.55" stroke-linecap="round"/><line x1="6.0559" y1="12.9035" x2="6.0559" y2="10.6548" stroke="#777" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="body"><rect x="1.577" y="2.4588" width="8.9769" height="8.196" rx="1.2" fill="#226aa6" stroke="#174d78" stroke-width=".3"/></g>
+  <g id="knob" data-state-channel="wiper-position" transform-origin="6.0655 6.5568"><circle cx="6.0655" cy="6.5568" r="3.2754" fill="#5ea2d2" stroke="#173e5a" stroke-width=".35"/><path d="M6.0655 6.5568 L4.3672 8.7424" stroke="#172b3a" stroke-width=".7" stroke-linecap="round"/></g>
+  <g id="pin-anchors" aria-hidden="true"><circle id="pin-terminal-1" data-pin-id="terminal-1" cx="3.8068" cy="12.9035" r="0.06" fill="none"/><circle id="pin-terminal-2" data-pin-id="terminal-2" cx="8.3051" cy="12.8756" r="0.06" fill="none"/><circle id="pin-wiper" data-pin-id="wiper" cx="6.0559" cy="12.9035" r="0.06" fill="none"/></g>
+</svg>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { SchematicComponent, SchematicDocument, Terminal } from '../api';
 import { catalogEntry } from './component-catalog';
+import { physicalToWorld } from './production-asset-contracts';
 import type { Point, Viewport } from './workbench-geometry';
 
 export const STAGE_WIDTH = 1600;
@@ -68,9 +69,7 @@ export function initials(name: string): string {
 export function componentTransform(component: SchematicComponent): string {
   const entry = catalogEntry(component.kind);
   if (!entry) return `translate(${component.position.x} ${component.position.y})`;
-  const scale = entry.renderWidth / entry.viewBox.width;
-  const baseWidth = entry.renderWidth;
-  const baseHeight = entry.viewBox.height * scale;
+  const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
   const rotation = component.rotation ?? 0;
   if (rotation === 90)
     return `translate(${component.position.x + baseHeight} ${component.position.y}) rotate(90)`;

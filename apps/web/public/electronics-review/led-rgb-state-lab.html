@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/electronics-review/review.css" />
+  </head>
+  <body>
+    <script type="module">
+      import {
+        loadFoundation,
+        mountShell,
+        reportReady,
+        setStats,
+      } from '/electronics-review/review-common.js';
+
+      const main = mountShell(
+        'led-rgb-state-lab.html',
+        'LED и RGB: typed state lab',
+        'Обычный LED использует owner-пакет для каждого цвета и каждой яркости 0–100. RGB управляется независимыми каналами R/G/B, смешением и четырьмя физическими выводами.',
+      );
+      const { manifest } = await loadFoundation();
+      setStats([
+        ['606', 'LED states'],
+        ['3', 'fault states'],
+        ['4', 'RGB pins'],
+      ]);
+      main.insertAdjacentHTML(
+        'beforeend',
+        `<div class="lab-grid">
+          <aside class="controls">
+            <h2>Обычный LED</h2>
+            <div class="control"><label>Цвет</label><select id="led-colour"><option>red</option><option>orange</option><option>yellow</option><option>green</option><option>blue</option><option>white</option></select></div>
+            <div class="control"><label>Яркость <output id="led-brightness-out">50%</output></label><input id="led-brightness" type="range" min="0" max="100" value="50"/></div>
+            <div class="control"><label>Состояние</label><select id="led-fault"><option value="none">normal</option><option value="reverse">reverse polarity</option><option value="overcurrent">overcurrent</option><option value="burned">burned</option></select></div>
+            <hr style="border:0;border-top:1px solid var(--line);margin:24px 0"/>
+            <h2>RGB LED</h2>
+            ${['red', 'green', 'blue'].map((channel, index) => `<div class="control"><label>${channel.toUpperCase()} <output id="${channel}-out">${index === 0 ? 100 : 0}%</output></label><input id="${channel}" type="range" min="0" max="100" value="${index === 0 ? 100 : 0}"/></div>`).join('')}
+            <div class="control"><label>Common</label><select id="common"><option>common-cathode</option><option>common-anode</option></select></div>
+          </aside>
+          <section class="lab-canvas">
+            <div style="display:flex;align-items:flex-end;gap:100px">
+              <div class="lab-component"><img id="ordinary-led" alt="Ordinary LED state"/><div class="pin-strip"><span class="pin">A · anode</span><span class="pin">K · cathode</span></div><strong id="ordinary-label"></strong></div>
+              <div class="lab-component"><div class="rgb-glow" id="rgb-glow"></div><img src="/assets/electronics/production/components/rgb-led.svg" alt="RGB LED"/><div class="pin-strip"><span class="pin">R</span><span class="pin">COM</span><span class="pin">G</span><span class="pin">B</span></div><strong id="rgb-label"></strong></div>
+            </div>
+          </section>
+        </div>`,
+      );
+      const colour = document.querySelector('#led-colour');
+      const brightness = document.querySelector('#led-brightness');
+      const fault = document.querySelector('#led-fault');
+      const updateLed = () => {
+        const value = Number(brightness.value);
+        const state = fault.value;
+        document.querySelector('#led-brightness-out').textContent = `${value}%`;
+        document.querySelector('#ordinary-led').src =
+          state === 'none'
+            ? `/assets/electronics/production/states/led/${colour.value}/${String(value).padStart(3, '0')}.svg`
+            : `/assets/electronics/production/states/led/special/${state}.svg`;
+        document.querySelector('#ordinary-label').textContent =
+          `${colour.value} · ${value}% · ${state}`;
+      };
+      [colour, brightness, fault].forEach((control) =>
+        control.addEventListener('input', updateLed),
+      );
+      const channels = ['red', 'green', 'blue'].map((id) => document.querySelector(`#${id}`));
+      const updateRgb = () => {
+        const values = channels.map((input) => Number(input.value));
+        channels.forEach((input, index) => {
+          document.querySelector(`#${input.id}-out`).textContent = `${values[index]}%`;
+        });
+        const rgb = values.map((value) => Math.round(value * 2.55));
+        const color = `rgb(${rgb.join(',')})`;
+        document.querySelector('#rgb-glow').style.background = color;
+        document.querySelector('#rgb-glow').style.boxShadow = `0 0 60px ${color}`;
+        document.querySelector('#rgb-label').textContent =
+          `${document.querySelector('#common').value} · R${values[0]} G${values[1]} B${values[2]}`;
+      };
+      [...channels, document.querySelector('#common')].forEach((control) =>
+        control.addEventListener('input', updateRgb),
+      );
+      updateLed();
+      updateRgb();
+      await Promise.all([...document.images].map((image) => image.decode().catch(() => undefined)));
+      reportReady('led-rgb-state-lab');
+    </script>
+  </body>
+</html>

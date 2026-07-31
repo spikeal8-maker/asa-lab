@@ -1,0 +1,981 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="83.0mm" height="55.0mm" viewBox="0 0 83.0 55.0" role="img" aria-label="Alikin Lab medium board: 30 columns and full 30-hole rails.">
+
+  <defs>
+    <linearGradient id="breadboard-medium-reference-420-v6-2-plastic" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f4f2"/><stop offset="0.55" stop-color="#e7e7e4"/><stop offset="1" stop-color="#dcdcd8"/></linearGradient>
+    <linearGradient id="breadboard-medium-reference-420-v6-2-rail-panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f7f5"/><stop offset="1" stop-color="#dfdfdb"/></linearGradient>
+    <linearGradient id="breadboard-medium-reference-420-v6-2-terminal-panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efefec"/><stop offset="1" stop-color="#ddddda"/></linearGradient>
+    <linearGradient id="breadboard-medium-reference-420-v6-2-center-channel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d4d4cf"/><stop offset="0.5" stop-color="#c6c6c1"/><stop offset="1" stop-color="#e8e8e4"/></linearGradient>
+    <radialGradient id="breadboard-medium-reference-420-v6-2-hole-face" cx="34%" cy="27%" r="78%"><stop offset="0" stop-color="#ffffff"/><stop offset="0.27" stop-color="#eef1f0"/><stop offset="0.58" stop-color="#aeb5b4"/><stop offset="0.86" stop-color="#727a79"/><stop offset="1" stop-color="#596160"/></radialGradient>
+    <radialGradient id="breadboard-medium-reference-420-v6-2-hole-inner" cx="44%" cy="38%" r="70%"><stop offset="0" stop-color="#5b5f5e"/><stop offset="0.48" stop-color="#303433"/><stop offset="1" stop-color="#0d1110"/></radialGradient>
+    <g id="breadboard-medium-reference-420-v6-2-hole">
+      <rect x="-0.61" y="-0.56" width="1.22" height="1.16" rx="0.23" fill="#a4aaa8" opacity="0.16"/>
+      <rect x="-0.565" y="-0.565" width="1.13" height="1.13" rx="0.25" fill="url(#breadboard-medium-reference-420-v6-2-hole-face)"/>
+      <rect x="-0.455" y="-0.455" width="0.91" height="0.91" rx="0.20" fill="#cbd0ce" opacity="0.42"/>
+      <rect x="-0.335" y="-0.335" width="0.67" height="0.67" rx="0.16" fill="url(#breadboard-medium-reference-420-v6-2-hole-inner)"/>
+      <ellipse cx="-0.135" cy="-0.155" rx="0.125" ry="0.065" fill="#ffffff" opacity="0.55"/>
+      <path d="M -0.24 0.15 C -0.07 0.31 0.16 0.26 0.27 0.11 C 0.12 0.21 -0.06 0.2 -0.24 0.15 Z" fill="#000000" opacity="0.18"/>
+    </g>
+    <style>
+      .bb-label-breadboard-medium-reference-420-v6-2 { font-family: Arial, Helvetica, sans-serif; font-size: 1.35px; fill: #3d3d3d; }
+      .bb-row-label-breadboard-medium-reference-420-v6-2 { font-family: Arial, Helvetica, sans-serif; font-size: 1.22px; fill: #414141; }
+      .bb-rail-symbol-breadboard-medium-reference-420-v6-2 { font-family: Arial, Helvetica, sans-serif; font-size: 2.1px; font-weight: 400; }
+    </style>
+  </defs>
+
+  <g data-layer="board-base" data-board-id="breadboard-medium-reference-420-v6-2">
+    <rect x="0" y="0" width="83.0" height="55.0" rx="0.55" fill="url(#breadboard-medium-reference-420-v6-2-plastic)" stroke="#c9c9c4" stroke-width="0.12"/>
+    <rect x="0.08" y="0" width="82.8400" height="8.5600" rx="0.45" fill="url(#breadboard-medium-reference-420-v6-2-rail-panel)" opacity="0.97"/>
+    <rect x="0.08" y="46.4400" width="82.8400" height="8.5600" rx="0.45" fill="url(#breadboard-medium-reference-420-v6-2-rail-panel)" opacity="0.97"/>
+    <rect x="0.08" y="8.6600" width="82.8400" height="14.5600" fill="url(#breadboard-medium-reference-420-v6-2-terminal-panel)" opacity="0.88"/>
+    <rect x="0.08" y="29.1100" width="82.8400" height="14.5600" fill="url(#breadboard-medium-reference-420-v6-2-terminal-panel)" opacity="0.74"/>
+    <rect x="0.08" y="25.6900" width="82.8400" height="3.6200" fill="url(#breadboard-medium-reference-420-v6-2-center-channel)" opacity="0.92"/>
+    <line x1="0.08" y1="25.6900" x2="82.9200" y2="25.6900" stroke="#c3c3be" stroke-width="0.09"/>
+    <line x1="0.08" y1="29.3100" x2="82.9200" y2="29.3100" stroke="#f6f6f2" stroke-width="0.08"/>
+    <line x1="0.08" y1="8.5600" x2="82.9200" y2="8.5600" stroke="#c5c5c0" stroke-width="0.10"/>
+    <line x1="0.08" y1="8.6800" x2="82.9200" y2="8.6800" stroke="#fbfbf8" stroke-width="0.07"/>
+    <line x1="0.08" y1="46.4400" x2="82.9200" y2="46.4400" stroke="#c5c5c0" stroke-width="0.10"/>
+    <line x1="0.08" y1="46.5600" x2="82.9200" y2="46.5600" stroke="#fbfbf8" stroke-width="0.07"/>
+  </g>
+  <g data-layer="rail-lines">
+    <line x1="3.4200" y1="1.6700" x2="79.5800" y2="1.6700" stroke="#2f2f2f" stroke-width="0.155"/>
+    <line x1="3.4200" y1="7.6100" x2="79.5800" y2="7.6100" stroke="#d6202d" stroke-width="0.155"/>
+    <line x1="3.4200" y1="47.3900" x2="79.5800" y2="47.3900" stroke="#2f2f2f" stroke-width="0.155"/>
+    <line x1="3.4200" y1="53.3300" x2="79.5800" y2="53.3300" stroke="#d6202d" stroke-width="0.155"/>
+  </g>
+  <g data-layer="rail-symbols">
+    <text x="1.75" y="3.7500" fill="#2f2f2f" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">−</text>
+    <text x="1.75" y="6.7600" fill="#d6202d" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">+</text>
+    <text x="81.0500" y="3.7500" fill="#2f2f2f" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">−</text>
+    <text x="81.0500" y="6.7600" fill="#d6202d" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">+</text>
+    <text x="1.75" y="49.4700" fill="#2f2f2f" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">−</text>
+    <text x="1.75" y="52.4800" fill="#d6202d" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">+</text>
+    <text x="81.0500" y="49.4700" fill="#2f2f2f" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">−</text>
+    <text x="81.0500" y="52.4800" fill="#d6202d" class="bb-rail-symbol-breadboard-medium-reference-420-v6-2" text-anchor="middle">+</text>
+  </g>
+  <g data-layer="holes" data-hole-style="rounded-square-recessed-v6-2">
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="3.3700" data-hole-id="top-negative-01" data-kind="rail" data-rail="negative" data-col="1" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="5.9100" data-hole-id="top-positive-01" data-kind="rail" data-rail="positive" data-col="1" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="49.0900" data-hole-id="bottom-negative-01" data-kind="rail" data-rail="negative" data-col="1" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="51.6300" data-hole-id="bottom-positive-01" data-kind="rail" data-rail="positive" data-col="1" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="3.3700" data-hole-id="top-negative-02" data-kind="rail" data-rail="negative" data-col="2" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="5.9100" data-hole-id="top-positive-02" data-kind="rail" data-rail="positive" data-col="2" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="49.0900" data-hole-id="bottom-negative-02" data-kind="rail" data-rail="negative" data-col="2" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="51.6300" data-hole-id="bottom-positive-02" data-kind="rail" data-rail="positive" data-col="2" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="3.3700" data-hole-id="top-negative-03" data-kind="rail" data-rail="negative" data-col="3" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="5.9100" data-hole-id="top-positive-03" data-kind="rail" data-rail="positive" data-col="3" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="49.0900" data-hole-id="bottom-negative-03" data-kind="rail" data-rail="negative" data-col="3" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="51.6300" data-hole-id="bottom-positive-03" data-kind="rail" data-rail="positive" data-col="3" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="3.3700" data-hole-id="top-negative-04" data-kind="rail" data-rail="negative" data-col="4" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="5.9100" data-hole-id="top-positive-04" data-kind="rail" data-rail="positive" data-col="4" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="49.0900" data-hole-id="bottom-negative-04" data-kind="rail" data-rail="negative" data-col="4" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="51.6300" data-hole-id="bottom-positive-04" data-kind="rail" data-rail="positive" data-col="4" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="3.3700" data-hole-id="top-negative-05" data-kind="rail" data-rail="negative" data-col="5" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="5.9100" data-hole-id="top-positive-05" data-kind="rail" data-rail="positive" data-col="5" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="49.0900" data-hole-id="bottom-negative-05" data-kind="rail" data-rail="negative" data-col="5" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="51.6300" data-hole-id="bottom-positive-05" data-kind="rail" data-rail="positive" data-col="5" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="3.3700" data-hole-id="top-negative-06" data-kind="rail" data-rail="negative" data-col="6" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="5.9100" data-hole-id="top-positive-06" data-kind="rail" data-rail="positive" data-col="6" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="49.0900" data-hole-id="bottom-negative-06" data-kind="rail" data-rail="negative" data-col="6" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="51.6300" data-hole-id="bottom-positive-06" data-kind="rail" data-rail="positive" data-col="6" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="3.3700" data-hole-id="top-negative-07" data-kind="rail" data-rail="negative" data-col="7" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="5.9100" data-hole-id="top-positive-07" data-kind="rail" data-rail="positive" data-col="7" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="49.0900" data-hole-id="bottom-negative-07" data-kind="rail" data-rail="negative" data-col="7" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="51.6300" data-hole-id="bottom-positive-07" data-kind="rail" data-rail="positive" data-col="7" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="3.3700" data-hole-id="top-negative-08" data-kind="rail" data-rail="negative" data-col="8" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="5.9100" data-hole-id="top-positive-08" data-kind="rail" data-rail="positive" data-col="8" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="49.0900" data-hole-id="bottom-negative-08" data-kind="rail" data-rail="negative" data-col="8" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="51.6300" data-hole-id="bottom-positive-08" data-kind="rail" data-rail="positive" data-col="8" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="3.3700" data-hole-id="top-negative-09" data-kind="rail" data-rail="negative" data-col="9" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="5.9100" data-hole-id="top-positive-09" data-kind="rail" data-rail="positive" data-col="9" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="49.0900" data-hole-id="bottom-negative-09" data-kind="rail" data-rail="negative" data-col="9" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="51.6300" data-hole-id="bottom-positive-09" data-kind="rail" data-rail="positive" data-col="9" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="3.3700" data-hole-id="top-negative-10" data-kind="rail" data-rail="negative" data-col="10" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="5.9100" data-hole-id="top-positive-10" data-kind="rail" data-rail="positive" data-col="10" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="49.0900" data-hole-id="bottom-negative-10" data-kind="rail" data-rail="negative" data-col="10" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="51.6300" data-hole-id="bottom-positive-10" data-kind="rail" data-rail="positive" data-col="10" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="3.3700" data-hole-id="top-negative-11" data-kind="rail" data-rail="negative" data-col="11" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="5.9100" data-hole-id="top-positive-11" data-kind="rail" data-rail="positive" data-col="11" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="49.0900" data-hole-id="bottom-negative-11" data-kind="rail" data-rail="negative" data-col="11" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="51.6300" data-hole-id="bottom-positive-11" data-kind="rail" data-rail="positive" data-col="11" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="3.3700" data-hole-id="top-negative-12" data-kind="rail" data-rail="negative" data-col="12" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="5.9100" data-hole-id="top-positive-12" data-kind="rail" data-rail="positive" data-col="12" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="49.0900" data-hole-id="bottom-negative-12" data-kind="rail" data-rail="negative" data-col="12" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="51.6300" data-hole-id="bottom-positive-12" data-kind="rail" data-rail="positive" data-col="12" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="3.3700" data-hole-id="top-negative-13" data-kind="rail" data-rail="negative" data-col="13" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="5.9100" data-hole-id="top-positive-13" data-kind="rail" data-rail="positive" data-col="13" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="49.0900" data-hole-id="bottom-negative-13" data-kind="rail" data-rail="negative" data-col="13" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="51.6300" data-hole-id="bottom-positive-13" data-kind="rail" data-rail="positive" data-col="13" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="3.3700" data-hole-id="top-negative-14" data-kind="rail" data-rail="negative" data-col="14" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="5.9100" data-hole-id="top-positive-14" data-kind="rail" data-rail="positive" data-col="14" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="49.0900" data-hole-id="bottom-negative-14" data-kind="rail" data-rail="negative" data-col="14" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="51.6300" data-hole-id="bottom-positive-14" data-kind="rail" data-rail="positive" data-col="14" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="3.3700" data-hole-id="top-negative-15" data-kind="rail" data-rail="negative" data-col="15" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="5.9100" data-hole-id="top-positive-15" data-kind="rail" data-rail="positive" data-col="15" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="49.0900" data-hole-id="bottom-negative-15" data-kind="rail" data-rail="negative" data-col="15" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="51.6300" data-hole-id="bottom-positive-15" data-kind="rail" data-rail="positive" data-col="15" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="3.3700" data-hole-id="top-negative-16" data-kind="rail" data-rail="negative" data-col="16" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="5.9100" data-hole-id="top-positive-16" data-kind="rail" data-rail="positive" data-col="16" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="49.0900" data-hole-id="bottom-negative-16" data-kind="rail" data-rail="negative" data-col="16" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="51.6300" data-hole-id="bottom-positive-16" data-kind="rail" data-rail="positive" data-col="16" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="3.3700" data-hole-id="top-negative-17" data-kind="rail" data-rail="negative" data-col="17" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="5.9100" data-hole-id="top-positive-17" data-kind="rail" data-rail="positive" data-col="17" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="49.0900" data-hole-id="bottom-negative-17" data-kind="rail" data-rail="negative" data-col="17" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="51.6300" data-hole-id="bottom-positive-17" data-kind="rail" data-rail="positive" data-col="17" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="3.3700" data-hole-id="top-negative-18" data-kind="rail" data-rail="negative" data-col="18" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="5.9100" data-hole-id="top-positive-18" data-kind="rail" data-rail="positive" data-col="18" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="49.0900" data-hole-id="bottom-negative-18" data-kind="rail" data-rail="negative" data-col="18" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="51.6300" data-hole-id="bottom-positive-18" data-kind="rail" data-rail="positive" data-col="18" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="3.3700" data-hole-id="top-negative-19" data-kind="rail" data-rail="negative" data-col="19" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="5.9100" data-hole-id="top-positive-19" data-kind="rail" data-rail="positive" data-col="19" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="49.0900" data-hole-id="bottom-negative-19" data-kind="rail" data-rail="negative" data-col="19" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="51.6300" data-hole-id="bottom-positive-19" data-kind="rail" data-rail="positive" data-col="19" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="3.3700" data-hole-id="top-negative-20" data-kind="rail" data-rail="negative" data-col="20" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="5.9100" data-hole-id="top-positive-20" data-kind="rail" data-rail="positive" data-col="20" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="49.0900" data-hole-id="bottom-negative-20" data-kind="rail" data-rail="negative" data-col="20" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="51.6300" data-hole-id="bottom-positive-20" data-kind="rail" data-rail="positive" data-col="20" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="3.3700" data-hole-id="top-negative-21" data-kind="rail" data-rail="negative" data-col="21" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="5.9100" data-hole-id="top-positive-21" data-kind="rail" data-rail="positive" data-col="21" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="49.0900" data-hole-id="bottom-negative-21" data-kind="rail" data-rail="negative" data-col="21" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="51.6300" data-hole-id="bottom-positive-21" data-kind="rail" data-rail="positive" data-col="21" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="3.3700" data-hole-id="top-negative-22" data-kind="rail" data-rail="negative" data-col="22" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="5.9100" data-hole-id="top-positive-22" data-kind="rail" data-rail="positive" data-col="22" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="49.0900" data-hole-id="bottom-negative-22" data-kind="rail" data-rail="negative" data-col="22" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="51.6300" data-hole-id="bottom-positive-22" data-kind="rail" data-rail="positive" data-col="22" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="3.3700" data-hole-id="top-negative-23" data-kind="rail" data-rail="negative" data-col="23" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="5.9100" data-hole-id="top-positive-23" data-kind="rail" data-rail="positive" data-col="23" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="49.0900" data-hole-id="bottom-negative-23" data-kind="rail" data-rail="negative" data-col="23" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="51.6300" data-hole-id="bottom-positive-23" data-kind="rail" data-rail="positive" data-col="23" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="3.3700" data-hole-id="top-negative-24" data-kind="rail" data-rail="negative" data-col="24" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="5.9100" data-hole-id="top-positive-24" data-kind="rail" data-rail="positive" data-col="24" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="49.0900" data-hole-id="bottom-negative-24" data-kind="rail" data-rail="negative" data-col="24" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="51.6300" data-hole-id="bottom-positive-24" data-kind="rail" data-rail="positive" data-col="24" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="3.3700" data-hole-id="top-negative-25" data-kind="rail" data-rail="negative" data-col="25" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="5.9100" data-hole-id="top-positive-25" data-kind="rail" data-rail="positive" data-col="25" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="49.0900" data-hole-id="bottom-negative-25" data-kind="rail" data-rail="negative" data-col="25" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="51.6300" data-hole-id="bottom-positive-25" data-kind="rail" data-rail="positive" data-col="25" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="3.3700" data-hole-id="top-negative-26" data-kind="rail" data-rail="negative" data-col="26" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="5.9100" data-hole-id="top-positive-26" data-kind="rail" data-rail="positive" data-col="26" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="49.0900" data-hole-id="bottom-negative-26" data-kind="rail" data-rail="negative" data-col="26" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="51.6300" data-hole-id="bottom-positive-26" data-kind="rail" data-rail="positive" data-col="26" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="3.3700" data-hole-id="top-negative-27" data-kind="rail" data-rail="negative" data-col="27" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="5.9100" data-hole-id="top-positive-27" data-kind="rail" data-rail="positive" data-col="27" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="49.0900" data-hole-id="bottom-negative-27" data-kind="rail" data-rail="negative" data-col="27" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="51.6300" data-hole-id="bottom-positive-27" data-kind="rail" data-rail="positive" data-col="27" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="3.3700" data-hole-id="top-negative-28" data-kind="rail" data-rail="negative" data-col="28" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="5.9100" data-hole-id="top-positive-28" data-kind="rail" data-rail="positive" data-col="28" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="49.0900" data-hole-id="bottom-negative-28" data-kind="rail" data-rail="negative" data-col="28" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="51.6300" data-hole-id="bottom-positive-28" data-kind="rail" data-rail="positive" data-col="28" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="3.3700" data-hole-id="top-negative-29" data-kind="rail" data-rail="negative" data-col="29" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="5.9100" data-hole-id="top-positive-29" data-kind="rail" data-rail="positive" data-col="29" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="49.0900" data-hole-id="bottom-negative-29" data-kind="rail" data-rail="negative" data-col="29" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="51.6300" data-hole-id="bottom-positive-29" data-kind="rail" data-rail="positive" data-col="29" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="3.3700" data-hole-id="top-negative-30" data-kind="rail" data-rail="negative" data-col="30" data-group-id="rail-top-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="5.9100" data-hole-id="top-positive-30" data-kind="rail" data-rail="positive" data-col="30" data-group-id="rail-top-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="49.0900" data-hole-id="bottom-negative-30" data-kind="rail" data-rail="negative" data-col="30" data-group-id="rail-bottom-negative"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="51.6300" data-hole-id="bottom-positive-30" data-kind="rail" data-rail="positive" data-col="30" data-group-id="rail-bottom-positive"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="13.5300" data-hole-id="J1" data-kind="terminal" data-row="j" data-col="1" data-group-id="terminal-upper-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="16.0700" data-hole-id="I1" data-kind="terminal" data-row="i" data-col="1" data-group-id="terminal-upper-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="18.6100" data-hole-id="H1" data-kind="terminal" data-row="h" data-col="1" data-group-id="terminal-upper-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="21.1500" data-hole-id="G1" data-kind="terminal" data-row="g" data-col="1" data-group-id="terminal-upper-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="23.6900" data-hole-id="F1" data-kind="terminal" data-row="f" data-col="1" data-group-id="terminal-upper-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="31.3100" data-hole-id="E1" data-kind="terminal" data-row="e" data-col="1" data-group-id="terminal-lower-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="33.8500" data-hole-id="D1" data-kind="terminal" data-row="d" data-col="1" data-group-id="terminal-lower-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="36.3900" data-hole-id="C1" data-kind="terminal" data-row="c" data-col="1" data-group-id="terminal-lower-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="38.9300" data-hole-id="B1" data-kind="terminal" data-row="b" data-col="1" data-group-id="terminal-lower-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="4.6700" y="41.4700" data-hole-id="A1" data-kind="terminal" data-row="a" data-col="1" data-group-id="terminal-lower-01"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="13.5300" data-hole-id="J2" data-kind="terminal" data-row="j" data-col="2" data-group-id="terminal-upper-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="16.0700" data-hole-id="I2" data-kind="terminal" data-row="i" data-col="2" data-group-id="terminal-upper-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="18.6100" data-hole-id="H2" data-kind="terminal" data-row="h" data-col="2" data-group-id="terminal-upper-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="21.1500" data-hole-id="G2" data-kind="terminal" data-row="g" data-col="2" data-group-id="terminal-upper-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="23.6900" data-hole-id="F2" data-kind="terminal" data-row="f" data-col="2" data-group-id="terminal-upper-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="31.3100" data-hole-id="E2" data-kind="terminal" data-row="e" data-col="2" data-group-id="terminal-lower-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="33.8500" data-hole-id="D2" data-kind="terminal" data-row="d" data-col="2" data-group-id="terminal-lower-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="36.3900" data-hole-id="C2" data-kind="terminal" data-row="c" data-col="2" data-group-id="terminal-lower-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="38.9300" data-hole-id="B2" data-kind="terminal" data-row="b" data-col="2" data-group-id="terminal-lower-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="7.2100" y="41.4700" data-hole-id="A2" data-kind="terminal" data-row="a" data-col="2" data-group-id="terminal-lower-02"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="13.5300" data-hole-id="J3" data-kind="terminal" data-row="j" data-col="3" data-group-id="terminal-upper-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="16.0700" data-hole-id="I3" data-kind="terminal" data-row="i" data-col="3" data-group-id="terminal-upper-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="18.6100" data-hole-id="H3" data-kind="terminal" data-row="h" data-col="3" data-group-id="terminal-upper-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="21.1500" data-hole-id="G3" data-kind="terminal" data-row="g" data-col="3" data-group-id="terminal-upper-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="23.6900" data-hole-id="F3" data-kind="terminal" data-row="f" data-col="3" data-group-id="terminal-upper-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="31.3100" data-hole-id="E3" data-kind="terminal" data-row="e" data-col="3" data-group-id="terminal-lower-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="33.8500" data-hole-id="D3" data-kind="terminal" data-row="d" data-col="3" data-group-id="terminal-lower-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="36.3900" data-hole-id="C3" data-kind="terminal" data-row="c" data-col="3" data-group-id="terminal-lower-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="38.9300" data-hole-id="B3" data-kind="terminal" data-row="b" data-col="3" data-group-id="terminal-lower-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="9.7500" y="41.4700" data-hole-id="A3" data-kind="terminal" data-row="a" data-col="3" data-group-id="terminal-lower-03"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="13.5300" data-hole-id="J4" data-kind="terminal" data-row="j" data-col="4" data-group-id="terminal-upper-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="16.0700" data-hole-id="I4" data-kind="terminal" data-row="i" data-col="4" data-group-id="terminal-upper-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="18.6100" data-hole-id="H4" data-kind="terminal" data-row="h" data-col="4" data-group-id="terminal-upper-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="21.1500" data-hole-id="G4" data-kind="terminal" data-row="g" data-col="4" data-group-id="terminal-upper-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="23.6900" data-hole-id="F4" data-kind="terminal" data-row="f" data-col="4" data-group-id="terminal-upper-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="31.3100" data-hole-id="E4" data-kind="terminal" data-row="e" data-col="4" data-group-id="terminal-lower-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="33.8500" data-hole-id="D4" data-kind="terminal" data-row="d" data-col="4" data-group-id="terminal-lower-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="36.3900" data-hole-id="C4" data-kind="terminal" data-row="c" data-col="4" data-group-id="terminal-lower-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="38.9300" data-hole-id="B4" data-kind="terminal" data-row="b" data-col="4" data-group-id="terminal-lower-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="12.2900" y="41.4700" data-hole-id="A4" data-kind="terminal" data-row="a" data-col="4" data-group-id="terminal-lower-04"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="13.5300" data-hole-id="J5" data-kind="terminal" data-row="j" data-col="5" data-group-id="terminal-upper-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="16.0700" data-hole-id="I5" data-kind="terminal" data-row="i" data-col="5" data-group-id="terminal-upper-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="18.6100" data-hole-id="H5" data-kind="terminal" data-row="h" data-col="5" data-group-id="terminal-upper-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="21.1500" data-hole-id="G5" data-kind="terminal" data-row="g" data-col="5" data-group-id="terminal-upper-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="23.6900" data-hole-id="F5" data-kind="terminal" data-row="f" data-col="5" data-group-id="terminal-upper-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="31.3100" data-hole-id="E5" data-kind="terminal" data-row="e" data-col="5" data-group-id="terminal-lower-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="33.8500" data-hole-id="D5" data-kind="terminal" data-row="d" data-col="5" data-group-id="terminal-lower-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="36.3900" data-hole-id="C5" data-kind="terminal" data-row="c" data-col="5" data-group-id="terminal-lower-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="38.9300" data-hole-id="B5" data-kind="terminal" data-row="b" data-col="5" data-group-id="terminal-lower-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="14.8300" y="41.4700" data-hole-id="A5" data-kind="terminal" data-row="a" data-col="5" data-group-id="terminal-lower-05"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="13.5300" data-hole-id="J6" data-kind="terminal" data-row="j" data-col="6" data-group-id="terminal-upper-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="16.0700" data-hole-id="I6" data-kind="terminal" data-row="i" data-col="6" data-group-id="terminal-upper-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="18.6100" data-hole-id="H6" data-kind="terminal" data-row="h" data-col="6" data-group-id="terminal-upper-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="21.1500" data-hole-id="G6" data-kind="terminal" data-row="g" data-col="6" data-group-id="terminal-upper-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="23.6900" data-hole-id="F6" data-kind="terminal" data-row="f" data-col="6" data-group-id="terminal-upper-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="31.3100" data-hole-id="E6" data-kind="terminal" data-row="e" data-col="6" data-group-id="terminal-lower-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="33.8500" data-hole-id="D6" data-kind="terminal" data-row="d" data-col="6" data-group-id="terminal-lower-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="36.3900" data-hole-id="C6" data-kind="terminal" data-row="c" data-col="6" data-group-id="terminal-lower-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="38.9300" data-hole-id="B6" data-kind="terminal" data-row="b" data-col="6" data-group-id="terminal-lower-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="17.3700" y="41.4700" data-hole-id="A6" data-kind="terminal" data-row="a" data-col="6" data-group-id="terminal-lower-06"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="13.5300" data-hole-id="J7" data-kind="terminal" data-row="j" data-col="7" data-group-id="terminal-upper-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="16.0700" data-hole-id="I7" data-kind="terminal" data-row="i" data-col="7" data-group-id="terminal-upper-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="18.6100" data-hole-id="H7" data-kind="terminal" data-row="h" data-col="7" data-group-id="terminal-upper-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="21.1500" data-hole-id="G7" data-kind="terminal" data-row="g" data-col="7" data-group-id="terminal-upper-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="23.6900" data-hole-id="F7" data-kind="terminal" data-row="f" data-col="7" data-group-id="terminal-upper-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="31.3100" data-hole-id="E7" data-kind="terminal" data-row="e" data-col="7" data-group-id="terminal-lower-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="33.8500" data-hole-id="D7" data-kind="terminal" data-row="d" data-col="7" data-group-id="terminal-lower-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="36.3900" data-hole-id="C7" data-kind="terminal" data-row="c" data-col="7" data-group-id="terminal-lower-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="38.9300" data-hole-id="B7" data-kind="terminal" data-row="b" data-col="7" data-group-id="terminal-lower-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="19.9100" y="41.4700" data-hole-id="A7" data-kind="terminal" data-row="a" data-col="7" data-group-id="terminal-lower-07"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="13.5300" data-hole-id="J8" data-kind="terminal" data-row="j" data-col="8" data-group-id="terminal-upper-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="16.0700" data-hole-id="I8" data-kind="terminal" data-row="i" data-col="8" data-group-id="terminal-upper-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="18.6100" data-hole-id="H8" data-kind="terminal" data-row="h" data-col="8" data-group-id="terminal-upper-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="21.1500" data-hole-id="G8" data-kind="terminal" data-row="g" data-col="8" data-group-id="terminal-upper-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="23.6900" data-hole-id="F8" data-kind="terminal" data-row="f" data-col="8" data-group-id="terminal-upper-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="31.3100" data-hole-id="E8" data-kind="terminal" data-row="e" data-col="8" data-group-id="terminal-lower-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="33.8500" data-hole-id="D8" data-kind="terminal" data-row="d" data-col="8" data-group-id="terminal-lower-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="36.3900" data-hole-id="C8" data-kind="terminal" data-row="c" data-col="8" data-group-id="terminal-lower-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="38.9300" data-hole-id="B8" data-kind="terminal" data-row="b" data-col="8" data-group-id="terminal-lower-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="22.4500" y="41.4700" data-hole-id="A8" data-kind="terminal" data-row="a" data-col="8" data-group-id="terminal-lower-08"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="13.5300" data-hole-id="J9" data-kind="terminal" data-row="j" data-col="9" data-group-id="terminal-upper-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="16.0700" data-hole-id="I9" data-kind="terminal" data-row="i" data-col="9" data-group-id="terminal-upper-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="18.6100" data-hole-id="H9" data-kind="terminal" data-row="h" data-col="9" data-group-id="terminal-upper-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="21.1500" data-hole-id="G9" data-kind="terminal" data-row="g" data-col="9" data-group-id="terminal-upper-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="23.6900" data-hole-id="F9" data-kind="terminal" data-row="f" data-col="9" data-group-id="terminal-upper-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="31.3100" data-hole-id="E9" data-kind="terminal" data-row="e" data-col="9" data-group-id="terminal-lower-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="33.8500" data-hole-id="D9" data-kind="terminal" data-row="d" data-col="9" data-group-id="terminal-lower-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="36.3900" data-hole-id="C9" data-kind="terminal" data-row="c" data-col="9" data-group-id="terminal-lower-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="38.9300" data-hole-id="B9" data-kind="terminal" data-row="b" data-col="9" data-group-id="terminal-lower-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="24.9900" y="41.4700" data-hole-id="A9" data-kind="terminal" data-row="a" data-col="9" data-group-id="terminal-lower-09"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="13.5300" data-hole-id="J10" data-kind="terminal" data-row="j" data-col="10" data-group-id="terminal-upper-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="16.0700" data-hole-id="I10" data-kind="terminal" data-row="i" data-col="10" data-group-id="terminal-upper-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="18.6100" data-hole-id="H10" data-kind="terminal" data-row="h" data-col="10" data-group-id="terminal-upper-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="21.1500" data-hole-id="G10" data-kind="terminal" data-row="g" data-col="10" data-group-id="terminal-upper-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="23.6900" data-hole-id="F10" data-kind="terminal" data-row="f" data-col="10" data-group-id="terminal-upper-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="31.3100" data-hole-id="E10" data-kind="terminal" data-row="e" data-col="10" data-group-id="terminal-lower-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="33.8500" data-hole-id="D10" data-kind="terminal" data-row="d" data-col="10" data-group-id="terminal-lower-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="36.3900" data-hole-id="C10" data-kind="terminal" data-row="c" data-col="10" data-group-id="terminal-lower-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="38.9300" data-hole-id="B10" data-kind="terminal" data-row="b" data-col="10" data-group-id="terminal-lower-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="27.5300" y="41.4700" data-hole-id="A10" data-kind="terminal" data-row="a" data-col="10" data-group-id="terminal-lower-10"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="13.5300" data-hole-id="J11" data-kind="terminal" data-row="j" data-col="11" data-group-id="terminal-upper-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="16.0700" data-hole-id="I11" data-kind="terminal" data-row="i" data-col="11" data-group-id="terminal-upper-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="18.6100" data-hole-id="H11" data-kind="terminal" data-row="h" data-col="11" data-group-id="terminal-upper-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="21.1500" data-hole-id="G11" data-kind="terminal" data-row="g" data-col="11" data-group-id="terminal-upper-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="23.6900" data-hole-id="F11" data-kind="terminal" data-row="f" data-col="11" data-group-id="terminal-upper-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="31.3100" data-hole-id="E11" data-kind="terminal" data-row="e" data-col="11" data-group-id="terminal-lower-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="33.8500" data-hole-id="D11" data-kind="terminal" data-row="d" data-col="11" data-group-id="terminal-lower-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="36.3900" data-hole-id="C11" data-kind="terminal" data-row="c" data-col="11" data-group-id="terminal-lower-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="38.9300" data-hole-id="B11" data-kind="terminal" data-row="b" data-col="11" data-group-id="terminal-lower-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="30.0700" y="41.4700" data-hole-id="A11" data-kind="terminal" data-row="a" data-col="11" data-group-id="terminal-lower-11"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="13.5300" data-hole-id="J12" data-kind="terminal" data-row="j" data-col="12" data-group-id="terminal-upper-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="16.0700" data-hole-id="I12" data-kind="terminal" data-row="i" data-col="12" data-group-id="terminal-upper-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="18.6100" data-hole-id="H12" data-kind="terminal" data-row="h" data-col="12" data-group-id="terminal-upper-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="21.1500" data-hole-id="G12" data-kind="terminal" data-row="g" data-col="12" data-group-id="terminal-upper-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="23.6900" data-hole-id="F12" data-kind="terminal" data-row="f" data-col="12" data-group-id="terminal-upper-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="31.3100" data-hole-id="E12" data-kind="terminal" data-row="e" data-col="12" data-group-id="terminal-lower-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="33.8500" data-hole-id="D12" data-kind="terminal" data-row="d" data-col="12" data-group-id="terminal-lower-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="36.3900" data-hole-id="C12" data-kind="terminal" data-row="c" data-col="12" data-group-id="terminal-lower-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="38.9300" data-hole-id="B12" data-kind="terminal" data-row="b" data-col="12" data-group-id="terminal-lower-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="32.6100" y="41.4700" data-hole-id="A12" data-kind="terminal" data-row="a" data-col="12" data-group-id="terminal-lower-12"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="13.5300" data-hole-id="J13" data-kind="terminal" data-row="j" data-col="13" data-group-id="terminal-upper-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="16.0700" data-hole-id="I13" data-kind="terminal" data-row="i" data-col="13" data-group-id="terminal-upper-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="18.6100" data-hole-id="H13" data-kind="terminal" data-row="h" data-col="13" data-group-id="terminal-upper-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="21.1500" data-hole-id="G13" data-kind="terminal" data-row="g" data-col="13" data-group-id="terminal-upper-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="23.6900" data-hole-id="F13" data-kind="terminal" data-row="f" data-col="13" data-group-id="terminal-upper-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="31.3100" data-hole-id="E13" data-kind="terminal" data-row="e" data-col="13" data-group-id="terminal-lower-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="33.8500" data-hole-id="D13" data-kind="terminal" data-row="d" data-col="13" data-group-id="terminal-lower-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="36.3900" data-hole-id="C13" data-kind="terminal" data-row="c" data-col="13" data-group-id="terminal-lower-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="38.9300" data-hole-id="B13" data-kind="terminal" data-row="b" data-col="13" data-group-id="terminal-lower-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="35.1500" y="41.4700" data-hole-id="A13" data-kind="terminal" data-row="a" data-col="13" data-group-id="terminal-lower-13"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="13.5300" data-hole-id="J14" data-kind="terminal" data-row="j" data-col="14" data-group-id="terminal-upper-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="16.0700" data-hole-id="I14" data-kind="terminal" data-row="i" data-col="14" data-group-id="terminal-upper-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="18.6100" data-hole-id="H14" data-kind="terminal" data-row="h" data-col="14" data-group-id="terminal-upper-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="21.1500" data-hole-id="G14" data-kind="terminal" data-row="g" data-col="14" data-group-id="terminal-upper-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="23.6900" data-hole-id="F14" data-kind="terminal" data-row="f" data-col="14" data-group-id="terminal-upper-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="31.3100" data-hole-id="E14" data-kind="terminal" data-row="e" data-col="14" data-group-id="terminal-lower-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="33.8500" data-hole-id="D14" data-kind="terminal" data-row="d" data-col="14" data-group-id="terminal-lower-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="36.3900" data-hole-id="C14" data-kind="terminal" data-row="c" data-col="14" data-group-id="terminal-lower-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="38.9300" data-hole-id="B14" data-kind="terminal" data-row="b" data-col="14" data-group-id="terminal-lower-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="37.6900" y="41.4700" data-hole-id="A14" data-kind="terminal" data-row="a" data-col="14" data-group-id="terminal-lower-14"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="13.5300" data-hole-id="J15" data-kind="terminal" data-row="j" data-col="15" data-group-id="terminal-upper-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="16.0700" data-hole-id="I15" data-kind="terminal" data-row="i" data-col="15" data-group-id="terminal-upper-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="18.6100" data-hole-id="H15" data-kind="terminal" data-row="h" data-col="15" data-group-id="terminal-upper-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="21.1500" data-hole-id="G15" data-kind="terminal" data-row="g" data-col="15" data-group-id="terminal-upper-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="23.6900" data-hole-id="F15" data-kind="terminal" data-row="f" data-col="15" data-group-id="terminal-upper-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="31.3100" data-hole-id="E15" data-kind="terminal" data-row="e" data-col="15" data-group-id="terminal-lower-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="33.8500" data-hole-id="D15" data-kind="terminal" data-row="d" data-col="15" data-group-id="terminal-lower-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="36.3900" data-hole-id="C15" data-kind="terminal" data-row="c" data-col="15" data-group-id="terminal-lower-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="38.9300" data-hole-id="B15" data-kind="terminal" data-row="b" data-col="15" data-group-id="terminal-lower-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="40.2300" y="41.4700" data-hole-id="A15" data-kind="terminal" data-row="a" data-col="15" data-group-id="terminal-lower-15"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="13.5300" data-hole-id="J16" data-kind="terminal" data-row="j" data-col="16" data-group-id="terminal-upper-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="16.0700" data-hole-id="I16" data-kind="terminal" data-row="i" data-col="16" data-group-id="terminal-upper-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="18.6100" data-hole-id="H16" data-kind="terminal" data-row="h" data-col="16" data-group-id="terminal-upper-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="21.1500" data-hole-id="G16" data-kind="terminal" data-row="g" data-col="16" data-group-id="terminal-upper-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="23.6900" data-hole-id="F16" data-kind="terminal" data-row="f" data-col="16" data-group-id="terminal-upper-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="31.3100" data-hole-id="E16" data-kind="terminal" data-row="e" data-col="16" data-group-id="terminal-lower-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="33.8500" data-hole-id="D16" data-kind="terminal" data-row="d" data-col="16" data-group-id="terminal-lower-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="36.3900" data-hole-id="C16" data-kind="terminal" data-row="c" data-col="16" data-group-id="terminal-lower-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="38.9300" data-hole-id="B16" data-kind="terminal" data-row="b" data-col="16" data-group-id="terminal-lower-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="42.7700" y="41.4700" data-hole-id="A16" data-kind="terminal" data-row="a" data-col="16" data-group-id="terminal-lower-16"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="13.5300" data-hole-id="J17" data-kind="terminal" data-row="j" data-col="17" data-group-id="terminal-upper-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="16.0700" data-hole-id="I17" data-kind="terminal" data-row="i" data-col="17" data-group-id="terminal-upper-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="18.6100" data-hole-id="H17" data-kind="terminal" data-row="h" data-col="17" data-group-id="terminal-upper-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="21.1500" data-hole-id="G17" data-kind="terminal" data-row="g" data-col="17" data-group-id="terminal-upper-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="23.6900" data-hole-id="F17" data-kind="terminal" data-row="f" data-col="17" data-group-id="terminal-upper-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="31.3100" data-hole-id="E17" data-kind="terminal" data-row="e" data-col="17" data-group-id="terminal-lower-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="33.8500" data-hole-id="D17" data-kind="terminal" data-row="d" data-col="17" data-group-id="terminal-lower-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="36.3900" data-hole-id="C17" data-kind="terminal" data-row="c" data-col="17" data-group-id="terminal-lower-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="38.9300" data-hole-id="B17" data-kind="terminal" data-row="b" data-col="17" data-group-id="terminal-lower-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="45.3100" y="41.4700" data-hole-id="A17" data-kind="terminal" data-row="a" data-col="17" data-group-id="terminal-lower-17"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="13.5300" data-hole-id="J18" data-kind="terminal" data-row="j" data-col="18" data-group-id="terminal-upper-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="16.0700" data-hole-id="I18" data-kind="terminal" data-row="i" data-col="18" data-group-id="terminal-upper-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="18.6100" data-hole-id="H18" data-kind="terminal" data-row="h" data-col="18" data-group-id="terminal-upper-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="21.1500" data-hole-id="G18" data-kind="terminal" data-row="g" data-col="18" data-group-id="terminal-upper-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="23.6900" data-hole-id="F18" data-kind="terminal" data-row="f" data-col="18" data-group-id="terminal-upper-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="31.3100" data-hole-id="E18" data-kind="terminal" data-row="e" data-col="18" data-group-id="terminal-lower-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="33.8500" data-hole-id="D18" data-kind="terminal" data-row="d" data-col="18" data-group-id="terminal-lower-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="36.3900" data-hole-id="C18" data-kind="terminal" data-row="c" data-col="18" data-group-id="terminal-lower-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="38.9300" data-hole-id="B18" data-kind="terminal" data-row="b" data-col="18" data-group-id="terminal-lower-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="47.8500" y="41.4700" data-hole-id="A18" data-kind="terminal" data-row="a" data-col="18" data-group-id="terminal-lower-18"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="13.5300" data-hole-id="J19" data-kind="terminal" data-row="j" data-col="19" data-group-id="terminal-upper-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="16.0700" data-hole-id="I19" data-kind="terminal" data-row="i" data-col="19" data-group-id="terminal-upper-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="18.6100" data-hole-id="H19" data-kind="terminal" data-row="h" data-col="19" data-group-id="terminal-upper-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="21.1500" data-hole-id="G19" data-kind="terminal" data-row="g" data-col="19" data-group-id="terminal-upper-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="23.6900" data-hole-id="F19" data-kind="terminal" data-row="f" data-col="19" data-group-id="terminal-upper-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="31.3100" data-hole-id="E19" data-kind="terminal" data-row="e" data-col="19" data-group-id="terminal-lower-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="33.8500" data-hole-id="D19" data-kind="terminal" data-row="d" data-col="19" data-group-id="terminal-lower-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="36.3900" data-hole-id="C19" data-kind="terminal" data-row="c" data-col="19" data-group-id="terminal-lower-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="38.9300" data-hole-id="B19" data-kind="terminal" data-row="b" data-col="19" data-group-id="terminal-lower-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="50.3900" y="41.4700" data-hole-id="A19" data-kind="terminal" data-row="a" data-col="19" data-group-id="terminal-lower-19"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="13.5300" data-hole-id="J20" data-kind="terminal" data-row="j" data-col="20" data-group-id="terminal-upper-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="16.0700" data-hole-id="I20" data-kind="terminal" data-row="i" data-col="20" data-group-id="terminal-upper-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="18.6100" data-hole-id="H20" data-kind="terminal" data-row="h" data-col="20" data-group-id="terminal-upper-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="21.1500" data-hole-id="G20" data-kind="terminal" data-row="g" data-col="20" data-group-id="terminal-upper-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="23.6900" data-hole-id="F20" data-kind="terminal" data-row="f" data-col="20" data-group-id="terminal-upper-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="31.3100" data-hole-id="E20" data-kind="terminal" data-row="e" data-col="20" data-group-id="terminal-lower-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="33.8500" data-hole-id="D20" data-kind="terminal" data-row="d" data-col="20" data-group-id="terminal-lower-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="36.3900" data-hole-id="C20" data-kind="terminal" data-row="c" data-col="20" data-group-id="terminal-lower-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="38.9300" data-hole-id="B20" data-kind="terminal" data-row="b" data-col="20" data-group-id="terminal-lower-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="52.9300" y="41.4700" data-hole-id="A20" data-kind="terminal" data-row="a" data-col="20" data-group-id="terminal-lower-20"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="13.5300" data-hole-id="J21" data-kind="terminal" data-row="j" data-col="21" data-group-id="terminal-upper-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="16.0700" data-hole-id="I21" data-kind="terminal" data-row="i" data-col="21" data-group-id="terminal-upper-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="18.6100" data-hole-id="H21" data-kind="terminal" data-row="h" data-col="21" data-group-id="terminal-upper-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="21.1500" data-hole-id="G21" data-kind="terminal" data-row="g" data-col="21" data-group-id="terminal-upper-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="23.6900" data-hole-id="F21" data-kind="terminal" data-row="f" data-col="21" data-group-id="terminal-upper-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="31.3100" data-hole-id="E21" data-kind="terminal" data-row="e" data-col="21" data-group-id="terminal-lower-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="33.8500" data-hole-id="D21" data-kind="terminal" data-row="d" data-col="21" data-group-id="terminal-lower-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="36.3900" data-hole-id="C21" data-kind="terminal" data-row="c" data-col="21" data-group-id="terminal-lower-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="38.9300" data-hole-id="B21" data-kind="terminal" data-row="b" data-col="21" data-group-id="terminal-lower-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="55.4700" y="41.4700" data-hole-id="A21" data-kind="terminal" data-row="a" data-col="21" data-group-id="terminal-lower-21"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="13.5300" data-hole-id="J22" data-kind="terminal" data-row="j" data-col="22" data-group-id="terminal-upper-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="16.0700" data-hole-id="I22" data-kind="terminal" data-row="i" data-col="22" data-group-id="terminal-upper-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="18.6100" data-hole-id="H22" data-kind="terminal" data-row="h" data-col="22" data-group-id="terminal-upper-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="21.1500" data-hole-id="G22" data-kind="terminal" data-row="g" data-col="22" data-group-id="terminal-upper-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="23.6900" data-hole-id="F22" data-kind="terminal" data-row="f" data-col="22" data-group-id="terminal-upper-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="31.3100" data-hole-id="E22" data-kind="terminal" data-row="e" data-col="22" data-group-id="terminal-lower-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="33.8500" data-hole-id="D22" data-kind="terminal" data-row="d" data-col="22" data-group-id="terminal-lower-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="36.3900" data-hole-id="C22" data-kind="terminal" data-row="c" data-col="22" data-group-id="terminal-lower-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="38.9300" data-hole-id="B22" data-kind="terminal" data-row="b" data-col="22" data-group-id="terminal-lower-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="58.0100" y="41.4700" data-hole-id="A22" data-kind="terminal" data-row="a" data-col="22" data-group-id="terminal-lower-22"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="13.5300" data-hole-id="J23" data-kind="terminal" data-row="j" data-col="23" data-group-id="terminal-upper-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="16.0700" data-hole-id="I23" data-kind="terminal" data-row="i" data-col="23" data-group-id="terminal-upper-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="18.6100" data-hole-id="H23" data-kind="terminal" data-row="h" data-col="23" data-group-id="terminal-upper-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="21.1500" data-hole-id="G23" data-kind="terminal" data-row="g" data-col="23" data-group-id="terminal-upper-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="23.6900" data-hole-id="F23" data-kind="terminal" data-row="f" data-col="23" data-group-id="terminal-upper-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="31.3100" data-hole-id="E23" data-kind="terminal" data-row="e" data-col="23" data-group-id="terminal-lower-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="33.8500" data-hole-id="D23" data-kind="terminal" data-row="d" data-col="23" data-group-id="terminal-lower-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="36.3900" data-hole-id="C23" data-kind="terminal" data-row="c" data-col="23" data-group-id="terminal-lower-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="38.9300" data-hole-id="B23" data-kind="terminal" data-row="b" data-col="23" data-group-id="terminal-lower-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="60.5500" y="41.4700" data-hole-id="A23" data-kind="terminal" data-row="a" data-col="23" data-group-id="terminal-lower-23"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="13.5300" data-hole-id="J24" data-kind="terminal" data-row="j" data-col="24" data-group-id="terminal-upper-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="16.0700" data-hole-id="I24" data-kind="terminal" data-row="i" data-col="24" data-group-id="terminal-upper-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="18.6100" data-hole-id="H24" data-kind="terminal" data-row="h" data-col="24" data-group-id="terminal-upper-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="21.1500" data-hole-id="G24" data-kind="terminal" data-row="g" data-col="24" data-group-id="terminal-upper-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="23.6900" data-hole-id="F24" data-kind="terminal" data-row="f" data-col="24" data-group-id="terminal-upper-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="31.3100" data-hole-id="E24" data-kind="terminal" data-row="e" data-col="24" data-group-id="terminal-lower-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="33.8500" data-hole-id="D24" data-kind="terminal" data-row="d" data-col="24" data-group-id="terminal-lower-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="36.3900" data-hole-id="C24" data-kind="terminal" data-row="c" data-col="24" data-group-id="terminal-lower-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="38.9300" data-hole-id="B24" data-kind="terminal" data-row="b" data-col="24" data-group-id="terminal-lower-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="63.0900" y="41.4700" data-hole-id="A24" data-kind="terminal" data-row="a" data-col="24" data-group-id="terminal-lower-24"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="13.5300" data-hole-id="J25" data-kind="terminal" data-row="j" data-col="25" data-group-id="terminal-upper-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="16.0700" data-hole-id="I25" data-kind="terminal" data-row="i" data-col="25" data-group-id="terminal-upper-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="18.6100" data-hole-id="H25" data-kind="terminal" data-row="h" data-col="25" data-group-id="terminal-upper-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="21.1500" data-hole-id="G25" data-kind="terminal" data-row="g" data-col="25" data-group-id="terminal-upper-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="23.6900" data-hole-id="F25" data-kind="terminal" data-row="f" data-col="25" data-group-id="terminal-upper-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="31.3100" data-hole-id="E25" data-kind="terminal" data-row="e" data-col="25" data-group-id="terminal-lower-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="33.8500" data-hole-id="D25" data-kind="terminal" data-row="d" data-col="25" data-group-id="terminal-lower-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="36.3900" data-hole-id="C25" data-kind="terminal" data-row="c" data-col="25" data-group-id="terminal-lower-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="38.9300" data-hole-id="B25" data-kind="terminal" data-row="b" data-col="25" data-group-id="terminal-lower-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="65.6300" y="41.4700" data-hole-id="A25" data-kind="terminal" data-row="a" data-col="25" data-group-id="terminal-lower-25"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="13.5300" data-hole-id="J26" data-kind="terminal" data-row="j" data-col="26" data-group-id="terminal-upper-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="16.0700" data-hole-id="I26" data-kind="terminal" data-row="i" data-col="26" data-group-id="terminal-upper-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="18.6100" data-hole-id="H26" data-kind="terminal" data-row="h" data-col="26" data-group-id="terminal-upper-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="21.1500" data-hole-id="G26" data-kind="terminal" data-row="g" data-col="26" data-group-id="terminal-upper-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="23.6900" data-hole-id="F26" data-kind="terminal" data-row="f" data-col="26" data-group-id="terminal-upper-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="31.3100" data-hole-id="E26" data-kind="terminal" data-row="e" data-col="26" data-group-id="terminal-lower-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="33.8500" data-hole-id="D26" data-kind="terminal" data-row="d" data-col="26" data-group-id="terminal-lower-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="36.3900" data-hole-id="C26" data-kind="terminal" data-row="c" data-col="26" data-group-id="terminal-lower-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="38.9300" data-hole-id="B26" data-kind="terminal" data-row="b" data-col="26" data-group-id="terminal-lower-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="68.1700" y="41.4700" data-hole-id="A26" data-kind="terminal" data-row="a" data-col="26" data-group-id="terminal-lower-26"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="13.5300" data-hole-id="J27" data-kind="terminal" data-row="j" data-col="27" data-group-id="terminal-upper-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="16.0700" data-hole-id="I27" data-kind="terminal" data-row="i" data-col="27" data-group-id="terminal-upper-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="18.6100" data-hole-id="H27" data-kind="terminal" data-row="h" data-col="27" data-group-id="terminal-upper-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="21.1500" data-hole-id="G27" data-kind="terminal" data-row="g" data-col="27" data-group-id="terminal-upper-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="23.6900" data-hole-id="F27" data-kind="terminal" data-row="f" data-col="27" data-group-id="terminal-upper-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="31.3100" data-hole-id="E27" data-kind="terminal" data-row="e" data-col="27" data-group-id="terminal-lower-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="33.8500" data-hole-id="D27" data-kind="terminal" data-row="d" data-col="27" data-group-id="terminal-lower-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="36.3900" data-hole-id="C27" data-kind="terminal" data-row="c" data-col="27" data-group-id="terminal-lower-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="38.9300" data-hole-id="B27" data-kind="terminal" data-row="b" data-col="27" data-group-id="terminal-lower-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="70.7100" y="41.4700" data-hole-id="A27" data-kind="terminal" data-row="a" data-col="27" data-group-id="terminal-lower-27"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="13.5300" data-hole-id="J28" data-kind="terminal" data-row="j" data-col="28" data-group-id="terminal-upper-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="16.0700" data-hole-id="I28" data-kind="terminal" data-row="i" data-col="28" data-group-id="terminal-upper-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="18.6100" data-hole-id="H28" data-kind="terminal" data-row="h" data-col="28" data-group-id="terminal-upper-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="21.1500" data-hole-id="G28" data-kind="terminal" data-row="g" data-col="28" data-group-id="terminal-upper-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="23.6900" data-hole-id="F28" data-kind="terminal" data-row="f" data-col="28" data-group-id="terminal-upper-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="31.3100" data-hole-id="E28" data-kind="terminal" data-row="e" data-col="28" data-group-id="terminal-lower-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="33.8500" data-hole-id="D28" data-kind="terminal" data-row="d" data-col="28" data-group-id="terminal-lower-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="36.3900" data-hole-id="C28" data-kind="terminal" data-row="c" data-col="28" data-group-id="terminal-lower-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="38.9300" data-hole-id="B28" data-kind="terminal" data-row="b" data-col="28" data-group-id="terminal-lower-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="73.2500" y="41.4700" data-hole-id="A28" data-kind="terminal" data-row="a" data-col="28" data-group-id="terminal-lower-28"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="13.5300" data-hole-id="J29" data-kind="terminal" data-row="j" data-col="29" data-group-id="terminal-upper-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="16.0700" data-hole-id="I29" data-kind="terminal" data-row="i" data-col="29" data-group-id="terminal-upper-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="18.6100" data-hole-id="H29" data-kind="terminal" data-row="h" data-col="29" data-group-id="terminal-upper-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="21.1500" data-hole-id="G29" data-kind="terminal" data-row="g" data-col="29" data-group-id="terminal-upper-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="23.6900" data-hole-id="F29" data-kind="terminal" data-row="f" data-col="29" data-group-id="terminal-upper-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="31.3100" data-hole-id="E29" data-kind="terminal" data-row="e" data-col="29" data-group-id="terminal-lower-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="33.8500" data-hole-id="D29" data-kind="terminal" data-row="d" data-col="29" data-group-id="terminal-lower-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="36.3900" data-hole-id="C29" data-kind="terminal" data-row="c" data-col="29" data-group-id="terminal-lower-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="38.9300" data-hole-id="B29" data-kind="terminal" data-row="b" data-col="29" data-group-id="terminal-lower-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="75.7900" y="41.4700" data-hole-id="A29" data-kind="terminal" data-row="a" data-col="29" data-group-id="terminal-lower-29"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="13.5300" data-hole-id="J30" data-kind="terminal" data-row="j" data-col="30" data-group-id="terminal-upper-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="16.0700" data-hole-id="I30" data-kind="terminal" data-row="i" data-col="30" data-group-id="terminal-upper-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="18.6100" data-hole-id="H30" data-kind="terminal" data-row="h" data-col="30" data-group-id="terminal-upper-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="21.1500" data-hole-id="G30" data-kind="terminal" data-row="g" data-col="30" data-group-id="terminal-upper-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="23.6900" data-hole-id="F30" data-kind="terminal" data-row="f" data-col="30" data-group-id="terminal-upper-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="31.3100" data-hole-id="E30" data-kind="terminal" data-row="e" data-col="30" data-group-id="terminal-lower-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="33.8500" data-hole-id="D30" data-kind="terminal" data-row="d" data-col="30" data-group-id="terminal-lower-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="36.3900" data-hole-id="C30" data-kind="terminal" data-row="c" data-col="30" data-group-id="terminal-lower-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="38.9300" data-hole-id="B30" data-kind="terminal" data-row="b" data-col="30" data-group-id="terminal-lower-30"/>
+    <use href="#breadboard-medium-reference-420-v6-2-hole" x="78.3300" y="41.4700" data-hole-id="A30" data-kind="terminal" data-row="a" data-col="30" data-group-id="terminal-lower-30"/>
+  </g>
+  <g data-layer="labels">
+    <text x="4.6700" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 4.6700 11.6800)">1</text>
+    <text x="7.2100" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 7.2100 11.6800)">2</text>
+    <text x="9.7500" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 9.7500 11.6800)">3</text>
+    <text x="12.2900" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 12.2900 11.6800)">4</text>
+    <text x="14.8300" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 14.8300 11.6800)">5</text>
+    <text x="17.3700" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 17.3700 11.6800)">6</text>
+    <text x="19.9100" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 19.9100 11.6800)">7</text>
+    <text x="22.4500" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 22.4500 11.6800)">8</text>
+    <text x="24.9900" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 24.9900 11.6800)">9</text>
+    <text x="27.5300" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 27.5300 11.6800)">10</text>
+    <text x="30.0700" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 30.0700 11.6800)">11</text>
+    <text x="32.6100" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 32.6100 11.6800)">12</text>
+    <text x="35.1500" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 35.1500 11.6800)">13</text>
+    <text x="37.6900" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 37.6900 11.6800)">14</text>
+    <text x="40.2300" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 40.2300 11.6800)">15</text>
+    <text x="42.7700" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 42.7700 11.6800)">16</text>
+    <text x="45.3100" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 45.3100 11.6800)">17</text>
+    <text x="47.8500" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 47.8500 11.6800)">18</text>
+    <text x="50.3900" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 50.3900 11.6800)">19</text>
+    <text x="52.9300" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 52.9300 11.6800)">20</text>
+    <text x="55.4700" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 55.4700 11.6800)">21</text>
+    <text x="58.0100" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 58.0100 11.6800)">22</text>
+    <text x="60.5500" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 60.5500 11.6800)">23</text>
+    <text x="63.0900" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 63.0900 11.6800)">24</text>
+    <text x="65.6300" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 65.6300 11.6800)">25</text>
+    <text x="68.1700" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 68.1700 11.6800)">26</text>
+    <text x="70.7100" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 70.7100 11.6800)">27</text>
+    <text x="73.2500" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 73.2500 11.6800)">28</text>
+    <text x="75.7900" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 75.7900 11.6800)">29</text>
+    <text x="78.3300" y="11.6800" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 78.3300 11.6800)">30</text>
+    <text x="4.6700" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 4.6700 43.6200)">1</text>
+    <text x="7.2100" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 7.2100 43.6200)">2</text>
+    <text x="9.7500" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 9.7500 43.6200)">3</text>
+    <text x="12.2900" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 12.2900 43.6200)">4</text>
+    <text x="14.8300" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 14.8300 43.6200)">5</text>
+    <text x="17.3700" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 17.3700 43.6200)">6</text>
+    <text x="19.9100" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 19.9100 43.6200)">7</text>
+    <text x="22.4500" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 22.4500 43.6200)">8</text>
+    <text x="24.9900" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 24.9900 43.6200)">9</text>
+    <text x="27.5300" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 27.5300 43.6200)">10</text>
+    <text x="30.0700" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 30.0700 43.6200)">11</text>
+    <text x="32.6100" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 32.6100 43.6200)">12</text>
+    <text x="35.1500" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 35.1500 43.6200)">13</text>
+    <text x="37.6900" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 37.6900 43.6200)">14</text>
+    <text x="40.2300" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 40.2300 43.6200)">15</text>
+    <text x="42.7700" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 42.7700 43.6200)">16</text>
+    <text x="45.3100" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 45.3100 43.6200)">17</text>
+    <text x="47.8500" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 47.8500 43.6200)">18</text>
+    <text x="50.3900" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 50.3900 43.6200)">19</text>
+    <text x="52.9300" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 52.9300 43.6200)">20</text>
+    <text x="55.4700" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 55.4700 43.6200)">21</text>
+    <text x="58.0100" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 58.0100 43.6200)">22</text>
+    <text x="60.5500" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 60.5500 43.6200)">23</text>
+    <text x="63.0900" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 63.0900 43.6200)">24</text>
+    <text x="65.6300" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 65.6300 43.6200)">25</text>
+    <text x="68.1700" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 68.1700 43.6200)">26</text>
+    <text x="70.7100" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 70.7100 43.6200)">27</text>
+    <text x="73.2500" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 73.2500 43.6200)">28</text>
+    <text x="75.7900" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 75.7900 43.6200)">29</text>
+    <text x="78.3300" y="43.6200" class="bb-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 78.3300 43.6200)">30</text>
+    <text x="1.2500" y="14.0500" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 14.0500)">j</text>
+    <text x="81.7500" y="14.0500" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 14.0500)">j</text>
+    <text x="1.2500" y="16.5900" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 16.5900)">i</text>
+    <text x="81.7500" y="16.5900" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 16.5900)">i</text>
+    <text x="1.2500" y="19.1300" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 19.1300)">h</text>
+    <text x="81.7500" y="19.1300" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 19.1300)">h</text>
+    <text x="1.2500" y="21.6700" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 21.6700)">g</text>
+    <text x="81.7500" y="21.6700" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 21.6700)">g</text>
+    <text x="1.2500" y="24.2100" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 24.2100)">f</text>
+    <text x="81.7500" y="24.2100" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 24.2100)">f</text>
+    <text x="1.2500" y="31.8300" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 31.8300)">e</text>
+    <text x="81.7500" y="31.8300" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 31.8300)">e</text>
+    <text x="1.2500" y="34.3700" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 34.3700)">d</text>
+    <text x="81.7500" y="34.3700" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 34.3700)">d</text>
+    <text x="1.2500" y="36.9100" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 36.9100)">c</text>
+    <text x="81.7500" y="36.9100" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 36.9100)">c</text>
+    <text x="1.2500" y="39.4500" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 39.4500)">b</text>
+    <text x="81.7500" y="39.4500" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 39.4500)">b</text>
+    <text x="1.2500" y="41.9900" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 1.2500 41.9900)">a</text>
+    <text x="81.7500" y="41.9900" class="bb-row-label-breadboard-medium-reference-420-v6-2" text-anchor="middle" transform="rotate(-90 81.7500 41.9900)">a</text>
+  </g>
+  <g data-layer="snap-points" opacity="0" pointer-events="none">
+    <circle cx="4.6700" cy="13.5300" r="0.2" data-hole-id="J1" data-group-id="terminal-upper-01"/>
+    <circle cx="4.6700" cy="16.0700" r="0.2" data-hole-id="I1" data-group-id="terminal-upper-01"/>
+    <circle cx="4.6700" cy="18.6100" r="0.2" data-hole-id="H1" data-group-id="terminal-upper-01"/>
+    <circle cx="4.6700" cy="21.1500" r="0.2" data-hole-id="G1" data-group-id="terminal-upper-01"/>
+    <circle cx="4.6700" cy="23.6900" r="0.2" data-hole-id="F1" data-group-id="terminal-upper-01"/>
+    <circle cx="4.6700" cy="31.3100" r="0.2" data-hole-id="E1" data-group-id="terminal-lower-01"/>
+    <circle cx="4.6700" cy="33.8500" r="0.2" data-hole-id="D1" data-group-id="terminal-lower-01"/>
+    <circle cx="4.6700" cy="36.3900" r="0.2" data-hole-id="C1" data-group-id="terminal-lower-01"/>
+    <circle cx="4.6700" cy="38.9300" r="0.2" data-hole-id="B1" data-group-id="terminal-lower-01"/>
+    <circle cx="4.6700" cy="41.4700" r="0.2" data-hole-id="A1" data-group-id="terminal-lower-01"/>
+    <circle cx="7.2100" cy="13.5300" r="0.2" data-hole-id="J2" data-group-id="terminal-upper-02"/>
+    <circle cx="7.2100" cy="16.0700" r="0.2" data-hole-id="I2" data-group-id="terminal-upper-02"/>
+    <circle cx="7.2100" cy="18.6100" r="0.2" data-hole-id="H2" data-group-id="terminal-upper-02"/>
+    <circle cx="7.2100" cy="21.1500" r="0.2" data-hole-id="G2" data-group-id="terminal-upper-02"/>
+    <circle cx="7.2100" cy="23.6900" r="0.2" data-hole-id="F2" data-group-id="terminal-upper-02"/>
+    <circle cx="7.2100" cy="31.3100" r="0.2" data-hole-id="E2" data-group-id="terminal-lower-02"/>
+    <circle cx="7.2100" cy="33.8500" r="0.2" data-hole-id="D2" data-group-id="terminal-lower-02"/>
+    <circle cx="7.2100" cy="36.3900" r="0.2" data-hole-id="C2" data-group-id="terminal-lower-02"/>
+    <circle cx="7.2100" cy="38.9300" r="0.2" data-hole-id="B2" data-group-id="terminal-lower-02"/>
+    <circle cx="7.2100" cy="41.4700" r="0.2" data-hole-id="A2" data-group-id="terminal-lower-02"/>
+    <circle cx="9.7500" cy="13.5300" r="0.2" data-hole-id="J3" data-group-id="terminal-upper-03"/>
+    <circle cx="9.7500" cy="16.0700" r="0.2" data-hole-id="I3" data-group-id="terminal-upper-03"/>
+    <circle cx="9.7500" cy="18.6100" r="0.2" data-hole-id="H3" data-group-id="terminal-upper-03"/>
+    <circle cx="9.7500" cy="21.1500" r="0.2" data-hole-id="G3" data-group-id="terminal-upper-03"/>
+    <circle cx="9.7500" cy="23.6900" r="0.2" data-hole-id="F3" data-group-id="terminal-upper-03"/>
+    <circle cx="9.7500" cy="31.3100" r="0.2" data-hole-id="E3" data-group-id="terminal-lower-03"/>
+    <circle cx="9.7500" cy="33.8500" r="0.2" data-hole-id="D3" data-group-id="terminal-lower-03"/>
+    <circle cx="9.7500" cy="36.3900" r="0.2" data-hole-id="C3" data-group-id="terminal-lower-03"/>
+    <circle cx="9.7500" cy="38.9300" r="0.2" data-hole-id="B3" data-group-id="terminal-lower-03"/>
+    <circle cx="9.7500" cy="41.4700" r="0.2" data-hole-id="A3" data-group-id="terminal-lower-03"/>
+    <circle cx="12.2900" cy="13.5300" r="0.2" data-hole-id="J4" data-group-id="terminal-upper-04"/>
+    <circle cx="12.2900" cy="16.0700" r="0.2" data-hole-id="I4" data-group-id="terminal-upper-04"/>
+    <circle cx="12.2900" cy="18.6100" r="0.2" data-hole-id="H4" data-group-id="terminal-upper-04"/>
+    <circle cx="12.2900" cy="21.1500" r="0.2" data-hole-id="G4" data-group-id="terminal-upper-04"/>
+    <circle cx="12.2900" cy="23.6900" r="0.2" data-hole-id="F4" data-group-id="terminal-upper-04"/>
+    <circle cx="12.2900" cy="31.3100" r="0.2" data-hole-id="E4" data-group-id="terminal-lower-04"/>
+    <circle cx="12.2900" cy="33.8500" r="0.2" data-hole-id="D4" data-group-id="terminal-lower-04"/>
+    <circle cx="12.2900" cy="36.3900" r="0.2" data-hole-id="C4" data-group-id="terminal-lower-04"/>
+    <circle cx="12.2900" cy="38.9300" r="0.2" data-hole-id="B4" data-group-id="terminal-lower-04"/>
+    <circle cx="12.2900" cy="41.4700" r="0.2" data-hole-id="A4" data-group-id="terminal-lower-04"/>
+    <circle cx="14.8300" cy="13.5300" r="0.2" data-hole-id="J5" data-group-id="terminal-upper-05"/>
+    <circle cx="14.8300" cy="16.0700" r="0.2" data-hole-id="I5" data-group-id="terminal-upper-05"/>
+    <circle cx="14.8300" cy="18.6100" r="0.2" data-hole-id="H5" data-group-id="terminal-upper-05"/>
+    <circle cx="14.8300" cy="21.1500" r="0.2" data-hole-id="G5" data-group-id="terminal-upper-05"/>
+    <circle cx="14.8300" cy="23.6900" r="0.2" data-hole-id="F5" data-group-id="terminal-upper-05"/>
+    <circle cx="14.8300" cy="31.3100" r="0.2" data-hole-id="E5" data-group-id="terminal-lower-05"/>
+    <circle cx="14.8300" cy="33.8500" r="0.2" data-hole-id="D5" data-group-id="terminal-lower-05"/>
+    <circle cx="14.8300" cy="36.3900" r="0.2" data-hole-id="C5" data-group-id="terminal-lower-05"/>
+    <circle cx="14.8300" cy="38.9300" r="0.2" data-hole-id="B5" data-group-id="terminal-lower-05"/>
+    <circle cx="14.8300" cy="41.4700" r="0.2" data-hole-id="A5" data-group-id="terminal-lower-05"/>
+    <circle cx="17.3700" cy="13.5300" r="0.2" data-hole-id="J6" data-group-id="terminal-upper-06"/>
+    <circle cx="17.3700" cy="16.0700" r="0.2" data-hole-id="I6" data-group-id="terminal-upper-06"/>
+    <circle cx="17.3700" cy="18.6100" r="0.2" data-hole-id="H6" data-group-id="terminal-upper-06"/>
+    <circle cx="17.3700" cy="21.1500" r="0.2" data-hole-id="G6" data-group-id="terminal-upper-06"/>
+    <circle cx="17.3700" cy="23.6900" r="0.2" data-hole-id="F6" data-group-id="terminal-upper-06"/>
+    <circle cx="17.3700" cy="31.3100" r="0.2" data-hole-id="E6" data-group-id="terminal-lower-06"/>
+    <circle cx="17.3700" cy="33.8500" r="0.2" data-hole-id="D6" data-group-id="terminal-lower-06"/>
+    <circle cx="17.3700" cy="36.3900" r="0.2" data-hole-id="C6" data-group-id="terminal-lower-06"/>
+    <circle cx="17.3700" cy="38.9300" r="0.2" data-hole-id="B6" data-group-id="terminal-lower-06"/>
+    <circle cx="17.3700" cy="41.4700" r="0.2" data-hole-id="A6" data-group-id="terminal-lower-06"/>
+    <circle cx="19.9100" cy="13.5300" r="0.2" data-hole-id="J7" data-group-id="terminal-upper-07"/>
+    <circle cx="19.9100" cy="16.0700" r="0.2" data-hole-id="I7" data-group-id="terminal-upper-07"/>
+    <circle cx="19.9100" cy="18.6100" r="0.2" data-hole-id="H7" data-group-id="terminal-upper-07"/>
+    <circle cx="19.9100" cy="21.1500" r="0.2" data-hole-id="G7" data-group-id="terminal-upper-07"/>
+    <circle cx="19.9100" cy="23.6900" r="0.2" data-hole-id="F7" data-group-id="terminal-upper-07"/>
+    <circle cx="19.9100" cy="31.3100" r="0.2" data-hole-id="E7" data-group-id="terminal-lower-07"/>
+    <circle cx="19.9100" cy="33.8500" r="0.2" data-hole-id="D7" data-group-id="terminal-lower-07"/>
+    <circle cx="19.9100" cy="36.3900" r="0.2" data-hole-id="C7" data-group-id="terminal-lower-07"/>
+    <circle cx="19.9100" cy="38.9300" r="0.2" data-hole-id="B7" data-group-id="terminal-lower-07"/>
+    <circle cx="19.9100" cy="41.4700" r="0.2" data-hole-id="A7" data-group-id="terminal-lower-07"/>
+    <circle cx="22.4500" cy="13.5300" r="0.2" data-hole-id="J8" data-group-id="terminal-upper-08"/>
+    <circle cx="22.4500" cy="16.0700" r="0.2" data-hole-id="I8" data-group-id="terminal-upper-08"/>
+    <circle cx="22.4500" cy="18.6100" r="0.2" data-hole-id="H8" data-group-id="terminal-upper-08"/>
+    <circle cx="22.4500" cy="21.1500" r="0.2" data-hole-id="G8" data-group-id="terminal-upper-08"/>
+    <circle cx="22.4500" cy="23.6900" r="0.2" data-hole-id="F8" data-group-id="terminal-upper-08"/>
+    <circle cx="22.4500" cy="31.3100" r="0.2" data-hole-id="E8" data-group-id="terminal-lower-08"/>
+    <circle cx="22.4500" cy="33.8500" r="0.2" data-hole-id="D8" data-group-id="terminal-lower-08"/>
+    <circle cx="22.4500" cy="36.3900" r="0.2" data-hole-id="C8" data-group-id="terminal-lower-08"/>
+    <circle cx="22.4500" cy="38.9300" r="0.2" data-hole-id="B8" data-group-id="terminal-lower-08"/>
+    <circle cx="22.4500" cy="41.4700" r="0.2" data-hole-id="A8" data-group-id="terminal-lower-08"/>
+    <circle cx="24.9900" cy="13.5300" r="0.2" data-hole-id="J9" data-group-id="terminal-upper-09"/>
+    <circle cx="24.9900" cy="16.0700" r="0.2" data-hole-id="I9" data-group-id="terminal-upper-09"/>
+    <circle cx="24.9900" cy="18.6100" r="0.2" data-hole-id="H9" data-group-id="terminal-upper-09"/>
+    <circle cx="24.9900" cy="21.1500" r="0.2" data-hole-id="G9" data-group-id="terminal-upper-09"/>
+    <circle cx="24.9900" cy="23.6900" r="0.2" data-hole-id="F9" data-group-id="terminal-upper-09"/>
+    <circle cx="24.9900" cy="31.3100" r="0.2" data-hole-id="E9" data-group-id="terminal-lower-09"/>
+    <circle cx="24.9900" cy="33.8500" r="0.2" data-hole-id="D9" data-group-id="terminal-lower-09"/>
+    <circle cx="24.9900" cy="36.3900" r="0.2" data-hole-id="C9" data-group-id="terminal-lower-09"/>
+    <circle cx="24.9900" cy="38.9300" r="0.2" data-hole-id="B9" data-group-id="terminal-lower-09"/>
+    <circle cx="24.9900" cy="41.4700" r="0.2" data-hole-id="A9" data-group-id="terminal-lower-09"/>
+    <circle cx="27.5300" cy="13.5300" r="0.2" data-hole-id="J10" data-group-id="terminal-upper-10"/>
+    <circle cx="27.5300" cy="16.0700" r="0.2" data-hole-id="I10" data-group-id="terminal-upper-10"/>
+    <circle cx="27.5300" cy="18.6100" r="0.2" data-hole-id="H10" data-group-id="terminal-upper-10"/>
+    <circle cx="27.5300" cy="21.1500" r="0.2" data-hole-id="G10" data-group-id="terminal-upper-10"/>
+    <circle cx="27.5300" cy="23.6900" r="0.2" data-hole-id="F10" data-group-id="terminal-upper-10"/>
+    <circle cx="27.5300" cy="31.3100" r="0.2" data-hole-id="E10" data-group-id="terminal-lower-10"/>
+    <circle cx="27.5300" cy="33.8500" r="0.2" data-hole-id="D10" data-group-id="terminal-lower-10"/>
+    <circle cx="27.5300" cy="36.3900" r="0.2" data-hole-id="C10" data-group-id="terminal-lower-10"/>
+    <circle cx="27.5300" cy="38.9300" r="0.2" data-hole-id="B10" data-group-id="terminal-lower-10"/>
+    <circle cx="27.5300" cy="41.4700" r="0.2" data-hole-id="A10" data-group-id="terminal-lower-10"/>
+    <circle cx="30.0700" cy="13.5300" r="0.2" data-hole-id="J11" data-group-id="terminal-upper-11"/>
+    <circle cx="30.0700" cy="16.0700" r="0.2" data-hole-id="I11" data-group-id="terminal-upper-11"/>
+    <circle cx="30.0700" cy="18.6100" r="0.2" data-hole-id="H11" data-group-id="terminal-upper-11"/>
+    <circle cx="30.0700" cy="21.1500" r="0.2" data-hole-id="G11" data-group-id="terminal-upper-11"/>
+    <circle cx="30.0700" cy="23.6900" r="0.2" data-hole-id="F11" data-group-id="terminal-upper-11"/>
+    <circle cx="30.0700" cy="31.3100" r="0.2" data-hole-id="E11" data-group-id="terminal-lower-11"/>
+    <circle cx="30.0700" cy="33.8500" r="0.2" data-hole-id="D11" data-group-id="terminal-lower-11"/>
+    <circle cx="30.0700" cy="36.3900" r="0.2" data-hole-id="C11" data-group-id="terminal-lower-11"/>
+    <circle cx="30.0700" cy="38.9300" r="0.2" data-hole-id="B11" data-group-id="terminal-lower-11"/>
+    <circle cx="30.0700" cy="41.4700" r="0.2" data-hole-id="A11" data-group-id="terminal-lower-11"/>
+    <circle cx="32.6100" cy="13.5300" r="0.2" data-hole-id="J12" data-group-id="terminal-upper-12"/>
+    <circle cx="32.6100" cy="16.0700" r="0.2" data-hole-id="I12" data-group-id="terminal-upper-12"/>
+    <circle cx="32.6100" cy="18.6100" r="0.2" data-hole-id="H12" data-group-id="terminal-upper-12"/>
+    <circle cx="32.6100" cy="21.1500" r="0.2" data-hole-id="G12" data-group-id="terminal-upper-12"/>
+    <circle cx="32.6100" cy="23.6900" r="0.2" data-hole-id="F12" data-group-id="terminal-upper-12"/>
+    <circle cx="32.6100" cy="31.3100" r="0.2" data-hole-id="E12" data-group-id="terminal-lower-12"/>
+    <circle cx="32.6100" cy="33.8500" r="0.2" data-hole-id="D12" data-group-id="terminal-lower-12"/>
+    <circle cx="32.6100" cy="36.3900" r="0.2" data-hole-id="C12" data-group-id="terminal-lower-12"/>
+    <circle cx="32.6100" cy="38.9300" r="0.2" data-hole-id="B12" data-group-id="terminal-lower-12"/>
+    <circle cx="32.6100" cy="41.4700" r="0.2" data-hole-id="A12" data-group-id="terminal-lower-12"/>
+    <circle cx="35.1500" cy="13.5300" r="0.2" data-hole-id="J13" data-group-id="terminal-upper-13"/>
+    <circle cx="35.1500" cy="16.0700" r="0.2" data-hole-id="I13" data-group-id="terminal-upper-13"/>
+    <circle cx="35.1500" cy="18.6100" r="0.2" data-hole-id="H13" data-group-id="terminal-upper-13"/>
+    <circle cx="35.1500" cy="21.1500" r="0.2" data-hole-id="G13" data-group-id="terminal-upper-13"/>
+    <circle cx="35.1500" cy="23.6900" r="0.2" data-hole-id="F13" data-group-id="terminal-upper-13"/>
+    <circle cx="35.1500" cy="31.3100" r="0.2" data-hole-id="E13" data-group-id="terminal-lower-13"/>
+    <circle cx="35.1500" cy="33.8500" r="0.2" data-hole-id="D13" data-group-id="terminal-lower-13"/>
+    <circle cx="35.1500" cy="36.3900" r="0.2" data-hole-id="C13" data-group-id="terminal-lower-13"/>
+    <circle cx="35.1500" cy="38.9300" r="0.2" data-hole-id="B13" data-group-id="terminal-lower-13"/>
+    <circle cx="35.1500" cy="41.4700" r="0.2" data-hole-id="A13" data-group-id="terminal-lower-13"/>
+    <circle cx="37.6900" cy="13.5300" r="0.2" data-hole-id="J14" data-group-id="terminal-upper-14"/>
+    <circle cx="37.6900" cy="16.0700" r="0.2" data-hole-id="I14" data-group-id="terminal-upper-14"/>
+    <circle cx="37.6900" cy="18.6100" r="0.2" data-hole-id="H14" data-group-id="terminal-upper-14"/>
+    <circle cx="37.6900" cy="21.1500" r="0.2" data-hole-id="G14" data-group-id="terminal-upper-14"/>
+    <circle cx="37.6900" cy="23.6900" r="0.2" data-hole-id="F14" data-group-id="terminal-upper-14"/>
+    <circle cx="37.6900" cy="31.3100" r="0.2" data-hole-id="E14" data-group-id="terminal-lower-14"/>
+    <circle cx="37.6900" cy="33.8500" r="0.2" data-hole-id="D14" data-group-id="terminal-lower-14"/>
+    <circle cx="37.6900" cy="36.3900" r="0.2" data-hole-id="C14" data-group-id="terminal-lower-14"/>
+    <circle cx="37.6900" cy="38.9300" r="0.2" data-hole-id="B14" data-group-id="terminal-lower-14"/>
+    <circle cx="37.6900" cy="41.4700" r="0.2" data-hole-id="A14" data-group-id="terminal-lower-14"/>
+    <circle cx="40.2300" cy="13.5300" r="0.2" data-hole-id="J15" data-group-id="terminal-upper-15"/>
+    <circle cx="40.2300" cy="16.0700" r="0.2" data-hole-id="I15" data-group-id="terminal-upper-15"/>
+    <circle cx="40.2300" cy="18.6100" r="0.2" data-hole-id="H15" data-group-id="terminal-upper-15"/>
+    <circle cx="40.2300" cy="21.1500" r="0.2" data-hole-id="G15" data-group-id="terminal-upper-15"/>
+    <circle cx="40.2300" cy="23.6900" r="0.2" data-hole-id="F15" data-group-id="terminal-upper-15"/>
+    <circle cx="40.2300" cy="31.3100" r="0.2" data-hole-id="E15" data-group-id="terminal-lower-15"/>
+    <circle cx="40.2300" cy="33.8500" r="0.2" data-hole-id="D15" data-group-id="terminal-lower-15"/>
+    <circle cx="40.2300" cy="36.3900" r="0.2" data-hole-id="C15" data-group-id="terminal-lower-15"/>
+    <circle cx="40.2300" cy="38.9300" r="0.2" data-hole-id="B15" data-group-id="terminal-lower-15"/>
+    <circle cx="40.2300" cy="41.4700" r="0.2" data-hole-id="A15" data-group-id="terminal-lower-15"/>
+    <circle cx="42.7700" cy="13.5300" r="0.2" data-hole-id="J16" data-group-id="terminal-upper-16"/>
+    <circle cx="42.7700" cy="16.0700" r="0.2" data-hole-id="I16" data-group-id="terminal-upper-16"/>
+    <circle cx="42.7700" cy="18.6100" r="0.2" data-hole-id="H16" data-group-id="terminal-upper-16"/>
+    <circle cx="42.7700" cy="21.1500" r="0.2" data-hole-id="G16" data-group-id="terminal-upper-16"/>
+    <circle cx="42.7700" cy="23.6900" r="0.2" data-hole-id="F16" data-group-id="terminal-upper-16"/>
+    <circle cx="42.7700" cy="31.3100" r="0.2" data-hole-id="E16" data-group-id="terminal-lower-16"/>
+    <circle cx="42.7700" cy="33.8500" r="0.2" data-hole-id="D16" data-group-id="terminal-lower-16"/>
+    <circle cx="42.7700" cy="36.3900" r="0.2" data-hole-id="C16" data-group-id="terminal-lower-16"/>
+    <circle cx="42.7700" cy="38.9300" r="0.2" data-hole-id="B16" data-group-id="terminal-lower-16"/>
+    <circle cx="42.7700" cy="41.4700" r="0.2" data-hole-id="A16" data-group-id="terminal-lower-16"/>
+    <circle cx="45.3100" cy="13.5300" r="0.2" data-hole-id="J17" data-group-id="terminal-upper-17"/>
+    <circle cx="45.3100" cy="16.0700" r="0.2" data-hole-id="I17" data-group-id="terminal-upper-17"/>
+    <circle cx="45.3100" cy="18.6100" r="0.2" data-hole-id="H17" data-group-id="terminal-upper-17"/>
+    <circle cx="45.3100" cy="21.1500" r="0.2" data-hole-id="G17" data-group-id="terminal-upper-17"/>
+    <circle cx="45.3100" cy="23.6900" r="0.2" data-hole-id="F17" data-group-id="terminal-upper-17"/>
+    <circle cx="45.3100" cy="31.3100" r="0.2" data-hole-id="E17" data-group-id="terminal-lower-17"/>
+    <circle cx="45.3100" cy="33.8500" r="0.2" data-hole-id="D17" data-group-id="terminal-lower-17"/>
+    <circle cx="45.3100" cy="36.3900" r="0.2" data-hole-id="C17" data-group-id="terminal-lower-17"/>
+    <circle cx="45.3100" cy="38.9300" r="0.2" data-hole-id="B17" data-group-id="terminal-lower-17"/>
+    <circle cx="45.3100" cy="41.4700" r="0.2" data-hole-id="A17" data-group-id="terminal-lower-17"/>
+    <circle cx="47.8500" cy="13.5300" r="0.2" data-hole-id="J18" data-group-id="terminal-upper-18"/>
+    <circle cx="47.8500" cy="16.0700" r="0.2" data-hole-id="I18" data-group-id="terminal-upper-18"/>
+    <circle cx="47.8500" cy="18.6100" r="0.2" data-hole-id="H18" data-group-id="terminal-upper-18"/>
+    <circle cx="47.8500" cy="21.1500" r="0.2" data-hole-id="G18" data-group-id="terminal-upper-18"/>
+    <circle cx="47.8500" cy="23.6900" r="0.2" data-hole-id="F18" data-group-id="terminal-upper-18"/>
+    <circle cx="47.8500" cy="31.3100" r="0.2" data-hole-id="E18" data-group-id="terminal-lower-18"/>
+    <circle cx="47.8500" cy="33.8500" r="0.2" data-hole-id="D18" data-group-id="terminal-lower-18"/>
+    <circle cx="47.8500" cy="36.3900" r="0.2" data-hole-id="C18" data-group-id="terminal-lower-18"/>
+    <circle cx="47.8500" cy="38.9300" r="0.2" data-hole-id="B18" data-group-id="terminal-lower-18"/>
+    <circle cx="47.8500" cy="41.4700" r="0.2" data-hole-id="A18" data-group-id="terminal-lower-18"/>
+    <circle cx="50.3900" cy="13.5300" r="0.2" data-hole-id="J19" data-group-id="terminal-upper-19"/>
+    <circle cx="50.3900" cy="16.0700" r="0.2" data-hole-id="I19" data-group-id="terminal-upper-19"/>
+    <circle cx="50.3900" cy="18.6100" r="0.2" data-hole-id="H19" data-group-id="terminal-upper-19"/>
+    <circle cx="50.3900" cy="21.1500" r="0.2" data-hole-id="G19" data-group-id="terminal-upper-19"/>
+    <circle cx="50.3900" cy="23.6900" r="0.2" data-hole-id="F19" data-group-id="terminal-upper-19"/>
+    <circle cx="50.3900" cy="31.3100" r="0.2" data-hole-id="E19" data-group-id="terminal-lower-19"/>
+    <circle cx="50.3900" cy="33.8500" r="0.2" data-hole-id="D19" data-group-id="terminal-lower-19"/>
+    <circle cx="50.3900" cy="36.3900" r="0.2" data-hole-id="C19" data-group-id="terminal-lower-19"/>
+    <circle cx="50.3900" cy="38.9300" r="0.2" data-hole-id="B19" data-group-id="terminal-lower-19"/>
+    <circle cx="50.3900" cy="41.4700" r="0.2" data-hole-id="A19" data-group-id="terminal-lower-19"/>
+    <circle cx="52.9300" cy="13.5300" r="0.2" data-hole-id="J20" data-group-id="terminal-upper-20"/>
+    <circle cx="52.9300" cy="16.0700" r="0.2" data-hole-id="I20" data-group-id="terminal-upper-20"/>
+    <circle cx="52.9300" cy="18.6100" r="0.2" data-hole-id="H20" data-group-id="terminal-upper-20"/>
+    <circle cx="52.9300" cy="21.1500" r="0.2" data-hole-id="G20" data-group-id="terminal-upper-20"/>
+    <circle cx="52.9300" cy="23.6900" r="0.2" data-hole-id="F20" data-group-id="terminal-upper-20"/>
+    <circle cx="52.9300" cy="31.3100" r="0.2" data-hole-id="E20" data-group-id="terminal-lower-20"/>
+    <circle cx="52.9300" cy="33.8500" r="0.2" data-hole-id="D20" data-group-id="terminal-lower-20"/>
+    <circle cx="52.9300" cy="36.3900" r="0.2" data-hole-id="C20" data-group-id="terminal-lower-20"/>
+    <circle cx="52.9300" cy="38.9300" r="0.2" data-hole-id="B20" data-group-id="terminal-lower-20"/>
+    <circle cx="52.9300" cy="41.4700" r="0.2" data-hole-id="A20" data-group-id="terminal-lower-20"/>
+    <circle cx="55.4700" cy="13.5300" r="0.2" data-hole-id="J21" data-group-id="terminal-upper-21"/>
+    <circle cx="55.4700" cy="16.0700" r="0.2" data-hole-id="I21" data-group-id="terminal-upper-21"/>
+    <circle cx="55.4700" cy="18.6100" r="0.2" data-hole-id="H21" data-group-id="terminal-upper-21"/>
+    <circle cx="55.4700" cy="21.1500" r="0.2" data-hole-id="G21" data-group-id="terminal-upper-21"/>
+    <circle cx="55.4700" cy="23.6900" r="0.2" data-hole-id="F21" data-group-id="terminal-upper-21"/>
+    <circle cx="55.4700" cy="31.3100" r="0.2" data-hole-id="E21" data-group-id="terminal-lower-21"/>
+    <circle cx="55.4700" cy="33.8500" r="0.2" data-hole-id="D21" data-group-id="terminal-lower-21"/>
+    <circle cx="55.4700" cy="36.3900" r="0.2" data-hole-id="C21" data-group-id="terminal-lower-21"/>
+    <circle cx="55.4700" cy="38.9300" r="0.2" data-hole-id="B21" data-group-id="terminal-lower-21"/>
+    <circle cx="55.4700" cy="41.4700" r="0.2" data-hole-id="A21" data-group-id="terminal-lower-21"/>
+    <circle cx="58.0100" cy="13.5300" r="0.2" data-hole-id="J22" data-group-id="terminal-upper-22"/>
+    <circle cx="58.0100" cy="16.0700" r="0.2" data-hole-id="I22" data-group-id="terminal-upper-22"/>
+    <circle cx="58.0100" cy="18.6100" r="0.2" data-hole-id="H22" data-group-id="terminal-upper-22"/>
+    <circle cx="58.0100" cy="21.1500" r="0.2" data-hole-id="G22" data-group-id="terminal-upper-22"/>
+    <circle cx="58.0100" cy="23.6900" r="0.2" data-hole-id="F22" data-group-id="terminal-upper-22"/>
+    <circle cx="58.0100" cy="31.3100" r="0.2" data-hole-id="E22" data-group-id="terminal-lower-22"/>
+    <circle cx="58.0100" cy="33.8500" r="0.2" data-hole-id="D22" data-group-id="terminal-lower-22"/>
+    <circle cx="58.0100" cy="36.3900" r="0.2" data-hole-id="C22" data-group-id="terminal-lower-22"/>
+    <circle cx="58.0100" cy="38.9300" r="0.2" data-hole-id="B22" data-group-id="terminal-lower-22"/>
+    <circle cx="58.0100" cy="41.4700" r="0.2" data-hole-id="A22" data-group-id="terminal-lower-22"/>
+    <circle cx="60.5500" cy="13.5300" r="0.2" data-hole-id="J23" data-group-id="terminal-upper-23"/>
+    <circle cx="60.5500" cy="16.0700" r="0.2" data-hole-id="I23" data-group-id="terminal-upper-23"/>
+    <circle cx="60.5500" cy="18.6100" r="0.2" data-hole-id="H23" data-group-id="terminal-upper-23"/>
+    <circle cx="60.5500" cy="21.1500" r="0.2" data-hole-id="G23" data-group-id="terminal-upper-23"/>
+    <circle cx="60.5500" cy="23.6900" r="0.2" data-hole-id="F23" data-group-id="terminal-upper-23"/>
+    <circle cx="60.5500" cy="31.3100" r="0.2" data-hole-id="E23" data-group-id="terminal-lower-23"/>
+    <circle cx="60.5500" cy="33.8500" r="0.2" data-hole-id="D23" data-group-id="terminal-lower-23"/>
+    <circle cx="60.5500" cy="36.3900" r="0.2" data-hole-id="C23" data-group-id="terminal-lower-23"/>
+    <circle cx="60.5500" cy="38.9300" r="0.2" data-hole-id="B23" data-group-id="terminal-lower-23"/>
+    <circle cx="60.5500" cy="41.4700" r="0.2" data-hole-id="A23" data-group-id="terminal-lower-23"/>
+    <circle cx="63.0900" cy="13.5300" r="0.2" data-hole-id="J24" data-group-id="terminal-upper-24"/>
+    <circle cx="63.0900" cy="16.0700" r="0.2" data-hole-id="I24" data-group-id="terminal-upper-24"/>
+    <circle cx="63.0900" cy="18.6100" r="0.2" data-hole-id="H24" data-group-id="terminal-upper-24"/>
+    <circle cx="63.0900" cy="21.1500" r="0.2" data-hole-id="G24" data-group-id="terminal-upper-24"/>
+    <circle cx="63.0900" cy="23.6900" r="0.2" data-hole-id="F24" data-group-id="terminal-upper-24"/>
+    <circle cx="63.0900" cy="31.3100" r="0.2" data-hole-id="E24" data-group-id="terminal-lower-24"/>
+    <circle cx="63.0900" cy="33.8500" r="0.2" data-hole-id="D24" data-group-id="terminal-lower-24"/>
+    <circle cx="63.0900" cy="36.3900" r="0.2" data-hole-id="C24" data-group-id="terminal-lower-24"/>
+    <circle cx="63.0900" cy="38.9300" r="0.2" data-hole-id="B24" data-group-id="terminal-lower-24"/>
+    <circle cx="63.0900" cy="41.4700" r="0.2" data-hole-id="A24" data-group-id="terminal-lower-24"/>
+    <circle cx="65.6300" cy="13.5300" r="0.2" data-hole-id="J25" data-group-id="terminal-upper-25"/>
+    <circle cx="65.6300" cy="16.0700" r="0.2" data-hole-id="I25" data-group-id="terminal-upper-25"/>
+    <circle cx="65.6300" cy="18.6100" r="0.2" data-hole-id="H25" data-group-id="terminal-upper-25"/>
+    <circle cx="65.6300" cy="21.1500" r="0.2" data-hole-id="G25" data-group-id="terminal-upper-25"/>
+    <circle cx="65.6300" cy="23.6900" r="0.2" data-hole-id="F25" data-group-id="terminal-upper-25"/>
+    <circle cx="65.6300" cy="31.3100" r="0.2" data-hole-id="E25" data-group-id="terminal-lower-25"/>
+    <circle cx="65.6300" cy="33.8500" r="0.2" data-hole-id="D25" data-group-id="terminal-lower-25"/>
+    <circle cx="65.6300" cy="36.3900" r="0.2" data-hole-id="C25" data-group-id="terminal-lower-25"/>
+    <circle cx="65.6300" cy="38.9300" r="0.2" data-hole-id="B25" data-group-id="terminal-lower-25"/>
+    <circle cx="65.6300" cy="41.4700" r="0.2" data-hole-id="A25" data-group-id="terminal-lower-25"/>
+    <circle cx="68.1700" cy="13.5300" r="0.2" data-hole-id="J26" data-group-id="terminal-upper-26"/>
+    <circle cx="68.1700" cy="16.0700" r="0.2" data-hole-id="I26" data-group-id="terminal-upper-26"/>
+    <circle cx="68.1700" cy="18.6100" r="0.2" data-hole-id="H26" data-group-id="terminal-upper-26"/>
+    <circle cx="68.1700" cy="21.1500" r="0.2" data-hole-id="G26" data-group-id="terminal-upper-26"/>
+    <circle cx="68.1700" cy="23.6900" r="0.2" data-hole-id="F26" data-group-id="terminal-upper-26"/>
+    <circle cx="68.1700" cy="31.3100" r="0.2" data-hole-id="E26" data-group-id="terminal-lower-26"/>
+    <circle cx="68.1700" cy="33.8500" r="0.2" data-hole-id="D26" data-group-id="terminal-lower-26"/>
+    <circle cx="68.1700" cy="36.3900" r="0.2" data-hole-id="C26" data-group-id="terminal-lower-26"/>
+    <circle cx="68.1700" cy="38.9300" r="0.2" data-hole-id="B26" data-group-id="terminal-lower-26"/>
+    <circle cx="68.1700" cy="41.4700" r="0.2" data-hole-id="A26" data-group-id="terminal-lower-26"/>
+    <circle cx="70.7100" cy="13.5300" r="0.2" data-hole-id="J27" data-group-id="terminal-upper-27"/>
+    <circle cx="70.7100" cy="16.0700" r="0.2" data-hole-id="I27" data-group-id="terminal-upper-27"/>
+    <circle cx="70.7100" cy="18.6100" r="0.2" data-hole-id="H27" data-group-id="terminal-upper-27"/>
+    <circle cx="70.7100" cy="21.1500" r="0.2" data-hole-id="G27" data-group-id="terminal-upper-27"/>
+    <circle cx="70.7100" cy="23.6900" r="0.2" data-hole-id="F27" data-group-id="terminal-upper-27"/>
+    <circle cx="70.7100" cy="31.3100" r="0.2" data-hole-id="E27" data-group-id="terminal-lower-27"/>
+    <circle cx="70.7100" cy="33.8500" r="0.2" data-hole-id="D27" data-group-id="terminal-lower-27"/>
+    <circle cx="70.7100" cy="36.3900" r="0.2" data-hole-id="C27" data-group-id="terminal-lower-27"/>
+    <circle cx="70.7100" cy="38.9300" r="0.2" data-hole-id="B27" data-group-id="terminal-lower-27"/>
+    <circle cx="70.7100" cy="41.4700" r="0.2" data-hole-id="A27" data-group-id="terminal-lower-27"/>
+    <circle cx="73.2500" cy="13.5300" r="0.2" data-hole-id="J28" data-group-id="terminal-upper-28"/>
+    <circle cx="73.2500" cy="16.0700" r="0.2" data-hole-id="I28" data-group-id="terminal-upper-28"/>
+    <circle cx="73.2500" cy="18.6100" r="0.2" data-hole-id="H28" data-group-id="terminal-upper-28"/>
+    <circle cx="73.2500" cy="21.1500" r="0.2" data-hole-id="G28" data-group-id="terminal-upper-28"/>
+    <circle cx="73.2500" cy="23.6900" r="0.2" data-hole-id="F28" data-group-id="terminal-upper-28"/>
+    <circle cx="73.2500" cy="31.3100" r="0.2" data-hole-id="E28" data-group-id="terminal-lower-28"/>
+    <circle cx="73.2500" cy="33.8500" r="0.2" data-hole-id="D28" data-group-id="terminal-lower-28"/>
+    <circle cx="73.2500" cy="36.3900" r="0.2" data-hole-id="C28" data-group-id="terminal-lower-28"/>
+    <circle cx="73.2500" cy="38.9300" r="0.2" data-hole-id="B28" data-group-id="terminal-lower-28"/>
+    <circle cx="73.2500" cy="41.4700" r="0.2" data-hole-id="A28" data-group-id="terminal-lower-28"/>
+    <circle cx="75.7900" cy="13.5300" r="0.2" data-hole-id="J29" data-group-id="terminal-upper-29"/>
+    <circle cx="75.7900" cy="16.0700" r="0.2" data-hole-id="I29" data-group-id="terminal-upper-29"/>
+    <circle cx="75.7900" cy="18.6100" r="0.2" data-hole-id="H29" data-group-id="terminal-upper-29"/>
+    <circle cx="75.7900" cy="21.1500" r="0.2" data-hole-id="G29" data-group-id="terminal-upper-29"/>
+    <circle cx="75.7900" cy="23.6900" r="0.2" data-hole-id="F29" data-group-id="terminal-upper-29"/>
+    <circle cx="75.7900" cy="31.3100" r="0.2" data-hole-id="E29" data-group-id="terminal-lower-29"/>
+    <circle cx="75.7900" cy="33.8500" r="0.2" data-hole-id="D29" data-group-id="terminal-lower-29"/>
+    <circle cx="75.7900" cy="36.3900" r="0.2" data-hole-id="C29" data-group-id="terminal-lower-29"/>
+    <circle cx="75.7900" cy="38.9300" r="0.2" data-hole-id="B29" data-group-id="terminal-lower-29"/>
+    <circle cx="75.7900" cy="41.4700" r="0.2" data-hole-id="A29" data-group-id="terminal-lower-29"/>
+    <circle cx="78.3300" cy="13.5300" r="0.2" data-hole-id="J30" data-group-id="terminal-upper-30"/>
+    <circle cx="78.3300" cy="16.0700" r="0.2" data-hole-id="I30" data-group-id="terminal-upper-30"/>
+    <circle cx="78.3300" cy="18.6100" r="0.2" data-hole-id="H30" data-group-id="terminal-upper-30"/>
+    <circle cx="78.3300" cy="21.1500" r="0.2" data-hole-id="G30" data-group-id="terminal-upper-30"/>
+    <circle cx="78.3300" cy="23.6900" r="0.2" data-hole-id="F30" data-group-id="terminal-upper-30"/>
+    <circle cx="78.3300" cy="31.3100" r="0.2" data-hole-id="E30" data-group-id="terminal-lower-30"/>
+    <circle cx="78.3300" cy="33.8500" r="0.2" data-hole-id="D30" data-group-id="terminal-lower-30"/>
+    <circle cx="78.3300" cy="36.3900" r="0.2" data-hole-id="C30" data-group-id="terminal-lower-30"/>
+    <circle cx="78.3300" cy="38.9300" r="0.2" data-hole-id="B30" data-group-id="terminal-lower-30"/>
+    <circle cx="78.3300" cy="41.4700" r="0.2" data-hole-id="A30" data-group-id="terminal-lower-30"/>
+    <circle cx="4.6700" cy="3.3700" r="0.2" data-hole-id="top-negative-01" data-group-id="rail-top-negative"/>
+    <circle cx="4.6700" cy="5.9100" r="0.2" data-hole-id="top-positive-01" data-group-id="rail-top-positive"/>
+    <circle cx="4.6700" cy="49.0900" r="0.2" data-hole-id="bottom-negative-01" data-group-id="rail-bottom-negative"/>
+    <circle cx="4.6700" cy="51.6300" r="0.2" data-hole-id="bottom-positive-01" data-group-id="rail-bottom-positive"/>
+    <circle cx="7.2100" cy="3.3700" r="0.2" data-hole-id="top-negative-02" data-group-id="rail-top-negative"/>
+    <circle cx="7.2100" cy="5.9100" r="0.2" data-hole-id="top-positive-02" data-group-id="rail-top-positive"/>
+    <circle cx="7.2100" cy="49.0900" r="0.2" data-hole-id="bottom-negative-02" data-group-id="rail-bottom-negative"/>
+    <circle cx="7.2100" cy="51.6300" r="0.2" data-hole-id="bottom-positive-02" data-group-id="rail-bottom-positive"/>
+    <circle cx="9.7500" cy="3.3700" r="0.2" data-hole-id="top-negative-03" data-group-id="rail-top-negative"/>
+    <circle cx="9.7500" cy="5.9100" r="0.2" data-hole-id="top-positive-03" data-group-id="rail-top-positive"/>
+    <circle cx="9.7500" cy="49.0900" r="0.2" data-hole-id="bottom-negative-03" data-group-id="rail-bottom-negative"/>
+    <circle cx="9.7500" cy="51.6300" r="0.2" data-hole-id="bottom-positive-03" data-group-id="rail-bottom-positive"/>
+    <circle cx="12.2900" cy="3.3700" r="0.2" data-hole-id="top-negative-04" data-group-id="rail-top-negative"/>
+    <circle cx="12.2900" cy="5.9100" r="0.2" data-hole-id="top-positive-04" data-group-id="rail-top-positive"/>
+    <circle cx="12.2900" cy="49.0900" r="0.2" data-hole-id="bottom-negative-04" data-group-id="rail-bottom-negative"/>
+    <circle cx="12.2900" cy="51.6300" r="0.2" data-hole-id="bottom-positive-04" data-group-id="rail-bottom-positive"/>
+    <circle cx="14.8300" cy="3.3700" r="0.2" data-hole-id="top-negative-05" data-group-id="rail-top-negative"/>
+    <circle cx="14.8300" cy="5.9100" r="0.2" data-hole-id="top-positive-05" data-group-id="rail-top-positive"/>
+    <circle cx="14.8300" cy="49.0900" r="0.2" data-hole-id="bottom-negative-05" data-group-id="rail-bottom-negative"/>
+    <circle cx="14.8300" cy="51.6300" r="0.2" data-hole-id="bottom-positive-05" data-group-id="rail-bottom-positive"/>
+    <circle cx="17.3700" cy="3.3700" r="0.2" data-hole-id="top-negative-06" data-group-id="rail-top-negative"/>
+    <circle cx="17.3700" cy="5.9100" r="0.2" data-hole-id="top-positive-06" data-group-id="rail-top-positive"/>
+    <circle cx="17.3700" cy="49.0900" r="0.2" data-hole-id="bottom-negative-06" data-group-id="rail-bottom-negative"/>
+    <circle cx="17.3700" cy="51.6300" r="0.2" data-hole-id="bottom-positive-06" data-group-id="rail-bottom-positive"/>
+    <circle cx="19.9100" cy="3.3700" r="0.2" data-hole-id="top-negative-07" data-group-id="rail-top-negative"/>
+    <circle cx="19.9100" cy="5.9100" r="0.2" data-hole-id="top-positive-07" data-group-id="rail-top-positive"/>
+    <circle cx="19.9100" cy="49.0900" r="0.2" data-hole-id="bottom-negative-07" data-group-id="rail-bottom-negative"/>
+    <circle cx="19.9100" cy="51.6300" r="0.2" data-hole-id="bottom-positive-07" data-group-id="rail-bottom-positive"/>
+    <circle cx="22.4500" cy="3.3700" r="0.2" data-hole-id="top-negative-08" data-group-id="rail-top-negative"/>
+    <circle cx="22.4500" cy="5.9100" r="0.2" data-hole-id="top-positive-08" data-group-id="rail-top-positive"/>
+    <circle cx="22.4500" cy="49.0900" r="0.2" data-hole-id="bottom-negative-08" data-group-id="rail-bottom-negative"/>
+    <circle cx="22.4500" cy="51.6300" r="0.2" data-hole-id="bottom-positive-08" data-group-id="rail-bottom-positive"/>
+    <circle cx="24.9900" cy="3.3700" r="0.2" data-hole-id="top-negative-09" data-group-id="rail-top-negative"/>
+    <circle cx="24.9900" cy="5.9100" r="0.2" data-hole-id="top-positive-09" data-group-id="rail-top-positive"/>
+    <circle cx="24.9900" cy="49.0900" r="0.2" data-hole-id="bottom-negative-09" data-group-id="rail-bottom-negative"/>
+    <circle cx="24.9900" cy="51.6300" r="0.2" data-hole-id="bottom-positive-09" data-group-id="rail-bottom-positive"/>
+    <circle cx="27.5300" cy="3.3700" r="0.2" data-hole-id="top-negative-10" data-group-id="rail-top-negative"/>
+    <circle cx="27.5300" cy="5.9100" r="0.2" data-hole-id="top-positive-10" data-group-id="rail-top-positive"/>
+    <circle cx="27.5300" cy="49.0900" r="0.2" data-hole-id="bottom-negative-10" data-group-id="rail-bottom-negative"/>
+    <circle cx="27.5300" cy="51.6300" r="0.2" data-hole-id="bottom-positive-10" data-group-id="rail-bottom-positive"/>
+    <circle cx="30.0700" cy="3.3700" r="0.2" data-hole-id="top-negative-11" data-group-id="rail-top-negative"/>
+    <circle cx="30.0700" cy="5.9100" r="0.2" data-hole-id="top-positive-11" data-group-id="rail-top-positive"/>
+    <circle cx="30.0700" cy="49.0900" r="0.2" data-hole-id="bottom-negative-11" data-group-id="rail-bottom-negative"/>
+    <circle cx="30.0700" cy="51.6300" r="0.2" data-hole-id="bottom-positive-11" data-group-id="rail-bottom-positive"/>
+    <circle cx="32.6100" cy="3.3700" r="0.2" data-hole-id="top-negative-12" data-group-id="rail-top-negative"/>
+    <circle cx="32.6100" cy="5.9100" r="0.2" data-hole-id="top-positive-12" data-group-id="rail-top-positive"/>
+    <circle cx="32.6100" cy="49.0900" r="0.2" data-hole-id="bottom-negative-12" data-group-id="rail-bottom-negative"/>
+    <circle cx="32.6100" cy="51.6300" r="0.2" data-hole-id="bottom-positive-12" data-group-id="rail-bottom-positive"/>
+    <circle cx="35.1500" cy="3.3700" r="0.2" data-hole-id="top-negative-13" data-group-id="rail-top-negative"/>
+    <circle cx="35.1500" cy="5.9100" r="0.2" data-hole-id="top-positive-13" data-group-id="rail-top-positive"/>
+    <circle cx="35.1500" cy="49.0900" r="0.2" data-hole-id="bottom-negative-13" data-group-id="rail-bottom-negative"/>
+    <circle cx="35.1500" cy="51.6300" r="0.2" data-hole-id="bottom-positive-13" data-group-id="rail-bottom-positive"/>
+    <circle cx="37.6900" cy="3.3700" r="0.2" data-hole-id="top-negative-14" data-group-id="rail-top-negative"/>
+    <circle cx="37.6900" cy="5.9100" r="0.2" data-hole-id="top-positive-14" data-group-id="rail-top-positive"/>
+    <circle cx="37.6900" cy="49.0900" r="0.2" data-hole-id="bottom-negative-14" data-group-id="rail-bottom-negative"/>
+    <circle cx="37.6900" cy="51.6300" r="0.2" data-hole-id="bottom-positive-14" data-group-id="rail-bottom-positive"/>
+    <circle cx="40.2300" cy="3.3700" r="0.2" data-hole-id="top-negative-15" data-group-id="rail-top-negative"/>
+    <circle cx="40.2300" cy="5.9100" r="0.2" data-hole-id="top-positive-15" data-group-id="rail-top-positive"/>
+    <circle cx="40.2300" cy="49.0900" r="0.2" data-hole-id="bottom-negative-15" data-group-id="rail-bottom-negative"/>
+    <circle cx="40.2300" cy="51.6300" r="0.2" data-hole-id="bottom-positive-15" data-group-id="rail-bottom-positive"/>
+    <circle cx="42.7700" cy="3.3700" r="0.2" data-hole-id="top-negative-16" data-group-id="rail-top-negative"/>
+    <circle cx="42.7700" cy="5.9100" r="0.2" data-hole-id="top-positive-16" data-group-id="rail-top-positive"/>
+    <circle cx="42.7700" cy="49.0900" r="0.2" data-hole-id="bottom-negative-16" data-group-id="rail-bottom-negative"/>
+    <circle cx="42.7700" cy="51.6300" r="0.2" data-hole-id="bottom-positive-16" data-group-id="rail-bottom-positive"/>
+    <circle cx="45.3100" cy="3.3700" r="0.2" data-hole-id="top-negative-17" data-group-id="rail-top-negative"/>
+    <circle cx="45.3100" cy="5.9100" r="0.2" data-hole-id="top-positive-17" data-group-id="rail-top-positive"/>
+    <circle cx="45.3100" cy="49.0900" r="0.2" data-hole-id="bottom-negative-17" data-group-id="rail-bottom-negative"/>
+    <circle cx="45.3100" cy="51.6300" r="0.2" data-hole-id="bottom-positive-17" data-group-id="rail-bottom-positive"/>
+    <circle cx="47.8500" cy="3.3700" r="0.2" data-hole-id="top-negative-18" data-group-id="rail-top-negative"/>
+    <circle cx="47.8500" cy="5.9100" r="0.2" data-hole-id="top-positive-18" data-group-id="rail-top-positive"/>
+    <circle cx="47.8500" cy="49.0900" r="0.2" data-hole-id="bottom-negative-18" data-group-id="rail-bottom-negative"/>
+    <circle cx="47.8500" cy="51.6300" r="0.2" data-hole-id="bottom-positive-18" data-group-id="rail-bottom-positive"/>
+    <circle cx="50.3900" cy="3.3700" r="0.2" data-hole-id="top-negative-19" data-group-id="rail-top-negative"/>
+    <circle cx="50.3900" cy="5.9100" r="0.2" data-hole-id="top-positive-19" data-group-id="rail-top-positive"/>
+    <circle cx="50.3900" cy="49.0900" r="0.2" data-hole-id="bottom-negative-19" data-group-id="rail-bottom-negative"/>
+    <circle cx="50.3900" cy="51.6300" r="0.2" data-hole-id="bottom-positive-19" data-group-id="rail-bottom-positive"/>
+    <circle cx="52.9300" cy="3.3700" r="0.2" data-hole-id="top-negative-20" data-group-id="rail-top-negative"/>
+    <circle cx="52.9300" cy="5.9100" r="0.2" data-hole-id="top-positive-20" data-group-id="rail-top-positive"/>
+    <circle cx="52.9300" cy="49.0900" r="0.2" data-hole-id="bottom-negative-20" data-group-id="rail-bottom-negative"/>
+    <circle cx="52.9300" cy="51.6300" r="0.2" data-hole-id="bottom-positive-20" data-group-id="rail-bottom-positive"/>
+    <circle cx="55.4700" cy="3.3700" r="0.2" data-hole-id="top-negative-21" data-group-id="rail-top-negative"/>
+    <circle cx="55.4700" cy="5.9100" r="0.2" data-hole-id="top-positive-21" data-group-id="rail-top-positive"/>
+    <circle cx="55.4700" cy="49.0900" r="0.2" data-hole-id="bottom-negative-21" data-group-id="rail-bottom-negative"/>
+    <circle cx="55.4700" cy="51.6300" r="0.2" data-hole-id="bottom-positive-21" data-group-id="rail-bottom-positive"/>
+    <circle cx="58.0100" cy="3.3700" r="0.2" data-hole-id="top-negative-22" data-group-id="rail-top-negative"/>
+    <circle cx="58.0100" cy="5.9100" r="0.2" data-hole-id="top-positive-22" data-group-id="rail-top-positive"/>
+    <circle cx="58.0100" cy="49.0900" r="0.2" data-hole-id="bottom-negative-22" data-group-id="rail-bottom-negative"/>
+    <circle cx="58.0100" cy="51.6300" r="0.2" data-hole-id="bottom-positive-22" data-group-id="rail-bottom-positive"/>
+    <circle cx="60.5500" cy="3.3700" r="0.2" data-hole-id="top-negative-23" data-group-id="rail-top-negative"/>
+    <circle cx="60.5500" cy="5.9100" r="0.2" data-hole-id="top-positive-23" data-group-id="rail-top-positive"/>
+    <circle cx="60.5500" cy="49.0900" r="0.2" data-hole-id="bottom-negative-23" data-group-id="rail-bottom-negative"/>
+    <circle cx="60.5500" cy="51.6300" r="0.2" data-hole-id="bottom-positive-23" data-group-id="rail-bottom-positive"/>
+    <circle cx="63.0900" cy="3.3700" r="0.2" data-hole-id="top-negative-24" data-group-id="rail-top-negative"/>
+    <circle cx="63.0900" cy="5.9100" r="0.2" data-hole-id="top-positive-24" data-group-id="rail-top-positive"/>
+    <circle cx="63.0900" cy="49.0900" r="0.2" data-hole-id="bottom-negative-24" data-group-id="rail-bottom-negative"/>
+    <circle cx="63.0900" cy="51.6300" r="0.2" data-hole-id="bottom-positive-24" data-group-id="rail-bottom-positive"/>
+    <circle cx="65.6300" cy="3.3700" r="0.2" data-hole-id="top-negative-25" data-group-id="rail-top-negative"/>
+    <circle cx="65.6300" cy="5.9100" r="0.2" data-hole-id="top-positive-25" data-group-id="rail-top-positive"/>
+    <circle cx="65.6300" cy="49.0900" r="0.2" data-hole-id="bottom-negative-25" data-group-id="rail-bottom-negative"/>
+    <circle cx="65.6300" cy="51.6300" r="0.2" data-hole-id="bottom-positive-25" data-group-id="rail-bottom-positive"/>
+    <circle cx="68.1700" cy="3.3700" r="0.2" data-hole-id="top-negative-26" data-group-id="rail-top-negative"/>
+    <circle cx="68.1700" cy="5.9100" r="0.2" data-hole-id="top-positive-26" data-group-id="rail-top-positive"/>
+    <circle cx="68.1700" cy="49.0900" r="0.2" data-hole-id="bottom-negative-26" data-group-id="rail-bottom-negative"/>
+    <circle cx="68.1700" cy="51.6300" r="0.2" data-hole-id="bottom-positive-26" data-group-id="rail-bottom-positive"/>
+    <circle cx="70.7100" cy="3.3700" r="0.2" data-hole-id="top-negative-27" data-group-id="rail-top-negative"/>
+    <circle cx="70.7100" cy="5.9100" r="0.2" data-hole-id="top-positive-27" data-group-id="rail-top-positive"/>
+    <circle cx="70.7100" cy="49.0900" r="0.2" data-hole-id="bottom-negative-27" data-group-id="rail-bottom-negative"/>
+    <circle cx="70.7100" cy="51.6300" r="0.2" data-hole-id="bottom-positive-27" data-group-id="rail-bottom-positive"/>
+    <circle cx="73.2500" cy="3.3700" r="0.2" data-hole-id="top-negative-28" data-group-id="rail-top-negative"/>
+    <circle cx="73.2500" cy="5.9100" r="0.2" data-hole-id="top-positive-28" data-group-id="rail-top-positive"/>
+    <circle cx="73.2500" cy="49.0900" r="0.2" data-hole-id="bottom-negative-28" data-group-id="rail-bottom-negative"/>
+    <circle cx="73.2500" cy="51.6300" r="0.2" data-hole-id="bottom-positive-28" data-group-id="rail-bottom-positive"/>
+    <circle cx="75.7900" cy="3.3700" r="0.2" data-hole-id="top-negative-29" data-group-id="rail-top-negative"/>
+    <circle cx="75.7900" cy="5.9100" r="0.2" data-hole-id="top-positive-29" data-group-id="rail-top-positive"/>
+    <circle cx="75.7900" cy="49.0900" r="0.2" data-hole-id="bottom-negative-29" data-group-id="rail-bottom-negative"/>
+    <circle cx="75.7900" cy="51.6300" r="0.2" data-hole-id="bottom-positive-29" data-group-id="rail-bottom-positive"/>
+    <circle cx="78.3300" cy="3.3700" r="0.2" data-hole-id="top-negative-30" data-group-id="rail-top-negative"/>
+    <circle cx="78.3300" cy="5.9100" r="0.2" data-hole-id="top-positive-30" data-group-id="rail-top-positive"/>
+    <circle cx="78.3300" cy="49.0900" r="0.2" data-hole-id="bottom-negative-30" data-group-id="rail-bottom-negative"/>
+    <circle cx="78.3300" cy="51.6300" r="0.2" data-hole-id="bottom-positive-30" data-group-id="rail-bottom-positive"/>
+  </g>
+</svg>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/electronics-review/review.css" />
+  </head>
+  <body>
+    <script type="module">
+      import {
+        loadFoundation,
+        mountShell,
+        reportReady,
+        setStats,
+      } from '/electronics-review/review-common.js';
+
+      const main = mountShell(
+        'breadboard-fit-connectivity.html',
+        'Breadboard fit и внутренняя связность',
+        'Модели 170 / 420 / 882 используют шаг 2,54 мм, стабильные hole IDs, реальные контактные группы, разрывы шин, preview footprint и допуск pin-to-hole не более 0,25 мм.',
+      );
+      const { manifest, connectivity } = await loadFoundation();
+      setStats([
+        ['2,54 мм', 'pitch'],
+        ['0,25 мм', 'snap max'],
+        ['1 472', 'holes'],
+      ]);
+      main.insertAdjacentHTML(
+        'beforeend',
+        `<div class="breadboard-layout">
+          <aside class="controls board-side">
+            <h3>Плата</h3><p>Выберите физическую модель. Цветные точки поверх owner SVG — интерактивная netlist-модель.</p>
+            <div class="control"><label>Model</label><select id="board"><option value="breadboard-small">Small · 170</option><option value="breadboard-medium">Medium · 420</option><option value="breadboard-large">Large · 882</option></select></div>
+            <div class="control"><label>Footprint preview</label><select id="footprint"></select></div>
+            <button id="place">Разместить на первых подходящих отверстиях</button>
+            <div class="check-list" id="checks"></div>
+            <p class="mono" id="selection">Нажмите на отверстие, чтобы подсветить внутреннюю группу.</p>
+          </aside>
+          <section class="board-stage"><div class="board-canvas" id="board-canvas"><img id="board-image" alt="Breadboard production SVG"/><div class="holes-layer" id="holes"></div></div></section>
+        </div>`,
+      );
+      const manifestById = new Map(manifest.components.map((item) => [item.componentId, item]));
+      const boardSelect = document.querySelector('#board');
+      const footprintSelect = document.querySelector('#footprint');
+      connectivity.componentFootprints.forEach((footprint) =>
+        footprintSelect.insertAdjacentHTML(
+          'beforeend',
+          `<option value="${footprint.componentId}">${footprint.componentId} · ${footprint.pinOffsetsMm.length} pins</option>`,
+        ),
+      );
+      let currentBoard;
+      let placedIds = [];
+      const renderChecks = () => {
+        document.querySelector('#checks').innerHTML = [
+          ['pitch', `${currentBoard.pitchMm} мм`],
+          ['stable holes', currentBoard.holes.length],
+          ['net groups', Object.keys(currentBoard.groups).length],
+          ['rail groups', currentBoard.powerRailGroups.length],
+          ['rail breaks', currentBoard.railBreaks.length],
+          ['snap tolerance', '≤ 0,25 мм'],
+        ]
+          .map(
+            ([label, value]) =>
+              `<div class="check"><span>${label}</span><strong>${value}</strong></div>`,
+          )
+          .join('');
+      };
+      const highlight = (hole) => {
+        const ids = new Set(currentBoard.groups[hole.groupId] ?? []);
+        document
+          .querySelectorAll('.hole-dot')
+          .forEach((dot) => dot.classList.toggle('connected', ids.has(dot.dataset.id)));
+        document.querySelector('#selection').textContent =
+          `${hole.id} → ${hole.groupId} → ${ids.size} connected holes`;
+      };
+      const renderBoard = async () => {
+        currentBoard = connectivity.boards.find((item) => item.componentId === boardSelect.value);
+        const component = manifestById.get(currentBoard.componentId);
+        const scale = manifest.worldUnitsPerMm;
+        const canvas = document.querySelector('#board-canvas');
+        canvas.style.width = `${currentBoard.physicalWidthMm * scale}px`;
+        canvas.style.height = `${currentBoard.physicalHeightMm * scale}px`;
+        document.querySelector('#board-image').src = component.productionSvg;
+        const layer = document.querySelector('#holes');
+        layer.innerHTML = '';
+        currentBoard.holes.forEach((hole) => {
+          const dot = document.createElement('button');
+          dot.className = 'hole-dot';
+          dot.dataset.id = hole.id;
+          dot.title = `${hole.id} · ${hole.groupId}`;
+          dot.style.left = `${hole.xMm * scale}px`;
+          dot.style.top = `${hole.yMm * scale}px`;
+          dot.addEventListener('click', (event) => {
+            event.stopPropagation();
+            highlight(hole);
+          });
+          layer.append(dot);
+        });
+        placedIds = [];
+        renderChecks();
+        await document
+          .querySelector('#board-image')
+          .decode()
+          .catch(() => undefined);
+      };
+      boardSelect.addEventListener('change', renderBoard);
+      document.querySelector('#place').addEventListener('click', () => {
+        document
+          .querySelectorAll('.hole-dot')
+          .forEach((dot) => dot.classList.remove('placed', 'connected'));
+        const footprint = connectivity.componentFootprints.find(
+          (item) => item.componentId === footprintSelect.value,
+        );
+        const origin =
+          currentBoard.holes.find(
+            (hole) => hole.kind === 'terminal' || hole.kind === 'breadboard-hole',
+          ) ?? currentBoard.holes[0];
+        placedIds = [];
+        for (const [dx, dy] of footprint.pinOffsetsMm) {
+          let best = null;
+          for (const hole of currentBoard.holes) {
+            const error = Math.hypot(hole.xMm - (origin.xMm + dx), hole.yMm - (origin.yMm + dy));
+            if (!best || error < best.error) best = { hole, error };
+          }
+          if (best && best.error <= connectivity.placementRules.snapToleranceMm) {
+            placedIds.push(best.hole.id);
+            document.querySelector(`[data-id="${best.hole.id}"]`)?.classList.add('placed');
+          }
+        }
+        const valid =
+          placedIds.length === footprint.pinOffsetsMm.length &&
+          new Set(placedIds).size === placedIds.length;
+        document.querySelector('#selection').innerHTML = valid
+          ? `<strong style="color:var(--mint)">VALID</strong> ${footprint.componentId}: ${placedIds.join(' · ')} · max error 0,00 мм`
+          : `<strong class="error">INVALID</strong> footprint не помещается в выбранной позиции`;
+      });
+      await renderBoard();
+      reportReady('breadboard-fit-connectivity');
+    </script>
+  </body>
+</html>

@@ -77,6 +77,31 @@ The next live checkpoint must contain:
 4. seven-segment and moving/stateful component laboratory;
 5. breadboard fit and connectivity for representative components.
 
+Implemented review routes:
+
+```text
+/electronics-review/reference-vs-production.html
+/electronics-review/physical-scale.html
+/electronics-review/led-rgb-state-lab.html
+/electronics-review/display-and-motion-state-lab.html
+/electronics-review/breadboard-fit-connectivity.html
+```
+
+The production package currently contains 33 logical entries: 32 transparent
+SVG candidates and the explicit `battery-holder-aa-5 = missing_reference` entry.
+The package contains no accepted editor assets: every candidate remains
+`owner_accepted: false`, `production_ready: false` and
+`libraryEligible: false` until the visual checkpoint is accepted.
+
+Focused evidence for this checkpoint:
+
+```text
+owner audit + production assets + state contracts + breadboard contracts
+23 tests PASS
+web strict typecheck PASS
+full matrix NOT_RUN by owner directive
+```
+
 ## Prohibited until owner acceptance
 
 - full repository matrix;

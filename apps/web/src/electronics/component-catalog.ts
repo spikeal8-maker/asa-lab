@@ -1,5 +1,6 @@
 import type { ComponentKind, Terminal } from '../api';
 import type { PreviewKey } from './component-preview';
+import { physicalToWorld, type PhysicalSizeMm } from './production-asset-contracts';
 
 export type ComponentCategory = 'all' | 'basic' | 'power' | 'inputs' | 'outputs';
 export type ComponentVisualState =
@@ -22,7 +23,7 @@ export interface CatalogEntry {
   readonly asset: string;
   readonly stateAssets?: Partial<Record<ComponentVisualState, string>>;
   readonly viewBox: { readonly width: number; readonly height: number };
-  readonly renderWidth: number;
+  readonly physicalSizeMm: PhysicalSizeMm;
   readonly terminals: Readonly<Partial<Record<Terminal, TerminalSpec>>>;
   readonly defaultValue: number;
   readonly defaultState?: boolean;
@@ -54,7 +55,7 @@ const ACTIVE: readonly CatalogEntry[] = [
     preview: 'source',
     asset: `${ASSET_ROOT}/power-source.svg`,
     viewBox: { width: 485, height: 843 },
-    renderWidth: 118,
+    physicalSizeMm: { width: 23.524, height: 40.846 },
     terminals: { a: { x: 295.5, y: 74, label: '+' }, b: { x: 190.5, y: 74, label: '−' } },
     defaultValue: 5,
     unit: 'В',
@@ -72,7 +73,7 @@ const ACTIVE: readonly CatalogEntry[] = [
     preview: 'resistor',
     asset: `${ASSET_ROOT}/resistor.svg`,
     viewBox: { width: 260, height: 96 },
-    renderWidth: 164,
+    physicalSizeMm: { width: 11.582, height: 4.277 },
     terminals: { a: { x: 12, y: 48, label: '1' }, b: { x: 248, y: 48, label: '2' } },
     defaultValue: 300,
     unit: 'Ом',
@@ -98,7 +99,7 @@ const ACTIVE: readonly CatalogEntry[] = [
       burned: `${ASSET_ROOT}/led-red-burned.svg`,
     },
     viewBox: { width: 240, height: 400 },
-    renderWidth: 92,
+    physicalSizeMm: { width: 7.735, height: 12.892 },
     terminals: { a: { x: 83, y: 372, label: 'A' }, b: { x: 209, y: 372, label: 'K' } },
     defaultValue: 2,
     unit: 'В',
@@ -120,7 +121,7 @@ const ACTIVE: readonly CatalogEntry[] = [
       pressed: `${ASSET_ROOT}/button-down.svg`,
     },
     viewBox: { width: 10, height: 10 },
-    renderWidth: 92,
+    physicalSizeMm: { width: 6, height: 6 },
     terminals: { a: { x: 0.7, y: 5, label: '1' }, b: { x: 9.3, y: 5, label: '2' } },
     defaultValue: 0,
     defaultState: false,
@@ -140,7 +141,7 @@ const ACTIVE: readonly CatalogEntry[] = [
     asset: `${ASSET_ROOT}/switch-left.svg`,
     stateAssets: { default: `${ASSET_ROOT}/switch-left.svg`, on: `${ASSET_ROOT}/switch-right.svg` },
     viewBox: { width: 18, height: 10 },
-    renderWidth: 132,
+    physicalSizeMm: { width: 18, height: 10 },
     terminals: { a: { x: 1.5, y: 9, label: '1' }, b: { x: 16.5, y: 9, label: '2' } },
     defaultValue: 0,
     defaultState: false,
@@ -159,7 +160,7 @@ const ACTIVE: readonly CatalogEntry[] = [
     preview: 'potentiometer',
     asset: `${ASSET_ROOT}/potentiometer.svg`,
     viewBox: { width: 180, height: 140 },
-    renderWidth: 142,
+    physicalSizeMm: { width: 12.131, height: 13.66 },
     terminals: {
       a: { x: 25, y: 127, label: '1' },
       wiper: { x: 90, y: 127, label: 'W' },
@@ -182,7 +183,7 @@ const ACTIVE: readonly CatalogEntry[] = [
     preview: 'diode',
     asset: `${ASSET_ROOT}/diode.svg`,
     viewBox: { width: 220, height: 90 },
-    renderWidth: 160,
+    physicalSizeMm: { width: 20, height: 7 },
     terminals: { a: { x: 10, y: 45, label: 'A' }, b: { x: 210, y: 45, label: 'K' } },
     defaultValue: 0.7,
     unit: 'В',
@@ -205,7 +206,7 @@ const ACTIVE: readonly CatalogEntry[] = [
       lit: `${ASSET_ROOT}/lamp-on.svg`,
     },
     viewBox: { width: 180, height: 180 },
-    renderWidth: 118,
+    physicalSizeMm: { width: 20, height: 30 },
     terminals: { a: { x: 52, y: 166, label: '1' }, b: { x: 128, y: 166, label: '2' } },
     defaultValue: 24,
     unit: 'Ом',
@@ -229,8 +230,7 @@ export function visualAsset(entry: CatalogEntry, state: ComponentVisualState = '
 }
 
 export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number; height: number } {
-  const scale = entry.renderWidth / entry.viewBox.width;
-  const original = { width: entry.renderWidth, height: entry.viewBox.height * scale };
+  const original = physicalToWorld(entry.physicalSizeMm);
   return Math.abs(rotation % 180) === 90
     ? { width: original.height, height: original.width }
     : original;
@@ -245,11 +245,9 @@ export function terminalPosition(
   const entry = catalogEntry(kind);
   const spec = entry?.terminals[terminal];
   if (!entry || !spec) return null;
-  const scale = entry.renderWidth / entry.viewBox.width;
-  const baseWidth = entry.renderWidth;
-  const baseHeight = entry.viewBox.height * scale;
-  const px = spec.x * scale;
-  const py = spec.y * scale;
+  const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
+  const px = (spec.x / entry.viewBox.width) * baseWidth;
+  const py = (spec.y / entry.viewBox.height) * baseHeight;
   const normalized = ((rotation % 360) + 360) % 360;
   if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
   if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };

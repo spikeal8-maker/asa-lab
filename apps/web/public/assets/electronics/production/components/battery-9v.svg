@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="52.667mm" height="26.8mm" viewBox="0 0 52.667 26.8" data-component-id="battery-9v" data-provenance="derived_from_owner_reference" role="img">
+<g id="leads"><line x1="3.323" y1="11.8428" x2="8.4267" y2="11.792" stroke="#292d30" stroke-width="0.55" stroke-linecap="round"/><line x1="3.323" y1="13.9748" x2="8.4267" y2="15.008" stroke="#c51f2b" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="battery-body"><rect x="8.4267" y="1" width="42.6603" height="24.8" rx="1.4" fill="#2d2d2e"/><path d="M8.4267 1 H24.2268 V25.8 H8.4267 Z" fill="#d58b4b"/><rect x="6.8467" y="4.02" width="2.1067" height="18.76" rx=".4" fill="#c8ccce"/></g>
+  <g id="pin-anchors" aria-hidden="true"><circle id="pin-negative" data-pin-id="negative" cx="3.323" cy="11.8428" r="0.06" fill="none"/><circle id="pin-positive" data-pin-id="positive" cx="3.323" cy="13.9748" r="0.06" fill="none"/></g>
+</svg>

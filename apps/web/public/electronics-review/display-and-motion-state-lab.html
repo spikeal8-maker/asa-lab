@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/electronics-review/review.css" />
+  </head>
+  <body>
+    <script type="module">
+      import {
+        inlineSvg,
+        mountShell,
+        reportReady,
+        setStats,
+      } from '/electronics-review/review-common.js';
+
+      const main = mountShell(
+        'display-and-motion-state-lab.html',
+        'Display и motion state lab',
+        'Состояния задаются типизированными каналами, а не декоративной бесконечной анимацией: сегменты и яркость, угол wiper, скорость и направление мотора, угол серво, мощность лампы.',
+      );
+      setStats([
+        ['8', 'segments'],
+        ['0–180°', 'servo'],
+        ['±', 'motor'],
+      ]);
+      main.insertAdjacentHTML(
+        'beforeend',
+        `<section class="motion-grid">
+          <article class="motion-card"><h3>Seven segment</h3><p>Реальные группы a,b,c,d,e,f,g,dp и 10 физических pins.</p><div class="motion-viewport inline-svg" id="segment-svg"></div><div class="control"><label>Glyph <output id="glyph-out">8.</output></label><select id="glyph">${['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'b', 'C', 'd', 'E', 'F'].map((x) => `<option>${x}</option>`).join('')}</select></div><div class="control"><label>Brightness <output id="segment-brightness-out">82%</output></label><input id="segment-brightness" type="range" min="0" max="100" value="82"/></div><label><input id="decimal" type="checkbox" checked/> decimal point</label></article>
+          <article class="motion-card"><h3>Potentiometer</h3><p>Угол ручки точно следует wiper position 0–100%.</p><div class="motion-viewport inline-svg" id="pot-svg"></div><div class="control"><label>Wiper <output id="wiper-out">50% · 0°</output></label><input id="wiper" type="range" min="0" max="100" value="50"/></div></article>
+          <article class="motion-card"><h3>DC motor</h3><p>Speed и direction управляют ротором; 0 означает stopped.</p><div class="motion-viewport inline-svg" id="motor-svg"></div><div class="control"><label>Speed <output id="speed-out">65%</output></label><input id="speed" type="range" min="0" max="100" value="65"/></div><select id="direction"><option value="1">clockwise</option><option value="-1">counterclockwise</option></select></article>
+          <article class="motion-card"><h3>Servo</h3><p>Физический horn ограничен диапазоном 0–180°.</p><div class="motion-viewport inline-svg" id="servo-svg"></div><div class="control"><label>Angle <output id="servo-out">90°</output></label><input id="servo" type="range" min="0" max="180" value="90"/></div></article>
+          <article class="motion-card"><h3>Lamp</h3><p>Четыре power-состояния: off, dim, on, max.</p><div class="motion-viewport"><img id="lamp" src="/assets/electronics/production/states/lamp/off.svg" alt="Lamp state"/></div><div class="control"><label>Power <output id="lamp-out">off</output></label><input id="lamp-power" type="range" min="0" max="100" value="0"/></div></article>
+          <article class="motion-card"><h3>Momentary button</h3><p>Четыре вывода и переход release → press → release.</p><div class="motion-viewport"><img id="button" src="/assets/electronics/production/states/button/released.svg" alt="Button state"/></div><button id="press">Удерживать кнопку</button></article>
+          <article class="motion-card"><h3>SPDT</h3><p>Common соединяется ровно с left либо right.</p><div class="motion-viewport"><img id="switch" src="/assets/electronics/production/states/switch/left.svg" alt="SPDT state"/></div><button id="throw">common → left</button></article>
+        </section>`,
+      );
+      const [segmentSvg, potSvg, motorSvg, servoSvg] = await Promise.all([
+        inlineSvg(
+          '/assets/electronics/production/components/seven-segment-display.svg',
+          document.querySelector('#segment-svg'),
+        ),
+        inlineSvg(
+          '/assets/electronics/production/components/potentiometer.svg',
+          document.querySelector('#pot-svg'),
+        ),
+        inlineSvg(
+          '/assets/electronics/production/components/dc-motor.svg',
+          document.querySelector('#motor-svg'),
+        ),
+        inlineSvg(
+          '/assets/electronics/production/components/servo-motor.svg',
+          document.querySelector('#servo-svg'),
+        ),
+      ]);
+      const masks = {
+        0: 'abcdef',
+        1: 'bc',
+        2: 'abdeg',
+        3: 'abcdg',
+        4: 'bcfg',
+        5: 'acdfg',
+        6: 'acdefg',
+        7: 'abc',
+        8: 'abcdefg',
+        9: 'abcdfg',
+        A: 'abcefg',
+        b: 'cdefg',
+        C: 'adef',
+        d: 'bcdeg',
+        E: 'adefg',
+        F: 'aefg',
+      };
+      const updateSegments = () => {
+        const glyph = document.querySelector('#glyph').value;
+        const brightness = Number(document.querySelector('#segment-brightness').value);
+        const decimal = document.querySelector('#decimal').checked;
+        for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp']) {
+          const active = masks[glyph].includes(id) || (id === 'dp' && decimal);
+          const node = segmentSvg.querySelector(`#seg-${id}`);
+          if (node) {
+            node.style.opacity = active ? String(brightness / 100) : '.08';
+            node.style.filter = active ? 'drop-shadow(0 0 7px #ff322e)' : 'none';
+          }
+        }
+        document.querySelector('#glyph-out').textContent = glyph + (decimal ? '.' : '');
+        document.querySelector('#segment-brightness-out').textContent = `${brightness}%`;
+      };
+      ['glyph', 'segment-brightness', 'decimal'].forEach((id) =>
+        document.querySelector(`#${id}`).addEventListener('input', updateSegments),
+      );
+      const updatePot = () => {
+        const value = Number(document.querySelector('#wiper').value);
+        const angle = -135 + value * 2.7;
+        const knob = potSvg.querySelector('#knob');
+        if (knob) knob.style.transform = `rotate(${angle}deg)`;
+        if (knob) knob.style.transformOrigin = 'center';
+        document.querySelector('#wiper-out').textContent = `${value}% · ${Math.round(angle)}°`;
+      };
+      document.querySelector('#wiper').addEventListener('input', updatePot);
+      const updateMotor = () => {
+        const speed = Number(document.querySelector('#speed').value);
+        const direction = Number(document.querySelector('#direction').value);
+        const rotor = motorSvg.querySelector('#rotor');
+        if (rotor) {
+          rotor.classList.add('rotor-spin');
+          rotor.style.setProperty('--spin-state', speed === 0 ? 'paused' : 'running');
+          rotor.style.setProperty('--spin-duration', `${1.2 - speed / 100}s`);
+          rotor.style.animationDirection = direction === 1 ? 'normal' : 'reverse';
+        }
+        document.querySelector('#speed-out').textContent = `${speed}%`;
+      };
+      ['speed', 'direction'].forEach((id) =>
+        document.querySelector(`#${id}`).addEventListener('input', updateMotor),
+      );
+      const updateServo = () => {
+        const angle = Number(document.querySelector('#servo').value);
+        const horn = servoSvg.querySelector('#horn');
+        if (horn) {
+          horn.style.transformOrigin = 'center';
+          horn.style.transform = `rotate(${angle - 90}deg)`;
+        }
+        document.querySelector('#servo-out').textContent = `${angle}°`;
+      };
+      document.querySelector('#servo').addEventListener('input', updateServo);
+      const lampStates = ['off', 'dim', 'on', 'max'];
+      const updateLamp = () => {
+        const value = Number(document.querySelector('#lamp-power').value);
+        const state = lampStates[Math.min(3, Math.floor(value / 25.01))];
+        document.querySelector('#lamp').src =
+          `/assets/electronics/production/states/lamp/${state}.svg`;
+        document.querySelector('#lamp-out').textContent = state;
+      };
+      document.querySelector('#lamp-power').addEventListener('input', updateLamp);
+      const press = document.querySelector('#press');
+      const setPressed = (value) => {
+        document.querySelector('#button').src =
+          `/assets/electronics/production/states/button/${value ? 'pressed' : 'released'}.svg`;
+      };
+      press.addEventListener('pointerdown', () => setPressed(true));
+      ['pointerup', 'pointerleave'].forEach((event) =>
+        press.addEventListener(event, () => setPressed(false)),
+      );
+      let right = false;
+      document.querySelector('#throw').addEventListener('click', (event) => {
+        right = !right;
+        document.querySelector('#switch').src =
+          `/assets/electronics/production/states/switch/${right ? 'right' : 'left'}.svg`;
+        event.currentTarget.textContent = `common → ${right ? 'right' : 'left'}`;
+      });
+      updateSegments();
+      updatePot();
+      updateMotor();
+      updateServo();
+      updateLamp();
+      reportReady('display-and-motion-state-lab');
+    </script>
+  </body>
+</html>

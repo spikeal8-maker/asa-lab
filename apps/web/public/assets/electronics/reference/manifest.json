@@ -1,0 +1,271 @@
+{
+  "schema": "asa-lab.electronics-reference-assets.v1",
+  "referenceAuditSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480",
+  "provenance": "owner_reference_only",
+  "immutable": true,
+  "components": [
+    {
+      "componentId": "arduino-uno",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/arduino-uno.png",
+      "sha256": "1035f425c93ff7406cd2334d9aefb19d2e496c86d0425288a8cde1433a8467c7",
+      "referenceFile": "/assets/electronics/reference/components/arduino-uno.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-1.5v",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/battery-1.5v.png",
+      "sha256": "529bfdcb89bc596b3a31e01a60b9b7eb78259c4dae24cccc7bf629c0077f8412",
+      "referenceFile": "/assets/electronics/reference/components/battery-1.5v.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-3v",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/battery-3v.png",
+      "sha256": "dae93db9a63a8541426c17d4e9cc92ebbafb23c26dc69c2af85e8ad194e57686",
+      "referenceFile": "/assets/electronics/reference/components/battery-3v.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-6v",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/battery-6v.png",
+      "sha256": "1ac29161ca9ea59b0f0a287427a42b9077d07e23b5a4c9ce78a3364724bd4a3b",
+      "referenceFile": "/assets/electronics/reference/components/battery-6v.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-9v",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/battery-9v.png",
+      "sha256": "88ffecb52b441bc652d3ebeced108676af2b79eed05e7bfff5afc855193a4f63",
+      "referenceFile": "/assets/electronics/reference/components/battery-9v.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-holder-aa-1",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/battery-holders/aa-1.svg",
+      "sha256": "2fbfcd79461dcd23b4049f83b02a00980963a624d3fa9186d9ed5823e6d78995",
+      "referenceFile": "/assets/electronics/reference/components/battery-holder-aa-1.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-holder-aa-2",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/battery-holders/aa-2.svg",
+      "sha256": "1131d2d2a1ec696dd98a2ae3267134d55388279706c95856f9e015a3c14fc1ce",
+      "referenceFile": "/assets/electronics/reference/components/battery-holder-aa-2.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-holder-aa-3",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/battery-holders/aa-3.svg",
+      "sha256": "f69ea3086efa2c7611231372f26bd73efe58d5d07bb32de1fc45456973cba5dd",
+      "referenceFile": "/assets/electronics/reference/components/battery-holder-aa-3.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-holder-aa-4",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/battery-holders/aa-4.svg",
+      "sha256": "43827c250571484d564acb53510298d76a63b3ba86dd6af22042a1af6a441d4a",
+      "referenceFile": "/assets/electronics/reference/components/battery-holder-aa-4.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-holder-aa-5",
+      "status": "missing_reference",
+      "sourceFile": null,
+      "sha256": null,
+      "referenceFile": null
+    },
+    {
+      "componentId": "battery-holder-aa-6",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/battery-holders/aa-6.svg",
+      "sha256": "f4718f05ac97a73c483d7820964d902f5f7e91c4edf5f76e9cea94efb527b496",
+      "referenceFile": "/assets/electronics/reference/components/battery-holder-aa-6.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "battery-holder-aa-8",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/battery-holders/aa-8.svg",
+      "sha256": "7c08986d46a31487a55a365b6a913c8d69ff4f34a5cc8784c2b97995118b8e28",
+      "referenceFile": "/assets/electronics/reference/components/battery-holder-aa-8.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "breadboard-small",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/breadboards/breadboard-small.svg",
+      "sha256": "8fc0781a4d57498e424f71a689312765f022a0c70152be3d3ca92f20e36a9a2f",
+      "referenceFile": "/assets/electronics/reference/components/breadboard-small.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "breadboard-medium",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/breadboards/breadboard-medium.svg",
+      "sha256": "b9cf1998ef1eb57675c4be62fea12e5ed9e3afbe39692bc9fd0a2970bba2e666",
+      "referenceFile": "/assets/electronics/reference/components/breadboard-medium.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "breadboard-large",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/breadboards/breadboard-large.svg",
+      "sha256": "55d60f0651a412cc4b03d90f5ba1df8e6a14a0315f9de3edffd2939178d91eda",
+      "referenceFile": "/assets/electronics/reference/components/breadboard-large.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "button-tactile-6mm",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/button/released.svg",
+      "sha256": "0835719db300c9a254f7ee2f87faacdcdd83e77be4db84f811929a81c588c918",
+      "referenceFile": "/assets/electronics/reference/components/button-tactile-6mm.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "switch-spdt",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/switch/left.svg",
+      "sha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720",
+      "referenceFile": "/assets/electronics/reference/components/switch-spdt.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "resistor-axial",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/resistor-axial.png",
+      "sha256": "7e520cd1dfc39645b776bbe3785b733d11d331a41b6bf19ecf52bd5cf0834d7a",
+      "referenceFile": "/assets/electronics/reference/components/resistor-axial.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "potentiometer",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/potentiometer.png",
+      "sha256": "6396ef74df3ab98135deaf494363a469ba47dc33b160d64e83cc129885dfd994",
+      "referenceFile": "/assets/electronics/reference/components/potentiometer.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "electrolytic-capacitor",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/electrolytic-capacitor.png",
+      "sha256": "01f96d5fda6011cc2dd35f4899c0307e7a8073fb5220ae67e24843fdc9bceb1d",
+      "referenceFile": "/assets/electronics/reference/components/electrolytic-capacitor.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "photoresistor",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/photoresistor.png",
+      "sha256": "12a19c25dae03e37906ab64124f5405ed02f9fe2157ac585b6a9f6e0309eb0c3",
+      "referenceFile": "/assets/electronics/reference/components/photoresistor.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "led-5mm",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/led/red/led_red_i000.svg",
+      "sha256": "c6157f78eed8837f55bd23ac059487173199ee690875e76afcb9c7808fa6cc17",
+      "referenceFile": "/assets/electronics/reference/components/led-5mm.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "rgb-led",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/rgb/rgb_led_v12_front_off.svg",
+      "sha256": "ebd5de923e19f7869d1e21bdec8fec8ac3c11e23f84b34ec93cf09c5dea2323b",
+      "referenceFile": "/assets/electronics/reference/components/rgb-led.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "diode-do35",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/diode/do35.svg",
+      "sha256": "afbc69a0025f7dd08fb64ec47c328daa321b0c16572598f9a0cccbf7f73d002a",
+      "referenceFile": "/assets/electronics/reference/components/diode-do35.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "diode-do41",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/diode/do41.svg",
+      "sha256": "361a65bd0ccbd563f07f1a0c5b2c7ba2e249747717eb87609b339de2821dee11",
+      "referenceFile": "/assets/electronics/reference/components/diode-do41.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "transistor-npn",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/transistor-npn.png",
+      "sha256": "fc4856f1225c29febc60be607494c52472b96f960513e53b18154edcfa6336f9",
+      "referenceFile": "/assets/electronics/reference/components/transistor-npn.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "incandescent-lamp",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/lamp/off.svg",
+      "sha256": "083f65a6a2b9ce37fb1ef9c8d38c4bfeb676feb0dbdeceaeadf5162555b0bb15",
+      "referenceFile": "/assets/electronics/reference/components/incandescent-lamp.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "dc-motor",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/dc-motor.png",
+      "sha256": "a211f959568d74a7b8446c25ebc4e7d407b84a0718dc0f2da656487c57373fc5",
+      "referenceFile": "/assets/electronics/reference/components/dc-motor.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "servo-motor",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/servo-motor.png",
+      "sha256": "5f91f9d33a4dc300e4f3411d0bf0560fc73c91735637aca0767bec18a4b4c03a",
+      "referenceFile": "/assets/electronics/reference/components/servo-motor.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "piezo",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/piezo.png",
+      "sha256": "7a5cda74e7d7543d1ac3b5aa3a6c1afb65330d84975eb70cf7364c30f89fc6ea",
+      "referenceFile": "/assets/electronics/reference/components/piezo.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "seven-segment-display",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/display/seven-segment.svg",
+      "sha256": "66a7523664cacd426708362d3a24efcda821536cbb07084a8c00ff2cac63c135",
+      "referenceFile": "/assets/electronics/reference/components/seven-segment-display.svg",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "multimeter",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/multimeter.png",
+      "sha256": "5f4b6c0b7bae1dc9636970e8e2e25c9198e2d484bb731bf3cea023544e7b8456",
+      "referenceFile": "/assets/electronics/reference/components/multimeter.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    },
+    {
+      "componentId": "regulated-power-supply",
+      "status": "reference_found",
+      "sourceFile": "/assets/electronics/owner-audit/components/source-reference/regulated-power-supply.png",
+      "sha256": "399c88c9f5cd639c07ce114a52a9ed7d3e254c58e84e36557b504ef81d62a897",
+      "referenceFile": "/assets/electronics/reference/components/regulated-power-supply.png",
+      "immutableEvidenceSha": "9654ce3b9cd2605cb69d9b2d3f8821618364e480"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="4.354mm" height="11.582mm" viewBox="0 0 4.354 11.582" data-component-id="resistor-axial" data-provenance="derived_from_owner_reference" role="img">
+<g id="leads"><line x1="2.2994" y1="0.9334" x2="2.177" y2="2.8955" stroke="#777" stroke-width="0.55" stroke-linecap="round"/><line x1="2.2994" y1="10.8339" x2="2.177" y2="8.6865" stroke="#777" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="body"><rect x="1.0885" y="2.8955" width="2.177" height="5.791" rx="0.9579" fill="#d9b477" stroke="#a68550" stroke-width=".18"/>
+    <rect x="1.0885" y="3.9379" width="2.177" height=".55" fill="#8b4513"/><rect x="1.0885" y="5.2119" width="2.177" height=".55" fill="#111"/><rect x="1.0885" y="6.4859" width="2.177" height=".55" fill="#d92323"/><rect x="1.0885" y="7.7599" width="2.177" height=".45" fill="#d6cf41"/>
+  </g><g id="pin-anchors" aria-hidden="true"><circle id="pin-lead-1" data-pin-id="lead-1" cx="2.2994" cy="0.9334" r="0.06" fill="none"/><circle id="pin-lead-2" data-pin-id="lead-2" cx="2.2994" cy="10.8339" r="0.06" fill="none"/></g>
+</svg>

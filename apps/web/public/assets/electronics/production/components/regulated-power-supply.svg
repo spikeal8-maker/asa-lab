@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="28.667mm" height="22.8mm" viewBox="0 0 28.667 22.8" data-component-id="regulated-power-supply" data-provenance="derived_from_owner_reference" role="img">
+<g id="leads"><line x1="15.4203" y1="18.6812" x2="15.4203" y2="18.012" stroke="#222" stroke-width="0.55" stroke-linecap="round"/><line x1="13.2206" y1="18.718" x2="13.2206" y2="18.012" stroke="#c51f2b" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="body"><rect x="0.35" y="0.35" width="27.967" height="22.1" rx="1.1" fill="#d9dcda" stroke="#31363a" stroke-width="0.3"/><rect x="2.2934" y="2.736" width="16.6269" height="10.26" rx=".6" fill="#c9d2d5" stroke="#3f4649" stroke-width=".35"/>
+    <circle cx="22.0736" cy="6.84" r="2.736" fill="#8c9395" stroke="#404648" stroke-width=".3"/><circle cx="23.7936" cy="16.416" r="1.368" fill="#c51f2b"/><circle cx="20.6402" cy="16.416" r="1.368" fill="#272a2b"/></g>
+  <g id="display" data-state-channel="measurement"><path d="M3.7267 7.98 H15.7669" stroke="#718084" stroke-width=".45"/></g><g id="pin-anchors" aria-hidden="true"><circle id="pin-negative" data-pin-id="negative" cx="15.4203" cy="18.6812" r="0.06" fill="none"/><circle id="pin-positive" data-pin-id="positive" cx="13.2206" cy="18.718" r="0.06" fill="none"/></g>
+</svg>

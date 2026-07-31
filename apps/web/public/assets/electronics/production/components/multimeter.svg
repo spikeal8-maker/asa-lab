@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="36.4mm" height="14mm" viewBox="0 0 36.4 14" data-component-id="multimeter" data-provenance="derived_from_owner_reference" role="img">
+<g id="leads"><line x1="16.7844" y1="12.1787" x2="16.7844" y2="11.06" stroke="#222" stroke-width="0.55" stroke-linecap="round"/><line x1="19.126" y1="12.1407" x2="19.126" y2="11.06" stroke="#c51f2b" stroke-width="0.55" stroke-linecap="round"/></g>
+  <g id="body"><rect x="0.35" y="0.35" width="35.7" height="13.3" rx="1.1" fill="#edab14" stroke="#31363a" stroke-width="0.3"/><rect x="2.912" y="1.68" width="21.112" height="6.3" rx=".6" fill="#c9d2d5" stroke="#3f4649" stroke-width=".35"/>
+    <circle cx="28.028" cy="4.2" r="1.68" fill="#8c9395" stroke="#404648" stroke-width=".3"/><circle cx="30.212" cy="10.08" r="0.84" fill="#c51f2b"/><circle cx="26.208" cy="10.08" r="0.84" fill="#272a2b"/></g>
+  <g id="display" data-state-channel="measurement"><path d="M4.732 4.9 H20.02" stroke="#718084" stroke-width=".45"/></g><g id="pin-anchors" aria-hidden="true"><circle id="pin-com" data-pin-id="com" cx="16.7844" cy="12.1787" r="0.06" fill="none"/><circle id="pin-v-ohm-ma" data-pin-id="v-ohm-ma" cx="19.126" cy="12.1407" r="0.06" fill="none"/></g>
+</svg>

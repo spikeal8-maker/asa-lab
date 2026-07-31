@@ -15,67 +15,67 @@ tests:
     artifacts: [console-report, gateway-source-audit]
 
   - id: TST-ELECTRONICS-ASSET-MANIFEST-001
-    title: Complete owner archive inventory and hash provenance
+    title: Immutable owner archive reference and complete production manifest
     suite: contracts
     level: repository
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts apps/web/src/electronics/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [owner-asset-manifest, archive-hash-inventory, vitest-report]
+    artifacts: [owner-asset-manifest, reference-manifest, production-manifest, vitest-report]
 
   - id: TST-ELECTRONICS-TRANSPARENCY-001
-    title: Exact owner SVG transparency and external-reference audit
+    title: Production SVG transparency, raster and active-content audit
     suite: security
     level: repository
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [owner-asset-manifest, transparency-audit, vitest-report]
+    artifacts: [production-manifest, transparency-audit, vitest-report]
 
   - id: TST-ELECTRONICS-PHYSICAL-SCALE-001
-    title: Owner component physical-dimensions map
+    title: Single-scale production physical-dimensions contract
     suite: contracts
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [physical-dimensions-map, vitest-report]
+    artifacts: [production-manifest, physical-scale-page, vitest-report]
 
   - id: TST-ELECTRONICS-PIN-ANCHOR-001
-    title: Owner component pin map and terminal provenance
+    title: Production pin anchors and terminal provenance within 0.25 mm
     suite: contracts
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [pin-map, vitest-report]
+    artifacts: [production-manifest, pin-map, vitest-report]
 
   - id: TST-ELECTRONICS-STATE-FAMILIES-001
-    title: Complete LED, RGB LED and battery-holder state families
+    title: Typed LED, RGB, display and motion state contracts
     suite: contracts
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/production-state-contracts.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [state-family-map, vitest-report]
+    artifacts: [state-animation-contracts, led-rgb-state-lab, display-and-motion-state-lab, vitest-report]
 
   - id: TST-ELECTRONICS-BREADBOARD-001
-    title: Complete owner breadboard hole groups and component footprints
+    title: Production breadboard snap, placement and internal connectivity
     suite: contracts
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/production-breadboard.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [breadboard-footprint-map, vitest-report]
+    artifacts: [breadboard-connectivity-map, breadboard-fit-page, vitest-report]

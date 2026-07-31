@@ -33,17 +33,18 @@ TST-ELECTRONICS-STATE-FAMILIES-001
 TST-ELECTRONICS-BREADBOARD-001
 ```
 
-The current audit commands run as one focused asset-foundation suite. The full
+The current production-vector commands run as one focused asset/state/breadboard suite. The full
 repository matrix and the Electronics solver/editor gates remain intentionally
 out of scope before owner visual acceptance.
 
 ## Required browser evidence
 
 ```text
-complete-owner-contact-sheet.png
-battery-holder-family.png
-led-state-family.png
-breadboard-inventory.png
+reference-vs-production.png
+physical-scale.png
+led-rgb-state-lab.png
+display-and-motion-state-lab.png
+breadboard-fit-connectivity.png
 console errors = 0
 pageerror = 0
 unexpected requestfailed = 0
