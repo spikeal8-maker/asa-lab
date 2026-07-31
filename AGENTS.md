@@ -10,15 +10,15 @@ completed gateway:       TASK-R3A-ELECTRONICS-GATEWAY-001
 active task:             TASK-ELECTRONICS-M1-001
 active issue:            #63
 active branch:           agent/r4-electronics-m1
-status:                  in_progress / production_vector_and_animation_rework
-reference audit SHA:     9654ce3b9cd2605cb69d9b2d3f8821618364e480
+status:                  in_progress / production_editor_integration
+production evidence SHA: e604762057a839c2683c5788e83e1b686273828c
+owner directive:         PR #72 comment 5147079314
 owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
-owner directive:         PR #72 comment 5146193982
 ```
 
-`docs/delivery/EXECUTION_MANIFEST.yaml`, Issue #63 and the latest owner directive
-are the executable sources of scope. R3B remains blocked/deferred; R4-M2 and R5+
-are not activated.
+`docs/delivery/EXECUTION_MANIFEST.yaml`, Issue #63 and PR #72 comment
+`5147079314` are the executable sources of scope. R3B remains blocked/deferred;
+R4-M2 and R5+ are not activated.
 
 ## 2. Источники истины
 
@@ -28,14 +28,14 @@ are not activated.
 2. `docs/project-map/infrastructure-focus.yaml`;
 3. `docs/project-map/project-map.yaml`;
 4. `docs/delivery/EXECUTION_MANIFEST.yaml`;
-5. PR #72 owner comment `5146193982`;
-6. Issue #63 owner comment `5146201925`;
+5. PR #72 owner comment `5147079314`;
+6. Issue #63;
 7. `docs/testing/test-catalog.yaml`;
 8. `docs/testing/active-task-tests.yaml`.
 
-При конфликте остановиться и назвать точные источники. Нельзя снова сузить
-работу до восьми компонентов: полный owner inventory является production backlog.
-Breadboard, RGB LED и seven-segment обязательны для текущего owner checkpoint.
+При конфликте остановиться и назвать точные источники. Standalone review pages
+не являются пользовательским результатом. Текущий результат должен работать в
+реальном маршруте Electronics project `/projects/:projectId`.
 
 ## 3. Ветка и Git
 
@@ -44,11 +44,11 @@ Breadboard, RGB LED и seven-segment обязательны для текуще�
 - не менять `main`, не merge, не tag, не force-push и не rebase опубликованной истории;
 - не трогать PR #29 и `assistant/map-ux-owner-view`;
 - не коммитить backups, dumps, credentials и приватные исходные ZIP;
-- reference evidence, production SVG, manifests и review screenshots допускаются только в PR #72.
+- reference evidence, production SVG, manifests и owner screenshots допускаются только в PR #72.
 
 ## 4. R3A Gateway
 
-Gateway завершён только как короткая проверка существующей архитектуры:
+Gateway завершён как короткая проверка существующей архитектуры:
 
 - один server-side `ModuleRegistry`;
 - Electronics и Chess подключены через manifest/provider;
@@ -60,197 +60,153 @@ Gateway завершён только как короткая проверка �
 
 Полный R3 не заявляется: R3B остаётся blocked/deferred.
 
-## 5. TASK-ELECTRONICS-M1-001 — production vector and animation foundation
+## 5. TASK-ELECTRONICS-M1-001 — production editor integration
 
-Полный архивный аудит на SHA `9654ce3...` сохранён как reference evidence.
-Наличие PNG, screenshots или pixel-vector SVG не означает готовность компонента.
-Текущий checkpoint — создать production-библиотеку, точно производную от
-owner-reference, с прозрачной векторной геометрией, физикой, pins, footprints и
-управляемыми симуляцией состояниями.
+Reference audit `9654ce3...` и production-vector/state evidence
+`e604762...` сохраняются. Теперь задача — применить их в рабочем Electronics
+editor. Отдельные review-labs остаются доказательством и не считаются delivery.
 
-### 5.1. Reference и production разделяются
+### 5.1. Runtime catalog
 
-```text
-reference/   неизменённые owner PNG/SVG/кадры, только доказательство
-production/  прозрачные SVG, допускаемые в рабочий редактор после owner acceptance
-```
+- hard-coded `/assets/electronics/components` не является источником новых проектов;
+- runtime catalog строится из `/assets/electronics/production/manifest.json` через типизированный adapter;
+- старые assets допускаются только как migration fallback для legacy documents;
+- в Draft runtime допускается статус `integration_candidate`;
+- `production_ready` и merge-ready acceptance остаются false до отдельного owner review.
 
-Каждая production-запись содержит:
+### 5.2. Обязательные интегрированные компоненты
 
-```text
-componentId
-referenceFiles[] + SHA-256
-provenance: exact_owner_svg | derived_from_owner_reference
-productionSvg + SHA-256
-physicalWidthMm / physicalHeightMm / bodyBoundsMm
-viewBox
-pins[]
-footprint
-stateContract
-animationContract
-reviewStatus
-```
-
-Производный SVG нельзя маркировать `owner_supplied` или `byte_exact`.
-
-### 5.2. Полный каталог
-
-Обрабатывать все логические позиции и семейства owner-пакета, в том числе:
+Existing M1 electrical parts:
 
 - battery holders 1×AA, 2×AA, 3×AA, 4×AA, 6×AA, 8×AA;
-- 5×AA остаётся `missing_reference`, без выдуманного изображения;
-- ordinary LED всех найденных цветов, яркости и специальных состояний;
-- RGB LED, его физические variants и четыре pins;
-- seven-segment и другие displays;
-- breadboards 170/420/882;
-- passives, switches, sensors, motors, servo, buzzer, boards и прочие найденные позиции.
-
-### 5.3. Production SVG
-
-Production SVG обязан:
-
-- иметь прозрачный фон и tight visual bounds;
-- не содержать raster `<image>`, base64, embedded PNG/JPEG, checkerboard,
-  full-canvas opaque shape, card, caption или label background;
-- не содержать scripts, handlers, external URLs и `foreignObject`;
-- сохранять внешний вид owner-reference без упрощённой самодеятельности;
-- использовать отдельные semantic groups для управляемых состояний, когда это
-  возможно (`body`, `pins`, `glow`, `segments`, `knob`, `rotor` и т. п.).
-
-Checkerboard существует только в CSS review surface.
-
-### 5.4. Один физический масштаб
-
-```text
-worldUnitsPerMm = одно значение
-renderedWidth  = physicalWidthMm  × worldUnitsPerMm
-renderedHeight = physicalHeightMm × worldUnitsPerMm
-```
-
-Произвольный `renderWidth` запрещён. Хранить габарит всего компонента, корпус,
-pin pitch, footprint и допустимые rotations. Обязательны ratio tests и линейка
-10 мм.
-
-### 5.5. Pins и footprints
-
-Pin anchor ставится только в центре физической ножки, breadboard hole или на
-свободном конце реального провода. Допуск не хуже `0.25 мм`.
-
-- tactile button: 4 pins и корректные внутренние пары;
+- 5×AA остаётся `missing_reference`;
+- parametric resistor;
+- ordinary LED: 6 colours, brightness 0–100, reverse/overcurrent/burned;
+- tactile button: 4 pins, momentary press/release, корректные paired contacts;
 - SPDT: common + throw-left + throw-right;
-- RGB LED: четыре pins и explicit common-anode/common-cathode variant;
-- seven-segment: segment pins и common pins;
-- battery holder: BAT+/BAT− на концах выводных проводов;
-- breadboard: stable hole IDs, terminal strips, rails и реальные разрывы.
+- potentiometer: 3 pins, angle follows wiper;
+- diode with lead-end anchors;
+- lamp off/dim/on/max.
 
-### 5.6. State и animation contracts
+Required new editor parts:
 
-Анимация управляется только simulation state; decorative GIF/CSS loop запрещён.
+- RGB LED: 4 pins, common-anode/common-cathode, independent R/G/B channels;
+- seven-segment: physical pins, groups `a,b,c,d,e,f,g,dp`, glyph/mask and brightness;
+- breadboards 170/420/882.
 
-Ordinary LED:
+Остальные найденные production candidates показываются в полной библиотеке как
+`visual_only / simulation_not_yet_supported`. Они не возвращают fake current,
+voltage или successful simulation.
 
-- все цвета;
-- brightness `0..100`;
-- off/on, intermediate brightness, reverse, overcurrent, burned;
-- exact transparent owner frames либо параметрический SVG, откалиброванный по
-  golden frames; приблизительный blur/opacity без comparison запрещён.
-
-RGB LED:
-
-- independent red/green/blue intensity `0..100`;
-- additive colour mixing;
-- common-anode/common-cathode;
-- golden states: off, R, G, B, RG, RB, GB, RGB-white и промежуточные mixes.
-
-Seven-segment:
-
-- semantic groups `a,b,c,d,e,f,g,dp`;
-- common-anode/common-cathode contract;
-- 0–9, A–F и arbitrary segment mask;
-- brightness каждого сегмента от simulation state.
-
-Другие stateful parts:
-
-- button: momentary released → pressed → released;
-- SPDT: left/right;
-- potentiometer: knob angle = wiper position;
-- lamp: off/dim/on/max по мощности;
-- motor: direction/speed;
-- servo: angle;
-- buzzer: active state;
-- sensors/displays: только подтверждённые owner states и simulation values.
-
-### 5.7. Breadboard
-
-Для 170/420/882 boards обязательны:
-
-- прозрачный production SVG;
-- pitch 2.54 мм;
-- stable hole IDs;
-- terminal-strip connectivity;
-- power rails и реальные разрывы;
-- pin-to-hole snap и placement validation;
-- footprint preview;
-- netlist connectivity от внутренних групп платы.
-
-Показать на плате RGB LED, seven-segment, button, SPDT, resistor, diode и
-ordinary LED с правильным pitch. Battery leads подключаются к rails.
-
-## 6. Readiness state machine
-
-Каждая логическая позиция проходит:
+### 5.3. One physical scale
 
 ```text
-reference_found
-vector_reconstruction_ready
-transparency_pass
-physical_scale_pass
-pins_pass
-state_animation_pass
-breadboard_fit_pass (если применимо)
-owner_accepted
-production_ready
+renderedWidth  = physicalWidthMm  × WORLD_UNITS_PER_MM
+renderedHeight = physicalHeightMm × WORLD_UNITS_PER_MM
 ```
 
-Только `production_ready` отображается в рабочей библиотеке Electronics.
+Произвольный `renderWidth` запрещён. Pin anchor находится в центре физической
+ножки, breadboard hole или свободного конца реального провода с допуском не хуже
+`0.25 mm`.
 
-## 7. Запрещено до owner acceptance
+Battery holder использует variant с выводными проводами. Если такого exact
+reference нет, variant остаётся blocked; контакты на корпусе запрещены.
 
-- full repository matrix;
-- merge PR #72;
-- R4-M2;
-- новые solver features;
-- PNG/pixel-vector assets в production editor;
-- автоматическая векторизация с сохранённым белым холстом;
-- самодельные упрощённые изображения;
-- заявление о готовности только на основании найденного файла.
+### 5.4. Breadboard as electrical object
 
-## 8. Focused checks и owner checkpoint
+Для 170/420/882 обязательны:
 
-Запускать только focused checks:
+- pitch 2.54 mm;
+- stable hole IDs;
+- terminal-strip groups;
+- power rails и реальные разрывы;
+- internal connectivity в netlist;
+- pin-to-hole snap;
+- placement validation;
+- footprint preview;
+- сохранение board/hole bindings;
+- battery leads и jumpers подключаются к holes/rails.
 
-- reference/production manifest consistency;
-- transparent SVG validator с negative fixtures;
-- physical scale/ratio и 10 mm ruler tests;
-- pin-anchor tolerance;
-- footprint and breadboard connectivity;
-- ordinary LED colours/brightness/special states;
-- RGB mixing and four-pin contract;
-- seven-segment groups, masks and brightness;
-- button/SPDT/potentiometer/lamp/motor/servo state contracts;
-- browser smoke пяти review surfaces.
+Показать реальные посадки resistor, diode, ordinary LED, RGB LED, tactile
+button, SPDT, seven-segment и совместимого potentiometer.
 
-Подготовить пять отдельных owner surfaces:
+### 5.5. Runtime states and animations
 
-1. `reference-vs-production`;
-2. `physical-scale`;
-3. `led-rgb-state-lab`;
-4. `display-and-motion-state-lab`;
-5. `breadboard-fit-connectivity`.
+- resistor bands update from resistance/tolerance;
+- ordinary LED asset follows colour, calculated brightness and fault state;
+- RGB LED follows calculated R/G/B channel intensities;
+- seven-segment follows segment currents or explicit typed state;
+- button is momentary for pointer and keyboard;
+- SPDT switches common between two throws;
+- potentiometer angle follows wiper;
+- lamp state follows power;
+- motor/servo/buzzer candidates activate only with supported typed models.
 
-Exact SHA развернуть только в существующем `asa-lab-dev` на
-`http://localhost:4610`. Не создавать постоянные test/audit/matrix/final/rc/
-staging Compose projects. Рабочую БД, volume и backup сохранять.
+Decorative infinite CSS/GIF animation is forbidden.
 
-После focused PASS и публикации пяти screenshots остановиться. Wiring/solver UI,
-full gate, merge и R4-M2 разрешаются только после отдельного решения владельца.
+### 5.6. Document schema and migration
+
+Additively store:
+
+```text
+componentTypeId
+variantId
+physical placement
+pin bindings
+breadboardId / hole bindings
+state properties
+simulation properties
+```
+
+Legacy schema-v1/v2 documents must open without data loss. Old kind IDs migrate
+to production IDs. Save/reload/checkpoint preserve variants, state and hole
+bindings.
+
+## 6. Owner-visible acceptance flow
+
+Show only the real editor on `http://localhost:4610`:
+
+1. create/open a real Electronics project;
+2. place breadboard 420;
+3. place battery holder 2×AA outside the board and connect lead ends to rails;
+4. snap resistor, ordinary LED, button and SPDT into holes;
+5. snap RGB LED and seven-segment with correct physical pitch;
+6. change resistor value and see its bands change on stage;
+7. change ordinary LED colour/brightness;
+8. change RGB channels;
+9. show seven-segment `0`, `8`, `A` and arbitrary mask;
+10. prove rail/strip connectivity and placement diagnostics;
+11. save/reload with identical positions, variants, states and hole bindings;
+12. create immutable checkpoint.
+
+Old visual assets must not appear in new library cards or on the stage.
+
+## 7. Focused checks only
+
+Before owner review run only:
+
+- production-manifest adapter tests;
+- legacy migration tests;
+- physical-scale and pin-anchor tests;
+- breadboard hole/connectivity/snap tests;
+- ordinary LED/RGB/seven-segment runtime-state tests;
+- real editor E2E for the flow above;
+- browser collectors: console/pageerror/requestfailed/HTTP 5xx = 0.
+
+Full repository matrix remains forbidden.
+
+## 8. Deployment and stop condition
+
+- deploy exact final SHA only in existing `asa-lab-dev`;
+- keep `localhost:4610` open on the actual Electronics project;
+- publish editor screenshots:
+  - `library-production`;
+  - `breadboard-empty`;
+  - `breadboard-components-snapped`;
+  - `led-rgb-display-states`;
+  - `connected-running`;
+  - `reload-checkpoint`;
+- after focused PASS stop for owner visual review.
+
+Until owner acceptance: no merge, no full matrix, no R4-M2, no new branch and no
+additional permanent Compose project.
