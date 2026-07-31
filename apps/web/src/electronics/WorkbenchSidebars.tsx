@@ -1,4 +1,9 @@
-import { CATEGORY_LABELS, visualAsset, type ComponentCategory } from './component-catalog';
+import {
+  CATEGORY_OPTIONS,
+  selectedFamilyVariant,
+  visualAsset,
+  type ComponentCategory,
+} from './component-catalog';
 import { ComponentPreview } from './component-preview';
 import {
   CollapseIcon,
@@ -56,14 +61,21 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.setCategory(event.target.value as ComponentCategory)}
                   aria-label="Категория компонентов"
                 >
-                  {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
+                  {CATEGORY_OPTIONS.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.label}
                     </option>
                   ))}
                 </select>
               </div>
-              <button type="button" aria-label="Вид списка">
+              <button
+                type="button"
+                aria-label={
+                  c.libraryView === 'grid' ? 'Переключить на список' : 'Переключить на сетку'
+                }
+                aria-pressed={c.libraryView === 'list'}
+                onClick={() => c.setLibraryView(c.libraryView === 'grid' ? 'list' : 'grid')}
+              >
                 <ListIcon />
               </button>
             </div>
@@ -76,30 +88,77 @@ export function WorkbenchSidebars({
               />
               <SearchIcon />
             </label>
-            <div className="workbench-catalog-grid">
-              {c.filteredCatalog.map((entry) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  className="workbench-catalog-card"
-                  draggable
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData(DRAG_MIME, entry.key);
-                    event.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  onClick={() => c.addComponent(entry.key)}
-                  title={`Добавить: ${entry.label}`}
-                  data-component-type={entry.key}
-                >
-                  <span className="workbench-catalog-art">
-                    <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
-                  </span>
-                  <span>{entry.label}</span>
-                  {!entry.simulationSupported && entry.kind !== 'breadboard' ? (
-                    <small>визуально</small>
-                  ) : null}
-                </button>
-              ))}
+            <div
+              className={`workbench-catalog-grid${c.libraryView === 'list' ? ' list-view' : ''}`}
+              data-library-view={c.libraryView}
+            >
+              {c.filteredCatalog.map((family) => {
+                const selectedVariant = selectedFamilyVariant(
+                  family,
+                  c.libraryVariant(family.familyId),
+                );
+                return (
+                  <article
+                    key={family.familyId}
+                    className={`workbench-catalog-card${family.enabled ? '' : ' disabled'}`}
+                    draggable={family.enabled}
+                    onDragStart={(event) => {
+                      if (!family.enabled) {
+                        event.preventDefault();
+                        return;
+                      }
+                      event.dataTransfer.setData(DRAG_MIME, selectedVariant.componentTypeId);
+                      event.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    data-family-id={family.familyId}
+                    data-catalog-tier={family.catalogTier}
+                    data-selected-variant={selectedVariant.variantId}
+                  >
+                    <button
+                      type="button"
+                      className="workbench-catalog-add"
+                      disabled={!family.enabled}
+                      onClick={() => c.addFamily(family.familyId)}
+                      title={family.enabled ? `Добавить: ${family.familyLabel}` : 'В разработке'}
+                      aria-label={family.familyLabel}
+                    >
+                      <span className="workbench-catalog-art">
+                        <ComponentPreview
+                          preview={selectedVariant.entry.preview}
+                          asset={visualAsset(selectedVariant.entry)}
+                        />
+                      </span>
+                      <span className="workbench-catalog-name">{family.familyLabel}</span>
+                    </button>
+                    {family.variants.length > 1 && family.enabled ? (
+                      <label className="workbench-family-variant">
+                        <span className="sr-only">Вариант {family.familyLabel}</span>
+                        <select
+                          aria-label={`Вариант ${family.familyLabel}`}
+                          value={selectedVariant.variantId}
+                          onChange={(event) =>
+                            c.setLibraryVariant(family.familyId, event.target.value)
+                          }
+                        >
+                          {family.variants.map((variant) => (
+                            <option key={variant.variantId} value={variant.variantId}>
+                              {variant.variantLabel}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <span className="workbench-family-variant-label">
+                        {selectedVariant.variantLabel}
+                      </span>
+                    )}
+                    {!family.enabled ? <small>В разработке</small> : null}
+                  </article>
+                );
+              })}
+              {c.filteredCatalog.length === 0 ? (
+                <p className="workbench-catalog-empty">Компоненты не найдены.</p>
+              ) : null}
             </div>
           </>
         ) : null}
@@ -146,6 +205,22 @@ export function WorkbenchSidebars({
                 Production · {c.selectedEntry.key} · {c.selectedEntry.physicalSizeMm.width}×
                 {c.selectedEntry.physicalSizeMm.height} мм
               </p>
+              {c.selectedFamily && c.selectedFamily.variants.length > 1 ? (
+                <label>
+                  <span>Вариант</span>
+                  <select
+                    aria-label={`Вариант ${c.selectedFamily.familyLabel} в проекте`}
+                    value={c.selectedComponent.variantId ?? c.selectedEntry.key}
+                    onChange={(event) => c.setSelectedVariant(event.target.value)}
+                  >
+                    {c.selectedFamily.variants.map((variant) => (
+                      <option key={variant.variantId} value={variant.variantId}>
+                        {variant.variantLabel}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label>
                 <span>Имя</span>
                 <input
@@ -170,6 +245,27 @@ export function WorkbenchSidebars({
                     />
                     <span>{c.selectedEntry.unit}</span>
                   </div>
+                </label>
+              ) : null}
+              {c.selectedEntry.key === 'resistor-axial' ? (
+                <label>
+                  <span>Допуск</span>
+                  <select
+                    aria-label="Допуск резистора"
+                    value={String(c.selectedComponent.stateProperties?.['tolerancePercent'] ?? 5)}
+                    onChange={(event) =>
+                      c.setSelectedProperties(
+                        { tolerancePercent: Number(event.target.value) },
+                        'Допуск резистора изменён.',
+                      )
+                    }
+                  >
+                    {[1, 2, 5, 10].map((tolerance) => (
+                      <option key={tolerance} value={tolerance}>
+                        ±{tolerance}%
+                      </option>
+                    ))}
+                  </select>
                 </label>
               ) : null}
               {c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button' ? (

@@ -31,20 +31,24 @@ TST-ELECTRONICS-PHYSICAL-SCALE-001
 TST-ELECTRONICS-PIN-ANCHOR-001
 TST-ELECTRONICS-STATE-FAMILIES-001
 TST-ELECTRONICS-BREADBOARD-001
+TST-ELECTRONICS-COMPONENT-LIBRARY-001
+TST-ELECTRONICS-M1-E2E-001
 ```
 
-The current production-vector commands run as one focused asset/state/breadboard suite. The full
-repository matrix and the Electronics solver/editor gates remain intentionally
-out of scope before owner visual acceptance.
+The production-vector commands and component-family tests run as one focused
+asset/state/breadboard/library suite. The full repository matrix remains
+intentionally out of scope before owner visual acceptance.
 
 ## Required browser evidence
 
 ```text
-reference-vs-production.png
-physical-scale.png
-led-rgb-state-lab.png
-display-and-motion-state-lab.png
-breadboard-fit-connectivity.png
+library-basic-default.png
+library-category-power.png
+library-family-battery-variants.png
+library-search-led.png
+library-supported-vs-preview.png
+library-list-view.png
+variant-persisted-after-reload.png
 console errors = 0
 pageerror = 0
 unexpected requestfailed = 0

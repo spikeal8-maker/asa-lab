@@ -10,7 +10,12 @@ import {
 import { type ComponentResult, type SchematicComponent, type Terminal } from '../api';
 import {
   catalogEntry,
+  familyById,
+  familyForVariant,
+  familyMatchesCategory,
+  familySearchText,
   renderedSize,
+  selectedFamilyVariant,
   terminalPosition,
   workbenchCatalog,
   type ComponentCategory,
@@ -45,6 +50,7 @@ import {
   updateSelectionState,
   updateSelectionProperties,
   updateSelectionValue,
+  updateSelectionVariant,
   updateWiperPosition,
 } from './workbench-document';
 import {
@@ -97,7 +103,9 @@ export function useElectronicsWorkbench(projectId: string) {
   const [activeWireColor, setActiveWireColor] = useState('#e3212b');
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState('');
-  const [category, setCategory] = useState<ComponentCategory>('all');
+  const [category, setCategory] = useState<ComponentCategory>('basic');
+  const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
+  const [libraryVariants, setLibraryVariants] = useState<Readonly<Record<string, string>>>({});
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeDrag | null>(null);
@@ -137,6 +145,8 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function addComponent(componentTypeId: string, at?: Point): void {
     if (!document) return;
+    const family = familyForVariant(componentTypeId);
+    if (!family?.enabled) return;
     const placedCount = document.components.filter((component) => component.kind !== 'wire').length;
     const box = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
     const column = placedCount % 3;
@@ -158,6 +168,26 @@ export function useElectronicsWorkbench(projectId: string) {
       `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
     );
     setSelection({ kind: 'component', id: added.component.id, ids: [added.component.id] });
+  }
+
+  function libraryVariant(familyId: string): string | null {
+    const family = familyById(familyId);
+    if (!family) return null;
+    return selectedFamilyVariant(family, libraryVariants[familyId]).variantId;
+  }
+
+  function setLibraryVariant(familyId: string, variantId: string): void {
+    const family = familyById(familyId);
+    if (!family?.enabled || !family.variants.some((variant) => variant.variantId === variantId)) {
+      return;
+    }
+    setLibraryVariants((current) => ({ ...current, [familyId]: variantId }));
+  }
+
+  function addFamily(familyId: string, at?: Point): void {
+    const family = familyById(familyId);
+    if (!family?.enabled) return;
+    addComponent(selectedFamilyVariant(family, libraryVariants[familyId]).componentTypeId, at);
   }
 
   function duplicateSelected(): void {
@@ -231,6 +261,22 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document) return;
     const next = updateSelectionProperties(document, selection, properties);
     if (next) commitDocument(next, message);
+  }
+
+  function setSelectedVariant(variantId: string): void {
+    if (!document || selection?.kind !== 'component') return;
+    const family = familyForVariant(
+      selectedComponent?.variantId ?? selectedComponent?.componentTypeId,
+    );
+    if (!family?.enabled || !family.variants.some((variant) => variant.variantId === variantId)) {
+      return;
+    }
+    const next = updateSelectionVariant(document, selection, variantId);
+    if (next)
+      commitDocument(
+        next,
+        `Выбран вариант ${selectedFamilyVariant(family, variantId).variantLabel}.`,
+      );
   }
 
   function setWireColor(color: string): void {
@@ -556,7 +602,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function handleDrop(event: DragEvent<SVGSVGElement>): void {
     event.preventDefault();
     const componentTypeId = event.dataTransfer.getData(DRAG_MIME);
-    if (!catalogEntry(componentTypeId)) return;
+    if (!catalogEntry(componentTypeId) || !familyForVariant(componentTypeId)?.enabled) return;
     addComponent(componentTypeId, toWorld(event));
   }
 
@@ -602,14 +648,12 @@ export function useElectronicsWorkbench(projectId: string) {
   });
 
   const filteredCatalog = useMemo(() => {
-    const query = libraryQuery.trim().toLowerCase();
-    return workbenchCatalog().filter((entry) => {
-      const categoryMatches = category === 'all' || entry.category === category;
-      const queryMatches =
-        !query ||
-        [entry.label, entry.description, ...entry.keywords].join(' ').toLowerCase().includes(query);
-      return categoryMatches && queryMatches;
-    });
+    const query = libraryQuery.trim().toLocaleLowerCase('ru');
+    return workbenchCatalog().filter(
+      (family) =>
+        familyMatchesCategory(family, category) &&
+        (!query || familySearchText(family).includes(query)),
+    );
   }, [category, libraryQuery]);
 
   const selectedComponent =
@@ -621,6 +665,9 @@ export function useElectronicsWorkbench(projectId: string) {
       ? (document?.connections.find((item) => item.id === selection.id) ?? null)
       : null;
   const selectedEntry = selectedComponent ? catalogEntry(selectedComponent) : null;
+  const selectedFamily = selectedComponent
+    ? familyForVariant(selectedComponent.variantId ?? selectedComponent.componentTypeId)
+    : null;
   const resultByComponent = useMemo(() => {
     const map = new Map<string, ComponentResult>();
     for (const item of result?.components ?? []) map.set(item.componentId, item);
@@ -692,6 +739,10 @@ export function useElectronicsWorkbench(projectId: string) {
     setLibraryQuery,
     category,
     setCategory,
+    libraryView,
+    setLibraryView,
+    libraryVariant,
+    setLibraryVariant,
     viewport,
     projectTitle,
     setProjectTitle,
@@ -709,6 +760,7 @@ export function useElectronicsWorkbench(projectId: string) {
     toggleComponentState,
     setSelectedWiper,
     setSelectedProperties,
+    setSelectedVariant,
     setWireColor,
     toggleWireRoute,
     removeWireBends,
@@ -734,6 +786,7 @@ export function useElectronicsWorkbench(projectId: string) {
     selectedComponent,
     selectedWire,
     selectedEntry,
+    selectedFamily,
     resultByComponent,
     diagnosticCodesByComponent,
     componentVisualState,
@@ -743,6 +796,7 @@ export function useElectronicsWorkbench(projectId: string) {
     panning,
     marquee,
     addComponent,
+    addFamily,
   };
 }
 

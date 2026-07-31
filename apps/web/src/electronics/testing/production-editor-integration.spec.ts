@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { SchematicDocument } from '../../api';
 import {
-  catalogEntry,
+  familyMatchesCategory,
   renderedSize,
   terminalPosition,
   workbenchCatalog,
@@ -20,6 +20,7 @@ import {
   moveComponentInDocument,
   snapComponentToBreadboard,
   updateSelectionProperties,
+  updateSelectionVariant,
 } from '../workbench-document';
 
 const EMPTY: SchematicDocument = {
@@ -41,38 +42,98 @@ beforeAll(() => {
 });
 
 describe('production manifest integration in the real Electronics document', () => {
-  it('exposes required owner variants without any legacy image in the new-project catalog', () => {
-    const required = [
+  it('groups production assets into deterministic families, variants and safe tiers', () => {
+    const families = workbenchCatalog();
+    expect(
+      families
+        .filter((family) => familyMatchesCategory(family, 'basic'))
+        .map((family) => family.familyId),
+    ).toEqual([
+      'breadboard',
+      'battery-holder-aa',
+      'resistor',
+      'led',
+      'button',
+      'spdt-switch',
+      'potentiometer',
+      'diode',
+      'rgb-led',
+      'seven-segment',
+      'lamp',
+    ]);
+    expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
+      defaultVariantId: 'battery-holder-aa-2',
+      catalogTier: 'core',
+      enabled: true,
+    });
+    expect(
+      families
+        .find((family) => family.familyId === 'battery-holder-aa')
+        ?.variants.map((variant) => variant.variantId),
+    ).toEqual([
       'battery-holder-aa-1',
       'battery-holder-aa-2',
       'battery-holder-aa-3',
       'battery-holder-aa-4',
       'battery-holder-aa-6',
       'battery-holder-aa-8',
-      'resistor-axial',
-      'led-5mm',
-      'rgb-led',
-      'seven-segment-display',
-      'button-tactile-6mm',
-      'switch-spdt',
-      'potentiometer',
-      'diode-do35',
-      'incandescent-lamp',
-      'breadboard-small',
-      'breadboard-medium',
-      'breadboard-large',
-    ];
-    expect(workbenchCatalog()).toHaveLength(32);
-    for (const componentTypeId of required) {
-      const entry = catalogEntry(componentTypeId);
-      expect(entry, componentTypeId).not.toBeNull();
-      expect(entry?.asset, componentTypeId).toMatch(/^\/assets\/electronics\/production\/.*\.svg$/);
-      expect(entry?.asset, componentTypeId).not.toContain('/electronics/components/');
-      expect(renderedSize(entry as NonNullable<typeof entry>)).toEqual({
-        width: (entry?.physicalSizeMm.width as number) * WORLD_UNITS_PER_MM,
-        height: (entry?.physicalSizeMm.height as number) * WORLD_UNITS_PER_MM,
-      });
+    ]);
+    expect(
+      families
+        .find((family) => family.familyId === 'breadboard')
+        ?.variants.map((variant) => variant.variantId),
+    ).toEqual(['breadboard-small', 'breadboard-medium', 'breadboard-large']);
+    expect(
+      families
+        .find((family) => family.familyId === 'diode')
+        ?.variants.map((variant) => variant.variantId),
+    ).toEqual(['diode-do35', 'diode-do41']);
+    const runtimeVariantIds = families.flatMap((family) =>
+      family.variants.map((variant) => variant.variantId),
+    );
+    expect(runtimeVariantIds).not.toEqual(
+      expect.arrayContaining(['battery-1.5v', 'battery-3v', 'battery-6v', 'battery-9v']),
+    );
+    expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
+    expect(
+      families
+        .filter((family) => family.catalogTier === 'preview')
+        .every((family) => !family.enabled && family.simulationStatus === 'not_yet_supported'),
+    ).toBe(true);
+
+    for (const family of families) {
+      for (const variant of family.variants) {
+        const entry = variant.entry;
+        expect(entry.asset, variant.variantId).toMatch(
+          /^\/assets\/electronics\/production\/.*\.svg$/,
+        );
+        expect(entry.asset, variant.variantId).not.toContain('/electronics/components/');
+        expect(renderedSize(entry)).toEqual({
+          width: entry.physicalSizeMm.width * WORLD_UNITS_PER_MM,
+          height: entry.physicalSizeMm.height * WORLD_UNITS_PER_MM,
+        });
+      }
     }
+  });
+
+  it('persists a selected family variant through document serialization', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'battery-holder-aa-2',
+      { x: 300, y: 240 },
+      'battery',
+    ).document;
+    document = updateSelectionVariant(
+      document,
+      { kind: 'component', id: 'battery', ids: ['battery'] },
+      'battery-holder-aa-6',
+    ) as SchematicDocument;
+    const restored = JSON.parse(JSON.stringify(document)) as SchematicDocument;
+    expect(restored.components[0]).toMatchObject({
+      componentTypeId: 'battery-holder-aa-6',
+      variantId: 'battery-holder-aa-6',
+      value: 9,
+    });
   });
 
   it('persists component type, variant, typed state and real manifest pins in schema v3', () => {

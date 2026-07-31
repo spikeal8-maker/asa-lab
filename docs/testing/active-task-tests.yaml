@@ -79,3 +79,25 @@ tests:
     timeout_seconds: 900
     owner: electronics
     artifacts: [breadboard-connectivity-map, breadboard-fit-page, vitest-report]
+
+  - id: TST-ELECTRONICS-COMPONENT-LIBRARY-001
+    title: Deterministic categories, component families, safe tiers and persisted variants
+    suite: integration
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-editor-integration.spec.ts apps/web/src/electronics/testing/workbench-document.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [component-family-map, focused-test-report]
+
+  - id: TST-ELECTRONICS-M1-E2E-001
+    title: Real-editor family library navigation and variant save reload checkpoint
+    suite: e2e
+    level: system
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm e2e:electronics
+    timeout_seconds: 1500
+    owner: electronics
+    artifacts: [playwright-report, seven-real-editor-screenshots, browser-failure-report]

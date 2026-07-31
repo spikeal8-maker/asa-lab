@@ -11,6 +11,22 @@ import { productionBreadboard } from './production-manifest-adapter';
 import { snap, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
+function internalConnectionsForType(componentTypeId: string): [string, string][] {
+  const board = productionBreadboard(componentTypeId);
+  if (board) {
+    return Object.values(board.groups).flatMap((holes) => {
+      const first = holes[0];
+      return first ? holes.slice(1).map((hole) => [first, hole] as [string, string]) : [];
+    });
+  }
+  return componentTypeId === 'button-tactile-6mm'
+    ? [
+        ['SW-A1', 'SW-A2'],
+        ['SW-B1', 'SW-B2'],
+      ]
+    : [];
+}
+
 export function addComponentToDocument(
   document: SchematicDocument,
   componentTypeId: string,
@@ -20,18 +36,7 @@ export function addComponentToDocument(
   const entry = catalogEntry(componentTypeId);
   if (!entry) throw new Error(`Unknown production component: ${componentTypeId}`);
   const size = renderedSize(entry);
-  const board = productionBreadboard(componentTypeId);
-  const internalConnections: [string, string][] = board
-    ? Object.values(board.groups).flatMap((holes) => {
-        const first = holes[0];
-        return first ? holes.slice(1).map((hole) => [first, hole] as [string, string]) : [];
-      })
-    : componentTypeId === 'button-tactile-6mm'
-      ? [
-          ['SW-A1', 'SW-A2'],
-          ['SW-B1', 'SW-B2'],
-        ]
-      : [];
+  const internalConnections = internalConnectionsForType(componentTypeId);
   const component: SchematicComponent = {
     id,
     kind: entry.kind,
@@ -50,6 +55,49 @@ export function addComponentToDocument(
     ...(internalConnections.length === 0 ? {} : { internalConnections }),
   };
   return { component, document: { ...document, components: [...document.components, component] } };
+}
+
+export function updateSelectionVariant(
+  document: SchematicDocument,
+  selection: Selection,
+  componentTypeId: string,
+): SchematicDocument | null {
+  if (selection?.kind !== 'component' || selection.ids.length !== 1) return null;
+  const entry = catalogEntry(componentTypeId);
+  const current = document.components.find((component) => component.id === selection.id);
+  const currentEntry = current ? catalogEntry(current) : null;
+  if (!entry || !current) return null;
+
+  const terminals = new Set(Object.keys(entry.terminals));
+  const internalConnections = internalConnectionsForType(componentTypeId);
+  const component: SchematicComponent = {
+    ...current,
+    kind: entry.kind,
+    componentTypeId,
+    variantId: componentTypeId,
+    value: entry.defaultValue,
+    ...(current.name === undefined
+      ? {}
+      : { name: current.name === currentEntry?.label ? entry.label : current.name }),
+    ...(entry.defaultState === undefined ? {} : { state: entry.defaultState }),
+    ...(entry.defaultWiperPosition === undefined
+      ? {}
+      : { wiperPosition: entry.defaultWiperPosition }),
+    stateProperties: { ...entry.defaultStateProperties },
+    pinIds: [...terminals],
+    holeBindings: {},
+    internalConnections,
+  };
+  return {
+    ...document,
+    components: document.components.map((item) => (item.id === selection.id ? component : item)),
+    connections: document.connections.filter((wire) => {
+      if (wire.from.componentId === selection.id && !terminals.has(wire.from.terminal))
+        return false;
+      if (wire.to.componentId === selection.id && !terminals.has(wire.to.terminal)) return false;
+      return true;
+    }),
+  };
 }
 
 export function duplicateComponentInDocument(

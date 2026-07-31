@@ -22,7 +22,7 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-  active_checkpoint: production_editor_integration
+  active_checkpoint: component_library_information_architecture_and_family_grouping
   reference_audit_sha: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
   production_evidence_sha: e604762057a839c2683c5788e83e1b686273828c
   rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
@@ -185,8 +185,8 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_progress
-    checkpoint: production_editor_integration
-    owner_acceptance: integration_requested_at_e604762057a839c2683c5788e83e1b686273828c
+    checkpoint: component_library_information_architecture_and_family_grouping
+    owner_acceptance: flat_catalog_rejected_at_f78a9ac7578787a3a5aed73f1f2113cd36801825
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
     base_branch: main
@@ -197,10 +197,17 @@ tasks:
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
     next_task: null
     capabilities: [CAP-PROJECTS]
-    visible_result: The actual Electronics project editor uses the production catalog, physical scale, pins, typed states and breadboard connectivity instead of the old eight hard-coded assets.
-    user_flow: Open real Electronics project -> place breadboard -> snap production components -> exercise resistor/LED/RGB/display states -> connect rails -> save/reload/checkpoint -> owner review.
+    visible_result: The real Electronics project editor presents the production manifest through deterministic categories, component families, safe supported/preview tiers and persisted variants.
+    user_flow: Open real Electronics project -> browse Основные or category -> search a family -> choose a physical variant -> place -> save/reload/checkpoint -> owner review.
     required_scope:
       - production_manifest_runtime_adapter
+      - deterministic_component_categories_and_order
+      - default_basic_supported_family_set
+      - family_cards_and_compact_variant_picker
+      - two_column_grid_and_list_view
+      - family_variant_alias_search
+      - disabled_preview_only_catalog_tier
+      - exclude_png_derived_single_batteries_from_runtime_library
       - remove_old_hard_coded_catalog_from_new_projects
       - legacy_document_asset_migration
       - battery_holders_1_2_3_4_6_8_variants
@@ -218,6 +225,6 @@ tasks:
     non_goals: [full repository matrix before owner review, merge, R4-M2, R5, new branch, additional permanent Compose projects, fake simulation for unsupported catalog candidates]
     read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5147079314]
     test_profiles: []
-    task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001, TST-ELECTRONICS-M1-E2E-001]
+    task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001, TST-ELECTRONICS-COMPONENT-LIBRARY-001, TST-ELECTRONICS-M1-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]
-    artifacts: [production-manifest-adapter, legacy-migration-report, breadboard-connectivity-map, library-production.png, breadboard-empty.png, breadboard-components-snapped.png, led-rgb-display-states.png, connected-running.png, reload-checkpoint.png, focused-test-report]
+    artifacts: [production-manifest-adapter, component-family-map, breadboard-connectivity-map, library-basic-default.png, library-category-power.png, library-family-battery-variants.png, library-search-led.png, library-supported-vs-preview.png, library-list-view.png, variant-persisted-after-reload.png, focused-test-report]

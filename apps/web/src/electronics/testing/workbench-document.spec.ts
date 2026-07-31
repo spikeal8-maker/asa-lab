@@ -33,7 +33,7 @@ const EMPTY: SchematicDocument = {
 };
 
 const activeTypes = [
-  ['battery-6v', 'source'],
+  ['battery-holder-aa-2', 'source'],
   ['resistor-axial', 'resistor'],
   ['led-5mm', 'led'],
   ['button-tactile-6mm', 'button'],

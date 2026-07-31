@@ -7,7 +7,8 @@ Current PR: #72
 ```text
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
-status: in_progress / component_library_information_architecture_and_family_grouping
+status: in_progress
+checkpoint: component_library_information_architecture_and_family_grouping
 rejected runtime SHA: f78a9ac7578787a3a5aed73f1f2113cd36801825
 owner directive: PR #72 comment 5147079314
 ```
