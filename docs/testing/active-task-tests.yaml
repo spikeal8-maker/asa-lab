@@ -1,59 +1,59 @@
 schema_version: 1.0.0
-active_task: TASK-CREATOR-PORTAL-001
+active_task: TASK-ELECTRONICS-M1-001
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
-  - id: TST-R2-STATIC-001
-    title: R2 static and full regression gate
-    suite: static
+  - id: TST-R3A-MODULE-GATEWAY-001
+    title: Existing Module Registry and module-neutral Project lifecycle gateway
+    suite: integration
     level: repository
     phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: node tools/run-r2-static.mjs
-    timeout_seconds: 3600
-    owner: developer-experience
-    artifacts: [console-report, build-manifest, regression-report]
-
-  - id: TST-R2-CREATOR-HOME-001
-    title: Creator Home recent projects and visible states
-    suite: integration
-    level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm test:creator-portal -- --run tests/portal/creator-home.spec.ts
+    required_for: [TASK-R3A-ELECTRONICS-GATEWAY-001]
+    command: pnpm vitest run packages/module-sdk/src/registry.spec.ts apps/api/src/modules.controller.spec.ts contexts/projects/testing/projects.spec.ts
     timeout_seconds: 900
     owner: experience-platform
-    artifacts: [junit, creator-home-report]
+    artifacts: [console-report, gateway-source-audit]
 
-  - id: TST-R2-CAPABILITY-NAV-001
-    title: Server-authorized capability navigation and workspace scope
-    suite: authorization
+  - id: TST-ELECTRONICS-M1-DOMAIN-001
+    title: Electronics M1 document, netlist, solver and diagnostics
+    suite: simulation
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm test:electronics
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [vitest-report]
+
+  - id: TST-ELECTRONICS-M1-EDITOR-001
+    title: Electronics M1 editor operations and canonical persistence document
+    suite: integration
+    level: application
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [vitest-report]
+
+  - id: TST-ELECTRONICS-M1-PERSISTENCE-001
+    title: Electronics M1 API ownership, RLS, save, reload and checkpoint
+    suite: integration
     level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm test:creator-portal -- --run tests/portal/capability-navigation.spec.ts
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run tests/portal/projects-api.spec.ts
     timeout_seconds: 1200
-    owner: identity-and-experience
-    artifacts: [junit, capability-navigation-matrix]
+    owner: data-platform
+    artifacts: [postgres-report, rls-report]
 
-  - id: TST-R2-ROUTING-001
-    title: Creator Portal refresh deep-link Back and Forward routing
-    suite: integration
-    level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm test:creator-portal -- --run tests/portal/creator-routing.spec.ts
-    timeout_seconds: 900
-    owner: experience-platform
-    artifacts: [junit, routing-report]
-
-  - id: TST-R2-E2E-001
-    title: Live Creator Portal desktop tablet and mobile flow
+  - id: TST-ELECTRONICS-M1-E2E-001
+    title: Electronics M1 focused browser flow and six owner screenshots
     suite: e2e
     level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm e2e:creator-portal
-    timeout_seconds: 2400
-    owner: experience-platform
-    artifacts: [playwright-report, screenshots, browser-failure-report]
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm e2e:electronics
+    timeout_seconds: 1800
+    owner: electronics
+    artifacts: [playwright-report, empty.png, components.png, wired.png, running.png, diagnostic.png, reload.png]

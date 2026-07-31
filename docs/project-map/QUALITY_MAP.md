@@ -1,19 +1,15 @@
 # Карта качества ASA Lab
 
-Sources:
-
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
-- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)
-- [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
-- [`project-map.yaml`](project-map.yaml)
+Sources: `docs/delivery/EXECUTION_MANIFEST.yaml`, `test-catalog.yaml`,
+`active-task-tests.yaml` and `project-map.yaml`.
 
 ## Current task
 
 ```text
-TASK-CREATOR-PORTAL-001  in_review
-current_focus             TASK-CREATOR-PORTAL-001
-branch                    agent/r2-creator-portal
-Issue                     #62
+TASK-ELECTRONICS-M1-001  in_progress
+current_focus             TASK-ELECTRONICS-M1-001
+branch                    agent/r4-electronics-m1
+Issue                     #63
 ```
 
 ## Governance IDs
@@ -25,107 +21,33 @@ TST-CATALOG-001
 TST-DEVELOPMENT-PROGRAM-001
 ```
 
-## R2 mandatory IDs
+## Focused owner-activated IDs
 
 ```text
-TST-R2-STATIC-001
-TST-R2-CREATOR-HOME-001
-TST-R2-CAPABILITY-NAV-001
-TST-R2-ROUTING-001
-TST-R2-E2E-001
+TST-R3A-MODULE-GATEWAY-001
+TST-ELECTRONICS-M1-DOMAIN-001
+TST-ELECTRONICS-M1-EDITOR-001
+TST-ELECTRONICS-M1-PERSISTENCE-001
+TST-ELECTRONICS-M1-E2E-001
 ```
 
-## R2 review results
+The current Electronics results are currently `NOT_RUN` until implementation
+reaches each focused gate. The full repository matrix is intentionally not run
+before owner visual acceptance.
+
+## Required browser evidence
 
 ```text
-TST-R2-STATIC-001          PASS
-TST-R2-CREATOR-HOME-001    PASS
-TST-R2-CAPABILITY-NAV-001  PASS
-TST-R2-ROUTING-001         PASS
-TST-R2-E2E-001             PASS
-```
-
-The Draft PR #71 corrective report records the exact tested SHA. Repository
-documents intentionally do not embed their own commit hash.
-
-## Gate commands
-
-```bash
-python -m compileall -q tools
-python tools/validate_architecture.py
-python tools/validate_capability_map.py
-python tools/validate_infrastructure_focus.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
-python tools/validate_delivery_program.py
-python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
-```
-
-`TST-R2-STATIC-001` runs format, lint, typecheck, boundaries, contracts, build and full regression.
-
-## Functional matrix
-
-- Creator Home is the default authenticated route;
-- recent projects load from existing data and are ordered by last project activity;
-- creator and educator navigation differs by server capability;
-- Classes is hidden without educator capability;
-- workspace switch clears stale Home data, changes scope without changing capability and
-  preserves the isolated result after refresh;
-- Account/Profile/Sessions are integrated into the Portal shell;
-- Learning/Collections/Challenges/Help have honest states;
-- deep links, refresh, Back and Forward preserve route/context;
-- Recent projects open existing Electronics and Chess editors;
-- existing Teacher Portal, Electronics, Chess and Chess Online remain reachable;
-- current Accounts, classes, projects and sessions are preserved.
-
-## UI matrix
-
-- desktop 1440×900;
-- tablet;
-- mobile 390×844;
-- loading;
-- empty;
-- error;
-- restricted capability;
-- keyboard/focus/accessibility;
-- no internal `Account C1`/debug language as primary UI copy.
-
-## Browser counters
-
-```text
+empty.png
+components.png
+wired.png
+running.png
+diagnostic.png
+reload.png
 console errors = 0
 pageerror = 0
 unexpected requestfailed = 0
-unexpected HTTP 5xx = 0
 ```
 
-## Owner-visible screenshots
-
-```text
-docs/review/TASK_CREATOR_PORTAL_001/01-creator-home-desktop.png
-docs/review/TASK_CREATOR_PORTAL_001/02-projects-desktop.png
-docs/review/TASK_CREATOR_PORTAL_001/03-learning-desktop.png
-docs/review/TASK_CREATOR_PORTAL_001/04-account-menu-desktop.png
-docs/review/TASK_CREATOR_PORTAL_001/05-account-shell-desktop.png
-docs/review/TASK_CREATOR_PORTAL_001/06-challenges-tablet.png
-docs/review/TASK_CREATOR_PORTAL_001/07-creator-home-mobile.png
-docs/review/TASK_CREATOR_PORTAL_001/08-workspace-isolation-desktop.png
-docs/review/TASK_CREATOR_PORTAL_001/09-educator-classes-desktop.png
-```
-
-The Account surface remains a routed page inside the shared Portal shell for
-R2. Converting it to a drawer or compact profile-only surface belongs to a
-separately activated product-design task, not this corrective pass.
-
-## Preserved evidence
-
-Account C1 remains accepted on implementation SHA `35c06c42012672b9b4cb2626b85ba1f21b973bc0`, merged by `e01ac85095ddaabef19ed618964deac3aa5b2406`.
-
-## Result semantics
-
-- `PASS`: real exit `0`;
-- `FAIL`: executed non-zero defect;
-- `BLOCKED`: required environment or command unavailable;
-- `NOT_RUN`: not executed.
-
-R3 and R4 remain blocked and have no active gate.
+Result semantics: PASS is a real exit 0; FAIL is an executed defect; BLOCKED is
+a missing isolated environment; NOT_RUN means the focused command has not run.
