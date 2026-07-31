@@ -1,6 +1,8 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { Terminal } from '../api';
-import { catalogEntry, renderedSize, terminalPosition, visualAsset } from './component-catalog';
+import { catalogEntry, renderedSize, terminalPosition } from './component-catalog';
+import { ProductionComponentVisual } from './ProductionComponentVisual';
+import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
+import { productionBreadboard } from './production-manifest-adapter';
 import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
 import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
@@ -55,13 +57,13 @@ export function WorkbenchStage({
             const toComponent = document.components.find((item) => item.id === wire.to.componentId);
             if (!fromComponent || !toComponent) return null;
             const from = terminalPosition(
-              fromComponent.kind,
+              fromComponent,
               fromComponent.position,
               wire.from.terminal,
               fromComponent.rotation ?? 0,
             );
             const to = terminalPosition(
-              toComponent.kind,
+              toComponent,
               toComponent.position,
               wire.to.terminal,
               toComponent.rotation ?? 0,
@@ -114,16 +116,48 @@ export function WorkbenchStage({
             />
           ) : null}
         </g>
+        <g className="workbench-snap-link-layer" aria-hidden="true">
+          {document.components.flatMap((component) => {
+            const entry = catalogEntry(component);
+            return Object.entries(component.holeBindings ?? {}).flatMap(([pinId, binding]) => {
+              const boardComponent = document.components.find(
+                (item) => item.id === binding.breadboardComponentId,
+              );
+              const board = boardComponent
+                ? productionBreadboard(boardComponent.componentTypeId ?? '')
+                : null;
+              const hole = board?.holes.find((item) => item.id === binding.holeId);
+              const pin = terminalPosition(
+                component,
+                component.position,
+                pinId,
+                component.rotation ?? 0,
+              );
+              if (!entry || !boardComponent || !hole || !pin) return [];
+              return [
+                <line
+                  key={`${component.id}-${pinId}-${binding.holeId}`}
+                  className="workbench-snap-link"
+                  data-hole-id={binding.holeId}
+                  x1={pin.x}
+                  y1={pin.y}
+                  x2={boardComponent.position.x + hole.xMm * WORLD_UNITS_PER_MM}
+                  y2={boardComponent.position.y + hole.yMm * WORLD_UNITS_PER_MM}
+                />,
+              ];
+            });
+          })}
+        </g>
         {document.components
           .filter((component) => component.kind !== 'wire')
           .map((component) => {
-            const entry = catalogEntry(component.kind);
+            const entry = catalogEntry(component);
             if (!entry?.asset || !entry.terminals) return null;
             const baseSize = renderedSize(entry, 0);
             const boxSize = renderedSize(entry, component.rotation ?? 0);
             const selected =
               c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
-            const asset = visualAsset(entry, c.componentVisualState(component));
+            const visualState = c.componentVisualState(component);
             const diagnostics = [...(c.diagnosticCodesByComponent.get(component.id) ?? [])];
             return (
               <g
@@ -131,6 +165,11 @@ export function WorkbenchStage({
                 className={diagnostics.length > 0 ? 'workbench-component-diagnostic' : undefined}
                 data-testid="schematic-component"
                 data-kind={component.kind}
+                data-component-type={component.componentTypeId}
+                data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
+                data-hole-ids={Object.entries(component.holeBindings ?? {})
+                  .map(([pinId, binding]) => `${pinId}:${binding.holeId}`)
+                  .join(',')}
                 data-diagnostics={diagnostics.join(',')}
                 data-x={component.position.x}
                 data-y={component.position.y}
@@ -169,20 +208,69 @@ export function WorkbenchStage({
                     }
                   }}
                 >
-                  {asset ? (
-                    <image
-                      href={asset}
-                      width={baseSize.width}
-                      height={baseSize.height}
-                      preserveAspectRatio="xMidYMid meet"
-                    />
-                  ) : null}
+                  <ProductionComponentVisual
+                    entry={entry}
+                    component={component}
+                    width={baseSize.width}
+                    height={baseSize.height}
+                    visualState={visualState}
+                  />
                 </g>
-                {(Object.keys(entry.terminals) as Terminal[]).map((terminal) => {
+                {component.kind === 'breadboard'
+                  ? (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map(
+                      (hole) => {
+                        const point = {
+                          x: component.position.x + hole.xMm * WORLD_UNITS_PER_MM,
+                          y: component.position.y + hole.yMm * WORLD_UNITS_PER_MM,
+                        };
+                        const pending =
+                          c.pendingTerminal?.componentId === component.id &&
+                          c.pendingTerminal.terminal === hole.id;
+                        return (
+                          <g
+                            key={hole.id}
+                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}`}
+                            data-hole-id={hole.id}
+                          >
+                            <circle
+                              className="workbench-breadboard-hole-hit"
+                              cx={point.x}
+                              cy={point.y}
+                              r="5"
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${entry.label}: отверстие ${hole.id}`}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                c.clickTerminal(component.id, hole.id);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  c.clickTerminal(component.id, hole.id);
+                                }
+                              }}
+                            />
+                            <circle
+                              className="workbench-breadboard-hole"
+                              cx={point.x}
+                              cy={point.y}
+                              r="2.3"
+                            >
+                              <title>{hole.id}</title>
+                            </circle>
+                          </g>
+                        );
+                      },
+                    )
+                  : null}
+                {Object.keys(entry.terminals).map((terminal) => {
+                  if (component.kind === 'breadboard') return null;
                   const terminalSpec = entry.terminals[terminal];
                   if (!terminalSpec) return null;
                   const point = terminalPosition(
-                    component.kind,
+                    component,
                     component.position,
                     terminal,
                     component.rotation ?? 0,

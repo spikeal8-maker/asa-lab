@@ -1,4 +1,4 @@
-import { terminalsForKind, type ElectronicsDocument, type Terminal } from './document.js';
+import { terminalsForComponent, type ElectronicsDocument, type Terminal } from './document.js';
 
 export interface TerminalRef {
   readonly componentId: string;
@@ -41,8 +41,17 @@ class UnionFind {
 export function buildNetlist(document: ElectronicsDocument): Netlist {
   const union = new UnionFind();
   for (const component of document.components) {
-    const terminals = terminalsForKind(component.kind);
+    const terminals = terminalsForComponent(component);
     for (const terminal of terminals) union.find(terminalKey(component.id, terminal));
+    for (const [left, right] of component.internalConnections ?? []) {
+      union.union(terminalKey(component.id, left), terminalKey(component.id, right));
+    }
+    for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
+      union.union(
+        terminalKey(component.id, pinId),
+        terminalKey(binding.breadboardComponentId, binding.holeId),
+      );
+    }
     if (component.kind === 'wire') {
       union.union(terminalKey(component.id, 'a'), terminalKey(component.id, 'b'));
     }
@@ -58,7 +67,7 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
   const rootToIndex = new Map<string, number>();
   const terminalsByNode = new Map<number, string[]>();
   for (const component of document.components) {
-    for (const terminal of terminalsForKind(component.kind)) {
+    for (const terminal of terminalsForComponent(component)) {
       const key = terminalKey(component.id, terminal);
       const root = union.find(key);
       let index = rootToIndex.get(root);

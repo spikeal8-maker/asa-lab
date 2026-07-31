@@ -78,7 +78,7 @@ describe('schema-versioned Electronics document', () => {
     if (!parsed.ok) return;
     expect(parsed.migrated).toBe(true);
     expect(parsed.document).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       components: [{ id: 'r1', kind: 'resistor', value: 100 }],
       viewport: { x: 0, y: 0, zoom: 1 },
       simulation: { running: false, maxIterations: 24 },
@@ -128,6 +128,58 @@ describe('netlist', () => {
     const netlist = buildNetlist(document);
     expect(netlist.nodeOf.get(terminalKey('r1', 'b'))).toBe(
       netlist.nodeOf.get(terminalKey('r2', 'a')),
+    );
+  });
+
+  it('persists production variants and joins snapped pins through breadboard groups', () => {
+    const parsed = parseElectronicsDocument({
+      schemaVersion: 3,
+      components: [
+        {
+          id: 'board',
+          kind: 'breadboard',
+          componentTypeId: 'breadboard-medium',
+          variantId: 'breadboard-medium',
+          position: { x: 10, y: 20 },
+          value: 0,
+          pinIds: ['J1', 'I1'],
+          internalConnections: [['J1', 'I1']],
+          stateProperties: {},
+        },
+        {
+          id: 'rgb',
+          kind: 'rgb-led',
+          componentTypeId: 'rgb-led',
+          variantId: 'rgb-led',
+          position: { x: 30, y: 40 },
+          value: 0,
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: {
+            red: 20,
+            green: 80,
+            blue: 55,
+            commonMode: 'common-anode',
+          },
+          holeBindings: { red: { breadboardComponentId: 'board', holeId: 'J1' } },
+        },
+      ],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.document.components[1]).toMatchObject({
+      componentTypeId: 'rgb-led',
+      variantId: 'rgb-led',
+      stateProperties: { red: 20, green: 80, blue: 55, commonMode: 'common-anode' },
+    });
+    const netlist = buildNetlist(parsed.document);
+    expect(netlist.nodeOf.get(terminalKey('rgb', 'red'))).toBe(
+      netlist.nodeOf.get(terminalKey('board', 'J1')),
+    );
+    expect(netlist.nodeOf.get(terminalKey('board', 'J1'))).toBe(
+      netlist.nodeOf.get(terminalKey('board', 'I1')),
     );
   });
 });

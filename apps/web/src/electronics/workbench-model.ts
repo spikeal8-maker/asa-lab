@@ -67,7 +67,7 @@ export function initials(name: string): string {
 }
 
 export function componentTransform(component: SchematicComponent): string {
-  const entry = catalogEntry(component.kind);
+  const entry = catalogEntry(component);
   if (!entry) return `translate(${component.position.x} ${component.position.y})`;
   const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
   const rotation = component.rotation ?? 0;

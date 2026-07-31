@@ -1,30 +1,42 @@
 import type {
-  ComponentKind,
+  ProductionStateValue,
   SchematicComponent,
   SchematicConnection,
   SchematicDocument,
   Terminal,
 } from '../api';
-import {
-  ACTIVE_COMPONENTS,
-  catalogEntry,
-  renderedSize,
-  terminalPosition,
-} from './component-catalog';
+import { catalogEntry, renderedSize, terminalPosition } from './component-catalog';
+import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
+import { productionBreadboard } from './production-manifest-adapter';
 import { snap, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
 export function addComponentToDocument(
   document: SchematicDocument,
-  kind: Exclude<ComponentKind, 'wire'>,
+  componentTypeId: string,
   center: Point,
   id: string,
 ): { document: SchematicDocument; component: SchematicComponent } {
-  const entry = ACTIVE_COMPONENTS[kind];
+  const entry = catalogEntry(componentTypeId);
+  if (!entry) throw new Error(`Unknown production component: ${componentTypeId}`);
   const size = renderedSize(entry);
+  const board = productionBreadboard(componentTypeId);
+  const internalConnections: [string, string][] = board
+    ? Object.values(board.groups).flatMap((holes) => {
+        const first = holes[0];
+        return first ? holes.slice(1).map((hole) => [first, hole] as [string, string]) : [];
+      })
+    : componentTypeId === 'button-tactile-6mm'
+      ? [
+          ['SW-A1', 'SW-A2'],
+          ['SW-B1', 'SW-B2'],
+        ]
+      : [];
   const component: SchematicComponent = {
     id,
-    kind,
+    kind: entry.kind,
+    componentTypeId,
+    variantId: componentTypeId,
     position: { x: snap(center.x - size.width / 2), y: snap(center.y - size.height / 2) },
     value: entry.defaultValue,
     rotation: 0,
@@ -33,6 +45,9 @@ export function addComponentToDocument(
     ...(entry.defaultWiperPosition === undefined
       ? {}
       : { wiperPosition: entry.defaultWiperPosition }),
+    stateProperties: { ...entry.defaultStateProperties },
+    pinIds: Object.keys(entry.terminals),
+    ...(internalConnections.length === 0 ? {} : { internalConnections }),
   };
   return { component, document: { ...document, components: [...document.components, component] } };
 }
@@ -156,7 +171,34 @@ export function updateSelectionState(
   return {
     ...document,
     components: document.components.map((item) =>
-      item.id === selection.id ? { ...item, state } : item,
+      item.id === selection.id
+        ? {
+            ...item,
+            state,
+            stateProperties: {
+              ...item.stateProperties,
+              ...(item.kind === 'button'
+                ? { contactState: state ? 'pressed' : 'released' }
+                : { selectedThrow: state ? 'right' : 'left' }),
+            },
+          }
+        : item,
+    ),
+  };
+}
+
+export function updateSelectionProperties(
+  document: SchematicDocument,
+  selection: Selection,
+  properties: Readonly<Record<string, ProductionStateValue>>,
+): SchematicDocument | null {
+  if (selection?.kind !== 'component') return null;
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === selection.id
+        ? { ...item, stateProperties: { ...item.stateProperties, ...properties } }
+        : item,
     ),
   };
 }
@@ -207,13 +249,8 @@ export function toggleSelectedWireRoute(
   const from = document.components.find((item) => item.id === connection.from.componentId);
   const to = document.components.find((item) => item.id === connection.to.componentId);
   if (!from || !to) return null;
-  const start = terminalPosition(
-    from.kind,
-    from.position,
-    connection.from.terminal,
-    from.rotation ?? 0,
-  );
-  const end = terminalPosition(to.kind, to.position, connection.to.terminal, to.rotation ?? 0);
+  const start = terminalPosition(from, from.position, connection.from.terminal, from.rotation ?? 0);
+  const end = terminalPosition(to, to.position, connection.to.terminal, to.rotation ?? 0);
   if (!start || !end) return null;
   const current = connection.vertices ?? [];
   const vertical =
@@ -286,6 +323,96 @@ export function reconnectWireEndpoint(
   };
 }
 
+export function snapComponentToBreadboard(
+  document: SchematicDocument,
+  componentId: string,
+): SchematicDocument {
+  const component = document.components.find((item) => item.id === componentId);
+  const entry = component ? catalogEntry(component) : null;
+  const offsets = entry?.footprint?.pinOffsetsMm;
+  const pinIds = component?.pinIds ?? [];
+  if (
+    !component ||
+    !entry ||
+    !offsets ||
+    offsets.length === 0 ||
+    pinIds.length !== offsets.length
+  ) {
+    return document;
+  }
+  const firstPin = entry.terminals[pinIds[0] as string];
+  if (!firstPin) return document;
+  const firstPoint = terminalPosition(
+    component,
+    component.position,
+    firstPin.id,
+    component.rotation ?? 0,
+  );
+  if (!firstPoint) return document;
+
+  let best: {
+    board: SchematicComponent;
+    holes: { id: string; xMm: number; yMm: number }[];
+    distance: number;
+  } | null = null;
+  for (const boardComponent of document.components.filter((item) => item.kind === 'breadboard')) {
+    const board = productionBreadboard(boardComponent.componentTypeId ?? '');
+    if (!board) continue;
+    for (const originHole of board.holes) {
+      const originWorld = {
+        x: boardComponent.position.x + originHole.xMm * WORLD_UNITS_PER_MM,
+        y: boardComponent.position.y + originHole.yMm * WORLD_UNITS_PER_MM,
+      };
+      const distance = Math.hypot(originWorld.x - firstPoint.x, originWorld.y - firstPoint.y);
+      if (distance > 30 || (best && best.distance <= distance)) continue;
+      const holes = offsets.flatMap(([dxMm, dyMm]) => {
+        const targetX = originHole.xMm + dxMm;
+        const targetY = originHole.yMm + dyMm;
+        const hole = board.holes.find(
+          (candidate) => Math.hypot(candidate.xMm - targetX, candidate.yMm - targetY) <= 0.25,
+        );
+        return hole ? [{ id: hole.id, xMm: hole.xMm, yMm: hole.yMm }] : [];
+      });
+      if (
+        holes.length === offsets.length &&
+        new Set(holes.map((hole) => hole.id)).size === holes.length
+      ) {
+        best = { board: boardComponent, holes, distance };
+      }
+    }
+  }
+  if (!best) {
+    if (!component.holeBindings) return document;
+    return {
+      ...document,
+      components: document.components.map((item) =>
+        item.id === componentId ? { ...item, holeBindings: {} } : item,
+      ),
+    };
+  }
+  const firstHole = best.holes[0] as { id: string; xMm: number; yMm: number };
+  const alignedPosition = {
+    x:
+      component.position.x +
+      (best.board.position.x + firstHole.xMm * WORLD_UNITS_PER_MM - firstPoint.x),
+    y:
+      component.position.y +
+      (best.board.position.y + firstHole.yMm * WORLD_UNITS_PER_MM - firstPoint.y),
+  };
+  const holeBindings = Object.fromEntries(
+    pinIds.map((pinId, index) => [
+      pinId,
+      { breadboardComponentId: best?.board.id as string, holeId: best?.holes[index]?.id as string },
+    ]),
+  );
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === componentId ? { ...item, position: alignedPosition, holeBindings } : item,
+    ),
+  };
+}
+
 export function connectTerminals(
   document: SchematicDocument,
   from: TerminalRef,
@@ -343,11 +470,11 @@ export function moveComponentsInDocument(
 export function sceneBounds(
   document: SchematicDocument,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
-  const placed = document.components.filter((component) => catalogEntry(component.kind));
+  const placed = document.components.filter((component) => catalogEntry(component));
   if (placed.length === 0) return null;
   return placed.reduce(
     (acc, component) => {
-      const entry = catalogEntry(component.kind);
+      const entry = catalogEntry(component);
       if (!entry) return acc;
       const size = renderedSize(entry, component.rotation ?? 0);
       return {

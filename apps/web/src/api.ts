@@ -101,18 +101,42 @@ export interface ProjectVersion {
 }
 
 export type ComponentKind =
-  'source' | 'resistor' | 'led' | 'button' | 'switch' | 'potentiometer' | 'diode' | 'lamp' | 'wire';
-export type Terminal = 'a' | 'b' | 'wiper';
+  | 'source'
+  | 'resistor'
+  | 'led'
+  | 'rgb-led'
+  | 'seven-segment'
+  | 'button'
+  | 'switch'
+  | 'potentiometer'
+  | 'diode'
+  | 'lamp'
+  | 'breadboard'
+  | 'visual'
+  | 'wire';
+export type Terminal = string;
+export type ProductionStateValue = string | number | boolean | readonly string[];
+
+export interface BreadboardHoleBinding {
+  breadboardComponentId: string;
+  holeId: string;
+}
 
 export interface SchematicComponent {
   id: string;
   kind: ComponentKind;
+  componentTypeId?: string;
+  variantId?: string;
   position: { x: number; y: number };
   value: number;
   rotation?: 0 | 90 | 180 | 270;
   name?: string;
   state?: boolean;
   wiperPosition?: number;
+  stateProperties?: Record<string, ProductionStateValue>;
+  pinIds?: string[];
+  holeBindings?: Record<string, BreadboardHoleBinding>;
+  internalConnections?: [string, string][];
 }
 
 export interface SchematicConnection {
@@ -124,7 +148,7 @@ export interface SchematicConnection {
 }
 
 export interface SchematicDocument {
-  schemaVersion: 2;
+  schemaVersion: 3;
   components: SchematicComponent[];
   connections: SchematicConnection[];
   viewport: { x: number; y: number; zoom: number };

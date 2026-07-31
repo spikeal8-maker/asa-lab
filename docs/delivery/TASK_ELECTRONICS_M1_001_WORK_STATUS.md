@@ -7,8 +7,8 @@ Current PR: #72
 ```text
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
-status: in_progress / production_editor_integration
-production evidence checkpoint: e604762057a839c2683c5788e83e1b686273828c
+status: in_progress / owner_visual_review
+production evidence checkpoint: pending final integration commit
 owner integration directive: PR #72 comment 5147079314
 owner-confirmed full archive SHA-256: c5bfd26760db7a92d06e0b51b0bde3bb45595278a762bab3ab9198abb04b4d75
 ```
@@ -28,19 +28,19 @@ The branch contains:
 - breadboard visuals, hole maps and connectivity metadata;
 - standalone review pages and focused evidence.
 
-Those standalone pages are no longer the delivery result. The actual Electronics
-editor still uses the old hard-coded eight-entry runtime catalog and old asset
-root. The owner explicitly requires integration into a real project.
+Those standalone pages are retained only as reference evidence. The actual
+Electronics editor now consumes the production manifest through a typed adapter;
+new projects no longer select legacy component images.
 
 ## Active checkpoint
 
 ```text
-production_editor_integration
+owner_visual_review
 ```
 
-The working route `/projects/:projectId` must consume the production manifest,
-render production SVG at physical scale, use production pins/footprints and
-persist state/hole bindings.
+The working project route consumes the production manifest, renders production
+SVG at physical scale, uses production pins/footprints and persists component
+variants, state, positions, hole bindings, wires and checkpoints.
 
 Required live editor scope:
 
@@ -73,9 +73,28 @@ exists.
 - legacy schema-v1/v2 opens additively without data loss;
 - fake numerical success for unsupported candidates is forbidden.
 
+## Implemented integration checkpoint
+
+- the runtime library is adapted from
+  `/assets/electronics/production/manifest.json`;
+- the 32 review candidates are available in the real editor, while 5×AA remains
+  an explicit missing reference;
+- battery holders 1/2/3/4/6/8×AA, resistor, ordinary LED, RGB LED,
+  seven-segment display, tactile button, SPDT, potentiometer, diode, lamp and
+  breadboards 170/420/882 use production SVG and manifest pins;
+- breadboards expose stable 2.54 mm hole IDs, contact groups, rail breaks,
+  snapping and internal connectivity;
+- the resistor bands, LED colour/brightness, RGB channels, display glyph/mask,
+  button, SPDT, potentiometer and lamp state are controlled in the real editor;
+- save/reload restored 14 components, 3 wires, the 420-hole breadboard, 2 LED
+  bindings, 4 button bindings, 4 display states, the 4.7 kOhm resistor and
+  immutable version number 1;
+- the connected battery-resistor-LED circuit reports 0.2 mA and the resistor
+  inspector reports 3.000 V / 2.002 V / 0.21 mA / 0.998 V.
+
 ## Owner acceptance flow
 
-The next checkpoint must be shown inside a real project on `localhost:4610`:
+The checkpoint is shown inside a real project on `localhost:4610`:
 
 1. breadboard 420 on the actual stage;
 2. battery holder 2×AA connected by lead ends to rails;
@@ -103,8 +122,8 @@ reload-checkpoint
 ## Focused checks
 
 Only focused adapter, migration, scale, pin, breadboard, LED/RGB/display state
-and real-editor browser checks run before owner review. Browser collectors must
-report zero unexpected console/page/request/HTTP 5xx errors.
+and real-editor browser checks run before owner review. The full repository
+matrix remains `NOT_RUN` by owner directive.
 
 ## Prohibited until owner acceptance
 

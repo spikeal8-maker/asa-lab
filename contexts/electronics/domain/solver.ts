@@ -1,5 +1,5 @@
 import {
-  terminalsForKind,
+  terminalsForComponent,
   type ElectronicsDocument,
   type SchematicComponent,
   type Terminal,
@@ -61,6 +61,37 @@ const LED_MIN_CURRENT_A = 0.001;
 const DEFAULT_LED_MAX_CURRENT_A = 0.03;
 const LAMP_MIN_POWER_W = 0.001;
 const SHORT_CIRCUIT_CURRENT_A = 5;
+
+type LogicalTerminal = 'a' | 'b' | 'wiper';
+
+function logicalTerminal(component: SchematicComponent, terminal: LogicalTerminal): Terminal {
+  const type = component.componentTypeId;
+  if (!type) return terminal;
+  if (component.kind === 'source' && type) {
+    const positive = component.pinIds?.includes('BAT+') ? 'BAT+' : 'positive';
+    const negative = component.pinIds?.includes('BAT-') ? 'BAT-' : 'negative';
+    return terminal === 'a' ? positive : negative;
+  }
+  if (component.kind === 'resistor') return terminal === 'a' ? 'lead-1' : 'lead-2';
+  if (component.kind === 'led' || component.kind === 'diode') {
+    return terminal === 'a' ? 'anode' : 'cathode';
+  }
+  if (component.kind === 'button') return terminal === 'a' ? 'SW-A1' : 'SW-B1';
+  if (component.kind === 'switch') {
+    if (terminal === 'a') return 'common';
+    return component.state === true ? 'throw-right' : 'throw-left';
+  }
+  if (component.kind === 'potentiometer') {
+    if (terminal === 'wiper') return 'wiper';
+    return terminal === 'a' ? 'terminal-1' : 'terminal-2';
+  }
+  if (component.kind === 'lamp') return terminal === 'a' ? 'L1' : 'L2';
+  return terminal;
+}
+
+function isSimulated(component: SchematicComponent): boolean {
+  return !['rgb-led', 'seven-segment', 'breadboard', 'visual', 'wire'].includes(component.kind);
+}
 
 function round(value: number, digits = 6): number {
   const factor = 10 ** digits;
@@ -149,6 +180,19 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     });
   }
   if (invalid.length > 0) return empty();
+  const unsupported = document.components.filter((component) =>
+    ['rgb-led', 'seven-segment', 'visual'].includes(component.kind),
+  );
+  if (unsupported.length > 0) {
+    diagnostics.push({
+      code: 'unsupported_component',
+      severity: 'warning',
+      message: `${unsupported.length} production-компонент(а) показаны визуально без электрической модели.`,
+      componentIds: unsupported.map((component) => component.id),
+      suggestedAction:
+        'Их variant/state сохранены; solver не подменяет расчёт вымышленными значениями.',
+    });
+  }
   if (sources.length === 0) {
     diagnostics.push({
       code: 'no_source',
@@ -159,10 +203,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     return empty();
   }
 
-  const referenceNode = netlist.nodeOf.get(terminalKey(sources[0]!.id, 'b')) as number;
+  const referenceNode = netlist.nodeOf.get(
+    terminalKey(sources[0]!.id, logicalTerminal(sources[0]!, 'b')),
+  ) as number;
   for (const source of sources) {
-    const a = netlist.nodeOf.get(terminalKey(source.id, 'a'));
-    const b = netlist.nodeOf.get(terminalKey(source.id, 'b'));
+    const a = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
+    const b = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'b')));
     if (a === undefined || b === undefined || a === b) {
       diagnostics.push({
         code: 'short_circuit',
@@ -191,8 +237,8 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   let converged = false;
   let iterations = 1;
   const maxIterations = document.simulation.maxIterations;
-  const nodeIndex = (component: SchematicComponent, terminal: Terminal): number =>
-    netlist.nodeOf.get(terminalKey(component.id, terminal)) as number;
+  const nodeIndex = (component: SchematicComponent, terminal: LogicalTerminal): number =>
+    netlist.nodeOf.get(terminalKey(component.id, logicalTerminal(component, terminal))) as number;
   const voltageFrom = (values: number[], node: number): number =>
     node === referenceNode ? 0 : (values[nodeVariables.get(node) as number] as number);
 
@@ -218,12 +264,16 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
     for (const component of document.components) {
-      if (component.kind === 'wire' || component.kind === 'source') continue;
+      if (!isSimulated(component) || component.kind === 'source') continue;
       const a = nodeIndex(component, 'a');
       const b = nodeIndex(component, 'b');
       if (component.kind === 'resistor' || component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
-      } else if (component.kind === 'switch' || component.kind === 'button') {
+      } else if (component.kind === 'switch') {
+        if (component.componentTypeId || component.state === true) {
+          stampConductance(a, b, 1 / CLOSED_RESISTANCE);
+        }
+      } else if (component.kind === 'button') {
         if (component.state === true) stampConductance(a, b, 1 / CLOSED_RESISTANCE);
       } else if (component.kind === 'potentiometer') {
         const wiper = nodeIndex(component, 'wiper');
@@ -294,8 +344,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     return empty(iterations);
   }
 
-  const voltageAt = (component: SchematicComponent, terminal: Terminal): number =>
+  const voltageAt = (component: SchematicComponent, terminal: LogicalTerminal): number =>
     voltageFrom(solution as number[], nodeIndex(component, terminal));
+  const physicalVoltageAt = (component: SchematicComponent, terminal: Terminal): number => {
+    const node = netlist.nodeOf.get(terminalKey(component.id, terminal));
+    return node === undefined ? 0 : voltageFrom(solution as number[], node);
+  };
   const sourceCurrents = new Map<string, number>();
   for (const [position, source] of sources.entries()) {
     sourceCurrents.set(source.id, solution[nodeVariableCount + position] as number);
@@ -305,14 +359,23 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     .filter((component) => component.kind !== 'wire')
     .map((component) => {
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
-      for (const terminal of terminalsForKind(component.kind))
-        terminalVoltages[terminal] = round(voltageAt(component, terminal));
-      const voltageDrop = voltageAt(component, 'a') - voltageAt(component, 'b');
+      for (const terminal of terminalsForComponent(component)) {
+        terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
+      }
+      const voltageDrop = isSimulated(component)
+        ? voltageAt(component, 'a') - voltageAt(component, 'b')
+        : 0;
       let current = 0;
       if (component.kind === 'source') current = -(sourceCurrents.get(component.id) ?? 0);
       else if (component.kind === 'resistor' || component.kind === 'lamp')
         current = voltageDrop / component.value;
-      else if (component.kind === 'switch' || component.kind === 'button')
+      else if (component.kind === 'switch')
+        current = component.componentTypeId
+          ? voltageDrop / CLOSED_RESISTANCE
+          : component.state === true
+            ? voltageDrop / CLOSED_RESISTANCE
+            : 0;
+      else if (component.kind === 'button')
         current = component.state === true ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'potentiometer') {
         const position = component.wiperPosition ?? 0.5;
@@ -351,8 +414,16 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       connectionCount.set(key, (connectionCount.get(key) ?? 0) + 1);
     }
   }
-  for (const component of document.components.filter((item) => item.kind !== 'wire')) {
-    const dangling = terminalsForKind(component.kind).filter(
+  for (const component of document.components) {
+    for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
+      connectionCount.set(terminalKey(component.id, pinId), 1);
+      connectionCount.set(terminalKey(binding.breadboardComponentId, binding.holeId), 1);
+    }
+  }
+  for (const component of document.components.filter(isSimulated)) {
+    const logical = [logicalTerminal(component, 'a'), logicalTerminal(component, 'b')];
+    if (component.kind === 'potentiometer') logical.push(logicalTerminal(component, 'wiper'));
+    const dangling = logical.filter(
       (terminal) => !connectionCount.get(terminalKey(component.id, terminal)),
     );
     if (dangling.length > 0) {

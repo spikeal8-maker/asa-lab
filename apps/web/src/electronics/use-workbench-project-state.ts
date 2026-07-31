@@ -7,6 +7,8 @@ import {
   type SolveResult,
 } from '../api';
 import { cloneJson } from './workbench-geometry';
+import { catalogEntry } from './component-catalog';
+import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import type { HistoryState, SaveStatus } from './workbench-model';
 
 function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument {
@@ -15,9 +17,37 @@ function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument
     viewport?: SchematicDocument['viewport'];
     simulation?: SchematicDocument['simulation'];
   };
+  const components = document.components.map((component) => {
+    const componentTypeId = component.componentTypeId ?? defaultProductionType(component.kind);
+    const entry = componentTypeId ? catalogEntry(componentTypeId) : null;
+    const board = componentTypeId ? productionBreadboard(componentTypeId) : null;
+    const internalConnections =
+      component.internalConnections ??
+      (board
+        ? Object.values(board.groups).flatMap((holes) => {
+            const first = holes[0];
+            return first ? holes.slice(1).map((hole) => [first, hole] as [string, string]) : [];
+          })
+        : componentTypeId === 'button-tactile-6mm'
+          ? ([
+              ['SW-A1', 'SW-A2'],
+              ['SW-B1', 'SW-B2'],
+            ] as [string, string][])
+          : []);
+    return {
+      ...component,
+      ...(componentTypeId
+        ? { componentTypeId, variantId: component.variantId ?? componentTypeId }
+        : {}),
+      stateProperties: { ...entry?.defaultStateProperties, ...component.stateProperties },
+      pinIds: component.pinIds ?? Object.keys(entry?.terminals ?? {}),
+      ...(internalConnections.length > 0 ? { internalConnections } : {}),
+    };
+  });
   return {
     ...document,
-    schemaVersion: 2,
+    schemaVersion: 3,
+    components,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
     simulation: legacy.simulation ?? { running: false, maxIterations: 24 },
   };

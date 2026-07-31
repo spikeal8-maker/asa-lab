@@ -69,7 +69,7 @@ nodes:
   - {id: OBS-OTEL, label: OpenTelemetry, kind: observability, layer: operations, status: planned, summary: "Future production telemetry."}
 
   - {id: SDK-MODULE, label: Module SDK, kind: sdk, layer: modules, status: in_progress, summary: "Existing provider contract is verified for the R3A gateway.", path: packages/module-sdk}
-  - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "Owner-supplied component inventory, physical dimensions, pins, breadboard footprints and state families are under acceptance audit before simulator work resumes.", path: contexts/electronics}
+  - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "The real project editor is integrating the owner production manifest, physical scale, typed states, breadboard snapping and persisted connectivity for owner review.", path: contexts/electronics}
   - {id: MOD-CHESS, label: ASA Chess, kind: subject_module, layer: modules, status: in_progress, summary: "Existing Chess and Chess Online must remain reachable.", path: contexts/chess}
   - {id: MOD-BLOCKS, label: Block Coding, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
   - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
@@ -214,4 +214,4 @@ execution_queue:
   - {position: 3, task_id: TASK-ACCOUNT-C1-001, instruction: "Completed Account C1 and merged PR #70.", gate: "done"}
   - {position: 4, task_id: TASK-CREATOR-PORTAL-001, instruction: "Implement only R2 Creator Home and capability-aware Portal shell on agent/r2-creator-portal.", gate: "focused tests, full regression, live browser evidence and owner review"}
   - {position: 5, task_id: TASK-R3A-ELECTRONICS-GATEWAY-001, instruction: "Verify the existing Registry, Editor Host and module-neutral lifecycle without an architecture rewrite.", gate: "focused module and project tests"}
-  - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Reconstruct the full owner catalog as transparent production vectors with physical, pin, state and breadboard contracts; do not resume solver work before owner acceptance.", gate: "focused production asset/state/breadboard tests, five review pages and owner visual review"}
+  - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Integrate the preserved owner production catalog into the real /projects/:projectId Electronics editor with physical scale, typed states, breadboard connectivity and persistence.", gate: "focused adapter/migration/state/breadboard tests, six real-editor screenshots and owner visual review"}

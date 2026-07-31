@@ -1,15 +1,38 @@
-# Electronics M1 owner asset checkpoint
+# Electronics M1 production editor checkpoint
 
 - Task: `TASK-ELECTRONICS-M1-001`
 - Branch: `agent/r4-electronics-m1`
-- Review state: previous simulator presentation rejected; owner asset contact sheet pending
+- Review state: production assets integrated into the real Electronics editor; owner visual review pending
 - Full repository matrix: `NOT_RUN` by owner directive
-- Simulator work after rejection: `STOPPED`
+- R4-M2: `NOT_STARTED`
 
-The earlier six simulator screenshots are retained only as superseded review
-history. They are not evidence of visual acceptance. The current checkpoint is
-limited to restoring and presenting the owner-supplied component set before any
-further simulator integration.
+The owner archive audit at `9654ce3` remains immutable reference evidence. The
+current delivery result is the actual project editor, not a standalone review
+page. New projects use the production manifest; legacy assets remain available
+only for existing documents.
+
+## Real editor evidence
+
+Project: `Electronics production integration`
+
+The project contains 14 production components, a 420-hole breadboard, three
+wires and immutable checkpoint 1. Reload restored the component types, variants,
+state, positions, breadboard hole bindings and connections. A connected
+2×AA-resistor-LED loop reports 0.2 mA; the 4.7 kOhm resistor inspector reports
+3.000 V, 2.002 V, 0.21 mA and 0.998 V drop.
+
+| Evidence | Purpose |
+| --- | --- |
+| `library-production.png` | Production-manifest library in the actual editor |
+| `breadboard-empty.png` | 420-hole breadboard with 2.54 mm internal groups |
+| `breadboard-components-snapped.png` | LED and four-pin tactile button snapped to stable hole IDs |
+| `led-rgb-display-states.png` | RGB controls plus displays 0, 8, A and arbitrary mask |
+| `connected-running.png` | Live connected circuit and 0.2 mA result |
+| `reload-checkpoint.png` | Reloaded 4.7 kOhm resistor, voltages/current and checkpoint 1 |
+
+Focused checks cover the manifest adapter, schema migration, physical scale,
+production pins, breadboard connectivity, state persistence and the actual
+editor journey. The full repository matrix was intentionally not run.
 
 ## Owner archive recovery
 
@@ -44,27 +67,24 @@ Windows denied reading two unrelated protected folders during the broad scan:
 `AppData/Local/ElevatedDiagnostics`. One unrelated Desktop documentation folder
 returned an I/O error. None is the provenance location of the recovered archives.
 
-## Contact sheet contract
+## Preserved reference contract
 
-The deployed page `/electronics-contact-sheet.html` uses one value of
+The archived contact sheet uses one value of
 `worldUnitsPerMm` for all components. Image dimensions are derived only from
 `physicalWidthMm` and `physicalHeightMm`; no per-component `renderWidth` exists.
 It shows a 10 mm ruler, a common millimeter grid, source filenames, physical
 dimensions, pin IDs, and terminal markers at the source coordinates. Wires and
 simulation are absent.
 
-The active M1 review subset contains eight families and all 19 recovered state
-SVGs. The four-pin 6×6 mm tactile button and three-pin SPDT are represented with
-their complete physical pin topology. Their previous two-terminal runtime
-models remain blocked until this contact sheet is accepted and the mapping is
-reconciled.
+The four-pin 6×6 mm tactile button and three-pin SPDT retain their complete
+physical pin topology in both the reference evidence and the production editor.
 
 ## Unaccepted current assets
 
 All 16 files in `apps/web/public/assets/electronics/components/` lack an exact
-hash match in the recovered owner archives and are excluded from the contact
-sheet. The following four are explicitly self-made or otherwise unconfirmed
-additions from the rejected implementation:
+hash match in the recovered owner archives and are legacy-only. The following
+four remain explicitly self-made or otherwise unconfirmed additions from the
+rejected implementation:
 
 - `potentiometer.svg`
 - `diode.svg`

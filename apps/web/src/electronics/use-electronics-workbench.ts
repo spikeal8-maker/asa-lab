@@ -7,17 +7,12 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
+import { type ComponentResult, type SchematicComponent, type Terminal } from '../api';
 import {
-  type ComponentKind,
-  type ComponentResult,
-  type SchematicComponent,
-  type Terminal,
-} from '../api';
-import {
-  WORKBENCH_CATALOG,
   catalogEntry,
   renderedSize,
   terminalPosition,
+  workbenchCatalog,
   type ComponentCategory,
   type ComponentVisualState,
 } from './component-catalog';
@@ -43,10 +38,12 @@ import {
   removeSelectionFromDocument,
   rotateSelectionInDocument,
   sceneBounds,
+  snapComponentToBreadboard,
   toggleSelectedWireRoute,
   updateSelectedWireColor,
   updateSelectionName,
   updateSelectionState,
+  updateSelectionProperties,
   updateSelectionValue,
   updateWiperPosition,
 } from './workbench-document';
@@ -138,7 +135,7 @@ export function useElectronicsWorkbench(projectId: string) {
     }
   }, [document, project]);
 
-  function addComponent(kind: Exclude<ComponentKind, 'wire'>, at?: Point): void {
+  function addComponent(componentTypeId: string, at?: Point): void {
     if (!document) return;
     const placedCount = document.components.filter((component) => component.kind !== 'wire').length;
     const box = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
@@ -148,8 +145,14 @@ export function useElectronicsWorkbench(projectId: string) {
       x: box.x + box.width * (0.17 + column * 0.22),
       y: box.y + 150 + row * 235,
     };
-    const added = addComponentToDocument(document, kind, at ?? catalogPosition, nextId(kind));
-    const entry = catalogEntry(kind);
+    const entry = catalogEntry(componentTypeId);
+    if (!entry) return;
+    const added = addComponentToDocument(
+      document,
+      componentTypeId,
+      at ?? catalogPosition,
+      nextId(entry.kind),
+    );
     commitDocument(
       added.document,
       `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
@@ -219,6 +222,15 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document) return;
     const next = updateWiperPosition(document, selection, position);
     if (next) commitDocument(next, `Положение движка: ${Math.round(position * 100)}%.`);
+  }
+
+  function setSelectedProperties(
+    properties: Readonly<Record<string, string | number | boolean | readonly string[]>>,
+    message?: string,
+  ): void {
+    if (!document) return;
+    const next = updateSelectionProperties(document, selection, properties);
+    if (next) commitDocument(next, message);
   }
 
   function setWireColor(color: string): void {
@@ -397,7 +409,7 @@ export function useElectronicsWorkbench(projectId: string) {
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
       const component = document.components.find((item) => item.id === drag.componentId);
-      const entry = component ? catalogEntry(component.kind) : null;
+      const entry = component ? catalogEntry(component) : null;
       if (!component || !entry) return;
       const size = renderedSize(entry, component.rotation ?? 0);
       const margin = 20;
@@ -447,7 +459,7 @@ export function useElectronicsWorkbench(projectId: string) {
       const bottom = Math.max(marquee.start.y, marquee.current.y);
       const ids = document.components
         .filter((component) => {
-          const entry = catalogEntry(component.kind);
+          const entry = catalogEntry(component);
           if (!entry) return false;
           const size = renderedSize(entry, component.rotation ?? 0);
           return (
@@ -476,8 +488,15 @@ export function useElectronicsWorkbench(projectId: string) {
           moved &&
           (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y)
         ) {
-          pushHistory(document);
-          setNotice('Положение сохранится автоматически.');
+          const snapped = snapComponentToBreadboard(document, drag.componentId);
+          setDocument(snapped);
+          pushHistory(snapped);
+          const snappedComponent = snapped.components.find((item) => item.id === drag.componentId);
+          setNotice(
+            Object.keys(snappedComponent?.holeBindings ?? {}).length > 0
+              ? 'Выводы привязаны к отверстиям макетки.'
+              : 'Положение сохранится автоматически.',
+          );
         }
       }
     }
@@ -536,9 +555,9 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function handleDrop(event: DragEvent<SVGSVGElement>): void {
     event.preventDefault();
-    const kind = event.dataTransfer.getData(DRAG_MIME) as Exclude<ComponentKind, 'wire'>;
-    if (!catalogEntry(kind)) return;
-    addComponent(kind, toWorld(event));
+    const componentTypeId = event.dataTransfer.getData(DRAG_MIME);
+    if (!catalogEntry(componentTypeId)) return;
+    addComponent(componentTypeId, toWorld(event));
   }
 
   useEffect(() => {
@@ -584,7 +603,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   const filteredCatalog = useMemo(() => {
     const query = libraryQuery.trim().toLowerCase();
-    return WORKBENCH_CATALOG.filter((entry) => {
+    return workbenchCatalog().filter((entry) => {
       const categoryMatches = category === 'all' || entry.category === category;
       const queryMatches =
         !query ||
@@ -601,7 +620,7 @@ export function useElectronicsWorkbench(projectId: string) {
     selection?.kind === 'wire'
       ? (document?.connections.find((item) => item.id === selection.id) ?? null)
       : null;
-  const selectedEntry = selectedComponent ? catalogEntry(selectedComponent.kind) : null;
+  const selectedEntry = selectedComponent ? catalogEntry(selectedComponent) : null;
   const resultByComponent = useMemo(() => {
     const map = new Map<string, ComponentResult>();
     for (const item of result?.components ?? []) map.set(item.componentId, item);
@@ -643,7 +662,7 @@ export function useElectronicsWorkbench(projectId: string) {
           );
           return component
             ? terminalPosition(
-                component.kind,
+                component,
                 component.position,
                 pendingTerminal.terminal,
                 component.rotation ?? 0,
@@ -689,6 +708,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelectedState,
     toggleComponentState,
     setSelectedWiper,
+    setSelectedProperties,
     setWireColor,
     toggleWireRoute,
     removeWireBends,

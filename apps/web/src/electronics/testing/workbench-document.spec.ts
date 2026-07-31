@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import type { ComponentKind, SchematicDocument } from '../../api';
-import { ACTIVE_COMPONENTS } from '../component-catalog';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { beforeAll, describe, expect, it } from 'vitest';
+import type { SchematicDocument } from '../../api';
+import {
+  configureProductionLibrary,
+  type BreadboardConnectivityManifest,
+  type ProductionManifest,
+} from '../production-manifest-adapter';
 import {
   addComponentToDocument,
   connectTerminals,
@@ -19,19 +25,39 @@ import {
 } from '../workbench-document';
 
 const EMPTY: SchematicDocument = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   components: [],
   connections: [],
   viewport: { x: 0, y: 0, zoom: 1 },
   simulation: { running: false, maxIterations: 24 },
 };
 
-const activeKinds = Object.keys(ACTIVE_COMPONENTS) as Exclude<ComponentKind, 'wire'>[];
+const activeTypes = [
+  ['battery-6v', 'source'],
+  ['resistor-axial', 'resistor'],
+  ['led-5mm', 'led'],
+  ['button-tactile-6mm', 'button'],
+  ['switch-spdt', 'switch'],
+  ['potentiometer', 'potentiometer'],
+  ['diode-do35', 'diode'],
+  ['incandescent-lamp', 'lamp'],
+] as const;
+
+beforeAll(() => {
+  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/production');
+  configureProductionLibrary(
+    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as ProductionManifest,
+    JSON.parse(
+      readFileSync(resolve(root, 'breadboard-connectivity.json'), 'utf8'),
+    ) as BreadboardConnectivityManifest,
+  );
+});
 
 function populated(): SchematicDocument {
-  return activeKinds.reduce(
-    (document, kind, index) =>
-      addComponentToDocument(document, kind, { x: 120 + index * 180, y: 180 }, kind).document,
+  return activeTypes.reduce(
+    (document, [componentTypeId, id], index) =>
+      addComponentToDocument(document, componentTypeId, { x: 120 + index * 180, y: 180 }, id)
+        .document,
     EMPTY,
   );
 }
@@ -39,11 +65,11 @@ function populated(): SchematicDocument {
 describe('Electronics M1 editor document operations', () => {
   it('places exactly the eight active simulated component kinds', () => {
     const document = populated();
-    expect(activeKinds.sort()).toEqual(
+    expect(activeTypes.map(([, kind]) => kind).sort()).toEqual(
       ['button', 'diode', 'lamp', 'led', 'potentiometer', 'resistor', 'source', 'switch'].sort(),
     );
     expect(document.components.map((component) => component.kind).sort()).toEqual(
-      activeKinds.sort(),
+      activeTypes.map(([, kind]) => kind).sort(),
     );
     expect(
       document.components.find((component) => component.kind === 'potentiometer'),

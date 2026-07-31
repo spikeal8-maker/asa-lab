@@ -355,6 +355,32 @@
   outline: none;
   filter: drop-shadow(0 0 5px rgba(16, 132, 185, 0.8));
 }
+.workbench-production-visual {
+  display: block;
+  overflow: visible;
+}
+.workbench-breadboard-hole {
+  fill: rgba(255, 255, 255, 0.14);
+  stroke: rgba(27, 45, 56, 0.22);
+  stroke-width: 0.65;
+  pointer-events: none;
+}
+.workbench-breadboard-hole-hit {
+  fill: rgba(255, 255, 255, 0.01);
+  cursor: crosshair;
+}
+.workbench-breadboard-terminal:hover .workbench-breadboard-hole,
+.workbench-breadboard-terminal.pending .workbench-breadboard-hole {
+  fill: #1596ce;
+  stroke: #fff;
+}
+.workbench-snap-link {
+  stroke: #168dc2;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 4 3;
+  opacity: 0.72;
+}
 .workbench-selection-box {
   fill: rgba(20, 148, 201, 0.04);
   stroke: #1596ce;
@@ -741,6 +767,62 @@
 .workbench-inspector-preview .workbench-component-preview {
   max-width: 120px;
   max-height: 90px;
+}
+.workbench-production-id {
+  margin: 0 0 10px;
+  color: #657784;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.workbench-state-controls {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding: 9px;
+  border: 1px solid #dbe2e7;
+  border-radius: 5px;
+}
+.workbench-state-controls legend {
+  padding: 0 4px;
+  color: #3d5667;
+  font-size: 11px;
+  font-weight: 700;
+}
+.workbench-state-controls label {
+  margin: 0;
+}
+.workbench-state-controls select,
+.workbench-state-controls input:not([type='range']) {
+  width: 100%;
+  margin-top: 3px;
+}
+.workbench-momentary-button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #b8cbd6;
+  border-radius: 4px;
+  background: #eef6fa;
+  color: #245b77;
+}
+.workbench-breadboard-summary,
+.workbench-hole-bindings {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 5px;
+  background: #eef6f4;
+  color: #3d625b;
+  font-size: 11px;
+}
+.workbench-simulation-note {
+  padding: 8px;
+  border-left: 3px solid #d49a2d;
+  background: #fff8e8;
+  color: #765b28;
+  font-size: 11px;
+  line-height: 1.4;
 }
 .workbench-inspector-body label {
   margin: 10px 0 0;

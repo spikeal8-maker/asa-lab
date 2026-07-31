@@ -1,8 +1,21 @@
 /** Schema-versioned Electronics document stored inside a mutable ProjectDraft. */
 export type ComponentKind =
-  'source' | 'resistor' | 'led' | 'button' | 'switch' | 'potentiometer' | 'diode' | 'lamp' | 'wire';
-export type Terminal = 'a' | 'b' | 'wiper';
+  | 'source'
+  | 'resistor'
+  | 'led'
+  | 'rgb-led'
+  | 'seven-segment'
+  | 'button'
+  | 'switch'
+  | 'potentiometer'
+  | 'diode'
+  | 'lamp'
+  | 'breadboard'
+  | 'visual'
+  | 'wire';
+export type Terminal = string;
 export type Rotation = 0 | 90 | 180 | 270;
+export type ProductionStateValue = string | number | boolean | readonly string[];
 
 export interface ComponentPosition {
   readonly x: number;
@@ -12,6 +25,8 @@ export interface ComponentPosition {
 export interface SchematicComponent {
   readonly id: string;
   readonly kind: ComponentKind;
+  readonly componentTypeId?: string;
+  readonly variantId?: string;
   readonly position: ComponentPosition;
   /** Primary electrical value: V, Ohm or forward drop depending on kind. */
   readonly value: number;
@@ -21,6 +36,12 @@ export interface SchematicComponent {
   readonly state?: boolean;
   /** Potentiometer wiper position from terminal a (0) to terminal b (1). */
   readonly wiperPosition?: number;
+  readonly stateProperties?: Readonly<Record<string, ProductionStateValue>>;
+  readonly pinIds?: readonly string[];
+  readonly holeBindings?: Readonly<
+    Record<string, { readonly breadboardComponentId: string; readonly holeId: string }>
+  >;
+  readonly internalConnections?: readonly (readonly [string, string])[];
 }
 
 export interface TerminalRef {
@@ -48,7 +69,7 @@ export interface SimulationSettings {
 }
 
 export interface ElectronicsDocument {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly components: readonly SchematicComponent[];
   readonly connections: readonly SchematicConnection[];
   readonly viewport: ElectronicsViewport;
@@ -58,7 +79,7 @@ export interface ElectronicsDocument {
 export const DEFAULT_VIEWPORT: ElectronicsViewport = { x: 0, y: 0, zoom: 1 };
 export const DEFAULT_SIMULATION: SimulationSettings = { running: false, maxIterations: 24 };
 export const EMPTY_DOCUMENT: ElectronicsDocument = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   components: [],
   connections: [],
   viewport: DEFAULT_VIEWPORT,
@@ -69,11 +90,15 @@ const KINDS: readonly ComponentKind[] = [
   'source',
   'resistor',
   'led',
+  'rgb-led',
+  'seven-segment',
   'button',
   'switch',
   'potentiometer',
   'diode',
   'lamp',
+  'breadboard',
+  'visual',
   'wire',
 ];
 const ROTATIONS = new Set([0, 90, 180, 270]);
@@ -94,6 +119,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isStateValue(value: unknown): value is ProductionStateValue {
+  return (
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    isFiniteNumber(value) ||
+    (Array.isArray(value) && value.length <= 32 && value.every((item) => typeof item === 'string'))
+  );
+}
+
 function parsePosition(value: unknown, field: string): ComponentPosition | string {
   if (!isPlainObject(value) || !isFiniteNumber(value['x']) || !isFiniteNumber(value['y'])) {
     return `${field} must contain finite x/y numbers`;
@@ -108,15 +142,21 @@ export function terminalsForKind(kind: ComponentKind): readonly Terminal[] {
   return kind === 'potentiometer' ? ['a', 'b', 'wiper'] : ['a', 'b'];
 }
 
+export function terminalsForComponent(component: SchematicComponent): readonly Terminal[] {
+  return component.pinIds && component.pinIds.length > 0
+    ? component.pinIds
+    : terminalsForKind(component.kind);
+}
+
 export type DocumentParseResult =
   | { readonly ok: true; readonly document: ElectronicsDocument; readonly migrated: boolean }
   | { readonly ok: false; readonly message: string };
 
-/** Accepts the historical schema v1 and normalises it additively to v2. */
+/** Accepts historical schema v1/v2 and normalises additively to production schema v3. */
 export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   if (!isPlainObject(value)) return { ok: false, message: 'document must be an object' };
   const schemaVersion = value['schemaVersion'];
-  if (schemaVersion !== 1 && schemaVersion !== 2) {
+  if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3) {
     return { ok: false, message: 'unsupported document schemaVersion' };
   }
   const rawComponents = value['components'];
@@ -130,10 +170,25 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
 
   const components: SchematicComponent[] = [];
   const seenComponents = new Set<string>();
-  const kindById = new Map<string, ComponentKind>();
+  const componentById = new Map<string, SchematicComponent>();
   for (const raw of rawComponents) {
     if (!isPlainObject(raw)) return { ok: false, message: 'component must be an object' };
-    const { id, kind, position, value: componentValue, rotation, name, state, wiperPosition } = raw;
+    const {
+      id,
+      kind,
+      componentTypeId,
+      variantId,
+      position,
+      value: componentValue,
+      rotation,
+      name,
+      state,
+      wiperPosition,
+      stateProperties,
+      pinIds,
+      holeBindings,
+      internalConnections,
+    } = raw;
     if (!isId(id) || seenComponents.has(id)) {
       return { ok: false, message: 'component id must be unique and non-empty' };
     }
@@ -163,19 +218,113 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     ) {
       return { ok: false, message: 'potentiometer wiperPosition must be between 0 and 1' };
     }
+    if (componentTypeId !== undefined && !isId(componentTypeId)) {
+      return { ok: false, message: 'componentTypeId must be a bounded non-empty string' };
+    }
+    if (variantId !== undefined && !isId(variantId)) {
+      return { ok: false, message: 'variantId must be a bounded non-empty string' };
+    }
+    let parsedStateProperties: Record<string, ProductionStateValue> | undefined;
+    if (stateProperties !== undefined) {
+      if (!isPlainObject(stateProperties) || Object.keys(stateProperties).length > 48) {
+        return { ok: false, message: 'stateProperties must be a bounded object' };
+      }
+      parsedStateProperties = {};
+      for (const [key, stateValue] of Object.entries(stateProperties)) {
+        if (!isId(key) || !isStateValue(stateValue)) {
+          return { ok: false, message: 'stateProperties contains an invalid value' };
+        }
+        parsedStateProperties[key] = stateValue;
+      }
+    }
+    let parsedPinIds: string[] | undefined;
+    if (pinIds !== undefined) {
+      if (
+        !Array.isArray(pinIds) ||
+        pinIds.length > 1000 ||
+        !pinIds.every(isId) ||
+        new Set(pinIds).size !== pinIds.length
+      ) {
+        return { ok: false, message: 'pinIds must contain unique bounded pin identifiers' };
+      }
+      parsedPinIds = [...pinIds];
+    }
+    let parsedHoleBindings:
+      Record<string, { breadboardComponentId: string; holeId: string }> | undefined;
+    if (holeBindings !== undefined) {
+      if (!isPlainObject(holeBindings) || Object.keys(holeBindings).length > 64) {
+        return { ok: false, message: 'holeBindings must be a bounded object' };
+      }
+      parsedHoleBindings = {};
+      for (const [pinId, binding] of Object.entries(holeBindings)) {
+        if (
+          !isId(pinId) ||
+          !isPlainObject(binding) ||
+          !isId(binding['breadboardComponentId']) ||
+          !isId(binding['holeId'])
+        ) {
+          return { ok: false, message: 'holeBindings contains an invalid binding' };
+        }
+        parsedHoleBindings[pinId] = {
+          breadboardComponentId: binding['breadboardComponentId'],
+          holeId: binding['holeId'],
+        };
+      }
+    }
+    let parsedInternalConnections: [string, string][] | undefined;
+    if (internalConnections !== undefined) {
+      if (!Array.isArray(internalConnections) || internalConnections.length > 1000) {
+        return { ok: false, message: 'internalConnections must be a bounded array' };
+      }
+      parsedInternalConnections = [];
+      for (const pair of internalConnections) {
+        if (!Array.isArray(pair) || pair.length !== 2 || !isId(pair[0]) || !isId(pair[1])) {
+          return { ok: false, message: 'internalConnections contains an invalid pin pair' };
+        }
+        parsedInternalConnections.push([pair[0], pair[1]]);
+      }
+    }
     const parsedKind = kind as ComponentKind;
     seenComponents.add(id);
-    kindById.set(id, parsedKind);
-    components.push({
+    const component: SchematicComponent = {
       id,
       kind: parsedKind,
+      ...(componentTypeId === undefined ? {} : { componentTypeId }),
+      ...(variantId === undefined ? {} : { variantId }),
       position: parsedPosition,
       value: componentValue,
       ...(rotation === undefined ? {} : { rotation: rotation as Rotation }),
       ...(name === undefined ? {} : { name }),
       ...(state === undefined ? {} : { state }),
       ...(wiperPosition === undefined ? {} : { wiperPosition }),
-    });
+      ...(parsedStateProperties === undefined ? {} : { stateProperties: parsedStateProperties }),
+      ...(parsedPinIds === undefined ? {} : { pinIds: parsedPinIds }),
+      ...(parsedHoleBindings === undefined ? {} : { holeBindings: parsedHoleBindings }),
+      ...(parsedInternalConnections === undefined
+        ? {}
+        : { internalConnections: parsedInternalConnections }),
+    };
+    components.push(component);
+    componentById.set(id, component);
+  }
+
+  for (const component of components) {
+    const pins = new Set(terminalsForComponent(component));
+    for (const [left, right] of component.internalConnections ?? []) {
+      if (!pins.has(left) || !pins.has(right)) {
+        return { ok: false, message: 'internalConnections must reference component pins' };
+      }
+    }
+    for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
+      const board = componentById.get(binding.breadboardComponentId);
+      if (
+        !pins.has(pinId) ||
+        board?.kind !== 'breadboard' ||
+        !terminalsForComponent(board).includes(binding.holeId)
+      ) {
+        return { ok: false, message: 'holeBindings must reference a real board hole' };
+      }
+    }
   }
 
   const connections: SchematicConnection[] = [];
@@ -192,12 +341,12 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
         return { ok: false, message: 'connection endpoints must reference existing terminals' };
       }
       const componentId = endpoint['componentId'];
-      const componentKind = kindById.get(componentId);
+      const component = componentById.get(componentId);
       const terminal = endpoint['terminal'];
       if (
-        !componentKind ||
+        !component ||
         typeof terminal !== 'string' ||
-        !terminalsForKind(componentKind).includes(terminal as Terminal)
+        !terminalsForComponent(component).includes(terminal as Terminal)
       ) {
         return { ok: false, message: 'connection endpoints must reference existing terminals' };
       }
@@ -229,7 +378,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   }
 
   let viewport = DEFAULT_VIEWPORT;
-  if (schemaVersion === 2 && value['viewport'] !== undefined) {
+  if (schemaVersion !== 1 && value['viewport'] !== undefined) {
     const rawViewport = value['viewport'];
     if (
       !isPlainObject(rawViewport) ||
@@ -245,7 +394,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   }
 
   let simulation = DEFAULT_SIMULATION;
-  if (schemaVersion === 2 && value['simulation'] !== undefined) {
+  if (schemaVersion !== 1 && value['simulation'] !== undefined) {
     const rawSimulation = value['simulation'];
     if (
       !isPlainObject(rawSimulation) ||
@@ -264,7 +413,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
 
   return {
     ok: true,
-    migrated: schemaVersion === 1,
-    document: { schemaVersion: 2, components, connections, viewport, simulation },
+    migrated: schemaVersion !== 3,
+    document: { schemaVersion: 3, components, connections, viewport, simulation },
   };
 }

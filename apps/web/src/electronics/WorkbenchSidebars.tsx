@@ -1,5 +1,4 @@
 import { CATEGORY_LABELS, visualAsset, type ComponentCategory } from './component-catalog';
-import type { Terminal } from '../api';
 import { ComponentPreview } from './component-preview';
 import {
   CollapseIcon,
@@ -85,16 +84,20 @@ export function WorkbenchSidebars({
                   className="workbench-catalog-card"
                   draggable
                   onDragStart={(event) => {
-                    event.dataTransfer.setData(DRAG_MIME, entry.kind);
+                    event.dataTransfer.setData(DRAG_MIME, entry.key);
                     event.dataTransfer.effectAllowed = 'copy';
                   }}
-                  onClick={() => c.addComponent(entry.kind)}
+                  onClick={() => c.addComponent(entry.key)}
                   title={`Добавить: ${entry.label}`}
+                  data-component-type={entry.key}
                 >
                   <span className="workbench-catalog-art">
                     <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} />
                   </span>
                   <span>{entry.label}</span>
+                  {!entry.simulationSupported && entry.kind !== 'breadboard' ? (
+                    <small>визуально</small>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -132,9 +135,17 @@ export function WorkbenchSidebars({
               <div className="workbench-inspector-preview">
                 <ComponentPreview
                   preview={c.selectedEntry.preview}
-                  asset={visualAsset(c.selectedEntry, c.componentVisualState(c.selectedComponent))}
+                  asset={visualAsset(
+                    c.selectedEntry,
+                    c.selectedComponent,
+                    c.componentVisualState(c.selectedComponent),
+                  )}
                 />
               </div>
+              <p className="workbench-production-id">
+                Production · {c.selectedEntry.key} · {c.selectedEntry.physicalSizeMm.width}×
+                {c.selectedEntry.physicalSizeMm.height} мм
+              </p>
               <label>
                 <span>Имя</span>
                 <input
@@ -144,7 +155,9 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
-              {!['button', 'switch'].includes(c.selectedComponent.kind) ? (
+              {['source', 'resistor', 'led', 'potentiometer', 'diode', 'lamp'].includes(
+                c.selectedComponent.kind,
+              ) ? (
                 <label>
                   <span>{valueLabel(c.selectedComponent.kind)}</span>
                   <div className="workbench-value-field">
@@ -162,7 +175,9 @@ export function WorkbenchSidebars({
               {c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button' ? (
                 <label className="workbench-toggle-property">
                   <span>
-                    {c.selectedComponent.kind === 'button' ? 'Кнопка нажата' : 'Контакт замкнут'}
+                    {c.selectedComponent.kind === 'button'
+                      ? 'Кнопка нажата'
+                      : 'SPDT: common → right'}
                   </span>
                   <input
                     type="checkbox"
@@ -170,6 +185,17 @@ export function WorkbenchSidebars({
                     onChange={(event) => c.setSelectedState(event.target.checked)}
                   />
                 </label>
+              ) : null}
+              {c.selectedComponent.kind === 'button' ? (
+                <button
+                  type="button"
+                  className="workbench-momentary-button"
+                  onPointerDown={() => c.setSelectedState(true)}
+                  onPointerUp={() => c.setSelectedState(false)}
+                  onPointerLeave={() => c.setSelectedState(false)}
+                >
+                  Удерживать кнопку
+                </button>
               ) : null}
               {c.selectedComponent.kind === 'potentiometer' ? (
                 <label>
@@ -188,18 +214,187 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
+              {c.selectedEntry.key === 'led-5mm' ? (
+                <fieldset className="workbench-state-controls">
+                  <legend>Состояние LED</legend>
+                  <label>
+                    <span>Цвет</span>
+                    <select
+                      value={String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { ledColour: event.target.value },
+                          'Цвет LED изменён.',
+                        )
+                      }
+                    >
+                      {['red', 'green', 'blue', 'yellow', 'orange', 'white'].map((colour) => (
+                        <option key={colour} value={colour}>
+                          {colour}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>
+                      Яркость: {Number(c.selectedComponent.stateProperties?.['ledBrightness'] ?? 0)}
+                      %
+                    </span>
+                    <input
+                      aria-label="Яркость обычного LED"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={Number(c.selectedComponent.stateProperties?.['ledBrightness'] ?? 0)}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ ledBrightness: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                </fieldset>
+              ) : null}
+
+              {c.selectedEntry.key === 'rgb-led' ? (
+                <fieldset className="workbench-state-controls">
+                  <legend>RGB-смешение</legend>
+                  {(['red', 'green', 'blue'] as const).map((channel) => (
+                    <label key={channel}>
+                      <span>
+                        {channel.toUpperCase()}:{' '}
+                        {Number(c.selectedComponent?.stateProperties?.[channel] ?? 0)}%
+                      </span>
+                      <input
+                        aria-label={`RGB ${channel}`}
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={Number(c.selectedComponent?.stateProperties?.[channel] ?? 0)}
+                        onChange={(event) =>
+                          c.setSelectedProperties({ [channel]: Number(event.target.value) })
+                        }
+                      />
+                    </label>
+                  ))}
+                  <label>
+                    <span>Общий вывод</span>
+                    <select
+                      value={String(
+                        c.selectedComponent.stateProperties?.['commonMode'] ?? 'common-cathode',
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ commonMode: event.target.value })
+                      }
+                    >
+                      <option value="common-cathode">common-cathode</option>
+                      <option value="common-anode">common-anode</option>
+                    </select>
+                  </label>
+                </fieldset>
+              ) : null}
+
+              {c.selectedEntry.key === 'seven-segment-display' ? (
+                <fieldset className="workbench-state-controls">
+                  <legend>Семисегментный индикатор</legend>
+                  <label>
+                    <span>Символ</span>
+                    <select
+                      aria-label="Символ семисегментного индикатора"
+                      value={String(c.selectedComponent.stateProperties?.['glyph'] ?? '0')}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ glyph: event.target.value, segmentMask: '' })
+                      }
+                    >
+                      {['0', '8', 'A', '1', '2', '3', '4', '5', '6', '7', '9'].map((glyph) => (
+                        <option key={glyph}>{glyph}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Произвольная маска (a,b,c,d,e,f,g,dp)</span>
+                    <input
+                      aria-label="Маска сегментов"
+                      value={String(c.selectedComponent.stateProperties?.['segmentMask'] ?? '')}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ segmentMask: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>
+                      Яркость:{' '}
+                      {Number(c.selectedComponent.stateProperties?.['segmentBrightness'] ?? 100)}%
+                    </span>
+                    <input
+                      aria-label="Яркость семисегментного индикатора"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={Number(
+                        c.selectedComponent.stateProperties?.['segmentBrightness'] ?? 100,
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ segmentBrightness: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                </fieldset>
+              ) : null}
+
+              {c.selectedEntry.key === 'incandescent-lamp' ? (
+                <label>
+                  <span>Визуальное состояние лампы</span>
+                  <select
+                    aria-label="Состояние лампы"
+                    value={String(c.selectedComponent.stateProperties?.['lampLevel'] ?? 'off')}
+                    onChange={(event) => c.setSelectedProperties({ lampLevel: event.target.value })}
+                  >
+                    {['off', 'dim', 'on', 'max'].map((state) => (
+                      <option key={state}>{state}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {c.selectedComponent.kind === 'breadboard' ? (
+                <div className="workbench-breadboard-summary">
+                  <strong>{c.selectedComponent.pinIds?.length ?? 0} отверстий</strong>
+                  <span>Шаг 2,54 мм · внутренние группы активны</span>
+                </div>
+              ) : null}
+
+              {!c.selectedEntry.simulationSupported && c.selectedComponent.kind !== 'breadboard' ? (
+                <p className="workbench-simulation-note">
+                  Визуальная production-модель. Электрическая симуляция пока не поддерживается.
+                </p>
+              ) : null}
+
               <dl className="workbench-terminal-list">
-                {Object.entries(c.selectedEntry.terminals).map(([terminal, spec]) => (
-                  <div key={terminal}>
-                    <dt>Вывод {spec?.label ?? terminal}</dt>
-                    <dd>
-                      {c.simulationRunning
-                        ? `${measurement?.terminalVoltages[terminal as Terminal]?.toFixed(3) ?? '—'} В`
-                        : '—'}
-                    </dd>
-                  </div>
-                ))}
+                {Object.entries(c.selectedEntry.terminals)
+                  .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
+                  .map(([terminal, spec]) => (
+                    <div key={terminal}>
+                      <dt>Вывод {spec?.label ?? terminal}</dt>
+                      <dd>
+                        {c.simulationRunning
+                          ? `${measurement?.terminalVoltages[terminal]?.toFixed(3) ?? '—'} В`
+                          : '—'}
+                      </dd>
+                    </div>
+                  ))}
               </dl>
+
+              {Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
+                <div className="workbench-hole-bindings" data-testid="hole-bindings">
+                  <strong>Отверстия макетки</strong>
+                  {Object.entries(c.selectedComponent.holeBindings ?? {}).map(
+                    ([pinId, binding]) => (
+                      <span key={pinId}>
+                        {pinId} → {binding.holeId}
+                      </span>
+                    ),
+                  )}
+                </div>
+              ) : null}
 
               {c.simulationRunning && measurement ? (
                 <dl className="workbench-measurements">
