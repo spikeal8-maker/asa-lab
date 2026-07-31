@@ -3,135 +3,90 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ASA Lab — карта проекта и исполнения</title>
+  <title>ASA Lab — Project Map</title>
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.0/dist/cytoscape.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
   <style>
-    :root { color-scheme:dark; --bg:#101216; --panel:#181c22; --panel2:#202630; --text:#eef2f6; --muted:#aeb8c5; --border:#333c49; --accent:#8db6ff; --danger:#ff8d8d; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
-    header { display:flex; align-items:center; gap:16px; padding:14px 18px; border-bottom:1px solid var(--border); background:var(--panel); }
-    header h1 { margin:0; font-size:18px; white-space:nowrap; }
-    #focusText { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    main { display:grid; grid-template-columns:330px minmax(0,1fr) 390px; height:calc(100vh - 57px); }
-    aside { overflow:auto; padding:14px; background:var(--panel); }
-    aside.left { border-right:1px solid var(--border); }
-    aside.right { border-left:1px solid var(--border); }
-    #cy { min-width:0; min-height:0; }
-    label { display:block; margin:12px 0 6px; color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
-    input,select,button { width:100%; border:1px solid var(--border); border-radius:8px; background:var(--panel2); color:var(--text); padding:9px 10px; font:inherit; }
-    button { cursor:pointer; margin-top:8px; }
-    button:hover { border-color:var(--accent); }
-    .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
-    .stat { border:1px solid var(--border); border-radius:8px; padding:10px; background:var(--panel2); }
-    .stat b { display:block; font-size:20px; }
-    .stat span,.muted { color:var(--muted); font-size:12px; }
-    .legend { display:grid; gap:7px; margin-top:8px; }
-    .legend-item { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
-    .dot { width:11px; height:11px; border-radius:50%; flex:0 0 auto; }
-    .queue { margin:8px 0 0; padding:0; list-style:none; display:grid; gap:7px; }
-    .queue li { border:1px solid var(--border); border-radius:8px; padding:9px; background:var(--panel2); font-size:12px; color:var(--muted); cursor:pointer; }
-    .queue li.current { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
-    .queue strong { color:var(--text); }
-    .queue .stage { display:block; margin-top:3px; color:var(--accent); }
-    .detail-empty { color:var(--muted); line-height:1.5; }
-    .detail h2 { margin:0 0 6px; font-size:20px; }
-    .badge { display:inline-block; margin:3px 5px 3px 0; padding:3px 7px; border:1px solid var(--border); border-radius:999px; color:var(--muted); font-size:12px; }
-    .detail p { color:var(--muted); line-height:1.55; }
-    .detail dl { display:grid; grid-template-columns:125px 1fr; gap:7px 10px; font-size:13px; }
-    .detail dt { color:var(--muted); }
-    .detail dd { margin:0; word-break:break-word; }
-    .links { margin:10px 0 0; padding-left:18px; color:var(--muted); font-size:13px; }
-    .contract { margin-top:12px; border:1px solid var(--border); border-radius:8px; padding:10px; background:var(--panel2); }
-    .contract code { color:var(--accent); font-size:12px; }
-    #notice { display:none; padding:12px 18px; background:#6b3030; color:white; }
-    @media (max-width:1160px) { main { grid-template-columns:280px 1fr; } aside.right { display:none; } }
-    @media (max-width:760px) { main { grid-template-columns:1fr; } aside.left { display:none; } }
+    :root{color-scheme:dark;--bg:#10151b;--panel:#182029;--line:#344150;--text:#eef4f8;--muted:#aab8c4;--accent:#6eb7de;--bad:#e57c7c}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,sans-serif}
+    header{display:flex;justify-content:space-between;gap:20px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+    header h1{margin:0;font-size:18px} #focusText{color:var(--muted)}
+    main{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 54px)}
+    aside{padding:14px;overflow:auto;border-right:1px solid var(--line);background:var(--panel)}
+    #cy{min-width:0;min-height:0}.card{padding:10px;margin-bottom:8px;border:1px solid var(--line);border-radius:9px;background:#202a35}
+    .card.current{border-color:var(--accent)}.card b{display:block}.card small{color:var(--muted)}
+    label{display:block;margin:14px 0 6px;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase}
+    input,select,button{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:#202a35;color:var(--text)}
+    button{cursor:pointer;margin-top:8px} #notice{display:none;padding:12px;background:#702f35;color:white}
+    @media(max-width:760px){main{grid-template-columns:1fr}aside{display:none}}
   </style>
 </head>
 <body>
   <div id="notice"></div>
   <header><h1>ASA Lab — карта проекта</h1><div id="focusText"></div></header>
   <main>
-    <aside class="left">
-      <label for="search">Поиск</label><input id="search" type="search" placeholder="задача, класс, Electronics…">
-      <label for="status">Статус</label><select id="status"><option value="">Все статусы</option></select>
-      <label for="layer">Слой</label><select id="layer"><option value="">Все слои</option></select>
-      <label for="kind">Тип узла</label><select id="kind"><option value="">Все типы</option></select>
-      <div class="row"><button id="fit">Показать всё</button><button id="focus">Текущий фокус</button></div>
-      <div class="row"><button id="layout">Перестроить</button><button id="reset">Сбросить</button></div>
-      <div class="stats"><div class="stat"><b id="nodeCount">0</b><span>узлов видно</span></div><div class="stat"><b id="edgeCount">0</b><span>связей видно</span></div></div>
-      <label>Статусы</label><div id="legend" class="legend"></div>
-      <label>Execution queue</label><ol id="queue" class="queue"></ol>
+    <aside>
+      <label for="search">Поиск</label>
+      <input id="search" type="search" placeholder="Account, Portal, Electronics…">
+      <label for="status">Статус</label>
+      <select id="status"><option value="">Все</option></select>
+      <button id="fit">Показать всё</button>
+      <label>Execution queue</label>
+      <div id="queue"></div>
     </aside>
-    <div id="cy" aria-label="Интерактивный граф ASA Lab"></div>
-    <aside class="right"><div id="detail" class="detail-empty">Выберите узел. Для task будут показаны delivery stage, architecture horizon, branch, Issue, tests и artifacts.</div></aside>
+    <div id="cy" aria-label="Интерактивная карта ASA Lab"></div>
   </main>
 <script>
 const statusColors={planned:'#6f7b8a',blocked:'#c65f5f',ready:'#4ca66b',in_progress:'#d6a84d',in_review:'#7e79d6',done:'#3aa6a0',deprecated:'#555b64'};
-const kindShapes={actor:'ellipse',platform:'round-rectangle',plane:'round-rectangle',application:'round-rectangle',bounded_context:'round-rectangle',worker_pool:'hexagon',data_store:'barrel',integration:'diamond',observability:'diamond',sdk:'round-rectangle',subject_module:'round-rectangle',document:'rectangle',roadmap_phase:'tag',task:'round-tag',program:'star',delivery_track:'round-rectangle'};
-let map,manifest,cy,manifestByTask=new Map();
 const $=id=>document.getElementById(id);
+let map,manifest,cy;
 function fail(message){$('notice').textContent=message;$('notice').style.display='block';throw new Error(message);}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-function unique(field){return [...new Set(map.nodes.map(n=>n[field]).filter(Boolean))].sort();}
-function addOptions(id,values){const select=$(id);for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option);}}
-function runLayout(){cy.layout({name:'cose',animate:false,fit:true,padding:36,nodeRepulsion:10000,idealEdgeLength:115,edgeElasticity:120,nestingFactor:1.2,numIter:1300,randomize:false}).run();}
-function visibleCounts(){$('nodeCount').textContent=cy.nodes(':visible').length;$('edgeCount').textContent=cy.edges(':visible').length;}
-function applyFilters(){
-  const query=$('search').value.trim().toLowerCase(),status=$('status').value,layer=$('layer').value,kind=$('kind').value;
-  cy.batch(()=>{cy.elements().show();cy.nodes().forEach(node=>{const contract=manifestByTask.get(node.id())||{};const text=[node.id(),node.data('label'),node.data('summary'),node.data('path'),node.data('phase'),contract.delivery_stage,contract.milestone,contract.branch].join(' ').toLowerCase();const show=(!query||text.includes(query))&&(!status||node.data('status')===status)&&(!layer||node.data('layer')===layer)&&(!kind||node.data('kind')===kind);if(!show)node.hide();});cy.edges().forEach(edge=>{if(edge.source().hidden()||edge.target().hidden())edge.hide();});});
-  visibleCounts();
-}
-function selectNode(id){const node=cy.getElementById(id);if(!node.length)return;cy.elements().unselect();node.select();cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),1.15)},{duration:250});showDetail(node);}
-function listHtml(values){return values?.length?`<ul class="links">${values.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>`:'<span class="muted">—</span>';}
-function showDetail(node){
-  const data=node.data(),contract=manifestByTask.get(node.id())||null;
-  const incoming=node.incomers('edge').map(e=>`${e.source().data('label')} → ${e.data('type')}`),outgoing=node.outgoers('edge').map(e=>`${e.data('type')} → ${e.target().data('label')}`);
-  const external=data.issue?`<a href="${escapeHtml(data.issue)}" target="_blank" rel="noopener">Открыть Issue/PR</a>`:'—';
-  const contractHtml=contract?`<div class="contract"><label>Execution contract</label><dl><dt>Milestone</dt><dd>${escapeHtml(contract.milestone)}</dd><dt>Delivery stage</dt><dd>${escapeHtml(contract.delivery_stage)}</dd><dt>Architecture horizon</dt><dd>${escapeHtml(contract.architecture_horizon)}</dd><dt>Branch</dt><dd><code>${escapeHtml(contract.branch)}</code></dd><dt>Next task</dt><dd>${escapeHtml(contract.next_task||'none')}</dd><dt>Issue</dt><dd>${contract.issue?`<a href="${escapeHtml(contract.issue)}" target="_blank" rel="noreferrer">${escapeHtml(contract.issue)}</a>`:'none'}</dd><dt>Visible result</dt><dd>${escapeHtml(contract.visible_result)}</dd></dl><label>Test profiles</label>${listHtml(contract.test_profiles)}<label>Task tests</label>${listHtml(contract.task_tests)}<label>Map nodes</label>${listHtml(contract.map_nodes)}<label>Artifacts</label>${listHtml(contract.artifacts)}</div>`:'';
-  $('detail').className='detail';
-  $('detail').innerHTML=`<h2>${escapeHtml(data.label)}</h2><span class="badge">${escapeHtml(data.id)}</span><span class="badge">${escapeHtml(data.kind)}</span><span class="badge">${escapeHtml(data.status)}</span><p>${escapeHtml(data.summary||'')}</p><dl><dt>Layer</dt><dd>${escapeHtml(data.layer||'—')}</dd><dt>Architecture horizon</dt><dd>${escapeHtml(contract?.architecture_horizon||data.phase||'—')}</dd><dt>Path</dt><dd>${escapeHtml(data.path||'—')}</dd><dt>Issue</dt><dd>${external}</dd></dl>${contractHtml}<label>Входящие связи</label>${listHtml(incoming)}<label>Исходящие связи</label>${listHtml(outgoing)}`;
-}
 function validateContracts(){
-  if(!map?.nodes||!map?.edges||!Array.isArray(manifest?.tasks))fail('Некорректный project map или execution manifest.');
-  const nodeIds=new Set(map.nodes.map(n=>n.id));
-  for(const edge of map.edges){if(!nodeIds.has(edge.from)||!nodeIds.has(edge.to))fail(`Некорректная связь ${edge.from} → ${edge.to}`);}
-  const manifestOrder=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(t=>t.task_id);
-  const mapOrder=[...(map.execution_queue||[])].sort((a,b)=>a.position-b.position).map(t=>t.task_id);
-  if(JSON.stringify(manifestOrder)!==JSON.stringify(mapOrder))fail(`Execution queue рассинхронизирована: manifest=${manifestOrder.join(' → ')}; map=${mapOrder.join(' → ')}`);
-  for(const task of manifest.tasks){if(!nodeIds.has(task.task_id))fail(`Manifest ссылается на отсутствующий task node ${task.task_id}`);manifestByTask.set(task.task_id,task);}
-  if(!manifestByTask.has(map.project.current_focus))fail(`current_focus ${map.project.current_focus} отсутствует в execution manifest`);
+  if(!map?.project||!Array.isArray(map.nodes)||!Array.isArray(map.edges)||!Array.isArray(manifest?.tasks))fail('Некорректный project map или EXECUTION_MANIFEST.yaml.');
+  const ids=new Set(map.nodes.map(node=>node.id));
+  for(const edge of map.edges){if(!ids.has(edge.from)||!ids.has(edge.to))fail(`Некорректная связь ${edge.from} → ${edge.to}`);}
+  const manifestOrder=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(task=>task.task_id);
+  const mapOrder=[...(map.execution_queue||[])].sort((a,b)=>a.position-b.position).map(task=>task.task_id);
+  if(JSON.stringify(manifestOrder)!==JSON.stringify(mapOrder))fail(`Queue mismatch: manifest=${manifestOrder.join(' → ')}; map=${mapOrder.join(' → ')}`);
+  for(const task of manifest.tasks){if(!ids.has(task.task_id))fail(`Отсутствует task node ${task.task_id}`);}
+  const focus=map.project.current_focus;
+  if(focus===null){
+    const unfinished=manifest.tasks.filter(task=>task.status!=='done').map(task=>task.task_id);
+    if(unfinished.length)fail(`current_focus null, но queue не завершена: ${unfinished.join(', ')}`);
+  }else if(!manifestOrder.includes(focus)){
+    fail(`current_focus ${focus} отсутствует в execution manifest`);
+  }
+}
+function renderQueue(){
+  const focus=map.project.current_focus;
+  $('queue').innerHTML=[...manifest.tasks].sort((a,b)=>a.position-b.position).map(task=>`<div class="card ${task.task_id===focus?'current':''}" data-task="${escapeHtml(task.task_id)}"><b>${escapeHtml(task.task_id)}</b><small>${escapeHtml(task.status||'unknown')} · ${escapeHtml(task.delivery_stage)} · architecture_horizon=${escapeHtml(task.architecture_horizon)}</small></div>`).join('');
+  document.querySelectorAll('[data-task]').forEach(card=>card.addEventListener('click',()=>selectNode(card.dataset.task)));
+}
+function selectNode(id){const node=cy.getElementById(id);if(!node.length)return;cy.elements().unselect();node.select();cy.animate({center:{eles:node},zoom:Math.max(cy.zoom(),1.1)},{duration:250});}
+function applyFilters(){
+  const query=$('search').value.trim().toLowerCase();const status=$('status').value;
+  cy.batch(()=>{cy.elements().show();cy.nodes().forEach(node=>{const text=[node.id(),node.data('label'),node.data('summary')].join(' ').toLowerCase();if((query&&!text.includes(query))||(status&&node.data('status')!==status))node.hide();});cy.edges().forEach(edge=>{if(edge.source().hidden()||edge.target().hidden())edge.hide();});});
 }
 async function init(){
-  if(typeof cytoscape==='undefined'||typeof jsyaml==='undefined')fail('Не загрузились Cytoscape.js или js-yaml. Проверьте сеть.');
+  if(typeof cytoscape==='undefined'||typeof jsyaml==='undefined')fail('Не загрузились Cytoscape.js или js-yaml.');
   const [mapResponse,manifestResponse]=await Promise.all([fetch('project-map.yaml',{cache:'no-store'}),fetch('../delivery/EXECUTION_MANIFEST.yaml',{cache:'no-store'})]);
-  if(!mapResponse.ok)fail(`Не удалось загрузить project-map.yaml: HTTP ${mapResponse.status}`);
-  if(!manifestResponse.ok)fail(`Не удалось загрузить EXECUTION_MANIFEST.yaml: HTTP ${manifestResponse.status}`);
+  if(!mapResponse.ok||!manifestResponse.ok)fail('Не удалось загрузить Project Map или Execution Manifest.');
   map=jsyaml.load(await mapResponse.text());manifest=jsyaml.load(await manifestResponse.text());validateContracts();
-  const elements=[...map.nodes.map(n=>({data:{...n}})),...map.edges.map((e,i)=>({data:{id:`edge-${i}`,source:e.from,target:e.to,type:e.type,label:e.label||e.type}}))];
-  cy=cytoscape({container:$('cy'),elements,wheelSensitivity:.2,minZoom:.07,maxZoom:3,style:[
-    {selector:'node',style:{'background-color':e=>statusColors[e.data('status')]||'#6f7b8a',label:'data(label)',color:'#eef2f6','font-size':11,'text-wrap':'wrap','text-max-width':118,'text-valign':'center','text-halign':'center','border-width':1,'border-color':'#d8dee8','border-opacity':.35,width:62,height:62,shape:e=>kindShapes[e.data('kind')]||'ellipse'}},
-    {selector:'node[kind="platform"]',style:{width:94,height:94,'font-size':14,'font-weight':700}},
-    {selector:'node[kind="task"]',style:{width:104,height:58,'font-size':10}},
-    {selector:'node[kind="program"]',style:{width:96,height:96,'font-size':11}},
-    {selector:'edge',style:{width:1.2,'line-color':'#657184','target-arrow-color':'#657184','target-arrow-shape':'triangle','curve-style':'bezier',opacity:.58}},
+  const statuses=[...new Set(map.nodes.map(node=>node.status))].sort();for(const value of statuses){const option=document.createElement('option');option.value=value;option.textContent=value;$('status').append(option);}
+  const elements=[...map.nodes.map(node=>({data:{...node}})),...map.edges.map((edge,index)=>({data:{id:`edge-${index}`,source:edge.from,target:edge.to,type:edge.type,label:edge.label||edge.type}}))];
+  cy=cytoscape({container:$('cy'),elements,style:[
+    {selector:'node',style:{label:'data(label)','background-color':node=>statusColors[node.data('status')]||'#6f7b8a',color:'#eef4f8','font-size':11,'text-wrap':'wrap','text-max-width':110,'text-valign':'center','text-halign':'center','border-width':1,'border-color':'#d9e2e8',width:66,height:66}},
+    {selector:'node[kind="task"]',style:{shape:'round-rectangle',width:118,height:58}},
+    {selector:'node[kind="program"]',style:{shape:'star',width:92,height:92}},
+    {selector:'edge',style:{width:1.2,'line-color':'#657184','target-arrow-color':'#657184','target-arrow-shape':'triangle','curve-style':'bezier',opacity:.65}},
     {selector:'edge[type="depends_on"]',style:{'line-style':'dashed','line-color':'#c65f5f','target-arrow-color':'#c65f5f'}},
-    {selector:':selected',style:{'border-width':4,'border-color':'#ffffff','line-color':'#ffffff','target-arrow-color':'#ffffff',opacity:1}},
-    {selector:'.faded',style:{opacity:.12}}
-  ]});
-  addOptions('status',unique('status'));addOptions('layer',unique('layer'));addOptions('kind',unique('kind'));
-  for(const [status,description] of Object.entries(map.status_definitions||{})){const item=document.createElement('div');item.className='legend-item';item.innerHTML=`<span class="dot" style="background:${statusColors[status]||'#777'}"></span><span><strong>${escapeHtml(status)}</strong> — ${escapeHtml(description)}</span>`;$('legend').append(item);}
-  for(const task of [...manifest.tasks].sort((a,b)=>a.position-b.position)){const node=map.nodes.find(n=>n.id===task.task_id);const li=document.createElement('li');if(task.task_id===map.project.current_focus)li.classList.add('current');li.innerHTML=`<strong>${task.position}. ${escapeHtml(task.task_id)}</strong><span class="stage">${escapeHtml(task.delivery_stage)}</span>${escapeHtml(node?.label||task.visible_result)} · ${escapeHtml(node?.status||'missing')}`;li.onclick=()=>selectNode(task.task_id);$('queue').append(li);}
-  const focusContract=manifestByTask.get(map.project.current_focus);
-  $('focusText').textContent=`Фокус: ${map.project.current_focus} · ${focusContract?.delivery_stage||'stage unknown'} · architecture ${focusContract?.architecture_horizon||'unknown'} · map ${map.map_version}`;
-  ['search','status','layer','kind'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',applyFilters));
-  $('fit').onclick=()=>cy.fit(cy.elements(':visible'),40);$('focus').onclick=()=>selectNode(map.project.current_focus);$('layout').onclick=runLayout;$('reset').onclick=()=>{['search','status','layer','kind'].forEach(id=>$(id).value='');applyFilters();runLayout();};
-  cy.on('tap','node',event=>showDetail(event.target));cy.on('mouseover','node',event=>{const n=event.target;cy.elements().addClass('faded');n.removeClass('faded');n.connectedEdges().removeClass('faded');n.neighborhood('node').removeClass('faded');});cy.on('mouseout','node',()=>cy.elements().removeClass('faded'));
-  runLayout();visibleCounts();selectNode(map.project.current_focus);
+    {selector:':selected',style:{'border-width':4,'border-color':'#ffffff'}}
+  ],layout:{name:'cose',animate:false,padding:35}});
+  $('focusText').textContent=map.project.current_focus===null?'Активной задачи нет · queue completed':`Текущий focus: ${map.project.current_focus}`;
+  renderQueue();$('search').addEventListener('input',applyFilters);$('status').addEventListener('change',applyFilters);$('fit').addEventListener('click',()=>cy.fit(undefined,35));
 }
-init().catch(error=>{console.error(error);$('notice').textContent=`${error.message} Запускайте из корня репозитория: python -m http.server 8080; затем откройте /docs/project-map/viewer.html`;$('notice').style.display='block';});
+init().catch(error=>{console.error(error);if(!$('notice').textContent){$('notice').textContent=error.message;$('notice').style.display='block';}});
 </script>
 </body>
 </html>
