@@ -22,7 +22,7 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-  active_checkpoint: component_library_information_architecture_and_family_grouping
+  active_checkpoint: owner_visual_review_pending
   reference_audit_sha: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
   production_evidence_sha: e604762057a839c2683c5788e83e1b686273828c
   rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
@@ -185,7 +185,7 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_progress
-    checkpoint: component_library_information_architecture_and_family_grouping
+    checkpoint: owner_visual_review_pending
     owner_acceptance: flat_catalog_rejected_at_f78a9ac7578787a3a5aed73f1f2113cd36801825
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1

@@ -20,10 +20,24 @@ const BASIC_FAMILY_ORDER = [
   'lamp',
 ] as const;
 
-let admin: pg.Pool;
-let teacher: SeededTeacher;
+const ownerEmail = process.env['ASA_E2E_OWNER_EMAIL'];
+const ownerPassword = process.env['ASA_E2E_OWNER_PASSWORD'];
+const externalOwner = Boolean(ownerEmail && ownerPassword);
+
+let admin: pg.Pool | null = null;
+let teacher: SeededTeacher | null = null;
 
 async function login(page: Page): Promise<void> {
+  if (externalOwner && ownerEmail && ownerPassword) {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await page.getByLabel('Email или имя пользователя').fill(ownerEmail);
+    await page.getByLabel('Пароль').fill(ownerPassword);
+    await page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await expect(page).toHaveURL(/#\/home$/);
+    return;
+  }
+  if (!teacher) throw new Error('isolated Electronics E2E teacher is unavailable');
   await loginWithOrganization(page, teacher);
 }
 
@@ -40,12 +54,13 @@ async function screenshot(page: Page, name: string): Promise<void> {
 
 test.beforeAll(async () => {
   mkdirSync(REVIEW_DIR, { recursive: true });
+  if (externalOwner) return;
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'e2e-electronics-family-library');
 });
 
 test.afterAll(async () => {
-  await admin.end();
+  await admin?.end();
 });
 
 test('family catalog navigation and selected variant persist in the real editor', async ({

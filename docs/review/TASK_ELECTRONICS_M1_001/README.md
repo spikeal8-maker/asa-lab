@@ -1,38 +1,42 @@
-# Electronics M1 production editor checkpoint
+# Electronics M1 component-family library checkpoint
 
 - Task: `TASK-ELECTRONICS-M1-001`
 - Branch: `agent/r4-electronics-m1`
-- Review state: production assets integrated into the real Electronics editor; owner visual review pending
+- Review state: Tinkercad-style categories, families and variants integrated into the real Electronics editor; owner visual review pending
 - Full repository matrix: `NOT_RUN` by owner directive
 - R4-M2: `NOT_STARTED`
 
 The owner archive audit at `9654ce3` remains immutable reference evidence. The
 current delivery result is the actual project editor, not a standalone review
-page. New projects use the production manifest; legacy assets remain available
-only for existing documents.
+page. New projects use the production manifest through a deterministic family
+adapter; legacy assets remain available only for existing documents.
 
 ## Real editor evidence
 
-Project: `Electronics production integration`
+Project: `Electronics family library`
 
-The project contains 14 production components, a 420-hole breadboard, three
-wires and immutable checkpoint 1. Reload restored the component types, variants,
-state, positions, breadboard hole bindings and connections. A connected
-2×AA-resistor-LED loop reports 0.2 mA; the 4.7 kOhm resistor inspector reports
-3.000 V, 2.002 V, 0.21 mA and 0.998 V drop.
+The default library shows 11 supported families in the owner-defined order.
+The focused journey selects the 6×AA physical variant, places it, saves it,
+creates a checkpoint and reloads the project. The component returns with
+`variantId=battery-holder-aa-6` and the matching production SVG, voltage and
+inspector option.
 
 | Evidence | Purpose |
 | --- | --- |
-| `library-production.png` | Production-manifest library in the actual editor |
-| `breadboard-empty.png` | 420-hole breadboard with 2.54 mm internal groups |
-| `breadboard-components-snapped.png` | LED and four-pin tactile button snapped to stable hole IDs |
-| `led-rgb-display-states.png` | RGB controls plus displays 0, 8, A and arbitrary mask |
-| `connected-running.png` | Live connected circuit and 0.2 mA result |
-| `reload-checkpoint.png` | Reloaded 4.7 kOhm resistor, voltages/current and checkpoint 1 |
+| `library-basic-default.png` | Default `Основные` two-column family grid |
+| `library-category-power.png` | Supported power families without legacy single batteries |
+| `library-family-battery-variants.png` | One AA holder card with 1/2/3/4/6/8×AA variants |
+| `library-search-led.png` | Alias search resolves ordinary and RGB LED families |
+| `library-supported-vs-preview.png` | Disabled, non-draggable `В разработке` tier |
+| `library-list-view.png` | Deterministic supported families in list view |
+| `variant-persisted-after-reload.png` | 6×AA `variantId` restored after save/reload/checkpoint |
 
-Focused checks cover the manifest adapter, schema migration, physical scale,
-production pins, breadboard connectivity, state persistence and the actual
-editor journey. The full repository matrix was intentionally not run.
+Focused checks cover the manifest adapter, categories, family ordering, search,
+safe preview cards, schema migration, physical scale, production pins,
+breadboard connectivity, state persistence and the actual editor journey. The
+focused Playwright collector reports zero console errors, page errors, failed
+requests and HTTP 5xx responses. The full repository matrix was intentionally
+not run.
 
 ## Owner archive recovery
 
