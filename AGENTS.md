@@ -1,191 +1,117 @@
 # AGENTS.md — обязательный контракт coding-агента ASA Lab
 
-Этот файл имеет обязательную силу для coding-агентов и разработчиков. Нарушение правила уровня error блокирует owner acceptance и merge.
+Этот файл обязателен для coding-агентов и разработчиков.
 
-## 1. Источники истины
+## 1. Каноническое состояние
+
+```text
+main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+merged PR:               #70
+Account C1 / Issue #48:  completed
+active product task:     none
+```
+
+Технический Alpha принят без заявления функциональной полноты.
+
+Новая product task не активирована. R2, R3 и R4 остаются blocked roadmap. Агент не начинает их самостоятельно.
+
+## 2. Источники истины
 
 Порядок приоритета:
 
-1. более поздняя принятая ADR;
-2. `docs/product/PRODUCT_BLUEPRINT.md`;
-3. `docs/product/CAPABILITY_MAP.yaml`;
-4. архитектурные документы;
-5. executable contracts: OpenAPI, JSON Schema, migrations, event schemas;
-6. `INFRASTRUCTURE_EXECUTION_MANIFEST.yaml` и `infrastructure-focus.yaml`, только когда `active: true`;
-7. `docs/delivery/EXECUTION_MANIFEST.yaml`;
-8. `docs/project-map/project-map.yaml`;
-9. GitHub Issue текущей задачи;
-10. `docs/testing/test-catalog.yaml`;
-11. человеко-читаемые README, Development Program, Project Map и Quality Map.
+1. принятые ADR;
+2. product и capability contracts;
+3. architecture и security contracts;
+4. OpenAPI, JSON Schema, migrations и event schemas;
+5. infrastructure manifest/focus, только когда `active: true`;
+6. `docs/delivery/EXECUTION_MANIFEST.yaml`;
+7. `docs/project-map/project-map.yaml`;
+8. GitHub Issue активной задачи;
+9. `docs/testing/test-catalog.yaml`;
+10. человеко-читаемые README, Development Program и карты.
 
-Чат может запустить работу или уточнить формулировку, но не меняет task ID, Issue, branch, dependency, port, test ID, executable queue или exit gate. Такое изменение сначала публикуется в нормативных файлах и Issue.
+Чат не меняет task ID, Issue, branch, dependency, port, test ID, executable queue или exit gate. Изменение сначала публикуется в нормативных файлах и Issue.
 
-При конфликте агент:
+## 3. Определение работы
 
-1. прекращает изменения;
-2. называет конфликтующие источники;
-3. не выбирает один из них догадкой;
-4. ждёт или выполняет только явно разрешённый governance transition;
-5. не начинает product code до согласованного PASS validators.
-
-## 2. Определение текущей задачи
-
-### Infrastructure focus
-
-Первым читается:
+Первым проверяется:
 
 ```text
 docs/project-map/infrastructure-focus.yaml
 ```
 
-Если `active: true`:
+### Infrastructure focus active
 
-- выполняется только `current_focus` infrastructure lane;
-- task должен совпадать с `INFRASTRUCTURE_EXECUTION_MANIFEST.yaml`;
-- Issue, branch, base branch и frozen product focus должны совпадать;
-- product work запрещена;
-- обязателен `python tools/validate_infrastructure_focus.py`.
+При `active: true` выполняется только указанная infrastructure task. Product code запрещён.
 
-Если `active: false`:
+### Infrastructure focus inactive
 
-- status должен быть `done | cancelled | superseded`;
-- `current_focus` должен быть `null`;
-- completed task и manifest должны быть согласованы;
-- для `done` обязателен `completed_sha`;
-- validator обязан вернуть PASS;
-- после этого product task берётся из Project Map.
+При `active: false` проверяются terminal status, `current_focus: null`, completed SHA и согласование с infrastructure manifest.
 
-Текущий infrastructure state:
+После этого читается product map.
+
+### Product task
+
+Product code разрешён только когда одновременно верно:
 
 ```text
-TASK-DOCKER-LINUX-001 done
-completed_sha 7afebdcf9441b027092ce17a37f1f89950af99c6
-active false
-```
-
-### Product focus
-
-Product работа разрешена, если одновременно верно:
-
-```text
-TASK-ID = project.current_focus
-task присутствует в EXECUTION_MANIFEST.yaml
+project.current_focus содержит task ID
+tот же task есть в EXECUTION_MANIFEST.yaml
 status = ready | in_progress | in_review
-all depends_on = done
+все depends_on = done
 Issue открыта и не blocked
 branch соответствует manifest
 ```
 
-Задачи `planned`, `blocked`, `done` и `deprecated` не выполняются. Roadmap release не выбирается автоматически.
+Если `project.current_focus` отсутствует или равен `null`, coding-агент не пишет product code. Он сообщает `NO_ACTIVE_TASK` и не выбирает roadmap-задачу.
 
-## 3. Текущий repository contract
+## 4. Текущее состояние после merge
 
-Принятый технический Alpha-baseline:
+Account C1 завершён и находится в `main`.
 
-```text
-7afebdcf9441b027092ce17a37f1f89950af99c6
-```
-
-Функциональная полнота не заявляется.
-
-Каноническая текущая линия:
-
-```text
-branch assistant/docker-linux-bootstrap
-PR #70 Draft
-```
-
-`main` пока содержит более старый baseline. До отдельного owner decision запрещены:
-
-- переключение product work на `main`;
-- создание новой product branch;
-- merge;
-- release tag;
-- закрытие или удаление старых PR/branches;
-- force-push;
-- destructive cleanup.
-
-## 4. Текущая executable queue
-
-```text
-TASK-PRODUCT-DOC-001  done
-→ TASK-PORTAL-001     done
-→ TASK-ACCOUNT-C1-001 in_progress
-→ owner review / stop
-```
-
-У `TASK-ACCOUNT-C1-001`:
-
-```text
-next_task: null
-```
-
-R2 Issue №62, R3 Issue №37 и R4 Issue №63 — blocked roadmap. Они становятся executable только отдельным owner-approved transition.
-
-## 5. Текущий Account C1 scope
-
-**Task:** `TASK-ACCOUNT-C1-001`  
-**Issue:** №48  
-**Branch:** `assistant/docker-linux-bootstrap`
-
-Уже существует и не реализуется повторно:
+Уже реализовано и не создаётся повторно:
 
 - public entry;
 - adult registration;
 - Account / Profile / Principal;
-- ровно один Personal Workspace;
-- sessions_v2;
+- Personal Workspace;
+- `sessions_v2`;
 - login по email или username;
-- current-session logout;
+- educator self-attestation;
+- provisional audited educator capability;
+- workspace list и ActiveContext switching;
+- account profile;
+- active session list и revocation;
 - legacy teacher compatibility;
 - principal-aware project ownership;
-- Project Hub, Electronics, Chess и Chess Online.
+- Project Hub, Electronics, ASA Chess и Chess Online;
+- Docker deployment, persistence и backup/restore.
 
-Оставшийся scope:
+Issue №48 закрыта как completed.
 
-- server-side educator self-attestation;
-- provisional audited educator capability;
-- workspace list;
-- membership-scoped ActiveContext switching;
-- account menu/profile;
-- email verification state display;
-- active session list;
-- revoke one/all other sessions;
-- Account C1 Chromium flow;
-- preservation of existing teacher, classes, projects and drafts.
+## 5. Разделение обязанностей
 
-Вне scope:
+### Coding-агент
 
-- Electronics/Chess expansion;
-- StudentSeat;
-- publication/community;
-- assignments/grades/badges;
-- destructive legacy cleanup;
-- second Account/Principal/Workspace/session model.
+- реализует только активную product task;
+- меняет код, contracts и additive migrations в пределах scope;
+- запускает focused tests;
+- выполняет browser E2E;
+- публикует evidence;
+- останавливается для owner review.
 
-## 6. Первый отчёт до кода
+### GitHub/governance работа
 
-Не более 25 строк:
+- синхронизация README, manifests, maps и Issues;
+- аудит старых PR и веток;
+- классификация `contained / superseded / still valuable / obsolete`;
+- закрытие PR и удаление веток только по отдельному решению;
+- release tag только по отдельному решению.
 
-```text
-TASK:
-ISSUE:
-BRANCH:
-HEAD:
-BASELINE:
-STATUS:
-DEPENDENCIES:
-ALREADY_IMPLEMENTED:
-USER_FLOW:
-NON_GOALS:
-PORTS:
-FOCUSED_TESTS:
-STOP_CRITERION:
-```
+Governance-аудит старых PR не является coding task и не должен блокировать активную продуктовую реализацию после её нормативной активации.
 
-Не запрашивать merge target, tag или имя следующей ветки: они не нужны для текущего slice.
-
-## 7. Один task — один вертикальный flow
+## 6. Один task — один вертикальный flow
 
 ```text
 domain/application
@@ -199,104 +125,51 @@ domain/application
 → stop
 ```
 
-После `in_progress` scope заморожен.
+После `in_progress` scope заморожен. Запрещены unrelated refactoring, новый framework, следующая capability и competing product branch.
 
-Разрешены только:
+## 7. Git и ветки
 
-- текущий user flow;
-- его security/RLS/compatibility fixes;
-- необходимые contracts и additive migrations;
-- focused tests, E2E и review feedback;
-- связанные map/evidence updates.
+- `main` является каноническим источником текущей Alpha-сборки.
+- Новая product branch создаётся только после owner-approved task activation.
+- Нельзя продолжать новую product работу на закрытой ветке PR №70.
+- Запрещены force-push и переписывание опубликованной истории.
+- Старые branches/PR не merge, не закрывать и не удалять без preservation audit и отдельного решения.
+- Squash/rebase проверенного release candidate запрещены без повторной полной матрицы на новом SHA.
 
-Запрещены:
-
-- следующая capability;
-- unrelated refactoring;
-- новый framework/service без текущей Issue;
-- ослабление assertions, types, contracts, RLS или validation;
-- изменение применённой migration;
-- новая competing branch/PR;
-- автоматическое продолжение roadmap.
-
-## 8. Git и ветки
-
-- продолжать существующую branch из manifest;
-- branch не создаётся автоматически;
-- перед изменениями `git fetch --all --prune` и проверка local/remote history;
-- push только ordinary fast-forward;
-- опубликованная история не переписывается;
-- `reset --hard`, force-push и массовое удаление запрещены;
-- backups, dumps, credentials, `.env` и owner-preview artifacts не коммитятся;
-- untracked backup/screenshot files не удаляются.
-
-## 9. Архитектура
+## 8. Архитектура
 
 - Control Plane — modular monolith.
 - `apps/api` и `apps/web` — composition roots/adapters.
 - Business logic находится в bounded contexts.
-- Domain не импортирует NestJS/Fastify/HTTP, PostgreSQL client, React, Redis или object storage SDK.
+- Domain не импортирует NestJS/Fastify/HTTP, PostgreSQL client/ORM или React.
 - Cross-context interaction идёт через public ports/contracts.
-- Прямые imports внутренних файлов и writes в чужие таблицы запрещены.
-- Classroom/Project Core не знает типов конкретного subject module.
-- Subject modules подключаются через versioned Module SDK/lifecycle.
-- Redis, S3, queues и новые services не вводятся до реальной потребности текущей Issue.
+- Прямые writes в чужие таблицы и internal cross-context imports запрещены.
+- Project/Classroom Core не знает subject-specific payloads.
+- Subject modules подключаются через Module SDK.
 
-## 10. Identity, tenant и security
+## 9. Identity, tenancy и security
 
-- Account, Principal, Workspace, capability и membership — разные сущности.
-- Account session и будущая StudentSeat session не объединяются.
-- Tenant и ActiveContext определяются validated server session.
-- `tenantId`, `tenant_id`, accountId, principalId, role и capability из browser body не доверяются.
-- Tenant lineage защищается constraints и negative tests.
-- RLS используется как defense-in-depth.
+- Tenant/workspace/principal определяются серверной session context.
+- `tenant_id`, workspace ID, principal ID, role или capability из browser body не являются доверенными.
 - Runtime DB role не superuser, не owner и без `BYPASSRLS`.
-- API использует только runtime database credentials.
-- Migrations/admin tools используют privileged URL вне runtime.
-- Tests используют isolated `*_test` database.
-- Passwords хранятся versioned memory-hard hashes.
-- Session token создаётся CSPRNG; в БД хранится только hash.
-- Passwords, raw tokens, child credentials и project content не логируются.
-- Sensitive mutation создаёт immutable AuditEvent.
+- API использует `APP_DATABASE_URL`; migrations/admin tools используют `DATABASE_URL`.
+- Tests используют отдельный `TEST_DATABASE_URL` с guard.
+- Passwords хранятся memory-hard hash.
+- Session token генерируется CSPRNG; в БД хранится только hash.
+- Tokens, passwords, credentials и project content не логируются.
+- Migration после применения не переписывается; изменение только новой additive migration.
+- Destructive cleanup требует отдельного owner-approved этапа.
 
-## 11. Migrations и данные
+## 10. Проекты и модули
 
-- migrations additive-only до отдельного destructive gate;
-- уже применённая migration не редактируется;
-- migration runner проверяет checksum;
-- каждая migration транзакционна;
-- обязательны empty/existing/repeat checks;
-- repeat apply должен добавить 0 migrations;
-- рабочая БД не сбрасывается;
-- backup/restore проверяется только в isolated DB;
-- существующие teacher/classes/projects/drafts сохраняются.
+- `Project` — изменяемый контейнер.
+- `ProjectDraft` использует optimistic revision.
+- `ProjectVersion` неизменяема и имеет digest.
+- Project envelope содержит `moduleKey`, `moduleVersion`, `schemaVersion`.
+- Core не содержит `if moduleKey === ...` для предметной логики.
+- Несовместимое schema change требует version bump, schema, migrator и fixtures.
 
-Для Account C1 migration `0010_account_identity_sessions_v2.sql` неизменна. Новая схема оформляется следующей additive migration.
-
-## 12. Проекты и модули
-
-- `Project` — изменяемый контейнер;
-- `ProjectDraft` использует optimistic revision;
-- `ProjectVersion` неизменяема;
-- project envelope содержит module key/version/schema version;
-- personal project не требует Classroom;
-- ownership определяется сервером через Principal/Workspace context;
-- несовместимое schema change требует version bump, schema, migrator и fixtures;
-- предметный payload не добавляется в Core как special-case.
-
-Работающий Electronics/Chess code сохраняется, но не расширяется в Account C1.
-
-## 13. API и UX
-
-- новый API обновляет OpenAPI и contract tests;
-- malformed body/path/query → controlled 400, не DB 500;
-- additional properties отклоняются по contract;
-- idempotency conflict обрабатывается явно;
-- UI имеет loading, empty, validation, network error, success, conflict and retry states;
-- keyboard, focus, reduced motion and responsive behavior обязательны;
-- manual smoke не заменяет automated E2E.
-
-## 14. Порты
+## 11. Порты
 
 ```text
 Web  127.0.0.1:4610
@@ -306,99 +179,48 @@ E2E  127.0.0.1:4612
 
 Запрещены `3000`, `3100`, `5173`.
 
-Если порт занят:
+Если порт занят, неизвестный процесс не завершается и другой порт не выбирается молча.
 
-- не завершать чужой процесс;
-- не выбирать другой порт молча;
-- сообщить точный `BLOCKED`;
-- остановить только собственный запуск.
+## 12. Тесты
 
-## 15. Тесты
-
-Источник истины — `test-catalog.yaml`; точный набор текущей task вычисляется из profiles и task tests manifest.
-
-```bash
-python tools/run_task_tests.py --task TASK-ACCOUNT-C1-001
-python tools/validate_infrastructure_focus.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
-python tools/validate_delivery_program.py
-```
-
-Result states:
-
-- `PASS` — фактический exit 0;
-- `FAIL` — фактический non-zero defect;
-- `BLOCKED` — обязательная среда/runner/suite отсутствует, обычно exit 78;
-- `NOT_RUN` — команда не запускалась.
-
-Если test ID зарегистрирован до реализации suite, его команда обязана вернуть `BLOCKED`/78, а не отсутствовать и не давать PASS.
-
-Текущие Account placeholders:
+Источник product gates:
 
 ```text
-pnpm test:account-c1
-pnpm test:account-c1:pg
-pnpm e2e:account-c1
+docs/delivery/EXECUTION_MANIFEST.yaml
+docs/testing/test-catalog.yaml
 ```
 
-Product implementation заменяет их реальными suites.
+Результаты:
 
-`BLOCKED` и `NOT_RUN` не закрывают gate. Удалять test ID или ослаблять assertion ради зелёного отчёта запрещено.
+- `PASS` — фактический exit 0;
+- `FAIL` — фактический non-zero;
+- `BLOCKED` — обязательная среда отсутствует;
+- `NOT_RUN` — команда не запускалась.
 
-## 16. GitHub Actions
+`BLOCKED` и `NOT_RUN` не закрывают gate. Screenshot не заменяет assertion. Manual smoke не заменяет Playwright.
 
-Workflow должен запускаться для `main`, `agent/**` и `assistant/**`.
+Hosted GitHub Actions сейчас может падать до первого шага из-за внешнего runner/settings blocker. Это не разрешает объявлять CI PASS и не отменяет локальный exact-SHA gate.
 
-Если hosted job завершается до первого step, steps пусты и logs отсутствуют:
+## 13. Definition of Done
 
-- status = external `BLOCKED`;
-- это не validator/code FAIL;
-- это не PASS;
-- проверяются Actions settings, hosted runner availability и spending/usage limits;
-- локальная полная матрица остаётся обязательной.
+Task завершена только когда:
 
-## 17. Maps и evidence
-
-Product-code task обновляет или подтверждает:
-
-- `project-map.yaml`;
-- `PROJECT_MAP.md`;
-- `QUALITY_MAP.md`;
-- `nx-project-graph.json` при structural code changes;
-- test catalog и current Issue;
-- PR report tied to exact SHA.
-
-PASS другого SHA не переносится на текущий head.
-
-## 18. Owner review и transition
-
-После завершения Account C1:
-
-- focused gate PASS;
-- owner-visible result exists;
-- full matrix на одном final SHA;
-- PR остаётся Draft до owner decision;
-- owner отдельно определяет convergence/merge action;
-- future task не становится ready автоматически;
-- отдельный governance transition может добавить R2 или оставить roadmap blocked;
-- агент останавливается и не реализует R2 в той же сессии.
-
-## 19. Definition of Done
-
-Task может считаться готовой к owner acceptance, когда:
-
-1. полный user flow Issue реализован;
+1. user flow Issue реализован;
 2. non-goals отсутствуют в diff;
-3. contracts, migrations, security и preservation согласованы;
-4. все обязательные test IDs фактически PASS;
-5. automated E2E и screenshots существуют;
-6. browser failure counters равны нулю;
-7. canonical ports подтверждены;
-8. dependency/security gate PASS;
-9. maps/evidence синхронизированы;
-10. exact final SHA опубликован;
-11. tracked working tree clean;
-12. owner явно принимает результат.
+3. contracts/migrations/security согласованы;
+4. все обязательные tests PASS на одном SHA;
+5. browser E2E и owner evidence готовы;
+6. persistence и migration path проверены при применимости;
+7. owner принял результат;
+8. PR объединён утверждённым методом;
+9. post-merge governance синхронизирован;
+10. следующая задача не начата автоматически.
 
-Merge, task `done` и активация roadmap — отдельные необратимые решения и не входят автоматически в Definition of Done.
+## 14. Текущая команда агенту
+
+```text
+NO_ACTIVE_TASK
+Не писать product code.
+Не выбирать R2/R3/R4 самостоятельно.
+Ожидать опубликованный owner-approved task transition.
+```
