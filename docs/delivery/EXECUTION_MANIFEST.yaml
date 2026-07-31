@@ -8,24 +8,26 @@ quality_source: docs/testing/test-catalog.yaml
 semantics:
   execution_order: Defined only by tasks.position in this manifest and execution_queue in project-map.yaml.
   architecture_horizon: Informational architecture grouping; it is not execution order.
-  issue_scope: The linked GitHub Issue is the executable scope for one user flow.
-  current_release_rule: Only tasks listed here are executable; roadmap Issues are not executable until an owner-approved transition adds them.
-  next_task_rule: A next task becomes ready only after owner acceptance, merge/convergence decision and mandatory map transition.
+  issue_scope: A linked GitHub Issue is executable only while the task is active.
+  current_release_rule: Only owner-activated tasks are executable.
+  completed_queue_rule: When every listed task is done, project.current_focus must be null.
+  next_task_rule: A roadmap task becomes executable only through a separate owner-approved transition.
   no_automatic_future_activation: true
 
-accepted_alpha_baseline:
-  sha: 7afebdcf9441b027092ce17a37f1f89950af99c6
-  claim: technical_alpha_only
+canonical_state:
+  branch: main
+  merge_sha: e01ac85095ddaabef19ed618964deac3aa5b2406
+  verified_implementation_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+  merged_pr: 70
   functional_completeness: false
-  canonical_branch: assistant/docker-linux-bootstrap
-  draft_pr: 70
+  active_task: null
 
 roadmap_after_current:
   - release: R2
     issue: https://github.com/spikeal8-maker/asa-lab/issues/62
     name: Creator Home and capability-aware Portal shell
     status: blocked
-    activation: separate_owner_transition_after_ACCOUNT_C1
+    activation: separate_owner_transition
   - release: R3
     issue: https://github.com/spikeal8-maker/asa-lab/issues/37
     name: Module Registry, Project Hub and full project lifecycle
@@ -47,19 +49,18 @@ ports:
 
 map_protocol:
   start:
-    - current task status becomes in_progress
-    - project.current_focus remains the current task
-    - implementation, delivery-track and architecture-horizon nodes listed in map_nodes become in_progress when work actually starts
+    - owner transition sets one task to ready or in_progress
+    - project.current_focus becomes that task
+    - branch, Issue, scope and tests are published together
   draft_pr:
-    - current task status becomes in_review only after the task implementation and focused gate are complete
-    - project-map.yaml and PROJECT_MAP.md reflect actual nodes, paths and dependencies
-    - QUALITY_MAP.md and test-catalog.yaml reflect the exact exit gate
-    - nx-project-graph.json is regenerated for code-structure changes
+    - current task becomes in_review only after implementation and focused gate
+    - Project Map and Quality Map reflect the exact diff and exit gate
   after_merge:
-    - current task status becomes done only after owner acceptance and the approved convergence action
-    - future roadmap work remains blocked until a separate owner-approved manifest transition
-    - project-map.yaml and PROJECT_MAP.md are updated in one governance-only transition
-    - the agent stops without implementing a future task
+    - accepted task becomes done
+    - merge SHA and verified implementation SHA are recorded
+    - project.current_focus becomes null unless another task is separately activated
+    - roadmap remains blocked
+    - coding agent stops
 
 report_contract:
   required_fields:
@@ -77,7 +78,6 @@ report_contract:
     - WORKING_TREE
     - NEXT_ALLOWED_TASK
 
-# Profiles remain reusable by future owner-approved tasks, but only tasks below are executable.
 test_profiles:
   product_docs:
     - TST-ARCH-001
@@ -125,6 +125,7 @@ test_profiles:
 tasks:
   - position: 1
     task_id: TASK-PRODUCT-DOC-001
+    status: done
     issue: https://github.com/spikeal8-maker/asa-lab/issues/19
     branch: agent/product-blueprint-platform-map
     milestone: Program Foundation
@@ -148,6 +149,7 @@ tasks:
 
   - position: 2
     task_id: TASK-PORTAL-001
+    status: done
     issue: https://github.com/spikeal8-maker/asa-lab/issues/18
     branch: agent/task-mvp-001-teacher-portal
     milestone: Technical Alpha 1
@@ -157,7 +159,7 @@ tasks:
     depends_on: [TASK-PRODUCT-DOC-001]
     next_task: TASK-ACCOUNT-C1-001
     capabilities: [CAP-ORG, CAP-IDENTITY, CAP-CLASSROOM, CAP-PORTAL-BASIC, CAP-SAFETY, CAP-OPERATIONS]
-    visible_result: Teacher opens the site, logs in, creates a classroom, reloads it and logs out.
+    visible_result: Teacher Portal baseline is preserved in the merged Alpha line.
     read:
       - AGENTS.md
       - docs/delivery/DEVELOPMENT_PROGRAM_V1.md
@@ -170,37 +172,32 @@ tasks:
 
   - position: 3
     task_id: TASK-ACCOUNT-C1-001
+    status: done
     issue: https://github.com/spikeal8-maker/asa-lab/issues/48
     branch: assistant/docker-linux-bootstrap
-    status: in_progress
     milestone: R1 Account C1
     track: technical-alpha
     delivery_stage: STAGE-1A-ACCOUNT-C1
     architecture_horizon: PHASE-1
     depends_on: [TASK-PORTAL-001]
     next_task: null
+    completed_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+    merged_sha: e01ac85095ddaabef19ed618964deac3aa5b2406
+    merged_pr: 70
     capabilities: [CAP-IDENTITY, CAP-PORTAL-BASIC, CAP-PROJECTS, CAP-SAFETY, CAP-OPERATIONS]
-    visible_result: Existing registration, login and Personal Workspace foundation is preserved while educator attestation, workspace context, account profile and active session management are completed.
-    already_implemented:
-      - public entry
-      - adult registration
+    visible_result: Account, educator capability, workspace context, profile and active session management are completed and merged.
+    completed_scope:
+      - public entry and adult registration
       - Account, Profile and Principal
       - exactly one Personal Workspace
-      - sessions_v2
-      - login by email or username
-      - current-session logout
+      - sessions_v2 and email or username login
       - legacy teacher compatibility
       - principal-aware project ownership
-      - existing Electronics, Chess and Chess Online projects
-    remaining_scope:
-      - server-side adult educator self-attestation
-      - provisional audited educator capability
-      - account workspace list
-      - membership-scoped ActiveContext switching
+      - adult educator self-attestation and AuditEvent
+      - workspace list and ActiveContext switching
       - account menu and profile
       - email verification state display
-      - active session list
-      - revoke one or all other sessions
+      - active session list and revocation
       - real Chromium Account C1 flow
     read:
       - AGENTS.md
@@ -209,6 +206,7 @@ tasks:
       - docs/product/PRODUCT_BLUEPRINT.md
       - docs/architecture/DATA_SECURITY_AND_TENANCY.md
       - migrations/0010_account_identity_sessions_v2.sql
+      - migrations/0011_account_c1_management.sql
       - https://github.com/spikeal8-maker/asa-lab/issues/48
     test_profiles: [code_common, tenant_storage]
     task_tests: [TST-ACCOUNT-REG-001, TST-ACCOUNT-BACKFILL-001, TST-ACCOUNT-LEGACY-COMPAT-001, TST-PERSONAL-WORKSPACE-001, TST-CAPABILITY-001, TST-WORKSPACE-CONTEXT-001, TST-SESSION-V2-001, TST-IDENTITY-RLS-001, TST-E2E-ACCOUNT-C1-001]
