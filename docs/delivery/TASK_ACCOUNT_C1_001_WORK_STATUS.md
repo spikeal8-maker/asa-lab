@@ -1,25 +1,19 @@
-# TASK-ACCOUNT-C1-001 — Work Status
+# TASK-ACCOUNT-C1-001 — Completed
 
-Status: `in_progress / implementation complete / final matrix pending`
+Status: `done / owner accepted / merged`
 
-Canonical references:
+```text
+Issue:                   #48 closed/completed
+Verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
+Merged PR:               #70
+Merge commit on main:    e01ac85095ddaabef19ed618964deac3aa5b2406
+Active product task:     none
+Next executable task:    none
+```
 
-- Issue: #48
-- Delivery branch: `assistant/docker-linux-bootstrap`
-- Draft PR: #70
-- Current product focus: `TASK-ACCOUNT-C1-001`
-- Next blocked focus: `TASK-ELECTRONICS-SLICE-001`
+Функциональная полнота всей платформы не заявляется. Завершён только R1 Account C1 identity/security slice.
 
-## Preserved foundation
-
-Account C1 extends the accepted Alpha baseline. It does not replace the
-existing public entry, adult registration, Account/Profile/Principal model,
-Personal Workspace, `sessions_v2`, email/username login, legacy teacher bridge,
-or principal project ownership.
-
-## Implemented Account C1 surface
-
-The following server-derived operations are available:
+## Реализованный результат
 
 ```text
 POST   /api/capabilities/educator/self-attest
@@ -32,61 +26,46 @@ DELETE /api/account/sessions/:id
 POST   /api/account/sessions/revoke-all
 ```
 
-The web application exposes the same surface at `#/account` and through the
-PortalHeader account menu.
-
-## Security invariants
-
-- Educator eligibility is calculated from the server-stored Account birth
-  date; the client cannot choose a capability, grant state, role, or tenant.
-- Self-attestation is limited to adults, creates only a provisional educator
-  grant, is idempotent, and writes one audit event.
-- Active workspace switching is limited to active memberships and updates only
-  the current SessionV2 row.
-- Profile updates are limited to normalized `username` and `displayName`.
-- Session APIs return safe metadata only. Cookie tokens and token hashes are
-  never returned.
-- A current session cannot revoke itself through the session list. Revoked and
-  expired sessions stop resolving immediately.
-- The application role has no direct read access to Account or SessionV2
-  tables; the API uses the restricted security-definer contract.
-
-## Additive migration
-
-`migrations/0011_account_c1_management.sql` adds only the missing workspace
-status, membership state, safe session metadata, and restricted management
-functions. Migration `0010` and existing tenant, teacher, project, backup, and
-volume data remain unchanged.
-
-Focused migration evidence:
+Web surface:
 
 ```text
-empty database: 10 migrations applied, second pass 0
-copy of current test database: 0011 applied, second pass 0
+#/account
+PortalHeader account menu
+workspace switcher
+profile
+active session management
 ```
 
-## Focused verification
+## Сохранённые инварианты
+
+- adult registration, Account/Profile/Principal и Personal Workspace не дублированы;
+- `sessions_v2` и login по email/username сохранены;
+- existing teacher, classes, projects and drafts сохранены;
+- educator eligibility вычисляется сервером;
+- client capability/role/tenant/workspace forgery отклоняется;
+- Session API не возвращает cookie token или token hash;
+- migrations `0010` и `0011` additive;
+- destructive cleanup не выполнялся.
+
+## Проверенная матрица
+
+Все результаты относятся к implementation SHA `35c06c4…`:
 
 ```text
-Account management unit tests: 6/6 PASS
-Account PostgreSQL/API tests: 6/6 PASS
-Account Chromium owner flow: 1/1 PASS
-console errors: 0
-pageerror: 0
-unexpected requestfailed: 0
+Account task gate:       28/28 PASS
+Regression:              45 files / 298 tests PASS
+Account PostgreSQL:      6/6 PASS
+Chess Online PostgreSQL: 6/6 PASS
+RLS:                     15/15 PASS
+Accessibility/UI states: 11/11 PASS
+Playwright release:      9/9 PASS
+Browser errors:          0
+Docker dev/test/staging: PASS
+Persistence:             PASS
+Backup/restore:          PASS
 ```
 
-The PostgreSQL suite covers adult and underage policy, forged input, grant
-idempotency and audit, workspace isolation/suspension, profile conflict,
-session expiry and revocation, raw-token protection, existing teacher
-compatibility, and preservation of Personal Workspace projects.
-
-The Chromium flow covers a new adult Account, two real browser sessions,
-educator self-attestation, profile update, workspace switching, single-session
-revocation, logout/login, and preserved Electronics and Chess projects.
-
-Owner-preview evidence is generated locally and intentionally remains
-untracked:
+Owner-preview screenshots находятся локально вне Git:
 
 ```text
 e2e/artifacts/owner-preview/account-c1/01-public-entry-desktop.png
@@ -97,6 +76,8 @@ e2e/artifacts/owner-preview/account-c1/05-session-management-desktop.png
 e2e/artifacts/owner-preview/account-c1/06-account-profile-mobile.png
 ```
 
-The mandatory full release-candidate matrix is run once on the published
-implementation SHA. PR #70 remains Draft and no merge or release tag is part
-of this task.
+Hosted GitHub Actions остаётся внешне заблокированным до первого шага и не считается PASS.
+
+## После завершения
+
+R2, R3 и R4 остаются blocked roadmap. Ни один следующий этап не активируется автоматически.
