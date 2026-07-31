@@ -28,14 +28,15 @@ AGENTS.md
 ## 3. Каноническое состояние
 
 ```text
-main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+canonical branch:        main
+product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
 verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
 PR #70:                  merged
 Account C1 / Issue #48:  completed
 active product task:     none
 ```
 
-`main` является источником текущей Alpha-сборки. Функциональная полнота конечного продукта не заявляется.
+`main` является источником текущей Alpha-сборки. Post-merge governance-коммиты делают текущий head ветки новее product merge SHA. Функциональная полнота конечного продукта не заявляется.
 
 ## 4. Что уже реализовано
 
