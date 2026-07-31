@@ -22,6 +22,7 @@ PORT_POLICY_PATH = ROOT / "docs/delivery/LOCAL_PORT_POLICY.md"
 
 TEST_ID_PATTERN = re.compile(r"^TST-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
 TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
+ROADMAP_ALIAS_PATTERN = re.compile(r"^TASK-(?:R[0-9]+|SEAT)$")
 PHASE_ID_PATTERN = re.compile(r"^PHASE-(?:[0-9]|1[0-2])$")
 REQUIRED_TEST_FIELDS = {
     "id",
@@ -37,6 +38,23 @@ REQUIRED_TEST_FIELDS = {
 }
 ALLOWED_RESULT_STATES = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
 EXTERNAL_GOVERNANCE_TASKS = {"TASK-GOV-001"}
+HISTORICAL_TASK_IDS = {
+    "TASK-CI-001",
+    "TASK-ARCH-001",
+    "TASK-ENV-001",
+    "TASK-TEN-001",
+    "TASK-CLS-001",
+    "TASK-MVP-001",
+    "TASK-MOD-001",
+    "TASK-ELECTRONICS-SLICE-001",
+    "TASK-CHECKERS-LITE-001",
+    "TASK-ELECTRONICS-ALPHA-001",
+    "TASK-SEAT-001",
+    "TASK-ACT-001",
+    "TASK-REVIEW-001",
+    "TASK-ELEC-001",
+}
+COVERAGE_REQUIRED_STATUSES = {"ready", "in_progress", "in_review", "done"}
 DANGEROUS_COMMAND_FRAGMENTS = {
     "rm -rf /",
     "git push --force",
@@ -57,24 +75,34 @@ def load_yaml(path: Path, errors: list[str]) -> Any:
         return None
 
 
-def task_ids_from_map(document: Any, errors: list[str]) -> set[str]:
+def task_nodes_from_map(
+    document: Any, errors: list[str]
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
     if not isinstance(document, dict):
-        return set()
+        return {}, set()
     nodes = document.get("nodes")
     if not isinstance(nodes, list):
         errors.append("Project map must contain a nodes array")
-        return set()
+        return {}, set()
 
-    task_ids: set[str] = set()
+    task_nodes: dict[str, dict[str, Any]] = {}
+    roadmap_aliases: set[str] = set()
     for node in nodes:
         if not isinstance(node, dict) or node.get("kind") != "task":
             continue
         task_id = node.get("id")
         if isinstance(task_id, str) and TASK_ID_PATTERN.fullmatch(task_id):
-            task_ids.add(task_id)
-        else:
-            errors.append(f"Invalid task id in project map: {task_id!r}")
-    return task_ids
+            task_nodes[task_id] = node
+            continue
+        if (
+            isinstance(task_id, str)
+            and ROADMAP_ALIAS_PATTERN.fullmatch(task_id)
+            and node.get("status") in {"blocked", "planned"}
+        ):
+            roadmap_aliases.add(task_id)
+            continue
+        errors.append(f"Invalid task id in project map: {task_id!r}")
+    return task_nodes, roadmap_aliases
 
 
 def validate_command(test_id: str, command: Any, errors: list[str]) -> None:
@@ -94,7 +122,12 @@ def validate_command(test_id: str, command: Any, errors: list[str]) -> None:
         errors.append(f"{test_id}: command has no executable")
 
 
-def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tuple[int, int]:
+def validate_catalog(
+    catalog: Any,
+    task_nodes: dict[str, dict[str, Any]],
+    roadmap_aliases: set[str],
+    errors: list[str],
+) -> tuple[int, int]:
     if not isinstance(catalog, dict):
         errors.append("Test catalog root must be an object")
         return 0, 0
@@ -115,7 +148,7 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
     if len(tests) < 20:
         errors.append(f"Expected at least 20 registered tests, got {len(tests)}")
 
-    known_tasks = task_ids | EXTERNAL_GOVERNANCE_TASKS
+    known_tasks = set(task_nodes) | EXTERNAL_GOVERNANCE_TASKS | HISTORICAL_TASK_IDS
     seen_ids: set[str] = set()
     covered_tasks: set[str] = set()
 
@@ -157,7 +190,11 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
                     errors.append(f"{test_id}: invalid task reference {task_id!r}")
                     continue
                 covered_tasks.add(task_id)
-                if task_id not in known_tasks:
+                if task_id in roadmap_aliases:
+                    errors.append(
+                        f"{test_id}: blocked roadmap alias cannot own an executable test gate: {task_id}"
+                    )
+                elif task_id not in known_tasks:
                     errors.append(f"{test_id}: unknown task {task_id}")
 
         validate_command(test_id, test.get("command"), errors)
@@ -175,7 +212,12 @@ def validate_catalog(catalog: Any, task_ids: set[str], errors: list[str]) -> tup
         elif any(not isinstance(item, str) or not item.strip() for item in artifacts):
             errors.append(f"{test_id}: artifacts must contain non-empty strings")
 
-    tasks_requiring_coverage = (task_ids - {"TASK-CI-001"}) | EXTERNAL_GOVERNANCE_TASKS
+    tasks_requiring_coverage = {
+        task_id
+        for task_id, node in task_nodes.items()
+        if task_id != "TASK-CI-001"
+        and node.get("status") in COVERAGE_REQUIRED_STATUSES
+    } | EXTERNAL_GOVERNANCE_TASKS
     for task_id in sorted(tasks_requiring_coverage - covered_tasks):
         errors.append(f"Task has no registered test: {task_id}")
 
@@ -229,9 +271,9 @@ def validate_documents(catalog: Any, errors: list[str]) -> None:
 def main() -> int:
     errors: list[str] = []
     project_map = load_yaml(MAP_PATH, errors)
-    task_ids = task_ids_from_map(project_map, errors)
+    task_nodes, roadmap_aliases = task_nodes_from_map(project_map, errors)
     catalog = load_yaml(CATALOG_PATH, errors)
-    tests, suites = validate_catalog(catalog, task_ids, errors)
+    tests, suites = validate_catalog(catalog, task_nodes, roadmap_aliases, errors)
     validate_documents(catalog, errors)
 
     if errors:
@@ -243,7 +285,9 @@ def main() -> int:
     print("ASA Lab test catalog validation: PASS")
     print(f"registeredTests={tests}")
     print(f"registeredSuites={suites}")
-    print(f"projectTasks={len(task_ids)}")
+    print(f"canonicalProjectTasks={len(task_nodes)}")
+    print(f"blockedRoadmapAliases={len(roadmap_aliases)}")
+    print(f"historicalTaskIds={len(HISTORICAL_TASK_IDS)}")
     print(f"externalGovernanceTasks={len(EXTERNAL_GOVERNANCE_TASKS)}")
     return 0
 
