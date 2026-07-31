@@ -123,7 +123,7 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
 test('classes remain a separate teacher workspace from personal projects', async ({ page }) => {
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
-  await page.getByRole('button', { name: 'Классы' }).click();
+  await page.getByRole('button', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   await expect(
     page.getByText(

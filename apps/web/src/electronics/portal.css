@@ -10,7 +10,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 28px;
+  gap: 18px;
   min-height: 64px;
   padding: 0 24px;
   border-bottom: 1px solid #d9e0e8;
@@ -65,12 +65,15 @@
   align-items: stretch;
   align-self: stretch;
   gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .portal-nav-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 16px;
+  gap: 6px;
+  padding: 0 10px;
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
@@ -81,6 +84,15 @@
 .portal-nav-item svg {
   width: 19px;
   height: 19px;
+}
+.portal-nav-glyph {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  color: #1681b8;
+  font-size: 16px;
+  font-weight: 800;
 }
 .portal-nav-item:hover:not(.disabled) {
   color: #172b3a;
@@ -470,6 +482,7 @@
     grid-column: 1/-1;
     order: 3;
     height: 46px;
+    padding-bottom: 2px;
   }
   .portal-user-name {
     display: none;
@@ -511,10 +524,10 @@
     width: 100%;
   }
   .portal-nav-item {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     justify-content: center;
     min-width: 0;
-    padding: 0 8px;
+    padding: 0 12px;
   }
   .portal-nav-item.disabled {
     display: none;

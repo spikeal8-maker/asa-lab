@@ -1,7 +1,7 @@
 # TASK-CREATOR-PORTAL-001 — Work Status
 
 ```text
-status: ready
+status: in_review
 Issue: #62
 branch: agent/r2-creator-portal
 base: main
@@ -36,13 +36,35 @@ TST-R2-E2E-001
 
 Registry: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml).
 
-## Initial result state
+## Review result state
 
 ```text
-governance after activation: NOT_RUN
-R2 focused tests: NOT_RUN
-R2 E2E: NOT_RUN
-full regression on R2 head: NOT_RUN
+governance after activation: PASS
+R2 focused tests: PASS (17/17)
+R2 E2E: PASS (2/2)
+full Vitest regression: PASS (315/315)
+full Playwright regression: PASS (22/22)
+Docker health and image revision: PASS
+PostgreSQL persistence after API/Web restart: PASS
+isolated backup/restore: PASS
+console/pageerror/requestfailed/HTTP 5xx collector: PASS (0 failures)
+```
+
+These results are published against one exact corrective SHA in Draft PR #71.
+The owner audit did not activate R3 or R4.
+
+## Review evidence
+
+```text
+docs/review/TASK_CREATOR_PORTAL_001/01-creator-home-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/02-projects-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/03-learning-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/04-account-menu-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/05-account-shell-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/06-challenges-tablet.png
+docs/review/TASK_CREATOR_PORTAL_001/07-creator-home-mobile.png
+docs/review/TASK_CREATOR_PORTAL_001/08-workspace-isolation-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/09-educator-classes-desktop.png
 ```
 
 ## Preservation

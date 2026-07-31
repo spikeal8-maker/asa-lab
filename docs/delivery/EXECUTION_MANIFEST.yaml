@@ -127,7 +127,7 @@ tasks:
 
   - position: 4
     task_id: TASK-CREATOR-PORTAL-001
-    status: ready
+    status: in_review
     issue: https://github.com/spikeal8-maker/asa-lab/issues/62
     branch: agent/r2-creator-portal
     base_branch: main

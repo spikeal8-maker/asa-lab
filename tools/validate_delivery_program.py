@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -17,6 +18,10 @@ PORT_PATH = ROOT / "docs/delivery/LOCAL_PORT_POLICY.md"
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
 ACTIVE_CATALOG_PATH = ROOT / "docs/testing/active-task-tests.yaml"
+AGENTS_PATH = ROOT / "AGENTS.md"
+PROJECT_MAP_RENDERED_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
+QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
+WORK_STATUS_PATH = ROOT / "docs/delivery/TASK_CREATOR_PORTAL_001_WORK_STATUS.md"
 
 EXPECTED_TASKS = ["TASK-PRODUCT-DOC-001", "TASK-PORTAL-001", "TASK-ACCOUNT-C1-001", "TASK-CREATOR-PORTAL-001"]
 ACTIVE_TASK = "TASK-CREATOR-PORTAL-001"
@@ -59,10 +64,11 @@ def string_list(value: Any, label: str, errors: list[str]) -> list[str]:
 def validate_documents(errors: list[str]) -> None:
     required = (
         MANIFEST_PATH, PROGRAM_PATH, PORT_PATH, MAP_PATH, CATALOG_PATH, ACTIVE_CATALOG_PATH,
-        ROOT / "README.md", ROOT / "AGENTS.md", ROOT / "START_HERE_FOR_AI.md",
-        ROOT / "docs/delivery/BOT_RUNBOOK.md", ROOT / "docs/project-map/PROJECT_MAP.md",
-        ROOT / "docs/project-map/QUALITY_MAP.md", ROOT / "docs/project-map/README.md",
+        ROOT / "README.md", AGENTS_PATH, ROOT / "START_HERE_FOR_AI.md",
+        ROOT / "docs/delivery/BOT_RUNBOOK.md", PROJECT_MAP_RENDERED_PATH,
+        QUALITY_MAP_PATH, ROOT / "docs/project-map/README.md",
         ROOT / "docs/project-map/TASK_SYSTEM.md", ROOT / "docs/testing/TEST_STRATEGY.md",
+        WORK_STATUS_PATH,
     )
     for path in required:
         if not path.is_file():
@@ -229,13 +235,53 @@ def validate_map(tasks: list[dict[str, Any]], document: dict[str, Any], errors: 
         if not isinstance(node, dict):
             errors.append(f"Project map misses task node {task['task_id']}")
             continue
-        expected = ACTIVE_STATUSES if task["task_id"] == ACTIVE_TASK else {"done"}
-        if node.get("status") not in expected:
-            errors.append(f"Project map task {task['task_id']} has invalid status {node.get('status')!r}")
+        if node.get("status") != task.get("status"):
+            errors.append(
+                f"Project map task {task['task_id']} status {node.get('status')!r} "
+                f"differs from manifest {task.get('status')!r}"
+            )
         if node.get("issue") != task.get("issue"):
             errors.append(f"Project map Issue mismatch for {task['task_id']}")
         if node.get("phase") != task.get("architecture_horizon"):
             errors.append(f"Project map phase mismatch for {task['task_id']}")
+
+
+def validate_active_status_documents(
+    tasks: list[dict[str, Any]], document: dict[str, Any], errors: list[str]
+) -> None:
+    active = next((task for task in tasks if task.get("task_id") == ACTIVE_TASK), None)
+    if not active:
+        return
+    status = str(active.get("status"))
+    nodes = {
+        item.get("id"): item
+        for item in document.get("nodes") or []
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    for node_id in ("ACT-AGENT", str(active.get("architecture_horizon"))):
+        node = nodes.get(node_id)
+        if not isinstance(node, dict) or node.get("status") != status:
+            errors.append(f"Project map node {node_id} must match active task status {status}")
+
+    documents = {
+        "AGENTS.md": (AGENTS_PATH, rf"(?m)^status:\s+{re.escape(status)}\s*$"),
+        "PROJECT_MAP.md": (
+            PROJECT_MAP_RENDERED_PATH,
+            rf"(?m)^status {re.escape(status)}\s*$",
+        ),
+        "QUALITY_MAP.md": (
+            QUALITY_MAP_PATH,
+            rf"(?m)^TASK-CREATOR-PORTAL-001\s+{re.escape(status)}\s*$",
+        ),
+        "TASK_CREATOR_PORTAL_001_WORK_STATUS.md": (
+            WORK_STATUS_PATH,
+            rf"(?m)^status:\s+{re.escape(status)}\s*$",
+        ),
+    }
+    for label, (path, pattern) in documents.items():
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        if re.search(pattern, text) is None:
+            errors.append(f"{label} must display active task status {status}")
 
 
 def main() -> int:
@@ -247,6 +293,7 @@ def main() -> int:
     validate_ports(manifest, errors)
     tasks = validate_manifest(manifest, catalog, errors)
     validate_map(tasks, project_map, errors)
+    validate_active_status_documents(tasks, project_map, errors)
     if errors:
         print("ASA Lab execution contract validation: FAIL", file=sys.stderr)
         for error in errors:

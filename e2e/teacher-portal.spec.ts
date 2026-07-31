@@ -44,7 +44,7 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
 
   await loginWithOrganization(page, teacher);
 
-  await page.getByRole('button', { name: 'Классы' }).click();
+  await page.getByRole('button', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Создайте первый класс' })).toBeVisible();
 

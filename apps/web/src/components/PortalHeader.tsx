@@ -1,9 +1,20 @@
 import { useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
-import { ClassesIcon, FolderIcon, UserIcon } from '../electronics/workbench-icons';
+import { UserIcon } from '../electronics/workbench-icons';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 
-export type PortalSection = 'projects' | 'classes' | 'account';
+export type PortalSection = CreatorPortalSection;
+
+const SECTION_GLYPHS: Record<Exclude<PortalSection, 'account'>, string> = {
+  home: '⌂',
+  projects: '□',
+  learning: '▤',
+  collections: '◇',
+  challenges: '✦',
+  classes: '◎',
+  help: '?',
+};
 
 export function PortalHeader({
   session,
@@ -60,41 +71,30 @@ export function PortalHeader({
     }
     onSessionChanged(refreshed.data);
     accountMenu.current?.removeAttribute('open');
-    onNavigate('projects');
+    onNavigate('home');
   }
 
   return (
     <>
       <header className="portal-header">
-        <button type="button" className="portal-brand" onClick={() => onNavigate('projects')}>
+        <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
           <AsaLabWordmark />
         </button>
         <nav className="portal-nav" aria-label="Основная навигация">
-          <button
-            type="button"
-            className={active === 'projects' ? 'portal-nav-item active' : 'portal-nav-item'}
-            onClick={() => onNavigate('projects')}
-          >
-            <FolderIcon />
-            Мои проекты
-          </button>
-          {canTeach ? (
+          {portalNavigation(canTeach).map((item) => (
             <button
               type="button"
-              className={active === 'classes' ? 'portal-nav-item active' : 'portal-nav-item'}
-              onClick={() => onNavigate('classes')}
+              key={item.section}
+              className={active === item.section ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-current={active === item.section ? 'page' : undefined}
+              onClick={() => onNavigate(item.section)}
             >
-              <ClassesIcon />
-              Классы
+              <span className="portal-nav-glyph" aria-hidden="true">
+                {SECTION_GLYPHS[item.section]}
+              </span>
+              {item.label}
             </button>
-          ) : null}
-          <span
-            className="portal-nav-item disabled"
-            aria-disabled="true"
-            title="Появится в следующих этапах"
-          >
-            Учебные материалы
-          </span>
+          ))}
         </nav>
         <details
           ref={accountMenu}

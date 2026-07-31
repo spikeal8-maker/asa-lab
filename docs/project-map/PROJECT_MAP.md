@@ -9,7 +9,7 @@ Execution: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFES
 TASK-CREATOR-PORTAL-001
 Issue #62
 branch agent/r2-creator-portal
-status ready
+status in_review
 ```
 
 ```mermaid
@@ -17,7 +17,7 @@ flowchart LR
   DOC[Product Docs\ndone]
   PORTAL[Teacher Portal\ndone]
   ACCOUNT[Account C1\ndone]
-  R2[Creator Portal\nready]
+  R2[Creator Portal\nin review]
   STOP[Owner review]
   R3[R3 Project Lifecycle\nblocked]
   R4[R4 Electronics Parity\nblocked]

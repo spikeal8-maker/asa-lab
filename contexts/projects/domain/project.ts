@@ -12,6 +12,7 @@ export interface Project {
   readonly title: string;
   readonly status: string;
   readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface ProjectDraft {

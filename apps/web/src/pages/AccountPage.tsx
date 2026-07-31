@@ -20,10 +20,30 @@ function workspaceKindLabel(kind: string): string {
   return kind === 'personal' ? 'Личное пространство' : 'Организация';
 }
 
+function workspaceRoleLabel(role: string): string {
+  if (role === 'educator') return 'Педагог';
+  if (role === 'owner') return 'Владелец';
+  if (role === 'learner') return 'Ученик';
+  return 'Участник';
+}
+
 function verificationLabel(state: string): string {
   if (state === 'verified') return 'Подтверждён';
   if (state === 'pending') return 'Ожидает подтверждения';
   return 'Не подтверждён';
+}
+
+function capabilityLabel(capability: string): string {
+  if (capability === 'creator') return 'Создание проектов';
+  if (capability === 'educator') return 'Работа с классами';
+  return 'Дополнительная возможность';
+}
+
+function capabilityStateLabel(state: string): string {
+  if (state === 'verified') return 'Доступ активен';
+  if (state === 'provisional') return 'Доступ активен';
+  if (state === 'pending') return 'Ожидает подтверждения';
+  return 'Недоступно';
 }
 
 export function AccountPage({
@@ -138,6 +158,24 @@ export function AccountPage({
     );
   }
 
+  async function checkEmailVerification(): Promise<void> {
+    setBusyAction('email-verification');
+    setError(null);
+    setNotice(null);
+    const result = await api.accountProfile();
+    setBusyAction(null);
+    if (!result.ok) {
+      setError('Не удалось обновить статус email.');
+      return;
+    }
+    setProfile(result.data);
+    setNotice(
+      result.data.emailVerificationState === 'verified'
+        ? 'Email подтверждён.'
+        : 'Статус обновлён. Автоматическая отправка писем пока не подключена.',
+    );
+  }
+
   async function revokeSession(target: AccountSession): Promise<void> {
     setBusyAction(`session:${target.id}`);
     setError(null);
@@ -183,7 +221,7 @@ export function AccountPage({
   return (
     <main id="main-content" className="account-page" tabIndex={-1}>
       <header className="account-heading">
-        <p className="portal-eyebrow">Account C1</p>
+        <p className="portal-eyebrow">Настройки</p>
         <h1>Аккаунт и рабочие пространства</h1>
         <p>Профиль, возможности и активные входы собраны в одном месте.</p>
       </header>
@@ -216,8 +254,23 @@ export function AccountPage({
               <input value={profile.email} disabled aria-describedby="email-locked" />
             </label>
             <p id="email-locked" className="account-field-note">
-              Email нельзя изменить в текущем Alpha-baseline.
+              Email пока нельзя изменить. Статус подтверждения берётся с сервера.
             </p>
+            <div className="account-email-verification">
+              <p>
+                {profile.emailVerificationState === 'verified'
+                  ? 'Адрес подтверждён.'
+                  : 'Адрес ещё не подтверждён. Автоматическая отправка писем пока не подключена.'}
+              </p>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busyAction !== null}
+                onClick={() => void checkEmailVerification()}
+              >
+                {busyAction === 'email-verification' ? 'Проверяем…' : 'Проверить статус'}
+              </button>
+            </div>
             <label>
               Имя пользователя
               <input
@@ -277,7 +330,7 @@ export function AccountPage({
                   <div>
                     <strong>{workspace.title}</strong>
                     <span>
-                      {workspaceKindLabel(workspace.kind)} · {workspace.role}
+                      {workspaceKindLabel(workspace.kind)} · {workspaceRoleLabel(workspace.role)}
                     </span>
                   </div>
                   <button
@@ -308,8 +361,8 @@ export function AccountPage({
           <ul className="account-capability-list">
             {profile.capabilities.map((capability) => (
               <li key={capability.capability}>
-                <strong>{capability.capability}</strong>
-                <span>{capability.state}</span>
+                <strong>{capabilityLabel(capability.capability)}</strong>
+                <span>{capabilityStateLabel(capability.state)}</span>
               </li>
             ))}
           </ul>
@@ -330,9 +383,7 @@ export function AccountPage({
               </button>
             </div>
           ) : (
-            <p className="account-capability-ready">
-              Режим педагога включён: <strong>{educator.state}</strong>.
-            </p>
+            <p className="account-capability-ready">Режим педагога включён.</p>
           )}
         </section>
 

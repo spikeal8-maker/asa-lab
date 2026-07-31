@@ -22,9 +22,11 @@ export interface WorkspaceRef {
 export interface SessionPayload {
   authenticated: true;
   user: PublicUser;
+  account: PublicUser;
   capabilities: CapabilityRef[];
   workspaces: WorkspaceRef[];
   activeWorkspace: { workspaceId: string; kind: string };
+  navigation: { classes: boolean; classroomManagement: boolean };
 }
 
 export interface AccountProfile {
@@ -64,6 +66,7 @@ export interface Project {
   title: string;
   status: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ModuleSummary {

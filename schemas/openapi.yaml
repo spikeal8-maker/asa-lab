@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: ASA Lab Control Plane API
-  version: 0.2.0
+  version: 0.3.0
   description: >-
-    Teacher Portal v0.1 contract: health probes, teacher session auth and
-    classroom create/list. The tenant context is derived exclusively from the
-    server-side session; clients never send a tenant identifier.
+    Account and Portal contract: health probes, universal account session,
+    capability-aware workspace context and classroom create/list. Tenant,
+    capability and active workspace are derived exclusively from the
+    server-side session.
 servers:
   - url: http://127.0.0.1:4611
     description: Local development
@@ -38,10 +39,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
+  /api/auth/register:
+    post:
+      operationId: postAuthRegister
+      summary: Register an adult Account and establish its Personal Workspace session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account and session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email or username is already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Registration is routed to a child-safe flow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/auth/login:
     post:
       operationId: postAuthLogin
-      summary: Teacher login (sets an HttpOnly SameSite session cookie)
+      summary: Universal Account or compatibility organization login
       requestBody:
         required: true
         content:
@@ -89,13 +125,48 @@ paths:
       summary: Current session user
       responses:
         '200':
-          description: Active session
+          description: Active session or an explicit anonymous state
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserEnvelope'
+                $ref: '#/components/schemas/SessionStatusEnvelope'
+        '401':
+          description: Invalid or expired session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/session/context:
+    post:
+      operationId: postSessionContext
+      summary: Switch to a server-authorized workspace without changing capabilities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchWorkspaceRequest'
+      responses:
+        '201':
+          description: Active workspace changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveWorkspaceEnvelope'
+        '400':
+          description: Invalid workspace identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Workspace is unavailable for this Account
           content:
             application/json:
               schema:
@@ -216,14 +287,59 @@ components:
               type: string
             message:
               type: string
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, username, birthDate, country]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 10
+        username:
+          type: string
+          minLength: 3
+          maxLength: 36
+        displayName:
+          type: string
+          maxLength: 120
+        birthDate:
+          type: string
+          format: date
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
     LoginRequest:
+      oneOf:
+        - $ref: '#/components/schemas/AccountLoginRequest'
+        - $ref: '#/components/schemas/OrganizationLoginRequest'
+    AccountLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      anyOf:
+        - required: [identifier]
+        - required: [email]
+      properties:
+        identifier:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+    OrganizationLoginRequest:
       type: object
       additionalProperties: false
       required: [workspace, email, password]
       properties:
         workspace:
           type: string
-          description: Tenant locator (slug); used only during authentication.
+          description: Compatibility organization locator used only during authentication.
           minLength: 3
           maxLength: 64
         email:
@@ -235,23 +351,112 @@ components:
     UserEnvelope:
       type: object
       additionalProperties: false
-      required: [user]
+      required:
+        [authenticated, user, account, capabilities, workspaces, activeWorkspace, navigation]
       properties:
+        authenticated:
+          type: boolean
+          const: true
         user:
-          type: object
-          additionalProperties: false
-          required: [id, role, displayName, email]
-          properties:
-            id:
-              type: string
-              format: uuid
-            role:
-              type: string
-              enum: [teacher]
-            displayName:
-              type: string
-            email:
-              type: string
+          $ref: '#/components/schemas/PublicAccount'
+        account:
+          $ref: '#/components/schemas/PublicAccount'
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Capability'
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+        activeWorkspace:
+          $ref: '#/components/schemas/ActiveWorkspace'
+        navigation:
+          $ref: '#/components/schemas/PortalNavigation'
+    SessionStatusEnvelope:
+      oneOf:
+        - $ref: '#/components/schemas/UserEnvelope'
+        - $ref: '#/components/schemas/AnonymousSessionEnvelope'
+    AnonymousSessionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+          const: false
+    PublicAccount:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+    Capability:
+      type: object
+      additionalProperties: false
+      required: [capability, state]
+      properties:
+        capability:
+          type: string
+        state:
+          type: string
+    Workspace:
+      type: object
+      additionalProperties: false
+      required: [workspaceId, kind, title, role]
+      properties:
+        workspaceId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [personal, organization]
+        title:
+          type: string
+        role:
+          type: string
+    ActiveWorkspace:
+      type: object
+      additionalProperties: false
+      required: [workspaceId, kind]
+      properties:
+        workspaceId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [personal, organization]
+    PortalNavigation:
+      type: object
+      additionalProperties: false
+      required: [classes, classroomManagement]
+      properties:
+        classes:
+          type: boolean
+        classroomManagement:
+          type: boolean
+    SwitchWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [workspaceId]
+      properties:
+        workspaceId:
+          type: string
+          format: uuid
+    ActiveWorkspaceEnvelope:
+      type: object
+      additionalProperties: false
+      required: [activeWorkspace]
+      properties:
+        activeWorkspace:
+          $ref: '#/components/schemas/ActiveWorkspace'
     CreateClassroomRequest:
       type: object
       additionalProperties: false

@@ -10,7 +10,7 @@ Sources:
 ## Current task
 
 ```text
-TASK-CREATOR-PORTAL-001  ready
+TASK-CREATOR-PORTAL-001  in_review
 current_focus             TASK-CREATOR-PORTAL-001
 branch                    agent/r2-creator-portal
 Issue                     #62
@@ -35,7 +35,18 @@ TST-R2-ROUTING-001
 TST-R2-E2E-001
 ```
 
-All R2 results are currently `NOT_RUN`. The coding agent must implement real `test:creator-portal` and `e2e:creator-portal` commands before acceptance.
+## R2 review results
+
+```text
+TST-R2-STATIC-001          PASS
+TST-R2-CREATOR-HOME-001    PASS
+TST-R2-CAPABILITY-NAV-001  PASS
+TST-R2-ROUTING-001         PASS
+TST-R2-E2E-001             PASS
+```
+
+The Draft PR #71 corrective report records the exact tested SHA. Repository
+documents intentionally do not embed their own commit hash.
 
 ## Gate commands
 
@@ -55,13 +66,15 @@ python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
 ## Functional matrix
 
 - Creator Home is the default authenticated route;
-- recent projects load from existing data;
+- recent projects load from existing data and are ordered by last project activity;
 - creator and educator navigation differs by server capability;
 - Classes is hidden without educator capability;
-- workspace switch changes scope without changing capability;
+- workspace switch clears stale Home data, changes scope without changing capability and
+  preserves the isolated result after refresh;
 - Account/Profile/Sessions are integrated into the Portal shell;
 - Learning/Collections/Challenges/Help have honest states;
 - deep links, refresh, Back and Forward preserve route/context;
+- Recent projects open existing Electronics and Chess editors;
 - existing Teacher Portal, Electronics, Chess and Chess Online remain reachable;
 - current Accounts, classes, projects and sessions are preserved.
 
@@ -85,6 +98,24 @@ pageerror = 0
 unexpected requestfailed = 0
 unexpected HTTP 5xx = 0
 ```
+
+## Owner-visible screenshots
+
+```text
+docs/review/TASK_CREATOR_PORTAL_001/01-creator-home-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/02-projects-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/03-learning-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/04-account-menu-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/05-account-shell-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/06-challenges-tablet.png
+docs/review/TASK_CREATOR_PORTAL_001/07-creator-home-mobile.png
+docs/review/TASK_CREATOR_PORTAL_001/08-workspace-isolation-desktop.png
+docs/review/TASK_CREATOR_PORTAL_001/09-educator-classes-desktop.png
+```
+
+The Account surface remains a routed page inside the shared Portal shell for
+R2. Converting it to a drawer or compact profile-only surface belongs to a
+separately activated product-design task, not this corrective pass.
 
 ## Preserved evidence
 

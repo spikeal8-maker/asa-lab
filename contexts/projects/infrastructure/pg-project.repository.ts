@@ -18,6 +18,7 @@ interface ProjectRow {
   title: string;
   status: string;
   created_at: string;
+  updated_at?: string;
   request_fingerprint?: string | null;
 }
 
@@ -30,6 +31,7 @@ function toProject(row: ProjectRow): Project {
     title: row.title,
     status: row.status,
     createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at ?? row.created_at),
   };
 }
 
@@ -151,44 +153,57 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<Project[]> {
     if (actor.userId === null) {
       if (filter.scope === 'classroom' || filter.classroomId) return [];
-      const result = await this.pool.query(
-        `SELECT id, project_scope, classroom_id, module_key, title, status, created_at
-           FROM project_list_for_principal($1, $2)`,
-        [actor.principalId, filter.scope ?? null],
-      );
-      return (result.rows as ProjectRow[]).map(toProject);
+      return withTenantContext(this.pool, tenantId, async (client) => {
+        const result = await client.query(
+          `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
+                  p.status, p.created_at, d.updated_at
+             FROM projects p
+             JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+            WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
+              AND p.project_scope='personal' AND p.status='active'
+            ORDER BY d.updated_at DESC`,
+          [tenantId, actor.principalId],
+        );
+        return (result.rows as ProjectRow[]).map(toProject);
+      });
     }
     return withTenantContext(this.pool, tenantId, async (client) => {
       if (filter.scope === 'personal') {
         const result = await client.query(
-          `SELECT id, project_scope, classroom_id, module_key, title, status, created_at
-             FROM projects
-            WHERE tenant_id = $1 AND project_scope = 'personal' AND status = 'active'
-              AND ((owner_principal_id IS NOT NULL AND owner_principal_id = $2)
-                   OR created_by = $3)
-            ORDER BY created_at DESC`,
+          `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
+                  p.status, p.created_at, d.updated_at
+             FROM projects p
+             JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+            WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = 'active'
+              AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $2)
+                   OR p.created_by = $3)
+            ORDER BY d.updated_at DESC`,
           [tenantId, actor.principalId, actor.userId],
         );
         return (result.rows as ProjectRow[]).map(toProject);
       }
       if (filter.scope === 'classroom' && filter.classroomId) {
         const result = await client.query(
-          `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at
+          `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
+                  d.updated_at
              FROM projects p
+             JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
              JOIN classroom_memberships m
                ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
             WHERE p.tenant_id=$1 AND p.project_scope='classroom'
               AND p.classroom_id=$2 AND m.user_id=$3
               AND m.member_role='owner' AND p.status='active'
-            ORDER BY p.created_at DESC`,
+            ORDER BY d.updated_at DESC`,
           [tenantId, filter.classroomId, actor.userId],
         );
         return (result.rows as ProjectRow[]).map(toProject);
       }
       const result = await client.query(
         `SELECT DISTINCT
-                p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at
+                p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
+                d.updated_at
            FROM projects p
+           JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
            LEFT JOIN classroom_memberships m
              ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
             AND m.user_id=$3 AND m.member_role='owner'
@@ -197,7 +212,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                   AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id=$2)
                        OR p.created_by=$3))
                  OR (p.project_scope='classroom' AND m.user_id IS NOT NULL))
-          ORDER BY p.created_at DESC`,
+          ORDER BY d.updated_at DESC`,
         [tenantId, actor.principalId, actor.userId],
       );
       return (result.rows as ProjectRow[]).map(toProject);
@@ -273,6 +288,15 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       );
       const row = updated.rows[0] as ProjectRow | undefined;
       if (!row) return null;
+      const activity = await client.query(
+        `UPDATE project_drafts
+            SET updated_at=now()
+          WHERE tenant_id=$1 AND project_id=$2
+          RETURNING updated_at`,
+        [actualTenantId, projectId],
+      );
+      const updatedAt = activity.rows[0]?.updated_at;
+      if (updatedAt !== undefined) row.updated_at = String(updatedAt);
       await client.query(
         `INSERT INTO audit_events
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
@@ -357,6 +381,12 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         ],
       );
       const row = inserted.rows[0];
+      await client.query(
+        `UPDATE project_drafts
+            SET updated_at=now()
+          WHERE tenant_id=$1 AND project_id=$2`,
+        [actualTenantId, projectId],
+      );
       await client.query(
         `INSERT INTO audit_events
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)

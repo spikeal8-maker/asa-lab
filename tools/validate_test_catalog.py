@@ -185,6 +185,15 @@ def validate_documents(active_ids: list[str], errors: list[str]) -> None:
     for required_id in ("TST-ARCH-001", "TST-MAP-001", "TST-CATALOG-001", "TST-DEVELOPMENT-PROGRAM-001", *active_ids):
         if required_id not in quality:
             errors.append(f"QUALITY_MAP.md must display {required_id}")
+    task_map = load_yaml(MAP_PATH, errors)
+    task_nodes, _ = task_nodes_from_map(task_map, errors)
+    active_status = task_nodes.get(ACTIVE_TASK, {}).get("status")
+    if active_status == "in_review":
+        if "currently `NOT_RUN`" in quality:
+            errors.append("QUALITY_MAP.md cannot report current NOT_RUN results for an in-review task")
+        for test_id in active_ids:
+            if re.search(rf"(?m)^{re.escape(test_id)}\s+PASS\s*$", quality) is None:
+                errors.append(f"QUALITY_MAP.md must report {test_id} PASS while task is in_review")
 
 
 def main() -> int:

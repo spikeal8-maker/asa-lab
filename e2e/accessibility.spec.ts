@@ -9,7 +9,7 @@ let teacher: SeededTeacher;
 
 async function login(page: Page): Promise<void> {
   await loginWithOrganization(page, teacher);
-  await page.getByRole('button', { name: 'Классы' }).click();
+  await page.getByRole('button', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 }
 

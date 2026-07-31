@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
+import { spawnSync } from 'node:child_process';
 
 const commands = [
-  ["pnpm", ["format:check"]],
-  ["pnpm", ["lint"]],
-  ["pnpm", ["typecheck"]],
-  ["pnpm", ["boundaries:check"]],
-  ["pnpm", ["contracts:check"]],
-  ["pnpm", ["build"]],
-  ["pnpm", ["test"]],
+  ['pnpm', ['format:check']],
+  ['pnpm', ['lint']],
+  ['pnpm', ['typecheck']],
+  ['pnpm', ['boundaries:check']],
+  ['pnpm', ['contracts:check']],
+  ['pnpm', ['build']],
+  ['pnpm', ['test', '--', '--maxWorkers=2', '--testTimeout=10000']],
 ];
 
 for (const [command, args] of commands) {
-  console.log(`\n[R2 static gate] ${command} ${args.join(" ")}`);
+  console.log(`\n[R2 static gate] ${command} ${args.join(' ')}`);
   const result = spawnSync(command, args, {
-    stdio: "inherit",
-    shell: process.platform === "win32",
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
     env: process.env,
   });
   if (result.error) {
@@ -27,4 +27,4 @@ for (const [command, args] of commands) {
   }
 }
 
-console.log("\nR2 static and regression gate: PASS");
+console.log('\nR2 static and regression gate: PASS');

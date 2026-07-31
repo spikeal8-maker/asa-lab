@@ -143,7 +143,7 @@ test('owner completes Account C1 and existing project modules remain available',
     .locator('..');
   await workspaceCard.getByRole('button', { name: 'Переключить' }).click();
   await expect(page.getByText('Активно: Owner Preview School.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Классы' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/04-workspace-switched-desktop.png`,
     fullPage: true,
