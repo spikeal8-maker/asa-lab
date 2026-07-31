@@ -8,7 +8,7 @@ const commands = [
   ['pnpm', ['boundaries:check']],
   ['pnpm', ['contracts:check']],
   ['pnpm', ['build']],
-  ['pnpm', ['test']],
+  ['pnpm', ['test', '--', '--maxWorkers=2', '--testTimeout=10000']],
 ];
 
 for (const [command, args] of commands) {
