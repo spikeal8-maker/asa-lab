@@ -17,9 +17,9 @@ owner directive:         PR #72 comment 5147079314
 owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
 ```
 
-`docs/delivery/EXECUTION_MANIFEST.yaml`, Issue #63, приложенные владельцем
-reference screenshots и PR #72 comment `5147079314` являются исполняемыми
-источниками scope. R3B остаётся blocked/deferred; R4-M2 и R5+ не активированы.
+`docs/delivery/EXECUTION_MANIFEST.yaml`, Issue #63 and the explicit owner
+directive for PR #72 define the executable scope. R3B remains blocked/deferred;
+R4-M2 and R5+ are not activated.
 
 ## 2. Источники истины
 
@@ -31,7 +31,7 @@ reference screenshots и PR #72 comment `5147079314` являются испол
 4. `docs/delivery/EXECUTION_MANIFEST.yaml`;
 5. PR #72 owner comment `5147079314`;
 6. Issue #63;
-7. owner screenshots/video/catalog evidence;
+7. owner archive evidence;
 8. `docs/testing/test-catalog.yaml`;
 9. `docs/testing/active-task-tests.yaml`.
 
@@ -43,81 +43,36 @@ reference screenshots и PR #72 comment `5147079314` являются испол
 
 - работать только в `agent/r4-electronics-m1`;
 - не создавать дополнительные ветки;
-- не менять `main`, не merge, не tag, не force-push и не rebase опубликованной истории;
+- не менять `main`, не merge, не tag, не force-push;
+- не переписывать опубликованную историю;
 - не трогать PR #29 и `assistant/map-ux-owner-view`;
 - не коммитить backups, dumps, credentials и приватные ZIP;
 - все commits push только в PR #72.
 
-## 4. Что уже сохраняется
+## 4. Сохранённая основа
 
 Не переписывать заново:
 
-- full owner archive inventory;
+- full owner archive inventory и audit SHA `9654ce3`;
 - reference и production SVG packages;
 - один `WORLD_UNITS_PER_MM`;
 - physical dimensions и production pin anchors;
 - ordinary LED/RGB/seven-segment state contracts;
 - breadboard visuals, hole IDs и connectivity metadata;
 - additive schema, save/reload/checkpoint;
-- текущий solver/editor foundation.
+- текущий solver/editor foundation;
+- прозрачный parametric resistor body/preview и semantic band zones.
 
-Runtime `f78a9ac...` отклонён из-за неверной информационной архитектуры
-библиотеки, неправильного порядка, variant duplication и смешения
-supported/reference/preview assets.
+Runtime `f78a9ac...` отклонён из-за плоской библиотеки, variant duplication и
+смешения supported/preview assets. Новая solver-функциональность не входит в
+текущий corrective scope.
 
-## 5. TASK-ELECTRONICS-M1-001 — exact owner-reference component shelf
+## 5. TASK-ELECTRONICS-M1-001 — family component library
 
-### 5.1. Канонический порядок категории «Основные»
+### 5.1. Runtime family model
 
-Приложенные владельцем Tinkercad screenshots доказывают следующий порядок
-первых видимых позиций. Сортировать строго слева направо и сверху вниз:
-
-```text
-01 Резистор
-02 Светодиод
-03 Кнопка
-04 Потенциометр
-05 Конденсатор
-06 Ползунковый переключатель
-07 Батарея 9 В
-08 Кнопочная батарея 3 В
-09 Батарея 1,5 В
-10 Малая макетная плата
-11 micro:bit
-12 Arduino Uno R3
-13 Вибромотор
-14 Двигатель постоянного тока
-15 Микросерво
-```
-
-Нельзя ставить Breadboard 420 или AA holder 2×AA первыми. Продолжение списка
-ниже видимой области не придумывать: брать только из owner-video/catalog evidence.
-
-### 5.2. Геометрия и поведение shelf
-
-Обязательный layout:
-
-- library width `320–330 px`;
-- **три колонки** в grid view;
-- одинаковые компактные карточки и нормализованные thumbnails;
-- category selector сверху, grid/list toggle справа;
-- отдельная строка поиска;
-- heading и search не прокручиваются; прокручивается только catalog body;
-- название занимает максимум две строки;
-- один search result на family;
-- family card вместо variant duplicates;
-- variant выбирается в inspector или compact popover, а не постоянным select
-  под каждой grid-card;
-- stage сохраняет физический масштаб, library preview нормализуется только для
-  узнаваемости.
-
-ASA Lab сохраняет собственный бренд и код. Требуется функциональная и
-interaction parity согласованного reference scope, а не копирование логотипа.
-
-### 5.3. Family и variants
-
-Production manifest остаётся источником SVG, physical mm, pins и footprint.
-Поверх него используется family model:
+Production manifest остаётся источником asset, physical mm, pins и footprint.
+Поверх него используется family-level model:
 
 ```text
 familyId
@@ -134,36 +89,41 @@ simulationStatus
 assetProvenance
 ```
 
-Семейства без дублей:
+Каждая карточка runtime-каталога представляет family, а не отдельный файл
+manifest.
 
-- `AA battery holder`: `1×AA / 2×AA / 3×AA / 4×AA / 6×AA / 8×AA`, default `2×AA`;
-- `Breadboard`: `170 / 420 / 882`;
-- `Diode`: `DO-35 / DO-41`;
-- `LED 5 mm`: цвет и яркость в inspector;
-- `Resistor`: сопротивление и допуск управляют четырьмя полосами;
+### 5.2. Семейства и варианты
+
+В рабочем каталоге должна быть ровно одна карточка:
+
+- `AA battery holder` с variants `1×AA / 2×AA / 3×AA / 4×AA / 6×AA / 8×AA`, default `2×AA`;
+- `Breadboard` с variants `170 / 420 / 882`, default `420`;
+- `Diode` с variants `DO-35 / DO-41`, default `DO-41`;
+- `LED 5 mm`, где colour/brightness остаются inspector properties;
+- `Resistor`, где value/tolerance остаются inspector properties и управляют
+  четырьмя цветовыми полосами;
 - `Button 6×6`, `SPDT`, `Potentiometer`, `RGB LED`, `Seven-segment`, `Lamp`.
 
-`5×AA` остаётся missing reference. `variantId` сохраняется после
-save/reload/checkpoint.
+`5×AA` остаётся missing reference. Compact variant picker доступен до placement
+и в inspector. `variantId` обязан сохраняться после save/reload/checkpoint.
 
-### 5.4. Exact order и честная готовность
+### 5.3. Runtime battery exclusions
 
-Категория «Основные» обязана показывать позиции 01–15 в reference order.
-Наличие позиции в этом порядке не разрешает ложную функциональность:
+Следующие PNG-derived/reference entries не экспортируются в runtime library:
 
-- production-ready item — clickable/draggable;
-- ещё не готовая позиция — `aria-disabled`, не draggable и не создаёт component;
-- raw PNG/reference images запрещены в runtime;
-- батарея 9 В, coin-cell 3 В и элемент 1,5 В включаются только после прозрачного
-  production SVG, physical/pin contract и focused acceptance;
-- unsupported item не возвращает fake current/voltage/simulation success.
+```text
+battery-1.5v
+battery-3v
+battery-6v
+battery-9v
+```
 
-AA holders остаются одним family в категории `Питание`; они не заменяют три
-reference battery cards в «Основных».
+Legacy document fallback сохраняется, но новые проекты не показывают и не
+создают эти entries.
 
-### 5.5. Категории
+### 5.4. Категории и порядок
 
-Dropdown по умолчанию открывается в `Основные`.
+Dropdown по умолчанию открывается в `Основные`:
 
 ```text
 Основные
@@ -181,46 +141,76 @@ Dropdown по умолчанию открывается в `Основные`.
 В разработке
 ```
 
-Search работает по family, variant и русским/английским aliases. Порядок
-детерминирован и не зависит от порядка файлов manifest.
+Curated order в `Основные`:
+
+```text
+Breadboard 420
+AA battery holder 2×AA
+Resistor
+LED 5 mm
+Button 6×6
+SPDT
+Potentiometer
+Diode DO-41
+RGB LED
+Seven-segment
+Lamp
+```
+
+Порядок детерминирован и не зависит от порядка файлов manifest.
+
+### 5.5. Supported и preview
+
+- `core`/`supported`: draggable и clickable;
+- `preview`: только категория `В разработке`, disabled и не draggable;
+- preview card не создаёт document component;
+- unsupported candidates не смешиваются с `Основные` или `Все компоненты`;
+- unsupported components не возвращают fake simulation success.
+
+### 5.6. Library UX
+
+- category dropdown и отдельный search;
+- **две колонки по умолчанию**;
+- grid/list toggle;
+- family card вместо variant duplicates;
+- compact variant picker;
+- search по family, variants и русским/английским aliases;
+- один search result на family;
+- heading/search остаются видимыми, прокручивается catalog body;
+- library preview нормализуется для узнаваемости, stage остаётся в едином
+  физическом масштабе.
 
 ## 6. Параметрический резистор
 
-Owner-authored correction уже находится в ветке:
+Сохранить уже опубликованные owner-reference assets и focused contract:
 
 ```text
 apps/web/public/assets/electronics/production/components/resistor-axial-body.svg
 apps/web/public/assets/electronics/production/components/resistor-axial-preview.svg
-apps/web/src/electronics/ProductionComponentVisual.tsx
-apps/web/src/electronics/component-preview.tsx
 apps/web/src/electronics/testing/resistor-visual.spec.ts
 ```
 
 Контракт:
 
-- прозрачный SVG без white canvas, raster, base64 или foreignObject;
-- physical size `4.354 × 11.582 mm`;
-- реальные верхний и нижний leads;
+- transparent SVG без raster, base64, foreignObject или canvas background;
+- physical size и leads определяются production contract;
 - четыре стабильные semantic band zones;
 - library preview = `300 Ω ±5%`;
 - stage bands вычисляются из resistance + tolerance;
-- проверить `220 Ω`, `300 Ω`, `330 Ω`, `1 kΩ`, `4.7 kΩ`, `10 kΩ`, `1 MΩ`;
-- проверить `±1/2/5/10%`;
-- production manifest/adapter привести к единому resistor asset contract без
-  возврата к opaque legacy SVG.
+- поддерживаются focused values `220 Ω`, `300 Ω`, `330 Ω`, `1 kΩ`, `4.7 kΩ`,
+  `10 kΩ`, `1 MΩ` и tolerances `±1/2/5/10%`.
 
 ## 7. Focused checks
 
 До owner review запускать только:
 
-- `resistor-visual.spec.ts` и resistor-band contract tests;
-- exact order tests для позиций 01–15;
-- three-column/grid/list checks;
-- family/variant and one-card-per-family tests;
-- disabled unsupported behavior;
-- search order и keyboard navigation;
+- production asset/state/breadboard contracts;
+- family/category/order/search tests;
+- one-card-per-family и disabled-preview behavior;
+- resistor visual/band contract tests;
 - variant create/save/reload/checkpoint;
-- actual-editor browser smoke;
+- focused web lint/typecheck/build;
+- один actual-editor Playwright journey;
 - console/pageerror/requestfailed/HTTP 5xx = 0.
 
 Full repository matrix запрещена.
@@ -230,14 +220,13 @@ Full repository matrix запрещена.
 Screenshots только из настоящего editor:
 
 ```text
-library-basic-exact-order
-library-basic-three-columns
-library-power-holder-family
-library-disabled-future-items
-resistor-220ohm
-resistor-4k7
-resistor-1m
-resistor-after-reload
+library-basic-default
+library-category-power
+library-family-battery-variants
+library-search-led
+library-supported-vs-preview
+library-list-view
+variant-persisted-after-reload
 ```
 
 Развернуть exact final SHA только в существующем `asa-lab-dev`, оставить

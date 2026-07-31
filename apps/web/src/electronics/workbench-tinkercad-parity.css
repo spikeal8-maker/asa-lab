@@ -2,9 +2,9 @@
  * Owner-reference component-shelf checkpoint.
  *
  * The editor keeps ASA Lab branding and its own implementation, while the
- * component-library density and interaction hierarchy match the supplied
- * reference: category selector, search, three compact columns and a scrollable
- * shelf. Physical scale is still applied only on the stage, not in thumbnails.
+ * component-library interaction hierarchy follows the accepted owner scope:
+ * category selector, search, two readable columns and a scrollable shelf.
+ * Physical scale is still applied only on the stage, not in thumbnails.
  */
 .workbench-shell {
   --wb-library-width: 330px;
@@ -53,7 +53,7 @@
 }
 
 .workbench-catalog-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px 8px;
   height: calc(100% - 136px);
   padding: 0 9px 24px;
@@ -90,13 +90,6 @@
   overflow-wrap: normal;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-/* The reference shelf chooses variants after placement. The inspector already
- * persists variantId, so the grid remains visually compact and family-based. */
-.workbench-catalog-grid:not(.list-view) .workbench-family-variant,
-.workbench-catalog-grid:not(.list-view) .workbench-family-variant-label {
-  display: none;
 }
 
 .workbench-catalog-card small {

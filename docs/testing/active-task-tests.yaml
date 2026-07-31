@@ -80,6 +80,17 @@ tests:
     owner: electronics
     artifacts: [breadboard-connectivity-map, breadboard-fit-page, vitest-report]
 
+  - id: TST-ELECTRONICS-RESISTOR-VISUAL-001
+    title: Transparent parametric resistor body, semantic bands and tolerance states
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/resistor-visual.spec.ts apps/web/src/electronics/testing/production-state-contracts.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [parametric-resistor-visual, resistor-band-contract, vitest-report]
+
   - id: TST-ELECTRONICS-COMPONENT-LIBRARY-001
     title: Deterministic categories, component families, safe tiers and persisted variants
     suite: integration
