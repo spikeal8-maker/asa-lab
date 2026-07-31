@@ -1,0 +1,358 @@
+schema_version: 1.0.0
+blueprint_id: asa-target-platform-2026-07
+status: normative
+supersedes_conflicting_assumptions: true
+sources:
+  - docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
+  - docs/architecture/ASA_IDENTITY_WORKSPACE_TRANSITION_PLAN.md
+  - docs/product/TINKERCAD_PARITY_SPEC.md
+  - docs/product/ASA_VISUAL_PRODUCT_SYSTEM.md
+  - docs/product/reference/TINKERCAD_OWNER_VIDEO_2026-07-27.md
+  - docs/product/reference/TINKERCAD_REGISTRATION_STUDENT_VIDEO_2026-07-27.md
+  - docs/product/reference/TINKERCAD_EDUCATOR_CLASSROOM_VIDEO_2026-07-27.md
+
+preserve:
+  - postgresql_source_of_truth
+  - tenant_id_security_boundary
+  - composite_tenant_foreign_keys
+  - rls_defense_in_depth
+  - runtime_role_without_bypassrls
+  - modular_monolith
+  - append_only_audit_events
+  - project_draft_version_lifecycle
+  - immutable_project_versions
+  - idempotency_and_request_fingerprint
+  - existing_teacher_data
+  - existing_classrooms
+  - existing_projects
+  - module_registry_direction
+  - electronics_solver_and_workbench
+  - owner_vector_assets
+  - local_first_governance
+
+principals:
+  - id: account
+    global: true
+    email_required: true
+    public_profile_possible: true
+  - id: student_seat
+    global: false
+    email_required: false
+    public_profile_possible: false
+    default_safe_mode: true
+  - id: service
+    global: true
+    email_required: false
+    public_profile_possible: false
+  - id: support_session
+    global: true
+    email_required: false
+    public_profile_possible: false
+    reserved: true
+
+workspace_kinds:
+  - id: personal
+    backed_by_tenant: true
+    exactly_one_per_account: true
+    school_required: false
+  - id: organization
+    backed_by_tenant: true
+    exactly_one_per_account: false
+    school_required: false
+
+capabilities:
+  global:
+    - creator
+    - educator
+    - registered_student
+    - guardian
+    - platform_admin
+  workspace_roles:
+    - owner
+    - member
+    - educator
+    - school_admin
+    - billing_admin
+    - moderator
+  classroom_grants:
+    - classroom.view
+    - classroom.roster.manage
+    - classroom.activity.assign
+    - classroom.student_work.view
+    - classroom.comment.write
+    - classroom.review.write
+    - classroom.grade.write
+    - classroom.badge.award
+    - classroom.settings.manage
+
+account_states:
+  adult:
+    - anonymous
+    - registration_started
+    - active_unverified_email
+    - active_verified_email
+    - suspended
+    - deleted
+  child_registered:
+    - registration_started
+    - credentials_created
+    - pending_approval
+    - approved_by_guardian
+    - approved_by_educator_class
+    - declined
+    - expired
+    - active_safe_mode
+    - active_standard
+    - suspended
+    - deleted
+  educator_grant:
+    - none
+    - provisional
+    - verified
+    - suspended
+    - revoked
+  student_seat:
+    - issued
+    - active
+    - suspended
+    - archived
+    - revoked
+
+policies:
+  educator_self_attestation_min_age: 18
+  educator_age_policy_source: server
+  public_project_default_visibility: private
+  student_seat_pin_default: off
+  student_seat_login_factors:
+    - class_code
+    - assigned_login_handle
+  assignment_publication_locked: true
+  safe_mode_blocks:
+    - public_publication
+    - public_profile
+    - public_comments
+    - public_social_actions
+  safe_mode_allows:
+    - private_project_creation
+    - project_editing
+    - classroom_participation
+    - educational_feedback
+  unverified_email_allowed:
+    - login
+    - personal_project_creation
+    - provisional_educator_attestation
+    - pilot_class_creation
+  unverified_email_denied:
+    - public_publication
+    - coteacher_invitation
+    - organization_administration
+    - platform_administration
+    - sensitive_export
+
+experience_surfaces:
+  anonymous:
+    - public_landing
+    - sign_in
+    - sign_up
+    - join_class
+    - help
+    - public_project_page
+  authenticated_creator:
+    - home
+    - classes
+    - projects
+    - collections
+    - learning
+    - challenges
+    - help
+    - notifications
+    - account_menu
+  editor_host:
+    - shared_project_header
+    - module_editor
+    - save_state
+    - versions
+    - share_publish_affordance
+    - assignment_context
+  classroom:
+    - overview
+    - students
+    - activities
+    - projects
+    - moderation
+    - coteachers
+    - review
+    - grades
+    - badges
+    - settings
+  administration:
+    - workspace_admin
+    - platform_admin
+
+module_contract:
+  required:
+    - manifest
+    - create_empty_project
+    - editor
+    - viewer
+    - preview
+    - validate
+    - migrate
+    - copy_remix_support
+    - assignment_starter_support
+    - review_anchor_validation
+    - safe_mode_declaration
+  active_modules:
+    - electronics
+  planned_modules:
+    - blocks
+    - chess_checkers
+    - three_d
+    - robotics
+    - drawing
+
+project_invariants:
+  - personal_project_does_not_require_classroom
+  - project_owner_is_principal
+  - project_draft_is_mutable
+  - project_version_is_immutable
+  - publish_references_project_version
+  - submission_references_project_version
+  - assignment_work_is_never_public_automatically
+  - remix_creates_new_project_with_lineage
+  - core_has_no_subject_switches
+
+migration_stages:
+  - id: MIG-ID-00
+    name: freeze_and_evidence
+    additive: true
+    depends_on: []
+    destructive: false
+  - id: MIG-ID-01
+    name: global_identity_tables
+    additive: true
+    depends_on: [MIG-ID-00]
+    destructive: false
+  - id: MIG-ID-02
+    name: workspace_tables
+    additive: true
+    depends_on: [MIG-ID-01]
+    destructive: false
+  - id: MIG-ID-03
+    name: existing_teacher_backfill
+    additive: true
+    depends_on: [MIG-ID-02]
+    destructive: false
+  - id: MIG-ID-04
+    name: principal_aware_sessions
+    additive: true
+    depends_on: [MIG-ID-03]
+    destructive: false
+  - id: MIG-ID-05
+    name: public_registration_feature_flag
+    additive: true
+    depends_on: [MIG-ID-04]
+    destructive: false
+  - id: MIG-ID-06
+    name: ownership_bridge
+    additive: true
+    depends_on: [MIG-ID-04]
+    destructive: false
+  - id: MIG-ID-07
+    name: compatibility_cutover
+    additive: true
+    depends_on: [MIG-ID-05, MIG-ID-06]
+    destructive: false
+  - id: MIG-ID-08
+    name: legacy_deprecation
+    additive: false
+    depends_on: [MIG-ID-07]
+    destructive: true
+    owner_approval_required: true
+    minimum_stable_release_gates: 2
+
+releases:
+  - id: R0
+    name: product_and_evidence_contract_freeze
+    depends_on: []
+    owner_review: true
+  - id: R1
+    name: account_profile_personal_workspace_sessions_educator_grant
+    depends_on: [R0]
+    owner_review: true
+  - id: R2
+    name: creator_home_and_portal_shell
+    depends_on: [R1]
+    owner_review: true
+  - id: R3
+    name: module_registry_project_hub_editor_host
+    depends_on: [R2]
+    owner_review: true
+  - id: R4
+    name: electronics_parity
+    depends_on: [R3]
+    owner_review: true
+  - id: R5
+    name: classroom_shell_and_studentseat
+    depends_on: [R1, R3]
+    owner_review: true
+  - id: R6
+    name: learner_portfolio_and_teacher_project_viewer
+    depends_on: [R5]
+    owner_review: true
+  - id: R7
+    name: sharing_publication_and_remix
+    depends_on: [R3]
+    owner_review: true
+  - id: R8
+    name: profiles_explore_collections_moderation
+    depends_on: [R7]
+    owner_review: true
+  - id: R9
+    name: activities_assignments_submissions_review_grades_badges
+    depends_on: [R5, R6]
+    owner_review: true
+  - id: R10
+    name: multi_module_proof_and_scalable_operations
+    depends_on: [R4, R7, R9]
+    owner_review: true
+
+forbidden_shortcuts:
+  - rename_tenant_users_to_accounts_in_place
+  - destructive_identity_migration_before_cutover
+  - disable_rls_for_migration
+  - trust_client_role
+  - trust_client_tenant_or_workspace
+  - require_classroom_for_personal_project
+  - merge_account_and_studentseat
+  - merge_global_capability_and_scoped_role
+  - shared_undifferentiated_account_seat_sessions
+  - mutable_published_version
+  - mutable_submission_version
+  - subject_switch_in_platform_core
+  - second_unrelated_audit_log
+  - visual_acceptance_from_test_count_only
+  - advance_owner_milestone_without_owner_acceptance
+
+owner_review_milestones:
+  - C1.1_public_entry
+  - C1.2_registration
+  - C1.3_personal_workspace
+  - C1.4_educator_grant
+  - C1.5_account_settings
+  - C2_creator_portal
+  - C3_classroom_shell
+  - C4_studentseat
+  - C5_teacher_monitoring
+  - C6_publication_and_community
+
+reference_gaps:
+  - educator_formal_verification
+  - jurisdiction_specific_age_thresholds
+  - full_school_admin_ux
+  - full_platform_admin_ux
+  - full_assignment_creation_and_review
+  - public_project_page_interactions
+  - billing_checkout
+  - optional_studentseat_pin_policy
+  - final_retention_periods

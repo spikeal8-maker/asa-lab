@@ -1,0 +1,143 @@
+schema_version: 1.0.0
+evidence_id: tinkercad-owner-video-2026-07-27
+source:
+  kind: owner_reference_video
+  duration_seconds: 300.516667
+  resolution: 1920x1080
+  fps: 60
+  frame_count: 18031
+  contains_personal_data: false
+  contains_synthetic_test_data: true
+  repository_storage: permitted_private_repo
+  public_redistribution: owner_approval_required
+analysis:
+  all_frames_scene_indexed: true
+  transition_frames: 278
+  periodic_samples: 150
+  full_resolution_keyframes: 43
+  reviewed_at: 2026-07-27
+surfaces:
+  - id: ENTRY-CONTEXT-CHOOSER
+    time: 00:09-00:17
+    status: verified
+    controls:
+      - educator_entry
+      - student_class_code_entry
+      - registered_student_entry
+      - personal_account_entry
+      - registration_link
+    requirements:
+      - entry_choice_does_not_grant_server_capability
+      - separate_student_and_personal_flows
+  - id: CREATOR-HOME
+    time: 01:08-01:17
+    status: verified
+    controls:
+      - global_navigation
+      - account_sidebar
+      - announcement
+      - module_grouped_projects
+      - project_cards
+  - id: CLASS-LIST
+    time: 01:17-01:20
+    status: verified
+    controls:
+      - teaching_tab
+      - archived_tab
+      - coteaching_tab
+      - registered_tab
+      - create_class
+      - bulk_actions
+      - sort
+  - id: PROJECT-HUB
+    time: 01:20-01:22
+    status: verified
+    controls:
+      - module_tabs
+      - search
+      - trash
+      - sort
+      - preview_cards
+  - id: COLLECTIONS
+    time: 01:22-01:24
+    status: verified
+  - id: LEARNING-CONTENT
+    time: 01:24-01:27
+    status: verified
+    states: [in_progress, completed]
+  - id: ACCOUNT-MENU
+    time: 01:27-01:39
+    status: verified
+    controls: [new_project, my_projects, notifications, settings, my_classes, logout]
+  - id: ACCOUNT-SETTINGS
+    time: 01:39-01:50
+    status: verified
+    sections: [edit_profile, account_settings, managed_child_accounts, managed_child_activity]
+  - id: MANAGED-CHILD-ACCOUNTS
+    time: 01:50-02:02
+    status: verified
+    fields: [status, safe_mode, last_active, row_actions]
+  - id: MANAGED-CHILD-ACTIVITY
+    time: 02:02-02:12
+    status: verified
+    controls: [filter, block, edit]
+  - id: CIRCUITS-EDITOR
+    time: 02:28-04:24
+    status: verified
+    capabilities:
+      - full_screen_stage
+      - project_name
+      - common_project_actions
+      - component_library
+      - category_search_grid_list
+      - component_drag_drop
+      - visible_terminals
+      - editable_wires
+      - wire_colour_and_route
+      - component_properties
+      - simulation_state
+      - diagnostics
+      - alternate_views
+  - id: CLASS-WORKSPACE
+    time: 04:38-04:42
+    status: verified
+    tabs: [students, activities, projects, moderation, coteachers]
+    capabilities:
+      - class_code
+      - class_share_link
+      - safe_mode_all
+      - roster
+      - search_sort
+      - learner_badges
+      - per_learner_safe_mode
+  - id: LEARNER-PROJECT-GALLERY
+    time: 04:44-04:52
+    status: verified
+    tabs: [all, 3d, circuits, codeblocks, tutorials]
+    controls: [learner_switcher, previous_next, privacy, sort, grid_list]
+  - id: LEARNER-PROJECT-DETAIL
+    time: 04:52-04:58
+    status: verified
+    controls:
+      - exact_preview
+      - simulate
+      - edit
+      - copy_class_link
+      - visibility
+      - created_edited_dates
+      - report
+unknowns:
+  - registration_fields_age_consent
+  - educator_verification_and_organization_creation
+  - platform_and_school_admin_console
+  - billing_checkout
+  - class_code_post_code_login_flow
+  - full_assignment_submission_grade_flow
+  - publish_dialog_public_page_comments_likes_remix
+implementation_priority:
+  - account_onboarding_and_capabilities
+  - creator_portal_shell
+  - module_registry_project_host
+  - electronics_parity
+  - classroom_and_learner_work
+  - assignments_publication_community

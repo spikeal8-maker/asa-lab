@@ -1,0 +1,188 @@
+schema_version: 1.0.0
+contract_id: asa-auth-entry-ux-2026-07
+status: normative
+supersedes:
+  - contextual_chooser_as_required_public_step
+  - teacher_and_personal_as_separate_account_types
+  - registered_student_as_separate_sign_in_button
+  - join_class_ambiguous_primary_label
+
+public_actions:
+  - id: sign_in
+    label: Войти
+    description: Для всех постоянных Account, независимо от capability.
+    route: /sign-in
+  - id: sign_up
+    label: Создать аккаунт
+    description: Создаёт один Account и Personal Workspace; educator включается позднее.
+    route: /sign-up
+  - id: class_code
+    label: Войти по коду класса
+    description: Для StudentSeat или Account, который присоединяется к найденному классу.
+    route: /join-class
+
+account_sign_in:
+  credentials:
+    - email_or_username
+    - password
+  shared_by:
+    - adult_creator
+    - educator
+    - guardian
+    - registered_student
+    - school_admin
+    - platform_admin
+  server_response:
+    - principal
+    - account
+    - profile
+    - capabilities
+    - workspaces
+    - active_context
+  forbidden:
+    - hard_coded_teacher_role
+    - required_workspace_code
+    - client_role_selection
+
+legacy_organization_login:
+  status: compatibility_only
+  separate_route: true
+  visible_as_secondary_link: true
+  fields:
+    - organization_code
+    - email
+    - password
+
+sign_up:
+  steps:
+    - id: age_policy
+      fields: [country, birth_date]
+      server_derived: true
+    - id: adult_credentials
+      fields:
+        - username
+        - display_name_optional
+        - email
+        - password
+        - consents
+      creates:
+        - account
+        - profile
+        - creator_capability
+        - personal_workspace
+        - account_session
+    - id: student_route
+      shown_when: age_policy_requires_student_flow
+      options:
+        - registered_student_account
+        - class_code_access
+  forbidden_fields:
+    - required_school
+    - required_organization
+    - required_real_first_name
+    - required_last_name
+  username:
+    separate_from_email: true
+    availability_check: true
+
+educator:
+  account_type: false
+  capability: educator
+  activation_stage: post_registration
+  flow:
+    - account_menu_or_onboarding
+    - server_age_check_18_plus
+    - attestation
+    - provisional_capability_grant
+    - audit_event
+    - classes_navigation_visible
+  preserves_personal_workspace: true
+
+registered_student:
+  principal_kind: account
+  sign_in: universal_account_sign_in
+  policies:
+    - registered_student_capability
+    - consent_or_approval
+    - safe_mode
+  may_join_multiple_classes: true
+
+student_seat:
+  principal_kind: student_seat
+  email_required: false
+  global_profile: false
+  credentials:
+    - class_code
+    - assigned_login_handle
+  optional_pin_default: off
+  safe_mode_default: true
+
+join_class_flow:
+  steps:
+    - enter_class_code
+    - resolve_and_preview_class
+    - choose_identity_path
+  identity_paths:
+    - id: existing_account
+      label: У меня есть аккаунт ASA Lab
+      flow:
+        - universal_sign_in
+        - confirm_current_account_and_class
+        - create_classroom_membership
+    - id: assigned_handle
+      label: Педагог выдал мне имя для входа
+      flow:
+        - enter_login_handle
+        - optional_pin_if_policy
+        - create_student_seat_session
+  security:
+    - normalize_spaces_dashes_case
+    - rate_limit
+    - no_roster_enumeration
+    - no_membership_before_confirmation
+
+school_association:
+  registration_required: false
+  login_credential: false
+  options_after_educator_onboarding:
+    - independent_pilot_in_personal_workspace
+    - organization_invitation_or_claim
+    - unverified_institution_profile_claim
+  unverified_claim_grants_permissions: false
+
+user_visible_terms:
+  use:
+    - Войти
+    - Создать аккаунт
+    - Войти по коду класса
+    - Стать педагогом
+    - Ученический аккаунт
+    - Имя для входа, выданное педагогом
+    - Личное пространство
+  avoid_on_public_entry:
+    - Principal
+    - Capability
+    - StudentSeat
+    - Registered student as a separate sign-in button
+    - Personal account and Educator as mutually exclusive types
+    - Присоединиться к классу before class code entry
+
+pr59_corrections:
+  - keep_three_public_actions
+  - rename_join_class_to_sign_in_by_class_code
+  - remove_required_context_chooser
+  - sign_in_opens_universal_account_login
+  - sign_up_opens_age_aware_registration
+  - class_code_opens_code_first_flow
+  - educator_onboarding_remains_later_milestone
+  - legacy_organization_login_is_separate
+  - stop_for_owner_review_before_next_milestone
+
+acceptance_scenarios:
+  - adult_visitor_to_sign_up
+  - existing_creator_universal_sign_in
+  - existing_educator_same_sign_in_classes_from_server_grant
+  - student_seat_code_preview_handle_login
+  - registered_student_same_sign_in_then_join_class
+  - underage_sign_up_routes_to_student_options
+  - legacy_organization_login_separate

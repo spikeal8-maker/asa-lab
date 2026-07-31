@@ -1,0 +1,1101 @@
+schema_version: 1.0.0
+catalog_id: asa-complete-product-surfaces
+status: normative_candidate
+source_scope: docs/product/ASA_TINKERCAD_100_PERCENT_SCOPE.yaml
+source_blueprint: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
+
+actors:
+  - anonymous
+  - account_creator
+  - educator
+  - registered_student
+  - student_seat
+  - guardian
+  - co_teacher
+  - school_admin
+  - moderator
+  - platform_admin
+  - support_operator
+
+implementation_states: [absent, partial, in_review, parity_pass, approved_deviation]
+required_ui_states:
+  - loading
+  - empty
+  - populated
+  - validation_error
+  - authorization_denied
+  - server_error
+  - offline_or_reconnecting
+  - success_feedback
+
+layout_templates:
+  PUBLIC:
+    regions: [brand_header, primary_content, contextual_help, privacy_footer]
+  PORTAL:
+    regions: [global_header, capability_navigation, page_header, actions, filters, content, notifications]
+  CLASSROOM:
+    regions: [global_header, class_header, class_navigation, class_context, content, audit_or_help]
+  STUDENT:
+    regions: [safe_header, class_context, task_navigation, content, feedback, safe_mode_indicator]
+  EDITOR_HOST:
+    regions: [context_return, project_title, save_state, version_actions, share_actions, module_toolbar, stage, library, inspector, diagnostics]
+  ADMIN:
+    regions: [admin_header, scope_switcher, admin_navigation, filters, data_table_or_dashboard, detail_drawer, audit_context]
+  PUBLICATION:
+    regions: [public_header, viewer, metadata, author, interactions, report, related_projects]
+
+surfaces:
+  - id: PUB-001
+    name: Public landing
+    route: /
+    actors: [anonymous]
+    release: R2
+    template: PUBLIC
+    implementation: absent
+    purpose: Explain ASA Lab as a creative and educational platform.
+    primary_actions: [create_account, sign_in, join_class, open_learning]
+    required_states: [loading, populated, server_error]
+    screenshot_ids: [public-landing-desktop, public-landing-mobile]
+
+  - id: PUB-002
+    name: Sign-in intention router
+    route: /sign-in
+    actors: [anonymous]
+    release: R1
+    template: PUBLIC
+    implementation: absent
+    purpose: Route to Account sign-in, class-code entry or recovery without granting roles client-side.
+    primary_actions: [account_sign_in, class_code_sign_in, create_account, recover_account]
+    required_states: [populated, validation_error]
+    screenshot_ids: [sign-in-router-desktop, sign-in-router-mobile]
+
+  - id: PUB-003
+    name: Account sign-in
+    route: /sign-in/account
+    actors: [anonymous]
+    release: R1
+    template: PUBLIC
+    implementation: partial
+    purpose: Sign in an Account using email or username and password.
+    primary_actions: [submit_credentials, reveal_password, recover_account]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [account-sign-in]
+
+  - id: PUB-004
+    name: Account registration
+    route: /sign-up
+    actors: [anonymous]
+    release: R1
+    template: PUBLIC
+    implementation: absent
+    purpose: Create Account, Profile, Principal and exactly one Personal Workspace.
+    primary_actions: [submit_registration, accept_terms, choose_country_birthdate, verify_email_later]
+    required_states: [loading, populated, validation_error, server_error, success_feedback]
+    screenshot_ids: [adult-registration-desktop, adult-registration-mobile]
+
+  - id: PUB-005
+    name: Join class code
+    route: /join-class
+    actors: [anonymous, account_creator, registered_student]
+    release: R5
+    template: PUBLIC
+    implementation: absent
+    purpose: Resolve a class code without exposing roster data.
+    primary_actions: [enter_code, open_join_link, continue_to_identity_choice]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [join-class-code]
+
+  - id: PUB-006
+    name: Join identity choice
+    route: /join-class/:joinToken
+    actors: [anonymous, account_creator, registered_student]
+    release: R5
+    template: PUBLIC
+    implementation: absent
+    purpose: Choose assigned StudentSeat handle or registered Account.
+    primary_actions: [studentseat_login, account_login, cancel]
+    required_states: [loading, populated, authorization_denied, server_error]
+    screenshot_ids: [join-class-choice]
+
+  - id: PUB-007
+    name: StudentSeat handle sign-in
+    route: /join-class/:joinToken/student
+    actors: [student_seat]
+    release: R5
+    template: PUBLIC
+    implementation: absent
+    purpose: Sign in a learner without email using class-scoped credentials.
+    primary_actions: [submit_handle_credential, show_help]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [studentseat-sign-in]
+
+  - id: PUB-008
+    name: Account recovery
+    route: /account/recovery
+    actors: [anonymous]
+    release: R1
+    template: PUBLIC
+    implementation: absent
+    purpose: Recover a verified Account without revealing whether unrelated accounts exist.
+    primary_actions: [request_recovery, complete_recovery]
+    required_states: [loading, populated, validation_error, server_error, success_feedback]
+    screenshot_ids: [account-recovery]
+
+  - id: PUB-009
+    name: Public project page
+    route: /projects/:publicSlug
+    actors: [anonymous, account_creator, educator, registered_student]
+    release: R7
+    template: PUBLICATION
+    implementation: absent
+    purpose: View one immutable published ProjectVersion and attribution.
+    primary_actions: [play_or_simulate, copy_or_remix, share, like, bookmark, report]
+    required_states: [loading, populated, authorization_denied, server_error]
+    screenshot_ids: [public-project-desktop, public-project-mobile]
+
+  - id: PUB-010
+    name: Help and safety center
+    route: /help
+    actors: [anonymous, account_creator, educator, registered_student, student_seat]
+    release: R2
+    template: PUBLIC
+    implementation: absent
+    purpose: Search help, privacy, safety and module guidance.
+    primary_actions: [search_help, open_topic, report_problem]
+    required_states: [loading, empty, populated, server_error]
+    screenshot_ids: [help-center]
+
+  - id: CRT-001
+    name: Creator Home
+    route: /home
+    actors: [account_creator, educator, registered_student]
+    release: R2
+    template: PORTAL
+    implementation: absent
+    purpose: Show recent projects, continue work, learning and capability-aware shortcuts.
+    primary_actions: [continue_project, create_project, open_projects, open_classes, open_learning]
+    required_states: [loading, empty, populated, server_error, offline_or_reconnecting]
+    screenshot_ids: [creator-home-desktop, creator-home-mobile]
+
+  - id: CRT-002
+    name: My Projects
+    route: /projects
+    actors: [account_creator, educator, registered_student]
+    release: R3
+    template: PORTAL
+    implementation: partial
+    purpose: Search, filter and manage personal, classroom, assignment and team projects.
+    primary_actions: [create_project, open, rename, duplicate, share, publish, archive, delete]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting, success_feedback]
+    screenshot_ids: [project-hub-desktop, project-hub-mobile]
+
+  - id: CRT-003
+    name: Create project chooser
+    route: /projects/new
+    actors: [account_creator, educator, registered_student, student_seat]
+    release: R3
+    template: PORTAL
+    implementation: partial
+    purpose: Choose an enabled ModuleDefinition, template or empty project.
+    primary_actions: [choose_module, choose_template, create_empty, cancel]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [module-chooser-desktop, module-chooser-mobile]
+
+  - id: CRT-004
+    name: Project version journal
+    route: /projects/:projectId/versions
+    actors: [account_creator, educator, registered_student, student_seat, co_teacher]
+    release: R3
+    template: PORTAL
+    implementation: partial
+    purpose: List immutable versions, open exact version and restore as a new draft copy.
+    primary_actions: [open_version, compare_metadata, create_checkpoint, restore_to_copy]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [project-version-journal]
+
+  - id: CRT-005
+    name: Project sharing and visibility
+    route: /projects/:projectId/share
+    actors: [account_creator, educator, registered_student]
+    release: R7
+    template: PORTAL
+    implementation: absent
+    purpose: Manage private, workspace, class, unlisted and public visibility for exact versions.
+    primary_actions: [change_visibility, create_share_link, revoke_share_link, publish, unpublish]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [project-sharing-dialog]
+
+  - id: CRT-006
+    name: Remix confirmation
+    route: /projects/:publicSlug/remix
+    actors: [account_creator, educator, registered_student]
+    release: R7
+    template: PORTAL
+    implementation: absent
+    purpose: Copy an immutable public version into a Personal Workspace with lineage.
+    primary_actions: [confirm_remix, choose_workspace, cancel]
+    required_states: [loading, populated, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [remix-confirmation]
+
+  - id: CRT-007
+    name: Collections
+    route: /collections
+    actors: [account_creator, educator, registered_student]
+    release: R8
+    template: PORTAL
+    implementation: absent
+    purpose: Organize bookmarked public projects and personal references.
+    primary_actions: [create_collection, rename_collection, add_project, remove_project, delete_collection]
+    required_states: [loading, empty, populated, validation_error, server_error]
+    screenshot_ids: [collections-desktop]
+
+  - id: CRT-008
+    name: Explore
+    route: /explore
+    actors: [anonymous, account_creator, educator, registered_student]
+    release: R8
+    template: PORTAL
+    implementation: absent
+    purpose: Discover eligible public projects by module, search and curated feeds.
+    primary_actions: [search, filter_module, open_project, like, bookmark]
+    required_states: [loading, empty, populated, server_error]
+    screenshot_ids: [explore-desktop, explore-mobile]
+
+  - id: CRT-009
+    name: Learning center
+    route: /learn
+    actors: [anonymous, account_creator, educator, registered_student, student_seat]
+    release: R8
+    template: PORTAL
+    implementation: absent
+    purpose: Browse tutorials, curriculum, classroom projects and guided activities.
+    primary_actions: [search_learning, filter_module, start_tutorial, assign_to_class]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [learning-center]
+
+  - id: CRT-010
+    name: Challenges
+    route: /challenges
+    actors: [anonymous, account_creator, educator, registered_student]
+    release: R8
+    template: PORTAL
+    implementation: absent
+    purpose: Browse active and archived creative prompts and create a project from a challenge.
+    primary_actions: [open_challenge, create_from_challenge, browse_archive]
+    required_states: [loading, empty, populated, server_error]
+    screenshot_ids: [challenges]
+
+  - id: CRT-011
+    name: Profile and portfolio
+    route: /profile/:username
+    actors: [anonymous, account_creator, educator, registered_student]
+    release: R8
+    template: PORTAL
+    implementation: absent
+    purpose: Display privacy-eligible profile data and published portfolio.
+    primary_actions: [edit_own_profile, open_public_project, report_profile]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [public-profile, private-profile]
+
+  - id: CRT-012
+    name: Notifications
+    route: /notifications
+    actors: [account_creator, educator, registered_student]
+    release: R2
+    template: PORTAL
+    implementation: absent
+    purpose: Show project, class, review, moderation and security notifications.
+    primary_actions: [open_target, mark_read, mark_all_read, notification_settings]
+    required_states: [loading, empty, populated, server_error]
+    screenshot_ids: [notifications]
+
+  - id: CRT-013
+    name: Account settings
+    route: /account
+    actors: [account_creator, educator, registered_student, guardian]
+    release: R1
+    template: PORTAL
+    implementation: absent
+    purpose: Manage profile, locale, privacy, email state and account lifecycle.
+    primary_actions: [edit_profile, change_password, verify_email, request_export, request_deletion]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [account-settings]
+
+  - id: CRT-014
+    name: Session management
+    route: /account/sessions
+    actors: [account_creator, educator, registered_student, guardian]
+    release: R1
+    template: PORTAL
+    implementation: absent
+    purpose: Review and revoke active Account sessions.
+    primary_actions: [revoke_session, revoke_all_other_sessions]
+    required_states: [loading, empty, populated, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [account-sessions]
+
+  - id: CRT-015
+    name: Workspace switcher and management
+    route: /workspaces
+    actors: [account_creator, educator, registered_student, school_admin]
+    release: R1
+    template: PORTAL
+    implementation: absent
+    purpose: Select authorized Personal or Organization Workspace and inspect memberships.
+    primary_actions: [activate_workspace, open_workspace_settings, leave_workspace]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [workspace-switcher]
+
+  - id: EDU-001
+    name: Educator capability onboarding
+    route: /educator/onboarding
+    actors: [account_creator]
+    release: R1
+    template: PORTAL
+    implementation: absent
+    purpose: Review policy and request an audited educator capability.
+    primary_actions: [review_notice, self_attest, cancel]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [educator-attestation]
+
+  - id: EDU-002
+    name: Classes list
+    route: /classrooms
+    actors: [educator, co_teacher, school_admin]
+    release: R5
+    template: PORTAL
+    implementation: partial
+    purpose: List active and archived classes with safe summary counts.
+    primary_actions: [create_class, open_class, archive_class, restore_class]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [classes-desktop, classes-mobile]
+
+  - id: EDU-003
+    name: Create class
+    route: /classrooms/new
+    actors: [educator]
+    release: R5
+    template: PORTAL
+    implementation: partial
+    purpose: Create a class with age band, topics and Safe Mode defaults.
+    primary_actions: [submit_class, cancel]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [class-create]
+
+  - id: EDU-004
+    name: Class overview
+    route: /classrooms/:classroomId/overview
+    actors: [educator, co_teacher, school_admin]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Show roster summary, active activities, recent events, class code and policy state.
+    primary_actions: [add_students, create_activity, share_class_code, open_recent_event]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [class-overview-empty, class-overview-populated]
+
+  - id: EDU-005
+    name: Class roster
+    route: /classrooms/:classroomId/students
+    actors: [educator, co_teacher, school_admin]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Manage StudentSeats, registered students, Safe Mode, credentials and badges.
+    primary_actions: [add_student, bulk_add, reset_credential, suspend, reactivate, assign_badge, remove_membership]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [class-roster]
+
+  - id: EDU-006
+    name: Individual StudentSeat issuance
+    route: /classrooms/:classroomId/students/new
+    actors: [educator, co_teacher]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Issue one no-email StudentSeat and reveal credentials once.
+    primary_actions: [validate_handle, issue_seat, print_card, show_qr]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [studentseat-create, studentseat-credential-once]
+
+  - id: EDU-007
+    name: Bulk StudentSeat issuance
+    route: /classrooms/:classroomId/students/bulk
+    actors: [educator, co_teacher]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Parse, preview and idempotently issue multiple StudentSeats with per-row results.
+    primary_actions: [paste_or_import, validate_batch, preview, commit, print_cards]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [studentseat-bulk-input, studentseat-bulk-preview, studentseat-bulk-result]
+
+  - id: EDU-008
+    name: Class code and share
+    route: /classrooms/:classroomId/join
+    actors: [educator, co_teacher]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Display, rotate and revoke class code/link/QR without exposing token hashes.
+    primary_actions: [copy_code, copy_link, show_qr, rotate_code, revoke_code]
+    required_states: [loading, populated, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [class-code-share]
+
+  - id: EDU-009
+    name: Class activities
+    route: /classrooms/:classroomId/activities
+    actors: [educator, co_teacher]
+    release: R9
+    template: CLASSROOM
+    implementation: absent
+    purpose: List drafts, scheduled, active and archived activities.
+    primary_actions: [create_activity, open_activity, duplicate_activity, archive_activity]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [class-activities]
+
+  - id: EDU-010
+    name: Activity builder
+    route: /classrooms/:classroomId/activities/new
+    actors: [educator, co_teacher]
+    release: R9
+    template: CLASSROOM
+    implementation: absent
+    purpose: Create immutable starter ActivityVersion from a teacher ProjectVersion.
+    primary_actions: [select_starter, set_instructions, choose_audience, set_dates, set_attempt_policy, publish_assignment]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [activity-builder]
+
+  - id: EDU-011
+    name: Progress monitor
+    route: /classrooms/:classroomId/activities/:activityId/progress
+    actors: [educator, co_teacher]
+    release: R9
+    template: CLASSROOM
+    implementation: absent
+    purpose: Monitor opened, in-progress, saved, submitted, changed and accepted states.
+    primary_actions: [filter_status, open_student_work, flag_help, export_summary]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [assignment-progress]
+
+  - id: EDU-012
+    name: Learner project gallery
+    route: /classrooms/:classroomId/projects
+    actors: [educator, co_teacher]
+    release: R6
+    template: CLASSROOM
+    implementation: absent
+    purpose: Filter class projects by learner, module, activity, privacy and updated time.
+    primary_actions: [filter_learner, filter_module, sort, open_project, create_teacher_copy]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [learner-project-gallery]
+
+  - id: EDU-013
+    name: Learner portfolio
+    route: /classrooms/:classroomId/learners/:learnerId
+    actors: [educator, co_teacher]
+    release: R6
+    template: CLASSROOM
+    implementation: absent
+    purpose: Show authorized learner projects, versions, assignments, feedback and badges.
+    primary_actions: [open_project, open_assignment, assign_badge, previous_learner, next_learner]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [learner-portfolio]
+
+  - id: EDU-014
+    name: Teacher Project Viewer
+    route: /classrooms/:classroomId/learners/:learnerId/projects/:projectId
+    actors: [educator, co_teacher]
+    release: R6
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: View current draft or exact immutable version, simulate safely and review history.
+    primary_actions: [select_version, simulate, react, create_teacher_copy, open_assistance, report]
+    required_states: [loading, populated, authorization_denied, server_error]
+    screenshot_ids: [teacher-project-viewer]
+
+  - id: EDU-015
+    name: Teacher assistance editor
+    route: /classrooms/:classroomId/learners/:learnerId/projects/:projectId/assist
+    actors: [educator, co_teacher]
+    release: R6
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: Explicitly assist with visible learner/class banner and audited open/save/exit.
+    primary_actions: [enter_assistance, save_assistance, exit_assistance]
+    required_states: [loading, populated, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [teacher-assistance-banner]
+
+  - id: EDU-016
+    name: Class activity feed
+    route: /classrooms/:classroomId/activity
+    actors: [educator, co_teacher, school_admin]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Show safe project, submission, review, badge, credential and moderation events.
+    primary_actions: [filter_event, open_event_target]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [class-activity-feed]
+
+  - id: EDU-017
+    name: Review queue
+    route: /classrooms/:classroomId/review
+    actors: [educator, co_teacher]
+    release: R9
+    template: CLASSROOM
+    implementation: absent
+    purpose: Prioritize submitted, late, resubmitted and help-request work.
+    primary_actions: [filter_status, open_submission, bulk_mark_seen]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [review-queue]
+
+  - id: EDU-018
+    name: Submission review detail
+    route: /classrooms/:classroomId/review/:submissionId
+    actors: [educator, co_teacher]
+    release: R9
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: Review exact immutable submission with general and module-anchored comments.
+    primary_actions: [add_comment, add_anchor, request_changes, accept, mark_incomplete, excuse]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [submission-review, anchored-feedback]
+
+  - id: EDU-019
+    name: Gradebook
+    route: /classrooms/:classroomId/grades
+    actors: [educator, co_teacher, school_admin]
+    release: R9
+    template: CLASSROOM
+    implementation: absent
+    purpose: Show auditable results tied to exact submission evidence and rubric revision.
+    primary_actions: [open_result, grade, update_grade_with_reason, export_gradebook]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [gradebook]
+
+  - id: EDU-020
+    name: Badges and skill evidence
+    route: /classrooms/:classroomId/badges
+    actors: [educator, co_teacher]
+    release: R9
+    template: CLASSROOM
+    implementation: absent
+    purpose: Assign skill badges with criteria and evidence.
+    primary_actions: [open_badge, award_badge, revoke_badge_with_reason]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [class-badges]
+
+  - id: EDU-021
+    name: Class moderation
+    route: /classrooms/:classroomId/moderation
+    actors: [educator, co_teacher, school_admin, moderator]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Manage Safe Mode events, reports and class-level restrictions.
+    primary_actions: [review_event, restrict_project, restore_project, escalate]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [class-moderation]
+
+  - id: EDU-022
+    name: Co-teachers
+    route: /classrooms/:classroomId/coteachers
+    actors: [educator]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Invite and manage explicit classroom grants.
+    primary_actions: [invite_coteacher, edit_grants, revoke_access]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [class-coteachers]
+
+  - id: EDU-023
+    name: Class settings
+    route: /classrooms/:classroomId/settings
+    actors: [educator, co_teacher, school_admin]
+    release: R5
+    template: CLASSROOM
+    implementation: absent
+    purpose: Manage metadata, age band, topics, Safe Mode, archive and retention.
+    primary_actions: [edit_metadata, update_safe_mode, archive, restore, request_delete]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [class-settings]
+
+  - id: STU-001
+    name: Learner Home
+    route: /student/home
+    actors: [registered_student, student_seat]
+    release: R5
+    template: STUDENT
+    implementation: absent
+    purpose: Show classes, due work, continue-project actions, feedback, badges and Safe Mode.
+    primary_actions: [open_assignment, continue_project, open_class, open_feedback]
+    required_states: [loading, empty, populated, authorization_denied, server_error, offline_or_reconnecting]
+    screenshot_ids: [student-home-desktop, student-home-mobile]
+
+  - id: STU-002
+    name: Learner classes
+    route: /student/classes
+    actors: [registered_student, student_seat]
+    release: R5
+    template: STUDENT
+    implementation: absent
+    purpose: List authorized classes without exposing other roster members.
+    primary_actions: [open_class]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [student-classes]
+
+  - id: STU-003
+    name: Learner assignments
+    route: /student/assignments
+    actors: [registered_student, student_seat]
+    release: R9
+    template: STUDENT
+    implementation: absent
+    purpose: List upcoming, in-progress, submitted, changes-requested and completed work.
+    primary_actions: [filter_status, open_assignment]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [student-assignments]
+
+  - id: STU-004
+    name: Assignment detail
+    route: /student/assignments/:assignmentId
+    actors: [registered_student, student_seat]
+    release: R9
+    template: STUDENT
+    implementation: absent
+    purpose: Show instructions, immutable starter, due dates, attempts, teacher feedback and work status.
+    primary_actions: [start_or_continue, open_feedback, submit]
+    required_states: [loading, populated, authorization_denied, server_error]
+    screenshot_ids: [student-assignment-detail]
+
+  - id: STU-005
+    name: Assignment work editor
+    route: /assignments/:assignmentId/work/:projectId/editor
+    actors: [registered_student, student_seat]
+    release: R9
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: Edit isolated AssignmentWork with assignment context and publication lock.
+    primary_actions: [edit_module_work, save, create_checkpoint, submit]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting, success_feedback]
+    screenshot_ids: [assignment-work-editor]
+
+  - id: STU-006
+    name: Submission confirmation
+    route: /student/assignments/:assignmentId/submit
+    actors: [registered_student, student_seat]
+    release: R9
+    template: STUDENT
+    implementation: absent
+    purpose: Confirm exact immutable ProjectVersion and create SubmissionAttempt.
+    primary_actions: [review_version, confirm_submit, cancel]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [submission-confirmation]
+
+  - id: STU-007
+    name: Feedback and revision
+    route: /student/assignments/:assignmentId/feedback
+    actors: [registered_student, student_seat]
+    release: R9
+    template: STUDENT
+    implementation: absent
+    purpose: Read general and anchored feedback, compare attempt history and resubmit.
+    primary_actions: [open_anchor, continue_revision, resubmit]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [student-feedback]
+
+  - id: STU-008
+    name: Learner projects
+    route: /student/projects
+    actors: [registered_student, student_seat]
+    release: R5
+    template: STUDENT
+    implementation: absent
+    purpose: Show only projects permitted by principal, class, assignment and Safe Mode.
+    primary_actions: [create_if_allowed, open, rename_if_allowed, archive_if_allowed]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [student-projects]
+
+  - id: STU-009
+    name: Learner badges
+    route: /student/badges
+    actors: [registered_student, student_seat]
+    release: R9
+    template: STUDENT
+    implementation: absent
+    purpose: Display teacher-assigned badges, criteria, evidence and award history.
+    primary_actions: [open_badge_evidence]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [student-badges]
+
+  - id: STU-010
+    name: Learner profile and safety
+    route: /student/profile
+    actors: [registered_student, student_seat]
+    release: R5
+    template: STUDENT
+    implementation: absent
+    purpose: Display permitted identity settings, Safe Mode, privacy and class memberships.
+    primary_actions: [edit_display_label_if_allowed, view_privacy, sign_out]
+    required_states: [loading, populated, authorization_denied, server_error]
+    screenshot_ids: [student-profile-safe-mode]
+
+  - id: STU-011
+    name: Learner notifications
+    route: /student/notifications
+    actors: [registered_student, student_seat]
+    release: R9
+    template: STUDENT
+    implementation: absent
+    purpose: Show assignment, feedback, badge and credential-safe notifications.
+    primary_actions: [open_target, mark_read]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [student-notifications]
+
+  - id: EDT-001
+    name: Shared Editor Host
+    route: /projects/:projectId/editor
+    actors: [account_creator, educator, registered_student, student_seat, co_teacher]
+    release: R3
+    template: EDITOR_HOST
+    implementation: partial
+    purpose: Provide common project chrome and mount a registry-selected module editor.
+    primary_actions: [return_to_context, rename, save, versions, duplicate, share_if_allowed]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting, success_feedback]
+    screenshot_ids: [shared-editor-host]
+
+  - id: EDT-002
+    name: Electronics workbench
+    route: /projects/:projectId/editor?mode=electronics
+    actors: [account_creator, educator, registered_student, student_seat, co_teacher]
+    release: R4
+    template: EDITOR_HOST
+    implementation: in_review
+    purpose: Build, wire, inspect, code, simulate and diagnose virtual circuits.
+    primary_actions: [place_component, edit_component, wire, simulate, code, measure, save, checkpoint]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting, success_feedback]
+    screenshot_ids: [electronics-empty, electronics-components, electronics-wire, electronics-inspector, electronics-running, electronics-diagnostic]
+
+  - id: EDT-003
+    name: 3D Design editor
+    route: /projects/:projectId/editor?mode=3d
+    actors: [account_creator, educator, registered_student, student_seat]
+    release: R10
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: Model, import, combine, measure and export printable 3D designs.
+    primary_actions: [place_shape, transform, align, group, duplicate, ruler, import, export]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting]
+    screenshot_ids: [three-d-editor]
+
+  - id: EDT-004
+    name: Codeblocks editor
+    route: /projects/:projectId/editor?mode=codeblocks
+    actors: [account_creator, educator, registered_student, student_seat]
+    release: R10
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: Generate 3D designs through block-based code and version the result.
+    primary_actions: [place_block, run, stop, inspect_result, save, export]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [codeblocks-editor]
+
+  - id: EDT-005
+    name: Physics and robotics Sim Lab
+    route: /projects/:projectId/editor?mode=simlab
+    actors: [account_creator, educator, registered_student, student_seat]
+    release: R10
+    template: EDITOR_HOST
+    implementation: absent
+    purpose: Simulate materials, forces, connectors, motors, robots and traces.
+    primary_actions: [set_material, set_static_dynamic, add_connector, add_motor, code_controller, run, graph_trace, export_media]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [simlab-editor, simlab-traces]
+
+  - id: SADM-001
+    name: School administration dashboard
+    route: /workspaces/:workspaceId/admin
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Show organization health, schools, staff, classes, policies, modules and recent audit events.
+    primary_actions: [open_school, invite_staff, review_policy, view_audit]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [school-admin-dashboard]
+
+  - id: SADM-002
+    name: School profile and academic structure
+    route: /workspaces/:workspaceId/admin/schools
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Manage schools, buildings, academic periods and non-sensitive metadata.
+    primary_actions: [create_school, edit_school, create_period, activate_period, archive_period]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [school-admin-schools]
+
+  - id: SADM-003
+    name: Staff and scoped roles
+    route: /workspaces/:workspaceId/admin/staff
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Invite staff and grant workspace/classroom-scoped permissions without platform-admin escalation.
+    primary_actions: [invite_staff, edit_membership, suspend_membership, revoke_membership]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [school-admin-staff]
+
+  - id: SADM-004
+    name: Organization classes
+    route: /workspaces/:workspaceId/admin/classes
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Search classes, owners, activity, retention and policy status across authorized schools.
+    primary_actions: [filter_school, open_class, transfer_owner, archive_class]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [school-admin-classes]
+
+  - id: SADM-005
+    name: Organization learners and StudentSeats
+    route: /workspaces/:workspaceId/admin/learners
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Audit learner principals and class memberships without exposing plaintext credentials.
+    primary_actions: [search_learner, open_memberships, suspend, start_approved_reset]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [school-admin-learners]
+
+  - id: SADM-006
+    name: Module availability and entitlements
+    route: /workspaces/:workspaceId/admin/modules
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Enable modules by school/age band and inspect entitlement limits.
+    primary_actions: [enable_module, disable_module, set_age_policy, review_entitlement]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [school-admin-modules]
+
+  - id: SADM-007
+    name: Safe Mode and publication policies
+    route: /workspaces/:workspaceId/admin/policies
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Configure organization defaults for Safe Mode, sharing, publication, comments and retention.
+    primary_actions: [edit_policy_draft, preview_impact, publish_policy, rollback_policy_version]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [school-admin-policies]
+
+  - id: SADM-008
+    name: Organization moderation
+    route: /workspaces/:workspaceId/admin/moderation
+    actors: [school_admin, moderator]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Review organization reports and restrictions with audited decisions.
+    primary_actions: [open_case, restrict, restore, escalate, add_internal_note]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [school-admin-moderation]
+
+  - id: SADM-009
+    name: Organization audit explorer
+    route: /workspaces/:workspaceId/admin/audit
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Filter audit events by actor, action, object, class, date and outcome.
+    primary_actions: [filter, open_event, export_authorized_report]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [school-admin-audit]
+
+  - id: SADM-010
+    name: Organization reports and exports
+    route: /workspaces/:workspaceId/admin/reports
+    actors: [school_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Generate privacy-safe usage, learning and retention reports.
+    primary_actions: [choose_report, generate, download, schedule]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [school-admin-reports]
+
+  - id: PADM-001
+    name: Platform operations dashboard
+    route: /admin
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Show platform health, incidents, queues, storage, moderation and security signals.
+    primary_actions: [open_incident, open_health, open_moderation, open_audit]
+    required_states: [loading, populated, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-dashboard]
+
+  - id: PADM-002
+    name: Accounts and principals
+    route: /admin/accounts
+    actors: [platform_admin, support_operator]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Search accounts/principals and inspect safe metadata without revealing credentials or child secrets.
+    primary_actions: [search, open_account, suspend, restore, start_support_session]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-accounts]
+
+  - id: PADM-003
+    name: Workspaces and placement
+    route: /admin/workspaces
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Manage workspace status, placement, quotas and operational metadata.
+    primary_actions: [search, open_workspace, suspend, restore, change_placement_with_gate]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-workspaces]
+
+  - id: PADM-004
+    name: Module Registry operations
+    route: /admin/modules
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Register module versions, compatibility, Safe Mode support and rollout state.
+    primary_actions: [register_version, validate_manifest, stage_rollout, rollback_rollout, disable_module]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-module-registry]
+
+  - id: PADM-005
+    name: Global policy versions
+    route: /admin/policies
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Version age, safety, publication, moderation and retention policy envelopes.
+    primary_actions: [create_policy_version, simulate_impact, activate, rollback]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-policies]
+
+  - id: PADM-006
+    name: Global moderation queue
+    route: /admin/moderation
+    actors: [platform_admin, moderator]
+    release: R8
+    template: ADMIN
+    implementation: absent
+    purpose: Review publication, profile, comment and report cases across permitted scopes.
+    primary_actions: [claim_case, review_evidence, restrict, unpublish, restore, escalate]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-moderation]
+
+  - id: PADM-007
+    name: Global audit explorer
+    route: /admin/audit
+    actors: [platform_admin, support_operator]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Investigate immutable security and product audit events with strict field redaction.
+    primary_actions: [filter, open_event, correlate_request, export_authorized_evidence]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-audit]
+
+  - id: PADM-008
+    name: Audited support session
+    route: /admin/support/:accountId
+    actors: [support_operator, platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Open time-limited reason-bound support context without impersonation ambiguity.
+    primary_actions: [enter_reason, request_approval, start_session, end_session]
+    required_states: [loading, populated, validation_error, authorization_denied, server_error, success_feedback]
+    screenshot_ids: [support-session-banner]
+
+  - id: PADM-009
+    name: Feature flags and rollout
+    route: /admin/features
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Target and roll back versioned feature activation by workspace/cohort.
+    primary_actions: [create_flag, target_cohort, activate, pause, rollback]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-features]
+
+  - id: PADM-010
+    name: Jobs and queues
+    route: /admin/jobs
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Inspect job state, retries, dead letters and safe operational controls.
+    primary_actions: [filter_queue, open_job, retry_safe_job, cancel_safe_job]
+    required_states: [loading, empty, populated, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-jobs]
+
+  - id: PADM-011
+    name: System health and capacity
+    route: /admin/health
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Show dependency readiness, latency, errors and measured capacity without fabricated health.
+    primary_actions: [select_service, select_time_range, open_runbook]
+    required_states: [loading, empty, populated, server_error]
+    screenshot_ids: [platform-admin-health]
+
+  - id: PADM-012
+    name: Storage, retention and deletion
+    route: /admin/storage
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Inspect storage classes, retention jobs, export/deletion requests and legal holds.
+    primary_actions: [filter_scope, open_request, approve_policy_action, block_for_legal_hold]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-storage]
+
+  - id: PADM-013
+    name: Incidents and maintenance
+    route: /admin/incidents
+    actors: [platform_admin]
+    release: R10
+    template: ADMIN
+    implementation: absent
+    purpose: Track incidents, maintenance windows, status communication and recovery evidence.
+    primary_actions: [create_incident, update_status, attach_evidence, resolve]
+    required_states: [loading, empty, populated, validation_error, authorization_denied, server_error]
+    screenshot_ids: [platform-admin-incidents]
+
+catalog_rules:
+  - every_route_has_at_least_one_actor
+  - every_surface_has_release_template_purpose_actions_states_and_screenshots
+  - every_mutating_surface_includes_validation_authorization_server_error_states
+  - studentseat_surfaces_show_safe_mode_and_never_expose_other_roster_members
+  - admin_surfaces_are_server_grant_driven_and_not_teacher_navigation_tabs
+  - editor_surfaces_use_shared_editor_host
+  - future_module_surfaces_may_be_documented_but_never_shown_as_working_without_runtime
+  - screenshots_never_contain_real_student_data_or_credentials
+  - exact_visual_layout_is_asa_original_not_a_pixel_copy

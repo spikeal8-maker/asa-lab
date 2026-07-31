@@ -1,0 +1,49 @@
+schema_version: 1.0.0
+register_version: 2026.07.27-2
+source_of_truth: docs/product/TINKERCAD_PARITY_SPEC.md
+
+allowed_reasons:
+  - child_safety
+  - legal_policy
+  - proprietary_dependency
+  - owner_approved_post_parity_improvement
+  - measured_technical_blocker
+
+decisions:
+  - id: DEV-BRAND-001
+    surface: global
+    reference_behavior: Tinkercad brand, logos and Autodesk-owned visual assets.
+    asa_behavior: ASA Lab brand, owner-authored assets and independent implementation.
+    reason: legal_policy
+    owner_decision: accepted
+    target_release: P0
+    test: No Tinkercad or Autodesk brand assets are included in the repository.
+
+  - id: DEV-AUTH-001
+    surface: identity_and_onboarding
+    reference_behavior: Tinkercad first routes visitors through separate school/personal and educator/student choices and then hands account creation to Autodesk Account.
+    asa_behavior: ASA Lab uses three direct intentions — universal Account sign-in, native Account creation, and class-code entry. Educator is enabled later as a server capability of the same Account; registered students use universal sign-in; StudentSeat uses the class-code route.
+    reason: owner_approved_post_parity_improvement
+    owner_decision: accepted
+    target_release: R1
+    test: Public-entry E2E shows exactly Sign in, Create account, and Sign in with class code; no client-side educator/account-type chooser exists.
+
+  - id: DEV-SAFETY-001
+    surface: community
+    reference_behavior: Public posting and likes may be available to eligible child accounts under moderator settings.
+    asa_behavior: StudentSeat public publishing, public comments and public profile are disabled by default; enablement requires an explicit future consent/policy flow.
+    reason: child_safety
+    owner_decision: accepted
+    target_release: P3
+    test: Safe Mode negative tests reject publish and public comment actions.
+
+  - id: DEV-MESSAGING-001
+    surface: classroom
+    reference_behavior: Classroom members may interact through supported platform communication surfaces.
+    asa_behavior: No unrestricted direct child messaging; communication is scoped to project, assignment, submission or moderated class context.
+    reason: child_safety
+    owner_decision: accepted
+    target_release: P4
+    test: No direct-message endpoint exists for StudentSeat.
+
+pending: []
