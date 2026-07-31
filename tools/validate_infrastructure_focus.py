@@ -17,6 +17,7 @@ ALLOWED_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
 FORBIDDEN_PORTS = {3000, 3100, 5173}
 ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
 TERMINAL_STATUSES = {"done", "cancelled", "superseded"}
+HISTORICAL_SUCCESSOR_STATUSES = {"done", "deprecated"}
 
 
 def load_yaml(path: Path, errors: list[str]) -> dict[str, Any]:
@@ -32,6 +33,16 @@ def load_yaml(path: Path, errors: list[str]) -> dict[str, Any]:
         errors.append(f"{path.relative_to(ROOT)} root must be an object")
         return {}
     return value
+
+
+def task_node(document: dict[str, Any], task_id: str) -> dict[str, Any] | None:
+    nodes = document.get("nodes")
+    if not isinstance(nodes, list):
+        return None
+    for node in nodes:
+        if isinstance(node, dict) and node.get("id") == task_id:
+            return node
+    return None
 
 
 def main() -> int:
@@ -87,6 +98,24 @@ def main() -> int:
             if task.get("exit_gate_result") != "PASS":
                 errors.append("Completed infrastructure task exit_gate_result must be PASS")
 
+            historical_successor = focus.get("superseded_by")
+            if not isinstance(historical_successor, str) or not historical_successor:
+                errors.append("Completed infrastructure focus must preserve its historical product successor")
+            else:
+                successor_node = task_node(product_map, historical_successor)
+                if successor_node is None:
+                    errors.append(
+                        "Historical infrastructure successor must remain represented in Project Map: "
+                        f"{historical_successor}"
+                    )
+                elif successor_node.get("kind") != "task":
+                    errors.append("Historical infrastructure successor must reference a task node")
+                elif successor_node.get("status") not in HISTORICAL_SUCCESSOR_STATUSES:
+                    errors.append(
+                        "Historical infrastructure successor must be terminal after product convergence: "
+                        f"{historical_successor} is {successor_node.get('status')!r}"
+                    )
+
     for field in ("issue", "base_branch", "branch"):
         if focus.get(field) != task.get(field):
             errors.append(f"Infrastructure focus and manifest mismatch for {field}")
@@ -109,8 +138,6 @@ def main() -> int:
         )
     if task.get("product_focus_frozen") != frozen:
         errors.append("Manifest and focus file disagree about the frozen product task")
-    if active is False and focus.get("superseded_by") != product_focus:
-        errors.append("Terminal infrastructure superseded_by must match project current_focus")
 
     ports = manifest.get("ports")
     if not isinstance(ports, dict):
