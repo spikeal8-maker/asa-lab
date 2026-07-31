@@ -1,24 +1,22 @@
 # Карта качества ASA Lab
 
-Источники:
+Sources:
 
-- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml);
-- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml);
-- [`project-map.yaml`](project-map.yaml);
-- [`../delivery/DEVELOPMENT_PROGRAM_V1.md`](../delivery/DEVELOPMENT_PROGRAM_V1.md).
+- [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
+- [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)
+- [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
+- [`project-map.yaml`](project-map.yaml)
 
-## Состояние queue
+## Current task
 
 ```text
-TASK-PRODUCT-DOC-001  done
-TASK-PORTAL-001       done
-TASK-ACCOUNT-C1-001   done
-current_focus          null
+TASK-CREATOR-PORTAL-001  ready
+current_focus             TASK-CREATOR-PORTAL-001
+branch                    agent/r2-creator-portal
+Issue                     #62
 ```
 
-R2, R3 и R4 остаются blocked roadmap. Для них нет активного exit gate до отдельного owner transition.
-
-## Обязательные governance test IDs
+## Governance IDs
 
 ```text
 TST-ARCH-001
@@ -27,142 +25,76 @@ TST-CATALOG-001
 TST-DEVELOPMENT-PROGRAM-001
 ```
 
-Связанные команды:
+## R2 mandatory IDs
+
+```text
+TST-R2-STATIC-001
+TST-R2-CREATOR-HOME-001
+TST-R2-CAPABILITY-NAV-001
+TST-R2-ROUTING-001
+TST-R2-E2E-001
+```
+
+All R2 results are currently `NOT_RUN`. The coding agent must implement real `test:creator-portal` and `e2e:creator-portal` commands before acceptance.
+
+## Gate commands
 
 ```bash
+python -m compileall -q tools
 python tools/validate_architecture.py
+python tools/validate_capability_map.py
+python tools/validate_infrastructure_focus.py
 python tools/validate_project_map.py
 python tools/validate_test_catalog.py
 python tools/validate_delivery_program.py
-python tools/validate_infrastructure_focus.py
+python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
 ```
 
-Governance считается PASS только после фактического exit `0` каждой обязательной команды на одном текущем SHA.
+`TST-R2-STATIC-001` runs format, lint, typecheck, boundaries, contracts, build and full regression.
 
-## Проверенный implementation SHA
+## Functional matrix
+
+- Creator Home is the default authenticated route;
+- recent projects load from existing data;
+- creator and educator navigation differs by server capability;
+- Classes is hidden without educator capability;
+- workspace switch changes scope without changing capability;
+- Account/Profile/Sessions are integrated into the Portal shell;
+- Learning/Collections/Challenges/Help have honest states;
+- deep links, refresh, Back and Forward preserve route/context;
+- existing Teacher Portal, Electronics, Chess and Chess Online remain reachable;
+- current Accounts, classes, projects and sessions are preserved.
+
+## UI matrix
+
+- desktop 1440×900;
+- tablet;
+- mobile 390×844;
+- loading;
+- empty;
+- error;
+- restricted capability;
+- keyboard/focus/accessibility;
+- no internal `Account C1`/debug language as primary UI copy.
+
+## Browser counters
 
 ```text
-35c06c42012672b9b4cb2626b85ba1f21b973bc0
+console errors = 0
+pageerror = 0
+unexpected requestfailed = 0
+unexpected HTTP 5xx = 0
 ```
 
-Product merge commit:
+## Preserved evidence
 
-```text
-e01ac85095ddaabef19ed618964deac3aa5b2406
-```
+Account C1 remains accepted on implementation SHA `35c06c42012672b9b4cb2626b85ba1f21b973bc0`, merged by `e01ac85095ddaabef19ed618964deac3aa5b2406`.
 
-## Post-merge verification
+## Result semantics
 
-Проверенная точка до governance corrective commits:
+- `PASS`: real exit `0`;
+- `FAIL`: executed non-zero defect;
+- `BLOCKED`: required environment or command unavailable;
+- `NOT_RUN`: not executed.
 
-```text
-main SHA:              5e1ae647e545dd99421c3265f635b4d1e1eee784
-governance:            4/6 PASS
-frozen install:        PASS
-format/lint/typecheck: PASS
-boundaries/contracts:  PASS
-secrets/dependencies:  PASS
-build:                 22/22
-Docker smoke:          PASS
-/api/version:          exact 5e1ae647...
-health:                PostgreSQL/API/Web PASS
-persistence:           PASS
-isolated backup:       PASS
-restore migrations:    10
-```
-
-Два найденных governance-дефекта относятся к terminal infrastructure successor semantics и историческим task references/test-document markers. После их исправления validators должны быть перезапущены на новом head. Runtime/data PASS SHA `5e1ae647...` не переносится автоматически на более новый commit, хотя corrective diff не содержит product code.
-
-## Финальная Account C1 матрица
-
-```text
-canonical task runner: 28/28 PASS
-regression suite:      45 files / 298 tests PASS
-Account PostgreSQL:    6/6 PASS
-Chess Online PG:       6/6 PASS
-RLS:                   15/15 PASS
-accessibility/UI:      11/11 PASS
-Playwright release:    9/9 PASS
-console errors:        0
-pageerror:             0
-requestfailed:         0 unexpected
-Docker dev/test/stage: PASS
-persistence:           PASS
-backup/restore:        PASS
-```
-
-## Account C1 test IDs
-
-```text
-TST-ACCOUNT-REG-001
-TST-ACCOUNT-BACKFILL-001
-TST-ACCOUNT-LEGACY-COMPAT-001
-TST-PERSONAL-WORKSPACE-001
-TST-CAPABILITY-001
-TST-WORKSPACE-CONTEXT-001
-TST-SESSION-V2-001
-TST-IDENTITY-RLS-001
-TST-E2E-ACCOUNT-C1-001
-```
-
-Все связанные package scripts заменены реальными Vitest/Playwright suites и прошли в exact-SHA task runner.
-
-## Доказанные negative cases
-
-- under-18 educator grant denied;
-- capability/role forgery denied;
-- unknown, foreign и suspended workspace denied;
-- tenant/workspace override denied;
-- cross-account workspace and session isolation;
-- token hash never returned;
-- revoked session receives 401;
-- legacy teacher/classes/projects preserved;
-- `school_admin` не даёт `platform_admin`.
-
-## Migration и данные
-
-- migrations `0010` и `0011` additive;
-- empty database apply PASS;
-- repeat apply = 0 pending;
-- applied checksums сохранены;
-- working data не сбрасывались;
-- две существующие учётные записи сохранены;
-- backup/restore проверен в изолированной базе;
-- backup mode `0600`.
-
-## Browser evidence
-
-Account C1 Chromium flow проверяет:
-
-```text
-registration/login
-→ educator self-attestation
-→ profile
-→ workspace switch
-→ two sessions
-→ revoke another session
-→ logout/relogin
-→ existing Electronics and Chess projects preserved
-```
-
-Owner screenshots находятся локально вне Git.
-
-## Hosted GitHub Actions
-
-```text
-status: BLOCKED before first step
-steps: []
-logs: unavailable
-code/postgres jobs: skipped
-```
-
-Это внешний runner/settings blocker. Hosted CI не объявляется PASS и не отменяет exact-SHA local gate.
-
-## Результаты
-
-- `PASS` — реальный exit `0`;
-- `FAIL` — выполненная команда вернула non-zero;
-- `BLOCKED` — обязательная среда отсутствует;
-- `NOT_RUN` — команда не запускалась.
-
-`BLOCKED` и `NOT_RUN` не закрывают gate.
+R3 and R4 remain blocked and have no active gate.
