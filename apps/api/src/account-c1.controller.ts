@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
   HttpException,
   Inject,
   Param,
@@ -56,7 +55,6 @@ export class AccountC1Controller {
   }
 
   @Post('session/context')
-  @HttpCode(200)
   async switchContext(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
     await this.requireContext(request);
     const shape = checkBodyShape(rawBody, ['workspaceId']);

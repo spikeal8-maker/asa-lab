@@ -126,9 +126,9 @@ describe('OpenAPI session response contract', () => {
       cookies: { asa_session: token },
       payload: { workspaceId: workspace.rows[0].id },
     });
-    expect(switched.statusCode).toBe(200);
+    expect(switched.statusCode).toBe(201);
     expectContract(
-      responseValidator('/api/session/context', 'post', 200),
+      responseValidator('/api/session/context', 'post', 201),
       switched.json(),
       'context switch',
     );
