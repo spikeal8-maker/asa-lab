@@ -5,7 +5,8 @@
 ## Каноническое состояние
 
 ```text
-main:                    e01ac85095ddaabef19ed618964deac3aa5b2406
+canonical branch:        main
+product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
 verified implementation: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
 merged PR:               #70
 Account C1 / Issue #48:  completed
@@ -13,6 +14,8 @@ active product task:     none
 ```
 
 PR №70 объединён в `main` контролируемым merge commit. Squash, rebase и force-push не применялись. Функциональная полнота конечного продукта не заявляется.
+
+Post-merge governance-документы продолжают обновляться непосредственно в `main`, поэтому текущий head ветки новее product merge SHA.
 
 ## Что работает
 
@@ -39,7 +42,7 @@ Persistence:        PASS
 Backup/restore:     PASS
 ```
 
-Merge SHA содержит проверенный implementation SHA вторым родителем. Hosted GitHub Actions остаётся внешне заблокированным до первого шага и не объявляется PASS.
+Product merge commit содержит проверенный implementation SHA вторым родителем. Hosted GitHub Actions остаётся внешне заблокированным до первого шага и не объявляется PASS.
 
 ## Текущая пауза
 
