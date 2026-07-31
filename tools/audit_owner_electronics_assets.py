@@ -574,6 +574,7 @@ def main() -> None:
         }
 
     board_models: dict[str, dict[str, Any]] = {}
+    board_sources: dict[str, str] = {}
     for key, suffix in {
         "breadboard-small": "models/small-170.model.json",
         "breadboard-medium": "models/medium-reference-420.model.json",
@@ -582,6 +583,7 @@ def main() -> None:
         path = canonical.find_suffix(suffix)
         model = read_json_bytes(canonical.read(path))
         board_models[key] = model
+        board_sources[key] = path
         physical_dimensions[key] = {
             "componentId": key,
             "physicalWidthMm": model["physical"]["widthMm"],
@@ -628,6 +630,25 @@ def main() -> None:
 
     # Exact family metadata supersedes the broad visual-canon candidate map.
     pin_by_id = {item["componentId"]: item for item in pin_map}
+    for component_id, model in board_models.items():
+        pins = [
+            {
+                "id": hole["id"],
+                "positionMm": {"x": hole["xMm"], "y": hole["yMm"]},
+                "electricalRole": "breadboard-hole",
+                "groupId": hole["groupId"],
+            }
+            for hole in model["holes"]
+        ]
+        pin_by_id[component_id].update(
+            {
+                "pinCount": len(pins),
+                "pins": pins,
+                "status": "owner_declared_breadboard_model",
+                "source": board_sources[component_id],
+            }
+        )
+
     for count, model in battery_models.items():
         pins = []
         for pin_id in ("BAT-", "BAT+"):

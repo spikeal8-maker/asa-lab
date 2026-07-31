@@ -502,7 +502,7 @@
         "confidence": "owner_declared",
         "source": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/small-170.model.json"
       },
-      "pinMapStatus": "owner_manual_map",
+      "pinMapStatus": "owner_declared_breadboard_model",
       "breadboardFootprintStatus": "board_definition",
       "assetCount": 3,
       "canonicalAssetCount": 1,
@@ -546,7 +546,7 @@
         "confidence": "owner_declared",
         "source": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/medium-reference-420.model.json"
       },
-      "pinMapStatus": "not_declared_in_owner_package",
+      "pinMapStatus": "owner_declared_breadboard_model",
       "breadboardFootprintStatus": "board_definition",
       "assetCount": 1,
       "canonicalAssetCount": 1,
@@ -576,7 +576,7 @@
         "confidence": "owner_declared",
         "source": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/large-reference-882.model.json"
       },
-      "pinMapStatus": "not_declared_in_owner_package",
+      "pinMapStatus": "owner_declared_breadboard_model",
       "breadboardFootprintStatus": "board_definition",
       "assetCount": 1,
       "canonicalAssetCount": 1,

@@ -220,6 +220,15 @@ describe('complete owner Electronics asset foundation audit', () => {
       pinCount: 4,
       status: 'owner_declared',
     });
+    expect(
+      ['breadboard-small', 'breadboard-medium', 'breadboard-large'].map((id) =>
+        pinMap.components.find((item) => item.componentId === id),
+      ),
+    ).toEqual([
+      expect.objectContaining({ pinCount: 170, status: 'owner_declared_breadboard_model' }),
+      expect.objectContaining({ pinCount: 420, status: 'owner_declared_breadboard_model' }),
+      expect.objectContaining({ pinCount: 882, status: 'owner_declared_breadboard_model' }),
+    ]);
     expect(footprints.boards.map((board) => board.physical.totalTiePoints)).toEqual([
       170, 420, 882,
     ]);
