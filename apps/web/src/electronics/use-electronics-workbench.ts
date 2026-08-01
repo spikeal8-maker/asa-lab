@@ -118,6 +118,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
+  const componentTapRef = useRef<{ componentId: string; at: number } | null>(null);
   const spacePressedRef = useRef(false);
   const counterRef = useRef(0);
   const viewportProjectRef = useRef<string | null>(null);
@@ -585,10 +586,10 @@ export function useElectronicsWorkbench(projectId: string) {
       componentDragRef.current = null;
       if (document) {
         const moved = document.components.find((item) => item.id === drag.componentId);
-        if (
-          moved &&
-          (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y)
-        ) {
+        const didMove = Boolean(
+          moved && (moved.position.x !== drag.startedAt.x || moved.position.y !== drag.startedAt.y),
+        );
+        if (didMove) {
           const snapped = snapComponentToBreadboard(document, drag.componentId);
           setDocument(snapped);
           pushHistory(snapped);
@@ -598,6 +599,16 @@ export function useElectronicsWorkbench(projectId: string) {
               ? 'Выводы привязаны к отверстиям макетки.'
               : 'Положение сохранится автоматически.',
           );
+          componentTapRef.current = null;
+        } else if (moved && (moved.kind === 'switch' || moved.kind === 'button')) {
+          const now = Date.now();
+          const previous = componentTapRef.current;
+          if (previous?.componentId === moved.id && now - previous.at <= 420) {
+            componentTapRef.current = null;
+            toggleComponentState(moved.id);
+          } else {
+            componentTapRef.current = { componentId: moved.id, at: now };
+          }
         }
       }
     }

@@ -152,14 +152,7 @@ export function WorkbenchStage({
                   onPointerDown={(e) => c.startComponentDrag(e, component)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (
-                      e.detail === 2 &&
-                      (component.kind === 'switch' || component.kind === 'button')
-                    ) {
-                      c.toggleComponentState(component.id);
-                    } else {
-                      c.selectComponent(component.id, e.shiftKey);
-                    }
+                    c.selectComponent(component.id, e.shiftKey);
                   }}
                   role="button"
                   tabIndex={0}
