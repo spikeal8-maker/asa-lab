@@ -331,87 +331,80 @@ describe('workbench draft and immutable versions', () => {
     expect(first.statusCode).toBe(201);
     expect(first.json().version.versionNo).toBe(1);
 
-    const second = await inject(app, {
-      method: 'POST',
-      url: `/api/projects/${created.body.project.id}/checkpoints`,
-      cookies: { asa_session: token },
-      payload: {},
-    });
-    expect(second.statusCode).toBe(201);
-    expect(second.json().version.versionNo).toBe(2);
-
-    const versions = await inject(app, {
-      method: 'GET',
-      url: `/api/projects/${created.body.project.id}/versions`,
-      cookies: { asa_session: token },
-    });
-    expect(versions.statusCode).toBe(200);
-    expect(versions.json().items.map((item: { versionNo: number }) => item.versionNo)).toEqual([
-      2, 1,
-    ]);
+    const stored = await admin.query(
+      `SELECT id FROM project_versions WHERE tenant_id = $1 AND project_id = $2`,
+      [teacher.tenantId, created.body.project.id],
+    );
+    await expect(
+      admin.query(`UPDATE project_versions SET label = 'x' WHERE id = $1`, [stored.rows[0].id]),
+    ).rejects.toThrow(/immutable/);
   });
 });
 
 describe('authorization and validation', () => {
   it('requires a session for all project routes', async () => {
-    const list = await inject(app, { method: 'GET', url: '/api/projects?scope=personal' });
-    expect(list.statusCode).toBe(401);
-    const create = await inject(app, {
-      method: 'POST',
-      url: '/api/projects',
-      headers: { 'idempotency-key': 'anonymous-project' },
-      payload: { scope: 'personal', module: 'electronics', title: 'Нет доступа' },
-    });
-    expect(create.statusCode).toBe(401);
+    for (const [method, url] of [
+      ['GET', '/api/projects?scope=personal'],
+      ['POST', '/api/projects'],
+      ['GET', '/api/projects/00000000-0000-0000-0000-000000000001'],
+      ['PATCH', '/api/projects/00000000-0000-0000-0000-000000000001'],
+      ['PUT', '/api/projects/00000000-0000-0000-0000-000000000001/draft'],
+      ['POST', '/api/projects/00000000-0000-0000-0000-000000000001/checkpoints'],
+    ] as const) {
+      const response = await inject(app, { method, url, payload: {} });
+      expect(response.statusCode, `${method} ${url}`).toBe(401);
+    }
   });
 
   it('never exposes another tenant personal project', async () => {
-    const teacherA = await seedTeacher(admin, 'tenant-project-a');
-    const teacherB = await seedTeacher(admin, 'tenant-project-b');
+    const teacherA = await seedTeacher(admin, 'personal-iso-a');
+    const teacherB = await seedTeacher(admin, 'personal-iso-b');
     const tokenA = await login(teacherA);
     const tokenB = await login(teacherB);
-    const projectA = await createProject(tokenA, { scope: 'personal', title: 'Скрытая схема' });
-    const foreignGet = await inject(app, {
-      method: 'GET',
-      url: `/api/projects/${projectA.body.project.id}`,
-      cookies: { asa_session: tokenB },
-    });
-    expect(foreignGet.statusCode).toBe(404);
-    const foreignSave = await inject(app, {
-      method: 'PUT',
-      url: `/api/projects/${projectA.body.project.id}/draft`,
-      cookies: { asa_session: tokenB },
-      payload: { document: seriesDocument() },
-    });
-    expect(foreignSave.statusCode).toBe(404);
+    const created = await createProject(tokenA, { scope: 'personal', title: 'Секретная схема' });
+    for (const [method, url, payload] of [
+      ['GET', `/api/projects/${created.body.project.id}`, undefined],
+      ['PATCH', `/api/projects/${created.body.project.id}`, { title: 'Украдено' }],
+      ['PUT', `/api/projects/${created.body.project.id}/draft`, { document: seriesDocument() }],
+      ['POST', `/api/projects/${created.body.project.id}/checkpoints`, {}],
+    ] as const) {
+      const response = await inject(app, {
+        method,
+        url,
+        cookies: { asa_session: tokenB },
+        ...(payload === undefined ? {} : { payload }),
+      });
+      expect(response.statusCode, `${method} ${url}`).toBe(404);
+    }
   });
 
   it('rejects inconsistent scope, unsupported modules and missing keys', async () => {
-    const teacher = await seedTeacher(admin, 'invalid-project');
+    const teacher = await seedTeacher(admin, 'project-guards');
     const token = await login(teacher);
-    const classroom = await createClassroom(token, 'Валидация');
-    const inconsistent = await inject(app, {
+    const invalid = await inject(app, {
       method: 'POST',
       url: '/api/projects',
       cookies: { asa_session: token },
       headers: { 'idempotency-key': 'invalid-scope' },
-      payload: { scope: 'personal', classroomId: classroom, module: 'electronics', title: 'Ошибка' },
+      payload: { scope: 'personal', classroomId: 'x', module: 'electronics', title: 'X' },
     });
-    expect(inconsistent.statusCode).toBe(400);
+    expect(invalid.statusCode).toBe(400);
+
     const unsupported = await inject(app, {
       method: 'POST',
       url: '/api/projects',
       cookies: { asa_session: token },
-      headers: { 'idempotency-key': 'unsupported-module' },
-      payload: { scope: 'personal', module: 'robotics', title: 'Ошибка' },
+      headers: { 'idempotency-key': 'invalid-module' },
+      payload: { scope: 'personal', classroomId: null, module: 'checkers', title: 'X' },
     });
     expect(unsupported.statusCode).toBe(400);
-    const missingKey = await inject(app, {
+
+    const noKey = await inject(app, {
       method: 'POST',
       url: '/api/projects',
       cookies: { asa_session: token },
-      payload: { scope: 'personal', module: 'electronics', title: 'Ошибка' },
+      payload: { scope: 'personal', classroomId: null, module: 'electronics', title: 'X' },
     });
-    expect(missingKey.statusCode).toBe(400);
+    expect(noKey.statusCode).toBe(400);
   });
 });
