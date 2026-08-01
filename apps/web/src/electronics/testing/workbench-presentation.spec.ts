@@ -68,6 +68,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.zoomBy(1.18)');
     expect(stageSource).toContain('c.zoomBy(0.85)');
     expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
+    expect(stageSource).toContain('e.detail === 2');
+    expect(stageSource).toContain('c.toggleComponentState(component.id)');
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {

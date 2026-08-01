@@ -152,12 +152,13 @@ export function WorkbenchStage({
                   onPointerDown={(e) => c.startComponentDrag(e, component)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    c.selectComponent(component.id, e.shiftKey);
-                  }}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    if (component.kind === 'switch' || component.kind === 'button') {
+                    if (
+                      e.detail === 2 &&
+                      (component.kind === 'switch' || component.kind === 'button')
+                    ) {
                       c.toggleComponentState(component.id);
+                    } else {
+                      c.selectComponent(component.id, e.shiftKey);
                     }
                   }}
                   role="button"
