@@ -27,20 +27,17 @@ interface Props {
   className?: string;
 }
 
-const RESISTOR_PREVIEW_ASSET =
-  '/assets/electronics/production/components/resistor-axial-preview.svg';
-
 /**
- * Catalogue thumbnail. Real sanitised SVG artwork always wins. The compact
- * inline drawings below are fallbacks only for archive gaps.
+ * Catalogue thumbnail. Only an explicit owner-archive SVG may draw a component.
+ * Missing assets are shown as an honest disabled marker; the UI never invents a
+ * substitute battery, board, motor or other physical part.
  */
 export function ComponentPreview({ preview, asset, className = '' }: Props): JSX.Element {
-  const resolvedAsset = preview === 'resistor' ? RESISTOR_PREVIEW_ASSET : asset;
-  if (resolvedAsset) {
+  if (asset) {
     return (
       <img
         className={`workbench-component-preview ${className}`}
-        src={resolvedAsset}
+        src={asset}
         alt=""
         draggable={false}
         loading="lazy"
@@ -48,64 +45,30 @@ export function ComponentPreview({ preview, asset, className = '' }: Props): JSX
     );
   }
 
-  const common = {
-    className: `workbench-component-preview ${className}`,
-    viewBox: '0 0 100 80',
-    'aria-hidden': true,
-  } as const;
-
-  switch (preview) {
-    case 'coin-cell':
-      return (
-        <svg {...common}>
-          <circle cx="50" cy="40" r="27" fill="#9a9a9a" stroke="#5d5d5d" strokeWidth="3" />
-          <circle cx="50" cy="40" r="21" fill="#bcbcbc" />
-          <text x="50" y="39" textAnchor="middle" fill="#555" fontSize="9">
-            CR2032
-          </text>
-          <text x="50" y="50" textAnchor="middle" fill="#555" fontSize="11">
-            3V
-          </text>
-        </svg>
-      );
-    case 'microbit':
-      return (
-        <svg {...common}>
-          <rect x="14" y="18" width="72" height="45" rx="5" fill="#111827" />
-          {Array.from({ length: 5 }, (_, row) =>
-            Array.from({ length: 5 }, (_, column) => (
-              <circle
-                key={`${row}-${column}`}
-                cx={35 + column * 8}
-                cy={29 + row * 7}
-                r="1.5"
-                fill="#ef4444"
-              />
-            )),
-          )}
-          <path
-            d="M25 63v11M38 63v11M50 63v11M62 63v11M75 63v11"
-            stroke="#d4af37"
-            strokeWidth="5"
-          />
-        </svg>
-      );
-    case 'vibration-motor':
-      return (
-        <svg {...common}>
-          <path d="M48 54v20M56 54v20" stroke="#be2f2f" strokeWidth="2.5" />
-          <path d="M48 70v7M56 70v7" stroke="#2b3440" strokeWidth="2.5" />
-          <circle cx="52" cy="36" r="22" fill="#30343a" stroke="#1d2329" strokeWidth="3" />
-          <circle cx="52" cy="36" r="15" fill="#15191d" />
-          <ellipse cx="46" cy="29" rx="6" ry="4" fill="rgba(255,255,255,.16)" />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...common}>
-          <rect x="15" y="15" width="70" height="50" rx="8" fill="#eef1f5" stroke="#9aa4af" />
-          <path d="M32 40h36" stroke="#66717d" strokeWidth="5" strokeLinecap="round" />
-        </svg>
-      );
-  }
+  return (
+    <svg
+      className={`workbench-component-preview workbench-component-preview-missing ${className}`}
+      viewBox="0 0 100 80"
+      data-missing-preview={preview}
+      aria-hidden="true"
+    >
+      <rect
+        x="13"
+        y="12"
+        width="74"
+        height="56"
+        rx="6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="5 4"
+      />
+      <text x="50" y="38" textAnchor="middle" fontSize="10" fill="currentColor">
+        нет SVG
+      </text>
+      <text x="50" y="52" textAnchor="middle" fontSize="8" fill="currentColor">
+        владельца
+      </text>
+    </svg>
+  );
 }
