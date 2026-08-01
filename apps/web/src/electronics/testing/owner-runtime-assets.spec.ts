@@ -39,15 +39,15 @@ describe('owner SVG runtime catalog adapter', () => {
       expect(item?.asset).toBe('');
     }
 
-    const substitution = structuredClone(manifest) as OwnerCatalogManifest & {
-      components: Array<{ status: string; runtimeSha256: string }>;
+    const substitution = structuredClone(manifest) as unknown as {
+      components: Array<{ status: string; runtimeSha256: string | null }>;
     };
     const enabled = substitution.components.find((item) => item.status === 'enabled');
     if (!enabled) throw new Error('focused fixture contains no enabled owner SVG');
     enabled.runtimeSha256 = '0'.repeat(64);
 
-    expect(() => configureProductionLibrary(substitution)).toThrow(
-      /owner catalog rejected runtime substitution/,
-    );
+    expect(() =>
+      configureProductionLibrary(substitution as unknown as OwnerCatalogManifest),
+    ).toThrow(/owner catalog rejected runtime substitution/);
   });
 });
