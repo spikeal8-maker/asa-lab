@@ -15,17 +15,21 @@ import {
 } from '../production-asset-contracts';
 
 describe('typed Electronics state and animation contracts', () => {
-  it('covers ordinary LED colour, 0-100 brightness and fault visuals', () => {
-    expect(ordinaryLedAsset(ordinaryLedState('blue', -4))).toContain('/blue/000.svg');
-    expect(ordinaryLedAsset(ordinaryLedState('yellow', 101))).toContain('/yellow/100.svg');
-    expect(ordinaryLedAsset(ordinaryLedState('red', 55, 'reverse'))).toContain(
-      '/special/reverse.svg',
+  it('covers owner LED colour, 0-100 brightness and fault visuals', () => {
+    expect(ordinaryLedAsset(ordinaryLedState('blue', -4))).toBe(
+      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
     );
-    expect(ordinaryLedAsset(ordinaryLedState('orange', 55, 'overcurrent'))).toContain(
-      '/special/overcurrent.svg',
+    expect(ordinaryLedAsset(ordinaryLedState('yellow', 101))).toBe(
+      '/assets/electronics/owner-audit/components/led/yellow/led_yellow_i100.svg',
     );
-    expect(ordinaryLedAsset(ordinaryLedState('red', 55, 'burned'))).toContain(
-      '/special/burned.svg',
+    expect(ordinaryLedAsset(ordinaryLedState('red', 55, 'reverse'))).toBe(
+      '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg',
+    );
+    expect(ordinaryLedAsset(ordinaryLedState('orange', 55, 'overcurrent'))).toBe(
+      '/assets/electronics/owner-audit/components/led/special/led_orange_overcurrent.svg',
+    );
+    expect(ordinaryLedAsset(ordinaryLedState('red', 55, 'burned'))).toBe(
+      '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg',
     );
   });
 
@@ -48,7 +52,7 @@ describe('typed Electronics state and animation contracts', () => {
     expect([...sevenSegmentState('1', 34).active]).toEqual(['b', 'c']);
   });
 
-  it('derives four physical resistor colour zones from resistance and tolerance', () => {
+  it('derives four resistor colour bands from resistance and tolerance', () => {
     expect(resistorBandState(220, 5).bands).toEqual(['red', 'red', 'brown', 'gold']);
     expect(resistorBandState(4_700, 5).bands).toEqual(['yellow', 'violet', 'red', 'gold']);
     expect(resistorBandState(1_000_000, 1).bands).toEqual(['brown', 'black', 'green', 'brown']);
