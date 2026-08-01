@@ -170,6 +170,7 @@ test('owner-reference presentation states in the real Electronics editor', async
     boardBox.y + boardBox.height * 0.48,
   );
   await page.keyboard.press('Escape');
+  await expect(page.locator('.workbench-toast')).toHaveCount(0);
 
   await expect(page.locator('.workbench-stage-controls')).toContainText('100%');
   await expect(page.locator('.workbench-snap-link')).toHaveCount(0);
@@ -203,6 +204,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   await screenshot(page, 'wiring-mode-terminals');
 
   await page.keyboard.press('Escape');
+  await expect(page.locator('.workbench-toast')).toHaveCount(0);
   await resistor.locator('.workbench-part').click();
   await expect(page.locator('.workbench-selection-box')).toHaveCount(1);
   expect(
@@ -213,6 +215,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   await screenshot(page, 'component-selected');
 
   await page.keyboard.press('Escape');
+  await expect(page.locator('.workbench-toast')).toHaveCount(0);
   await screenshot(page, 'breadboard-placement-clean');
   await createComparison(page);
 

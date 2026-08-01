@@ -641,6 +641,7 @@ export function useElectronicsWorkbench(projectId: string) {
         setWirePreviewEnd(null);
         setSelection(null);
         setReconnectEndpoint(null);
+        setNotice(null);
       }
     }
     function keyUp(event: globalThis.KeyboardEvent): void {
