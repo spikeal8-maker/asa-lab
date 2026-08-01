@@ -9,12 +9,18 @@ active task:             TASK-ELECTRONICS-M1-001
 active issue:            #63
 active branch:           agent/r4-electronics-m1
 active PR:               #72
-status:                  assistant_recovery_in_progress
+status:                  in_progress
+execution mode:          assistant_recovery
 coding bot:              STOP — do not modify or push
+execution manifest:      docs/delivery/EXECUTION_MANIFEST.yaml
 rejected runtime SHA:    e779e634a25e040108ba3d5447fb8d3d986a07fb
 recovery baseline SHA:   817d8eab2e54cbace0339d2c031b171e770fc0cb
 owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
 ```
+
+`docs/delivery/EXECUTION_MANIFEST.yaml` остаётся каноническим execution
+contract. Текущий task сохраняет нормативный статус `in_progress`, но его
+исполнение временно передано текущему assistant для recovery-прохода.
 
 До отдельного изменения этого файла coding-агент обязан остановиться. Нельзя
 pull/rebase/merge локальной незапушенной работы, продолжать архивный аудит,
