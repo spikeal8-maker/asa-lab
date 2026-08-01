@@ -1,209 +1,76 @@
-import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { WORLD_UNITS_PER_MM, productionLibraryEligible } from '../production-asset-contracts';
+import { ordinaryLedAsset, ordinaryLedState } from '../production-asset-contracts';
+import { OWNER_RUNTIME_ASSET_BY_ID } from '../production-manifest-adapter';
 
-interface PinAnchor {
-  id: string;
-  xMm: number;
-  yMm: number;
-  toleranceMm: number;
+const repositoryRoot = process.cwd();
+const publicRoot = resolve(repositoryRoot, 'apps/web/public');
+
+function runtimePath(asset: string): string {
+  return resolve(publicRoot, asset.replace(/^\//, ''));
 }
 
-interface ProductionComponent {
-  componentId: string;
-  status: string;
-  provenance: string | null;
-  productionSvg: string | null;
-  productionSha256?: string;
-  physicalWidthMm: number | null;
-  physicalHeightMm: number | null;
-  pins: PinAnchor[];
-  reviewStatus: Parameters<typeof productionLibraryEligible>[0];
-  libraryEligible: boolean;
-}
-
-interface ProductionManifest {
-  referenceAuditSha: string;
-  worldUnitsPerMm: number;
-  renderRule: string;
-  summary: Record<string, number>;
-  components: ProductionComponent[];
-}
-
-interface ReferenceManifest {
-  referenceAuditSha: string;
-  immutable: boolean;
-  components: Array<{
-    componentId: string;
-    status: string;
-    sourceFile: string | null;
-    referenceFile: string | null;
-    sha256: string | null;
-  }>;
-}
-
-const publicRoot = resolve(process.cwd(), 'apps/web/public');
-const productionRoot = resolve(publicRoot, 'assets/electronics/production');
-const referenceRoot = resolve(publicRoot, 'assets/electronics/reference');
-const auditRoot = resolve(publicRoot, 'assets/electronics/owner-audit');
-const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8')) as T;
-const manifest = readJson<ProductionManifest>(resolve(productionRoot, 'manifest.json'));
-const references = readJson<ReferenceManifest>(resolve(referenceRoot, 'manifest.json'));
-
-const digest = (path: string): string =>
-  createHash('sha256').update(readFileSync(path)).digest('hex');
-
-const svgFiles = (directory: string): string[] =>
-  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = resolve(directory, entry.name);
-    return entry.isDirectory() ? svgFiles(path) : entry.name.endsWith('.svg') ? [path] : [];
-  });
-
-describe('Electronics production vector foundation', () => {
-  it('keeps the accepted archive audit as immutable reference evidence', () => {
-    expect(manifest.referenceAuditSha).toBe('9654ce3b9cd2605cb69d9b2d3f8821618364e480');
-    expect(references.referenceAuditSha).toBe(manifest.referenceAuditSha);
-    expect(references.immutable).toBe(true);
-    for (const reference of references.components.filter(
-      (item) => item.status === 'reference_found',
-    )) {
-      const source = resolve(publicRoot, (reference.sourceFile as string).replace(/^\//, ''));
-      const copy = resolve(publicRoot, (reference.referenceFile as string).replace(/^\//, ''));
-      expect(digest(source), reference.componentId).toBe(reference.sha256);
-      expect(digest(copy), reference.componentId).toBe(reference.sha256);
-      expect(source.startsWith(auditRoot)).toBe(true);
-    }
-  });
-
-  it('represents the full 33-item catalog and keeps 5xAA honestly missing', () => {
-    expect(manifest.summary).toEqual({
-      logicalComponents: 33,
-      candidateForOwnerReview: 32,
-      missingReference: 1,
-      ownerAccepted: 0,
-      productionReady: 0,
-    });
-    const missing = manifest.components.filter((item) => item.status === 'missing_reference');
-    expect(missing.map((item) => item.componentId)).toEqual(['battery-holder-aa-5']);
-    for (const count of [1, 2, 3, 4, 6, 8]) {
-      const holder = manifest.components.find(
-        (item) => item.componentId === `battery-holder-aa-${count}`,
-      );
-      expect(holder?.status).toBe('candidate_for_owner_review');
-      expect(holder?.provenance).toBe('exact_owner_svg');
-    }
-  });
-
-  it('uses only transparent vector production files with no raster or active content', () => {
-    const files = svgFiles(productionRoot);
-    expect(files.length).toBeGreaterThan(650);
+describe('Electronics owner SVG foundation', () => {
+  it('keeps owner evidence and source manifests intact', () => {
     expect(
-      readdirSync(productionRoot, { recursive: true }).some((name) =>
-        String(name).endsWith('.png'),
-      ),
-    ).toBe(false);
-    for (const path of files) {
+      existsSync(resolve(publicRoot, 'assets/electronics/owner-supplied/manifest.json')),
+    ).toBe(true);
+    expect(existsSync(resolve(publicRoot, 'assets/electronics/owner-audit'))).toBe(true);
+  });
+
+  it('routes every runtime component to an owner SVG rather than generated production art', () => {
+    expect(Object.keys(OWNER_RUNTIME_ASSET_BY_ID).length).toBeGreaterThan(20);
+    for (const [componentId, asset] of Object.entries(OWNER_RUNTIME_ASSET_BY_ID)) {
+      expect(asset, componentId).toMatch(
+        /^\/assets\/electronics\/(owner-supplied|owner-audit\/components)\/.*\.svg$/,
+      );
+      expect(asset, componentId).not.toContain('/production/');
+      expect(asset, componentId).not.toContain('/source-reference/');
+      const path = runtimePath(asset);
+      expect(existsSync(path), `${componentId}: ${path}`).toBe(true);
       const svg = readFileSync(path, 'utf8');
-      const root = svg.match(/<svg\b[^>]*>/)?.[0] ?? '';
-      expect(svg, path).not.toMatch(/<image\b|data:image|base64|<foreignObject\b|<script\b/i);
-      expect(svg, path).not.toMatch(/(?:href|xlink:href)=["']https?:\/\//i);
-      expect(svg, path).not.toMatch(/checkerboard|transparency-grid|pixel-vector/i);
-      expect(root.match(/data-component-id=/g)?.length ?? 0, path).toBeLessThanOrEqual(1);
-      expect(root.match(/data-provenance=/g)?.length ?? 0, path).toBeLessThanOrEqual(1);
-    }
-    for (const component of manifest.components.filter((item) => item.productionSvg !== null)) {
-      expect(component.productionSvg, component.componentId).toMatch(/\.svg$/);
+      expect(svg, componentId).toMatch(/<svg\b/i);
+      expect(svg, componentId).not.toMatch(/<image\b|data:image|base64|<foreignObject\b|<script\b/i);
+      expect(svg, componentId).not.toMatch(/(?:href|xlink:href)=["']https?:\/\//i);
     }
   });
 
-  it('uses owner-reference contour traces instead of simplified replacement art for PNG-only items', () => {
-    const tracedIds = [
-      'arduino-uno',
+  it('uses the complete owner LED state family directly from owner-audit', () => {
+    for (const colour of ['blue', 'green', 'orange', 'red', 'white', 'yellow'] as const) {
+      for (const brightness of [0, 1, 25, 50, 75, 100]) {
+        const asset = ordinaryLedAsset(ordinaryLedState(colour, brightness));
+        expect(asset).toBe(
+          `/assets/electronics/owner-audit/components/led/${colour}/led_${colour}_i${String(
+            brightness,
+          ).padStart(3, '0')}.svg`,
+        );
+        expect(existsSync(runtimePath(asset)), asset).toBe(true);
+      }
+    }
+    for (const fault of ['reverse', 'overcurrent', 'burned'] as const) {
+      expect(existsSync(runtimePath(ordinaryLedAsset(ordinaryLedState('red', 50, fault))))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('keeps known missing components missing instead of substituting a traced PNG', () => {
+    for (const componentId of [
       'battery-1.5v',
       'battery-3v',
       'battery-6v',
-      'battery-9v',
-      'resistor-axial',
-      'potentiometer',
-      'electrolytic-capacitor',
-      'photoresistor',
-      'transistor-npn',
-      'dc-motor',
-      'servo-motor',
-      'piezo',
-      'multimeter',
-      'regulated-power-supply',
-    ];
-    for (const componentId of tracedIds) {
-      const component = manifest.components.find((item) => item.componentId === componentId);
-      const svgPath = resolve(publicRoot, (component?.productionSvg as string).replace(/^\//, ''));
-      const svg = readFileSync(svgPath, 'utf8');
-      expect(component?.provenance, componentId).toBe('derived_from_owner_reference');
-      expect(svg, componentId).toContain('id="owner-reference-vector-trace"');
-      expect(svg.match(/<path\b/g)?.length ?? 0, componentId).toBeGreaterThan(10);
-      expect(svg, componentId).not.toContain('<rect');
+      'microbit-preview',
+      'vibration-motor-preview',
+    ]) {
+      expect(OWNER_RUNTIME_ASSET_BY_ID[componentId], componentId).toBeUndefined();
     }
   });
 
-  it('keeps the owner resistor body and exposes its four real colour zones as state channels', () => {
-    const component = manifest.components.find((item) => item.componentId === 'resistor-axial');
-    const svgPath = resolve(publicRoot, (component?.productionSvg as string).replace(/^\//, ''));
-    const svg = readFileSync(svgPath, 'utf8');
-    for (const band of ['digit-1', 'digit-2', 'multiplier', 'tolerance']) {
-      expect(svg).toContain(`data-resistor-band="${band}"`);
-    }
-  });
-
-  it('derives every rendered size from physical millimetres and one world scale', () => {
-    expect(manifest.worldUnitsPerMm).toBe(WORLD_UNITS_PER_MM);
-    expect(manifest.renderRule).toContain('arbitrary renderWidth forbidden');
-    const button = manifest.components.find((item) => item.componentId === 'button-tactile-6mm');
-    expect(button?.physicalWidthMm).toBe(10);
-    expect(button?.physicalHeightMm).toBe(10);
-    for (const component of manifest.components.filter(
-      (item) => item.status !== 'missing_reference',
-    )) {
-      expect(component.physicalWidthMm, component.componentId).toBeGreaterThan(0);
-      expect(component.physicalHeightMm, component.componentId).toBeGreaterThan(0);
-    }
-  });
-
-  it('places every declared pin on a production terminal within the 0.25mm contract', () => {
-    for (const component of manifest.components.filter(
-      (item) => item.status !== 'missing_reference',
-    )) {
-      expect(component.pins.length, component.componentId).toBeGreaterThan(0);
-      const svgPath = resolve(publicRoot, (component.productionSvg as string).replace(/^\//, ''));
-      const svg = readFileSync(svgPath, 'utf8');
-      for (const pin of component.pins) {
-        expect(pin.xMm, `${component.componentId}:${pin.id}`).toBeGreaterThanOrEqual(0);
-        expect(pin.yMm, `${component.componentId}:${pin.id}`).toBeGreaterThanOrEqual(0);
-        expect(pin.xMm, `${component.componentId}:${pin.id}`).toBeLessThanOrEqual(
-          component.physicalWidthMm as number,
-        );
-        expect(pin.yMm, `${component.componentId}:${pin.id}`).toBeLessThanOrEqual(
-          component.physicalHeightMm as number,
-        );
-        expect(pin.toleranceMm, `${component.componentId}:${pin.id}`).toBeLessThanOrEqual(0.25);
-        expect(svg, `${component.componentId}:${pin.id}`).toContain(`data-pin-id="${pin.id}"`);
-      }
-      expect(digest(svgPath), component.componentId).toBe(component.productionSha256);
-    }
-  });
-
-  it('gates all candidates until the owner accepts the production visuals', () => {
-    for (const component of manifest.components) {
-      expect(component.reviewStatus.owner_accepted, component.componentId).toBe(false);
-      expect(component.reviewStatus.production_ready, component.componentId).toBe(false);
-      expect(component.libraryEligible, component.componentId).toBe(false);
-      expect(
-        productionLibraryEligible(
-          component.reviewStatus,
-          component.reviewStatus.breadboard_fit_pass !== null,
-        ),
-      ).toBe(false);
-    }
+  it('removes the two scripts that generated and replaced runtime artwork', () => {
+    expect(existsSync(resolve(repositoryRoot, 'tools/vectorize_owner_references.py'))).toBe(false);
+    expect(existsSync(resolve(repositoryRoot, 'tools/build_electronics_production_assets.py'))).toBe(
+      false,
+    );
   });
 });
