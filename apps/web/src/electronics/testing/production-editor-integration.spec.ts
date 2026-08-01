@@ -41,8 +41,8 @@ beforeAll(() => {
   );
 });
 
-describe('production manifest integration in the real Electronics document', () => {
-  it('groups production assets into deterministic families, variants and safe tiers', () => {
+describe('owner SVG integration in the real Electronics document', () => {
+  it('groups owner assets into deterministic families and safe tiers', () => {
     const families = workbenchCatalog();
     expect(
       families
@@ -56,8 +56,6 @@ describe('production manifest integration in the real Electronics document', () 
       'capacitor',
       'spdt-switch',
       'battery-9v',
-      'coin-cell-3v',
-      'battery-1.5v',
       'breadboard',
       'microbit',
       'arduino-uno',
@@ -76,8 +74,6 @@ describe('production manifest integration in the real Electronics document', () 
       true,
       false,
       true,
-      false,
-      false,
       false,
       true,
       false,
@@ -113,13 +109,11 @@ describe('production manifest integration in the real Electronics document', () 
         .find((family) => family.familyId === 'diode')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['diode-do35', 'diode-do41']);
-    for (const familyId of ['battery-1.5v', 'coin-cell-3v', 'battery-9v']) {
-      expect(families.find((family) => family.familyId === familyId)).toMatchObject({
-        enabled: false,
-        appearsInBasic: true,
-        simulationStatus: 'not_yet_supported',
-      });
-    }
+    expect(families.find((family) => family.familyId === 'battery-9v')).toMatchObject({
+      enabled: false,
+      appearsInBasic: true,
+      simulationStatus: 'not_yet_supported',
+    });
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -132,9 +126,10 @@ describe('production manifest integration in the real Electronics document', () 
         const entry = variant.entry;
         if (entry.asset) {
           expect(entry.asset, variant.variantId).toMatch(
-            /^\/assets\/electronics\/production\/.*\.svg$/,
+            /^\/assets\/electronics\/(owner-supplied|owner-audit\/components)\/.*\.svg$/,
           );
-          expect(entry.asset, variant.variantId).not.toContain('/electronics/components/');
+          expect(entry.asset, variant.variantId).not.toContain('/production/');
+          expect(entry.asset, variant.variantId).not.toContain('/source-reference/');
         } else {
           expect(['microbit', 'vibration-motor']).toContain(entry.preview);
           expect(family.enabled).toBe(false);
@@ -167,7 +162,7 @@ describe('production manifest integration in the real Electronics document', () 
     });
   });
 
-  it('persists component type, variant, typed state and real manifest pins in schema v3', () => {
+  it('persists component type, variant, typed state and owner manifest pins in schema v3', () => {
     let document = addComponentToDocument(EMPTY, 'rgb-led', { x: 300, y: 240 }, 'rgb').document;
     document = updateSelectionProperties(
       document,
