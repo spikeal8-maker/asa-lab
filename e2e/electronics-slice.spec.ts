@@ -21,6 +21,16 @@ const BASIC_FAMILY_ORDER = [
   'vibration-motor',
   'dc-motor',
   'servo',
+  'battery-holder-aa',
+  'diode',
+  'rgb-led',
+  'seven-segment',
+  'lamp',
+  'regulated-power-supply',
+  'photoresistor',
+  'transistor-npn',
+  'piezo',
+  'multimeter',
 ] as const;
 
 const ownerEmail = process.env['ASA_E2E_OWNER_EMAIL'];
@@ -152,17 +162,19 @@ test('owner-reference presentation states in the real Electronics editor', async
   await expect(cards.locator('small')).toHaveCount(0);
   await page.getByRole('button', { name: 'Переключить на список' }).click();
   await expect(grid).toHaveAttribute('data-library-view', 'list');
+  await expect(cards.locator('small')).toHaveCount(BASIC_FAMILY_ORDER.length);
+  await expect(cards.first()).toContainText('Цветовые полосы');
   await page.getByRole('button', { name: 'Переключить на сетку' }).click();
   await expect(grid).toHaveAttribute('data-library-view', 'grid');
   await page.getByRole('textbox', { name: 'Поиск компонентов' }).fill('LED');
-  await expect(cards).toHaveCount(1);
+  await expect(cards).toHaveCount(2);
   await page.getByRole('textbox', { name: 'Поиск компонентов' }).fill('');
   await expect(cards).toHaveCount(BASIC_FAMILY_ORDER.length);
   await screenshot(page, 'library-basic-three-columns');
   await screenshot(page, 'library-basic-exact-order');
 
   const disabledCards = page.locator('.workbench-catalog-card[aria-disabled="true"]');
-  await expect(disabledCards).toHaveCount(7);
+  await expect(disabledCards).toHaveCount(12);
   expect(
     await disabledCards.evaluateAll((elements) =>
       elements.every(
@@ -174,18 +186,33 @@ test('owner-reference presentation states in the real Electronics editor', async
   ).toBe(true);
   await screenshot(page, 'library-disabled-components');
 
-  const breadboardCard = page.locator('[data-family-id="breadboard"]');
-  await breadboardCard.getByRole('button', { name: 'Макетная плата', exact: true }).click();
-  await expect(
-    breadboardCard.getByRole('dialog', { name: 'Варианты: Макетная плата' }),
-  ).toBeVisible();
-  await breadboardCard.getByRole('button', { name: 'Добавить', exact: true }).click();
-  for (const name of ['Резистор', 'Светодиод', 'Кнопка', 'Ползунковый переключатель']) {
+  const stage = page.locator('svg.workbench-canvas');
+  const stageBox = await stage.boundingBox();
+  if (!stageBox) throw new Error('stage has no visual bounding box');
+  const placementTargets = [
+    ['Макетная плата', 0.33, 0.68],
+    ['Резистор', 0.46, 0.31],
+    ['Светодиод', 0.58, 0.31],
+    ['Кнопка', 0.46, 0.48],
+    ['Ползунковый переключатель', 0.58, 0.48],
+  ] as const;
+  for (const [name, xRatio, yRatio] of placementTargets) {
+    const before = await page.locator('[data-testid="schematic-component"]').count();
     await page.getByRole('button', { name, exact: true }).click();
+    await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(before);
+    await page.mouse.move(
+      stageBox.x + stageBox.width * xRatio,
+      stageBox.y + stageBox.height * yRatio,
+    );
+    await expect(page.getByTestId('catalog-placement-preview')).toBeVisible();
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
+    await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(before + 1);
   }
 
   const board = page.locator(
-    '[data-testid="schematic-component"][data-component-type="breadboard-small"]',
+    '[data-testid="schematic-component"][data-component-type="breadboard-medium"]',
   );
   const led = page.locator('[data-testid="schematic-component"][data-component-type="led-5mm"]');
   const resistor = page.locator(
@@ -202,7 +229,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   await page.keyboard.press('Escape');
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
 
-  await expect(page.locator('.workbench-stage-controls').getByRole('button')).toHaveCount(1);
+  await expect(page.locator('.workbench-stage-controls').getByRole('button')).toHaveCount(3);
   await expect(page.locator('.workbench-snap-link')).toHaveCount(0);
   await expect(page.locator('.workbench-component-diagnostic')).toHaveCount(0);
   await expect(page.locator('.workbench-results')).toHaveCount(0);
@@ -230,7 +257,7 @@ test('owner-reference presentation states in the real Electronics editor', async
       .evaluateAll(
         (elements) => elements.filter((item) => getComputedStyle(item).opacity === '1').length,
       ),
-  ).toBeGreaterThan(1);
+  ).toBeLessThanOrEqual(1);
   await screenshot(page, 'wiring-mode-terminals');
 
   await page.keyboard.press('Escape');
@@ -241,7 +268,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   expect(
     await resistor
       .locator('.workbench-terminal-dot')
-      .evaluateAll((elements) => elements.every((item) => getComputedStyle(item).opacity === '1')),
+      .evaluateAll((elements) => elements.every((item) => getComputedStyle(item).opacity === '0')),
   ).toBe(true);
   await screenshot(page, 'component-selected');
 

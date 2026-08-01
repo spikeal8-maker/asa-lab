@@ -180,6 +180,33 @@ const SIMULATED_TYPES = new Set([
   'incandescent-lamp',
 ]);
 
+const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  resistor:
+    'Ограничивает электрический ток. Цветовые полосы показывают сопротивление и допуск.',
+  led: 'Светится при правильной полярности; яркость рассчитывается по току в цепи.',
+  button: 'Моментально замыкает контакты, пока кнопка нажата во время моделирования.',
+  potentiometer: 'Регулируемый резистор: положение ручки изменяет положение движка.',
+  capacitor: 'Накапливает электрический заряд и сглаживает изменения напряжения.',
+  'spdt-switch': 'Переключает общий контакт между левым и правым выводами.',
+  battery: 'Источник постоянного напряжения для питания схемы.',
+  breadboard: 'Макетная плата для сборки цепей без пайки. Отверстия соединены группами.',
+  microbit: 'Учебная микроконтроллерная плата micro:bit.',
+  'arduino-uno': 'Микроконтроллерная плата Arduino Uno.',
+  'vibration-motor': 'Миниатюрный двигатель, создающий вибрацию.',
+  'dc-motor': 'Двигатель постоянного тока с управлением скоростью и направлением.',
+  servo: 'Сервопривод с управляемым углом поворота.',
+  'battery-holder-aa': 'Батарейный отсек AA: выберите количество элементов после размещения.',
+  diode: 'Пропускает ток преимущественно в одном направлении.',
+  'rgb-led': 'Четырёхконтактный RGB-светодиод смешивает красный, зелёный и синий каналы.',
+  'seven-segment': 'Семисегментный индикатор отображает цифры и отдельные сегменты.',
+  lamp: 'Лампа накаливания, яркость которой зависит от питания цепи.',
+  'regulated-power-supply': 'Регулируемый лабораторный источник питания.',
+  photoresistor: 'Фоторезистор изменяет сопротивление в зависимости от освещения.',
+  'transistor-npn': 'NPN-транзистор для усиления и переключения электрического сигнала.',
+  piezo: 'Пьезоизлучатель преобразует электрический сигнал в звук.',
+  multimeter: 'Измерительный прибор для напряжения, тока и сопротивления.',
+};
+
 function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (/^battery(?:-|$)|^regulated-power-supply$/.test(componentId)) return 'source';
   if (componentId === 'resistor-axial') return 'resistor';
@@ -237,7 +264,7 @@ function defaults(componentId: string): {
     return {
       value: 2,
       unit: 'В',
-      properties: { ledColour: 'red', ledBrightness: 60, ledFault: 'none' },
+      properties: { ledColour: 'red', ledBrightness: 0, ledFault: 'none' },
     };
   if (componentId === 'rgb-led')
     return {
@@ -338,9 +365,10 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
     semanticCategory: item.category,
     category: category(item.category),
     description:
-      item.status === 'enabled'
-        ? 'Точный owner SVG; SHA источника и runtime совпадают.'
-        : (item.blockReason ?? 'Недоступно.'),
+      COMPONENT_DESCRIPTIONS[item.familyId] ??
+      (item.status === 'enabled'
+        ? 'Компонент из подтверждённого комплекта владельца.'
+        : (item.blockReason ?? 'Недоступно.')),
     keywords: [
       ...item.searchAliases,
       item.componentId,

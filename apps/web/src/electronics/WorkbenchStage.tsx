@@ -1,7 +1,11 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { catalogEntry, renderedSize, terminalPosition } from './component-catalog';
+import {
+  catalogEntry,
+  componentPointPosition,
+  renderedSize,
+  terminalPosition,
+} from './component-catalog';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
-import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
 import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
@@ -22,9 +26,10 @@ export function WorkbenchStage({
         ref={c.stageRef}
         className={`workbench-canvas${c.panning ? ' panning' : ''}${
           c.pendingTerminal || c.reconnectEndpoint ? ' wiring' : ''
-        }`}
+        }${c.catalogPlacement ? ' placing' : ''}`}
         viewBox={`${c.viewBox.x} ${c.viewBox.y} ${c.viewBox.width} ${c.viewBox.height}`}
         preserveAspectRatio="xMidYMid slice"
+        onPointerDownCapture={c.placeCatalogComponent}
         onPointerDown={c.startPan}
         onPointerMove={c.handlePointerMove}
         onPointerUp={c.finishPointer}
@@ -134,6 +139,10 @@ export function WorkbenchStage({
                   c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
                     ? ' workbench-component-diagnostic'
                     : ''
+                }${
+                  c.simulationRunning && component.state
+                    ? ' workbench-component-actuator-active'
+                    : ''
                 }`}
                 data-testid="schematic-component"
                 data-kind={component.kind}
@@ -170,16 +179,30 @@ export function WorkbenchStage({
                     width={baseSize.width}
                     height={baseSize.height}
                     visualState={visualState}
+                    effectiveBrightness={c.componentLedBrightness(component)}
                     selected={selected}
                   />
+                  {component.kind === 'potentiometer' && c.simulationRunning ? (
+                    <circle
+                      className="workbench-potentiometer-hit"
+                      cx={baseSize.width / 2}
+                      cy={baseSize.height * 0.45}
+                      r={Math.min(baseSize.width, baseSize.height) * 0.25}
+                      onPointerDown={(event) => c.startPotentiometerControl(event, component)}
+                      aria-label="Повернуть ручку потенциометра"
+                    />
+                  ) : null}
                 </g>
                 {component.kind === 'breadboard'
                   ? (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map(
                       (hole) => {
-                        const point = {
-                          x: component.position.x + hole.xMm * WORLD_UNITS_PER_MM,
-                          y: component.position.y + hole.yMm * WORLD_UNITS_PER_MM,
-                        };
+                        const point = componentPointPosition(
+                          component,
+                          component.position,
+                          hole,
+                          component.rotation ?? 0,
+                        );
+                        if (!point) return null;
                         const pending =
                           c.pendingTerminal?.componentId === component.id &&
                           c.pendingTerminal.terminal === hole.id;
@@ -262,17 +285,35 @@ export function WorkbenchStage({
                         }}
                       />
                       <circle className="workbench-terminal-dot" r="3" />
-                      {c.pendingTerminal || c.reconnectEndpoint ? (
-                        <text x="0" y="-12" textAnchor="middle">
-                          {terminalSpec.label}
-                        </text>
-                      ) : null}
                     </g>
                   );
                 })}
               </g>
             );
           })}
+        {c.catalogPlacementComponent ? (
+          <g
+            className="workbench-placement-preview"
+            transform={componentTransform(c.catalogPlacementComponent)}
+            data-testid="catalog-placement-preview"
+          >
+            {(() => {
+              const entry = catalogEntry(c.catalogPlacementComponent);
+              if (!entry) return null;
+              const size = renderedSize(entry, 0);
+              return (
+                <ProductionComponentVisual
+                  entry={entry}
+                  component={c.catalogPlacementComponent}
+                  width={size.width}
+                  height={size.height}
+                  visualState="default"
+                  effectiveBrightness={0}
+                />
+              );
+            })()}
+          </g>
+        ) : null}
         {c.marquee ? (
           <rect
             className="workbench-marquee"

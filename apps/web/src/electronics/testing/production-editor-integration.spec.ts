@@ -40,44 +40,24 @@ beforeAll(() => {
 describe('owner SVG integration in the real Electronics document', () => {
   it('groups owner assets into deterministic families and safe tiers', () => {
     const families = workbenchCatalog();
-    expect(
-      families
-        .filter((family) => familyMatchesCategory(family, 'basic'))
-        .map((family) => family.familyId),
-    ).toEqual([
-      'resistor',
-      'led',
-      'button',
-      'potentiometer',
-      'capacitor',
-      'spdt-switch',
-      'battery',
-      'breadboard',
-      'microbit',
-      'arduino-uno',
-      'vibration-motor',
-      'dc-motor',
-      'servo',
-    ]);
-    expect(
-      families
-        .filter((family) => familyMatchesCategory(family, 'basic'))
-        .map((family) => family.enabled),
-    ).toEqual([
-      true,
-      true,
-      true,
-      true,
-      false,
-      true,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
+    const basicFamilies = families.filter((family) => familyMatchesCategory(family, 'basic'));
+    expect(basicFamilies.map((family) => family.familyId)).toEqual(
+      families.map((family) => family.familyId),
+    );
+    expect(basicFamilies.map((family) => family.familyId)).toEqual(
+      expect.arrayContaining([
+        'resistor',
+        'led',
+        'button',
+        'breadboard',
+        'battery-holder-aa',
+        'diode',
+        'rgb-led',
+        'seven-segment',
+        'microbit',
+        'vibration-motor',
+      ]),
+    );
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
@@ -100,6 +80,9 @@ describe('owner SVG integration in the real Electronics document', () => {
         .find((family) => family.familyId === 'breadboard')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['breadboard-small', 'breadboard-medium', 'breadboard-large']);
+    expect(families.find((family) => family.familyId === 'breadboard')?.defaultVariantId).toBe(
+      'breadboard-medium',
+    );
     expect(
       families
         .find((family) => family.familyId === 'diode')
@@ -145,6 +128,13 @@ describe('owner SVG integration in the real Electronics document', () => {
       { x: 300, y: 240 },
       'battery',
     ).document;
+    const before = document.components[0];
+    const beforeNegative = before
+      ? terminalPosition(before, before.position, 'BAT-', before.rotation ?? 0)
+      : null;
+    const beforePositive = before
+      ? terminalPosition(before, before.position, 'BAT+', before.rotation ?? 0)
+      : null;
     document = updateSelectionVariant(
       document,
       { kind: 'component', id: 'battery', ids: ['battery'] },
@@ -156,6 +146,17 @@ describe('owner SVG integration in the real Electronics document', () => {
       variantId: 'battery-holder-aa-6',
       value: 9,
     });
+    const after = restored.components[0];
+    const afterNegative = after
+      ? terminalPosition(after, after.position, 'BAT-', after.rotation ?? 0)
+      : null;
+    const afterPositive = after
+      ? terminalPosition(after, after.position, 'BAT+', after.rotation ?? 0)
+      : null;
+    expect(afterNegative?.x).toBeCloseTo(beforeNegative?.x ?? 0, 3);
+    expect(afterNegative?.y).toBeCloseTo(beforeNegative?.y ?? 0, 3);
+    expect(afterPositive?.x).toBeCloseTo(beforePositive?.x ?? 0, 3);
+    expect(afterPositive?.y).toBeCloseTo(beforePositive?.y ?? 0, 3);
   });
 
   it('persists component type, variant, typed state and owner manifest pins in schema v3', () => {

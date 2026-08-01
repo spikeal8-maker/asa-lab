@@ -18653,7 +18653,7 @@
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
-      "isDefaultVariant": true,
+      "isDefaultVariant": false,
       "displayName": "Макетка 170 точек",
       "sourceOwnerArchive": "canonical-components-svg",
       "sourceOwnerPath": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/assets/svg/small-170.svg",
@@ -21658,7 +21658,7 @@
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
-      "isDefaultVariant": false,
+      "isDefaultVariant": true,
       "displayName": "Макетка 420 точек",
       "sourceOwnerArchive": "canonical-components-svg",
       "sourceOwnerPath": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/assets/svg/medium-reference-420.svg",
@@ -28416,15 +28416,15 @@
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 7.7104,
-          "yMm": 0.0,
+          "xMm": 11.1634,
+          "yMm": 0.9039,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 17.8704,
-          "yMm": 0.0,
+          "xMm": 14.4174,
+          "yMm": 0.9039,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28490,15 +28490,15 @@
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 16.8399,
-          "yMm": 0.0,
+          "xMm": 20.2929,
+          "yMm": 0.9039,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 26.9999,
-          "yMm": 0.0,
+          "xMm": 23.547,
+          "yMm": 0.9039,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28564,15 +28564,15 @@
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 25.9695,
-          "yMm": 0.0,
+          "xMm": 29.4224,
+          "yMm": 0.9039,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 36.1295,
-          "yMm": 0.0,
+          "xMm": 32.6765,
+          "yMm": 0.9039,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28638,15 +28638,15 @@
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 35.099,
-          "yMm": 0.0,
+          "xMm": 38.552,
+          "yMm": 0.9039,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 45.259,
-          "yMm": 0.0,
+          "xMm": 41.806,
+          "yMm": 0.9039,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28761,15 +28761,15 @@
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 53.3581,
-          "yMm": 0.0,
+          "xMm": 56.8111,
+          "yMm": 0.9039,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 63.5181,
-          "yMm": 0.0,
+          "xMm": 60.0651,
+          "yMm": 0.9039,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28835,15 +28835,15 @@
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 71.6172,
-          "yMm": 0.0,
+          "xMm": 75.0701,
+          "yMm": 0.9039,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 81.7772,
-          "yMm": 0.0,
+          "xMm": 78.3242,
+          "yMm": 0.9039,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }

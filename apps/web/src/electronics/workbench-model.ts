@@ -30,6 +30,22 @@ export interface ComponentDrag {
   startedPositions: Record<string, Point>;
 }
 
+export interface CatalogPlacement {
+  componentTypeId: string;
+  point: Point | null;
+}
+
+export interface ActuatorPress {
+  componentId: string;
+  pointerId: number;
+  kind: 'button' | 'switch';
+}
+
+export interface PotentiometerDrag {
+  componentId: string;
+  pointerId: number;
+}
+
 export interface PanDrag {
   pointerId: number;
   startClient: Point;

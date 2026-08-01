@@ -176,7 +176,10 @@ export function familyMatchesCategory(
   family: ComponentFamily,
   category: ComponentCategory,
 ): boolean {
-  if (category === 'basic') return family.appearsInBasic;
+  // The owner expects the default shelf to be a discoverable inventory, like
+  // Tinkercad's "Basic" drawer. Unsupported owner items remain visible but
+  // disabled, so nothing silently disappears from the supplied catalog.
+  if (category === 'basic') return true;
   if (category === 'all') return true;
   if (category === 'preview') return !family.enabled;
   return family.categoryId === category;
@@ -252,6 +255,28 @@ export function visualAsset(
   return entry.asset;
 }
 
+export function componentPointPosition(
+  componentOrType: SchematicComponent | ComponentKind | string,
+  origin: { x: number; y: number },
+  pointMm: { xMm: number; yMm: number },
+  rotation = 0,
+): { x: number; y: number } | null {
+  const entry = catalogEntry(componentOrType);
+  if (!entry) return null;
+  const component = typeof componentOrType === 'object' ? componentOrType : null;
+  const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
+  const originalPx = pointMm.xMm * WORLD_UNITS_PER_MM;
+  const originalPy = pointMm.yMm * WORLD_UNITS_PER_MM;
+  const px = component?.stateProperties?.['mirrorX'] === true ? baseWidth - originalPx : originalPx;
+  const py =
+    component?.stateProperties?.['mirrorY'] === true ? baseHeight - originalPy : originalPy;
+  const normalized = ((rotation % 360) + 360) % 360;
+  if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
+  if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };
+  if (normalized === 270) return { x: origin.x + py, y: origin.y + baseWidth - px };
+  return { x: origin.x + px, y: origin.y + py };
+}
+
 export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number; height: number } {
   const original = physicalToWorld(entry.physicalSizeMm);
   return Math.abs(rotation % 180) === 90
@@ -287,15 +312,5 @@ export function terminalPosition(
       : terminal;
   const spec = entry?.terminals[resolved];
   if (!entry || !spec) return null;
-  const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
-  const originalPx = spec.xMm * WORLD_UNITS_PER_MM;
-  const originalPy = spec.yMm * WORLD_UNITS_PER_MM;
-  const px = component?.stateProperties?.['mirrorX'] === true ? baseWidth - originalPx : originalPx;
-  const py =
-    component?.stateProperties?.['mirrorY'] === true ? baseHeight - originalPy : originalPy;
-  const normalized = ((rotation % 360) + 360) % 360;
-  if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
-  if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };
-  if (normalized === 270) return { x: origin.x + py, y: origin.y + baseWidth - px };
-  return { x: origin.x + px, y: origin.y + py };
+  return componentPointPosition(componentOrType, origin, spec, rotation);
 }

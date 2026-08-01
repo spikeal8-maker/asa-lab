@@ -1985,3 +1985,147 @@
     transition: none;
   }
 }
+
+/* Owner interaction corrective: the stage itself is the pan surface. */
+.workbench-canvas,
+.workbench-grid-hit {
+  cursor: grab;
+}
+.workbench-canvas.placing,
+.workbench-canvas.placing .workbench-grid-hit {
+  cursor: crosshair;
+}
+.workbench-canvas.panning,
+.workbench-canvas.panning .workbench-grid-hit {
+  cursor: grabbing;
+}
+.workbench-placement-preview {
+  opacity: 0.82;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 8px rgba(31, 48, 59, 0.22));
+}
+
+/* A selected component gets a silhouette; terminals appear only on direct hover. */
+.workbench-component-selected .workbench-terminal-dot,
+.workbench-canvas.wiring .workbench-terminal-dot,
+.workbench-canvas.wiring .workbench-breadboard-hole {
+  opacity: 0;
+}
+.workbench-component-selected .workbench-terminal:hover .workbench-terminal-dot,
+.workbench-terminal.pending .workbench-terminal-dot,
+.workbench-breadboard-terminal:hover .workbench-breadboard-hole,
+.workbench-breadboard-terminal.pending .workbench-breadboard-hole {
+  opacity: 1;
+}
+.workbench-terminal-hit:focus,
+.workbench-breadboard-hole-hit:focus,
+.workbench-potentiometer-hit:focus {
+  outline: none;
+}
+.workbench-terminal-dot,
+.workbench-breadboard-hole {
+  fill: #2f8fca;
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+
+.workbench-parametric-selection {
+  fill: none;
+  stroke: #3b8ed7;
+  stroke-width: 5;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.workbench-component-actuator-active .workbench-part {
+  filter: drop-shadow(0 0 7px rgba(25, 151, 205, 0.82));
+}
+.workbench-potentiometer-hit {
+  fill: rgba(255, 255, 255, 0.001);
+  cursor: grab;
+}
+.workbench-potentiometer-hit:active {
+  cursor: grabbing;
+}
+
+/* Tinkercad-style detailed catalog rows contain useful component information. */
+.workbench-catalog-copy {
+  display: grid;
+  min-width: 0;
+}
+.workbench-catalog-grid.list-view {
+  gap: 7px;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-card {
+  width: 100%;
+  height: 94px;
+  min-height: 94px;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-add {
+  grid-template-columns: 62px minmax(0, 1fr) 12px;
+  grid-template-rows: 1fr;
+  gap: 9px;
+  padding: 7px 8px;
+  text-align: left;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-art {
+  width: 60px;
+  height: 76px;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-copy {
+  align-content: center;
+  gap: 4px;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-name {
+  min-height: auto;
+  overflow: visible;
+  color: #354b5a;
+  font-size: 12px;
+  font-weight: 700;
+  -webkit-line-clamp: unset;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-copy small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #657783;
+  font-size: 10px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.workbench-catalog-chevron {
+  color: #7b8b95;
+  font-size: 21px;
+  line-height: 1;
+}
+.workbench-catalog-card.disabled .workbench-catalog-chevron {
+  visibility: hidden;
+}
+
+.workbench-calculated-property {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  min-height: 32px;
+}
+.workbench-calculated-property > span {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding: 4px 7px;
+  background: #0696d7;
+  color: #fff;
+  font-size: 12px;
+}
+.workbench-calculated-property output {
+  padding: 0 8px;
+  color: #34495e;
+  font-weight: 700;
+}
+.workbench-calculated-property small {
+  grid-column: 1 / -1;
+  padding: 5px 7px;
+  background: #eef6fa;
+  color: #5d7180;
+  font-size: 10px;
+  line-height: 1.25;
+}

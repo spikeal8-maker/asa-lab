@@ -70,6 +70,9 @@ export function updateSelectionVariant(
 
   const terminals = new Set(Object.keys(entry.terminals));
   const internalConnections = internalConnectionsForType(componentTypeId);
+  const rotation = current.rotation ?? 0;
+  const currentSize = currentEntry ? renderedSize(currentEntry, rotation) : null;
+  const nextSize = renderedSize(entry, rotation);
   const component: SchematicComponent = {
     ...current,
     kind: entry.kind,
@@ -84,6 +87,15 @@ export function updateSelectionVariant(
       ? {}
       : { wiperPosition: entry.defaultWiperPosition }),
     stateProperties: { ...entry.defaultStateProperties },
+    // Family variants grow around their physical centre. This keeps centred
+    // terminals (notably the two battery-holder wire ends) at the same world
+    // position instead of making the component jump sideways.
+    position: currentSize
+      ? {
+          x: current.position.x + (currentSize.width - nextSize.width) / 2,
+          y: current.position.y + (currentSize.height - nextSize.height) / 2,
+        }
+      : current.position,
     pinIds: [...terminals],
     holeBindings: {},
     internalConnections,

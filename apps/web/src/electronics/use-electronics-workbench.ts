@@ -10,6 +10,7 @@ import {
 import { type ComponentResult, type SchematicComponent, type Terminal } from '../api';
 import {
   catalogEntry,
+  componentPointPosition,
   familyById,
   familyForVariant,
   familyMatchesCategory,
@@ -59,9 +60,12 @@ import {
   DRAG_MIME,
   STAGE_HEIGHT,
   STAGE_WIDTH,
+  type ActuatorPress,
+  type CatalogPlacement,
   type ComponentDrag,
   type MarqueeDrag,
   type PanDrag,
+  type PotentiometerDrag,
   type Selection,
   type TerminalRef,
   type VertexDrag,
@@ -109,6 +113,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
   const [libraryVariants, setLibraryVariants] = useState<Readonly<Record<string, string>>>({});
   const [libraryVariantPopover, setLibraryVariantPopover] = useState<string | null>(null);
+  const [catalogPlacement, setCatalogPlacement] = useState<CatalogPlacement | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeDrag | null>(null);
@@ -118,7 +123,8 @@ export function useElectronicsWorkbench(projectId: string) {
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
-  const componentTapRef = useRef<{ componentId: string; at: number } | null>(null);
+  const actuatorPressRef = useRef<ActuatorPress | null>(null);
+  const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
   const spacePressedRef = useRef(false);
   const counterRef = useRef(0);
   const viewportProjectRef = useRef<string | null>(null);
@@ -209,6 +215,27 @@ export function useElectronicsWorkbench(projectId: string) {
     addComponent(selectedFamilyVariant(family, libraryVariants[familyId]).componentTypeId, at);
   }
 
+  function beginFamilyPlacement(familyId: string): void {
+    const family = familyById(familyId);
+    if (!family?.enabled) return;
+    const variant = selectedFamilyVariant(family, libraryVariants[familyId]);
+    setCatalogPlacement({ componentTypeId: variant.componentTypeId, point: null });
+    setLibraryVariantPopover(null);
+    setSelection(null);
+    setPendingTerminal(null);
+    setWirePreviewEnd(null);
+    setNotice(`${family.familyLabel} прикреплён к указателю. Щёлкните на рабочем поле.`);
+  }
+
+  function placeCatalogComponent(event: PointerEvent<SVGSVGElement>): void {
+    if (!catalogPlacement || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const { componentTypeId } = catalogPlacement;
+    setCatalogPlacement(null);
+    addComponent(componentTypeId, toWorld(event));
+  }
+
   function duplicateSelected(): void {
     if (!document || selection?.kind !== 'component') return;
     const duplicated = duplicateComponentInDocument(document, selection, nextId(selection.id));
@@ -285,24 +312,46 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setSelectedState(state: boolean): void {
     if (!document) return;
+    if (!simulationRunning) {
+      setNotice('Запустите моделирование, чтобы управлять кнопкой или переключателем.');
+      return;
+    }
     const next = updateSelectionState(document, selection, state);
     if (next) commitDocument(next, state ? 'Контакт замкнут.' : 'Контакт разомкнут.');
   }
 
-  function toggleComponentState(componentId: string): void {
-    if (!document) return;
+  function setComponentState(componentId: string, state: boolean, message?: string): void {
+    if (!document || !simulationRunning) return;
     const component = document.components.find((item) => item.id === componentId);
     if (!component || (component.kind !== 'switch' && component.kind !== 'button')) return;
     const target = { kind: 'component' as const, id: componentId, ids: [componentId] };
-    const next = updateSelectionState(document, target, !component.state);
+    const next = updateSelectionState(document, target, state);
     if (next) {
       setSelection(target);
-      commitDocument(next, component.state ? 'Контакт разомкнут.' : 'Контакт замкнут.');
+      commitDocument(next, message);
     }
+  }
+
+  function toggleComponentState(componentId: string): void {
+    if (!document || !simulationRunning) {
+      setNotice('Запустите моделирование, чтобы управлять компонентом.');
+      return;
+    }
+    const component = document.components.find((item) => item.id === componentId);
+    if (!component || (component.kind !== 'switch' && component.kind !== 'button')) return;
+    setComponentState(
+      componentId,
+      !component.state,
+      component.state ? 'Контакт разомкнут.' : 'Контакт замкнут.',
+    );
   }
 
   function setSelectedWiper(position: number): void {
     if (!document) return;
+    if (!simulationRunning) {
+      setNotice('Положение ручки изменяется во время моделирования.');
+      return;
+    }
     const next = updateWiperPosition(document, selection, position);
     if (next) commitDocument(next, `Положение движка: ${Math.round(position * 100)}%.`);
   }
@@ -440,6 +489,21 @@ export function useElectronicsWorkbench(projectId: string) {
       event.stopPropagation();
       return;
     }
+    if (simulationRunning && (component.kind === 'button' || component.kind === 'switch')) {
+      actuatorPressRef.current = {
+        componentId: component.id,
+        pointerId: event.pointerId,
+        kind: component.kind,
+      };
+      stageRef.current?.setPointerCapture(event.pointerId);
+      setSelection({ kind: 'component', id: component.id, ids: [component.id] });
+      if (component.kind === 'button') {
+        setComponentState(component.id, true, 'Кнопка нажата.');
+      }
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
     const point = toWorld(event);
     const componentIds =
       selection?.kind === 'component' && selection.ids.includes(component.id)
@@ -465,23 +529,67 @@ export function useElectronicsWorkbench(projectId: string) {
     event.stopPropagation();
   }
 
+  function wiperPositionFromPointer(component: SchematicComponent, point: Point): number | null {
+    const entry = catalogEntry(component);
+    if (!entry) return null;
+    const center = componentPointPosition(
+      component,
+      component.position,
+      {
+        xMm: entry.physicalSizeMm.width / 2,
+        yMm: entry.physicalSizeMm.height * 0.45,
+      },
+      component.rotation ?? 0,
+    );
+    if (!center) return null;
+    let knobAngle = (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI + 90;
+    while (knobAngle > 180) knobAngle -= 360;
+    while (knobAngle < -180) knobAngle += 360;
+    return clamp((clamp(knobAngle, -135, 135) + 135) / 270, 0, 1);
+  }
+
+  function updatePotentiometerFromPointer(componentId: string, point: Point): void {
+    if (!document || !simulationRunning) return;
+    const component = document.components.find((item) => item.id === componentId);
+    if (!component || component.kind !== 'potentiometer') return;
+    const position = wiperPositionFromPointer(component, point);
+    if (position === null) return;
+    const target = { kind: 'component' as const, id: componentId, ids: [componentId] };
+    const next = updateWiperPosition(document, target, position);
+    if (!next) return;
+    setDocument(next);
+    setSaveStatus('dirty');
+  }
+
+  function startPotentiometerControl(
+    event: PointerEvent<SVGCircleElement>,
+    component: SchematicComponent,
+  ): void {
+    if (event.button !== 0 || !simulationRunning) return;
+    potentiometerDragRef.current = { componentId: component.id, pointerId: event.pointerId };
+    stageRef.current?.setPointerCapture(event.pointerId);
+    setSelection({ kind: 'component', id: component.id, ids: [component.id] });
+    updatePotentiometerFromPointer(component.id, toWorld(event));
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
   function startPan(event: PointerEvent<SVGSVGElement>): void {
-    const shouldPan = event.button === 1 || (event.button === 0 && spacePressedRef.current);
+    const onEmptyCanvas = (event.target as Element).classList.contains('workbench-grid-hit');
+    const shouldPan =
+      event.button === 1 ||
+      (event.button === 0 && (spacePressedRef.current || (onEmptyCanvas && !event.shiftKey)));
     if (!shouldPan) {
-      if (
-        event.button === 0 &&
-        (event.target as Element).classList.contains('workbench-grid-hit')
-      ) {
+      if (event.button === 0 && onEmptyCanvas && event.shiftKey) {
         const start = toWorld(event);
         const next = {
           pointerId: event.pointerId,
           start,
           current: start,
-          additive: event.shiftKey,
+          additive: true,
         };
         setMarquee(next);
         event.currentTarget.setPointerCapture(event.pointerId);
-        if (!event.shiftKey) setSelection(null);
       }
       return;
     }
@@ -492,11 +600,21 @@ export function useElectronicsWorkbench(projectId: string) {
     };
     setPanning(true);
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (onEmptyCanvas && !event.shiftKey) setSelection(null);
     event.preventDefault();
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
     const world = toWorld(event);
+    const potentiometerDrag = potentiometerDragRef.current;
+    if (potentiometerDrag?.pointerId === event.pointerId) {
+      updatePotentiometerFromPointer(potentiometerDrag.componentId, world);
+      return;
+    }
+    if (catalogPlacement) {
+      setCatalogPlacement((current) => (current ? { ...current, point: world } : current));
+      return;
+    }
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId && document) {
       setDocument(moveWireVertex(document, vertexDrag.wireId, vertexDrag.vertexIndex, world));
@@ -548,6 +666,26 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function finishPointer(event: PointerEvent<SVGSVGElement>): void {
+    const potentiometerDrag = potentiometerDragRef.current;
+    if (potentiometerDrag?.pointerId === event.pointerId) {
+      potentiometerDragRef.current = null;
+      if (document) {
+        pushHistory(document);
+        const component = document.components.find(
+          (item) => item.id === potentiometerDrag.componentId,
+        );
+        setNotice(`Положение ручки: ${Math.round((component?.wiperPosition ?? 0.5) * 100)}%.`);
+      }
+    }
+    const actuatorPress = actuatorPressRef.current;
+    if (actuatorPress?.pointerId === event.pointerId) {
+      actuatorPressRef.current = null;
+      if (actuatorPress.kind === 'button') {
+        setComponentState(actuatorPress.componentId, false, 'Кнопка отпущена.');
+      } else {
+        toggleComponentState(actuatorPress.componentId);
+      }
+    }
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId) {
       vertexDragRef.current = null;
@@ -599,16 +737,6 @@ export function useElectronicsWorkbench(projectId: string) {
               ? 'Выводы привязаны к отверстиям макетки.'
               : 'Положение сохранится автоматически.',
           );
-          componentTapRef.current = null;
-        } else if (moved && (moved.kind === 'switch' || moved.kind === 'button')) {
-          const now = Date.now();
-          const previous = componentTapRef.current;
-          if (previous?.componentId === moved.id && now - previous.at <= 420) {
-            componentTapRef.current = null;
-            toggleComponentState(moved.id);
-          } else {
-            componentTapRef.current = { componentId: moved.id, at: now };
-          }
         }
       }
     }
@@ -711,6 +839,7 @@ export function useElectronicsWorkbench(projectId: string) {
         event.preventDefault();
         rotateSelected();
       } else if (event.key === 'Escape') {
+        setCatalogPlacement(null);
         setPendingTerminal(null);
         setWirePreviewEnd(null);
         setSelection(null);
@@ -754,11 +883,26 @@ export function useElectronicsWorkbench(projectId: string) {
   const selectedFamily = selectedComponent
     ? familyForVariant(selectedComponent.variantId ?? selectedComponent.componentTypeId)
     : null;
+  const catalogPlacementComponent = useMemo(() => {
+    if (!document || !catalogPlacement?.point) return null;
+    return addComponentToDocument(
+      document,
+      catalogPlacement.componentTypeId,
+      catalogPlacement.point,
+      'catalog-placement-preview',
+    ).component;
+  }, [catalogPlacement, document]);
   const resultByComponent = useMemo(() => {
     const map = new Map<string, ComponentResult>();
     for (const item of result?.components ?? []) map.set(item.componentId, item);
     return map;
   }, [result]);
+
+  function componentLedBrightness(component: SchematicComponent): number {
+    if (component.kind !== 'led' || !simulationRunning) return 0;
+    const current = Math.abs(resultByComponent.get(component.id)?.current ?? 0);
+    return Math.round(clamp((current / 0.02) * 100, 0, 100));
+  }
 
   const diagnosticCodesByComponent = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -870,6 +1014,7 @@ export function useElectronicsWorkbench(projectId: string) {
     reconnectEndpoint,
     clickTerminal,
     startComponentDrag,
+    startPotentiometerControl,
     selectComponent,
     startVertexDrag,
     startPan,
@@ -879,6 +1024,7 @@ export function useElectronicsWorkbench(projectId: string) {
     zoomBy,
     fitScene,
     handleDrop,
+    placeCatalogComponent,
     saveNow,
     toggleSimulation,
     resetSimulation,
@@ -893,13 +1039,17 @@ export function useElectronicsWorkbench(projectId: string) {
     diagnosticCodesByComponent,
     errorDiagnosticComponentIds,
     componentVisualState,
+    componentLedBrightness,
     viewBox,
     pendingStart,
     busy,
     panning,
     marquee,
+    catalogPlacement,
+    catalogPlacementComponent,
     addComponent,
     addFamily,
+    beginFamilyPlacement,
   };
 }
 

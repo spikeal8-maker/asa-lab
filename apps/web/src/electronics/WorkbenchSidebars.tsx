@@ -28,6 +28,21 @@ const LED_COLOUR_OPTIONS = [
   { value: 'white', label: 'Белый' },
 ] as const;
 
+function projectVariantLabel(familyId: string, variantId: string, fallback: string): string {
+  if (familyId === 'breadboard') {
+    if (variantId === 'breadboard-small') return 'Малая — 170 точек';
+    if (variantId === 'breadboard-medium') return 'Средняя — 420 точек';
+    if (variantId === 'breadboard-large') return 'Большая — 882 точки';
+  }
+  if (familyId === 'battery-holder-aa') {
+    const cells = Number(variantId.split('-').at(-1));
+    if (Number.isFinite(cells)) {
+      return `${cells} ${cells === 1 ? 'батарея' : cells < 5 ? 'батареи' : 'батарей'} AA — ${cells * 1.5} В`;
+    }
+  }
+  return fallback;
+}
+
 export function WorkbenchSidebars({
   controller: c,
 }: {
@@ -126,11 +141,7 @@ export function WorkbenchSidebars({
                       className="workbench-catalog-add"
                       disabled={!family.enabled}
                       onClick={() => {
-                        if (family.variants.length > 1) {
-                          c.toggleLibraryVariantPopover(family.familyId);
-                        } else {
-                          c.addFamily(family.familyId);
-                        }
+                        c.beginFamilyPlacement(family.familyId);
                       }}
                       title={
                         family.enabled
@@ -150,48 +161,18 @@ export function WorkbenchSidebars({
                           asset={visualAsset(selectedVariant.entry)}
                         />
                       </span>
-                      <span className="workbench-catalog-name">{family.familyLabel}</span>
+                      <span className="workbench-catalog-copy">
+                        <span className="workbench-catalog-name">{family.familyLabel}</span>
+                        {c.libraryView === 'list' ? (
+                          <small>{selectedVariant.entry.description}</small>
+                        ) : null}
+                      </span>
+                      {c.libraryView === 'list' ? (
+                        <span className="workbench-catalog-chevron" aria-hidden="true">
+                          ›
+                        </span>
+                      ) : null}
                     </button>
-                    {family.enabled &&
-                    family.variants.length > 1 &&
-                    c.libraryVariantPopover === family.familyId ? (
-                      <div
-                        className="workbench-variant-popover"
-                        role="dialog"
-                        aria-label={`Варианты: ${family.familyLabel}`}
-                      >
-                        <strong>{family.familyLabel}</strong>
-                        <div className="workbench-variant-options">
-                          {family.variants.map((variant) => (
-                            <button
-                              key={variant.variantId}
-                              type="button"
-                              disabled={!variant.enabled}
-                              title={variant.blockReason ?? undefined}
-                              className={
-                                selectedVariant.variantId === variant.variantId ? 'selected' : ''
-                              }
-                              aria-pressed={selectedVariant.variantId === variant.variantId}
-                              onClick={() =>
-                                c.setLibraryVariant(family.familyId, variant.variantId)
-                              }
-                            >
-                              {variant.variantLabel}
-                            </button>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          className="workbench-variant-add"
-                          onClick={() => {
-                            c.addFamily(family.familyId);
-                            c.setLibraryVariantPopover(null);
-                          }}
-                        >
-                          Добавить
-                        </button>
-                      </div>
-                    ) : null}
                   </article>
                 );
               })}
@@ -249,7 +230,11 @@ export function WorkbenchSidebars({
                         value={variant.variantId}
                         disabled={!variant.enabled}
                       >
-                        {variant.variantLabel}
+                        {projectVariantLabel(
+                          c.selectedFamily?.familyId ?? '',
+                          variant.variantId,
+                          variant.variantLabel,
+                        )}
                       </option>
                     ))}
                   </select>
@@ -311,6 +296,7 @@ export function WorkbenchSidebars({
                   </span>
                   <input
                     type="checkbox"
+                    disabled={!c.simulationRunning}
                     checked={c.selectedComponent.state === true}
                     onChange={(event) => c.setSelectedState(event.target.checked)}
                   />
@@ -320,6 +306,7 @@ export function WorkbenchSidebars({
                 <button
                   type="button"
                   className="workbench-momentary-button"
+                  disabled={!c.simulationRunning}
                   onPointerDown={() => c.setSelectedState(true)}
                   onPointerUp={() => c.setSelectedState(false)}
                   onPointerLeave={() => c.setSelectedState(false)}
@@ -338,6 +325,7 @@ export function WorkbenchSidebars({
                     min="0"
                     max="1"
                     step="0.01"
+                    disabled={!c.simulationRunning}
                     value={c.selectedComponent.wiperPosition ?? 0.5}
                     onChange={(event) => c.setSelectedWiper(Number(event.target.value))}
                   />
@@ -365,22 +353,11 @@ export function WorkbenchSidebars({
                       ))}
                     </select>
                   </label>
-                  <label>
-                    <span>
-                      Яркость: {Number(c.selectedComponent.stateProperties?.['ledBrightness'] ?? 0)}
-                      %
-                    </span>
-                    <input
-                      aria-label="Яркость обычного LED"
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={Number(c.selectedComponent.stateProperties?.['ledBrightness'] ?? 0)}
-                      onChange={(event) =>
-                        c.setSelectedProperties({ ledBrightness: Number(event.target.value) })
-                      }
-                    />
-                  </label>
+                  <div className="workbench-calculated-property">
+                    <span>Расчётная яркость</span>
+                    <output>{c.componentLedBrightness(c.selectedComponent)}%</output>
+                    <small>Определяется током, напряжением и сопротивлением цепи.</small>
+                  </div>
                 </fieldset>
               ) : null}
 

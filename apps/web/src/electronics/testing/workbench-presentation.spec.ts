@@ -23,7 +23,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-breadboard-hole\s*\{[^}]*opacity:\s*0;/s);
   });
 
-  it('uses one three-column shelf implementation with image-and-name cards only', () => {
+  it('uses one three-column shelf and a meaningful detailed list', () => {
     expect(existsSync(resolve(electronicsRoot, 'workbench-tinkercad-parity.css'))).toBe(false);
     expect(workbenchCss).toContain('--wb-library-width: 276px');
     expect(workbenchCss).toContain('grid-template-columns: repeat(3, 76px)');
@@ -33,7 +33,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('workbench-family-variant-label');
     expect(sidebarSource).not.toContain('<small>В разработке</small>');
     expect(sidebarSource).not.toContain('workbench-catalog-blocked');
-    expect(sidebarSource).toContain('workbench-variant-popover');
+    expect(sidebarSource).not.toContain('workbench-variant-popover');
+    expect(sidebarSource).toContain('workbench-catalog-copy');
+    expect(sidebarSource).toContain('selectedVariant.entry.description');
+    expect(sidebarSource).toContain('c.beginFamilyPlacement(family.familyId)');
   });
 
   it('matches the compact editor chrome and shape-following selection contract', () => {
@@ -69,9 +72,14 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.zoomBy(0.85)');
     expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
     expect(stageSource).not.toContain('e.detail === 2');
-    expect(
-      readFileSync(resolve(electronicsRoot, 'use-electronics-workbench.ts'), 'utf8'),
-    ).toContain('componentTapRef');
+    const controllerSource = readFileSync(
+      resolve(electronicsRoot, 'use-electronics-workbench.ts'),
+      'utf8',
+    );
+    expect(controllerSource).toContain('catalogPlacement');
+    expect(controllerSource).toContain('actuatorPressRef');
+    expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
+    expect(stageSource).toContain('onPointerDownCapture={c.placeCatalogComponent}');
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {

@@ -22,6 +22,11 @@ const OWNER_RESISTOR = readFileSync(
   'utf8',
 );
 
+const RUNTIME_VISUAL = readFileSync(
+  new URL('../ProductionComponentVisual.tsx', import.meta.url),
+  'utf8',
+);
+
 beforeAll(() => configureProductionLibrary(OWNER_CATALOG));
 
 describe('owner axial resistor visual', () => {
@@ -44,5 +49,11 @@ describe('owner axial resistor visual', () => {
     expect(resistorBandState(300, 5).bands).toEqual(['orange', 'black', 'brown', 'gold']);
     expect(resistorBandState(4_700, 5).bands).toEqual(['yellow', 'violet', 'red', 'gold']);
     expect(resistorBandState(10_000, 1).bands).toEqual(['brown', 'black', 'orange', 'brown']);
+    expect(RUNTIME_VISUAL).toContain('workbench-parametric-resistor');
+    expect(RUNTIME_VISUAL).toContain('data-testid="resistor-colour-bands"');
+    expect(RUNTIME_VISUAL).toContain('RESISTOR_BAND_CSS[band]');
+    expect(RUNTIME_VISUAL).not.toContain(
+      'className="workbench-parametric-resistor" pointerEvents="none"',
+    );
   });
 });

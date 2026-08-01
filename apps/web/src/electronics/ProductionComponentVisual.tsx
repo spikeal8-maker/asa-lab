@@ -19,6 +19,7 @@ interface Props {
   readonly width: number;
   readonly height: number;
   readonly visualState: ComponentVisualState;
+  readonly effectiveBrightness?: number;
   readonly selected?: boolean;
 }
 
@@ -50,10 +51,18 @@ export function ProductionComponentVisual({
   width,
   height,
   visualState,
+  effectiveBrightness,
   selected = false,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
-  const asset = visualAsset(entry, component, visualState);
+  const visualComponent =
+    entry.key === 'led-5mm' && effectiveBrightness !== undefined
+      ? {
+          ...component,
+          stateProperties: { ...properties, ledBrightness: effectiveBrightness },
+        }
+      : component;
+  const asset = visualAsset(entry, visualComponent, visualState);
   const toleranceValue = Number(properties['tolerancePercent'] ?? 5);
   const tolerance: ResistorTolerancePercent = [1, 2, 5, 10].includes(toleranceValue)
     ? (toleranceValue as ResistorTolerancePercent)
@@ -71,7 +80,7 @@ export function ProductionComponentVisual({
       overflow="visible"
       aria-hidden="true"
     >
-      {selected ? (
+      {selected && entry.key !== 'resistor-axial' ? (
         <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
           {SELECTION_OFFSETS.map(([offsetX, offsetY]) => (
             <rect
@@ -95,23 +104,76 @@ export function ProductionComponentVisual({
           ))}
         </g>
       ) : null}
-      <image href={asset} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
-
-      {resistorBands ? (
-        <g data-testid="resistor-colour-bands" pointerEvents="none">
-          {resistorBands.map((band, index) => (
-            <rect
-              key={`${band}-${index}`}
-              data-band={index + 1}
-              x={width * 0.32}
-              y={height * (0.335 + index * 0.11)}
-              width={width * 0.42}
-              height={height * 0.052}
-              fill={RESISTOR_BAND_CSS[band]}
-            />
-          ))}
-        </g>
+      {selected && entry.key === 'resistor-axial' ? (
+        <rect
+          className="workbench-parametric-selection"
+          x={width * 0.08}
+          y={height * 0.16}
+          width={width * 0.84}
+          height={height * 0.68}
+          rx={width * 0.3}
+        />
       ) : null}
+      {entry.key === 'resistor-axial' ? (
+        <g className="workbench-parametric-resistor">
+          <line
+            x1={width / 2}
+            y1="0"
+            x2={width / 2}
+            y2={height * 0.23}
+            stroke="#8d9599"
+            strokeWidth={Math.max(2, width * 0.1)}
+          />
+          <line
+            x1={width / 2}
+            y1={height * 0.77}
+            x2={width / 2}
+            y2={height}
+            stroke="#8d9599"
+            strokeWidth={Math.max(2, width * 0.1)}
+          />
+          <rect
+            x={width * 0.13}
+            y={height * 0.2}
+            width={width * 0.74}
+            height={height * 0.6}
+            rx={width * 0.3}
+            fill="#d7b67c"
+            stroke="#87683d"
+            strokeWidth={Math.max(1, width * 0.035)}
+          />
+          <rect
+            x={width * 0.2}
+            y={height * 0.235}
+            width={width * 0.16}
+            height={height * 0.49}
+            rx={width * 0.08}
+            fill="#f5dcae"
+            opacity="0.55"
+          />
+          {resistorBands ? (
+            <g data-testid="resistor-colour-bands">
+              {resistorBands.map((band, index) => {
+                const positions = [0.31, 0.425, 0.54, 0.685] as const;
+                return (
+                  <rect
+                    key={`${band}-${index}`}
+                    data-band={index + 1}
+                    x={width * 0.125}
+                    y={height * positions[index]}
+                    width={width * 0.75}
+                    height={height * 0.065}
+                    rx={width * 0.025}
+                    fill={RESISTOR_BAND_CSS[band]}
+                  />
+                );
+              })}
+            </g>
+          ) : null}
+        </g>
+      ) : (
+        <image href={asset} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
+      )}
 
       {entry.key === 'rgb-led' ? (
         <ellipse
@@ -197,9 +259,9 @@ export function ProductionComponentVisual({
             x1={width / 2}
             y1={height * 0.45}
             x2={width / 2}
-            y2={height * 0.19}
-            stroke="#152632"
-            strokeWidth="2.2"
+            y2={height * 0.31}
+            stroke="#edf5f7"
+            strokeWidth="1.5"
             strokeLinecap="round"
           />
         </g>
