@@ -17162,7 +17162,7 @@
       "appearsInBasic": true,
       "searchAliases": ["battery-1.5v", "Батарея", "1,5 В"],
       "displayNameEn": "battery-1.5v",
-      "provenance": "exact_owner_svg",
+      "provenance": "owner_supplied",
       "physicalWidthMm": 23.524,
       "physicalHeightMm": 66.87,
       "viewBox": [0, 0, 23.524, 66.87],
@@ -17197,7 +17197,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
+      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -17227,7 +17227,7 @@
       "appearsInBasic": true,
       "searchAliases": ["battery-3v", "Батарея", "3 В"],
       "displayNameEn": "battery-3v",
-      "provenance": "exact_owner_svg",
+      "provenance": "owner_supplied",
       "physicalWidthMm": 31.423,
       "physicalHeightMm": 56.855,
       "viewBox": [0, 0, 31.423, 56.855],
@@ -17262,7 +17262,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
+      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -17327,7 +17327,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
+      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -17392,7 +17392,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -29620,7 +29620,7 @@
         "currentLimit": [0, 5]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
