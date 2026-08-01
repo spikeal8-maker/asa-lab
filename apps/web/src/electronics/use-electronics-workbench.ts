@@ -179,7 +179,10 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setLibraryVariant(familyId: string, variantId: string): void {
     const family = familyById(familyId);
-    if (!family?.enabled || !family.variants.some((variant) => variant.variantId === variantId)) {
+    if (
+      !family?.enabled ||
+      !family.variants.some((variant) => variant.variantId === variantId && variant.enabled)
+    ) {
       return;
     }
     setLibraryVariants((current) => ({ ...current, [familyId]: variantId }));
@@ -275,7 +278,10 @@ export function useElectronicsWorkbench(projectId: string) {
     const family = familyForVariant(
       selectedComponent?.variantId ?? selectedComponent?.componentTypeId,
     );
-    if (!family?.enabled || !family.variants.some((variant) => variant.variantId === variantId)) {
+    if (
+      !family?.enabled ||
+      !family.variants.some((variant) => variant.variantId === variantId && variant.enabled)
+    ) {
       return;
     }
     const next = updateSelectionVariant(document, selection, variantId);
@@ -609,7 +615,13 @@ export function useElectronicsWorkbench(projectId: string) {
   function handleDrop(event: DragEvent<SVGSVGElement>): void {
     event.preventDefault();
     const componentTypeId = event.dataTransfer.getData(DRAG_MIME);
-    if (!catalogEntry(componentTypeId) || !familyForVariant(componentTypeId)?.enabled) return;
+    const family = familyForVariant(componentTypeId);
+    if (
+      !catalogEntry(componentTypeId) ||
+      !family?.enabled ||
+      !family.variants.some((variant) => variant.variantId === componentTypeId && variant.enabled)
+    )
+      return;
     addComponent(componentTypeId, toWorld(event));
   }
 

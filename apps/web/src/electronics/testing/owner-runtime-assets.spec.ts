@@ -1,57 +1,53 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { OWNER_RUNTIME_ASSET_BY_ID } from '../production-manifest-adapter';
+import {
+  configureProductionLibrary,
+  OWNER_CATALOG_MANIFEST_URL,
+  ownerCatalogItems,
+  productionCatalog,
+  type OwnerCatalogManifest,
+} from '../production-manifest-adapter';
 
-const REQUIRED_OWNER_COMPONENTS = [
-  'resistor-axial',
-  'led-5mm',
-  'button-tactile-6mm',
-  'potentiometer',
-  'electrolytic-capacitor',
-  'switch-spdt',
-  'battery-9v',
-  'breadboard-small',
-  'breadboard-medium',
-  'breadboard-large',
-  'arduino-uno',
-  'dc-motor',
-  'servo-motor',
-  'battery-holder-aa-1',
-  'battery-holder-aa-2',
-  'battery-holder-aa-3',
-  'battery-holder-aa-4',
-  'battery-holder-aa-6',
-  'battery-holder-aa-8',
-  'diode-do35',
-  'diode-do41',
-  'rgb-led',
-  'seven-segment-display',
-  'incandescent-lamp',
-] as const;
+const manifest = JSON.parse(
+  readFileSync(
+    new URL('../../../public/assets/electronics/owner-catalog/manifest.json', import.meta.url),
+    'utf8',
+  ),
+) as OwnerCatalogManifest;
 
-describe('owner SVG runtime allowlist', () => {
-  it('contains the confirmed owner component families', () => {
-    for (const componentId of REQUIRED_OWNER_COMPONENTS) {
-      expect(OWNER_RUNTIME_ASSET_BY_ID[componentId], componentId).toBeTruthy();
+describe('owner SVG runtime catalog adapter', () => {
+  it('loads the complete owner catalog and fails closed on a runtime SHA substitution', () => {
+    expect(OWNER_CATALOG_MANIFEST_URL).toBe('/assets/electronics/owner-catalog/manifest.json');
+
+    configureProductionLibrary(manifest);
+    expect(ownerCatalogItems().length).toBeGreaterThan(33);
+    expect(productionCatalog().length).toBeGreaterThan(0);
+
+    for (const item of productionCatalog()) {
+      expect(item.catalogStatus, item.key).toBe('enabled');
+      expect(item.provenance, item.key).toBe('exact_owner_svg');
+      expect(item.sourceOwnerPath, item.key).not.toBe('');
+      expect(item.sourceSha256, item.key).toMatch(/^[0-9a-f]{64}$/);
+      expect(item.runtimePath, item.key).toMatch(/^\/assets\/electronics\/owner-audit\/.*\.svg$/);
+      expect(item.runtimeSha256, item.key).toBe(item.sourceSha256);
     }
-  });
 
-  it('never exposes generated production artwork, raster or source PNG references', () => {
-    for (const [componentId, asset] of Object.entries(OWNER_RUNTIME_ASSET_BY_ID)) {
-      expect(asset, componentId).toMatch(
-        /^\/assets\/electronics\/(owner-supplied|owner-audit\/components)\//,
-      );
-      expect(asset, componentId).toMatch(/\.svg$/i);
-      expect(asset, componentId).not.toContain('/production/');
-      expect(asset, componentId).not.toContain('/source-reference/');
-      expect(asset, componentId).not.toMatch(/\.(png|jpe?g|webp|gif)$/i);
+    for (const componentId of ['microbit', 'vibration-motor']) {
+      const item = ownerCatalogItems().find((entry) => entry.key === componentId);
+      expect(item?.catalogStatus).toBe('disabled_missing_svg');
+      expect(item?.enabled).toBe(false);
+      expect(item?.asset).toBe('');
     }
-  });
 
-  it('does not silently substitute missing owner SVG components', () => {
-    expect(OWNER_RUNTIME_ASSET_BY_ID['battery-1.5v']).toBeUndefined();
-    expect(OWNER_RUNTIME_ASSET_BY_ID['battery-3v']).toBeUndefined();
-    expect(OWNER_RUNTIME_ASSET_BY_ID['battery-6v']).toBeUndefined();
-    expect(OWNER_RUNTIME_ASSET_BY_ID['microbit-preview']).toBeUndefined();
-    expect(OWNER_RUNTIME_ASSET_BY_ID['vibration-motor-preview']).toBeUndefined();
+    const substitution = structuredClone(manifest) as OwnerCatalogManifest & {
+      components: Array<{ status: string; runtimeSha256: string }>;
+    };
+    const enabled = substitution.components.find((item) => item.status === 'enabled');
+    if (!enabled) throw new Error('focused fixture contains no enabled owner SVG');
+    enabled.runtimeSha256 = '0'.repeat(64);
+
+    expect(() => configureProductionLibrary(substitution)).toThrow(
+      /owner catalog rejected runtime substitution/,
+    );
   });
 });

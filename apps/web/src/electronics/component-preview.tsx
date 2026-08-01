@@ -28,9 +28,8 @@ interface Props {
 }
 
 /**
- * Catalogue thumbnail. Only an explicit owner-archive SVG may draw a component.
- * Missing assets are shown as an honest disabled marker; the UI never invents a
- * substitute battery, board, motor or other physical part.
+ * Catalogue thumbnail. A byte-exact owner SVG is the only component image.
+ * Missing assets render a neutral empty slot rather than an invented drawing.
  */
 export function ComponentPreview({ preview, asset, className = '' }: Props): JSX.Element {
   if (asset) {
@@ -46,29 +45,10 @@ export function ComponentPreview({ preview, asset, className = '' }: Props): JSX
   }
 
   return (
-    <svg
-      className={`workbench-component-preview workbench-component-preview-missing ${className}`}
-      viewBox="0 0 100 80"
-      data-missing-preview={preview}
+    <span
+      className={`workbench-component-preview missing-owner-asset ${className}`}
+      data-missing-owner-asset={preview}
       aria-hidden="true"
-    >
-      <rect
-        x="13"
-        y="12"
-        width="74"
-        height="56"
-        rx="6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeDasharray="5 4"
-      />
-      <text x="50" y="38" textAnchor="middle" fontSize="10" fill="currentColor">
-        нет SVG
-      </text>
-      <text x="50" y="52" textAnchor="middle" fontSize="8" fill="currentColor">
-        владельца
-      </text>
-    </svg>
+    />
   );
 }

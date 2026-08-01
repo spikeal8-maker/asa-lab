@@ -708,6 +708,16 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+.workbench-catalog-blocked {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: #8a4e4e;
+  font-size: 9px;
+  line-height: 1.15;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .workbench-catalog-art {
   display: grid;
   place-items: center;
@@ -800,6 +810,13 @@
   height: 100%;
   object-fit: contain;
 }
+.workbench-component-preview.missing-owner-asset {
+  width: 58px;
+  height: 48px;
+  border: 1px dashed #aeb8bf;
+  border-radius: 4px;
+  background: transparent;
+}
 .workbench-inspector {
   position: absolute;
   z-index: 20;
@@ -868,6 +885,33 @@
   color: #657784;
   font-size: 10px;
   line-height: 1.35;
+}
+.workbench-owner-proof {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 12px;
+  padding: 8px;
+  border: 1px solid #dbe2e7;
+  border-radius: 5px;
+  background: #f8fafb;
+}
+.workbench-owner-proof div {
+  min-width: 0;
+}
+.workbench-owner-proof dt {
+  color: #536875;
+  font-size: 10px;
+  font-weight: 700;
+}
+.workbench-owner-proof dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  color: #334b59;
+  font-size: 9px;
+  line-height: 1.35;
+}
+.workbench-owner-proof code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .workbench-state-controls {
   display: grid;

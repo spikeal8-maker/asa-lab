@@ -120,13 +120,6 @@ export const RESISTOR_BAND_CSS: Readonly<Record<ResistorBandColour, string>> = {
   silver: '#b8bec4',
 };
 
-const OWNER_LED_ROOT = '/assets/electronics/owner-audit/components/led';
-const OWNER_LED_SPECIAL_ASSETS: Readonly<Record<Exclude<OrdinaryLedFault, 'none'>, string>> = {
-  reverse: `${OWNER_LED_ROOT}/special/led_red_reverse_polarity.svg`,
-  overcurrent: `${OWNER_LED_ROOT}/special/led_orange_overcurrent.svg`,
-  burned: `${OWNER_LED_ROOT}/special/led_red_burned.svg`,
-};
-
 export function physicalToWorld(size: PhysicalSizeMm): PhysicalSizeMm {
   return { width: size.width * WORLD_UNITS_PER_MM, height: size.height * WORLD_UNITS_PER_MM };
 }
@@ -137,12 +130,6 @@ export function ordinaryLedState(
   fault: OrdinaryLedFault = 'none',
 ): OrdinaryLedState {
   return { colour, brightness: clampPercent(brightness), fault };
-}
-
-export function ordinaryLedAsset(state: OrdinaryLedState): string {
-  if (state.fault !== 'none') return OWNER_LED_SPECIAL_ASSETS[state.fault];
-  const level = String(state.brightness).padStart(3, '0');
-  return `${OWNER_LED_ROOT}/${state.colour}/led_${state.colour}_i${level}.svg`;
 }
 
 export function rgbLedState(

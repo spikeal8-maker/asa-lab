@@ -128,7 +128,11 @@ export function WorkbenchSidebars({
                           c.addFamily(family.familyId);
                         }
                       }}
-                      title={family.enabled ? `Добавить: ${family.familyLabel}` : 'В разработке'}
+                      title={
+                        family.enabled
+                          ? `Добавить: ${family.familyLabel}`
+                          : (family.blockReason ?? 'Недоступно')
+                      }
                       aria-label={family.familyLabel}
                       aria-expanded={
                         family.variants.length > 1
@@ -143,6 +147,11 @@ export function WorkbenchSidebars({
                         />
                       </span>
                       <span className="workbench-catalog-name">{family.familyLabel}</span>
+                      {!family.enabled ? (
+                        <span className="workbench-catalog-blocked">
+                          {family.blockReason ?? 'Нет подтверждённого owner SVG'}
+                        </span>
+                      ) : null}
                     </button>
                     {family.enabled &&
                     family.variants.length > 1 &&
@@ -158,6 +167,8 @@ export function WorkbenchSidebars({
                             <button
                               key={variant.variantId}
                               type="button"
+                              disabled={!variant.enabled}
+                              title={variant.blockReason ?? undefined}
                               className={
                                 selectedVariant.variantId === variant.variantId ? 'selected' : ''
                               }
@@ -231,9 +242,31 @@ export function WorkbenchSidebars({
                 />
               </div>
               <p className="workbench-production-id">
-                Production · {c.selectedEntry.key} · {c.selectedEntry.physicalSizeMm.width}×
+                Owner SVG · {c.selectedEntry.key} · {c.selectedEntry.physicalSizeMm.width}×
                 {c.selectedEntry.physicalSizeMm.height} мм
               </p>
+              <dl className="workbench-owner-proof" data-testid="owner-provenance">
+                <div>
+                  <dt>Owner source</dt>
+                  <dd>{c.selectedEntry.sourceOwnerPath}</dd>
+                </div>
+                <div>
+                  <dt>Source SHA-256</dt>
+                  <dd>
+                    <code>{c.selectedEntry.sourceSha256}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Runtime</dt>
+                  <dd>{c.selectedEntry.runtimePath}</dd>
+                </div>
+                <div>
+                  <dt>Runtime SHA-256</dt>
+                  <dd>
+                    <code>{c.selectedEntry.runtimeSha256}</code>
+                  </dd>
+                </div>
+              </dl>
               {c.selectedFamily && c.selectedFamily.variants.length > 1 ? (
                 <label>
                   <span>Вариант</span>
@@ -243,7 +276,11 @@ export function WorkbenchSidebars({
                     onChange={(event) => c.setSelectedVariant(event.target.value)}
                   >
                     {c.selectedFamily.variants.map((variant) => (
-                      <option key={variant.variantId} value={variant.variantId}>
+                      <option
+                        key={variant.variantId}
+                        value={variant.variantId}
+                        disabled={!variant.enabled}
+                      >
                         {variant.variantLabel}
                       </option>
                     ))}

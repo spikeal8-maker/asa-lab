@@ -2,15 +2,7 @@ import type { ComponentKind, ProductionStateValue } from '../api';
 import type { PreviewKey } from './component-preview';
 import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
 
-/**
- * The legacy production manifest is retained only as physical/pin metadata.
- * Runtime artwork is selected exclusively by the explicit owner-SVG allowlist
- * below. Generated files under /production/components are never returned to the
- * editor from this adapter.
- */
-export const OWNER_METADATA_MANIFEST_URL = '/assets/electronics/production/manifest.json';
-export const BREADBOARD_CONNECTIVITY_URL =
-  '/assets/electronics/production/breadboard-connectivity.json';
+export const OWNER_CATALOG_MANIFEST_URL = '/assets/electronics/owner-catalog/manifest.json';
 
 export interface ProductionPin {
   readonly id: string;
@@ -27,30 +19,49 @@ export interface ProductionFootprint {
   readonly holeCount?: number;
 }
 
-export interface ProductionStateAsset {
+export interface OwnerStateAsset {
   readonly state: string;
-  readonly file: string;
+  readonly sourceOwnerArchive: string;
+  readonly sourceOwnerPath: string;
+  readonly sourceSha256: string;
+  readonly runtimePath: string;
+  readonly runtimeSha256: string;
 }
 
-export interface ProductionManifestComponent {
+export interface OwnerCatalogComponent {
   readonly componentId: string;
+  readonly familyId: string;
+  readonly familyLabelRu: string;
+  readonly familyLabelEn: string;
+  readonly variantId: string;
+  readonly isDefaultVariant: boolean;
+  readonly variantLabelRu: string;
+  readonly variantLabelEn: string;
   readonly displayName: string;
+  readonly displayNameEn: string;
   readonly category: string;
-  readonly status: string;
-  readonly provenance: string | null;
-  readonly productionSvg: string | null;
+  readonly subcategoryId: string;
+  readonly catalogOrder: number;
+  readonly appearsInBasic: boolean;
+  readonly searchAliases: readonly string[];
+  readonly catalogTier: 'core' | 'preview';
+  readonly sourceOwnerArchive: string | null;
+  readonly sourceOwnerPath: string | null;
+  readonly sourceSha256: string | null;
+  readonly runtimePath: string | null;
+  readonly runtimeSha256: string | null;
+  readonly provenance: 'exact_owner_svg' | 'owner_supplied' | 'missing_owner_source';
+  readonly status: 'enabled' | 'disabled_missing_svg' | 'disabled_missing_model';
   readonly physicalWidthMm: number | null;
   readonly physicalHeightMm: number | null;
   readonly viewBox: readonly [number, number, number, number] | null;
   readonly pins: readonly ProductionPin[];
   readonly footprint: ProductionFootprint | null;
+  readonly states: readonly string[];
+  readonly stateAssets: readonly OwnerStateAsset[];
   readonly stateContract: Readonly<Record<string, unknown>> | null;
-  readonly stateAssets: { readonly states: readonly ProductionStateAsset[] } | null;
-}
-
-export interface ProductionManifest {
-  readonly worldUnitsPerMm: number;
-  readonly components: readonly ProductionManifestComponent[];
+  readonly simulationSupport: string;
+  readonly blockReason: string | null;
 }
 
 export interface BreadboardHoleDefinition {
@@ -68,8 +79,16 @@ export interface RuntimeBreadboardDefinition {
   readonly groups: Readonly<Record<string, readonly string[]>>;
 }
 
-export interface BreadboardConnectivityManifest {
-  readonly boards: readonly RuntimeBreadboardDefinition[];
+export interface OwnerCatalogManifest {
+  readonly schema: 'asa-lab.electronics-owner-catalog.v1';
+  readonly worldUnitsPerMm: number;
+  readonly policy: {
+    readonly runtimeArt: 'byte_exact_owner_svg_only';
+    readonly failClosed: true;
+    readonly forbidden: readonly string[];
+  };
+  readonly breadboards: readonly RuntimeBreadboardDefinition[];
+  readonly components: readonly OwnerCatalogComponent[];
 }
 
 export type ProductionCatalogCategory =
@@ -84,8 +103,19 @@ export type ProductionCatalogCategory =
 
 export interface ProductionCatalogItem {
   readonly key: string;
+  readonly familyId: string;
+  readonly familyLabel: string;
+  readonly variantId: string;
+  readonly isDefaultVariant: boolean;
+  readonly variantLabel: string;
+  readonly subcategoryId: string;
+  readonly catalogOrder: number;
+  readonly catalogTier: 'core' | 'preview';
+  readonly appearsInBasic: boolean;
+  readonly blockReason: string | null;
   readonly kind: Exclude<ComponentKind, 'wire'>;
   readonly label: string;
+  readonly semanticCategory: string;
   readonly category: Exclude<ProductionCatalogCategory, 'all'>;
   readonly description: string;
   readonly keywords: readonly string[];
@@ -107,82 +137,20 @@ export interface ProductionCatalogItem {
   readonly defaultStateProperties: Readonly<Record<string, ProductionStateValue>>;
   readonly unit: string;
   readonly provenance: string;
+  readonly catalogStatus: OwnerCatalogComponent['status'];
+  readonly sourceOwnerPath: string;
+  readonly sourceSha256: string;
+  readonly runtimePath: string;
+  readonly runtimeSha256: string;
   readonly sourceFile: string;
   readonly simulationSupported: boolean;
-  readonly enabled: true;
+  readonly enabled: boolean;
 }
 
 let catalog: readonly ProductionCatalogItem[] = [];
+let ownerItems: readonly ProductionCatalogItem[] = [];
 let catalogById = new Map<string, ProductionCatalogItem>();
 let boardsById = new Map<string, RuntimeBreadboardDefinition>();
-
-/**
- * Explicit runtime allowlist. Every path points to an SVG already present in
- * the owner archive/evidence tree. No path points to auto-traced PNG output or
- * to a newly invented /production/components replacement.
- */
-export const OWNER_RUNTIME_ASSET_BY_ID: Readonly<Record<string, string>> = {
-  'arduino-uno':
-    '/assets/electronics/owner-audit/components/reference-candidates/arduino-uno.svg',
-  'battery-9v':
-    '/assets/electronics/owner-audit/components/reference-candidates/battery-9v.svg',
-  'battery-holder-aa-1': '/assets/electronics/owner-audit/components/battery-holders/aa-1.svg',
-  'battery-holder-aa-2': '/assets/electronics/owner-audit/components/battery-holders/aa-2.svg',
-  'battery-holder-aa-3': '/assets/electronics/owner-audit/components/battery-holders/aa-3.svg',
-  'battery-holder-aa-4': '/assets/electronics/owner-audit/components/battery-holders/aa-4.svg',
-  'battery-holder-aa-6': '/assets/electronics/owner-audit/components/battery-holders/aa-6.svg',
-  'battery-holder-aa-8': '/assets/electronics/owner-audit/components/battery-holders/aa-8.svg',
-  'breadboard-small': '/assets/electronics/owner-audit/components/breadboards/breadboard-small.svg',
-  'breadboard-medium':
-    '/assets/electronics/owner-audit/components/breadboards/breadboard-medium.svg',
-  'breadboard-large': '/assets/electronics/owner-audit/components/breadboards/breadboard-large.svg',
-  'button-tactile-6mm': '/assets/electronics/owner-audit/components/button/released.svg',
-  'dc-motor': '/assets/electronics/owner-audit/components/reference-candidates/dc-motor.svg',
-  'diode-do35': '/assets/electronics/owner-audit/components/diode/do35.svg',
-  'diode-do41': '/assets/electronics/owner-audit/components/diode/do41.svg',
-  'electrolytic-capacitor':
-    '/assets/electronics/owner-audit/components/reference-candidates/electrolytic-capacitor.svg',
-  'incandescent-lamp': '/assets/electronics/owner-audit/components/lamp/off.svg',
-  'led-5mm': '/assets/electronics/owner-audit/components/led/red/led_red_i000.svg',
-  multimeter: '/assets/electronics/owner-audit/components/reference-candidates/multimeter.svg',
-  photoresistor:
-    '/assets/electronics/owner-audit/components/reference-candidates/photoresistor.svg',
-  piezo: '/assets/electronics/owner-audit/components/reference-candidates/piezo.svg',
-  potentiometer:
-    '/assets/electronics/owner-audit/components/reference-candidates/potentiometer.svg',
-  'regulated-power-supply':
-    '/assets/electronics/owner-audit/components/reference-candidates/regulated-power-supply.svg',
-  'resistor-axial':
-    '/assets/electronics/owner-audit/components/reference-candidates/resistor-axial.svg',
-  'rgb-led': '/assets/electronics/owner-audit/components/rgb/rgb_led_v12_front_off.svg',
-  'servo-motor': '/assets/electronics/owner-audit/components/reference-candidates/servo-motor.svg',
-  'seven-segment-display':
-    '/assets/electronics/owner-audit/components/display/seven-segment.svg',
-  'switch-spdt': '/assets/electronics/owner-audit/components/switch/left.svg',
-  'transistor-npn':
-    '/assets/electronics/owner-audit/components/reference-candidates/transistor-npn.svg',
-};
-
-const OWNER_STATE_ASSETS_BY_ID: Readonly<
-  Record<string, Readonly<Record<string, string>>>
-> = {
-  'button-tactile-6mm': {
-    released: '/assets/electronics/owner-audit/components/button/released.svg',
-    pressed: '/assets/electronics/owner-audit/components/button/pressed.svg',
-    animated: '/assets/electronics/owner-audit/components/button/animated.svg',
-  },
-  'switch-spdt': {
-    left: '/assets/electronics/owner-audit/components/switch/left.svg',
-    right: '/assets/electronics/owner-audit/components/switch/right.svg',
-    animated: '/assets/electronics/owner-audit/components/switch/animated.svg',
-  },
-  'incandescent-lamp': {
-    off: '/assets/electronics/owner-audit/components/lamp/off.svg',
-    dim: '/assets/electronics/owner-audit/components/lamp/dim.svg',
-    on: '/assets/electronics/owner-audit/components/lamp/on.svg',
-    max: '/assets/electronics/owner-audit/components/lamp/max.svg',
-  },
-};
 
 const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
   source: 'battery-holder-aa-2',
@@ -196,19 +164,15 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
 };
 
 const SIMULATED_TYPES = new Set([
-  'battery-9v',
   'battery-holder-aa-1',
   'battery-holder-aa-2',
   'battery-holder-aa-3',
   'battery-holder-aa-4',
   'battery-holder-aa-6',
   'battery-holder-aa-8',
-  'regulated-power-supply',
-  'resistor-axial',
   'led-5mm',
   'button-tactile-6mm',
   'switch-spdt',
-  'potentiometer',
   'diode-do35',
   'diode-do41',
   'incandescent-lamp',
@@ -232,8 +196,8 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
 function category(value: string): Exclude<ProductionCatalogCategory, 'all'> {
   if (value === 'power') return 'power';
   if (value === 'prototyping') return 'prototyping';
-  if (value === 'switches') return 'switches';
-  if (value === 'optoelectronics') return 'optoelectronics';
+  if (value === 'input') return 'switches';
+  if (value === 'output') return 'optoelectronics';
   if (value === 'displays') return 'displays';
   if (['passives', 'semiconductors', 'sensors'].includes(value)) return 'passives';
   return 'other';
@@ -244,12 +208,13 @@ function preview(componentId: string, kind: Exclude<ComponentKind, 'wire'>): Pre
   if (componentId === 'arduino-uno') return 'arduino';
   if (componentId === 'servo-motor') return 'servo';
   if (componentId === 'dc-motor') return 'motor';
+  if (componentId === 'vibration-motor') return 'vibration-motor';
+  if (componentId === 'microbit') return 'microbit';
   if (componentId === 'transistor-npn') return 'transistor';
   if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId === 'rgb-led') return 'rgb-led';
   if (componentId === 'seven-segment-display') return 'seven-segment';
   if (componentId === 'switch-spdt') return 'slide-switch';
-  if (componentId === 'battery-9v') return 'battery-9v';
   return kind;
 }
 
@@ -264,45 +229,31 @@ function defaults(componentId: string): {
     const cells = Number(componentId.split('-').at(-1));
     return { value: cells * 1.5, unit: 'В', properties: { cells } };
   }
-  if (componentId === 'battery-9v') return { value: 9, unit: 'В', properties: {} };
-  if (componentId === 'regulated-power-supply') return { value: 5, unit: 'В', properties: {} };
-  if (componentId === 'resistor-axial') {
-    return { value: 300, unit: 'Ом', properties: { tolerancePercent: 5 } };
-  }
-  if (componentId === 'led-5mm') {
+  if (componentId === 'led-5mm')
     return {
       value: 2,
       unit: 'В',
       properties: { ledColour: 'red', ledBrightness: 60, ledFault: 'none' },
     };
-  }
-  if (componentId === 'rgb-led') {
+  if (componentId === 'rgb-led')
     return {
       value: 0,
       unit: '',
       properties: { red: 100, green: 45, blue: 0, commonMode: 'common-cathode' },
     };
-  }
-  if (componentId === 'seven-segment-display') {
+  if (componentId === 'seven-segment-display')
     return {
       value: 0,
       unit: '',
       properties: { glyph: '0', segmentMask: '', segmentBrightness: 100 },
     };
-  }
-  if (componentId === 'button-tactile-6mm') {
+  if (componentId === 'button-tactile-6mm')
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };
-  }
-  if (componentId === 'switch-spdt') {
+  if (componentId === 'switch-spdt')
     return { value: 0, unit: '', state: false, properties: { selectedThrow: 'left' } };
-  }
-  if (componentId === 'potentiometer') {
-    return { value: 1000, unit: 'Ом', wiperPosition: 0.5, properties: {} };
-  }
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
-  if (componentId === 'incandescent-lamp') {
+  if (componentId === 'incandescent-lamp')
     return { value: 24, unit: 'Ом', properties: { lampLevel: 'off' } };
-  }
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
 
@@ -310,8 +261,6 @@ function pinLabel(componentId: string, pinId: string): string {
   const labels: Readonly<Record<string, string>> = {
     'BAT+': '+',
     'BAT-': '−',
-    positive: '+',
-    negative: '−',
     'lead-1': '1',
     'lead-2': '2',
     anode: 'A',
@@ -329,45 +278,77 @@ function pinLabel(componentId: string, pinId: string): string {
   return labels[pinId] ?? pinId;
 }
 
-function description(item: ProductionManifestComponent, supported: boolean): string {
-  return supported
-    ? `${item.displayName}: SVG из owner archive; физический масштаб и выводы сохранены.`
-    : `${item.displayName}: SVG из owner archive; электрическая модель пока не поддерживается.`;
+function assertFailClosed(item: OwnerCatalogComponent): void {
+  if (item.status !== 'enabled') {
+    if (item.runtimePath !== null || item.runtimeSha256 !== null) {
+      throw new Error(`disabled owner catalog item exposes runtime art: ${item.componentId}`);
+    }
+    return;
+  }
+  if (
+    item.provenance !== 'exact_owner_svg' ||
+    !item.sourceOwnerPath ||
+    !item.runtimePath?.startsWith('/assets/electronics/owner-audit/') ||
+    !item.runtimePath.endsWith('.svg') ||
+    item.sourceSha256 === null ||
+    item.runtimeSha256 !== item.sourceSha256
+  ) {
+    throw new Error(`owner catalog rejected runtime substitution: ${item.componentId}`);
+  }
+  for (const state of item.stateAssets) {
+    if (
+      !state.runtimePath.startsWith('/assets/electronics/owner-audit/') ||
+      !state.runtimePath.endsWith('.svg') ||
+      state.runtimeSha256 !== state.sourceSha256
+    ) {
+      throw new Error(
+        `owner catalog rejected state substitution: ${item.componentId}:${state.state}`,
+      );
+    }
+  }
 }
 
-function toCatalogItem(item: ProductionManifestComponent): ProductionCatalogItem | null {
-  const ownerAsset = OWNER_RUNTIME_ASSET_BY_ID[item.componentId];
-  if (
-    !ownerAsset ||
-    item.status === 'missing_reference' ||
-    item.physicalWidthMm === null ||
-    item.physicalHeightMm === null
-  ) {
-    return null;
-  }
+function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
+  assertFailClosed(item);
   const kind = componentKind(item.componentId);
   const configured = defaults(item.componentId);
-  const stateAssets =
-    OWNER_STATE_ASSETS_BY_ID[item.componentId] ??
-    Object.fromEntries((item.stateAssets?.states ?? []).map((state) => [state.state, state.file]));
-  const viewBox = item.viewBox ?? [0, 0, item.physicalWidthMm, item.physicalHeightMm];
+  const width = item.physicalWidthMm ?? 20;
+  const height = item.physicalHeightMm ?? 16;
+  const viewBox = item.viewBox ?? [0, 0, width, height];
   return {
     key: item.componentId,
+    familyId: item.familyId,
+    familyLabel: item.familyLabelRu,
+    variantId: item.variantId,
+    isDefaultVariant: item.isDefaultVariant,
+    variantLabel: item.variantLabelRu,
+    subcategoryId: item.subcategoryId,
+    catalogOrder: item.catalogOrder,
+    catalogTier: item.catalogTier,
+    appearsInBasic: item.appearsInBasic,
+    blockReason: item.blockReason,
     kind,
     label: item.displayName,
+    semanticCategory: item.category,
     category: category(item.category),
-    description: description(item, SIMULATED_TYPES.has(item.componentId)),
+    description:
+      item.status === 'enabled'
+        ? 'Точный owner SVG; SHA источника и runtime совпадают.'
+        : (item.blockReason ?? 'Недоступно.'),
     keywords: [
+      ...item.searchAliases,
       item.componentId,
       item.displayName,
-      item.category,
+      item.displayNameEn,
       ...item.pins.map((pin) => pin.id),
     ],
     preview: preview(item.componentId, kind),
-    asset: ownerAsset,
-    stateAssets,
+    asset: item.runtimePath ?? '',
+    stateAssets: Object.fromEntries(
+      item.stateAssets.map((state) => [state.state, state.runtimePath]),
+    ),
     viewBox: { x: viewBox[0], y: viewBox[1], width: viewBox[2], height: viewBox[3] },
-    physicalSizeMm: { width: item.physicalWidthMm, height: item.physicalHeightMm },
+    physicalSizeMm: { width, height },
     terminals: Object.fromEntries(
       item.pins.map((pin) => [pin.id, { ...pin, label: pinLabel(item.componentId, pin.id) }]),
     ),
@@ -379,61 +360,54 @@ function toCatalogItem(item: ProductionManifestComponent): ProductionCatalogItem
       : { defaultWiperPosition: configured.wiperPosition }),
     defaultStateProperties: configured.properties,
     unit: configured.unit,
-    provenance: 'owner_archive_svg',
-    sourceFile: ownerAsset,
-    simulationSupported: SIMULATED_TYPES.has(item.componentId),
-    enabled: true,
+    provenance: item.provenance,
+    catalogStatus: item.status,
+    sourceOwnerPath: item.sourceOwnerPath ?? '',
+    sourceSha256: item.sourceSha256 ?? '',
+    runtimePath: item.runtimePath ?? '',
+    runtimeSha256: item.runtimeSha256 ?? '',
+    sourceFile: item.sourceOwnerPath ?? '',
+    simulationSupported: item.status === 'enabled' && SIMULATED_TYPES.has(item.componentId),
+    enabled: item.status === 'enabled',
   };
 }
 
-export function configureProductionLibrary(
-  manifest: ProductionManifest,
-  connectivity: BreadboardConnectivityManifest,
-): void {
+export function configureProductionLibrary(manifest: OwnerCatalogManifest): void {
+  if (manifest.schema !== 'asa-lab.electronics-owner-catalog.v1' || !manifest.policy.failClosed) {
+    throw new Error('fail-closed owner Electronics catalog is unavailable');
+  }
   if (manifest.worldUnitsPerMm !== WORLD_UNITS_PER_MM) {
     throw new Error(
-      `owner metadata worldUnitsPerMm=${manifest.worldUnitsPerMm}, expected ${WORLD_UNITS_PER_MM}`,
+      `owner catalog worldUnitsPerMm=${manifest.worldUnitsPerMm}, expected ${WORLD_UNITS_PER_MM}`,
     );
   }
-  const next = manifest.components.flatMap((item) => {
-    const adapted = toCatalogItem(item);
-    return adapted === null ? [] : [adapted];
-  });
-  catalog = next;
-  catalogById = new Map(next.map((item) => [item.key, item]));
-  boardsById = new Map(connectivity.boards.map((board) => [board.componentId, board]));
+  ownerItems = manifest.components.map(toCatalogItem);
+  catalog = ownerItems.filter((item) => item.enabled);
+  catalogById = new Map(catalog.map((item) => [item.key, item]));
+  boardsById = new Map(manifest.breadboards.map((board) => [board.componentId, board]));
 }
 
 export async function loadProductionLibrary(): Promise<void> {
-  const [manifestResponse, connectivityResponse] = await Promise.all([
-    fetch(OWNER_METADATA_MANIFEST_URL),
-    fetch(BREADBOARD_CONNECTIVITY_URL),
-  ]);
-  if (!manifestResponse.ok || !connectivityResponse.ok) {
-    throw new Error('owner Electronics metadata is unavailable');
-  }
-  configureProductionLibrary(
-    (await manifestResponse.json()) as ProductionManifest,
-    (await connectivityResponse.json()) as BreadboardConnectivityManifest,
-  );
+  const response = await fetch(OWNER_CATALOG_MANIFEST_URL);
+  if (!response.ok) throw new Error('owner Electronics catalog is unavailable');
+  configureProductionLibrary((await response.json()) as OwnerCatalogManifest);
 }
 
 export function productionCatalog(): readonly ProductionCatalogItem[] {
   return catalog;
 }
-
+export function ownerCatalogItems(): readonly ProductionCatalogItem[] {
+  return ownerItems;
+}
 export function productionCatalogEntry(componentTypeId: string): ProductionCatalogItem | null {
   return catalogById.get(componentTypeId) ?? null;
 }
-
 export function defaultProductionType(kind: ComponentKind): string | null {
   return LEGACY_TYPE_BY_KIND[kind] ?? null;
 }
-
 export function productionBreadboard(componentTypeId: string): RuntimeBreadboardDefinition | null {
   return boardsById.get(componentTypeId) ?? null;
 }
-
 export function productionLibraryReady(): boolean {
   return catalog.length > 0;
 }
