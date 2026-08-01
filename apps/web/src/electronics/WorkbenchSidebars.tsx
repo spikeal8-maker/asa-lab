@@ -19,6 +19,15 @@ function formatCurrent(value: number): string {
   return `${(value * 1000).toFixed(2)} мА`;
 }
 
+const LED_COLOUR_OPTIONS = [
+  { value: 'green', label: 'Зелёный' },
+  { value: 'yellow', label: 'Жёлтый' },
+  { value: 'orange', label: 'Оранжевый' },
+  { value: 'blue', label: 'Синий' },
+  { value: 'red', label: 'Красный' },
+  { value: 'white', label: 'Белый' },
+] as const;
+
 export function WorkbenchSidebars({
   controller: c,
 }: {
@@ -206,7 +215,7 @@ export function WorkbenchSidebars({
                   ? 'Провод'
                   : c.selection.ids.length > 1
                     ? `Выбрано: ${c.selection.ids.length}`
-                    : (c.selectedEntry?.label ?? 'Компонент')}
+                    : (c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'Компонент')}
               </span>
             </div>
             <button
@@ -349,9 +358,9 @@ export function WorkbenchSidebars({
                         )
                       }
                     >
-                      {['red', 'green', 'blue', 'yellow', 'orange', 'white'].map((colour) => (
-                        <option key={colour} value={colour}>
-                          {colour}
+                      {LED_COLOUR_OPTIONS.map((colour) => (
+                        <option key={colour.value} value={colour.value}>
+                          {colour.label}
                         </option>
                       ))}
                     </select>
