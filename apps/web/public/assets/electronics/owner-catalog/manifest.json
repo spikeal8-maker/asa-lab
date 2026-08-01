@@ -17327,7 +17327,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
