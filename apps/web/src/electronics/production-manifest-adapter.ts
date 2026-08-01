@@ -2,7 +2,13 @@ import type { ComponentKind, ProductionStateValue } from '../api';
 import type { PreviewKey } from './component-preview';
 import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
 
-export const PRODUCTION_MANIFEST_URL = '/assets/electronics/production/manifest.json';
+/**
+ * The legacy production manifest is retained only as physical/pin metadata.
+ * Runtime artwork is selected exclusively by the explicit owner-SVG allowlist
+ * below. Generated files under /production/components are never returned to the
+ * editor from this adapter.
+ */
+export const OWNER_METADATA_MANIFEST_URL = '/assets/electronics/production/manifest.json';
 export const BREADBOARD_CONNECTIVITY_URL =
   '/assets/electronics/production/breadboard-connectivity.json';
 
@@ -110,8 +116,76 @@ let catalog: readonly ProductionCatalogItem[] = [];
 let catalogById = new Map<string, ProductionCatalogItem>();
 let boardsById = new Map<string, RuntimeBreadboardDefinition>();
 
+/**
+ * Explicit runtime allowlist. Every path points to an SVG already present in
+ * the owner archive/evidence tree. No path points to auto-traced PNG output or
+ * to a newly invented /production/components replacement.
+ */
+export const OWNER_RUNTIME_ASSET_BY_ID: Readonly<Record<string, string>> = {
+  'arduino-uno':
+    '/assets/electronics/owner-audit/components/reference-candidates/arduino-uno.svg',
+  'battery-9v':
+    '/assets/electronics/owner-audit/components/reference-candidates/battery-9v.svg',
+  'battery-holder-aa-1': '/assets/electronics/owner-audit/components/battery-holders/aa-1.svg',
+  'battery-holder-aa-2': '/assets/electronics/owner-audit/components/battery-holders/aa-2.svg',
+  'battery-holder-aa-3': '/assets/electronics/owner-audit/components/battery-holders/aa-3.svg',
+  'battery-holder-aa-4': '/assets/electronics/owner-audit/components/battery-holders/aa-4.svg',
+  'battery-holder-aa-6': '/assets/electronics/owner-audit/components/battery-holders/aa-6.svg',
+  'battery-holder-aa-8': '/assets/electronics/owner-audit/components/battery-holders/aa-8.svg',
+  'breadboard-small': '/assets/electronics/owner-audit/components/breadboards/breadboard-small.svg',
+  'breadboard-medium':
+    '/assets/electronics/owner-audit/components/breadboards/breadboard-medium.svg',
+  'breadboard-large': '/assets/electronics/owner-audit/components/breadboards/breadboard-large.svg',
+  'button-tactile-6mm': '/assets/electronics/owner-audit/components/button/released.svg',
+  'dc-motor': '/assets/electronics/owner-audit/components/reference-candidates/dc-motor.svg',
+  'diode-do35': '/assets/electronics/owner-audit/components/diode/do35.svg',
+  'diode-do41': '/assets/electronics/owner-audit/components/diode/do41.svg',
+  'electrolytic-capacitor':
+    '/assets/electronics/owner-audit/components/reference-candidates/electrolytic-capacitor.svg',
+  'incandescent-lamp': '/assets/electronics/owner-audit/components/lamp/off.svg',
+  'led-5mm': '/assets/electronics/owner-audit/components/led/red/led_red_i000.svg',
+  multimeter: '/assets/electronics/owner-audit/components/reference-candidates/multimeter.svg',
+  photoresistor:
+    '/assets/electronics/owner-audit/components/reference-candidates/photoresistor.svg',
+  piezo: '/assets/electronics/owner-audit/components/reference-candidates/piezo.svg',
+  potentiometer:
+    '/assets/electronics/owner-audit/components/reference-candidates/potentiometer.svg',
+  'regulated-power-supply':
+    '/assets/electronics/owner-audit/components/reference-candidates/regulated-power-supply.svg',
+  'resistor-axial':
+    '/assets/electronics/owner-audit/components/reference-candidates/resistor-axial.svg',
+  'rgb-led': '/assets/electronics/owner-audit/components/rgb/rgb_led_v12_front_off.svg',
+  'servo-motor': '/assets/electronics/owner-audit/components/reference-candidates/servo-motor.svg',
+  'seven-segment-display':
+    '/assets/electronics/owner-audit/components/display/seven-segment.svg',
+  'switch-spdt': '/assets/electronics/owner-audit/components/switch/left.svg',
+  'transistor-npn':
+    '/assets/electronics/owner-audit/components/reference-candidates/transistor-npn.svg',
+};
+
+const OWNER_STATE_ASSETS_BY_ID: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  'button-tactile-6mm': {
+    released: '/assets/electronics/owner-audit/components/button/released.svg',
+    pressed: '/assets/electronics/owner-audit/components/button/pressed.svg',
+    animated: '/assets/electronics/owner-audit/components/button/animated.svg',
+  },
+  'switch-spdt': {
+    left: '/assets/electronics/owner-audit/components/switch/left.svg',
+    right: '/assets/electronics/owner-audit/components/switch/right.svg',
+    animated: '/assets/electronics/owner-audit/components/switch/animated.svg',
+  },
+  'incandescent-lamp': {
+    off: '/assets/electronics/owner-audit/components/lamp/off.svg',
+    dim: '/assets/electronics/owner-audit/components/lamp/dim.svg',
+    on: '/assets/electronics/owner-audit/components/lamp/on.svg',
+    max: '/assets/electronics/owner-audit/components/lamp/max.svg',
+  },
+};
+
 const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
-  source: 'battery-6v',
+  source: 'battery-holder-aa-2',
   resistor: 'resistor-axial',
   led: 'led-5mm',
   button: 'button-tactile-6mm',
@@ -122,9 +196,6 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
 };
 
 const SIMULATED_TYPES = new Set([
-  'battery-1.5v',
-  'battery-3v',
-  'battery-6v',
   'battery-9v',
   'battery-holder-aa-1',
   'battery-holder-aa-2',
@@ -178,6 +249,7 @@ function preview(componentId: string, kind: Exclude<ComponentKind, 'wire'>): Pre
   if (componentId === 'rgb-led') return 'rgb-led';
   if (componentId === 'seven-segment-display') return 'seven-segment';
   if (componentId === 'switch-spdt') return 'slide-switch';
+  if (componentId === 'battery-9v') return 'battery-9v';
   return kind;
 }
 
@@ -192,9 +264,6 @@ function defaults(componentId: string): {
     const cells = Number(componentId.split('-').at(-1));
     return { value: cells * 1.5, unit: 'В', properties: { cells } };
   }
-  if (componentId === 'battery-1.5v') return { value: 1.5, unit: 'В', properties: {} };
-  if (componentId === 'battery-3v') return { value: 3, unit: 'В', properties: {} };
-  if (componentId === 'battery-6v') return { value: 6, unit: 'В', properties: {} };
   if (componentId === 'battery-9v') return { value: 9, unit: 'В', properties: {} };
   if (componentId === 'regulated-power-supply') return { value: 5, unit: 'В', properties: {} };
   if (componentId === 'resistor-axial') {
@@ -241,6 +310,8 @@ function pinLabel(componentId: string, pinId: string): string {
   const labels: Readonly<Record<string, string>> = {
     'BAT+': '+',
     'BAT-': '−',
+    positive: '+',
+    negative: '−',
     'lead-1': '1',
     'lead-2': '2',
     anode: 'A',
@@ -259,17 +330,16 @@ function pinLabel(componentId: string, pinId: string): string {
 }
 
 function description(item: ProductionManifestComponent, supported: boolean): string {
-  const source =
-    item.provenance === 'exact_owner_svg' ? 'точный owner SVG' : 'owner-reference vector';
   return supported
-    ? `${source}; физический масштаб и выводы из production manifest.`
-    : `${source}; визуальный компонент, электрическая модель пока не поддерживается.`;
+    ? `${item.displayName}: SVG из owner archive; физический масштаб и выводы сохранены.`
+    : `${item.displayName}: SVG из owner archive; электрическая модель пока не поддерживается.`;
 }
 
 function toCatalogItem(item: ProductionManifestComponent): ProductionCatalogItem | null {
+  const ownerAsset = OWNER_RUNTIME_ASSET_BY_ID[item.componentId];
   if (
+    !ownerAsset ||
     item.status === 'missing_reference' ||
-    item.productionSvg === null ||
     item.physicalWidthMm === null ||
     item.physicalHeightMm === null
   ) {
@@ -277,9 +347,9 @@ function toCatalogItem(item: ProductionManifestComponent): ProductionCatalogItem
   }
   const kind = componentKind(item.componentId);
   const configured = defaults(item.componentId);
-  const stateAssets = Object.fromEntries(
-    (item.stateAssets?.states ?? []).map((state) => [state.state, state.file]),
-  );
+  const stateAssets =
+    OWNER_STATE_ASSETS_BY_ID[item.componentId] ??
+    Object.fromEntries((item.stateAssets?.states ?? []).map((state) => [state.state, state.file]));
   const viewBox = item.viewBox ?? [0, 0, item.physicalWidthMm, item.physicalHeightMm];
   return {
     key: item.componentId,
@@ -294,7 +364,7 @@ function toCatalogItem(item: ProductionManifestComponent): ProductionCatalogItem
       ...item.pins.map((pin) => pin.id),
     ],
     preview: preview(item.componentId, kind),
-    asset: item.productionSvg,
+    asset: ownerAsset,
     stateAssets,
     viewBox: { x: viewBox[0], y: viewBox[1], width: viewBox[2], height: viewBox[3] },
     physicalSizeMm: { width: item.physicalWidthMm, height: item.physicalHeightMm },
@@ -309,8 +379,8 @@ function toCatalogItem(item: ProductionManifestComponent): ProductionCatalogItem
       : { defaultWiperPosition: configured.wiperPosition }),
     defaultStateProperties: configured.properties,
     unit: configured.unit,
-    provenance: item.provenance ?? 'unknown',
-    sourceFile: item.productionSvg,
+    provenance: 'owner_archive_svg',
+    sourceFile: ownerAsset,
     simulationSupported: SIMULATED_TYPES.has(item.componentId),
     enabled: true,
   };
@@ -322,7 +392,7 @@ export function configureProductionLibrary(
 ): void {
   if (manifest.worldUnitsPerMm !== WORLD_UNITS_PER_MM) {
     throw new Error(
-      `production manifest worldUnitsPerMm=${manifest.worldUnitsPerMm}, expected ${WORLD_UNITS_PER_MM}`,
+      `owner metadata worldUnitsPerMm=${manifest.worldUnitsPerMm}, expected ${WORLD_UNITS_PER_MM}`,
     );
   }
   const next = manifest.components.flatMap((item) => {
@@ -336,11 +406,11 @@ export function configureProductionLibrary(
 
 export async function loadProductionLibrary(): Promise<void> {
   const [manifestResponse, connectivityResponse] = await Promise.all([
-    fetch(PRODUCTION_MANIFEST_URL),
+    fetch(OWNER_METADATA_MANIFEST_URL),
     fetch(BREADBOARD_CONNECTIVITY_URL),
   ]);
   if (!manifestResponse.ok || !connectivityResponse.ok) {
-    throw new Error('production Electronics manifest is unavailable');
+    throw new Error('owner Electronics metadata is unavailable');
   }
   configureProductionLibrary(
     (await manifestResponse.json()) as ProductionManifest,
