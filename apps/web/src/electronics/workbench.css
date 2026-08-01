@@ -1218,15 +1218,12 @@
   transition: filter 80ms ease;
 }
 .workbench-part:hover {
-  filter: drop-shadow(1px 0 0 rgba(59, 142, 215, 0.55))
-    drop-shadow(-1px 0 0 rgba(59, 142, 215, 0.55)) drop-shadow(0 1px 0 rgba(59, 142, 215, 0.55))
-    drop-shadow(0 -1px 0 rgba(59, 142, 215, 0.55));
+  opacity: 0.96;
 }
-.workbench-part.selected,
-.workbench-part.selected:hover,
-.workbench-part.selected:focus-visible {
-  filter: drop-shadow(2px 0 0 #3b8ed7) drop-shadow(-2px 0 0 #3b8ed7) drop-shadow(0 2px 0 #3b8ed7)
-    drop-shadow(0 -2px 0 #3b8ed7) drop-shadow(0 3px 4px rgba(28, 70, 104, 0.2));
+.workbench-part:focus,
+.workbench-part:focus-visible {
+  outline: none;
+  filter: none;
 }
 .workbench-selection-box {
   display: none;

@@ -150,10 +150,14 @@ function SidePanel({
   kind,
   title,
   onClose,
+  notes,
+  onNotesChange,
 }: {
   kind: 'notes' | 'code';
   title: string;
   onClose: () => void;
+  notes?: string;
+  onNotesChange?: (value: string) => void;
 }): JSX.Element {
   return (
     <aside className={`workbench-utility-panel ${kind}`} aria-label={title}>
@@ -165,7 +169,12 @@ function SidePanel({
         </button>
       </header>
       {kind === 'notes' ? (
-        <textarea aria-label="Заметки проекта" placeholder="Добавьте заметку к проекту…" />
+        <textarea
+          aria-label="Заметки проекта"
+          placeholder="Добавьте заметку к проекту…"
+          value={notes ?? ''}
+          onChange={(event) => onNotesChange?.(event.target.value)}
+        />
       ) : (
         <div className="workbench-code-empty">
           <CodeIcon />
@@ -184,6 +193,15 @@ function ShareDialog({
   controller: ElectronicsWorkbenchController;
   onClose: () => void;
 }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  async function copyLink(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
   return (
     <div className="workbench-modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
@@ -209,6 +227,9 @@ function ShareDialog({
           />
         </label>
         <div className="workbench-share-actions">
+          <button type="button" onClick={() => void copyLink()}>
+            <ShareIcon /> {copied ? 'Ссылка скопирована' : 'Копировать ссылку'}
+          </button>
           <button type="button" onClick={() => void c.saveNow()} disabled={c.busy}>
             <SaveIcon /> Сохранить сейчас
           </button>
@@ -236,6 +257,12 @@ export function SchematicEditor({
   const [notesOpen, setNotesOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const notesStorageKey = `asa-lab:electronics-notes:${projectId}`;
+  const [notes, setNotes] = useState(() => localStorage.getItem(notesStorageKey) ?? '');
+  function updateNotes(value: string): void {
+    setNotes(value);
+    localStorage.setItem(notesStorageKey, value);
+  }
   if (controller.status === 'loading')
     return (
       <div className="workbench-loading" role="status">
@@ -277,7 +304,13 @@ export function SchematicEditor({
         )}
         <WorkbenchSidebars controller={controller} />
         {notesOpen ? (
-          <SidePanel kind="notes" title="Заметки" onClose={() => setNotesOpen(false)} />
+          <SidePanel
+            kind="notes"
+            title="Заметки"
+            notes={notes}
+            onNotesChange={updateNotes}
+            onClose={() => setNotesOpen(false)}
+          />
         ) : null}
         {codeOpen ? <SidePanel kind="code" title="Код" onClose={() => setCodeOpen(false)} /> : null}
       </div>

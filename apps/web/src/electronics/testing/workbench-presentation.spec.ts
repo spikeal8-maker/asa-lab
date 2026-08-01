@@ -6,6 +6,10 @@ const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
 const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
 const headerSource = readFileSync(resolve(electronicsRoot, 'WorkbenchHeader.tsx'), 'utf8');
+const productionVisualSource = readFileSync(
+  resolve(electronicsRoot, 'ProductionComponentVisual.tsx'),
+  'utf8',
+);
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
@@ -36,7 +40,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('--wb-toolbar-height: 48px');
     expect(stageSource).not.toContain('workbench-selection-box');
     expect(stageSource).toContain("workbench-part${selected ? ' selected' : ''}");
-    expect(workbenchCss).toContain('.workbench-part.selected');
+    expect(productionVisualSource).toContain('workbench-selection-silhouette');
+    expect(productionVisualSource).toContain('maskImage: `url("${asset}")`');
     expect(workbenchCss).toContain('border: 1px solid #3b8ed7');
     expect(sidebarSource).not.toContain('owner-provenance');
     expect(sidebarSource).not.toContain('workbench-inspector-preview');

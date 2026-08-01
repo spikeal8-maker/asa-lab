@@ -19,7 +19,19 @@ interface Props {
   readonly width: number;
   readonly height: number;
   readonly visualState: ComponentVisualState;
+  readonly selected?: boolean;
 }
+
+const SELECTION_OFFSETS = [
+  [-3, 0],
+  [3, 0],
+  [0, -3],
+  [0, 3],
+  [-2, -2],
+  [2, -2],
+  [-2, 2],
+  [2, 2],
+] as const;
 
 const SEGMENT_BOXES: Readonly<Record<SevenSegmentId, readonly [number, number, number, number]>> = {
   a: [4.306, 3.166, 6.309, 1.218],
@@ -38,6 +50,7 @@ export function ProductionComponentVisual({
   width,
   height,
   visualState,
+  selected = false,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const asset = visualAsset(entry, component, visualState);
@@ -58,6 +71,30 @@ export function ProductionComponentVisual({
       overflow="visible"
       aria-hidden="true"
     >
+      {selected ? (
+        <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
+          {SELECTION_OFFSETS.map(([offsetX, offsetY]) => (
+            <rect
+              key={`${offsetX}:${offsetY}`}
+              x={offsetX}
+              y={offsetY}
+              width={width}
+              height={height}
+              fill="#3b8ed7"
+              style={{
+                maskImage: `url("${asset}")`,
+                WebkitMaskImage: `url("${asset}")`,
+                maskRepeat: 'no-repeat',
+                WebkitMaskRepeat: 'no-repeat',
+                maskPosition: 'center',
+                WebkitMaskPosition: 'center',
+                maskSize: `${width}px ${height}px`,
+                WebkitMaskSize: `${width}px ${height}px`,
+              }}
+            />
+          ))}
+        </g>
+      ) : null}
       <image href={asset} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
 
       {resistorBands ? (

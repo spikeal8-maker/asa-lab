@@ -176,6 +176,7 @@ export function WorkbenchStage({
                     width={baseSize.width}
                     height={baseSize.height}
                     visualState={visualState}
+                    selected={selected}
                   />
                 </g>
                 {component.kind === 'breadboard'

@@ -102,7 +102,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
-  const [activeWireColor, setActiveWireColor] = useState('#e3212b');
+  const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState('');
   const [category, setCategory] = useState<ComponentCategory>('basic');

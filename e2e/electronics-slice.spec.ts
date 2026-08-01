@@ -14,9 +14,7 @@ const BASIC_FAMILY_ORDER = [
   'potentiometer',
   'capacitor',
   'spdt-switch',
-  'battery-9v',
-  'coin-cell-3v',
-  'battery-1.5v',
+  'battery',
   'breadboard',
   'microbit',
   'arduino-uno',
@@ -111,6 +109,30 @@ test('owner-reference presentation states in the real Electronics editor', async
   await login(page);
   await createPersonalProject(page, 'Electronics owner visual parity');
 
+  await page.getByRole('button', { name: 'Схема', exact: true }).click();
+  await expect(page.locator('.workbench-schematic-view')).toBeVisible();
+  await page.getByRole('button', { name: 'Список компонентов', exact: true }).click();
+  await expect(page.locator('.workbench-bom-view')).toBeVisible();
+  await page.getByRole('button', { name: 'Макет', exact: true }).click();
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Код', exact: true }).click();
+  const codePanel = page.locator('.workbench-utility-panel.code');
+  await expect(codePanel).toContainText('Нет программируемых компонентов');
+  await codePanel.getByRole('button', { name: 'Закрыть' }).click();
+  await page.getByRole('button', { name: 'Заметки', exact: true }).click();
+  const notesPanel = page.locator('.workbench-utility-panel.notes');
+  const notesField = notesPanel.getByRole('textbox', { name: 'Заметки проекта' });
+  await notesField.fill('Проверка заметки Electronics');
+  await notesPanel.getByRole('button', { name: 'Закрыть' }).click();
+  await page.getByRole('button', { name: 'Заметки', exact: true }).click();
+  await expect(notesField).toHaveValue('Проверка заметки Electronics');
+  await notesPanel.getByRole('button', { name: 'Закрыть' }).click();
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  const shareDialog = page.getByRole('dialog', { name: 'Отправить проект' });
+  await expect(shareDialog.getByRole('textbox', { name: 'Ссылка на проект' })).toBeVisible();
+  await shareDialog.getByRole('button', { name: 'Закрыть' }).click();
+
   const category = page.getByLabel('Категория компонентов');
   const grid = page.locator('.workbench-catalog-grid');
   const cards = page.locator('.workbench-catalog-card');
@@ -128,11 +150,19 @@ test('owner-reference presentation states in the real Electronics editor', async
   ).toBe(3);
   await expect(cards.locator('select')).toHaveCount(0);
   await expect(cards.locator('small')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Переключить на список' }).click();
+  await expect(grid).toHaveAttribute('data-library-view', 'list');
+  await page.getByRole('button', { name: 'Переключить на сетку' }).click();
+  await expect(grid).toHaveAttribute('data-library-view', 'grid');
+  await page.getByRole('textbox', { name: 'Поиск компонентов' }).fill('LED');
+  await expect(cards).toHaveCount(1);
+  await page.getByRole('textbox', { name: 'Поиск компонентов' }).fill('');
+  await expect(cards).toHaveCount(BASIC_FAMILY_ORDER.length);
   await screenshot(page, 'library-basic-three-columns');
   await screenshot(page, 'library-basic-exact-order');
 
   const disabledCards = page.locator('.workbench-catalog-card[aria-disabled="true"]');
-  await expect(disabledCards).toHaveCount(9);
+  await expect(disabledCards).toHaveCount(7);
   expect(
     await disabledCards.evaluateAll((elements) =>
       elements.every(
@@ -145,9 +175,9 @@ test('owner-reference presentation states in the real Electronics editor', async
   await screenshot(page, 'library-disabled-components');
 
   const breadboardCard = page.locator('[data-family-id="breadboard"]');
-  await breadboardCard.getByRole('button', { name: 'Малая макетная плата', exact: true }).click();
+  await breadboardCard.getByRole('button', { name: 'Макетная плата', exact: true }).click();
   await expect(
-    breadboardCard.getByRole('dialog', { name: 'Варианты: Малая макетная плата' }),
+    breadboardCard.getByRole('dialog', { name: 'Варианты: Макетная плата' }),
   ).toBeVisible();
   await breadboardCard.getByRole('button', { name: 'Добавить', exact: true }).click();
   for (const name of ['Резистор', 'Светодиод', 'Кнопка', 'Ползунковый переключатель']) {
@@ -172,7 +202,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   await page.keyboard.press('Escape');
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
 
-  await expect(page.locator('.workbench-stage-controls')).toContainText('100%');
+  await expect(page.locator('.workbench-stage-controls').getByRole('button')).toHaveCount(1);
   await expect(page.locator('.workbench-snap-link')).toHaveCount(0);
   await expect(page.locator('.workbench-component-diagnostic')).toHaveCount(0);
   await expect(page.locator('.workbench-results')).toHaveCount(0);
@@ -206,11 +236,12 @@ test('owner-reference presentation states in the real Electronics editor', async
   await page.keyboard.press('Escape');
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
   await resistor.locator('.workbench-part').click();
-  await expect(page.locator('.workbench-selection-box')).toHaveCount(1);
+  await expect(page.locator('.workbench-selection-box')).toHaveCount(0);
+  await expect(resistor.locator('.workbench-selection-silhouette')).toHaveCount(1);
   expect(
     await resistor
       .locator('.workbench-terminal-dot')
-      .evaluateAll((elements) => elements.every((item) => getComputedStyle(item).opacity === '0')),
+      .evaluateAll((elements) => elements.every((item) => getComputedStyle(item).opacity === '1')),
   ).toBe(true);
   await screenshot(page, 'component-selected');
 
