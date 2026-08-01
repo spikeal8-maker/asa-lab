@@ -11,14 +11,14 @@ active task:             TASK-ELECTRONICS-M1-001
 active issue:            #63
 active branch:           agent/r4-electronics-m1
 status:                  in_progress
-checkpoint:              owner_visual_review_pending
-rejected runtime SHA:    f78a9ac7578787a3a5aed73f1f2113cd36801825
-owner directive:         PR #72 comment 5147079314
+checkpoint:              owner_visual_correction_in_progress
+rejected implementation: cfce81c163d69310f8091b558968f79145496a3a
+owner UI reference:      supplied Tinkercad screenshot at 100 percent
 owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
 ```
 
-`docs/delivery/EXECUTION_MANIFEST.yaml`, Issue #63 and the explicit owner
-directive for PR #72 define the executable scope. R3B remains blocked/deferred;
+`docs/delivery/EXECUTION_MANIFEST.yaml`, Issue #63 and the latest explicit
+owner directive define the executable scope. R3B remains blocked/deferred;
 R4-M2 and R5+ are not activated.
 
 ## 2. Источники истины
@@ -26,18 +26,17 @@ R4-M2 and R5+ are not activated.
 Читать строго в таком порядке:
 
 1. `AGENTS.md`;
-2. `docs/project-map/infrastructure-focus.yaml`;
-3. `docs/project-map/project-map.yaml`;
-4. `docs/delivery/EXECUTION_MANIFEST.yaml`;
-5. PR #72 owner comment `5147079314`;
-6. Issue #63;
+2. latest explicit owner directive and supplied 100% screenshot;
+3. `docs/project-map/infrastructure-focus.yaml`;
+4. `docs/project-map/project-map.yaml`;
+5. `docs/delivery/EXECUTION_MANIFEST.yaml`;
+6. Issue #63 and PR #72;
 7. owner archive evidence;
 8. `docs/testing/test-catalog.yaml`;
 9. `docs/testing/active-task-tests.yaml`.
 
-При конфликте остановиться и назвать точные источники. Результат должен работать
-в настоящем Electronics route `/projects/:projectId`; standalone review pages не
-являются product delivery.
+Результат должен работать в настоящем Electronics route `/projects/:projectId`;
+standalone review pages не являются product delivery.
 
 ## 3. Ветка и Git
 
@@ -63,152 +62,101 @@ R4-M2 and R5+ are not activated.
 - текущий solver/editor foundation;
 - прозрачный parametric resistor body/preview и semantic band zones.
 
-Runtime `f78a9ac...` отклонён из-за плоской библиотеки, variant duplication и
-смешения supported/preview assets. Новая solver-функциональность не входит в
-текущий corrective scope.
+Не добавлять новые компоненты, solver features, API или persistence changes.
 
-## 5. TASK-ELECTRONICS-M1-001 — family component library
+## 5. Owner-reference presentation contract
 
-### 5.1. Runtime family model
+Присланный owner screenshot является единственным UI reference. Сохранить ASA
+Lab branding, но воспроизвести его геометрию, плотность, иерархию, shelf
+behavior, terminal behavior, selection и wiring presentation.
 
-Production manifest остаётся источником asset, physical mm, pins и footprint.
-Поверх него используется family-level model:
+### 5.1. Idle stage
 
-```text
-familyId
-variantId
-familyLabel
-categoryId
-subcategoryId
-catalogTier: core | supported | preview
-catalogOrder
-defaultVariantId
-variants[]
-searchAliases[]
-simulationStatus
-assetProvenance
-```
+- viewport для review = `100%`;
+- светло-серое поле и спокойная тонкая сетка;
+- terminal hit areas невидимы;
+- terminal marker радиусом не более 3 world units виден только при hover,
+  active wiring или reconnect;
+- selection компонента не показывает все terminals;
+- pins, уже установленные в breadboard holes, не получают внешние markers;
+- pin labels видны только в active wiring state;
+- `workbench-snap-link` отсутствует после drop;
+- нет постоянного красного glow;
+- error presentation на stage допустима только при запущенной simulation,
+  severity=error и выбранном компоненте;
+- результаты/diagnostics не перекрывают idle project.
 
-Каждая карточка runtime-каталога представляет family, а не отдельный файл
-manifest.
+### 5.2. Selection и wiring
 
-### 5.2. Семейства и варианты
+- selection = тонкая спокойная синяя рамка без массивного dashed outline;
+- масштаб компонента при selection не меняется;
+- inspector содержит действия и свойства;
+- после выбора pin появляется компактный набор доступных terminals;
+- после завершения или отмены wire вспомогательные markers исчезают.
 
-В рабочем каталоге должна быть ровно одна карточка:
-
-- `AA battery holder` с variants `1×AA / 2×AA / 3×AA / 4×AA / 6×AA / 8×AA`, default `2×AA`;
-- `Breadboard` с variants `170 / 420 / 882`, default `420`;
-- `Diode` с variants `DO-35 / DO-41`, default `DO-41`;
-- `LED 5 mm`, где colour/brightness остаются inspector properties;
-- `Resistor`, где value/tolerance остаются inspector properties и управляют
-  четырьмя цветовыми полосами;
-- `Button 6×6`, `SPDT`, `Potentiometer`, `RGB LED`, `Seven-segment`, `Lamp`.
-
-`5×AA` остаётся missing reference. Compact variant picker доступен до placement
-и в inspector. `variantId` обязан сохраняться после save/reload/checkpoint.
-
-### 5.3. Runtime battery exclusions
-
-Следующие PNG-derived/reference entries не экспортируются в runtime library:
+### 5.3. Desktop component shelf
 
 ```text
-battery-1.5v
-battery-3v
-battery-6v
-battery-9v
+width:           330 px
+grid:            3 columns
+column gap:      8 px
+row gap:         10 px
+catalog padding: 10 px
+card:            approximately 96 x 126 px
+image area:      78 x 74 px
+name:            maximum 2 lines
 ```
 
-Legacy document fallback сохраняется, но новые проекты не показывают и не
-создают эти entries.
+Grid card содержит только изображение и название. Запрещены постоянные variant
+labels/selects, technical IDs и badges поверх изображения. Варианты открываются
+compact popover по обычному click; drag использует последний выбранный вариант;
+variant также доступен в inspector и `variantId` сохраняется.
 
-### 5.4. Категории и порядок
+`workbench-tinkercad-parity.css` запрещён. Все итоговые правила находятся в
+одном `workbench.css`.
 
-Dropdown по умолчанию открывается в `Основные`:
+### 5.4. Точный порядок `Основные`
+
+Слева направо, сверху вниз:
 
 ```text
-Основные
-Все компоненты
-Питание
-Макетки и монтаж
-Пассивные
-Полупроводники
-Ввод и управление
-Вывод и индикация
-Датчики
-Двигатели и приводы
-Контроллеры
-Измерительные приборы
-В разработке
+01 Резистор
+02 Светодиод
+03 Кнопка
+04 Потенциометр
+05 Конденсатор
+06 Ползунковый переключатель
+07 Батарея 9 В
+08 Кнопочная батарея 3 В
+09 Батарея 1,5 В
+10 Малая макетная плата
+11 micro:bit
+12 Arduino Uno R3
+13 Вибромотор
+14 Двигатель постоянного тока
+15 Микросерво
 ```
 
-Curated order в `Основные`:
+Unsupported position остаётся на каноническом месте с чистым vector preview,
+`aria-disabled=true`, `draggable=false` и не создаёт document component. PNG,
+raster, base64 и случайные runtime assets запрещены.
 
-```text
-Breadboard 420
-AA battery holder 2×AA
-Resistor
-LED 5 mm
-Button 6×6
-SPDT
-Potentiometer
-Diode DO-41
-RGB LED
-Seven-segment
-Lamp
-```
+## 6. Toolbar и header
 
-Порядок детерминирован и не зависит от порядка файлов manifest.
-
-### 5.5. Supported и preview
-
-- `core`/`supported`: draggable и clickable;
-- `preview`: только категория `В разработке`, disabled и не draggable;
-- preview card не создаёт document component;
-- unsupported candidates не смешиваются с `Основные` или `Все компоненты`;
-- unsupported components не возвращают fake simulation success.
-
-### 5.6. Library UX
-
-- category dropdown и отдельный search;
-- **две колонки по умолчанию**;
-- grid/list toggle;
-- family card вместо variant duplicates;
-- compact variant picker;
-- search по family, variants и русским/английским aliases;
-- один search result на family;
-- heading/search остаются видимыми, прокручивается catalog body;
-- library preview нормализуется для узнаваемости, stage остаётся в едином
-  физическом масштабе.
-
-## 6. Параметрический резистор
-
-Сохранить уже опубликованные owner-reference assets и focused contract:
-
-```text
-apps/web/public/assets/electronics/production/components/resistor-axial-body.svg
-apps/web/public/assets/electronics/production/components/resistor-axial-preview.svg
-apps/web/src/electronics/testing/resistor-visual.spec.ts
-```
-
-Контракт:
-
-- transparent SVG без raster, base64, foreignObject или canvas background;
-- physical size и leads определяются production contract;
-- четыре стабильные semantic band zones;
-- library preview = `300 Ω ±5%`;
-- stage bands вычисляются из resistance + tolerance;
-- поддерживаются focused values `220 Ω`, `300 Ω`, `330 Ω`, `1 kΩ`, `4.7 kΩ`,
-  `10 kΩ`, `1 MΩ` и tolerances `±1/2/5/10%`.
+- одинаковая высота и вертикальное выравнивание;
+- последовательные action groups;
+- единый размер icons и hit areas;
+- понятные disabled, hover, active и focus-visible states;
+- `Начать моделирование` — визуально доминирующий primary action.
 
 ## 7. Focused checks
 
-До owner review запускать только:
+До owner acceptance запускать только:
 
 - production asset/state/breadboard contracts;
-- family/category/order/search tests;
-- one-card-per-family и disabled-preview behavior;
-- resistor visual/band contract tests;
-- variant create/save/reload/checkpoint;
+- exact basic order, disabled-card и presentation contracts;
+- terminal hover/wiring/idle visibility;
+- variant persistence;
 - focused web lint/typecheck/build;
 - один actual-editor Playwright journey;
 - console/pageerror/requestfailed/HTTP 5xx = 0.
@@ -217,20 +165,24 @@ Full repository matrix запрещена.
 
 ## 8. Owner evidence и stop condition
 
+Перед screenshot: simulation off, selection cleared, pending wire cleared,
+diagnostics closed, viewport 100%, small breadboard и четыре components.
+
 Screenshots только из настоящего editor:
 
 ```text
-library-basic-default
-library-category-power
-library-family-battery-variants
-library-search-led
-library-supported-vs-preview
-library-list-view
-variant-persisted-after-reload
+editor-idle-clean
+library-basic-three-columns
+library-basic-exact-order
+component-hover-terminal
+wiring-mode-terminals
+component-selected
+breadboard-placement-clean
+library-disabled-components
+owner-reference-vs-current
 ```
 
-Развернуть exact final SHA только в существующем `asa-lab-dev`, оставить
-настоящий Electronics project открытым на `localhost:4610` и остановиться.
-
-До owner acceptance запрещены merge, full matrix, R4-M2, новая ветка, новые
-solver features и дополнительные permanent Compose projects.
+После публикации screenshots остановиться. Не называть результат принятым и не
+переводить PR №72 в OWNER REVIEW без отдельного подтверждения владельца. Не
+merge, не запускать full matrix, не начинать R4-M2, не создавать новую ветку и
+не создавать дополнительные Compose projects.

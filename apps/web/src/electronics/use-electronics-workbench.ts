@@ -106,6 +106,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [category, setCategory] = useState<ComponentCategory>('basic');
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
   const [libraryVariants, setLibraryVariants] = useState<Readonly<Record<string, string>>>({});
+  const [libraryVariantPopover, setLibraryVariantPopover] = useState<string | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeDrag | null>(null);
@@ -182,6 +183,12 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     setLibraryVariants((current) => ({ ...current, [familyId]: variantId }));
+  }
+
+  function toggleLibraryVariantPopover(familyId: string): void {
+    const family = familyById(familyId);
+    if (!family?.enabled || family.variants.length < 2) return;
+    setLibraryVariantPopover((current) => (current === familyId ? null : familyId));
   }
 
   function addFamily(familyId: string, at?: Point): void {
@@ -656,6 +663,10 @@ export function useElectronicsWorkbench(projectId: string) {
     );
   }, [category, libraryQuery]);
 
+  useEffect(() => {
+    setLibraryVariantPopover(null);
+  }, [category, libraryQuery, libraryView]);
+
   const selectedComponent =
     selection?.kind === 'component'
       ? (document?.components.find((item) => item.id === selection.id) ?? null)
@@ -684,6 +695,14 @@ export function useElectronicsWorkbench(projectId: string) {
       }
     }
     return map;
+  }, [result]);
+  const errorDiagnosticComponentIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const diagnostic of result?.diagnostics ?? []) {
+      if (diagnostic.severity !== 'error') continue;
+      for (const componentId of diagnostic.componentIds ?? []) ids.add(componentId);
+    }
+    return ids;
   }, [result]);
 
   function componentVisualState(component: SchematicComponent): ComponentVisualState {
@@ -743,6 +762,9 @@ export function useElectronicsWorkbench(projectId: string) {
     setLibraryView,
     libraryVariant,
     setLibraryVariant,
+    libraryVariantPopover,
+    setLibraryVariantPopover,
+    toggleLibraryVariantPopover,
     viewport,
     projectTitle,
     setProjectTitle,
@@ -789,6 +811,7 @@ export function useElectronicsWorkbench(projectId: string) {
     selectedFamily,
     resultByComponent,
     diagnosticCodesByComponent,
+    errorDiagnosticComponentIds,
     componentVisualState,
     viewBox,
     pendingStart,

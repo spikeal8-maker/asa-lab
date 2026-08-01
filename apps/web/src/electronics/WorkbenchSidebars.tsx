@@ -100,8 +100,11 @@ export function WorkbenchSidebars({
                 return (
                   <article
                     key={family.familyId}
-                    className={`workbench-catalog-card${family.enabled ? '' : ' disabled'}`}
+                    className={`workbench-catalog-card${family.enabled ? '' : ' disabled'}${
+                      c.libraryVariantPopover === family.familyId ? ' popover-open' : ''
+                    }`}
                     draggable={family.enabled}
+                    aria-disabled={!family.enabled}
                     onDragStart={(event) => {
                       if (!family.enabled) {
                         event.preventDefault();
@@ -118,9 +121,20 @@ export function WorkbenchSidebars({
                       type="button"
                       className="workbench-catalog-add"
                       disabled={!family.enabled}
-                      onClick={() => c.addFamily(family.familyId)}
+                      onClick={() => {
+                        if (family.variants.length > 1) {
+                          c.toggleLibraryVariantPopover(family.familyId);
+                        } else {
+                          c.addFamily(family.familyId);
+                        }
+                      }}
                       title={family.enabled ? `Добавить: ${family.familyLabel}` : 'В разработке'}
                       aria-label={family.familyLabel}
+                      aria-expanded={
+                        family.variants.length > 1
+                          ? c.libraryVariantPopover === family.familyId
+                          : undefined
+                      }
                     >
                       <span className="workbench-catalog-art">
                         <ComponentPreview
@@ -130,29 +144,44 @@ export function WorkbenchSidebars({
                       </span>
                       <span className="workbench-catalog-name">{family.familyLabel}</span>
                     </button>
-                    {family.variants.length > 1 && family.enabled ? (
-                      <label className="workbench-family-variant">
-                        <span className="sr-only">Вариант {family.familyLabel}</span>
-                        <select
-                          aria-label={`Вариант ${family.familyLabel}`}
-                          value={selectedVariant.variantId}
-                          onChange={(event) =>
-                            c.setLibraryVariant(family.familyId, event.target.value)
-                          }
-                        >
+                    {family.enabled &&
+                    family.variants.length > 1 &&
+                    c.libraryVariantPopover === family.familyId ? (
+                      <div
+                        className="workbench-variant-popover"
+                        role="dialog"
+                        aria-label={`Варианты: ${family.familyLabel}`}
+                      >
+                        <strong>{family.familyLabel}</strong>
+                        <div className="workbench-variant-options">
                           {family.variants.map((variant) => (
-                            <option key={variant.variantId} value={variant.variantId}>
+                            <button
+                              key={variant.variantId}
+                              type="button"
+                              className={
+                                selectedVariant.variantId === variant.variantId ? 'selected' : ''
+                              }
+                              aria-pressed={selectedVariant.variantId === variant.variantId}
+                              onClick={() =>
+                                c.setLibraryVariant(family.familyId, variant.variantId)
+                              }
+                            >
                               {variant.variantLabel}
-                            </option>
+                            </button>
                           ))}
-                        </select>
-                      </label>
-                    ) : (
-                      <span className="workbench-family-variant-label">
-                        {selectedVariant.variantLabel}
-                      </span>
-                    )}
-                    {!family.enabled ? <small>В разработке</small> : null}
+                        </div>
+                        <button
+                          type="button"
+                          className="workbench-variant-add"
+                          onClick={() => {
+                            c.addFamily(family.familyId);
+                            c.setLibraryVariantPopover(null);
+                          }}
+                        >
+                          Добавить
+                        </button>
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}

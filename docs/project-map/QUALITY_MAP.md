@@ -36,23 +36,26 @@ TST-ELECTRONICS-COMPONENT-LIBRARY-001
 TST-ELECTRONICS-M1-E2E-001
 ```
 
-The production-vector commands and component-family tests run as one focused
-asset/state/breadboard/library suite. The full repository matrix remains
-intentionally out of scope before owner visual acceptance.
+The production-vector commands and owner-reference presentation tests run as
+one focused asset/state/breadboard/library suite. The full repository matrix
+remains intentionally out of scope before owner visual acceptance.
 
 ## Required browser evidence
 
 ```text
-library-basic-default.png
-library-category-power.png
-library-family-battery-variants.png
-library-search-led.png
-library-supported-vs-preview.png
-library-list-view.png
-variant-persisted-after-reload.png
+editor-idle-clean.png
+library-basic-three-columns.png
+library-basic-exact-order.png
+component-hover-terminal.png
+wiring-mode-terminals.png
+component-selected.png
+breadboard-placement-clean.png
+library-disabled-components.png
+owner-reference-vs-current.png
 console errors = 0
 pageerror = 0
 unexpected requestfailed = 0
+HTTP 5xx = 0
 ```
 
 Result semantics: PASS is a real exit 0; FAIL is an executed defect; BLOCKED is

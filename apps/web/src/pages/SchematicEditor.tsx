@@ -4,7 +4,6 @@ import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import { useElectronicsWorkbench } from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
-import '../electronics/workbench-tinkercad-parity.css';
 
 export function SchematicEditor({
   projectId,

@@ -18,7 +18,9 @@ export function WorkbenchStage({
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <svg
         ref={c.stageRef}
-        className={`workbench-canvas${c.panning ? ' panning' : ''}`}
+        className={`workbench-canvas${c.panning ? ' panning' : ''}${
+          c.pendingTerminal || c.reconnectEndpoint ? ' wiring' : ''
+        }`}
         viewBox={`${c.viewBox.x} ${c.viewBox.y} ${c.viewBox.width} ${c.viewBox.height}`}
         preserveAspectRatio="xMidYMid slice"
         onPointerDown={c.startPan}
@@ -31,15 +33,12 @@ export function WorkbenchStage({
       >
         <defs>
           <pattern id="asa-grid-small" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M20 0H0V20" fill="none" stroke="#e8ebef" strokeWidth="1" />
+            <path d="M20 0H0V20" fill="none" stroke="#eceff2" strokeWidth="0.8" />
           </pattern>
           <pattern id="asa-grid-large" width="100" height="100" patternUnits="userSpaceOnUse">
             <rect width="100" height="100" fill="url(#asa-grid-small)" />
-            <path d="M100 0H0V100" fill="none" stroke="#dadde3" strokeWidth="1.2" />
+            <path d="M100 0H0V100" fill="none" stroke="#dfe3e7" strokeWidth="1" />
           </pattern>
-          <filter id="asa-selection-shadow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#137db6" floodOpacity=".28" />
-          </filter>
         </defs>
         <rect
           className="workbench-grid-hit"
@@ -116,38 +115,6 @@ export function WorkbenchStage({
             />
           ) : null}
         </g>
-        <g className="workbench-snap-link-layer" aria-hidden="true">
-          {document.components.flatMap((component) => {
-            const entry = catalogEntry(component);
-            return Object.entries(component.holeBindings ?? {}).flatMap(([pinId, binding]) => {
-              const boardComponent = document.components.find(
-                (item) => item.id === binding.breadboardComponentId,
-              );
-              const board = boardComponent
-                ? productionBreadboard(boardComponent.componentTypeId ?? '')
-                : null;
-              const hole = board?.holes.find((item) => item.id === binding.holeId);
-              const pin = terminalPosition(
-                component,
-                component.position,
-                pinId,
-                component.rotation ?? 0,
-              );
-              if (!entry || !boardComponent || !hole || !pin) return [];
-              return [
-                <line
-                  key={`${component.id}-${pinId}-${binding.holeId}`}
-                  className="workbench-snap-link"
-                  data-hole-id={binding.holeId}
-                  x1={pin.x}
-                  y1={pin.y}
-                  x2={boardComponent.position.x + hole.xMm * WORLD_UNITS_PER_MM}
-                  y2={boardComponent.position.y + hole.yMm * WORLD_UNITS_PER_MM}
-                />,
-              ];
-            });
-          })}
-        </g>
         {document.components
           .filter((component) => component.kind !== 'wire')
           .map((component) => {
@@ -162,7 +129,11 @@ export function WorkbenchStage({
             return (
               <g
                 key={component.id}
-                className={diagnostics.length > 0 ? 'workbench-component-diagnostic' : undefined}
+                className={
+                  c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
+                    ? 'workbench-component-diagnostic'
+                    : undefined
+                }
                 data-testid="schematic-component"
                 data-kind={component.kind}
                 data-component-type={component.componentTypeId}
@@ -177,11 +148,11 @@ export function WorkbenchStage({
                 {selected ? (
                   <rect
                     className="workbench-selection-box"
-                    x={component.position.x - 8}
-                    y={component.position.y - 8}
-                    width={boxSize.width + 16}
-                    height={boxSize.height + 16}
-                    rx="8"
+                    x={component.position.x - 5}
+                    y={component.position.y - 5}
+                    width={boxSize.width + 10}
+                    height={boxSize.height + 10}
+                    rx="4"
                   />
                 ) : null}
                 <g
@@ -267,6 +238,7 @@ export function WorkbenchStage({
                   : null}
                 {Object.keys(entry.terminals).map((terminal) => {
                   if (component.kind === 'breadboard') return null;
+                  if (component.holeBindings?.[terminal]) return null;
                   const terminalSpec = entry.terminals[terminal];
                   if (!terminalSpec) return null;
                   const point = terminalPosition(
@@ -303,8 +275,8 @@ export function WorkbenchStage({
                           }
                         }}
                       />
-                      <circle className="workbench-terminal-dot" r="5.5" />
-                      {selected || c.pendingTerminal ? (
+                      <circle className="workbench-terminal-dot" r="3" />
+                      {c.pendingTerminal || c.reconnectEndpoint ? (
                         <text x="0" y="-12" textAnchor="middle">
                           {terminalSpec.label}
                         </text>
@@ -355,30 +327,32 @@ export function WorkbenchStage({
           {c.notice}
         </div>
       ) : null}
-      <aside className="workbench-results" aria-label="Результаты моделирования">
-        <button type="button" className="workbench-results-toggle" title="Результаты">
-          <MoreIcon />
-        </button>
-        <div className="workbench-results-card">
-          <strong>Ток</strong>
-          <span data-testid="current-reading">
-            {c.simulationRunning && c.result?.solved
-              ? `${(c.result.current * 1000).toFixed(1)} мА`
-              : '—'}
-          </span>
-          <ul data-testid="diagnostics">
-            {(c.result?.diagnostics ?? []).slice(0, 3).map((d, i) => (
-              <li key={`${d.code}-${i}`} className={d.severity}>
-                <span>{d.message}</span>
-                {d.suggestedAction ? <small>{d.suggestedAction}</small> : null}
-              </li>
-            ))}
-          </ul>
-          {c.versions.length > 0 ? (
-            <small>Последняя версия: №{c.versions[0]?.versionNo}</small>
-          ) : null}
-        </div>
-      </aside>
+      {c.simulationRunning ? (
+        <aside className="workbench-results" aria-label="Результаты моделирования">
+          <button type="button" className="workbench-results-toggle" title="Результаты">
+            <MoreIcon />
+          </button>
+          <div className="workbench-results-card">
+            <strong>Ток</strong>
+            <span data-testid="current-reading">
+              {c.simulationRunning && c.result?.solved
+                ? `${(c.result.current * 1000).toFixed(1)} мА`
+                : '—'}
+            </span>
+            <ul data-testid="diagnostics">
+              {(c.result?.diagnostics ?? []).slice(0, 3).map((d, i) => (
+                <li key={`${d.code}-${i}`} className={d.severity}>
+                  <span>{d.message}</span>
+                  {d.suggestedAction ? <small>{d.suggestedAction}</small> : null}
+                </li>
+              ))}
+            </ul>
+            {c.versions.length > 0 ? (
+              <small>Последняя версия: №{c.versions[0]?.versionNo}</small>
+            ) : null}
+          </div>
+        </aside>
+      ) : null}
     </section>
   );
 }

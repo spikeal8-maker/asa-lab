@@ -92,18 +92,18 @@ tests:
     artifacts: [parametric-resistor-visual, resistor-band-contract, vitest-report]
 
   - id: TST-ELECTRONICS-COMPONENT-LIBRARY-001
-    title: Deterministic categories, component families, safe tiers and persisted variants
+    title: Owner-reference shelf geometry, exact order, contextual terminals and persisted variants
     suite: integration
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-editor-integration.spec.ts apps/web/src/electronics/testing/workbench-document.spec.ts
+    command: pnpm vitest run apps/web/src/electronics/testing/production-editor-integration.spec.ts apps/web/src/electronics/testing/workbench-presentation.spec.ts apps/web/src/electronics/testing/workbench-document.spec.ts
     timeout_seconds: 900
     owner: electronics
-    artifacts: [component-family-map, focused-test-report]
+    artifacts: [component-family-map, presentation-contract, focused-test-report]
 
   - id: TST-ELECTRONICS-M1-E2E-001
-    title: Real-editor family library navigation and variant save reload checkpoint
+    title: Real-editor owner-reference presentation and wiring interaction states
     suite: e2e
     level: system
     phase_available: PHASE-4
@@ -111,4 +111,4 @@ tests:
     command: pnpm e2e:electronics
     timeout_seconds: 1500
     owner: electronics
-    artifacts: [playwright-report, seven-real-editor-screenshots, browser-failure-report]
+    artifacts: [playwright-report, eight-real-editor-screenshots, owner-reference-side-by-side, browser-failure-report]

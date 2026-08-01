@@ -11,6 +11,7 @@ export type PreviewKey =
   | 'battery-aa'
   | 'breadboard'
   | 'microbit'
+  | 'vibration-motor'
   | 'arduino'
   | 'servo'
   | 'motor'
@@ -87,6 +88,16 @@ export function ComponentPreview({ preview, asset, className = '' }: Props): JSX
             stroke="#d4af37"
             strokeWidth="5"
           />
+        </svg>
+      );
+    case 'vibration-motor':
+      return (
+        <svg {...common}>
+          <path d="M48 54v20M56 54v20" stroke="#be2f2f" strokeWidth="2.5" />
+          <path d="M48 70v7M56 70v7" stroke="#2b3440" strokeWidth="2.5" />
+          <circle cx="52" cy="36" r="22" fill="#30343a" stroke="#1d2329" strokeWidth="3" />
+          <circle cx="52" cy="36" r="15" fill="#15191d" />
+          <ellipse cx="46" cy="29" rx="6" ry="4" fill="rgba(255,255,255,.16)" />
         </svg>
       );
     default:

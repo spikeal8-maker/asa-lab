@@ -1,4 +1,5 @@
 import type { ComponentKind, SchematicComponent, Terminal } from '../api';
+import type { PreviewKey } from './component-preview';
 import {
   defaultProductionType,
   productionCatalogEntry,
@@ -89,53 +90,22 @@ interface FamilySpec {
   readonly catalogOrder: number;
   readonly defaultVariantId: string;
   readonly variants: readonly (readonly [componentTypeId: string, variantLabel: string])[];
+  readonly previewOnly?: {
+    readonly componentTypeId: string;
+    readonly preview: PreviewKey;
+  };
   readonly searchAliases: readonly string[];
   readonly appearsInBasic?: boolean;
 }
 
 const FAMILY_SPECS: readonly FamilySpec[] = [
   {
-    familyId: 'breadboard',
-    familyLabel: 'Макетная плата',
-    categoryId: 'prototyping',
-    subcategoryId: 'breadboards',
-    catalogTier: 'core',
-    catalogOrder: 1,
-    defaultVariantId: 'breadboard-medium',
-    variants: [
-      ['breadboard-small', '170 точек'],
-      ['breadboard-medium', '420 точек'],
-      ['breadboard-large', '882 точки'],
-    ],
-    searchAliases: ['breadboard', 'макетка', 'макетная плата', '170', '420', '882'],
-    appearsInBasic: true,
-  },
-  {
-    familyId: 'battery-holder-aa',
-    familyLabel: 'Батарейный отсек AA',
-    categoryId: 'power',
-    subcategoryId: 'battery-holders',
-    catalogTier: 'core',
-    catalogOrder: 2,
-    defaultVariantId: 'battery-holder-aa-2',
-    variants: [
-      ['battery-holder-aa-1', '1×AA'],
-      ['battery-holder-aa-2', '2×AA'],
-      ['battery-holder-aa-3', '3×AA'],
-      ['battery-holder-aa-4', '4×AA'],
-      ['battery-holder-aa-6', '6×AA'],
-      ['battery-holder-aa-8', '8×AA'],
-    ],
-    searchAliases: ['aa', 'battery holder', 'батарея', 'питание', 'отсек'],
-    appearsInBasic: true,
-  },
-  {
     familyId: 'resistor',
     familyLabel: 'Резистор',
     categoryId: 'passives',
     subcategoryId: 'resistors',
     catalogTier: 'core',
-    catalogOrder: 3,
+    catalogOrder: 1,
     defaultVariantId: 'resistor-axial',
     variants: [['resistor-axial', 'Осевой']],
     searchAliases: ['resistor', 'сопротивление', 'ом', 'ohm', 'tolerance'],
@@ -147,7 +117,7 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'output',
     subcategoryId: 'leds',
     catalogTier: 'core',
-    catalogOrder: 4,
+    catalogOrder: 2,
     defaultVariantId: 'led-5mm',
     variants: [['led-5mm', '5 мм']],
     searchAliases: ['led', 'светодиод', 'цвет', 'яркость', 'brightness'],
@@ -159,15 +129,39 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'input',
     subcategoryId: 'buttons',
     catalogTier: 'core',
-    catalogOrder: 5,
+    catalogOrder: 3,
     defaultVariantId: 'button-tactile-6mm',
     variants: [['button-tactile-6mm', 'Тактовая 6×6 мм · 4 контакта']],
     searchAliases: ['button', 'кнопка', 'momentary', '4 pin'],
     appearsInBasic: true,
   },
   {
+    familyId: 'potentiometer',
+    familyLabel: 'Потенциометр',
+    categoryId: 'input',
+    subcategoryId: 'variable-resistors',
+    catalogTier: 'core',
+    catalogOrder: 4,
+    defaultVariantId: 'potentiometer',
+    variants: [['potentiometer', 'Поворотный']],
+    searchAliases: ['potentiometer', 'потенциометр', 'wiper', 'переменный резистор'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'capacitor',
+    familyLabel: 'Конденсатор',
+    categoryId: 'passives',
+    subcategoryId: 'capacitors',
+    catalogTier: 'preview',
+    catalogOrder: 5,
+    defaultVariantId: 'electrolytic-capacitor',
+    variants: [['electrolytic-capacitor', 'Электролитический']],
+    searchAliases: ['capacitor', 'конденсатор', 'электролитический'],
+    appearsInBasic: true,
+  },
+  {
     familyId: 'spdt-switch',
-    familyLabel: 'Переключатель SPDT',
+    familyLabel: 'Ползунковый переключатель',
     categoryId: 'input',
     subcategoryId: 'switches',
     catalogTier: 'core',
@@ -178,16 +172,136 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     appearsInBasic: true,
   },
   {
-    familyId: 'potentiometer',
-    familyLabel: 'Потенциометр',
-    categoryId: 'input',
-    subcategoryId: 'variable-resistors',
-    catalogTier: 'core',
+    familyId: 'battery-9v',
+    familyLabel: 'Батарея 9 В',
+    categoryId: 'power',
+    subcategoryId: 'batteries',
+    catalogTier: 'preview',
     catalogOrder: 7,
-    defaultVariantId: 'potentiometer',
-    variants: [['potentiometer', 'Поворотный']],
-    searchAliases: ['potentiometer', 'потенциометр', 'wiper', 'переменный резистор'],
+    defaultVariantId: 'battery-9v',
+    variants: [['battery-9v', '9 В']],
+    searchAliases: ['battery', 'батарея', '9v', '9 в'],
     appearsInBasic: true,
+  },
+  {
+    familyId: 'coin-cell-3v',
+    familyLabel: 'Кнопочная батарея 3 В',
+    categoryId: 'power',
+    subcategoryId: 'batteries',
+    catalogTier: 'preview',
+    catalogOrder: 8,
+    defaultVariantId: 'battery-3v',
+    variants: [['battery-3v', 'CR2032 · 3 В']],
+    searchAliases: ['coin cell', 'button battery', 'кнопочная батарея', '3v'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'battery-1.5v',
+    familyLabel: 'Батарея 1,5 В',
+    categoryId: 'power',
+    subcategoryId: 'batteries',
+    catalogTier: 'preview',
+    catalogOrder: 9,
+    defaultVariantId: 'battery-1.5v',
+    variants: [['battery-1.5v', 'AA · 1,5 В']],
+    searchAliases: ['battery', 'aa', 'батарея', '1.5v', '1,5 в'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'breadboard',
+    familyLabel: 'Малая макетная плата',
+    categoryId: 'prototyping',
+    subcategoryId: 'breadboards',
+    catalogTier: 'core',
+    catalogOrder: 10,
+    defaultVariantId: 'breadboard-small',
+    variants: [
+      ['breadboard-small', '170 точек'],
+      ['breadboard-medium', '420 точек'],
+      ['breadboard-large', '882 точки'],
+    ],
+    searchAliases: ['breadboard', 'макетка', 'макетная плата', '170', '420', '882'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'microbit',
+    familyLabel: 'micro:bit',
+    categoryId: 'controllers',
+    subcategoryId: 'boards',
+    catalogTier: 'preview',
+    catalogOrder: 11,
+    defaultVariantId: 'microbit-preview',
+    variants: [],
+    previewOnly: { componentTypeId: 'microbit-preview', preview: 'microbit' },
+    searchAliases: ['microbit', 'micro:bit', 'контроллер'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'arduino-uno',
+    familyLabel: 'Arduino Uno R3',
+    categoryId: 'controllers',
+    subcategoryId: 'boards',
+    catalogTier: 'preview',
+    catalogOrder: 12,
+    defaultVariantId: 'arduino-uno',
+    variants: [['arduino-uno', 'Uno R3']],
+    searchAliases: ['arduino', 'uno', 'контроллер', 'микроконтроллер'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'vibration-motor',
+    familyLabel: 'Вибромотор',
+    categoryId: 'motors',
+    subcategoryId: 'motors',
+    catalogTier: 'preview',
+    catalogOrder: 13,
+    defaultVariantId: 'vibration-motor-preview',
+    variants: [],
+    previewOnly: { componentTypeId: 'vibration-motor-preview', preview: 'vibration-motor' },
+    searchAliases: ['vibration motor', 'вибромотор', 'мотор'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'dc-motor',
+    familyLabel: 'Двигатель постоянного тока',
+    categoryId: 'motors',
+    subcategoryId: 'motors',
+    catalogTier: 'preview',
+    catalogOrder: 14,
+    defaultVariantId: 'dc-motor',
+    variants: [['dc-motor', 'DC']],
+    searchAliases: ['dc motor', 'двигатель', 'мотор'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'servo',
+    familyLabel: 'Микросерво',
+    categoryId: 'motors',
+    subcategoryId: 'servos',
+    catalogTier: 'preview',
+    catalogOrder: 15,
+    defaultVariantId: 'servo-motor',
+    variants: [['servo-motor', 'Микро']],
+    searchAliases: ['servo', 'сервопривод', 'микросерво'],
+    appearsInBasic: true,
+  },
+  {
+    familyId: 'battery-holder-aa',
+    familyLabel: 'Батарейный отсек AA',
+    categoryId: 'power',
+    subcategoryId: 'battery-holders',
+    catalogTier: 'core',
+    catalogOrder: 20,
+    defaultVariantId: 'battery-holder-aa-2',
+    variants: [
+      ['battery-holder-aa-1', '1×AA'],
+      ['battery-holder-aa-2', '2×AA'],
+      ['battery-holder-aa-3', '3×AA'],
+      ['battery-holder-aa-4', '4×AA'],
+      ['battery-holder-aa-6', '6×AA'],
+      ['battery-holder-aa-8', '8×AA'],
+    ],
+    searchAliases: ['aa', 'battery holder', 'батарея', 'питание', 'отсек'],
   },
   {
     familyId: 'diode',
@@ -195,14 +309,13 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'semiconductors',
     subcategoryId: 'diodes',
     catalogTier: 'core',
-    catalogOrder: 8,
+    catalogOrder: 21,
     defaultVariantId: 'diode-do41',
     variants: [
       ['diode-do35', 'DO-35'],
       ['diode-do41', 'DO-41'],
     ],
     searchAliases: ['diode', 'диод', 'do-35', 'do-41', 'полярность'],
-    appearsInBasic: true,
   },
   {
     familyId: 'rgb-led',
@@ -210,11 +323,10 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'output',
     subcategoryId: 'leds',
     catalogTier: 'core',
-    catalogOrder: 9,
+    catalogOrder: 22,
     defaultVariantId: 'rgb-led',
     variants: [['rgb-led', '4 контакта']],
     searchAliases: ['rgb led', 'rgb-светодиод', 'red green blue', 'смешение'],
-    appearsInBasic: true,
   },
   {
     familyId: 'seven-segment',
@@ -222,11 +334,10 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'output',
     subcategoryId: 'displays',
     catalogTier: 'core',
-    catalogOrder: 10,
+    catalogOrder: 23,
     defaultVariantId: 'seven-segment-display',
     variants: [['seven-segment-display', '1 разряд']],
     searchAliases: ['seven segment', '7 segment', 'семисегментный', 'индикатор'],
-    appearsInBasic: true,
   },
   {
     familyId: 'lamp',
@@ -234,11 +345,10 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'output',
     subcategoryId: 'lamps',
     catalogTier: 'core',
-    catalogOrder: 11,
+    catalogOrder: 24,
     defaultVariantId: 'incandescent-lamp',
     variants: [['incandescent-lamp', 'Накаливания']],
     searchAliases: ['lamp', 'лампа', 'накаливания', 'light'],
-    appearsInBasic: true,
   },
   {
     familyId: 'regulated-power-supply',
@@ -246,21 +356,10 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'power',
     subcategoryId: 'power-supplies',
     catalogTier: 'supported',
-    catalogOrder: 20,
+    catalogOrder: 25,
     defaultVariantId: 'regulated-power-supply',
     variants: [['regulated-power-supply', 'Лабораторный']],
     searchAliases: ['power supply', 'источник питания', 'блок питания'],
-  },
-  {
-    familyId: 'capacitor',
-    familyLabel: 'Конденсатор',
-    categoryId: 'passives',
-    subcategoryId: 'capacitors',
-    catalogTier: 'preview',
-    catalogOrder: 101,
-    defaultVariantId: 'electrolytic-capacitor',
-    variants: [['electrolytic-capacitor', 'Электролитический']],
-    searchAliases: ['capacitor', 'конденсатор', 'электролитический'],
   },
   {
     familyId: 'photoresistor',
@@ -268,7 +367,7 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'sensors',
     subcategoryId: 'light-sensors',
     catalogTier: 'preview',
-    catalogOrder: 102,
+    catalogOrder: 26,
     defaultVariantId: 'photoresistor',
     variants: [['photoresistor', 'Светочувствительный']],
     searchAliases: ['photoresistor', 'ldr', 'фоторезистор', 'датчик света'],
@@ -279,32 +378,10 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'semiconductors',
     subcategoryId: 'transistors',
     catalogTier: 'preview',
-    catalogOrder: 103,
+    catalogOrder: 27,
     defaultVariantId: 'transistor-npn',
     variants: [['transistor-npn', 'NPN']],
     searchAliases: ['npn', 'transistor', 'транзистор'],
-  },
-  {
-    familyId: 'dc-motor',
-    familyLabel: 'Двигатель постоянного тока',
-    categoryId: 'motors',
-    subcategoryId: 'motors',
-    catalogTier: 'preview',
-    catalogOrder: 104,
-    defaultVariantId: 'dc-motor',
-    variants: [['dc-motor', 'DC']],
-    searchAliases: ['dc motor', 'двигатель', 'мотор'],
-  },
-  {
-    familyId: 'servo',
-    familyLabel: 'Сервопривод',
-    categoryId: 'motors',
-    subcategoryId: 'servos',
-    catalogTier: 'preview',
-    catalogOrder: 105,
-    defaultVariantId: 'servo-motor',
-    variants: [['servo-motor', 'Микро']],
-    searchAliases: ['servo', 'сервопривод', 'серво'],
   },
   {
     familyId: 'piezo',
@@ -312,21 +389,10 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'output',
     subcategoryId: 'sound',
     catalogTier: 'preview',
-    catalogOrder: 106,
+    catalogOrder: 28,
     defaultVariantId: 'piezo',
     variants: [['piezo', 'Пьезо']],
     searchAliases: ['piezo', 'buzzer', 'пьезо', 'зуммер'],
-  },
-  {
-    familyId: 'arduino-uno',
-    familyLabel: 'Arduino Uno',
-    categoryId: 'controllers',
-    subcategoryId: 'boards',
-    catalogTier: 'preview',
-    catalogOrder: 107,
-    defaultVariantId: 'arduino-uno',
-    variants: [['arduino-uno', 'Uno']],
-    searchAliases: ['arduino', 'uno', 'контроллер', 'микроконтроллер'],
   },
   {
     familyId: 'multimeter',
@@ -334,18 +400,58 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
     categoryId: 'instruments',
     subcategoryId: 'meters',
     catalogTier: 'preview',
-    catalogOrder: 108,
+    catalogOrder: 29,
     defaultVariantId: 'multimeter',
     variants: [['multimeter', 'Цифровой']],
     searchAliases: ['multimeter', 'мультиметр', 'meter', 'измерение'],
   },
 ];
 
+function ownerReferencePreviewEntry(spec: FamilySpec): CatalogEntry | null {
+  if (!spec.previewOnly) return null;
+  return {
+    key: spec.previewOnly.componentTypeId,
+    kind: 'visual',
+    label: spec.familyLabel,
+    category: 'other',
+    description: `${spec.familyLabel}: owner-reference preview`,
+    keywords: spec.searchAliases,
+    preview: spec.previewOnly.preview,
+    asset: '',
+    stateAssets: {},
+    viewBox: { x: 0, y: 0, width: 100, height: 80 },
+    physicalSizeMm: { width: 20, height: 16 },
+    terminals: {},
+    footprint: null,
+    defaultValue: 0,
+    defaultStateProperties: { simulationStatus: 'not_yet_supported' },
+    unit: '',
+    provenance: 'owner_reference_preview',
+    sourceFile: 'owner-ui-reference',
+    simulationSupported: false,
+    enabled: true,
+  };
+}
+
 function familyFromSpec(spec: FamilySpec): ComponentFamily | null {
-  const variants = spec.variants.flatMap(([componentTypeId, variantLabel]) => {
+  const manifestVariants = spec.variants.flatMap(([componentTypeId, variantLabel]) => {
     const entry = productionCatalogEntry(componentTypeId);
     return entry ? [{ variantId: componentTypeId, variantLabel, componentTypeId, entry }] : [];
   });
+  const previewEntry = ownerReferencePreviewEntry(spec);
+  const variants =
+    manifestVariants.length > 0
+      ? manifestVariants
+      : previewEntry && spec.previewOnly
+        ? [
+            {
+              variantId: spec.previewOnly.componentTypeId,
+              variantLabel: spec.familyLabel,
+              componentTypeId: spec.previewOnly.componentTypeId,
+              entry: previewEntry,
+            },
+          ]
+        : [];
   if (
     variants.length === 0 ||
     !variants.some((variant) => variant.variantId === spec.defaultVariantId)
@@ -402,10 +508,10 @@ export function familyMatchesCategory(
   family: ComponentFamily,
   category: ComponentCategory,
 ): boolean {
-  if (category === 'basic') return family.enabled && family.appearsInBasic;
-  if (category === 'all') return family.enabled;
+  if (category === 'basic') return family.appearsInBasic;
+  if (category === 'all') return true;
   if (category === 'preview') return family.catalogTier === 'preview';
-  return family.enabled && family.categoryId === category;
+  return family.categoryId === category;
 }
 
 export function familySearchText(family: ComponentFamily): string {

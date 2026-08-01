@@ -49,17 +49,42 @@ describe('production manifest integration in the real Electronics document', () 
         .filter((family) => familyMatchesCategory(family, 'basic'))
         .map((family) => family.familyId),
     ).toEqual([
-      'breadboard',
-      'battery-holder-aa',
       'resistor',
       'led',
       'button',
-      'spdt-switch',
       'potentiometer',
-      'diode',
-      'rgb-led',
-      'seven-segment',
-      'lamp',
+      'capacitor',
+      'spdt-switch',
+      'battery-9v',
+      'coin-cell-3v',
+      'battery-1.5v',
+      'breadboard',
+      'microbit',
+      'arduino-uno',
+      'vibration-motor',
+      'dc-motor',
+      'servo',
+    ]);
+    expect(
+      families
+        .filter((family) => familyMatchesCategory(family, 'basic'))
+        .map((family) => family.enabled),
+    ).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
     ]);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
       defaultVariantId: 'battery-holder-aa-2',
@@ -88,12 +113,13 @@ describe('production manifest integration in the real Electronics document', () 
         .find((family) => family.familyId === 'diode')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['diode-do35', 'diode-do41']);
-    const runtimeVariantIds = families.flatMap((family) =>
-      family.variants.map((variant) => variant.variantId),
-    );
-    expect(runtimeVariantIds).not.toEqual(
-      expect.arrayContaining(['battery-1.5v', 'battery-3v', 'battery-6v', 'battery-9v']),
-    );
+    for (const familyId of ['battery-1.5v', 'coin-cell-3v', 'battery-9v']) {
+      expect(families.find((family) => family.familyId === familyId)).toMatchObject({
+        enabled: false,
+        appearsInBasic: true,
+        simulationStatus: 'not_yet_supported',
+      });
+    }
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -104,10 +130,15 @@ describe('production manifest integration in the real Electronics document', () 
     for (const family of families) {
       for (const variant of family.variants) {
         const entry = variant.entry;
-        expect(entry.asset, variant.variantId).toMatch(
-          /^\/assets\/electronics\/production\/.*\.svg$/,
-        );
-        expect(entry.asset, variant.variantId).not.toContain('/electronics/components/');
+        if (entry.asset) {
+          expect(entry.asset, variant.variantId).toMatch(
+            /^\/assets\/electronics\/production\/.*\.svg$/,
+          );
+          expect(entry.asset, variant.variantId).not.toContain('/electronics/components/');
+        } else {
+          expect(['microbit', 'vibration-motor']).toContain(entry.preview);
+          expect(family.enabled).toBe(false);
+        }
         expect(renderedSize(entry)).toEqual({
           width: entry.physicalSizeMm.width * WORLD_UNITS_PER_MM,
           height: entry.physicalSizeMm.height * WORLD_UNITS_PER_MM,
