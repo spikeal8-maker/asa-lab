@@ -43,12 +43,9 @@ const activeTypes = [
 ] as const;
 
 beforeAll(() => {
-  const manifestPath = resolve(
-    process.cwd(),
-    'apps/web/public/assets/electronics/owner-catalog/manifest.json',
-  );
+  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog');
   configureProductionLibrary(
-    JSON.parse(readFileSync(manifestPath, 'utf8')) as OwnerCatalogManifest,
+    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as OwnerCatalogManifest,
   );
 });
 

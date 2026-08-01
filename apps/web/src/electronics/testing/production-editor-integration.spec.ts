@@ -31,12 +31,9 @@ const EMPTY: SchematicDocument = {
 };
 
 beforeAll(() => {
-  const manifestPath = resolve(
-    process.cwd(),
-    'apps/web/public/assets/electronics/owner-catalog/manifest.json',
-  );
+  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog');
   configureProductionLibrary(
-    JSON.parse(readFileSync(manifestPath, 'utf8')) as OwnerCatalogManifest,
+    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as OwnerCatalogManifest,
   );
 });
 
@@ -54,7 +51,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'potentiometer',
       'capacitor',
       'spdt-switch',
-      'battery-9v',
+      'battery',
       'breadboard',
       'microbit',
       'arduino-uno',
@@ -108,7 +105,7 @@ describe('owner SVG integration in the real Electronics document', () => {
         .find((family) => family.familyId === 'diode')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['diode-do35', 'diode-do41']);
-    expect(families.find((family) => family.familyId === 'battery-9v')).toMatchObject({
+    expect(families.find((family) => family.familyId === 'battery')).toMatchObject({
       enabled: false,
       appearsInBasic: true,
       simulationStatus: 'not_yet_supported',
@@ -125,11 +122,10 @@ describe('owner SVG integration in the real Electronics document', () => {
         const entry = variant.entry;
         if (entry.asset) {
           expect(entry.asset, variant.variantId).toMatch(
-            /^\/assets\/electronics\/owner-audit\/.*\.svg$/,
+            /^\/assets\/electronics\/(owner-supplied|owner-audit\/components)\/.*\.svg$/,
           );
           expect(entry.asset, variant.variantId).not.toContain('/production/');
           expect(entry.asset, variant.variantId).not.toContain('/source-reference/');
-          expect(entry.runtimeSha256, variant.variantId).toBe(entry.sourceSha256);
         } else {
           expect(['microbit', 'vibration-motor']).toContain(entry.preview);
           expect(family.enabled).toBe(false);

@@ -40,7 +40,7 @@ describe('owner SVG runtime catalog adapter', () => {
     }
 
     const substitution = structuredClone(manifest) as unknown as {
-      components: Array<{ status: string; runtimeSha256: string | null }>;
+      components: Array<{ status: string; runtimeSha256: string }>;
     };
     const enabled = substitution.components.find((item) => item.status === 'enabled');
     if (!enabled) throw new Error('focused fixture contains no enabled owner SVG');

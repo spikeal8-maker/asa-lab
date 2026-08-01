@@ -170,9 +170,11 @@ const SIMULATED_TYPES = new Set([
   'battery-holder-aa-4',
   'battery-holder-aa-6',
   'battery-holder-aa-8',
+  'resistor-axial',
   'led-5mm',
   'button-tactile-6mm',
   'switch-spdt',
+  'potentiometer',
   'diode-do35',
   'diode-do41',
   'incandescent-lamp',
@@ -229,6 +231,8 @@ function defaults(componentId: string): {
     const cells = Number(componentId.split('-').at(-1));
     return { value: cells * 1.5, unit: 'В', properties: { cells } };
   }
+  if (componentId === 'resistor-axial')
+    return { value: 220, unit: 'Ом', properties: { tolerancePercent: 5 } };
   if (componentId === 'led-5mm')
     return {
       value: 2,
@@ -251,6 +255,8 @@ function defaults(componentId: string): {
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };
   if (componentId === 'switch-spdt')
     return { value: 0, unit: '', state: false, properties: { selectedThrow: 'left' } };
+  if (componentId === 'potentiometer')
+    return { value: 1_000, unit: 'Ом', wiperPosition: 0.5, properties: {} };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
   if (componentId === 'incandescent-lamp')
     return { value: 24, unit: 'Ом', properties: { lampLevel: 'off' } };
@@ -279,7 +285,7 @@ function pinLabel(componentId: string, pinId: string): string {
 }
 
 function assertFailClosed(item: OwnerCatalogComponent): void {
-  if (item.status !== 'enabled') {
+  if (item.status === 'disabled_missing_svg') {
     if (item.runtimePath !== null || item.runtimeSha256 !== null) {
       throw new Error(`disabled owner catalog item exposes runtime art: ${item.componentId}`);
     }

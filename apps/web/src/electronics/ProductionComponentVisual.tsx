@@ -3,10 +3,13 @@ import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import {
   potentiometerKnobAngle,
+  RESISTOR_BAND_CSS,
+  resistorBandState,
   rgbLedColour,
   rgbLedState,
   sevenSegmentState,
   type RgbCommonMode,
+  type ResistorTolerancePercent,
   type SevenSegmentId,
 } from './production-asset-contracts';
 
@@ -38,6 +41,14 @@ export function ProductionComponentVisual({
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const asset = visualAsset(entry, component, visualState);
+  const toleranceValue = Number(properties['tolerancePercent'] ?? 5);
+  const tolerance: ResistorTolerancePercent = [1, 2, 5, 10].includes(toleranceValue)
+    ? (toleranceValue as ResistorTolerancePercent)
+    : 5;
+  const resistorBands =
+    entry.key === 'resistor-axial'
+      ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
+      : null;
   return (
     <svg
       className="workbench-production-visual"
@@ -48,6 +59,22 @@ export function ProductionComponentVisual({
       aria-hidden="true"
     >
       <image href={asset} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
+
+      {resistorBands ? (
+        <g data-testid="resistor-colour-bands" pointerEvents="none">
+          {resistorBands.map((band, index) => (
+            <rect
+              key={`${band}-${index}`}
+              data-band={index + 1}
+              x={width * 0.32}
+              y={height * (0.335 + index * 0.11)}
+              width={width * 0.42}
+              height={height * 0.052}
+              fill={RESISTOR_BAND_CSS[band]}
+            />
+          ))}
+        </g>
+      ) : null}
 
       {entry.key === 'rgb-led' ? (
         <ellipse

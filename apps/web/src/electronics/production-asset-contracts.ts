@@ -132,6 +132,18 @@ export function ordinaryLedState(
   return { colour, brightness: clampPercent(brightness), fault };
 }
 
+export function ordinaryLedAsset(state: OrdinaryLedState): string {
+  if (state.fault === 'reverse')
+    return '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg';
+  if (state.fault === 'overcurrent')
+    return '/assets/electronics/owner-audit/components/led/special/led_orange_overcurrent.svg';
+  if (state.fault === 'burned')
+    return '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg';
+  return `/assets/electronics/owner-audit/components/led/${state.colour}/led_${state.colour}_i${String(
+    state.brightness,
+  ).padStart(3, '0')}.svg`;
+}
+
 export function rgbLedState(
   red: number,
   green: number,

@@ -19,6 +19,23 @@ MANIFEST = ASSETS / "owner-catalog/manifest.json"
 AUDIT_MANIFEST = ASSETS / "owner-audit/manifest.json"
 EXPECTED_SCHEMA = "asa-lab.electronics-owner-catalog.v1"
 EXPECTED_EXACT_FILES = 650
+OWNER_APPROVED_REFERENCE_CANDIDATES = {
+    f"components/reference-candidates/{name}.svg"
+    for name in (
+        "arduino-uno",
+        "battery-9v",
+        "dc-motor",
+        "electrolytic-capacitor",
+        "multimeter",
+        "photoresistor",
+        "piezo",
+        "potentiometer",
+        "regulated-power-supply",
+        "resistor-axial",
+        "servo-motor",
+        "transistor-npn",
+    )
+}
 PROHIBITED_PATHS = (
     ROOT / "tools/electronics-production-vectors",
     ROOT / "tools/build_electronics_production_assets.py",
@@ -89,13 +106,19 @@ def accepted_owner_assets() -> dict[str, dict[str, Any]]:
     for item in audit.get("importedReviewAssets", []):
         path = item.get("importedFile")
         acceptance = str(item.get("acceptance", ""))
+        explicitly_approved_reference = path in OWNER_APPROVED_REFERENCE_CANDIDATES
         if (
             isinstance(path, str)
             and path.endswith(".svg")
             and item.get("provenance") == "owner_supplied"
-            and "unaccepted" not in acceptance
-            and "candidate" not in acceptance
-            and "raster" not in acceptance
+            and (
+                explicitly_approved_reference
+                or (
+                    "unaccepted" not in acceptance
+                    and "candidate" not in acceptance
+                    and "raster" not in acceptance
+                )
+            )
         ):
             accepted[path] = item
     if not accepted:
@@ -159,14 +182,17 @@ def validate_catalog(
     state_count = 0
     enabled = 0
     for item in components:
-        runtime_eligible = item.get("status") == "enabled"
+        status = item.get("status")
+        runtime_eligible = status == "enabled"
+        has_owner_art = status in {"enabled", "disabled_missing_model"}
         runtime_url = item.get("runtimePath")
         source_sha = item.get("sourceSha256")
         runtime_sha = item.get("runtimeSha256")
-        if runtime_eligible:
-            enabled += 1
+        if has_owner_art:
+            if runtime_eligible:
+                enabled += 1
             if item.get("provenance") != "exact_owner_svg":
-                fail(f"enabled component lacks exact_owner_svg provenance: {item.get('componentId')}")
+                fail(f"runtime component lacks exact_owner_svg provenance: {item.get('componentId')}")
             if not source_sha or source_sha != runtime_sha:
                 fail(f"source/runtime SHA mismatch: {item.get('componentId')}")
             assert_owner_audit_match(

@@ -6,6 +6,8 @@ import {
   type ProductionCatalogItem,
 } from './production-manifest-adapter';
 import {
+  ordinaryLedAsset,
+  ordinaryLedState,
   physicalToWorld,
   WORLD_UNITS_PER_MM,
   type OrdinaryLedColour,
@@ -83,8 +85,15 @@ export const CATEGORY_LABELS: Readonly<Record<ComponentCategory, string>> = Obje
 ) as Readonly<Record<ComponentCategory, string>>;
 
 export function workbenchCatalog(): readonly ComponentFamily[] {
+  const ownerItems = ownerCatalogItems();
+  const familiesWithOwnerArt = new Set(
+    ownerItems.filter((item) => item.asset).map((item) => item.familyId),
+  );
   const grouped = new Map<string, ProductionCatalogItem[]>();
-  for (const item of ownerCatalogItems()) {
+  for (const item of ownerItems) {
+    // A missing variant must not pollute a family that already has confirmed owner artwork.
+    // Standalone missing families remain visible in the disabled preview category.
+    if (!item.asset && familiesWithOwnerArt.has(item.familyId)) continue;
     grouped.set(item.familyId, [...(grouped.get(item.familyId) ?? []), item]);
   }
   return [...grouped.values()]
@@ -227,15 +236,8 @@ export function visualAsset(
       visualState === 'reverse' || visualState === 'overcurrent' || visualState === 'burned'
         ? visualState
         : explicitFault;
-    const stateKey =
-      fault === 'reverse'
-        ? 'led_red_reverse_polarity'
-        : fault === 'overcurrent'
-          ? 'led_orange_overcurrent'
-          : fault === 'burned'
-            ? 'led_red_burned'
-            : `${colour}:${visualState === 'off' ? 0 : brightness}`;
-    return entry.stateAssets[stateKey] ?? entry.asset;
+    const normalizedBrightness = visualState === 'off' ? 0 : brightness;
+    return ordinaryLedAsset(ordinaryLedState(colour, normalizedBrightness, fault));
   }
   if (entry.key === 'button-tactile-6mm')
     return entry.stateAssets[component.state ? 'pressed' : 'released'] ?? entry.asset;

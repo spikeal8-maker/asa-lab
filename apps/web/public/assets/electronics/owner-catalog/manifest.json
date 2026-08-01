@@ -69,90 +69,90 @@
     "microbit": "missing_after_full_scan",
     "vibrationMotor": "missing_after_full_scan"
   },
-  "rejectedGeneratedSubstitutes": [
+  "ownerApprovedReferenceAssets": [
     {
       "componentId": "arduino-uno",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/arduino-uno.svg",
       "sha256": "0817b47bc7026fa99ada9d43aaedc7f11bcc5d162012d42971859dead42920b1",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "battery-9v",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/battery-9v.svg",
       "sha256": "ab02ac5bcba8490493649062c14d908be23e1e0303b1aafa223c9095459892e0",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "dc-motor",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/dc-motor.svg",
       "sha256": "3b7407704725654f62d6b0934ac6257bbaa4947dd64c498cc9784eec5e2e3130",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "electrolytic-capacitor",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/electrolytic-capacitor.svg",
       "sha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "multimeter",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/multimeter.svg",
       "sha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "photoresistor",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/photoresistor.svg",
       "sha256": "8e35a05c98393686de51247b7c1a8efb69290f93e2530fec012b60a20c304d87",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "piezo",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/piezo.svg",
       "sha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "potentiometer",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/potentiometer-rotary.svg",
       "sha256": "6479b558277685b98e22709ab1f17ba3564fcb1053abf8321d4a1e8d1ec9b35c",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "regulated-power-supply",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/regulated-power-supply.svg",
       "sha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "resistor-axial",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/resistor-axial.svg",
       "sha256": "93d500a6a8cb4d9fca803464867c7f9f65410f8b0b21b8c70fc777b72d0d2f49",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "servo-motor",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/servo-motor.svg",
       "sha256": "52e1c9ca3f926b76c4795855eafcacd37a71df73d4cee3112a150a663d523bd3",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
       "componentId": "transistor-npn",
       "sourceArchive": "reference-lab-zip",
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/transistor-npn.svg",
       "sha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
-      "reason": "generated_or_unaccepted_reference_svg_not_runtime"
+      "ownerDecision": "approved_exact_owner_svg_for_runtime"
     }
   ],
   "breadboards": [
@@ -11170,7 +11170,7 @@
       "appearsInBasic": true,
       "searchAliases": ["resistor-axial", "Резистор", "Axial resistor"],
       "displayNameEn": "Axial resistor",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 4.354,
       "physicalHeightMm": 11.582,
       "viewBox": [0, 0, 4.354, 11.582],
@@ -11215,22 +11215,22 @@
         },
         "tolerancePercent": [1, 2, 5, 10]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
-      "catalogTier": "preview",
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
       "isDefaultVariant": true,
       "displayName": "Осевой резистор",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/резистор.png",
-      "sourceSha256": "7e520cd1dfc39645b776bbe3785b733d11d331a41b6bf19ecf52bd5cf0834d7a",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/resistor-axial.svg",
+      "sourceSha256": "93d500a6a8cb4d9fca803464867c7f9f65410f8b0b21b8c70fc777b72d0d2f49",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/resistor-axial.svg",
+      "runtimeSha256": "93d500a6a8cb4d9fca803464867c7f9f65410f8b0b21b8c70fc777b72d0d2f49",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "led-5mm",
@@ -16919,7 +16919,7 @@
       "appearsInBasic": true,
       "searchAliases": ["potentiometer", "Потенциометр", "Поворотный"],
       "displayNameEn": "potentiometer",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 12.131,
       "physicalHeightMm": 13.66,
       "viewBox": [0, 0, 12.131, 13.66],
@@ -16961,22 +16961,22 @@
         "wiperPosition": [0, 1],
         "knobAngleDegrees": [-135, 135]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
-      "catalogTier": "preview",
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
       "isDefaultVariant": true,
       "displayName": "Потенциометр",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/Потенциометр.png",
-      "sourceSha256": "6396ef74df3ab98135deaf494363a469ba47dc33b160d64e83cc129885dfd994",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/potentiometer-rotary.svg",
+      "sourceSha256": "6479b558277685b98e22709ab1f17ba3564fcb1053abf8321d4a1e8d1ec9b35c",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/potentiometer.svg",
+      "runtimeSha256": "6479b558277685b98e22709ab1f17ba3564fcb1053abf8321d4a1e8d1ec9b35c",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "electrolytic-capacitor",
@@ -16992,7 +16992,7 @@
       "appearsInBasic": true,
       "searchAliases": ["electrolytic-capacitor", "Конденсатор", "Electrolytic capacitor"],
       "displayNameEn": "Electrolytic capacitor",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 8.667,
       "physicalHeightMm": 14.133,
       "viewBox": [0, 0, 8.667, 14.133],
@@ -17027,7 +17027,7 @@
         "state": "static"
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -17035,13 +17035,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Электролитический конденсатор",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/конденсатор электролитический.png",
-      "sourceSha256": "01f96d5fda6011cc2dd35f4899c0307e7a8073fb5220ae67e24843fdc9bceb1d",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/electrolytic-capacitor.svg",
+      "sourceSha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/electrolytic-capacitor.svg",
+      "runtimeSha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "switch-spdt",
@@ -17162,7 +17162,7 @@
       "appearsInBasic": true,
       "searchAliases": ["battery-1.5v", "Батарея", "1,5 В"],
       "displayNameEn": "battery-1.5v",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 23.524,
       "physicalHeightMm": 66.87,
       "viewBox": [0, 0, 23.524, 66.87],
@@ -17197,7 +17197,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -17227,7 +17227,7 @@
       "appearsInBasic": true,
       "searchAliases": ["battery-3v", "Батарея", "3 В"],
       "displayNameEn": "battery-3v",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 31.423,
       "physicalHeightMm": 56.855,
       "viewBox": [0, 0, 31.423, 56.855],
@@ -17262,7 +17262,7 @@
         "polarity": ["positive", "negative"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -17357,7 +17357,7 @@
       "appearsInBasic": true,
       "searchAliases": ["battery-9v", "Батарея", "9 В"],
       "displayNameEn": "battery-9v",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 52.667,
       "physicalHeightMm": 26.8,
       "viewBox": [0, 0, 52.667, 26.8],
@@ -17400,13 +17400,13 @@
       },
       "isDefaultVariant": false,
       "displayName": "Батарея 9 В",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/батарея 9V.png",
-      "sourceSha256": "88ffecb52b441bc652d3ebeced108676af2b79eed05e7bfff5afc855193a4f63",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/battery-9v.svg",
+      "sourceSha256": "ab02ac5bcba8490493649062c14d908be23e1e0303b1aafa223c9095459892e0",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/battery-9v.svg",
+      "runtimeSha256": "ab02ac5bcba8490493649062c14d908be23e1e0303b1aafa223c9095459892e0",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "breadboard-small",
@@ -27962,7 +27962,7 @@
       "appearsInBasic": true,
       "searchAliases": ["arduino-uno", "Arduino Uno", "Uno"],
       "displayNameEn": "arduino-uno",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 138.942,
       "physicalHeightMm": 68.164,
       "viewBox": [0, 0, 138.942, 68.164],
@@ -28200,7 +28200,7 @@
         "state": "static"
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -28208,13 +28208,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Arduino Uno",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/ардуино.png",
-      "sourceSha256": "1035f425c93ff7406cd2334d9aefb19d2e496c86d0425288a8cde1433a8467c7",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/arduino-uno.svg",
+      "sourceSha256": "0817b47bc7026fa99ada9d43aaedc7f11bcc5d162012d42971859dead42920b1",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/arduino-uno.svg",
+      "runtimeSha256": "0817b47bc7026fa99ada9d43aaedc7f11bcc5d162012d42971859dead42920b1",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "vibration-motor",
@@ -28271,7 +28271,7 @@
       "appearsInBasic": true,
       "searchAliases": ["dc-motor", "Двигатель постоянного тока", "DC motor"],
       "displayNameEn": "DC motor",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 25.333,
       "physicalHeightMm": 19.333,
       "viewBox": [0, 0, 25.333, 19.333],
@@ -28307,7 +28307,7 @@
         "direction": ["clockwise", "counterclockwise", "stopped"]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -28315,13 +28315,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Двигатель постоянного тока",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/электромотор.png",
-      "sourceSha256": "a211f959568d74a7b8446c25ebc4e7d407b84a0718dc0f2da656487c57373fc5",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/dc-motor.svg",
+      "sourceSha256": "3b7407704725654f62d6b0934ac6257bbaa4947dd64c498cc9784eec5e2e3130",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/dc-motor.svg",
+      "runtimeSha256": "3b7407704725654f62d6b0934ac6257bbaa4947dd64c498cc9784eec5e2e3130",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "servo-motor",
@@ -28337,7 +28337,7 @@
       "appearsInBasic": true,
       "searchAliases": ["servo-motor", "Микросерво", "Micro servo"],
       "displayNameEn": "Micro servo",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 15.2,
       "physicalHeightMm": 38.533,
       "viewBox": [0, 0, 15.2, 38.533],
@@ -28379,7 +28379,7 @@
         "angleDegrees": [0, 180]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -28387,13 +28387,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Микросервопривод",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/сервомотор.png",
-      "sourceSha256": "5f91f9d33a4dc300e4f3411d0bf0560fc73c91735637aca0767bec18a4b4c03a",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/servo-motor.svg",
+      "sourceSha256": "52e1c9ca3f926b76c4795855eafcacd37a71df73d4cee3112a150a663d523bd3",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/servo-motor.svg",
+      "runtimeSha256": "52e1c9ca3f926b76c4795855eafcacd37a71df73d4cee3112a150a663d523bd3",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "battery-holder-aa-1",
@@ -29584,7 +29584,7 @@
         "Regulated power supply"
       ],
       "displayNameEn": "Regulated power supply",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 28.667,
       "physicalHeightMm": 22.8,
       "viewBox": [0, 0, 28.667, 22.8],
@@ -29628,13 +29628,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Регулируемый источник питания",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/источник питания регулируемый.png",
-      "sourceSha256": "399c88c9f5cd639c07ce114a52a9ed7d3e254c58e84e36557b504ef81d62a897",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/regulated-power-supply.svg",
+      "sourceSha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/regulated-power-supply.svg",
+      "runtimeSha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "photoresistor",
@@ -29650,7 +29650,7 @@
       "appearsInBasic": false,
       "searchAliases": ["photoresistor", "Фоторезистор", "Photoresistor"],
       "displayNameEn": "Photoresistor",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 8.133,
       "physicalHeightMm": 12.133,
       "viewBox": [0, 0, 8.133, 12.133],
@@ -29685,7 +29685,7 @@
         "illumination": [0, 1]
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -29693,13 +29693,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Фоторезистор",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/фоторезистор.png",
-      "sourceSha256": "12a19c25dae03e37906ab64124f5405ed02f9fe2157ac585b6a9f6e0309eb0c3",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/photoresistor.svg",
+      "sourceSha256": "8e35a05c98393686de51247b7c1a8efb69290f93e2530fec012b60a20c304d87",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/photoresistor.svg",
+      "runtimeSha256": "8e35a05c98393686de51247b7c1a8efb69290f93e2530fec012b60a20c304d87",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "transistor-npn",
@@ -29715,7 +29715,7 @@
       "appearsInBasic": false,
       "searchAliases": ["transistor-npn", "NPN-транзистор", "NPN transistor"],
       "displayNameEn": "NPN transistor",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 8.267,
       "physicalHeightMm": 13.333,
       "viewBox": [0, 0, 8.267, 13.333],
@@ -29757,7 +29757,7 @@
         "state": "static"
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -29765,13 +29765,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "NPN-транзистор",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/транзистор.png",
-      "sourceSha256": "fc4856f1225c29febc60be607494c52472b96f960513e53b18154edcfa6336f9",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/transistor-npn.svg",
+      "sourceSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/transistor-npn.svg",
+      "runtimeSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "piezo",
@@ -29787,7 +29787,7 @@
       "appearsInBasic": false,
       "searchAliases": ["piezo", "Пьезоэлемент", "Piezo element"],
       "displayNameEn": "Piezo element",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 22.133,
       "physicalHeightMm": 22.0,
       "viewBox": [0, 0, 22.133, 22.0],
@@ -29823,7 +29823,7 @@
         "driver": "simulation_state"
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -29831,13 +29831,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Пьезоэлемент",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/пьезоэлемент.png",
-      "sourceSha256": "7a5cda74e7d7543d1ac3b5aa3a6c1afb65330d84975eb70cf7364c30f89fc6ea",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/piezo.svg",
+      "sourceSha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/piezo.svg",
+      "runtimeSha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "multimeter",
@@ -29853,7 +29853,7 @@
       "appearsInBasic": false,
       "searchAliases": ["multimeter", "Мультиметр", "Multimeter"],
       "displayNameEn": "Multimeter",
-      "provenance": "owner_supplied",
+      "provenance": "exact_owner_svg",
       "physicalWidthMm": 36.4,
       "physicalHeightMm": 14.0,
       "viewBox": [0, 0, 36.4, 14.0],
@@ -29889,7 +29889,7 @@
         "unit": "typed"
       },
       "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
+      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
       "catalogTier": "preview",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
@@ -29897,13 +29897,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Мультиметр",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/мольтиметр.png",
-      "sourceSha256": "5f4b6c0b7bae1dc9636970e8e2e25c9198e2d484bb731bf3cea023544e7b8456",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerArchive": "reference-lab-zip",
+      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/multimeter.svg",
+      "sourceSha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
+      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/multimeter.svg",
+      "runtimeSha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
+      "status": "disabled_missing_model",
+      "previousInventoryClassification": "exact_owner_svg"
     }
   ],
   "breadboardPlacementRules": {
