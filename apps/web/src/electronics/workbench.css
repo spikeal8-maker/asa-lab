@@ -668,6 +668,9 @@
   text-align: center;
   overflow: visible;
 }
+.workbench-catalog-card:has(.workbench-variant-popover) {
+  z-index: 50;
+}
 .workbench-catalog-card:not(.disabled):hover {
   border-color: #bdd3dd;
   box-shadow: 0 2px 7px rgba(32, 53, 66, 0.08);

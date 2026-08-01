@@ -131,7 +131,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   await screenshot(page, 'library-basic-three-columns');
   await screenshot(page, 'library-basic-exact-order');
 
-  const disabledCards = cards.locator('[aria-disabled="true"]');
+  const disabledCards = page.locator('.workbench-catalog-card[aria-disabled="true"]');
   await expect(disabledCards).toHaveCount(9);
   expect(
     await disabledCards.evaluateAll((elements) =>
