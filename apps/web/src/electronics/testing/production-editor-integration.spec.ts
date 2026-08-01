@@ -12,8 +12,7 @@ import { WORLD_UNITS_PER_MM } from '../production-asset-contracts';
 import {
   configureProductionLibrary,
   productionBreadboard,
-  type BreadboardConnectivityManifest,
-  type ProductionManifest,
+  type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
 import {
   addComponentToDocument,
@@ -32,12 +31,12 @@ const EMPTY: SchematicDocument = {
 };
 
 beforeAll(() => {
-  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/production');
+  const manifestPath = resolve(
+    process.cwd(),
+    'apps/web/public/assets/electronics/owner-catalog/manifest.json',
+  );
   configureProductionLibrary(
-    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as ProductionManifest,
-    JSON.parse(
-      readFileSync(resolve(root, 'breadboard-connectivity.json'), 'utf8'),
-    ) as BreadboardConnectivityManifest,
+    JSON.parse(readFileSync(manifestPath, 'utf8')) as OwnerCatalogManifest,
   );
 });
 
@@ -126,10 +125,11 @@ describe('owner SVG integration in the real Electronics document', () => {
         const entry = variant.entry;
         if (entry.asset) {
           expect(entry.asset, variant.variantId).toMatch(
-            /^\/assets\/electronics\/(owner-supplied|owner-audit\/components)\/.*\.svg$/,
+            /^\/assets\/electronics\/owner-audit\/.*\.svg$/,
           );
           expect(entry.asset, variant.variantId).not.toContain('/production/');
           expect(entry.asset, variant.variantId).not.toContain('/source-reference/');
+          expect(entry.runtimeSha256, variant.variantId).toBe(entry.sourceSha256);
         } else {
           expect(['microbit', 'vibration-motor']).toContain(entry.preview);
           expect(family.enabled).toBe(false);
