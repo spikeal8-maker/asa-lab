@@ -4,8 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { SchematicDocument } from '../../api';
 import {
   configureProductionLibrary,
-  type BreadboardConnectivityManifest,
-  type ProductionManifest,
+  type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
 import {
   addComponentToDocument,
@@ -44,12 +43,12 @@ const activeTypes = [
 ] as const;
 
 beforeAll(() => {
-  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/production');
+  const manifestPath = resolve(
+    process.cwd(),
+    'apps/web/public/assets/electronics/owner-catalog/manifest.json',
+  );
   configureProductionLibrary(
-    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as ProductionManifest,
-    JSON.parse(
-      readFileSync(resolve(root, 'breadboard-connectivity.json'), 'utf8'),
-    ) as BreadboardConnectivityManifest,
+    JSON.parse(readFileSync(manifestPath, 'utf8')) as OwnerCatalogManifest,
   );
 });
 
