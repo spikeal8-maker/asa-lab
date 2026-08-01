@@ -4,7 +4,7 @@ import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
-import { CircuitIcon, FitIcon, MoreIcon } from './workbench-icons';
+import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
@@ -300,6 +300,15 @@ export function WorkbenchStage({
         <button type="button" onClick={c.fitScene} aria-label="Подогнать проект">
           <FitIcon />
         </button>
+        <button type="button" onClick={() => c.zoomBy(1.18)} aria-label="Увеличить масштаб">
+          <ZoomInIcon />
+        </button>
+        <button type="button" onClick={() => c.zoomBy(0.85)} aria-label="Уменьшить масштаб">
+          <ZoomOutIcon />
+        </button>
+        <span aria-label={`Масштаб ${Math.round(c.viewport.zoom * 100)} процентов`}>
+          {Math.round(c.viewport.zoom * 100)}%
+        </span>
       </div>
       {c.notice ? (
         <div className="workbench-toast" role="status" aria-live="polite">

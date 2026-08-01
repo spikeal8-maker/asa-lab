@@ -5,14 +5,7 @@ import {
   type ComponentCategory,
 } from './component-catalog';
 import { ComponentPreview } from './component-preview';
-import {
-  CollapseIcon,
-  ExpandIcon,
-  ListIcon,
-  MinusIcon,
-  SearchIcon,
-  WireIcon,
-} from './workbench-icons';
+import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
 import { DRAG_MIME, WIRE_COLORS } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
@@ -218,14 +211,20 @@ export function WorkbenchSidebars({
             </div>
             <button
               type="button"
-              onClick={() => c.setSelection(null)}
-              aria-label="Закрыть параметры"
+              className="workbench-inspector-help"
+              onClick={() =>
+                c.setNotice('Параметры выбранного компонента изменяются прямо в таблице.')
+              }
+              aria-label="Справка о параметрах"
             >
-              <MinusIcon />
+              ?
             </button>
           </div>
 
-          {c.selectedComponent && c.selectedEntry ? (
+          {c.selectedComponent &&
+          c.selectedEntry &&
+          c.selection.kind === 'component' &&
+          c.selection.ids.length === 1 ? (
             <div className="workbench-inspector-body">
               {c.selectedFamily && c.selectedFamily.variants.length > 1 ? (
                 <label>
@@ -256,7 +255,7 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
-              {['source', 'resistor', 'led', 'potentiometer', 'diode', 'lamp'].includes(
+              {['source', 'resistor', 'potentiometer', 'diode', 'lamp'].includes(
                 c.selectedComponent.kind,
               ) ? (
                 <label>
@@ -484,26 +483,18 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {!c.selectedEntry.simulationSupported && c.selectedComponent.kind !== 'breadboard' ? (
-                <p className="workbench-simulation-note">
-                  Визуальная production-модель. Электрическая симуляция пока не поддерживается.
-                </p>
+              {c.simulationRunning ? (
+                <dl className="workbench-terminal-list">
+                  {Object.entries(c.selectedEntry.terminals)
+                    .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
+                    .map(([terminal, spec]) => (
+                      <div key={terminal}>
+                        <dt>Вывод {spec?.label ?? terminal}</dt>
+                        <dd>{`${measurement?.terminalVoltages[terminal]?.toFixed(3) ?? '—'} В`}</dd>
+                      </div>
+                    ))}
+                </dl>
               ) : null}
-
-              <dl className="workbench-terminal-list">
-                {Object.entries(c.selectedEntry.terminals)
-                  .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
-                  .map(([terminal, spec]) => (
-                    <div key={terminal}>
-                      <dt>Вывод {spec?.label ?? terminal}</dt>
-                      <dd>
-                        {c.simulationRunning
-                          ? `${measurement?.terminalVoltages[terminal]?.toFixed(3) ?? '—'} В`
-                          : '—'}
-                      </dd>
-                    </div>
-                  ))}
-              </dl>
 
               {Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">

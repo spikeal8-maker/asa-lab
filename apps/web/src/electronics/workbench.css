@@ -1293,11 +1293,11 @@
 }
 .workbench-catalog-grid {
   grid-template-columns: repeat(3, 76px);
-  justify-content: center;
-  column-gap: 5px;
-  row-gap: 10px;
+  justify-content: start;
+  column-gap: 8px;
+  row-gap: 12px;
   height: calc(100% - 117px);
-  padding: 0 7px 20px;
+  padding: 5px 10px 20px;
   background: #e6e7eb;
 }
 .workbench-catalog-card {
@@ -1573,26 +1573,46 @@
 .workbench-schematic-symbol {
   cursor: pointer;
 }
-.workbench-schematic-symbol rect {
-  fill: #fff;
+.workbench-schematic-symbol rect,
+.workbench-schematic-symbol line,
+.workbench-schematic-symbol path,
+.workbench-schematic-symbol circle,
+.workbench-schematic-symbol polygon {
   stroke: #526a7a;
   stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
-.workbench-schematic-symbol line {
-  stroke: #526a7a;
-  stroke-width: 2;
+.workbench-schematic-symbol rect,
+.workbench-schematic-symbol circle {
+  fill: #fff;
+}
+.workbench-schematic-symbol path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.workbench-schematic-symbol path.symbol-body {
+  fill: #fff;
 }
 .workbench-schematic-symbol text {
   fill: #324c5d;
   font-size: 13px;
+  stroke: none;
 }
 .workbench-schematic-symbol text.value {
   fill: #71818b;
   font-size: 10px;
 }
-.workbench-schematic-symbol.selected rect {
+.workbench-schematic-symbol.selected rect,
+.workbench-schematic-symbol.selected line,
+.workbench-schematic-symbol.selected path,
+.workbench-schematic-symbol.selected circle,
+.workbench-schematic-symbol.selected polygon {
   stroke: #3b8ed7;
-  stroke-width: 4;
+  stroke-width: 3;
+}
+.workbench-schematic-symbol .schematic-light-rays path {
+  stroke: #d94a3f;
 }
 .workbench-bom-view {
   padding: 28px;
@@ -1625,6 +1645,334 @@
   color: #60727f;
   font-size: 11px;
   text-transform: uppercase;
+}
+
+/* Measured against the owner-opened Circuits editor at 100% browser zoom. */
+.workbench-shell {
+  color: #34495e;
+  font-family: Arial, Roboto, 'Segoe UI', sans-serif;
+}
+.workbench-header {
+  box-shadow: 0 1px 4px rgba(52, 73, 94, 0.15);
+}
+.workbench-avatar {
+  width: 45px;
+  height: 45px;
+  margin: 1px 2px 2px 3px;
+}
+.workbench-toolbar-divider {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 48px;
+  margin: 0;
+  background: #dfe3e8;
+}
+.workbench-toolbar-gap {
+  display: block;
+  flex: 0 0 auto;
+  height: 48px;
+}
+.workbench-toolbar-gap.small {
+  width: 6px;
+}
+.workbench-toolbar-gap.rotate {
+  width: 7px;
+}
+.workbench-wire-color {
+  box-sizing: border-box;
+  flex: 0 0 62px;
+  min-width: 62px;
+  width: 62px;
+  height: 48px;
+  padding: 0 7px;
+  border: 0;
+}
+.workbench-wire-color > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.workbench-wire-color svg {
+  width: 12px;
+  margin-left: 5px;
+}
+.workbench-wire-style {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 67px;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 67px;
+  height: 36px;
+  padding: 0 7px;
+  border: 1px solid #dfe3e8;
+  border-radius: 3px;
+  background: transparent;
+  color: #526675;
+}
+.workbench-wire-style:disabled {
+  opacity: 0.3;
+}
+.workbench-wire-style > svg:first-child {
+  width: 30px;
+  height: 30px;
+}
+.workbench-wire-style > svg:last-child {
+  width: 12px;
+  height: 12px;
+}
+.workbench-toolbar-group.right {
+  gap: 7px;
+  padding: 0 8px;
+}
+.workbench-toolbar-group.right .workbench-pill:first-child {
+  box-sizing: border-box;
+  width: 77px;
+  padding: 0 6px;
+}
+.workbench-toolbar-group.right .workbench-pill:first-child svg,
+.workbench-toolbar-group.right .workbench-pill.simulate svg {
+  width: 30px;
+  height: 30px;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate {
+  box-sizing: border-box;
+  width: 212px;
+  min-width: 212px;
+  padding: 0 7px;
+}
+.workbench-toolbar-group.right .workbench-pill:last-child {
+  box-sizing: border-box;
+  width: 80px;
+  padding: 0 8px;
+  justify-content: center;
+}
+.workbench-view-tools {
+  align-items: center;
+}
+.workbench-view-tools > strong {
+  display: flex;
+  align-items: center;
+  min-width: 92px;
+  height: 48px;
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.workbench-export-button {
+  min-width: 112px;
+  height: 32px;
+  margin-left: 8px;
+  border: 1px solid #dfe3e8;
+  border-radius: 3px;
+  background: transparent;
+  color: #34495e;
+}
+.workbench-stage-controls {
+  left: 8px;
+  top: 8px;
+  width: 36px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d2d8de;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.97);
+}
+.workbench-stage-controls button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-bottom: 1px solid #e1e5e8;
+}
+.workbench-stage-controls span {
+  box-sizing: border-box;
+  width: 36px;
+  min-height: 27px;
+  padding: 7px 2px;
+  color: #60717d;
+  font-size: 10px;
+  text-align: center;
+}
+.workbench-inspector {
+  right: calc(var(--wb-library-width) + 8px);
+  top: 8px;
+  width: 256px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  border: 2px solid #0696d7;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: rgba(196, 204, 215, 0.6) 0 2px 2px;
+}
+.workbench-inspector-heading {
+  min-height: 38px;
+  padding: 3px 7px;
+  border-bottom: 1px solid #dfe5e9;
+  background: #0696d7;
+}
+.workbench-inspector-heading span {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+.workbench-inspector-heading .workbench-inspector-help {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.workbench-inspector-body {
+  padding: 2px;
+}
+.workbench-inspector-body > label,
+.workbench-state-controls label {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 0;
+  min-height: 32px;
+  margin: 0;
+  border: 0;
+  font-size: 12px;
+}
+.workbench-inspector-body > label > span,
+.workbench-state-controls label > span {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 7px;
+  background: #0696d7;
+  color: #fff;
+  line-height: 1.15;
+}
+.workbench-inspector-body input,
+.workbench-inspector-body select,
+.workbench-value-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  margin: 0;
+  border: 1px solid #c5cfd9;
+  border-radius: 0;
+  background: #fff;
+  font-size: 12px;
+}
+.workbench-value-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 0;
+}
+.workbench-value-field input {
+  height: 30px;
+}
+.workbench-value-field > span {
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+  border: 1px solid #c5cfd9;
+  border-left: 0;
+}
+.workbench-state-controls {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.workbench-state-controls legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.workbench-toggle-property {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 40px !important;
+}
+.workbench-toggle-property > input {
+  width: 40px;
+}
+.workbench-momentary-button {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  border-radius: 0;
+}
+.workbench-terminal-list,
+.workbench-measurements {
+  margin: 2px 0 0;
+}
+.workbench-terminal-list > div,
+.workbench-measurements > div {
+  min-height: 26px;
+  padding: 4px 7px;
+  border-radius: 0;
+  font-size: 11px;
+}
+.workbench-breadboard-summary,
+.workbench-hole-bindings {
+  margin: 2px 0 0;
+  padding: 6px 7px;
+  border-radius: 0;
+}
+.workbench-bom-view {
+  padding: 30px 42px;
+  background: #f4f5f6;
+}
+.workbench-bom-card {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.workbench-bom-card h2,
+.workbench-bom-card p {
+  display: none;
+}
+.workbench-bom-card table {
+  width: 100%;
+  margin: 0;
+  border: 1px solid #c5cfd9;
+  background: #fff;
+}
+.workbench-bom-card th,
+.workbench-bom-card td {
+  height: 42px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #c5cfd9;
+  color: #34495e;
+  font-size: 15px;
+  text-transform: none;
+}
+.workbench-bom-card th {
+  height: 52px;
+  padding: 15px 18px;
+}
+@media print {
+  .workbench-header,
+  .workbench-toolbar,
+  .workbench-library,
+  .workbench-inspector,
+  .workbench-utility-panel {
+    display: none !important;
+  }
+  .workbench-main,
+  .workbench-alternate-view {
+    position: static;
+    width: 100%;
+    height: auto;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .workbench-wire-preview {

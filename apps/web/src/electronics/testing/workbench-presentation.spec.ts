@@ -6,6 +6,7 @@ const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
 const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
 const headerSource = readFileSync(resolve(electronicsRoot, 'WorkbenchHeader.tsx'), 'utf8');
+const editorSource = readFileSync(resolve(electronicsRoot, '../pages/SchematicEditor.tsx'), 'utf8');
 const productionVisualSource = readFileSync(
   resolve(electronicsRoot, 'ProductionComponentVisual.tsx'),
   'utf8',
@@ -26,8 +27,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(existsSync(resolve(electronicsRoot, 'workbench-tinkercad-parity.css'))).toBe(false);
     expect(workbenchCss).toContain('--wb-library-width: 276px');
     expect(workbenchCss).toContain('grid-template-columns: repeat(3, 76px)');
-    expect(workbenchCss).toContain('column-gap: 5px');
-    expect(workbenchCss).toContain('row-gap: 10px');
+    expect(workbenchCss).toContain('column-gap: 8px');
+    expect(workbenchCss).toContain('row-gap: 12px');
     expect(workbenchCss).toContain('height: 99px');
     expect(sidebarSource).not.toContain('workbench-family-variant-label');
     expect(sidebarSource).not.toContain('<small>В разработке</small>');
@@ -55,5 +56,28 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
     expect(workbenchCss).not.toContain('drop-shadow(0 0 7px rgba(211, 74, 48');
+  });
+
+  it('keeps the measured Circuits toolbar order and functional viewport controls', () => {
+    expect(headerSource).toContain('workbench-breadboard-tools');
+    expect(headerSource).toContain('workbench-wire-style');
+    expect(headerSource).not.toContain('label="Подогнать под экран"');
+    expect(workbenchCss).toContain('.workbench-toolbar-gap.rotate');
+    expect(workbenchCss).toMatch(/\.workbench-wire-color\s*\{[^}]*flex:\s*0 0 62px;/s);
+    expect(workbenchCss).toMatch(/\.workbench-wire-style\s*\{[^}]*flex:\s*0 0 67px;/s);
+    expect(stageSource).toContain('c.zoomBy(1.18)');
+    expect(stageSource).toContain('c.zoomBy(0.85)');
+    expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
+  });
+
+  it('uses compact inline properties and real schematic/BOM export actions', () => {
+    expect(workbenchCss).toMatch(/\.workbench-inspector\s*\{[^}]*width:\s*256px;/s);
+    expect(workbenchCss).toMatch(/\.workbench-inspector-body\s*\{[^}]*padding:\s*2px;/s);
+    expect(sidebarSource).toContain('c.simulationRunning ? (');
+    expect(editorSource).toContain('window.print()');
+    expect(editorSource).toContain('text/csv;charset=utf-8');
+    expect(editorSource).toContain('<th>Имя</th>');
+    expect(editorSource).toContain('<th>Количество</th>');
+    expect(editorSource).toContain('<th>Компонент</th>');
   });
 });

@@ -146,6 +146,12 @@ export function useElectronicsWorkbench(projectId: string) {
     }
   }, [document, project]);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [notice, setNotice]);
+
   function addComponent(componentTypeId: string, at?: Point): void {
     if (!document) return;
     const family = familyForVariant(componentTypeId);
@@ -804,6 +810,7 @@ export function useElectronicsWorkbench(projectId: string) {
     saveStatus,
     saveCopy,
     notice,
+    setNotice,
     selection,
     setSelection,
     pendingTerminal,

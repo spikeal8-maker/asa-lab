@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { PublicUser, SchematicDocument } from '../api';
+import type { PublicUser, SchematicComponent, SchematicDocument } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
 import { WorkbenchSidebars } from '../electronics/WorkbenchSidebars';
@@ -18,6 +18,99 @@ import {
 } from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
 
+function SchematicSymbol({ component }: { component: SchematicComponent }): JSX.Element {
+  const commonLabel = (
+    <>
+      <text x="0" y="82" textAnchor="middle">
+        {component.name ?? component.kind}
+      </text>
+      {component.value ? (
+        <text x="0" y="98" textAnchor="middle" className="value">
+          {component.value}
+        </text>
+      ) : null}
+    </>
+  );
+  if (component.kind === 'resistor') {
+    return (
+      <>
+        <line x1="-105" y1="35" x2="-66" y2="35" />
+        <path d="M-66 35l12-18 18 36 18-36 18 36 18-36 18 36 12-18" />
+        <line x1="66" y1="35" x2="105" y2="35" />
+        {commonLabel}
+      </>
+    );
+  }
+  if (component.kind === 'source') {
+    return (
+      <>
+        <line x1="-105" y1="35" x2="-26" y2="35" />
+        <line x1="-26" y1="10" x2="-26" y2="60" />
+        <line x1="-9" y1="20" x2="-9" y2="50" />
+        <line x1="9" y1="10" x2="9" y2="60" />
+        <line x1="26" y1="20" x2="26" y2="50" />
+        <line x1="26" y1="35" x2="105" y2="35" />
+        <text x="-28" y="5">
+          +
+        </text>
+        <text x="20" y="5">
+          −
+        </text>
+        {commonLabel}
+      </>
+    );
+  }
+  if (component.kind === 'led' || component.kind === 'diode') {
+    return (
+      <>
+        <line x1="-105" y1="35" x2="-32" y2="35" />
+        <path className="symbol-body" d="M-32 12v46l52-23z" />
+        <line x1="20" y1="10" x2="20" y2="60" />
+        <line x1="20" y1="35" x2="105" y2="35" />
+        {component.kind === 'led' ? (
+          <g className="schematic-light-rays">
+            <path d="M35 8l17-13" />
+            <path d="M45 20l18-13" />
+          </g>
+        ) : null}
+        {commonLabel}
+      </>
+    );
+  }
+  if (component.kind === 'switch' || component.kind === 'button') {
+    return (
+      <>
+        <line x1="-105" y1="35" x2="-45" y2="35" />
+        <circle cx="-38" cy="35" r="6" />
+        <circle cx="38" cy="35" r="6" />
+        <line x1="45" y1="35" x2="105" y2="35" />
+        <line x1="-32" y1="31" x2="31" y2={component.state ? '35' : '10'} />
+        {component.kind === 'button' ? <line x1="0" y1="-8" x2="0" y2="12" /> : null}
+        {commonLabel}
+      </>
+    );
+  }
+  if (component.kind === 'potentiometer') {
+    return (
+      <>
+        <line x1="-105" y1="35" x2="-66" y2="35" />
+        <path d="M-66 35l12-18 18 36 18-36 18 36 18-36 18 36 12-18" />
+        <line x1="66" y1="35" x2="105" y2="35" />
+        <path d="M0-2v27m0 0l-7-10m7 10l7-10" />
+        {commonLabel}
+      </>
+    );
+  }
+  return (
+    <>
+      <line x1="-105" y1="35" x2="-85" y2="35" />
+      <rect x="-85" y="0" width="170" height="70" rx="5" />
+      <line x1="85" y1="35" x2="105" y2="35" />
+      {commonLabel}
+    </>
+  );
+}
+
 function SchematicView({
   document,
   controller,
@@ -25,7 +118,9 @@ function SchematicView({
   document: SchematicDocument;
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
-  const components = document.components.filter((component) => component.kind !== 'wire');
+  const components = document.components.filter(
+    (component) => component.kind !== 'wire' && component.kind !== 'breadboard',
+  );
   const positions = new Map(
     components.map((component, index) => [
       component.id,
@@ -75,15 +170,12 @@ function SchematicView({
                 }
               }}
             >
-              <line x1="-105" y1="35" x2="-85" y2="35" />
-              <rect x="-85" y="0" width="170" height="70" rx="5" />
-              <line x1="85" y1="35" x2="105" y2="35" />
-              <text x="0" y="29" textAnchor="middle">
-                {component.name ?? entry?.label ?? component.kind}
-              </text>
-              <text x="0" y="50" textAnchor="middle" className="value">
-                {component.value || ''} {entry?.unit ?? ''}
-              </text>
+              <SchematicSymbol
+                component={{
+                  ...component,
+                  name: component.name ?? entry?.label ?? component.kind,
+                }}
+              />
             </g>
           );
         })}
@@ -94,24 +186,27 @@ function SchematicView({
 
 function BomView({ document }: { document: SchematicDocument }): JSX.Element {
   const rows = useMemo(() => {
-    const grouped = new Map<
-      string,
-      { name: string; variant: string; value: string; count: number }
-    >();
+    const grouped = new Map<string, { names: string[]; component: string; count: number }>();
     for (const component of document.components.filter((item) => item.kind !== 'wire')) {
       const entry = catalogEntry(component);
       const key = `${entry?.key ?? component.kind}:${component.variantId ?? ''}:${component.value}`;
       const row = grouped.get(key);
-      if (row) row.count += 1;
-      else
+      const name = component.name ?? entry?.label ?? component.kind;
+      if (row) {
+        row.count += 1;
+        row.names.push(name);
+      } else {
+        const value = component.value ? `${component.value} ${entry?.unit ?? ''}`.trim() : '';
         grouped.set(key, {
-          name: entry?.label ?? component.kind,
-          variant: component.variantId ?? entry?.key ?? '—',
-          value: component.value ? `${component.value} ${entry?.unit ?? ''}`.trim() : '—',
+          names: [name],
+          component: [value, entry?.label ?? component.kind].filter(Boolean).join(' '),
           count: 1,
         });
+      }
     }
-    return [...grouped.values()].sort((left, right) => left.name.localeCompare(right.name, 'ru'));
+    return [...grouped.values()].sort((left, right) =>
+      left.component.localeCompare(right.component, 'ru'),
+    );
   }, [document]);
   return (
     <section
@@ -124,19 +219,21 @@ function BomView({ document }: { document: SchematicDocument }): JSX.Element {
         <table>
           <thead>
             <tr>
+              <th>Имя</th>
               <th>Количество</th>
               <th>Компонент</th>
-              <th>Вариант</th>
-              <th>Значение</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={`${row.name}:${row.variant}:${row.value}`}>
+              <tr key={`${row.component}:${row.names.join(':')}`}>
+                <td>
+                  {row.names.map((name) => (
+                    <div key={name}>{name}</div>
+                  ))}
+                </td>
                 <td>{row.count}</td>
-                <td>{row.name}</td>
-                <td>{row.variant}</td>
-                <td>{row.value}</td>
+                <td>{row.component}</td>
               </tr>
             ))}
           </tbody>
@@ -263,6 +360,33 @@ export function SchematicEditor({
     setNotes(value);
     localStorage.setItem(notesStorageKey, value);
   }
+  function exportCurrentView(target: Exclude<WorkbenchView, 'breadboard'>): void {
+    if (target === 'schematic') {
+      window.print();
+      return;
+    }
+    if (!controller.document) return;
+    const rows = controller.document.components
+      .filter((item) => item.kind !== 'wire')
+      .map((component) => {
+        const entry = catalogEntry(component);
+        return [
+          component.name ?? entry?.label ?? component.kind,
+          entry?.label ?? component.kind,
+          component.variantId ?? component.componentTypeId ?? '—',
+          String(component.value ?? ''),
+        ];
+      });
+    const csv = [['Имя', 'Компонент', 'Вариант', 'Значение'], ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${controller.projectTitle || 'electronics'}-components.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   if (controller.status === 'loading')
     return (
       <div className="workbench-loading" role="status">
@@ -293,6 +417,7 @@ export function SchematicEditor({
         codeOpen={codeOpen}
         onToggleCode={() => setCodeOpen((value) => !value)}
         onOpenShare={() => setShareOpen(true)}
+        onExportView={exportCurrentView}
       />
       <div className="workbench-main">
         {view === 'breadboard' ? (

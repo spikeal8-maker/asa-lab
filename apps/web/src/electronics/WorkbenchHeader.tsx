@@ -7,7 +7,6 @@ import {
   CommentIcon,
   DeleteIcon,
   DuplicateIcon,
-  FitIcon,
   ListIcon,
   MirrorIcon,
   PasteIcon,
@@ -15,7 +14,6 @@ import {
   RedoIcon,
   RotateIcon,
   SchematicIcon,
-  ShareIcon,
   StopIcon,
   UndoIcon,
   ViewIcon,
@@ -59,6 +57,7 @@ export function WorkbenchHeader({
   codeOpen,
   onToggleCode,
   onOpenShare,
+  onExportView,
 }: {
   controller: ElectronicsWorkbenchController;
   onBack: () => void;
@@ -72,6 +71,7 @@ export function WorkbenchHeader({
   codeOpen: boolean;
   onToggleCode: () => void;
   onOpenShare: () => void;
+  onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
   return (
@@ -142,89 +142,123 @@ export function WorkbenchHeader({
           </span>
         </nav>
       </header>
-      <div className="workbench-toolbar" role="toolbar" aria-label="Инструменты редактора">
-        <div className="workbench-toolbar-group">
-          <ToolButton
-            label="Копировать (Ctrl+C)"
-            onClick={c.copySelected}
-            disabled={!hasComponentSelection}
-          >
-            <DuplicateIcon />
-          </ToolButton>
-          <ToolButton label="Вставить (Ctrl+V)" onClick={c.pasteCopied} disabled={!c.hasClipboard}>
-            <PasteIcon />
-          </ToolButton>
-          <ToolButton
-            label="Удалить (Delete)"
-            onClick={c.removeSelection}
-            disabled={!c.selection}
-            danger
-          >
-            <DeleteIcon />
-          </ToolButton>
-          <span className="workbench-toolbar-divider" />
-          <ToolButton label="Отменить (Ctrl+Z)" onClick={c.undo} disabled={!c.canUndo}>
-            <UndoIcon />
-          </ToolButton>
-          <ToolButton label="Повторить (Ctrl+Shift+Z)" onClick={c.redo} disabled={!c.canRedo}>
-            <RedoIcon />
-          </ToolButton>
-          <span className="workbench-toolbar-divider" />
-          <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
-            <CommentIcon />
-          </ToolButton>
-          <ToolButton label="Сетка рабочего поля" active={showGrid} onClick={onToggleGrid}>
-            <ViewIcon />
-          </ToolButton>
-          <span className="workbench-toolbar-divider" />
-          <div className="workbench-wire-color" title="Цвет провода">
-            <span style={{ background: c.activeWireColor }} />
-            <select
-              value={c.activeWireColor}
-              onChange={(event) => c.setWireColor(event.target.value)}
-              aria-label="Цвет провода"
+      <div
+        className={`workbench-toolbar ${view}`}
+        role="toolbar"
+        aria-label="Инструменты редактора"
+      >
+        {view === 'breadboard' ? (
+          <div className="workbench-toolbar-group workbench-breadboard-tools">
+            <ToolButton
+              label="Копировать (Ctrl+C)"
+              onClick={c.copySelected}
+              disabled={!hasComponentSelection}
             >
-              {WIRE_COLORS.map((color) => (
-                <option key={color} value={color}>
-                  {color}
-                </option>
-              ))}
-            </select>
-            <ChevronIcon />
+              <DuplicateIcon />
+            </ToolButton>
+            <ToolButton
+              label="Вставить (Ctrl+V)"
+              onClick={c.pasteCopied}
+              disabled={!c.hasClipboard}
+            >
+              <PasteIcon />
+            </ToolButton>
+            <ToolButton
+              label="Удалить (Delete)"
+              onClick={c.removeSelection}
+              disabled={!c.selection}
+              danger
+            >
+              <DeleteIcon />
+            </ToolButton>
+            <span className="workbench-toolbar-divider" />
+            <ToolButton label="Отменить (Ctrl+Z)" onClick={c.undo} disabled={!c.canUndo}>
+              <UndoIcon />
+            </ToolButton>
+            <ToolButton label="Повторить (Ctrl+Shift+Z)" onClick={c.redo} disabled={!c.canRedo}>
+              <RedoIcon />
+            </ToolButton>
+            <span className="workbench-toolbar-divider" />
+            <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
+              <CommentIcon />
+            </ToolButton>
+            <ToolButton label="Сетка рабочего поля" active={showGrid} onClick={onToggleGrid}>
+              <ViewIcon />
+            </ToolButton>
+            <span className="workbench-toolbar-gap small" />
+            <div className="workbench-wire-color" title="Цвет провода">
+              <span style={{ background: c.activeWireColor }} />
+              <select
+                value={c.activeWireColor}
+                onChange={(event) => c.setWireColor(event.target.value)}
+                aria-label="Цвет провода"
+              >
+                {WIRE_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
+              <ChevronIcon />
+            </div>
+            <span className="workbench-toolbar-gap small" />
+            <button
+              type="button"
+              className="workbench-wire-style"
+              aria-label="Стиль и изгиб провода"
+              title="Стиль и изгиб провода"
+              disabled={c.selection?.kind !== 'wire'}
+              onClick={c.toggleWireRoute}
+            >
+              <WireIcon />
+              <ChevronIcon />
+            </button>
+            <span className="workbench-toolbar-gap rotate" />
+            <ToolButton
+              label="Повернуть (R)"
+              onClick={c.rotateSelected}
+              disabled={!hasComponentSelection}
+            >
+              <RotateIcon />
+            </ToolButton>
+            <ToolButton
+              label="Отразить"
+              onClick={() => c.mirrorSelected('horizontal')}
+              disabled={!hasComponentSelection}
+            >
+              <MirrorIcon />
+            </ToolButton>
           </div>
-          <ToolButton
-            label="Добавить или изменить изгиб провода"
-            onClick={c.toggleWireRoute}
-            disabled={c.selection?.kind !== 'wire'}
-          >
-            <WireIcon />
-          </ToolButton>
-          <span className="workbench-toolbar-divider" />
-          <ToolButton
-            label="Отразить по горизонтали"
-            onClick={() => c.mirrorSelected('horizontal')}
-            disabled={!hasComponentSelection}
-          >
-            <MirrorIcon />
-          </ToolButton>
-          <ToolButton
-            label="Отразить по вертикали"
-            onClick={() => c.mirrorSelected('vertical')}
-            disabled={!hasComponentSelection}
-          >
-            <MirrorIcon className="workbench-icon-vertical" />
-          </ToolButton>
-          <ToolButton
-            label="Повернуть (R)"
-            onClick={c.rotateSelected}
-            disabled={!hasComponentSelection}
-          >
-            <RotateIcon />
-          </ToolButton>
-          <ToolButton label="Подогнать под экран" onClick={c.fitScene}>
-            <FitIcon />
-          </ToolButton>
-        </div>
+        ) : (
+          <div className="workbench-toolbar-group workbench-view-tools">
+            <strong>{view === 'schematic' ? 'Схема' : 'Список компонентов'}</strong>
+            {view === 'schematic' ? (
+              <>
+                <ToolButton
+                  label="Повернуть (R)"
+                  onClick={c.rotateSelected}
+                  disabled={!hasComponentSelection}
+                >
+                  <RotateIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Отразить"
+                  onClick={() => c.mirrorSelected('horizontal')}
+                  disabled={!hasComponentSelection}
+                >
+                  <MirrorIcon />
+                </ToolButton>
+              </>
+            ) : null}
+            <button
+              type="button"
+              className="workbench-export-button"
+              onClick={() => onExportView(view)}
+            >
+              {view === 'schematic' ? 'Скачать PDF' : 'Скачать CSV'}
+            </button>
+          </div>
+        )}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
           <button
@@ -246,7 +280,7 @@ export function WorkbenchHeader({
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           </button>
           <button type="button" className="workbench-pill" onClick={onOpenShare}>
-            <ShareIcon /> Отправить
+            Отправить
           </button>
         </div>
       </div>
