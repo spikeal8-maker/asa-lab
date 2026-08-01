@@ -35,6 +35,16 @@ export function DuplicateIcon(props: IconProps): JSX.Element {
     </IconBase>
   );
 }
+export function PasteIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M9 5V3h6v2" />
+      <path d="M7 5h10v4H7z" />
+      <rect x="5" y="5" width="14" height="16" rx="1.5" />
+      <path d="M9 13h6M9 17h5" />
+    </IconBase>
+  );
+}
 export function DeleteIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
@@ -75,6 +85,14 @@ export function InspectIcon(props: IconProps): JSX.Element {
       <rect x="3" y="3" width="18" height="18" rx="3" />
       <circle cx="12" cy="12" r="3" />
       <path d="M12 7V5M12 19v-2M7 12H5M19 12h-2" />
+    </IconBase>
+  );
+}
+export function ViewIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M3 12s3.3-5 9-5 9 5 9 5-3.3 5-9 5-9-5-9-5Z" />
+      <circle cx="12" cy="12" r="2.5" />
     </IconBase>
   );
 }
@@ -201,6 +219,14 @@ export function RotateIcon(props: IconProps): JSX.Element {
     <IconBase {...props}>
       <path d="M20 11a8 8 0 1 0-2.3 5.7" />
       <path d="M20 4v7h-7" />
+    </IconBase>
+  );
+}
+export function MirrorIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M12 3v18" strokeDasharray="2 2" />
+      <path d="M4 6h5v12H4zM20 6h-5v12h5z" />
     </IconBase>
   );
 }

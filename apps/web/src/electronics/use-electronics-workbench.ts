@@ -38,6 +38,7 @@ import {
   moveComponentInDocument,
   moveComponentsInDocument,
   moveWireVertex,
+  mirrorSelectionInDocument,
   reconnectWireEndpoint,
   removeSelectedWireBends,
   removeSelectionFromDocument,
@@ -98,6 +99,7 @@ export function useElectronicsWorkbench(projectId: string) {
   } = projectState;
 
   const [selection, setSelection] = useState<Selection>(null);
+  const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#e3212b');
@@ -213,6 +215,33 @@ export function useElectronicsWorkbench(projectId: string) {
     });
   }
 
+  function copySelected(): void {
+    if (selection?.kind !== 'component') return;
+    setClipboardSelection({ ...selection, ids: [...selection.ids] });
+    setNotice(selection.ids.length > 1 ? 'Компоненты скопированы.' : 'Компонент скопирован.');
+  }
+
+  function pasteCopied(): void {
+    if (!document || clipboardSelection?.kind !== 'component') return;
+    const duplicated = duplicateComponentInDocument(
+      document,
+      clipboardSelection,
+      nextId(clipboardSelection.id),
+    );
+    if (!duplicated) {
+      setClipboardSelection(null);
+      return;
+    }
+    commitDocument(duplicated.document, 'Копия вставлена.');
+    const duplicatedIds = duplicated.components.map((component) => component.id);
+    setSelection({ kind: 'component', id: duplicated.component.id, ids: duplicatedIds });
+    setClipboardSelection({
+      kind: 'component',
+      id: duplicated.component.id,
+      ids: duplicatedIds,
+    });
+  }
+
   function removeSelection(): void {
     if (!document || !selection) return;
     commitDocument(
@@ -226,6 +255,13 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document) return;
     const next = rotateSelectionInDocument(document, selection);
     if (next) commitDocument(next, 'Элемент повернут на 90° — провода обновлены.');
+  }
+
+  function mirrorSelected(axis: 'horizontal' | 'vertical'): void {
+    if (!document) return;
+    const next = mirrorSelectionInDocument(document, selection, axis);
+    if (next)
+      commitDocument(next, axis === 'horizontal' ? 'Элемент отражён.' : 'Элемент перевёрнут.');
   }
 
   function updateSelectedValue(value: number): void {
@@ -642,6 +678,15 @@ export function useElectronicsWorkbench(projectId: string) {
       } else if (modifier && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         redo();
+      } else if (modifier && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        copySelected();
+      } else if (modifier && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        pasteCopied();
+      } else if (modifier && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        duplicateSelected();
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         removeSelection();
@@ -787,8 +832,12 @@ export function useElectronicsWorkbench(projectId: string) {
     undo,
     redo,
     duplicateSelected,
+    copySelected,
+    pasteCopied,
+    hasClipboard: clipboardSelection?.kind === 'component',
     removeSelection,
     rotateSelected,
+    mirrorSelected,
     updateSelectedValue,
     updateSelectedName,
     setSelectedState,

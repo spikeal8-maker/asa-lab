@@ -4,14 +4,16 @@ import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
-import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
+import { CircuitIcon, FitIcon, MoreIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 export function WorkbenchStage({
   controller: c,
+  showGrid,
 }: {
   controller: ElectronicsWorkbenchController;
+  showGrid: boolean;
 }): JSX.Element {
   const document = c.document!;
   return (
@@ -46,7 +48,7 @@ export function WorkbenchStage({
           y="-3000"
           width="9000"
           height="7000"
-          fill="url(#asa-grid-large)"
+          fill={showGrid ? 'url(#asa-grid-large)' : '#f4f5f6'}
         />
         <g className="workbench-wire-layer" data-testid="wire-layer">
           {document.connections.map((wire) => {
@@ -121,7 +123,6 @@ export function WorkbenchStage({
             const entry = catalogEntry(component);
             if (!entry?.asset || !entry.terminals) return null;
             const baseSize = renderedSize(entry, 0);
-            const boxSize = renderedSize(entry, component.rotation ?? 0);
             const selected =
               c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
             const visualState = c.componentVisualState(component);
@@ -129,11 +130,11 @@ export function WorkbenchStage({
             return (
               <g
                 key={component.id}
-                className={
+                className={`${selected ? 'workbench-component-selected' : ''}${
                   c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
-                    ? 'workbench-component-diagnostic'
-                    : undefined
-                }
+                    ? ' workbench-component-diagnostic'
+                    : ''
+                }`}
                 data-testid="schematic-component"
                 data-kind={component.kind}
                 data-component-type={component.componentTypeId}
@@ -145,18 +146,8 @@ export function WorkbenchStage({
                 data-x={component.position.x}
                 data-y={component.position.y}
               >
-                {selected ? (
-                  <rect
-                    className="workbench-selection-box"
-                    x={component.position.x - 5}
-                    y={component.position.y - 5}
-                    width={boxSize.width + 10}
-                    height={boxSize.height + 10}
-                    rx="4"
-                  />
-                ) : null}
                 <g
-                  className="workbench-part"
+                  className={`workbench-part${selected ? ' selected' : ''}`}
                   transform={componentTransform(component)}
                   onPointerDown={(e) => c.startComponentDrag(e, component)}
                   onClick={(e) => {
@@ -308,19 +299,6 @@ export function WorkbenchStage({
         <button type="button" onClick={c.fitScene} aria-label="Подогнать проект">
           <FitIcon />
         </button>
-        <button type="button" onClick={() => c.zoomBy(1.2)} aria-label="Приблизить">
-          <ZoomInIcon />
-        </button>
-        <button type="button" onClick={() => c.zoomBy(0.82)} aria-label="Отдалить">
-          <ZoomOutIcon />
-        </button>
-        <span>{Math.round(c.viewport.zoom * 100)}%</span>
-      </div>
-      <div className="workbench-stage-status">
-        {c.simulationRunning ? <span className="simulation-dot" /> : null}
-        <span>{c.simulationRunning ? 'Моделирование запущено' : 'Редактирование'}</span>
-        <span>·</span>
-        <span>Колесо — масштаб, пробел + перетаскивание — панорама</span>
       </div>
       {c.notice ? (
         <div className="workbench-toast" role="status" aria-live="polite">

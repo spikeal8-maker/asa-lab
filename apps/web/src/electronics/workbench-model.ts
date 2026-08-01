@@ -10,6 +10,8 @@ export const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 export const WIRE_COLORS = ['#e3212b', '#2a3035', '#149447', '#2c62c9', '#e7a400', '#8d45c7'];
 export const DRAG_MIME = 'application/x-asa-electronics-component';
 
+export type WorkbenchView = 'breadboard' | 'schematic' | 'bom';
+
 export type Selection =
   { kind: 'component'; id: string; ids: string[] } | { kind: 'wire'; id: string } | null;
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
@@ -71,13 +73,16 @@ export function componentTransform(component: SchematicComponent): string {
   if (!entry) return `translate(${component.position.x} ${component.position.y})`;
   const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
   const rotation = component.rotation ?? 0;
-  if (rotation === 90)
-    return `translate(${component.position.x + baseHeight} ${component.position.y}) rotate(90)`;
-  if (rotation === 180)
-    return `translate(${component.position.x + baseWidth} ${component.position.y + baseHeight}) rotate(180)`;
-  if (rotation === 270)
-    return `translate(${component.position.x} ${component.position.y + baseWidth}) rotate(270)`;
-  return `translate(${component.position.x} ${component.position.y})`;
+  const renderedWidth = rotation % 180 === 0 ? baseWidth : baseHeight;
+  const renderedHeight = rotation % 180 === 0 ? baseHeight : baseWidth;
+  const mirrorX = component.stateProperties?.['mirrorX'] === true ? -1 : 1;
+  const mirrorY = component.stateProperties?.['mirrorY'] === true ? -1 : 1;
+  return [
+    `translate(${component.position.x + renderedWidth / 2} ${component.position.y + renderedHeight / 2})`,
+    `rotate(${rotation})`,
+    `scale(${mirrorX} ${mirrorY})`,
+    `translate(${-baseWidth / 2} ${-baseHeight / 2})`,
+  ].join(' ');
 }
 
 export interface ToolButtonProps {

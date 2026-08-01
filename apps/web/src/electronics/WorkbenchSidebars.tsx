@@ -7,12 +7,9 @@ import {
 import { ComponentPreview } from './component-preview';
 import {
   CollapseIcon,
-  DeleteIcon,
-  DuplicateIcon,
   ExpandIcon,
   ListIcon,
   MinusIcon,
-  RotateIcon,
   SearchIcon,
   WireIcon,
 } from './workbench-icons';
@@ -112,6 +109,11 @@ export function WorkbenchSidebars({
                       }
                       event.dataTransfer.setData(DRAG_MIME, selectedVariant.componentTypeId);
                       event.dataTransfer.effectAllowed = 'copy';
+                      const art = event.currentTarget.querySelector('.workbench-catalog-art');
+                      if (art instanceof HTMLElement) {
+                        const box = art.getBoundingClientRect();
+                        event.dataTransfer.setDragImage(art, box.width / 2, box.height / 2);
+                      }
                     }}
                     data-family-id={family.familyId}
                     data-catalog-tier={family.catalogTier}
@@ -147,11 +149,6 @@ export function WorkbenchSidebars({
                         />
                       </span>
                       <span className="workbench-catalog-name">{family.familyLabel}</span>
-                      {!family.enabled ? (
-                        <span className="workbench-catalog-blocked">
-                          {family.blockReason ?? 'Нет подтверждённого owner SVG'}
-                        </span>
-                      ) : null}
                     </button>
                     {family.enabled &&
                     family.variants.length > 1 &&
@@ -218,7 +215,6 @@ export function WorkbenchSidebars({
                     ? `Выбрано: ${c.selection.ids.length}`
                     : (c.selectedEntry?.label ?? 'Компонент')}
               </span>
-              <small>{c.selection.kind === 'wire' ? 'Соединение' : 'Инспектор компонента'}</small>
             </div>
             <button
               type="button"
@@ -231,42 +227,6 @@ export function WorkbenchSidebars({
 
           {c.selectedComponent && c.selectedEntry ? (
             <div className="workbench-inspector-body">
-              <div className="workbench-inspector-preview">
-                <ComponentPreview
-                  preview={c.selectedEntry.preview}
-                  asset={visualAsset(
-                    c.selectedEntry,
-                    c.selectedComponent,
-                    c.componentVisualState(c.selectedComponent),
-                  )}
-                />
-              </div>
-              <p className="workbench-production-id">
-                Owner SVG · {c.selectedEntry.key} · {c.selectedEntry.physicalSizeMm.width}×
-                {c.selectedEntry.physicalSizeMm.height} мм
-              </p>
-              <dl className="workbench-owner-proof" data-testid="owner-provenance">
-                <div>
-                  <dt>Owner source</dt>
-                  <dd>{c.selectedEntry.sourceOwnerPath}</dd>
-                </div>
-                <div>
-                  <dt>Source SHA-256</dt>
-                  <dd>
-                    <code>{c.selectedEntry.sourceSha256}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Runtime</dt>
-                  <dd>{c.selectedEntry.runtimePath}</dd>
-                </div>
-                <div>
-                  <dt>Runtime SHA-256</dt>
-                  <dd>
-                    <code>{c.selectedEntry.runtimeSha256}</code>
-                  </dd>
-                </div>
-              </dl>
               {c.selectedFamily && c.selectedFamily.variants.length > 1 ? (
                 <label>
                   <span>Вариант</span>
@@ -576,17 +536,6 @@ export function WorkbenchSidebars({
                   ) : null}
                 </dl>
               ) : null}
-              <div className="workbench-inspector-actions">
-                <button type="button" onClick={c.rotateSelected}>
-                  <RotateIcon /> Повернуть
-                </button>
-                <button type="button" onClick={c.duplicateSelected}>
-                  <DuplicateIcon /> Копировать
-                </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
-                  <DeleteIcon /> Удалить
-                </button>
-              </div>
             </div>
           ) : null}
 
@@ -619,7 +568,7 @@ export function WorkbenchSidebars({
                   Переподключить конец
                 </button>
                 <button type="button" className="danger" onClick={c.removeSelection}>
-                  <DeleteIcon /> Удалить
+                  Удалить
                 </button>
               </div>
             </div>

@@ -181,6 +181,30 @@ export function rotateSelectionInDocument(
   };
 }
 
+export function mirrorSelectionInDocument(
+  document: SchematicDocument,
+  selection: Selection,
+  axis: 'horizontal' | 'vertical',
+): SchematicDocument | null {
+  if (selection?.kind !== 'component') return null;
+  const ids = new Set(selection.ids);
+  const property = axis === 'horizontal' ? 'mirrorX' : 'mirrorY';
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      ids.has(item.id)
+        ? {
+            ...item,
+            stateProperties: {
+              ...(item.stateProperties ?? {}),
+              [property]: item.stateProperties?.[property] !== true,
+            },
+          }
+        : item,
+    ),
+  };
+}
+
 export function updateSelectionValue(
   document: SchematicDocument,
   selection: Selection,

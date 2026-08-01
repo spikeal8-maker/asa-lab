@@ -288,8 +288,11 @@ export function terminalPosition(
   const spec = entry?.terminals[resolved];
   if (!entry || !spec) return null;
   const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
-  const px = spec.xMm * WORLD_UNITS_PER_MM;
-  const py = spec.yMm * WORLD_UNITS_PER_MM;
+  const originalPx = spec.xMm * WORLD_UNITS_PER_MM;
+  const originalPy = spec.yMm * WORLD_UNITS_PER_MM;
+  const px = component?.stateProperties?.['mirrorX'] === true ? baseWidth - originalPx : originalPx;
+  const py =
+    component?.stateProperties?.['mirrorY'] === true ? baseHeight - originalPy : originalPy;
   const normalized = ((rotation % 360) + 360) % 360;
   if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
   if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };

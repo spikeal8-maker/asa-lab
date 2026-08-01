@@ -10,6 +10,7 @@ import {
   addComponentToDocument,
   connectTerminals,
   duplicateComponentInDocument,
+  mirrorSelectionInDocument,
   moveWireVertex,
   reconnectWireEndpoint,
   removeSelectionFromDocument,
@@ -123,6 +124,18 @@ describe('Electronics M1 editor document operations', () => {
     expect(document.components.find((item) => item.id === 'switch')?.state).toBe(true);
     expect(document.components.find((item) => item.id === 'potentiometer')?.wiperPosition).toBe(
       0.75,
+    );
+  });
+
+  it('mirrors a selected component without changing its owner asset or terminals', () => {
+    const document = populated();
+    const selection = { kind: 'component' as const, id: 'resistor', ids: ['resistor'] };
+    const mirrored = mirrorSelectionInDocument(document, selection, 'horizontal');
+    const resistor = mirrored?.components.find((item) => item.id === 'resistor');
+    expect(resistor?.stateProperties?.['mirrorX']).toBe(true);
+    expect(resistor?.componentTypeId).toBe('resistor-axial');
+    expect(resistor?.pinIds).toEqual(
+      document.components.find((item) => item.id === 'resistor')?.pinIds,
     );
   });
 

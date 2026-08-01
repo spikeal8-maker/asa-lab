@@ -1,7 +1,7 @@
 .workbench-shell {
-  --wb-header-height: 52px;
-  --wb-toolbar-height: 56px;
-  --wb-library-width: 330px;
+  --wb-header-height: 48px;
+  --wb-toolbar-height: 48px;
+  --wb-library-width: 276px;
   min-width: 980px;
   height: 100vh;
   overflow: hidden;
@@ -1107,7 +1107,7 @@
 }
 @media (max-width: 1180px) {
   .workbench-shell {
-    --wb-library-width: 306px;
+    --wb-library-width: 276px;
     min-width: 760px;
   }
   .workbench-inspector {
@@ -1119,6 +1119,515 @@
   .workbench-pill span {
     display: none;
   }
+}
+
+/* Tinkercad-parity workbench shell. Keep these measurements synchronized with the live reference. */
+.workbench-header {
+  grid-template-columns: minmax(360px, 1fr) auto minmax(260px, 1fr);
+  box-shadow: 0 1px 2px rgba(33, 48, 60, 0.08);
+}
+.workbench-brand-zone {
+  gap: 10px;
+}
+.workbench-brand {
+  flex: 0 0 48px;
+  width: 48px;
+  border-right: 1px solid #e2e5e8;
+}
+.workbench-title-input {
+  box-sizing: border-box;
+  width: 250px;
+  height: 36px;
+  margin: 0;
+  padding: 6px 16px;
+  border: 1px solid #d9dee3;
+  border-radius: 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+.workbench-save-state.saved {
+  opacity: 0;
+  pointer-events: none;
+}
+.workbench-save-state.dirty,
+.workbench-save-state.saving,
+.workbench-save-state.error {
+  opacity: 1;
+}
+.workbench-mode-buttons > button {
+  width: 52px;
+}
+.workbench-mode-buttons > button:disabled {
+  opacity: 0.35;
+}
+.workbench-avatar {
+  width: 38px;
+  height: 38px;
+  margin: 0 9px;
+}
+.workbench-toolbar {
+  background: #f5f6f7;
+}
+.workbench-tool {
+  box-sizing: border-box;
+  width: 48px;
+  height: 48px;
+  border-right: 0;
+  background: transparent;
+}
+.workbench-tool svg {
+  width: 23px;
+  height: 23px;
+}
+.workbench-toolbar-divider {
+  height: 31px;
+  margin: 0 2px;
+}
+.workbench-wire-color {
+  min-width: 78px;
+  height: 48px;
+  padding: 0 9px;
+  border: 1px solid #e0e4e7;
+  border-width: 0 1px;
+}
+.workbench-icon-vertical {
+  transform: rotate(90deg);
+}
+.workbench-toolbar-group.right {
+  gap: 7px;
+  padding: 0 8px;
+}
+.workbench-pill {
+  min-height: 36px;
+  background: #f8f9fa;
+}
+.workbench-pill.active {
+  border-color: #168fc6;
+  color: #126f99;
+  background: #eaf5fa;
+}
+.workbench-pill.simulate {
+  min-width: 220px;
+}
+.workbench-stage,
+.workbench-alternate-view {
+  inset: 0 var(--wb-library-width) 0 0;
+  background: #f4f5f6;
+}
+.workbench-part {
+  transition: filter 80ms ease;
+}
+.workbench-part:hover {
+  filter: drop-shadow(1px 0 0 rgba(59, 142, 215, 0.55))
+    drop-shadow(-1px 0 0 rgba(59, 142, 215, 0.55)) drop-shadow(0 1px 0 rgba(59, 142, 215, 0.55))
+    drop-shadow(0 -1px 0 rgba(59, 142, 215, 0.55));
+}
+.workbench-part.selected,
+.workbench-part.selected:hover,
+.workbench-part.selected:focus-visible {
+  filter: drop-shadow(2px 0 0 #3b8ed7) drop-shadow(-2px 0 0 #3b8ed7) drop-shadow(0 2px 0 #3b8ed7)
+    drop-shadow(0 -2px 0 #3b8ed7) drop-shadow(0 3px 4px rgba(28, 70, 104, 0.2));
+}
+.workbench-selection-box {
+  display: none;
+}
+.workbench-component-selected .workbench-terminal-dot {
+  opacity: 1;
+  fill: #3b8ed7;
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+.workbench-component-selected .workbench-terminal-hit {
+  cursor: crosshair;
+}
+.workbench-stage-controls {
+  left: 12px;
+  top: 12px;
+  width: 38px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.workbench-stage-controls button {
+  width: 38px;
+  height: 38px;
+  border: 0;
+}
+.workbench-stage-status {
+  display: none;
+}
+.workbench-empty-stage {
+  color: #788791;
+}
+.workbench-library {
+  background: #e6e7eb;
+}
+.workbench-library.collapsed {
+  width: 32px;
+}
+.workbench-library-heading {
+  grid-template-columns: minmax(0, 1fr) 45px;
+  min-height: 58px;
+  background: #f5f6f7;
+}
+.workbench-library-heading > div {
+  padding: 6px 13px;
+}
+.workbench-library-heading span {
+  margin: 0;
+  font-size: 10.5px;
+}
+.workbench-library-heading select {
+  font-size: 16px;
+}
+.workbench-library-search {
+  margin: 11px 10px;
+}
+.workbench-library-search input {
+  box-sizing: border-box;
+  height: 37px;
+  padding: 6px 37px 6px 10px;
+  font-size: 15px;
+}
+.workbench-library-search svg {
+  top: 8px;
+  width: 21px;
+  height: 21px;
+}
+.workbench-catalog-grid {
+  grid-template-columns: repeat(3, 76px);
+  justify-content: center;
+  column-gap: 5px;
+  row-gap: 10px;
+  height: calc(100% - 117px);
+  padding: 0 7px 20px;
+  background: #e6e7eb;
+}
+.workbench-catalog-card {
+  width: 76px;
+  height: 99px;
+  min-height: 99px;
+  border: 0;
+  border-radius: 5px;
+  background: #f1f1f3;
+  font-size: 10.67px;
+  overflow: visible;
+}
+.workbench-catalog-card:not(.disabled):hover {
+  border: 0;
+  box-shadow: 0 2px 7px rgba(32, 53, 66, 0.16);
+  transform: none;
+}
+.workbench-catalog-card.disabled {
+  opacity: 0.42;
+}
+.workbench-catalog-add {
+  grid-template-rows: 65px 28px;
+  gap: 0;
+  padding: 4px 4px 2px;
+}
+.workbench-catalog-art {
+  width: 68px;
+  height: 65px;
+  cursor: grab;
+}
+.workbench-catalog-card:not(.disabled):active .workbench-catalog-art {
+  cursor: grabbing;
+}
+.workbench-catalog-name {
+  min-height: 26px;
+  line-height: 1.15;
+}
+.workbench-catalog-blocked {
+  display: none;
+}
+.workbench-component-preview {
+  max-width: 65px;
+  max-height: 61px;
+}
+.workbench-catalog-grid.list-view {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-content: stretch;
+  gap: 5px;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-card {
+  width: 100%;
+  height: 54px;
+  min-height: 54px;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-add {
+  grid-template-columns: 52px 1fr;
+  grid-template-rows: 1fr;
+  align-items: center;
+  text-align: left;
+}
+.workbench-catalog-grid.list-view .workbench-catalog-art {
+  width: 48px;
+  height: 48px;
+}
+.workbench-inspector {
+  right: calc(var(--wb-library-width) + 10px);
+  top: 8px;
+  width: 256px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  border: 1px solid #3b8ed7;
+  border-radius: 3px;
+  box-shadow: 0 3px 9px rgba(21, 44, 62, 0.2);
+}
+.workbench-inspector-heading {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  min-height: 38px;
+  padding: 4px 7px 4px 10px;
+  background: #fff;
+}
+.workbench-inspector-heading span {
+  color: #38546a;
+  font-size: 13px;
+  font-weight: 650;
+}
+.workbench-inspector-heading button {
+  width: 28px;
+  height: 28px;
+}
+.workbench-inspector-body {
+  padding: 7px 10px 10px;
+}
+.workbench-inspector-body > label,
+.workbench-state-controls label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 31px;
+  margin: 0;
+  border-bottom: 1px solid #e8ebed;
+  font-size: 11px;
+}
+.workbench-inspector-body input,
+.workbench-inspector-body select {
+  min-width: 0;
+  height: 27px;
+  margin: 0;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+.workbench-value-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0;
+}
+.workbench-value-field input {
+  height: 27px;
+}
+.workbench-state-controls {
+  gap: 0;
+  margin: 6px 0 0;
+  padding: 4px 7px 7px;
+}
+.workbench-state-controls legend {
+  font-size: 10px;
+}
+.workbench-terminal-list {
+  gap: 0;
+  margin: 5px 0;
+}
+.workbench-terminal-list > div {
+  min-height: 24px;
+  padding: 3px 5px;
+  border-radius: 0;
+  font-size: 10px;
+}
+.workbench-inspector-actions.vertical {
+  gap: 4px;
+  margin-top: 7px;
+}
+.workbench-inspector-actions.vertical button {
+  min-height: 28px;
+  font-size: 11px;
+}
+.workbench-breadboard-summary,
+.workbench-hole-bindings,
+.workbench-simulation-note,
+.workbench-measurements {
+  margin-top: 6px;
+  padding: 5px;
+  font-size: 10px;
+}
+.workbench-utility-panel {
+  position: absolute;
+  z-index: 25;
+  top: 8px;
+  right: calc(var(--wb-library-width) + 10px);
+  width: 300px;
+  min-height: 230px;
+  border: 1px solid #cad2d8;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 7px 22px rgba(25, 43, 55, 0.18);
+}
+.workbench-utility-panel header,
+.workbench-share-dialog header {
+  display: grid;
+  grid-template-columns: 28px 1fr 30px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 8px;
+  border-bottom: 1px solid #e0e4e7;
+}
+.workbench-utility-panel header svg,
+.workbench-share-dialog header svg {
+  width: 19px;
+  height: 19px;
+}
+.workbench-utility-panel header button,
+.workbench-share-dialog header button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+}
+.workbench-utility-panel textarea {
+  box-sizing: border-box;
+  width: calc(100% - 20px);
+  min-height: 170px;
+  margin: 10px;
+  padding: 9px;
+  resize: vertical;
+  border: 1px solid #d4dbe0;
+}
+.workbench-code-empty {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  padding: 35px 20px;
+  color: #6a7a85;
+  text-align: center;
+}
+.workbench-code-empty > svg {
+  width: 34px;
+  height: 34px;
+}
+.workbench-code-empty p {
+  margin: 0;
+  font-size: 12px;
+}
+.workbench-modal-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(27, 39, 47, 0.36);
+}
+.workbench-share-dialog {
+  width: min(430px, calc(100vw - 40px));
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 16px 50px rgba(17, 30, 39, 0.3);
+}
+.workbench-share-dialog > label {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  font-size: 12px;
+}
+.workbench-share-dialog input {
+  height: 36px;
+  padding: 6px 9px;
+  border: 1px solid #cfd7dc;
+}
+.workbench-share-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 18px 18px;
+}
+.workbench-share-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid #d3dbe0;
+  border-radius: 3px;
+  background: #f7f9fa;
+}
+.workbench-share-actions svg {
+  width: 17px;
+  height: 17px;
+}
+.workbench-alternate-view {
+  position: absolute;
+  overflow: auto;
+}
+.workbench-schematic-view svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.workbench-schematic-wire {
+  fill: none;
+  stroke-width: 3;
+}
+.workbench-schematic-symbol {
+  cursor: pointer;
+}
+.workbench-schematic-symbol rect {
+  fill: #fff;
+  stroke: #526a7a;
+  stroke-width: 2;
+}
+.workbench-schematic-symbol line {
+  stroke: #526a7a;
+  stroke-width: 2;
+}
+.workbench-schematic-symbol text {
+  fill: #324c5d;
+  font-size: 13px;
+}
+.workbench-schematic-symbol text.value {
+  fill: #71818b;
+  font-size: 10px;
+}
+.workbench-schematic-symbol.selected rect {
+  stroke: #3b8ed7;
+  stroke-width: 4;
+}
+.workbench-bom-view {
+  padding: 28px;
+}
+.workbench-bom-card {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid #dbe0e4;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(31, 48, 61, 0.08);
+}
+.workbench-bom-card h2,
+.workbench-bom-card p {
+  margin: 0 0 8px;
+}
+.workbench-bom-card table {
+  width: 100%;
+  margin-top: 20px;
+  border-collapse: collapse;
+}
+.workbench-bom-card th,
+.workbench-bom-card td {
+  padding: 10px;
+  border-bottom: 1px solid #e1e5e8;
+  text-align: left;
+}
+.workbench-bom-card th {
+  color: #60727f;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 @media (prefers-reduced-motion: reduce) {
   .workbench-wire-preview {
