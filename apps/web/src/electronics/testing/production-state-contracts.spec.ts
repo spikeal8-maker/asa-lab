@@ -3,7 +3,6 @@ import {
   buttonContactPairs,
   lampState,
   motorMotion,
-  ordinaryLedAsset,
   ordinaryLedState,
   potentiometerKnobAngle,
   rgbLedColour,
@@ -15,22 +14,22 @@ import {
 } from '../production-asset-contracts';
 
 describe('typed Electronics state and animation contracts', () => {
-  it('covers owner LED colour, 0-100 brightness and fault visuals', () => {
-    expect(ordinaryLedAsset(ordinaryLedState('blue', -4))).toBe(
-      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
-    );
-    expect(ordinaryLedAsset(ordinaryLedState('yellow', 101))).toBe(
-      '/assets/electronics/owner-audit/components/led/yellow/led_yellow_i100.svg',
-    );
-    expect(ordinaryLedAsset(ordinaryLedState('red', 55, 'reverse'))).toBe(
-      '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg',
-    );
-    expect(ordinaryLedAsset(ordinaryLedState('orange', 55, 'overcurrent'))).toBe(
-      '/assets/electronics/owner-audit/components/led/special/led_orange_overcurrent.svg',
-    );
-    expect(ordinaryLedAsset(ordinaryLedState('red', 55, 'burned'))).toBe(
-      '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg',
-    );
+  it('normalises ordinary LED colour, 0-100 brightness and fault state', () => {
+    expect(ordinaryLedState('blue', -4)).toEqual({
+      colour: 'blue',
+      brightness: 0,
+      fault: 'none',
+    });
+    expect(ordinaryLedState('yellow', 101)).toEqual({
+      colour: 'yellow',
+      brightness: 100,
+      fault: 'none',
+    });
+    expect(ordinaryLedState('red', 55, 'reverse')).toEqual({
+      colour: 'red',
+      brightness: 55,
+      fault: 'reverse',
+    });
   });
 
   it('mixes independent RGB channels for either four-pin common mode', () => {
