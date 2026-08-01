@@ -1,8 +1,8 @@
-# Electronics M1 component-family library checkpoint
+# Electronics M1 owner-reference presentation checkpoint
 
 - Task: `TASK-ELECTRONICS-M1-001`
 - Branch: `agent/r4-electronics-m1`
-- Review state: Tinkercad-style categories, families and variants integrated into the real Electronics editor; owner visual review pending
+- Review state: owner-reference visual candidate in the real Electronics editor; owner acceptance pending
 - Full repository matrix: `NOT_RUN` by owner directive
 - R4-M2: `NOT_STARTED`
 
@@ -13,30 +13,35 @@ adapter; legacy assets remain available only for existing documents.
 
 ## Real editor evidence
 
-Project: `Electronics family library`
+Project: `Electronics owner visual parity`
 
-The default library shows 11 supported families in the owner-defined order.
-The focused journey selects the 6×AA physical variant, places it, saves it,
-creates a checkpoint and reloads the project. The component returns with
-`variantId=battery-holder-aa-6` and the matching production SVG, voltage and
-inspector option.
+At 100% zoom the default `Основные` shelf is 330 px wide and presents the exact
+owner-defined 15-card order in three columns. Cards contain only the component
+image and name. Unsupported preview cards are visibly disabled, non-draggable
+and cannot create document components. The canvas checkpoint contains the small
+breadboard plus resistor, LED, four-pin button and three-pin SPDT. Terminal
+markers remain hidden while idle and appear only for hover or active wiring;
+pins bound to breadboard holes do not receive duplicate markers.
 
 | Evidence | Purpose |
 | --- | --- |
-| `library-basic-default.png` | Default `Основные` two-column family grid |
-| `library-category-power.png` | Supported power families without legacy single batteries |
-| `library-family-battery-variants.png` | One AA holder card with 1/2/3/4/6/8×AA variants |
-| `library-search-led.png` | Alias search resolves ordinary and RGB LED families |
-| `library-supported-vs-preview.png` | Disabled, non-draggable `В разработке` tier |
-| `library-list-view.png` | Deterministic supported families in list view |
-| `variant-persisted-after-reload.png` | 6×AA `variantId` restored after save/reload/checkpoint |
+| `editor-idle-clean.png` | Clean 100% canvas without selection, pending wire or diagnostics |
+| `library-basic-three-columns.png` | 330 px `Основные` shelf with three columns |
+| `library-basic-exact-order.png` | Exact owner-defined order of all 15 Basic cards |
+| `component-hover-terminal.png` | Small terminal markers shown only on component hover |
+| `wiring-mode-terminals.png` | Terminal markers and pin labels shown during active wiring |
+| `component-selected.png` | Calm selected-component state and inspector without idle pin labels |
+| `breadboard-placement-clean.png` | Small breadboard and four components on a clean canvas |
+| `library-disabled-components.png` | Unsupported cards disabled, non-draggable and vector-only |
+| `owner-reference-vs-current.png` | Side-by-side 100% owner reference and current visual candidate |
 
-Focused checks cover the manifest adapter, categories, family ordering, search,
-safe preview cards, schema migration, physical scale, production pins,
-breadboard connectivity, state persistence and the actual editor journey. The
-focused Playwright collector reports zero console errors, page errors, failed
-requests and HTTP 5xx responses. The full repository matrix was intentionally
-not run.
+Focused checks cover the manifest adapter, categories, exact family ordering,
+safe preview cards, physical scale, production pins, contextual terminal
+visibility, breadboard connectivity and the actual editor journey. The focused
+Playwright collector reports zero console errors, page errors, failed requests
+and HTTP 5xx responses. The full repository matrix was intentionally not run.
+This evidence is a candidate for owner visual review and is not an acceptance
+record.
 
 ## Owner archive recovery
 
