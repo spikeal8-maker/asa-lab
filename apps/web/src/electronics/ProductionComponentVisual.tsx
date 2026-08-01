@@ -2,13 +2,10 @@ import type { SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import {
-  RESISTOR_BAND_CSS,
   potentiometerKnobAngle,
-  resistorBandState,
   rgbLedColour,
   rgbLedState,
   sevenSegmentState,
-  type ResistorTolerancePercent,
   type RgbCommonMode,
   type SevenSegmentId,
 } from './production-asset-contracts';
@@ -20,16 +17,6 @@ interface Props {
   readonly height: number;
   readonly visualState: ComponentVisualState;
 }
-
-const RESISTOR_BODY_ASSET =
-  '/assets/electronics/production/components/resistor-axial-body.svg';
-
-const RESISTOR_BAND_ZONES = [
-  [14, 84, 34, 13],
-  [14, 111, 34, 13],
-  [14, 139, 34, 13],
-  [14, 171, 34, 13],
-] as const;
 
 const SEGMENT_BOXES: Readonly<Record<SevenSegmentId, readonly [number, number, number, number]>> = {
   a: [4.306, 3.166, 6.309, 1.218],
@@ -50,10 +37,7 @@ export function ProductionComponentVisual({
   visualState,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
-  const asset =
-    entry.key === 'resistor-axial'
-      ? RESISTOR_BODY_ASSET
-      : visualAsset(entry, component, visualState);
+  const asset = visualAsset(entry, component, visualState);
   return (
     <svg
       className="workbench-production-visual"
@@ -64,32 +48,6 @@ export function ProductionComponentVisual({
       aria-hidden="true"
     >
       <image href={asset} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
-
-      {entry.key === 'resistor-axial' ? (
-        <g data-testid="resistor-colour-bands" pointerEvents="none">
-          {resistorBandState(
-            component.value,
-            Number(properties['tolerancePercent'] ?? 5) as ResistorTolerancePercent,
-          ).bands.map((colour, index) => {
-            const zone = RESISTOR_BAND_ZONES[index] as (typeof RESISTOR_BAND_ZONES)[number];
-            return (
-              <rect
-                key={`${index}-${colour}`}
-                data-band-index={index}
-                data-band-colour={colour}
-                x={(zone[0] / 62) * width}
-                y={(zone[1] / 258) * height}
-                width={(zone[2] / 62) * width}
-                height={(zone[3] / 258) * height}
-                rx={(2 / 62) * width}
-                fill={RESISTOR_BAND_CSS[colour]}
-                stroke="rgba(40, 28, 18, .34)"
-                strokeWidth={Math.max(0.35, width * 0.007)}
-              />
-            );
-          })}
-        </g>
-      ) : null}
 
       {entry.key === 'rgb-led' ? (
         <ellipse
