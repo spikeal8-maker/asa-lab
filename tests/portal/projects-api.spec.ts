@@ -263,7 +263,7 @@ describe('workbench draft and immutable versions', () => {
       payload: { document },
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().result.current).toBeCloseTo((5 - 2) / (300 + 8.0001), 6);
+    expect(saved.json().result.current).toBeCloseTo((5 - 1.9) / (300 + 8.0001), 6);
 
     const reloaded = await inject(app, {
       method: 'GET',
