@@ -29,7 +29,9 @@ function internalConnectionsForType(componentTypeId: string): [string, string][]
         ['SW-A1', 'SW-A2'],
         ['SW-B1', 'SW-B2'],
       ]
-    : [];
+    : componentTypeId === 'seven-segment-display'
+      ? [['top-3', 'bottom-3']]
+      : [];
 }
 
 export function addComponentToDocument(

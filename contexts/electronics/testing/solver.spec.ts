@@ -313,6 +313,85 @@ describe('deterministic DC solver', () => {
     expect(unsafe.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
   });
 
+  it('derives ordinary LED brightness from current and colour-specific forward voltage', () => {
+    const red = solveCircuit(
+      series(
+        [
+          component('r1', 'resistor', 220),
+          component('led1', 'led', 2, {
+            stateProperties: { ledColour: 'red' },
+          }),
+        ],
+        5,
+      ),
+    );
+    const led = red.components.find((item) => item.componentId === 'led1');
+    expect(led?.current).toBeGreaterThan(0.013);
+    expect(led?.brightness).toBeGreaterThan(70);
+    expect(led?.branchBrightness?.led).toBe(led?.brightness);
+  });
+
+  it('solves RGB channels electrically and leaves unpowered channels dark', () => {
+    const document = doc(
+      [
+        component('source', 'source', 5),
+        component('r-red', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode' },
+        }),
+      ],
+      [
+        connect('w1', 'source', 'a', 'r-red', 'a'),
+        connect('w2', 'r-red', 'b', 'rgb', 'red'),
+        connect('w3', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+    const rgb = resultFor(document, 'rgb');
+    expect(rgb?.branchCurrents?.red).toBeGreaterThan(0.013);
+    expect(rgb?.branchBrightness?.red).toBeGreaterThan(70);
+    expect(rgb?.branchBrightness?.green).toBe(0);
+    expect(rgb?.branchBrightness?.blue).toBe(0);
+  });
+
+  it('drives each seven-segment cell from its real pin and never invents a glyph', () => {
+    const display = component('display', 'seven-segment', 0, {
+      componentTypeId: 'seven-segment-display',
+      pinIds: [
+        'top-1',
+        'top-2',
+        'top-3',
+        'top-4',
+        'top-5',
+        'bottom-1',
+        'bottom-2',
+        'bottom-3',
+        'bottom-4',
+        'bottom-5',
+      ],
+      internalConnections: [['top-3', 'bottom-3']],
+      stateProperties: { commonMode: 'common-cathode' },
+    });
+    const powered = doc(
+      [component('source', 'source', 5), component('r-a', 'resistor', 330), display],
+      [
+        connect('w1', 'source', 'a', 'r-a', 'a'),
+        connect('w2', 'r-a', 'b', 'display', 'top-4'),
+        connect('w3', 'display', 'top-3', 'source', 'b'),
+      ],
+    );
+    const unpowered = doc([component('source', 'source', 5), display], []);
+    const poweredResult = resultFor(powered, 'display');
+    const unpoweredResult = resultFor(unpowered, 'display');
+    expect(poweredResult?.branchBrightness?.a).toBeGreaterThan(0);
+    expect(poweredResult?.branchBrightness?.b).toBe(0);
+    expect(Object.values(unpoweredResult?.branchBrightness ?? {})).toEqual(
+      expect.arrayContaining([0, 0, 0, 0, 0, 0, 0, 0]),
+    );
+    expect(unpoweredResult?.lit).toBe(false);
+  });
+
   it('energizes a resistive lamp', () => {
     const result = solveCircuit(series([component('lamp1', 'lamp', 20)], 5));
     const limited = solveCircuit(
@@ -321,6 +400,11 @@ describe('deterministic DC solver', () => {
     expect(result.current).toBeCloseTo(0.25, 6);
     expect(result.components.find((item) => item.componentId === 'lamp1')?.lit).toBe(true);
     expect(limited.components.find((item) => item.componentId === 'lamp1')?.lit).toBe(true);
+    expect(
+      result.components.find((item) => item.componentId === 'lamp1')?.brightness,
+    ).toBeGreaterThan(
+      limited.components.find((item) => item.componentId === 'lamp1')?.brightness ?? 0,
+    );
   });
 
   it('diagnoses a direct short, open circuit, no source and invalid property', () => {

@@ -1065,8 +1065,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function componentLedBrightness(component: SchematicComponent): number {
     if (component.kind !== 'led' || !simulationRunning) return 0;
-    const current = Math.abs(resultByComponent.get(component.id)?.current ?? 0);
-    return Math.round(clamp((current / 0.02) * 100, 0, 100));
+    return Math.round(clamp(resultByComponent.get(component.id)?.brightness ?? 0, 0, 100));
   }
 
   const diagnosticCodesByComponent = useMemo(() => {

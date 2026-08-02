@@ -1,4 +1,4 @@
-import type { SchematicComponent } from '../api';
+import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import {
@@ -7,7 +7,6 @@ import {
   resistorBandState,
   rgbLedColour,
   rgbLedState,
-  sevenSegmentState,
   WORLD_UNITS_PER_MM,
   type RgbCommonMode,
   type ResistorTolerancePercent,
@@ -40,6 +39,7 @@ interface Props {
   readonly height: number;
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
+  readonly result?: ComponentResult | undefined;
   readonly selected?: boolean;
   readonly selectionOffset?: number;
   readonly simulationRunning?: boolean;
@@ -63,18 +63,34 @@ export function ProductionComponentVisual({
   height,
   visualState,
   effectiveBrightness,
+  result,
   selected = false,
   selectionOffset = 2,
   simulationRunning = false,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
-  const visualComponent =
+  const visualComponent: SchematicComponent =
     entry.key === 'led-5mm' && effectiveBrightness !== undefined
       ? {
           ...component,
           stateProperties: { ...properties, ledBrightness: effectiveBrightness },
         }
-      : component;
+      : entry.key === 'incandescent-lamp' && result
+        ? {
+            ...component,
+            stateProperties: {
+              ...properties,
+              lampLevel:
+                (result.brightness ?? 0) >= 90
+                  ? 'max'
+                  : (result.brightness ?? 0) >= 45
+                    ? 'on'
+                    : (result.brightness ?? 0) > 0
+                      ? 'dim'
+                      : 'off',
+            },
+          }
+        : component;
   const asset = visualAsset(entry, visualComponent, visualState);
   const toleranceValue = Number(properties['tolerancePercent'] ?? 5);
   const tolerance: ResistorTolerancePercent = [1, 2, 5, 10].includes(toleranceValue)
@@ -435,17 +451,17 @@ export function ProductionComponentVisual({
           ry={height * 0.27}
           fill={rgbLedColour(
             rgbLedState(
-              Number(properties['red'] ?? 0),
-              Number(properties['green'] ?? 0),
-              Number(properties['blue'] ?? 0),
+              simulationRunning ? Number(result?.branchBrightness?.['red'] ?? 0) : 0,
+              simulationRunning ? Number(result?.branchBrightness?.['green'] ?? 0) : 0,
+              simulationRunning ? Number(result?.branchBrightness?.['blue'] ?? 0) : 0,
               String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
             ),
           )}
           opacity={
             (Math.max(
-              Number(properties['red'] ?? 0),
-              Number(properties['green'] ?? 0),
-              Number(properties['blue'] ?? 0),
+              simulationRunning ? Number(result?.branchBrightness?.['red'] ?? 0) : 0,
+              simulationRunning ? Number(result?.branchBrightness?.['green'] ?? 0) : 0,
+              simulationRunning ? Number(result?.branchBrightness?.['blue'] ?? 0) : 0,
             ) /
               100) *
             0.72
@@ -457,22 +473,10 @@ export function ProductionComponentVisual({
       {entry.key === 'seven-segment-display' ? (
         <g data-testid="seven-segment-state" pointerEvents="none">
           {(() => {
-            const custom = String(properties['segmentMask'] ?? '')
-              .split(/[,\s]+/)
-              .filter((segment): segment is SevenSegmentId => segment in SEGMENT_BOXES);
-            const state =
-              custom.length > 0
-                ? {
-                    active: new Set<SevenSegmentId>(custom),
-                    brightness: simulationRunning
-                      ? Number(properties['segmentBrightness'] ?? 100)
-                      : 0,
-                  }
-                : sevenSegmentState(
-                    String(properties['glyph'] ?? '0'),
-                    simulationRunning ? Number(properties['segmentBrightness'] ?? 100) : 0,
-                  );
-            return [...state.active].map((segment) => {
+            return (Object.keys(SEGMENT_BOXES) as SevenSegmentId[]).map((segment) => {
+              const brightness = simulationRunning
+                ? Number(result?.branchBrightness?.[segment] ?? 0)
+                : 0;
               const [x, y, segmentWidth, segmentHeight] = SEGMENT_BOXES[segment];
               return segment === 'dp' ? (
                 <circle
@@ -482,7 +486,7 @@ export function ProductionComponentVisual({
                   cy={((y + segmentHeight / 2) / 19.05) * height}
                   r={(segmentWidth / 2 / 12.7) * width}
                   fill="#ff2424"
-                  opacity={state.brightness / 100}
+                  opacity={brightness / 100}
                 />
               ) : (
                 <rect
@@ -494,7 +498,7 @@ export function ProductionComponentVisual({
                   height={(segmentHeight / 19.05) * height}
                   rx="1"
                   fill="#ff2424"
-                  opacity={state.brightness / 100}
+                  opacity={brightness / 100}
                 />
               );
             });

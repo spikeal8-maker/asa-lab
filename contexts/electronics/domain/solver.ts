@@ -34,6 +34,10 @@ export interface ComponentResult {
   readonly voltageDrop: number;
   readonly current: number;
   readonly terminalVoltages: Readonly<Partial<Record<Terminal, number>>>;
+  readonly power?: number;
+  readonly brightness?: number;
+  readonly branchCurrents?: Readonly<Record<string, number>>;
+  readonly branchBrightness?: Readonly<Record<string, number>>;
   readonly lit?: boolean;
   readonly energized?: boolean;
 }
@@ -57,10 +61,119 @@ const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const DIODE_ON_RESISTANCE = 2;
 const LED_ON_RESISTANCE = 8;
-const LED_MIN_CURRENT_A = 0.001;
+const LED_MIN_CURRENT_A = 0.0001;
+const LED_NOMINAL_CURRENT_A = 0.02;
 const DEFAULT_LED_MAX_CURRENT_A = 0.03;
 const LAMP_MIN_POWER_W = 0.001;
+const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
+
+const LED_FORWARD_VOLTAGE: Readonly<Record<string, number>> = {
+  red: 1.9,
+  orange: 2,
+  yellow: 2.1,
+  green: 2.2,
+  blue: 3,
+  white: 3.1,
+};
+
+const RGB_FORWARD_VOLTAGE: Readonly<Record<string, number>> = {
+  red: 1.9,
+  green: 2.2,
+  blue: 3,
+};
+
+const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
+  a: 'top-4',
+  b: 'top-5',
+  c: 'bottom-4',
+  d: 'bottom-2',
+  e: 'bottom-1',
+  f: 'top-2',
+  g: 'top-1',
+  dp: 'bottom-5',
+};
+
+interface DiodeBranch {
+  readonly component: SchematicComponent;
+  readonly id: string;
+  readonly anode: Terminal;
+  readonly cathode: Terminal;
+  readonly forwardVoltage: number;
+  readonly resistance: number;
+  readonly nominalCurrent: number;
+  readonly maxCurrent: number;
+}
+
+function diodeBranchKey(branch: DiodeBranch): string {
+  return `${branch.component.id}:${branch.id}`;
+}
+
+function ledBrightness(current: number, nominalCurrent = LED_NOMINAL_CURRENT_A): number {
+  if (current < LED_MIN_CURRENT_A) return 0;
+  return Math.min(100, Math.pow(current / nominalCurrent, 0.65) * 100);
+}
+
+function componentDiodeBranches(component: SchematicComponent): readonly DiodeBranch[] {
+  if (component.kind === 'led') {
+    const colour = String(component.stateProperties?.['ledColour'] ?? 'red');
+    return [
+      {
+        component,
+        id: 'led',
+        anode: logicalTerminal(component, 'a'),
+        cathode: logicalTerminal(component, 'b'),
+        forwardVoltage: LED_FORWARD_VOLTAGE[colour] ?? component.value,
+        resistance: LED_ON_RESISTANCE,
+        nominalCurrent: LED_NOMINAL_CURRENT_A,
+        maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
+      },
+    ];
+  }
+  if (component.kind === 'diode') {
+    return [
+      {
+        component,
+        id: 'diode',
+        anode: logicalTerminal(component, 'a'),
+        cathode: logicalTerminal(component, 'b'),
+        forwardVoltage: component.value,
+        resistance: DIODE_ON_RESISTANCE,
+        nominalCurrent: LED_NOMINAL_CURRENT_A,
+        maxCurrent: Number.POSITIVE_INFINITY,
+      },
+    ];
+  }
+  if (component.kind === 'rgb-led') {
+    const common = 'common';
+    const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
+    return ['red', 'green', 'blue'].map((channel) => ({
+      component,
+      id: channel,
+      anode: commonAnode ? common : channel,
+      cathode: commonAnode ? channel : common,
+      forwardVoltage: RGB_FORWARD_VOLTAGE[channel] ?? 2,
+      resistance: LED_ON_RESISTANCE,
+      nominalCurrent: LED_NOMINAL_CURRENT_A,
+      maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
+    }));
+  }
+  if (component.kind === 'seven-segment') {
+    const common = 'bottom-3';
+    const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
+    return Object.entries(SEVEN_SEGMENT_TERMINALS).map(([segment, terminal]) => ({
+      component,
+      id: segment,
+      anode: commonAnode ? common : terminal,
+      cathode: commonAnode ? terminal : common,
+      forwardVoltage: 1.9,
+      resistance: LED_ON_RESISTANCE,
+      nominalCurrent: 0.01,
+      maxCurrent: 0.02,
+    }));
+  }
+  return [];
+}
 
 type LogicalTerminal = 'a' | 'b' | 'wiper';
 
@@ -90,7 +203,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
 }
 
 function isSimulated(component: SchematicComponent): boolean {
-  return !['rgb-led', 'seven-segment', 'breadboard', 'visual', 'wire'].includes(component.kind);
+  return !['breadboard', 'visual', 'wire'].includes(component.kind);
 }
 
 function round(value: number, digits = 6): number {
@@ -180,9 +293,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     });
   }
   if (invalid.length > 0) return empty();
-  const unsupported = document.components.filter((component) =>
-    ['rgb-led', 'seven-segment', 'visual'].includes(component.kind),
-  );
+  const unsupported = document.components.filter((component) => component.kind === 'visual');
   if (unsupported.length > 0) {
     diagnostics.push({
       code: 'unsupported_component',
@@ -228,10 +339,9 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   }
   const nodeVariableCount = nodeVariables.size;
   const size = nodeVariableCount + sources.length;
+  const diodeBranches = document.components.flatMap(componentDiodeBranches);
   const diodeStates = new Map<string, boolean>();
-  for (const component of document.components) {
-    if (component.kind === 'led' || component.kind === 'diode') diodeStates.set(component.id, true);
-  }
+  for (const branch of diodeBranches) diodeStates.set(diodeBranchKey(branch), true);
 
   let solution: number[] | null = null;
   let converged = false;
@@ -239,6 +349,8 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const maxIterations = document.simulation.maxIterations;
   const nodeIndex = (component: SchematicComponent, terminal: LogicalTerminal): number =>
     netlist.nodeOf.get(terminalKey(component.id, logicalTerminal(component, terminal))) as number;
+  const physicalNodeIndex = (component: SchematicComponent, terminal: Terminal): number =>
+    netlist.nodeOf.get(terminalKey(component.id, terminal)) as number;
   const voltageFrom = (values: number[], node: number): number =>
     node === referenceNode ? 0 : (values[nodeVariables.get(node) as number] as number);
 
@@ -265,6 +377,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
     for (const component of document.components) {
       if (!isSimulated(component) || component.kind === 'source') continue;
+      if (['led', 'diode', 'rgb-led', 'seven-segment'].includes(component.kind)) continue;
       const a = nodeIndex(component, 'a');
       const b = nodeIndex(component, 'b');
       if (component.kind === 'resistor' || component.kind === 'lamp') {
@@ -284,16 +397,19 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
           b,
           1 / Math.max(CLOSED_RESISTANCE, component.value * (1 - position)),
         );
-      } else if (component.kind === 'led' || component.kind === 'diode') {
-        const active = diodeStates.get(component.id) === true;
-        const resistance = component.kind === 'led' ? LED_ON_RESISTANCE : DIODE_ON_RESISTANCE;
-        if (active) {
-          const conductance = 1 / resistance;
-          stampConductance(a, b, conductance);
-          stampOffset(a, b, conductance * component.value);
-        } else {
-          stampConductance(a, b, GMIN);
-        }
+      }
+    }
+
+    for (const branch of diodeBranches) {
+      const anode = physicalNodeIndex(branch.component, branch.anode);
+      const cathode = physicalNodeIndex(branch.component, branch.cathode);
+      const active = diodeStates.get(diodeBranchKey(branch)) === true;
+      if (active) {
+        const conductance = 1 / branch.resistance;
+        stampConductance(anode, cathode, conductance);
+        stampOffset(anode, cathode, conductance * branch.forwardVoltage);
+      } else {
+        stampConductance(anode, cathode, GMIN);
       }
     }
 
@@ -317,14 +433,14 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     solution = solveLinear(matrix, rhs);
     if (!solution) break;
     let changed = false;
-    for (const component of document.components) {
-      if (component.kind !== 'led' && component.kind !== 'diode') continue;
+    for (const branch of diodeBranches) {
       const drop =
-        voltageFrom(solution, nodeIndex(component, 'a')) -
-        voltageFrom(solution, nodeIndex(component, 'b'));
-      const next = drop >= component.value - 0.02;
-      if (next !== diodeStates.get(component.id)) {
-        diodeStates.set(component.id, next);
+        voltageFrom(solution, physicalNodeIndex(branch.component, branch.anode)) -
+        voltageFrom(solution, physicalNodeIndex(branch.component, branch.cathode));
+      const next = drop >= branch.forwardVoltage - 0.02;
+      const key = diodeBranchKey(branch);
+      if (next !== diodeStates.get(key)) {
+        diodeStates.set(key, next);
         changed = true;
       }
     }
@@ -354,6 +470,19 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   for (const [position, source] of sources.entries()) {
     sourceCurrents.set(source.id, solution[nodeVariableCount + position] as number);
   }
+  const resultForBranch = (branch: DiodeBranch) => {
+    const voltageDrop =
+      physicalVoltageAt(branch.component, branch.anode) -
+      physicalVoltageAt(branch.component, branch.cathode);
+    const current = diodeStates.get(diodeBranchKey(branch))
+      ? Math.max(0, (voltageDrop - branch.forwardVoltage) / branch.resistance)
+      : 0;
+    return {
+      voltageDrop,
+      current,
+      brightness: ledBrightness(current, branch.nominalCurrent),
+    };
+  };
 
   const components: ComponentResult[] = document.components
     .filter((component) => component.kind !== 'wire')
@@ -362,9 +491,11 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       for (const terminal of terminalsForComponent(component)) {
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
       }
-      const voltageDrop = isSimulated(component)
-        ? voltageAt(component, 'a') - voltageAt(component, 'b')
-        : 0;
+      const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
+      const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));
+      const voltageDrop =
+        branchResults[0]?.voltageDrop ??
+        (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
       let current = 0;
       if (component.kind === 'source') current = -(sourceCurrents.get(component.id) ?? 0);
       else if (component.kind === 'resistor' || component.kind === 'lamp')
@@ -382,22 +513,41 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         current =
           (voltageAt(component, 'a') - voltageAt(component, 'wiper')) /
           Math.max(CLOSED_RESISTANCE, component.value * position);
-      } else if (
-        (component.kind === 'led' || component.kind === 'diode') &&
-        diodeStates.get(component.id)
-      ) {
-        current = Math.max(
-          0,
-          (voltageDrop - component.value) /
-            (component.kind === 'led' ? LED_ON_RESISTANCE : DIODE_ON_RESISTANCE),
-        );
-      }
+      } else if (branches.length > 0)
+        current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
+      const power = Math.abs(
+        component.kind === 'lamp'
+          ? current * voltageDrop
+          : branchResults.length > 0
+            ? branchResults.reduce((sum, branch) => sum + branch.current * branch.voltageDrop, 0)
+            : current * voltageDrop,
+      );
+      const branchCurrents = Object.fromEntries(
+        branchResults.map(({ branch, current: branchCurrent }) => [
+          branch.id,
+          round(branchCurrent),
+        ]),
+      );
+      const branchBrightness = Object.fromEntries(
+        branchResults.map(({ branch, brightness }) => [branch.id, round(brightness, 2)]),
+      );
+      const brightness =
+        component.kind === 'lamp'
+          ? Math.min(100, Math.pow(power / LAMP_NOMINAL_POWER_W, 0.55) * 100)
+          : Math.max(0, ...Object.values(branchBrightness));
       return {
         componentId: component.id,
         voltageDrop: round(voltageDrop),
         current: round(current),
         terminalVoltages,
-        ...(component.kind === 'led' ? { lit: current >= LED_MIN_CURRENT_A } : {}),
+        power: round(power),
+        brightness: round(brightness, 2),
+        ...(branches.length > 0 ? { branchCurrents, branchBrightness } : {}),
+        ...(component.kind === 'led' ||
+        component.kind === 'rgb-led' ||
+        component.kind === 'seven-segment'
+          ? { lit: brightness > 0 }
+          : {}),
         ...(component.kind === 'lamp'
           ? {
               lit: Math.abs(current * voltageDrop) >= LAMP_MIN_POWER_W,
@@ -421,6 +571,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     }
   }
   for (const component of document.components.filter(isSimulated)) {
+    if (component.kind === 'rgb-led' || component.kind === 'seven-segment') continue;
     const logical = [logicalTerminal(component, 'a'), logicalTerminal(component, 'b')];
     if (component.kind === 'potentiometer') logical.push(logicalTerminal(component, 'wiper'));
     const dangling = logical.filter(
@@ -438,23 +589,34 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   }
 
   for (const component of document.components.filter(
-    (item) => item.kind === 'led' || item.kind === 'diode',
+    (item) => componentDiodeBranches(item).length > 0,
   )) {
+    const componentBranches = diodeBranches.filter(
+      (branch) => branch.component.id === component.id,
+    );
     const result = components.find((entry) => entry.componentId === component.id);
-    if ((result?.voltageDrop ?? 0) < -0.05) {
+    const reverseBranches = componentBranches.filter((branch) => {
+      const anodeVoltage = result?.terminalVoltages[branch.anode] ?? 0;
+      const cathodeVoltage = result?.terminalVoltages[branch.cathode] ?? 0;
+      return anodeVoltage - cathodeVoltage < -0.05;
+    });
+    if (reverseBranches.length > 0) {
       diagnostics.push({
         code: 'reverse_polarity',
         severity: 'warning',
-        message: `${component.kind === 'led' ? 'Светодиод' : 'Диод'} подключён в обратной полярности.`,
+        message: `${component.name ?? component.id}: обратная полярность ${reverseBranches.map((branch) => branch.id).join(', ')}.`,
         componentIds: [component.id],
-        suggestedAction: 'Поменяйте местами анод A и катод K.',
+        suggestedAction: 'Проверьте анод, катод и общий вывод.',
       });
     }
-    if (component.kind === 'led' && Math.abs(result?.current ?? 0) > DEFAULT_LED_MAX_CURRENT_A) {
+    const overloaded = componentBranches.filter(
+      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.maxCurrent,
+    );
+    if (overloaded.length > 0) {
       diagnostics.push({
         code: 'led_overcurrent',
         severity: 'error',
-        message: `Ток LED ${(Math.abs(result?.current ?? 0) * 1000).toFixed(1)} мА выше безопасного предела.`,
+        message: `${component.name ?? component.id}: ток выше безопасного предела в ${overloaded.map((branch) => branch.id).join(', ')}.`,
         componentIds: [component.id],
         suggestedAction: 'Увеличьте токоограничивающее сопротивление.',
       });

@@ -13,28 +13,27 @@ import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
-function contactLabel(kind: string, terminal: string, fallback: string): string {
-  if (kind === 'source' && terminal === 'BAT-') return 'Отрицательный';
-  if (kind === 'source' && terminal === 'BAT+') return 'Положительный';
-  const labels: Readonly<Record<string, string>> = {
-    anode: 'Анод',
-    cathode: 'Катод',
-    common: 'Общий контакт',
-    'throw-left': 'Левый контакт',
-    'throw-right': 'Правый контакт',
-    wiper: 'Движок',
-    'terminal-1': 'Контакт 1',
-    'terminal-2': 'Контакт 2',
-    'lead-1': 'Вывод 1',
-    'lead-2': 'Вывод 2',
-    L1: 'Контакт 1',
-    L2: 'Контакт 2',
-  };
-  return labels[terminal] ?? fallback;
-}
-
 function tooltipWidth(label: string, zoom: number): number {
   return Math.max(58, label.length * 7.4 + 18) / zoom;
+}
+
+function tooltipPlacement(
+  label: string,
+  point: { readonly x: number; readonly y: number },
+  viewBox: { readonly x: number; readonly y: number; readonly width: number },
+  zoom: number,
+): { readonly x: number; readonly y: number; readonly width: number; readonly textY: number } {
+  const width = tooltipWidth(label, zoom);
+  const margin = 8 / zoom;
+  const half = width / 2;
+  const centre = Math.min(
+    viewBox.x + viewBox.width - half - margin,
+    Math.max(viewBox.x + half + margin, point.x),
+  );
+  const above = -36 / zoom;
+  const below = 14 / zoom;
+  const y = point.y + above < viewBox.y + margin ? below : above;
+  return { x: centre - point.x - half, y, width, textY: y + 15 / zoom };
 }
 
 export function WorkbenchStage({
@@ -229,6 +228,7 @@ export function WorkbenchStage({
                     height={baseSize.height}
                     visualState={visualState}
                     effectiveBrightness={c.componentLedBrightness(component)}
+                    result={c.resultByComponent.get(component.id)}
                     selected={selected}
                     selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
@@ -304,29 +304,12 @@ export function WorkbenchStage({
                               height={10 / c.viewport.zoom}
                               rx={1 / c.viewport.zoom}
                             />
-                            <g
-                              className="workbench-terminal-tooltip"
-                              transform={`translate(${point.x} ${point.y - 14 / c.viewport.zoom})`}
-                            >
-                              <rect
-                                x={-tooltipWidth(hole.id, c.viewport.zoom) / 2}
-                                y={-22 / c.viewport.zoom}
-                                width={tooltipWidth(hole.id, c.viewport.zoom)}
-                                height={22 / c.viewport.zoom}
-                                rx={2 / c.viewport.zoom}
-                              />
-                              <text y={-7 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
-                                {hole.id}
-                              </text>
-                            </g>
                             <circle
                               className="workbench-breadboard-hole"
                               cx={point.x}
                               cy={point.y}
                               r="2.3"
-                            >
-                              <title>{hole.id}</title>
-                            </circle>
+                            />
                             <circle
                               className="workbench-breadboard-net-ring"
                               cx={point.x}
@@ -389,20 +372,22 @@ export function WorkbenchStage({
                         vectorEffect="non-scaling-stroke"
                       />
                       {(() => {
-                        const label = contactLabel(component.kind, terminal, terminalSpec.label);
+                        const label = terminalSpec.label;
+                        const tooltip = tooltipPlacement(label, point, c.viewBox, c.viewport.zoom);
                         return (
-                          <g
-                            className="workbench-terminal-tooltip"
-                            transform={`translate(0 ${-14 / c.viewport.zoom})`}
-                          >
+                          <g className="workbench-terminal-tooltip">
                             <rect
-                              x={-tooltipWidth(label, c.viewport.zoom) / 2}
-                              y={-22 / c.viewport.zoom}
-                              width={tooltipWidth(label, c.viewport.zoom)}
+                              x={tooltip.x}
+                              y={tooltip.y}
+                              width={tooltip.width}
                               height={22 / c.viewport.zoom}
                               rx={2 / c.viewport.zoom}
                             />
-                            <text y={-7 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+                            <text
+                              x={tooltip.x + tooltip.width / 2}
+                              y={tooltip.textY}
+                              fontSize={12 / c.viewport.zoom}
+                            >
                               {label}
                             </text>
                           </g>

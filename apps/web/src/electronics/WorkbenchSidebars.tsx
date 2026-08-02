@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   CATEGORY_OPTIONS,
   selectedFamilyVariant,
@@ -7,12 +8,40 @@ import {
 import { ComponentPreview } from './component-preview';
 import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
 import { DRAG_MIME, WIRE_COLORS } from './workbench-model';
+import {
+  defaultResistanceUnit,
+  RESISTANCE_UNITS,
+  resistanceDisplayValue,
+  resistanceValueInOhms,
+  type ResistanceUnit,
+} from './workbench-values';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 function valueLabel(kind: string): string {
   if (kind === 'source') return 'Напряжение';
-  if (kind === 'led' || kind === 'diode') return 'Прямое падение';
+  if (kind === 'diode') return 'Прямое падение';
+  if (kind === 'potentiometer') return 'Полное сопротивление';
+  if (kind === 'lamp') return 'Сопротивление нити';
   return 'Сопротивление';
+}
+
+function componentHelp(kind: string): string {
+  const help: Readonly<Record<string, string>> = {
+    source: 'Напряжение задаёт разность потенциалов между положительным и отрицательным выводами.',
+    resistor:
+      'Сопротивление ограничивает ток. Значение можно вводить в Ω, kΩ или другой выбранной единице; полосы на корпусе обновляются автоматически.',
+    led: 'Цвет выбирается до запуска. Яркость, ток и перегрузка рассчитываются электрической схемой.',
+    'rgb-led':
+      'Каналы R, G и B рассчитываются отдельно относительно общего анода или общего катода.',
+    'seven-segment': 'Сегменты A–G и DP светятся только от тока через реальные выводы индикатора.',
+    button: 'Четырёхконтактная кнопка замыкает пары клемм только пока она удерживается.',
+    switch: 'SPDT соединяет общий вывод с одной из двух клемм.',
+    potentiometer: 'Положение движка делит полное сопротивление на два плеча.',
+    diode: 'Диод проводит ток от анода к катоду после достижения прямого падения напряжения.',
+    lamp: 'Яркость лампы рассчитывается по электрической мощности на нити.',
+    breadboard: 'Отверстия макетной платы соединены внутренними группами с шагом 2,54 мм.',
+  };
+  return help[kind] ?? 'Параметры компонента сохраняются вместе с проектом.';
 }
 
 function formatCurrent(value: number): string {
@@ -48,9 +77,20 @@ export function WorkbenchSidebars({
 }: {
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
+  const [helpOpen, setHelpOpen] = useState(false);
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
+  const resistanceComponent =
+    c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
+      ? c.selectedComponent
+      : null;
+  const storedResistanceUnit = resistanceComponent?.stateProperties?.['resistanceUnit'];
+  const resistanceUnit =
+    typeof storedResistanceUnit === 'string' &&
+    RESISTANCE_UNITS.some((candidate) => candidate.id === storedResistanceUnit)
+      ? (storedResistanceUnit as ResistanceUnit)
+      : defaultResistanceUnit(resistanceComponent?.value ?? 0);
   return (
     <>
       <aside
@@ -203,14 +243,19 @@ export function WorkbenchSidebars({
             <button
               type="button"
               className="workbench-inspector-help"
-              onClick={() =>
-                c.setNotice('Параметры выбранного компонента изменяются прямо в таблице.')
-              }
+              onClick={() => setHelpOpen((value) => !value)}
               aria-label="Справка о параметрах"
+              aria-expanded={helpOpen}
             >
               ?
             </button>
           </div>
+
+          {helpOpen && c.selectedComponent ? (
+            <div className="workbench-inspector-help-popover" role="note">
+              {componentHelp(c.selectedComponent.kind)}
+            </div>
+          ) : null}
 
           {c.selectedComponent &&
           c.selectedEntry &&
@@ -260,10 +305,37 @@ export function WorkbenchSidebars({
                       type="number"
                       min="0"
                       step="any"
-                      value={c.selectedComponent.value}
-                      onChange={(event) => c.updateSelectedValue(Number(event.target.value))}
+                      value={
+                        resistanceComponent
+                          ? resistanceDisplayValue(c.selectedComponent.value, resistanceUnit)
+                          : c.selectedComponent.value
+                      }
+                      onChange={(event) =>
+                        c.updateSelectedValue(
+                          resistanceComponent
+                            ? resistanceValueInOhms(Number(event.target.value), resistanceUnit)
+                            : Number(event.target.value),
+                        )
+                      }
                     />
-                    <span>{c.selectedEntry.unit}</span>
+                    {resistanceComponent ? (
+                      <select
+                        className="workbench-unit-select"
+                        aria-label="Единица сопротивления"
+                        value={resistanceUnit}
+                        onChange={(event) =>
+                          c.setSelectedProperties({ resistanceUnit: event.target.value })
+                        }
+                      >
+                        {RESISTANCE_UNITS.map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.id}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span>{c.selectedEntry.unit}</span>
+                    )}
                   </div>
                 </label>
               ) : null}
@@ -364,25 +436,7 @@ export function WorkbenchSidebars({
 
               {c.selectedEntry.key === 'rgb-led' ? (
                 <fieldset className="workbench-state-controls">
-                  <legend>RGB-смешение</legend>
-                  {(['red', 'green', 'blue'] as const).map((channel) => (
-                    <label key={channel}>
-                      <span>
-                        {channel.toUpperCase()}:{' '}
-                        {Number(c.selectedComponent?.stateProperties?.[channel] ?? 0)}%
-                      </span>
-                      <input
-                        aria-label={`RGB ${channel}`}
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={Number(c.selectedComponent?.stateProperties?.[channel] ?? 0)}
-                        onChange={(event) =>
-                          c.setSelectedProperties({ [channel]: Number(event.target.value) })
-                        }
-                      />
-                    </label>
-                  ))}
+                  <legend>RGB-светодиод</legend>
                   <label>
                     <span>Общий вывод</span>
                     <select
@@ -393,10 +447,19 @@ export function WorkbenchSidebars({
                         c.setSelectedProperties({ commonMode: event.target.value })
                       }
                     >
-                      <option value="common-cathode">common-cathode</option>
-                      <option value="common-anode">common-anode</option>
+                      <option value="common-cathode">Общий катод</option>
+                      <option value="common-anode">Общий анод</option>
                     </select>
                   </label>
+                  {(['red', 'green', 'blue'] as const).map((channel) => (
+                    <div className="workbench-calculated-property" key={channel}>
+                      <span>{channel.toUpperCase()}</span>
+                      <output>
+                        {measurement?.branchBrightness?.[channel]?.toFixed(0) ?? '0'}%
+                      </output>
+                      <small>{formatCurrent(measurement?.branchCurrents?.[channel] ?? 0)}</small>
+                    </div>
+                  ))}
                 </fieldset>
               ) : null}
 
@@ -404,48 +467,29 @@ export function WorkbenchSidebars({
                 <fieldset className="workbench-state-controls">
                   <legend>Семисегментный индикатор</legend>
                   <label>
-                    <span>Символ</span>
+                    <span>Общий вывод</span>
                     <select
-                      aria-label="Символ семисегментного индикатора"
-                      value={String(c.selectedComponent.stateProperties?.['glyph'] ?? '0')}
+                      aria-label="Тип общего вывода семисегментного индикатора"
+                      value={String(
+                        c.selectedComponent.stateProperties?.['commonMode'] ?? 'common-cathode',
+                      )}
                       onChange={(event) =>
-                        c.setSelectedProperties({ glyph: event.target.value, segmentMask: '' })
+                        c.setSelectedProperties({ commonMode: event.target.value })
                       }
                     >
-                      {['0', '8', 'A', '1', '2', '3', '4', '5', '6', '7', '9'].map((glyph) => (
-                        <option key={glyph}>{glyph}</option>
-                      ))}
+                      <option value="common-cathode">Общий катод</option>
+                      <option value="common-anode">Общий анод</option>
                     </select>
                   </label>
-                  <label>
-                    <span>Произвольная маска (a,b,c,d,e,f,g,dp)</span>
-                    <input
-                      aria-label="Маска сегментов"
-                      value={String(c.selectedComponent.stateProperties?.['segmentMask'] ?? '')}
-                      onChange={(event) =>
-                        c.setSelectedProperties({ segmentMask: event.target.value })
-                      }
-                    />
-                  </label>
-                  <p className="workbench-simulation-note">
-                    Яркость сегментов определяется электрической схемой при моделировании.
-                  </p>
-                </fieldset>
-              ) : null}
-
-              {c.selectedEntry.key === 'incandescent-lamp' ? (
-                <label>
-                  <span>Визуальное состояние лампы</span>
-                  <select
-                    aria-label="Состояние лампы"
-                    value={String(c.selectedComponent.stateProperties?.['lampLevel'] ?? 'off')}
-                    onChange={(event) => c.setSelectedProperties({ lampLevel: event.target.value })}
-                  >
-                    {['off', 'dim', 'on', 'max'].map((state) => (
-                      <option key={state}>{state}</option>
+                  <div className="workbench-segment-measurements">
+                    {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => (
+                      <span key={segment}>
+                        {segment.toUpperCase()}{' '}
+                        {measurement?.branchBrightness?.[segment]?.toFixed(0) ?? '0'}%
+                      </span>
                     ))}
-                  </select>
-                </label>
+                  </div>
+                </fieldset>
               ) : null}
 
               {c.selectedComponent.kind === 'breadboard' ? (
@@ -491,6 +535,19 @@ export function WorkbenchSidebars({
                     <dt>Падение</dt>
                     <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
                   </div>
+                  {measurement.power !== undefined ? (
+                    <div>
+                      <dt>Мощность</dt>
+                      <dd>{measurement.power.toFixed(3)} Вт</dd>
+                    </div>
+                  ) : null}
+                  {measurement.brightness !== undefined &&
+                  ['led', 'rgb-led', 'seven-segment', 'lamp'].includes(c.selectedComponent.kind) ? (
+                    <div>
+                      <dt>Яркость</dt>
+                      <dd>{measurement.brightness.toFixed(0)}%</dd>
+                    </div>
+                  ) : null}
                   {c.selectedComponent.kind === 'led' || c.selectedComponent.kind === 'lamp' ? (
                     <div>
                       <dt>Состояние</dt>

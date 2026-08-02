@@ -30,6 +30,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).not.toContain('.workbench-breadboard-terminal.landing');
     expect(stageSource).toContain('workbench-terminal-tooltip');
     expect(stageSource).toContain('data-terminal-component-id');
+    expect(stageSource).not.toContain('<title>{hole.id}</title>');
+    expect(stageSource).not.toContain('tooltipWidth(hole.id');
+    expect(stageSource).toContain('tooltipPlacement(label, point, c.viewBox');
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {
@@ -72,6 +75,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('Вставить (Ctrl+V)');
     expect(headerSource).toContain("onViewChange('schematic')");
     expect(headerSource).toContain("onViewChange('bom')");
+    expect(headerSource).toContain('Время моделирования:');
+    expect(workbenchCss).toMatch(
+      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\s*\{[^}]*height:\s*32px;/s,
+    );
   });
 
   it('shows stage diagnostics only for a selected error while simulation is running', () => {
@@ -119,6 +126,8 @@ describe('owner-reference Electronics presentation contract', () => {
   it('uses compact inline properties and real schematic/BOM export actions', () => {
     expect(workbenchCss).toMatch(/\.workbench-inspector\s*\{[^}]*width:\s*256px;/s);
     expect(workbenchCss).toMatch(/\.workbench-inspector-body\s*\{[^}]*padding:\s*2px;/s);
+    expect(sidebarSource).toContain('RESISTANCE_UNITS');
+    expect(sidebarSource).toContain('workbench-inspector-help-popover');
     expect(sidebarSource).toContain('c.simulationRunning ? (');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');

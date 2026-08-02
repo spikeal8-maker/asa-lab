@@ -1256,6 +1256,14 @@
   gap: 7px;
   padding: 0 8px;
 }
+.workbench-simulation-time {
+  align-self: center;
+  margin-left: 12px;
+  color: #8b9aa5;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .workbench-pill {
   min-height: 36px;
   background: #f8f9fa;
@@ -1805,14 +1813,28 @@
 }
 .workbench-toolbar-group.right .workbench-pill:first-child svg,
 .workbench-toolbar-group.right .workbench-pill.simulate svg {
-  width: 30px;
-  height: 30px;
+  width: 17px;
+  height: 17px;
 }
 .workbench-toolbar-group.right .workbench-pill.simulate {
   box-sizing: border-box;
   width: 212px;
   min-width: 212px;
-  padding: 0 7px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 10px 0 5px;
+  border-color: #5c95da;
+  background: transparent;
+  color: #5c95da;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 30px;
+  white-space: nowrap;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running {
+  border-color: #c9d0d6;
+  background: transparent;
+  color: #758895;
 }
 .workbench-toolbar-group.right .workbench-pill:last-child {
   box-sizing: border-box;
@@ -1897,13 +1919,21 @@
   font-size: 13px;
   font-weight: 700;
 }
+.workbench-inspector-help-popover {
+  padding: 8px 10px;
+  border-bottom: 1px solid #c5cfd9;
+  background: #f2f8fb;
+  color: #34495e;
+  font-size: 12px;
+  line-height: 1.35;
+}
 .workbench-inspector-body {
   padding: 2px;
 }
 .workbench-inspector-body > label,
 .workbench-state-controls label {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 116px minmax(0, 1fr);
   gap: 0;
   min-height: 32px;
   margin: 0;
@@ -1920,6 +1950,7 @@
   background: #0696d7;
   color: #fff;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 .workbench-inspector-body input,
 .workbench-inspector-body select,
@@ -1936,7 +1967,7 @@
 }
 .workbench-value-field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(52px, 1fr) 52px;
   border: 0;
 }
 .workbench-value-field input {
@@ -1948,6 +1979,24 @@
   padding: 0 5px;
   border: 1px solid #c5cfd9;
   border-left: 0;
+}
+.workbench-value-field .workbench-unit-select {
+  width: 52px;
+  border-left: 0;
+}
+.workbench-segment-measurements {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  padding: 2px;
+  background: #dfe5e9;
+}
+.workbench-segment-measurements span {
+  padding: 5px 3px;
+  background: #fff;
+  color: #425866;
+  font-size: 10px;
+  text-align: center;
 }
 .workbench-state-controls {
   display: block;

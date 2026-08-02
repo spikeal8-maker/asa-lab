@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { PublicUser } from '../api';
 import {
   CheckIcon,
@@ -44,6 +45,15 @@ function ToolButton({
   );
 }
 
+function formatSimulationTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  return [hours, minutes, remainingSeconds]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
+}
+
 export function WorkbenchHeader({
   controller: c,
   onBack,
@@ -74,6 +84,19 @@ export function WorkbenchHeader({
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
+  const [simulationSeconds, setSimulationSeconds] = useState(0);
+  useEffect(() => {
+    if (!c.simulationRunning) {
+      setSimulationSeconds(0);
+      return undefined;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(
+      () => setSimulationSeconds(Math.floor((Date.now() - startedAt) / 1000)),
+      250,
+    );
+    return () => window.clearInterval(timer);
+  }, [c.simulationRunning]);
   return (
     <>
       <header className="workbench-header">
@@ -259,6 +282,11 @@ export function WorkbenchHeader({
             </button>
           </div>
         )}
+        {c.simulationRunning ? (
+          <span className="workbench-simulation-time" role="timer">
+            Время моделирования: {formatSimulationTime(simulationSeconds)}
+          </span>
+        ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
           <button

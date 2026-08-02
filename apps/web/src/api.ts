@@ -170,6 +170,10 @@ export interface ComponentResult {
   voltageDrop: number;
   current: number;
   terminalVoltages: Partial<Record<Terminal, number>>;
+  power?: number;
+  brightness?: number;
+  branchCurrents?: Record<string, number>;
+  branchBrightness?: Record<string, number>;
   lit?: boolean;
   energized?: boolean;
 }

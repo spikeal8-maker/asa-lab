@@ -248,7 +248,7 @@ export function visualAsset(
     return entry.stateAssets[component.state ? 'right' : 'left'] ?? entry.asset;
   if (entry.key === 'incandescent-lamp') {
     const level = String(
-      visualState === 'lit' ? 'on' : (component.stateProperties?.['lampLevel'] ?? 'off'),
+      component.stateProperties?.['lampLevel'] ?? (visualState === 'lit' ? 'on' : 'off'),
     );
     return entry.stateAssets[level] ?? entry.asset;
   }

@@ -104,6 +104,38 @@ describe('owner SVG integration in the real Electronics document', () => {
     }
   });
 
+  it('publishes component-specific terminal names instead of generic invented labels', () => {
+    const entries = new Map(productionCatalog().map((entry) => [entry.key, entry]));
+    expect(entries.get('resistor-axial')?.terminals).toMatchObject({
+      'lead-1': { label: 'Клемма 1' },
+      'lead-2': { label: 'Клемма 2' },
+    });
+    expect(entries.get('rgb-led')?.terminals).toMatchObject({
+      red: { label: 'R' },
+      green: { label: 'G' },
+      blue: { label: 'B' },
+      common: { label: 'Общий' },
+    });
+    expect(entries.get('button-tactile-6mm')?.terminals).toMatchObject({
+      'SW-A1': { label: 'Клемма 1a' },
+      'SW-A2': { label: 'Клемма 1b' },
+      'SW-B1': { label: 'Клемма 2a' },
+      'SW-B2': { label: 'Клемма 2b' },
+    });
+    expect(entries.get('seven-segment-display')?.terminals).toMatchObject({
+      'top-1': { label: 'G' },
+      'top-2': { label: 'F' },
+      'top-3': { label: 'COM2' },
+      'top-4': { label: 'A' },
+      'top-5': { label: 'B' },
+      'bottom-1': { label: 'E' },
+      'bottom-2': { label: 'D' },
+      'bottom-3': { label: 'COM1' },
+      'bottom-4': { label: 'C' },
+      'bottom-5': { label: 'DP' },
+    });
+  });
+
   it('groups owner assets into deterministic families and safe tiers', () => {
     const families = workbenchCatalog();
     const basicFamilies = families.filter((family) => familyMatchesCategory(family, 'basic'));

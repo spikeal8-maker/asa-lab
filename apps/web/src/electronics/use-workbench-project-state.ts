@@ -64,7 +64,9 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
               ['SW-A1', 'SW-A2'],
               ['SW-B1', 'SW-B2'],
             ] as [string, string][])
-          : []);
+          : componentTypeId === 'seven-segment-display'
+            ? ([['top-3', 'bottom-3']] as [string, string][])
+            : []);
     return {
       ...component,
       ...(componentTypeId

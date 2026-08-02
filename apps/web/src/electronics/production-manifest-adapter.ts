@@ -180,6 +180,8 @@ const SIMULATED_TYPES = new Set([
   'diode-do35',
   'diode-do41',
   'incandescent-lamp',
+  'rgb-led',
+  'seven-segment-display',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -272,13 +274,13 @@ function defaults(componentId: string): {
     return {
       value: 0,
       unit: '',
-      properties: { red: 100, green: 45, blue: 0, commonMode: 'common-cathode' },
+      properties: { red: 0, green: 0, blue: 0, commonMode: 'common-cathode' },
     };
   if (componentId === 'seven-segment-display')
     return {
       value: 0,
       unit: '',
-      properties: { glyph: '0', segmentMask: '', segmentBrightness: 0 },
+      properties: { commonMode: 'common-cathode' },
     };
   if (componentId === 'button-tactile-6mm')
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };
@@ -294,22 +296,45 @@ function defaults(componentId: string): {
 
 function pinLabel(componentId: string, pinId: string): string {
   const labels: Readonly<Record<string, string>> = {
-    'BAT+': '+',
-    'BAT-': '−',
-    'lead-1': '1',
-    'lead-2': '2',
-    anode: 'A',
-    cathode: 'K',
-    'terminal-1': '1',
-    'terminal-2': '2',
-    wiper: 'W',
-    L1: '1',
-    L2: '2',
-    common: 'C',
-    'throw-left': 'L',
-    'throw-right': 'R',
+    'BAT+': 'Положительный',
+    'BAT-': 'Отрицательный',
+    positive: 'Положительный',
+    negative: 'Отрицательный',
+    'lead-1': 'Клемма 1',
+    'lead-2': 'Клемма 2',
+    anode: 'Анод',
+    cathode: 'Катод',
+    'terminal-1': 'Клемма 1',
+    'terminal-2': 'Клемма 2',
+    wiper: 'Движок',
+    L1: 'Клемма 1',
+    L2: 'Клемма 2',
+    common: 'Общий',
+    'throw-left': 'Клемма 1',
+    'throw-right': 'Клемма 2',
+    'SW-A1': 'Клемма 1a',
+    'SW-A2': 'Клемма 1b',
+    'SW-B1': 'Клемма 2a',
+    'SW-B2': 'Клемма 2b',
+    red: 'R',
+    green: 'G',
+    blue: 'B',
+  };
+  const sevenSegmentLabels: Readonly<Record<string, string>> = {
+    // Standard 10-pin single-digit display viewed from the front.
+    'top-1': 'G',
+    'top-2': 'F',
+    'top-3': 'COM2',
+    'top-4': 'A',
+    'top-5': 'B',
+    'bottom-1': 'E',
+    'bottom-2': 'D',
+    'bottom-3': 'COM1',
+    'bottom-4': 'C',
+    'bottom-5': 'DP',
   };
   if (componentId.startsWith('breadboard-')) return pinId;
+  if (componentId === 'seven-segment-display') return sevenSegmentLabels[pinId] ?? pinId;
   return labels[pinId] ?? pinId;
 }
 
