@@ -107,8 +107,8 @@ describe('owner SVG integration in the real Electronics document', () => {
   it('publishes component-specific terminal names instead of generic invented labels', () => {
     const entries = new Map(productionCatalog().map((entry) => [entry.key, entry]));
     expect(entries.get('resistor-axial')?.terminals).toMatchObject({
-      'lead-1': { label: 'Клемма 1' },
-      'lead-2': { label: 'Клемма 2' },
+      'lead-1': { label: 'Вывод 1' },
+      'lead-2': { label: 'Вывод 2' },
     });
     expect(entries.get('rgb-led')?.terminals).toMatchObject({
       red: { label: 'R' },
@@ -117,10 +117,10 @@ describe('owner SVG integration in the real Electronics document', () => {
       common: { label: 'Общий' },
     });
     expect(entries.get('button-tactile-6mm')?.terminals).toMatchObject({
-      'SW-A1': { label: 'Клемма 1a' },
-      'SW-A2': { label: 'Клемма 1b' },
-      'SW-B1': { label: 'Клемма 2a' },
-      'SW-B2': { label: 'Клемма 2b' },
+      'SW-A1': { label: '1a' },
+      'SW-A2': { label: '1b' },
+      'SW-B1': { label: '2a' },
+      'SW-B2': { label: '2b' },
     });
     expect(entries.get('seven-segment-display')?.terminals).toMatchObject({
       'top-1': { label: 'G' },

@@ -1256,14 +1256,6 @@
   gap: 7px;
   padding: 0 8px;
 }
-.workbench-simulation-time {
-  align-self: center;
-  margin-left: 12px;
-  color: #8b9aa5;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
 .workbench-pill {
   min-height: 36px;
   background: #f8f9fa;
@@ -1274,7 +1266,9 @@
   background: #eaf5fa;
 }
 .workbench-pill.simulate {
-  min-width: 220px;
+  width: 212px;
+  min-width: 212px;
+  white-space: nowrap;
 }
 .workbench-stage,
 .workbench-alternate-view {
@@ -1366,6 +1360,7 @@
   height: calc(100% - 117px);
   padding: 5px 10px 20px;
   background: #e6e7eb;
+  overflow-x: clip;
 }
 .workbench-catalog-card {
   width: 76px;
@@ -1383,7 +1378,7 @@
   transform: none;
 }
 .workbench-catalog-card.disabled {
-  opacity: 0.42;
+  opacity: 0.72;
 }
 .workbench-catalog-add {
   grid-template-rows: 65px 28px;

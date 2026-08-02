@@ -75,7 +75,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('Вставить (Ctrl+V)');
     expect(headerSource).toContain("onViewChange('schematic')");
     expect(headerSource).toContain("onViewChange('bom')");
-    expect(headerSource).toContain('Время моделирования:');
+    expect(headerSource).not.toContain('Время моделирования:');
+    expect(headerSource).toContain("c.simulationRunning ? 'Остановить' : 'Начать моделирование'");
+    expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
+    expect(workbenchCss).toContain('width: 212px');
+    expect(workbenchCss).toContain('overflow-x: clip');
     expect(workbenchCss).toMatch(
       /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\s*\{[^}]*height:\s*32px;/s,
     );
