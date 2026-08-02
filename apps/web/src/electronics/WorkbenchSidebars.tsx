@@ -505,7 +505,7 @@ export function WorkbenchSidebars({
                     .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
                     .map(([terminal, spec]) => (
                       <div key={terminal}>
-                        <dt>Вывод {spec?.label ?? terminal}</dt>
+                        <dt>{spec?.label ?? terminal}</dt>
                         <dd>{`${measurement?.terminalVoltages[terminal]?.toFixed(3) ?? '—'} В`}</dd>
                       </div>
                     ))}
