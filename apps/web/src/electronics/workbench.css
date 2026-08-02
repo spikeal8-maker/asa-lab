@@ -440,6 +440,7 @@
 }
 .workbench-terminal-tooltip {
   opacity: 0;
+  display: none;
   pointer-events: none;
 }
 .workbench-terminal-tooltip rect {
@@ -452,6 +453,12 @@
   text-anchor: middle;
   paint-order: normal;
   stroke: none;
+}
+.workbench-terminal:hover .workbench-terminal-tooltip,
+.workbench-terminal.pending .workbench-terminal-tooltip,
+.workbench-breadboard-terminal:hover .workbench-terminal-tooltip,
+.workbench-breadboard-terminal.pending .workbench-terminal-tooltip {
+  display: inline;
 }
 .workbench-terminal:hover .workbench-terminal-tooltip,
 .workbench-terminal.pending .workbench-terminal-tooltip,

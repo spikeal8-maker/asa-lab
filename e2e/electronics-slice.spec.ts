@@ -264,7 +264,7 @@ test('owner-reference presentation states in the real Electronics editor', async
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
   await resistor.locator('.workbench-part').click();
   await expect(page.locator('.workbench-selection-box')).toHaveCount(0);
-  await expect(resistor.locator('.workbench-selection-silhouette')).toHaveCount(1);
+  await expect(resistor.locator('.workbench-tinkercad-selection')).toHaveCount(1);
   expect(
     await resistor
       .locator('.workbench-terminal-dot')
