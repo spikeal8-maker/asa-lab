@@ -38,7 +38,7 @@ describe('owner-reference Electronics presentation contract', () => {
   it('uses one three-column shelf and a meaningful detailed list', () => {
     expect(existsSync(resolve(electronicsRoot, 'workbench-tinkercad-parity.css'))).toBe(false);
     expect(workbenchCss).toContain('--wb-library-width: 276px');
-    expect(workbenchCss).toContain('grid-template-columns: repeat(3, 76px)');
+    expect(workbenchCss).toContain('grid-template-columns: repeat(3, 74px)');
     expect(workbenchCss).toContain('column-gap: 8px');
     expect(workbenchCss).toContain('row-gap: 12px');
     expect(workbenchCss).toContain('height: 99px');
