@@ -341,7 +341,10 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const size = nodeVariableCount + sources.length;
   const diodeBranches = document.components.flatMap(componentDiodeBranches);
   const diodeStates = new Map<string, boolean>();
-  for (const branch of diodeBranches) diodeStates.set(diodeBranchKey(branch), true);
+  // Start nonlinear junctions open. A real forward voltage discovered by the
+  // first linear solve turns them on; an isolated LED must not create its own
+  // artificial voltage across otherwise floating terminals.
+  for (const branch of diodeBranches) diodeStates.set(diodeBranchKey(branch), false);
 
   let solution: number[] | null = null;
   let converged = false;

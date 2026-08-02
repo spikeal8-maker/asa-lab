@@ -331,6 +331,29 @@ describe('deterministic DC solver', () => {
     expect(led?.branchBrightness?.led).toBe(led?.brightness);
   });
 
+  it('keeps an isolated LED dark without inventing terminal voltage', () => {
+    const isolated = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 5),
+          component('led', 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+            stateProperties: { ledColour: 'red' },
+          }),
+        ],
+        [],
+      ),
+    );
+    const led = isolated.components.find((item) => item.componentId === 'led');
+    expect(led?.terminalVoltages['anode']).toBe(0);
+    expect(led?.terminalVoltages['cathode']).toBe(0);
+    expect(led?.voltageDrop).toBe(0);
+    expect(led?.current).toBe(0);
+    expect(led?.brightness).toBe(0);
+    expect(led?.lit).toBe(false);
+  });
+
   it('solves RGB channels electrically and leaves unpowered channels dark', () => {
     const document = doc(
       [
