@@ -95,6 +95,7 @@ export function WorkbenchStage({
                 <path
                   className="workbench-wire-hit"
                   d={path}
+                  vectorEffect="non-scaling-stroke"
                   onClick={(e) => {
                     e.stopPropagation();
                     c.setSelection({ kind: 'wire', id: wire.id });
@@ -107,18 +108,25 @@ export function WorkbenchStage({
                         className="workbench-wire-vertex"
                         cx={vertex.x}
                         cy={vertex.y}
-                        r="9"
+                        r={5 / c.viewport.zoom}
                         onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
                         aria-label={`Изгиб провода ${index + 1}`}
                       />
                     ))
                   : null}
-                {selected ? <path className="workbench-wire-selection" d={path} /> : null}
+                {selected ? (
+                  <path
+                    className="workbench-wire-selection"
+                    d={path}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
                 <path
                   data-testid="schematic-wire"
                   className="workbench-wire"
                   d={path}
                   stroke={wire.color ?? '#e3212b'}
+                  vectorEffect="non-scaling-stroke"
                   onClick={(e) => {
                     e.stopPropagation();
                     c.setSelection({ kind: 'wire', id: wire.id });
@@ -132,6 +140,7 @@ export function WorkbenchStage({
               className="workbench-wire-preview"
               d={roundedOrthogonalPath(wirePoints(c.pendingStart, c.wirePreviewEnd))}
               stroke={c.activeWireColor}
+              vectorEffect="non-scaling-stroke"
             />
           ) : null}
         </g>
@@ -190,6 +199,7 @@ export function WorkbenchStage({
                           y1={physicalPoint.y}
                           x2={landingPoint.x}
                           y2={landingPoint.y}
+                          vectorEffect="non-scaling-stroke"
                         />
                       );
                     })}
@@ -221,6 +231,7 @@ export function WorkbenchStage({
                     visualState={visualState}
                     effectiveBrightness={c.componentLedBrightness(component)}
                     selected={selected}
+                    selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
                   />
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
@@ -327,7 +338,7 @@ export function WorkbenchStage({
                     >
                       <circle
                         className="workbench-terminal-hit"
-                        r="13"
+                        r={8 / c.viewport.zoom}
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -343,7 +354,11 @@ export function WorkbenchStage({
                           }
                         }}
                       />
-                      <circle className="workbench-terminal-dot" r="3" />
+                      <circle
+                        className="workbench-terminal-dot"
+                        r={2.25 / c.viewport.zoom}
+                        vectorEffect="non-scaling-stroke"
+                      />
                     </g>
                   );
                 })}

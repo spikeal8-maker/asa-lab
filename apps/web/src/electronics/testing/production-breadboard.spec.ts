@@ -119,11 +119,11 @@ describe('breadboard fit and internal connectivity contracts', () => {
     ]);
     expect(footprint('diode-do35')).toEqual([
       [0, 0],
-      [10.16, 0],
+      [7.62, 0],
     ]);
     expect(footprint('diode-do41')).toEqual([
       [0, 0],
-      [10.16, 0],
+      [7.62, 0],
     ]);
     expect(footprint('incandescent-lamp')).toEqual([
       [0, 0],

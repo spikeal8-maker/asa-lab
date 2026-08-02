@@ -51,35 +51,63 @@ describe('Electronics owner SVG foundation', () => {
     }
   });
 
-  it('uses the physical millimetre canvas declared by every active owner SVG', () => {
-    for (const item of productionCatalog()) {
+  it('calibrates visual canvases to the breadboard while keeping pins on owner artwork', () => {
+    const catalog = productionCatalog();
+    const resistor = catalog.find((item) => item.key === 'resistor-axial');
+    expect(resistor?.physicalSizeMm).toEqual({ width: 2.54, height: 11.582 });
+    expect(resistor?.assetFit).toBe('stretch');
+
+    const led = catalog.find((item) => item.key === 'led-5mm');
+    expect(led?.physicalSizeMm).toEqual({ width: 4.8381, height: 8.0635 });
+    expect(
+      (led?.terminals.cathode?.xMm ?? 0) - (led?.terminals.anode?.xMm ?? 0),
+    ).toBeCloseTo(2.54, 4);
+
+    const batteryOne = catalog.find((item) => item.key === 'battery-holder-aa-1');
+    expect(batteryOne?.physicalSizeMm).toEqual({ width: 25.5808, height: 76.2 });
+    for (const item of catalog.filter((candidate) => candidate.familyId === 'battery-holder-aa')) {
       const svg = readFileSync(runtimePath(item.asset), 'utf8');
-      if (item.familyId === 'battery-holder-aa') {
-        const metadata = svg.match(/<metadata>(\{.*?\})<\/metadata>/s)?.[1];
-        expect(metadata, item.key).toBeDefined();
-        if (!metadata) continue;
-        const battery = JSON.parse(metadata) as {
-          sourcePngSizePx: { width: number; height: number };
-          visualBatteryPx: { height: number };
-          aaReferenceMm: { length: number };
-        };
-        const mmPerUnit = battery.aaReferenceMm.length / battery.visualBatteryPx.height;
-        expect(item.physicalSizeMm.width, `${item.key}:width`).toBeCloseTo(
-          battery.sourcePngSizePx.width * mmPerUnit,
+      const metadata = svg.match(/<metadata>(\{.*?\})<\/metadata>/s)?.[1];
+      expect(metadata, item.key).toBeDefined();
+      if (!metadata) continue;
+      const battery = JSON.parse(metadata) as {
+        displayMm: { width: number; height: number };
+        sourcePngSizePx: { width: number; height: number };
+      };
+      expect(item.assetFit, item.key).toBe('meet');
+      expect(item.physicalSizeMm, `${item.key}:owner-physical-size`).toEqual(battery.displayMm);
+      for (const pinId of ['BAT-', 'BAT+'] as const) {
+        const pin = item.terminals[pinId];
+        const ownerCircleId = pinId === 'BAT-' ? 'BAT_MINUS' : 'BAT_PLUS';
+        const ownerCircle = svg.match(
+          new RegExp(`<circle id="${ownerCircleId}" cx="([0-9.]+)" cy="([0-9.]+)"`),
+        );
+        expect(pin, `${item.key}:${pinId}`).toBeDefined();
+        expect(ownerCircle, `${item.key}:${pinId}:owner-circle`).toBeDefined();
+        if (!ownerCircle) continue;
+        expect(pin?.xMm, `${item.key}:${pinId}:wire-x`).toBeCloseTo(
+          Number(ownerCircle[1]) *
+            (item.physicalSizeMm.width / battery.sourcePngSizePx.width),
           3,
         );
-        expect(item.physicalSizeMm.height, `${item.key}:height`).toBeCloseTo(
-          battery.sourcePngSizePx.height * mmPerUnit,
+        expect(pin?.yMm, `${item.key}:${pinId}:wire-y`).toBeCloseTo(
+          Number(ownerCircle[2]) *
+            (item.physicalSizeMm.height / battery.sourcePngSizePx.height),
           3,
         );
-        continue;
       }
-      const root = svg.match(/<svg\b[^>]*>/i)?.[0] ?? '';
-      const width = root.match(/\bwidth=["']([0-9.]+)mm["']/i)?.[1];
-      const height = root.match(/\bheight=["']([0-9.]+)mm["']/i)?.[1];
-      if (!width || !height) continue;
-      expect(item.physicalSizeMm.width, `${item.key}:width`).toBeCloseTo(Number(width), 3);
-      expect(item.physicalSizeMm.height, `${item.key}:height`).toBeCloseTo(Number(height), 3);
+    }
+
+    for (const [componentId, width, height, pinSpan] of [
+      ['diode-do35', 13.5, 4.5, 7.62],
+      ['diode-do41', 15, 5.25, 7.62],
+    ] as const) {
+      const diode = catalog.find((item) => item.key === componentId);
+      expect(diode?.physicalSizeMm, componentId).toEqual({ width, height });
+      expect(
+        (diode?.terminals.cathode?.xMm ?? 0) - (diode?.terminals.anode?.xMm ?? 0),
+        `${componentId}:pin-span`,
+      ).toBeCloseTo(pinSpan, 4);
     }
   });
 

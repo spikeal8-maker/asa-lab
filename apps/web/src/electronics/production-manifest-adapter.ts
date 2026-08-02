@@ -55,6 +55,7 @@ export interface OwnerCatalogComponent {
   readonly physicalWidthMm: number | null;
   readonly physicalHeightMm: number | null;
   readonly viewBox: readonly [number, number, number, number] | null;
+  readonly assetFit?: 'meet' | 'stretch';
   readonly pins: readonly ProductionPin[];
   readonly footprint: ProductionFootprint | null;
   readonly states: readonly string[];
@@ -129,6 +130,7 @@ export interface ProductionCatalogItem {
     readonly height: number;
   };
   readonly physicalSizeMm: { readonly width: number; readonly height: number };
+  readonly assetFit: 'meet' | 'stretch';
   readonly terminals: Readonly<Record<string, ProductionPin & { readonly label: string }>>;
   readonly footprint: ProductionFootprint | null;
   readonly defaultValue: number;
@@ -412,6 +414,7 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
     ),
     viewBox: { x: viewBox[0], y: viewBox[1], width: viewBox[2], height: viewBox[3] },
     physicalSizeMm: { width, height },
+    assetFit: item.assetFit ?? 'meet',
     terminals: Object.fromEntries(
       item.pins.map((pin) => [pin.id, { ...pin, label: pinLabel(item.componentId, pin.id) }]),
     ),

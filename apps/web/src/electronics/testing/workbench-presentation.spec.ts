@@ -16,7 +16,8 @@ const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'ut
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
-    expect(stageSource).toContain('className="workbench-terminal-dot" r="3"');
+    expect(stageSource).toContain('r={2.25 / c.viewport.zoom}');
+    expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     expect(stageSource).toContain("? ' wiring' : ''");
     expect(workbenchCss).toMatch(/\.workbench-terminal-dot\s*\{[^}]*opacity:\s*0;/s);
     expect(workbenchCss).toContain('.workbench-canvas.wiring .workbench-terminal-dot');
@@ -48,7 +49,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-selection-box');
     expect(stageSource).toContain("workbench-part${selected ? ' selected' : ''}");
     expect(productionVisualSource).toContain('workbench-selection-silhouette');
-    expect(productionVisualSource).toContain('maskImage: `url("${asset}")`');
+    expect(stageSource).toContain('selectionOffset={1.6 / c.viewport.zoom}');
+    expect(productionVisualSource).toContain('<feMorphology');
+    expect(productionVisualSource).toContain('operator="dilate"');
+    expect(productionVisualSource).toContain('operator="out"');
+    expect(productionVisualSource).toContain('filter={`url(#${selectionFilterId})`}');
     expect(workbenchCss).toContain('border: 1px solid #3b8ed7');
     expect(sidebarSource).not.toContain('owner-provenance');
     expect(sidebarSource).not.toContain('workbench-inspector-preview');

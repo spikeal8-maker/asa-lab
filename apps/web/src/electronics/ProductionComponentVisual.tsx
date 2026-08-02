@@ -21,19 +21,9 @@ interface Props {
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
   readonly selected?: boolean;
+  readonly selectionOffset?: number;
   readonly simulationRunning?: boolean;
 }
-
-const SELECTION_OFFSETS = [
-  [-3, 0],
-  [3, 0],
-  [0, -3],
-  [0, 3],
-  [-2, -2],
-  [2, -2],
-  [-2, 2],
-  [2, 2],
-] as const;
 
 const SEGMENT_BOXES: Readonly<Record<SevenSegmentId, readonly [number, number, number, number]>> = {
   a: [4.306, 3.166, 6.309, 1.218],
@@ -54,6 +44,7 @@ export function ProductionComponentVisual({
   visualState,
   effectiveBrightness,
   selected = false,
+  selectionOffset = 2,
   simulationRunning = false,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
@@ -73,6 +64,8 @@ export function ProductionComponentVisual({
     entry.key === 'resistor-axial'
       ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
       : null;
+  const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
   return (
     <svg
       className="workbench-production-visual"
@@ -82,90 +75,58 @@ export function ProductionComponentVisual({
       overflow="visible"
       aria-hidden="true"
     >
-      {selected && entry.key !== 'resistor-axial' ? (
+      {selected ? (
         <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
-          {SELECTION_OFFSETS.map(([offsetX, offsetY]) => (
-            <rect
-              key={`${offsetX}:${offsetY}`}
-              x={offsetX}
-              y={offsetY}
-              width={width}
-              height={height}
-              fill="#3b8ed7"
-              style={{
-                maskImage: `url("${asset}")`,
-                WebkitMaskImage: `url("${asset}")`,
-                maskRepeat: 'no-repeat',
-                WebkitMaskRepeat: 'no-repeat',
-                maskPosition: 'center',
-                WebkitMaskPosition: 'center',
-                maskSize: `${width}px ${height}px`,
-                WebkitMaskSize: `${width}px ${height}px`,
-              }}
-            />
-          ))}
+          <defs>
+            <filter
+              id={selectionFilterId}
+              x={-selectionOffset * 2}
+              y={-selectionOffset * 2}
+              width={width + selectionOffset * 4}
+              height={height + selectionOffset * 4}
+              filterUnits="userSpaceOnUse"
+              primitiveUnits="userSpaceOnUse"
+              colorInterpolationFilters="sRGB"
+            >
+              <feMorphology
+                in="SourceAlpha"
+                operator="dilate"
+                radius={selectionOffset}
+                result="expanded"
+              />
+              <feComposite in="expanded" in2="SourceAlpha" operator="out" result="outline" />
+              <feFlood floodColor="#3b8ed7" result="outlineColour" />
+              <feComposite in="outlineColour" in2="outline" operator="in" />
+            </filter>
+          </defs>
+          <image
+            href={asset}
+            width={width}
+            height={height}
+            preserveAspectRatio={imageFit}
+            filter={`url(#${selectionFilterId})`}
+          />
         </g>
       ) : null}
-      {selected && entry.key === 'resistor-axial' ? (
-        <rect
-          className="workbench-parametric-selection"
-          x={width * 0.08}
-          y={height * 0.16}
-          width={width * 0.84}
-          height={height * 0.68}
-          rx={width * 0.3}
-        />
-      ) : null}
       {entry.key === 'resistor-axial' ? (
-        <g className="workbench-parametric-resistor">
-          <line
-            x1={width / 2}
-            y1="0"
-            x2={width / 2}
-            y2={height * 0.23}
-            stroke="#8d9599"
-            strokeWidth={Math.max(2, width * 0.1)}
-          />
-          <line
-            x1={width / 2}
-            y1={height * 0.77}
-            x2={width / 2}
-            y2={height}
-            stroke="#8d9599"
-            strokeWidth={Math.max(2, width * 0.1)}
-          />
-          <rect
-            x={width * 0.13}
-            y={height * 0.2}
-            width={width * 0.74}
-            height={height * 0.6}
-            rx={width * 0.3}
-            fill="#d7b67c"
-            stroke="#87683d"
-            strokeWidth={Math.max(1, width * 0.035)}
-          />
-          <rect
-            x={width * 0.2}
-            y={height * 0.235}
-            width={width * 0.16}
-            height={height * 0.49}
-            rx={width * 0.08}
-            fill="#f5dcae"
-            opacity="0.55"
-          />
+        <g className="workbench-owner-resistor">
+          <image href={asset} width={width} height={height} preserveAspectRatio="none" />
           {resistorBands ? (
             <g data-testid="resistor-colour-bands">
               {resistorBands.map((band, index) => {
-                const positions = [0.31, 0.425, 0.54, 0.685] as const;
+                // Zones are mapped to the four colour bands in the exact owner SVG.
+                // The owner body and leads stay untouched; only the electrical
+                // colour-code zones change with resistance and tolerance.
+                const positions = [0.326, 0.443, 0.553, 0.667] as const;
                 return (
                   <rect
                     key={`${band}-${index}`}
                     data-band={index + 1}
-                    x={width * 0.125}
+                    x={width * 0.264}
                     y={height * positions[index]}
-                    width={width * 0.75}
-                    height={height * 0.065}
-                    rx={width * 0.025}
+                    width={width * 0.528}
+                    height={height * 0.056}
+                    rx={width * 0.018}
                     fill={RESISTOR_BAND_CSS[band]}
                   />
                 );
@@ -174,7 +135,7 @@ export function ProductionComponentVisual({
           ) : null}
         </g>
       ) : (
-        <image href={asset} width={width} height={height} preserveAspectRatio="xMidYMid meet" />
+        <image href={asset} width={width} height={height} preserveAspectRatio={imageFit} />
       )}
 
       {entry.key === 'rgb-led' ? (
