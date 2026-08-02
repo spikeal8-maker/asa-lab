@@ -29,20 +29,6 @@ export function WorkbenchStage({
     ...document.components.filter((component) => component.kind === 'breadboard'),
     ...document.components.filter((component) => component.kind !== 'breadboard'),
   ];
-  const selectedLandingHoles = new Set(
-    c.selection?.kind === 'component'
-      ? document.components
-          .filter(
-            (component) =>
-              c.selection?.kind === 'component' && c.selection.ids.includes(component.id),
-          )
-          .flatMap((component) =>
-            Object.values(component.holeBindings ?? {}).map(
-              (binding) => `${binding.breadboardComponentId}:${binding.holeId}`,
-            ),
-          )
-      : [],
-  );
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <svg
@@ -261,11 +247,10 @@ export function WorkbenchStage({
                         const connected =
                           hoveredBreadboardNet?.boardId === component.id &&
                           hoveredBreadboardNet.groupId === hole.groupId;
-                        const landing = selectedLandingHoles.has(`${component.id}:${hole.id}`);
                         return (
                           <g
                             key={hole.id}
-                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${connected ? ' connected' : ''}${landing ? ' landing' : ''}`}
+                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${connected ? ' connected' : ''}`}
                             data-hole-id={hole.id}
                             data-group-id={hole.groupId}
                             onPointerEnter={() =>

@@ -25,6 +25,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('hoveredBreadboardNet.groupId === hole.groupId');
     expect(stageSource).toContain('workbench-breadboard-net-ring');
     expect(workbenchCss).toContain('.workbench-breadboard-terminal.connected');
+    expect(stageSource).not.toContain('selectedLandingHoles');
+    expect(workbenchCss).not.toContain('.workbench-breadboard-terminal.landing');
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {

@@ -377,11 +377,6 @@
 .workbench-breadboard-terminal.connected .workbench-breadboard-net-ring {
   opacity: 0.95;
 }
-.workbench-breadboard-terminal.landing .workbench-breadboard-net-ring {
-  stroke: #1596ce;
-  stroke-width: 2.2;
-  opacity: 1;
-}
 .workbench-breadboard-terminal:hover .workbench-breadboard-hole,
 .workbench-breadboard-terminal.pending .workbench-breadboard-hole {
   opacity: 1;
