@@ -328,6 +328,35 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
   ) {
     throw new Error(`owner catalog rejected runtime substitution: ${item.componentId}`);
   }
+  if (item.status === 'enabled') {
+    if (
+      item.physicalWidthMm === null ||
+      item.physicalHeightMm === null ||
+      !Number.isFinite(item.physicalWidthMm) ||
+      !Number.isFinite(item.physicalHeightMm) ||
+      item.physicalWidthMm <= 0 ||
+      item.physicalHeightMm <= 0 ||
+      item.viewBox === null
+    ) {
+      throw new Error(`owner catalog rejected unknown physical scale: ${item.componentId}`);
+    }
+    for (const pin of item.pins) {
+      if (
+        pin.xMm < 0 ||
+        pin.xMm > item.physicalWidthMm ||
+        pin.yMm < 0 ||
+        pin.yMm > item.physicalHeightMm
+      ) {
+        throw new Error(`owner catalog rejected out-of-bounds pin: ${item.componentId}:${pin.id}`);
+      }
+    }
+    if (
+      item.footprint?.pinOffsetsMm &&
+      item.footprint.pinOffsetsMm.length !== item.pins.length
+    ) {
+      throw new Error(`owner catalog rejected incomplete footprint: ${item.componentId}`);
+    }
+  }
   for (const state of item.stateAssets) {
     if (
       !state.runtimePath.startsWith('/assets/electronics/owner-audit/') ||

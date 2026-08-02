@@ -5,6 +5,7 @@ import { ordinaryLedAsset, ordinaryLedState } from '../production-asset-contract
 import {
   configureProductionLibrary,
   ownerCatalogItems,
+  productionCatalog,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
 
@@ -47,6 +48,38 @@ describe('Electronics owner SVG foundation', () => {
       expect(svg, item.key).toMatch(/<svg\b/i);
       expect(svg, item.key).not.toMatch(/<image\b|data:image|base64|<foreignObject\b|<script\b/i);
       expect(svg, item.key).not.toMatch(/(?:href|xlink:href)=["']https?:\/\//i);
+    }
+  });
+
+  it('uses the physical millimetre canvas declared by every active owner SVG', () => {
+    for (const item of productionCatalog()) {
+      const svg = readFileSync(runtimePath(item.asset), 'utf8');
+      if (item.familyId === 'battery-holder-aa') {
+        const metadata = svg.match(/<metadata>(\{.*?\})<\/metadata>/s)?.[1];
+        expect(metadata, item.key).toBeDefined();
+        if (!metadata) continue;
+        const battery = JSON.parse(metadata) as {
+          sourcePngSizePx: { width: number; height: number };
+          visualBatteryPx: { height: number };
+          aaReferenceMm: { length: number };
+        };
+        const mmPerUnit = battery.aaReferenceMm.length / battery.visualBatteryPx.height;
+        expect(item.physicalSizeMm.width, `${item.key}:width`).toBeCloseTo(
+          battery.sourcePngSizePx.width * mmPerUnit,
+          3,
+        );
+        expect(item.physicalSizeMm.height, `${item.key}:height`).toBeCloseTo(
+          battery.sourcePngSizePx.height * mmPerUnit,
+          3,
+        );
+        continue;
+      }
+      const root = svg.match(/<svg\b[^>]*>/i)?.[0] ?? '';
+      const width = root.match(/\bwidth=["']([0-9.]+)mm["']/i)?.[1];
+      const height = root.match(/\bheight=["']([0-9.]+)mm["']/i)?.[1];
+      if (!width || !height) continue;
+      expect(item.physicalSizeMm.width, `${item.key}:width`).toBeCloseTo(Number(width), 3);
+      expect(item.physicalSizeMm.height, `${item.key}:height`).toBeCloseTo(Number(height), 3);
     }
   });
 

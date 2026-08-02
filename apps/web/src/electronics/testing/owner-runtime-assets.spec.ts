@@ -49,5 +49,15 @@ describe('owner SVG runtime catalog adapter', () => {
     expect(() =>
       configureProductionLibrary(substitution as unknown as OwnerCatalogManifest),
     ).toThrow(/owner catalog rejected runtime substitution/);
+
+    const unknownScale = structuredClone(manifest) as unknown as {
+      components: Array<{ status: string; physicalWidthMm: number | null }>;
+    };
+    const scaled = unknownScale.components.find((item) => item.status === 'enabled');
+    if (!scaled) throw new Error('focused fixture contains no enabled owner SVG');
+    scaled.physicalWidthMm = null;
+    expect(() =>
+      configureProductionLibrary(unknownScale as unknown as OwnerCatalogManifest),
+    ).toThrow(/owner catalog rejected unknown physical scale/);
   });
 });

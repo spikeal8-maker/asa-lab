@@ -12,6 +12,7 @@ import { WORLD_UNITS_PER_MM } from '../production-asset-contracts';
 import {
   configureProductionLibrary,
   productionBreadboard,
+  productionCatalog,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
 import {
@@ -32,6 +33,41 @@ const EMPTY: SchematicDocument = {
   simulation: { running: false, maxIterations: 24 },
 };
 
+const ACTIVE_PHYSICAL_SIZE_MM = {
+  'resistor-axial': [4.354, 11.582],
+  'led-5mm': [7.735, 11.735],
+  'button-tactile-6mm': [10, 10],
+  potentiometer: [12.131, 13.66],
+  'switch-spdt': [18, 10],
+  'breadboard-small': [47, 35],
+  'breadboard-medium': [83, 55],
+  'breadboard-large': [165.1, 54.6],
+  'battery-holder-aa-1': [20.5043, 61.0782],
+  'battery-holder-aa-2': [35.1399, 61.0782],
+  'battery-holder-aa-3': [49.7755, 61.0782],
+  'battery-holder-aa-4': [64.411, 61.0782],
+  'battery-holder-aa-6': [93.6822, 61.0782],
+  'battery-holder-aa-8': [122.9534, 61.0782],
+  'diode-do35': [18, 6],
+  'diode-do41': [20, 7],
+  'rgb-led': [8.75, 10.125],
+  'seven-segment-display': [12.7, 19.05],
+  'incandescent-lamp': [20, 30],
+} as const;
+
+const BREADBOARD_MOUNTABLE = [
+  ['resistor-axial', 'lead-1', 'J1'],
+  ['led-5mm', 'anode', 'J1'],
+  ['button-tactile-6mm', 'SW-A1', 'J1'],
+  ['potentiometer', 'terminal-1', 'J1'],
+  ['switch-spdt', 'throw-left', 'J1'],
+  ['diode-do35', 'anode', 'J1'],
+  ['diode-do41', 'anode', 'J1'],
+  ['rgb-led', 'red', 'J1'],
+  ['seven-segment-display', 'top-1', 'F1'],
+  ['incandescent-lamp', 'L1', 'J1'],
+] as const;
+
 beforeAll(() => {
   const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog');
   configureProductionLibrary(
@@ -40,6 +76,34 @@ beforeAll(() => {
 });
 
 describe('owner SVG integration in the real Electronics document', () => {
+  it('uses one breadboard-authoritative physical scale for every active owner variant', () => {
+    const entries = productionCatalog();
+    expect(entries.map((entry) => entry.key).sort()).toEqual(
+      Object.keys(ACTIVE_PHYSICAL_SIZE_MM).sort(),
+    );
+
+    for (const entry of entries) {
+      const expected = ACTIVE_PHYSICAL_SIZE_MM[entry.key as keyof typeof ACTIVE_PHYSICAL_SIZE_MM];
+      expect(expected, entry.key).toBeDefined();
+      if (!expected) throw new Error(`missing physical-size contract for ${entry.key}`);
+      expect(entry.physicalSizeMm, entry.key).toEqual({ width: expected[0], height: expected[1] });
+      expect(renderedSize(entry), entry.key).toEqual({
+        width: expected[0] * WORLD_UNITS_PER_MM,
+        height: expected[1] * WORLD_UNITS_PER_MM,
+      });
+      expect(renderedSize(entry, 90), entry.key).toEqual({
+        width: expected[1] * WORLD_UNITS_PER_MM,
+        height: expected[0] * WORLD_UNITS_PER_MM,
+      });
+      for (const pin of Object.values(entry.terminals)) {
+        expect(pin.xMm, `${entry.key}:${pin.id}:x`).toBeGreaterThanOrEqual(0);
+        expect(pin.xMm, `${entry.key}:${pin.id}:x`).toBeLessThanOrEqual(expected[0]);
+        expect(pin.yMm, `${entry.key}:${pin.id}:y`).toBeGreaterThanOrEqual(0);
+        expect(pin.yMm, `${entry.key}:${pin.id}:y`).toBeLessThanOrEqual(expected[1]);
+      }
+    }
+  });
+
   it('groups owner assets into deterministic families and safe tiers', () => {
     const families = workbenchCatalog();
     const basicFamilies = families.filter((family) => familyMatchesCategory(family, 'basic'));
@@ -289,5 +353,58 @@ describe('owner SVG integration in the real Electronics document', () => {
       'bottom-1': { breadboardComponentId: 'board', holeId: 'B1' },
       'bottom-5': { breadboardComponentId: 'board', holeId: 'B5' },
     });
+  });
+
+  it('lands every mountable owner component on its complete breadboard footprint', () => {
+    for (const [componentTypeId, firstPinId, originHoleId] of BREADBOARD_MOUNTABLE) {
+      let document = addComponentToDocument(
+        EMPTY,
+        'breadboard-medium',
+        { x: 600, y: 360 },
+        'board',
+      ).document;
+      document = addComponentToDocument(
+        document,
+        componentTypeId,
+        { x: 400, y: 300 },
+        'part',
+      ).document;
+      const board = document.components.find((component) => component.id === 'board');
+      const part = document.components.find((component) => component.id === 'part');
+      const entry = part
+        ? workbenchCatalog()
+            .flatMap((family) => family.variants)
+            .find((variant) => variant.componentTypeId === componentTypeId)?.entry
+        : null;
+      const definition = productionBreadboard('breadboard-medium');
+      const originHole = definition?.holes.find((hole) => hole.id === originHoleId);
+      const pin = part
+        ? terminalPosition(part, part.position, firstPinId, part.rotation ?? 0)
+        : null;
+      expect(
+        board && part && entry && definition && originHole && pin,
+        componentTypeId,
+      ).toBeTruthy();
+      if (!board || !part || !entry || !definition || !originHole || !pin) continue;
+
+      document = moveComponentInDocument(document, 'part', {
+        x: part.position.x + board.position.x + originHole.xMm * WORLD_UNITS_PER_MM - pin.x,
+        y: part.position.y + board.position.y + originHole.yMm * WORLD_UNITS_PER_MM - pin.y,
+      });
+      document = snapComponentToBreadboard(document, 'part');
+      const snapped = document.components.find((component) => component.id === 'part');
+      const bindings = snapped?.holeBindings ?? {};
+      expect(Object.keys(bindings), componentTypeId).toHaveLength(
+        entry.footprint?.pinOffsetsMm?.length ?? 0,
+      );
+      expect(bindings[firstPinId], componentTypeId).toEqual({
+        breadboardComponentId: 'board',
+        holeId: originHoleId,
+      });
+      expect(
+        new Set(Object.values(bindings).map((binding) => binding.holeId)).size,
+        componentTypeId,
+      ).toBe(Object.keys(bindings).length);
+    }
   });
 });
