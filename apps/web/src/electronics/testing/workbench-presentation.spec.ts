@@ -17,7 +17,7 @@ const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'ut
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
-    expect(stageSource).toContain('r={2.25 / c.viewport.zoom}');
+    expect(stageSource).toContain('width={10 / c.viewport.zoom}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     expect(stageSource).toContain("? ' wiring' : ''");
     expect(workbenchCss).toMatch(/\.workbench-terminal-dot\s*\{[^}]*opacity:\s*0;/s);
@@ -28,6 +28,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-breadboard-terminal.connected');
     expect(stageSource).not.toContain('selectedLandingHoles');
     expect(workbenchCss).not.toContain('.workbench-breadboard-terminal.landing');
+    expect(stageSource).toContain('workbench-terminal-tooltip');
+    expect(stageSource).toContain('data-terminal-component-id');
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {
@@ -88,7 +90,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.zoomBy(1.18)');
     expect(stageSource).toContain('c.zoomBy(0.85)');
     expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
-    expect(stageSource).not.toContain('e.detail === 2');
+    expect(stageSource).toContain('onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}');
+    expect(stageSource).toContain('workbench-wire-endpoint');
+    expect(stageSource).toContain('c.wireDraftVertices');
     const controllerSource = readFileSync(
       resolve(electronicsRoot, 'use-electronics-workbench.ts'),
       'utf8',

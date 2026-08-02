@@ -13,6 +13,30 @@ import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
+function contactLabel(kind: string, terminal: string, fallback: string): string {
+  if (kind === 'source' && terminal === 'BAT-') return 'Отрицательный';
+  if (kind === 'source' && terminal === 'BAT+') return 'Положительный';
+  const labels: Readonly<Record<string, string>> = {
+    anode: 'Анод',
+    cathode: 'Катод',
+    common: 'Общий контакт',
+    'throw-left': 'Левый контакт',
+    'throw-right': 'Правый контакт',
+    wiper: 'Движок',
+    'terminal-1': 'Контакт 1',
+    'terminal-2': 'Контакт 2',
+    'lead-1': 'Вывод 1',
+    'lead-2': 'Вывод 2',
+    L1: 'Контакт 1',
+    L2: 'Контакт 2',
+  };
+  return labels[terminal] ?? fallback;
+}
+
+function tooltipWidth(label: string, zoom: number): number {
+  return Math.max(58, label.length * 7.4 + 18) / zoom;
+}
+
 export function WorkbenchStage({
   controller: c,
   showGrid,
@@ -29,6 +53,24 @@ export function WorkbenchStage({
     ...document.components.filter((component) => component.kind === 'breadboard'),
     ...document.components.filter((component) => component.kind !== 'breadboard'),
   ];
+  const selectedWire =
+    c.selection?.kind === 'wire'
+      ? document.connections.find((wire) => wire.id === c.selection?.id)
+      : null;
+  const selectedWireFromComponent = selectedWire
+    ? document.components.find((item) => item.id === selectedWire.from.componentId)
+    : null;
+  const selectedWireToComponent = selectedWire
+    ? document.components.find((item) => item.id === selectedWire.to.componentId)
+    : null;
+  const selectedWireFrom =
+    selectedWire && selectedWireFromComponent
+      ? terminalPositionInDocument(document, selectedWireFromComponent, selectedWire.from.terminal)
+      : null;
+  const selectedWireTo =
+    selectedWire && selectedWireToComponent
+      ? terminalPositionInDocument(document, selectedWireToComponent, selectedWire.to.terminal)
+      : null;
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <svg
@@ -74,8 +116,16 @@ export function WorkbenchStage({
             const from = terminalPositionInDocument(document, fromComponent, wire.from.terminal);
             const to = terminalPositionInDocument(document, toComponent, wire.to.terminal);
             if (!from || !to) return null;
-            const path = roundedOrthogonalPath(wirePoints(from, to, wire.vertices));
             const selected = c.selection?.kind === 'wire' && c.selection.id === wire.id;
+            const displayedFrom =
+              selected && c.reconnectEndpoint === 'from' && c.wirePreviewEnd
+                ? c.wirePreviewEnd
+                : from;
+            const displayedTo =
+              selected && c.reconnectEndpoint === 'to' && c.wirePreviewEnd ? c.wirePreviewEnd : to;
+            const path = roundedOrthogonalPath(
+              wirePoints(displayedFrom, displayedTo, wire.vertices),
+            );
             return (
               <g key={wire.id}>
                 <path
@@ -86,6 +136,7 @@ export function WorkbenchStage({
                     e.stopPropagation();
                     c.setSelection({ kind: 'wire', id: wire.id });
                   }}
+                  onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
                 />
                 {selected
                   ? (wire.vertices ?? []).map((vertex, index) => (
@@ -95,6 +146,7 @@ export function WorkbenchStage({
                         cx={vertex.x}
                         cy={vertex.y}
                         r={5 / c.viewport.zoom}
+                        fill={wire.color ?? '#e3212b'}
                         onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
                         aria-label={`Изгиб провода ${index + 1}`}
                       />
@@ -117,6 +169,7 @@ export function WorkbenchStage({
                     e.stopPropagation();
                     c.setSelection({ kind: 'wire', id: wire.id });
                   }}
+                  onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
                 />
               </g>
             );
@@ -124,7 +177,9 @@ export function WorkbenchStage({
           {c.pendingStart && c.wirePreviewEnd ? (
             <path
               className="workbench-wire-preview"
-              d={roundedOrthogonalPath(wirePoints(c.pendingStart, c.wirePreviewEnd))}
+              d={roundedOrthogonalPath(
+                wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices),
+              )}
               stroke={c.activeWireColor}
               vectorEffect="non-scaling-stroke"
             />
@@ -266,6 +321,8 @@ export function WorkbenchStage({
                               cx={point.x}
                               cy={point.y}
                               r="5"
+                              data-terminal-component-id={component.id}
+                              data-terminal-id={hole.id}
                               role="button"
                               tabIndex={0}
                               aria-label={`${entry.label}: отверстие ${hole.id}`}
@@ -281,6 +338,29 @@ export function WorkbenchStage({
                                 }
                               }}
                             />
+                            <rect
+                              className="workbench-contact-square"
+                              x={point.x - 5 / c.viewport.zoom}
+                              y={point.y - 5 / c.viewport.zoom}
+                              width={10 / c.viewport.zoom}
+                              height={10 / c.viewport.zoom}
+                              rx={1 / c.viewport.zoom}
+                            />
+                            <g
+                              className="workbench-terminal-tooltip"
+                              transform={`translate(${point.x} ${point.y - 14 / c.viewport.zoom})`}
+                            >
+                              <rect
+                                x={-tooltipWidth(hole.id, c.viewport.zoom) / 2}
+                                y={-22 / c.viewport.zoom}
+                                width={tooltipWidth(hole.id, c.viewport.zoom)}
+                                height={22 / c.viewport.zoom}
+                                rx={2 / c.viewport.zoom}
+                              />
+                              <text y={-7 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+                                {hole.id}
+                              </text>
+                            </g>
                             <circle
                               className="workbench-breadboard-hole"
                               cx={point.x}
@@ -324,6 +404,8 @@ export function WorkbenchStage({
                       <circle
                         className="workbench-terminal-hit"
                         r={8 / c.viewport.zoom}
+                        data-terminal-component-id={component.id}
+                        data-terminal-id={terminal}
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -339,17 +421,64 @@ export function WorkbenchStage({
                           }
                         }}
                       />
-                      <circle
+                      <rect
                         className="workbench-terminal-dot"
-                        r={2.25 / c.viewport.zoom}
+                        x={-5 / c.viewport.zoom}
+                        y={-5 / c.viewport.zoom}
+                        width={10 / c.viewport.zoom}
+                        height={10 / c.viewport.zoom}
+                        rx={1 / c.viewport.zoom}
                         vectorEffect="non-scaling-stroke"
                       />
+                      {(() => {
+                        const label = contactLabel(component.kind, terminal, terminalSpec.label);
+                        return (
+                          <g
+                            className="workbench-terminal-tooltip"
+                            transform={`translate(0 ${-14 / c.viewport.zoom})`}
+                          >
+                            <rect
+                              x={-tooltipWidth(label, c.viewport.zoom) / 2}
+                              y={-22 / c.viewport.zoom}
+                              width={tooltipWidth(label, c.viewport.zoom)}
+                              height={22 / c.viewport.zoom}
+                              rx={2 / c.viewport.zoom}
+                            />
+                            <text y={-7 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+                              {label}
+                            </text>
+                          </g>
+                        );
+                      })()}
                     </g>
                   );
                 })}
               </g>
             );
           })}
+        {selectedWire && selectedWireFrom && selectedWireTo ? (
+          <g className="workbench-wire-control-layer" data-testid="wire-control-layer">
+            {(
+              [
+                ['from', selectedWireFrom],
+                ['to', selectedWireTo],
+              ] as const
+            ).map(([endpoint, point]) => (
+              <circle
+                key={endpoint}
+                className="workbench-wire-endpoint"
+                cx={point.x}
+                cy={point.y}
+                r={6 / c.viewport.zoom}
+                fill={selectedWire.color ?? '#e3212b'}
+                onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
+                role="button"
+                tabIndex={0}
+                aria-label={`${endpoint === 'from' ? 'Начало' : 'Конец'} провода`}
+              />
+            ))}
+          </g>
+        ) : null}
         {c.catalogPlacementComponent ? (
           <g
             className="workbench-placement-preview"

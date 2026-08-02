@@ -13,7 +13,7 @@ import {
 } from './component-catalog';
 import { PIN_ANCHOR_TOLERANCE_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
-import { snap, type Point } from './workbench-geometry';
+import { snap, wirePoints, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
 function internalConnectionsForType(componentTypeId: string): [string, string][] {
@@ -394,6 +394,57 @@ export function moveWireVertex(
   };
 }
 
+function closestPointOnSegment(point: Point, start: Point, end: Point): Point {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return start;
+  const ratio = Math.max(
+    0,
+    Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared),
+  );
+  return { x: start.x + dx * ratio, y: start.y + dy * ratio };
+}
+
+export function insertWireVertex(
+  document: SchematicDocument,
+  wireId: string,
+  point: Point,
+): SchematicDocument {
+  const wire = document.connections.find((item) => item.id === wireId);
+  if (!wire || (wire.vertices?.length ?? 0) >= 48) return document;
+  const fromComponent = document.components.find((item) => item.id === wire.from.componentId);
+  const toComponent = document.components.find((item) => item.id === wire.to.componentId);
+  const from = fromComponent
+    ? terminalPositionInDocument(document, fromComponent, wire.from.terminal)
+    : null;
+  const to = toComponent
+    ? terminalPositionInDocument(document, toComponent, wire.to.terminal)
+    : null;
+  if (!from || !to) return document;
+
+  const route = wirePoints(from, to, wire.vertices);
+  const baseVertices = wire.vertices === undefined ? route.slice(1, -1) : [...wire.vertices];
+  let best: { index: number; point: Point; distance: number } | null = null;
+  for (let index = 0; index < route.length - 1; index += 1) {
+    const projected = closestPointOnSegment(
+      point,
+      route[index] as Point,
+      route[index + 1] as Point,
+    );
+    const distance = Math.hypot(point.x - projected.x, point.y - projected.y);
+    if (!best || distance < best.distance) best = { index, point: projected, distance };
+  }
+  if (!best) return document;
+  baseVertices.splice(best.index, 0, { x: snap(best.point.x), y: snap(best.point.y) });
+  return {
+    ...document,
+    connections: document.connections.map((item) =>
+      item.id === wireId ? { ...item, vertices: baseVertices } : item,
+    ),
+  };
+}
+
 export function reconnectWireEndpoint(
   document: SchematicDocument,
   wireId: string,
@@ -601,6 +652,7 @@ export function connectTerminals(
   to: TerminalRef,
   id: string,
   color: string,
+  vertices: readonly Point[] = [],
 ):
   | { kind: 'duplicate' }
   | { kind: 'created'; wire: SchematicConnection; document: SchematicDocument } {
@@ -616,7 +668,13 @@ export function connectTerminals(
         wire.from.terminal === to.terminal),
   );
   if (duplicate) return { kind: 'duplicate' };
-  const wire: SchematicConnection = { id, from: { ...from }, to: { ...to }, color };
+  const wire: SchematicConnection = {
+    id,
+    from: { ...from },
+    to: { ...to },
+    color,
+    vertices: [...vertices],
+  };
   return {
     kind: 'created',
     wire,

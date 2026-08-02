@@ -12,7 +12,31 @@ import { defaultProductionType, productionBreadboard } from './production-manife
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
 
-function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument {
+function migratedTerminal(
+  component: SchematicDocument['components'][number] | undefined,
+  terminal: string,
+): string {
+  if (!component) return terminal;
+  const entry = catalogEntry(component);
+  if (entry?.terminals[terminal]) return terminal;
+  const aliases: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+    source: {
+      a: entry?.terminals['BAT+'] ? 'BAT+' : 'positive',
+      b: entry?.terminals['BAT-'] ? 'BAT-' : 'negative',
+    },
+    resistor: { a: 'lead-1', b: 'lead-2' },
+    led: { a: 'anode', b: 'cathode' },
+    button: { a: 'SW-A1', b: 'SW-B1' },
+    switch: { a: 'common', b: component.state ? 'throw-right' : 'throw-left' },
+    potentiometer: { a: 'terminal-1', b: 'terminal-2', wiper: 'wiper' },
+    diode: { a: 'anode', b: 'cathode' },
+    lamp: { a: 'L1', b: 'L2' },
+  };
+  const migrated = aliases[component.kind]?.[terminal] ?? terminal;
+  return entry?.terminals[migrated] ? migrated : terminal;
+}
+
+export function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument {
   const legacy = document as SchematicDocument & {
     schemaVersion?: number;
     viewport?: SchematicDocument['viewport'];
@@ -22,6 +46,12 @@ function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument
     const componentTypeId = component.componentTypeId ?? defaultProductionType(component.kind);
     const entry = componentTypeId ? catalogEntry(componentTypeId) : null;
     const board = componentTypeId ? productionBreadboard(componentTypeId) : null;
+    const productionPinIds = Object.keys(entry?.terminals ?? {});
+    const pinIds =
+      productionPinIds.length > 0 &&
+      (!component.pinIds || component.pinIds.some((pinId) => !entry?.terminals[pinId]))
+        ? productionPinIds
+        : (component.pinIds ?? productionPinIds);
     const internalConnections =
       component.internalConnections ??
       (board
@@ -41,14 +71,33 @@ function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument
         ? { componentTypeId, variantId: component.variantId ?? componentTypeId }
         : {}),
       stateProperties: { ...entry?.defaultStateProperties, ...component.stateProperties },
-      pinIds: component.pinIds ?? Object.keys(entry?.terminals ?? {}),
+      pinIds,
       ...(internalConnections.length > 0 ? { internalConnections } : {}),
     };
   });
+  const componentById = new Map(components.map((component) => [component.id, component]));
+  const connections = document.connections.map((connection) => ({
+    ...connection,
+    from: {
+      ...connection.from,
+      terminal: migratedTerminal(
+        componentById.get(connection.from.componentId),
+        connection.from.terminal,
+      ),
+    },
+    to: {
+      ...connection.to,
+      terminal: migratedTerminal(
+        componentById.get(connection.to.componentId),
+        connection.to.terminal,
+      ),
+    },
+  }));
   let normalized: SchematicDocument = {
     ...document,
     schemaVersion: 3,
     components,
+    connections,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
     simulation: legacy.simulation ?? { running: false, maxIterations: 24 },
   };
@@ -156,7 +205,7 @@ export function useWorkbenchProjectState(projectId: string) {
       const response = await api.saveDraft<SchematicDocument, SolveResult>(projectId, nextDocument);
       if (!response.ok) {
         setSaveStatus('error');
-        if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
+        setNotice(`Ошибка сохранения: ${response.error.message}`);
         return null;
       }
       setResult(response.data.result);
@@ -207,13 +256,16 @@ export function useWorkbenchProjectState(projectId: string) {
       ...document,
       simulation: { ...document.simulation, running: true },
     };
-    setDocument(nextDocument);
-    pushHistory(nextDocument);
     const nextResult = await persist(nextDocument, true);
     setBusy(false);
     if (nextResult) {
+      setDocument(nextDocument);
+      pushHistory(nextDocument);
       setSimulationRunning(true);
       setNotice('Моделирование запущено. Изменения схемы пересчитываются автоматически.');
+    } else {
+      setSimulationRunning(false);
+      setNotice('Моделирование не запущено: сначала исправьте ошибку сохранения.');
     }
   }
 

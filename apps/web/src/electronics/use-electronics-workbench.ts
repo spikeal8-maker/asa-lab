@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type MouseEvent,
   type PointerEvent,
   type WheelEvent,
 } from 'react';
@@ -36,6 +37,7 @@ import {
   componentsBoundToBreadboard,
   connectTerminals,
   duplicateComponentInDocument,
+  insertWireVertex,
   moveComponentInDocument,
   moveComponentsInDocument,
   moveWireVertex,
@@ -64,6 +66,7 @@ import {
   type ActuatorPress,
   type CatalogPlacement,
   type ComponentDrag,
+  type EndpointDrag,
   type MarqueeDrag,
   type PanDrag,
   type PotentiometerDrag,
@@ -106,6 +109,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
+  const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [libraryOpen, setLibraryOpen] = useState(true);
@@ -124,6 +128,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
+  const endpointDragRef = useRef<EndpointDrag | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
   const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
   const spacePressedRef = useRef(false);
@@ -407,6 +412,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function beginReconnect(endpoint: 'from' | 'to'): void {
     if (selection?.kind !== 'wire') return;
     setReconnectEndpoint(endpoint);
+    setWirePreviewEnd(null);
     setNotice('Выберите новый вывод для переподключения провода.');
   }
 
@@ -419,15 +425,18 @@ export function useElectronicsWorkbench(projectId: string) {
       });
       if (next) commitDocument(next, 'Конец провода переподключён.');
       setReconnectEndpoint(null);
+      setWirePreviewEnd(null);
       return;
     }
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
-      setNotice('Выберите второй вывод. Провод будет проложен автоматически.');
+      setWireDraftVertices([]);
+      setNotice('Ведите провод к цели. Щелчок по полю добавляет точку изгиба, Esc отменяет.');
       return;
     }
     if (pendingTerminal.componentId === componentId && pendingTerminal.terminal === terminal) {
       setPendingTerminal(null);
+      setWireDraftVertices([]);
       setWirePreviewEnd(null);
       setNotice('Прокладка провода отменена.');
       return;
@@ -438,9 +447,11 @@ export function useElectronicsWorkbench(projectId: string) {
       { componentId, terminal },
       nextId('wire'),
       activeWireColor,
+      wireDraftVertices,
     );
     if (connected.kind === 'duplicate') {
       setPendingTerminal(null);
+      setWireDraftVertices([]);
       setWirePreviewEnd(null);
       setNotice('Эти выводы уже соединены.');
       return;
@@ -448,6 +459,7 @@ export function useElectronicsWorkbench(projectId: string) {
     commitDocument(connected.document, 'Провод добавлен.');
     setSelection({ kind: 'wire', id: connected.wire.id });
     setPendingTerminal(null);
+    setWireDraftVertices([]);
     setWirePreviewEnd(null);
   }
 
@@ -468,7 +480,7 @@ export function useElectronicsWorkbench(projectId: string) {
     });
   }
 
-  function toWorld(event: PointerEvent | DragEvent | WheelEvent): Point {
+  function toWorld(event: PointerEvent | MouseEvent | DragEvent | WheelEvent): Point {
     const stage = stageRef.current;
     if (!stage) return { x: 0, y: 0 };
     return clientToWorld(
@@ -588,6 +600,15 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function startPan(event: PointerEvent<SVGSVGElement>): void {
     const onEmptyCanvas = (event.target as Element).classList.contains('workbench-grid-hit');
+    if (event.button === 0 && pendingTerminal && onEmptyCanvas) {
+      const point = { x: snap(toWorld(event).x), y: snap(toWorld(event).y) };
+      setWireDraftVertices((current) => (current.length >= 48 ? current : [...current, point]));
+      setWirePreviewEnd(point);
+      setNotice('Точка изгиба добавлена. Продолжайте провод или выберите контакт назначения.');
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const shouldPan =
       event.button === 1 ||
       (event.button === 0 && (spacePressedRef.current || (onEmptyCanvas && !event.shiftKey)));
@@ -618,6 +639,11 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
     const world = toWorld(event);
+    const endpointDrag = endpointDragRef.current;
+    if (endpointDrag?.pointerId === event.pointerId) {
+      setWirePreviewEnd(world);
+      return;
+    }
     const potentiometerDrag = potentiometerDragRef.current;
     if (potentiometerDrag?.pointerId === event.pointerId) {
       updatePotentiometerFromPointer(potentiometerDrag.componentId, world);
@@ -637,7 +663,7 @@ export function useElectronicsWorkbench(projectId: string) {
       setMarquee({ ...marquee, current: world });
       return;
     }
-    if (pendingTerminal) setWirePreviewEnd(world);
+    if (pendingTerminal || reconnectEndpoint) setWirePreviewEnd(world);
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
       const component = document.components.find((item) => item.id === drag.componentId);
@@ -682,6 +708,34 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function finishPointer(event: PointerEvent<SVGSVGElement>): void {
+    const endpointDrag = endpointDragRef.current;
+    if (endpointDrag?.pointerId === event.pointerId) {
+      endpointDragRef.current = null;
+      const target = globalThis.document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
+      const componentId = target?.dataset['terminalComponentId'];
+      const terminal = target?.dataset['terminalId'];
+      if (document && componentId && terminal) {
+        const next = reconnectWireEndpoint(document, endpointDrag.wireId, endpointDrag.endpoint, {
+          componentId,
+          terminal,
+        });
+        if (next) {
+          commitDocument(next, 'Конец провода переподключён.');
+          setReconnectEndpoint(null);
+          setWirePreviewEnd(null);
+        } else {
+          setReconnectEndpoint(null);
+          setWirePreviewEnd(null);
+          setNotice('Этот контакт уже занят выбранным концом провода.');
+        }
+      } else {
+        setReconnectEndpoint(null);
+        setWirePreviewEnd(null);
+        setNotice('Наведите конец провода на подсвеченный контакт и отпустите.');
+      }
+    }
     const potentiometerDrag = potentiometerDragRef.current;
     if (potentiometerDrag?.pointerId === event.pointerId) {
       potentiometerDragRef.current = null;
@@ -778,6 +832,30 @@ export function useElectronicsWorkbench(projectId: string) {
     event.preventDefault();
   }
 
+  function startEndpointDrag(
+    event: PointerEvent<SVGCircleElement>,
+    wireId: string,
+    endpoint: 'from' | 'to',
+  ): void {
+    endpointDragRef.current = { pointerId: event.pointerId, wireId, endpoint };
+    setSelection({ kind: 'wire', id: wireId });
+    setReconnectEndpoint(endpoint);
+    setWirePreviewEnd(toWorld(event));
+    stageRef.current?.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  function addWireVertexAt(event: MouseEvent<SVGPathElement>, wireId: string): void {
+    if (!document) return;
+    const next = insertWireVertex(document, wireId, toWorld(event));
+    if (next === document) return;
+    commitDocument(next, 'Точка управления проводом добавлена.');
+    setSelection({ kind: 'wire', id: wireId });
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
   function handleWheel(event: WheelEvent<SVGSVGElement>): void {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
@@ -857,6 +935,7 @@ export function useElectronicsWorkbench(projectId: string) {
       } else if (event.key === 'Escape') {
         setCatalogPlacement(null);
         setPendingTerminal(null);
+        setWireDraftVertices([]);
         setWirePreviewEnd(null);
         setSelection(null);
         setReconnectEndpoint(null);
@@ -980,6 +1059,7 @@ export function useElectronicsWorkbench(projectId: string) {
     selection,
     setSelection,
     pendingTerminal,
+    wireDraftVertices,
     wirePreviewEnd,
     activeWireColor,
     simulationRunning,
@@ -1028,6 +1108,8 @@ export function useElectronicsWorkbench(projectId: string) {
     startPotentiometerControl,
     selectComponent,
     startVertexDrag,
+    startEndpointDrag,
+    addWireVertexAt,
     startPan,
     handlePointerMove,
     finishPointer,

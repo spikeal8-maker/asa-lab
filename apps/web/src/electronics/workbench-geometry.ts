@@ -58,7 +58,7 @@ export function defaultWirePoints(from: Point, to: Point): Point[] {
 }
 
 export function wirePoints(from: Point, to: Point, vertices?: readonly Point[]): Point[] {
-  if (vertices && vertices.length > 0) return [from, ...vertices, to];
+  if (vertices !== undefined) return [from, ...vertices, to];
   return defaultWirePoints(from, to);
 }
 

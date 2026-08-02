@@ -65,6 +65,12 @@ export interface VertexDrag {
   vertexIndex: number;
 }
 
+export interface EndpointDrag {
+  pointerId: number;
+  wireId: string;
+  endpoint: 'from' | 'to';
+}
+
 export interface HistoryState {
   entries: SchematicDocument[];
   cursor: number;

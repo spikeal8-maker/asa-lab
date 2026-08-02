@@ -10,13 +10,13 @@ import {
   addComponentToDocument,
   connectTerminals,
   duplicateComponentInDocument,
+  insertWireVertex,
   mirrorSelectionInDocument,
   moveWireVertex,
   reconnectWireEndpoint,
   removeSelectionFromDocument,
   removeSelectedWireBends,
   rotateSelectionInDocument,
-  toggleSelectedWireRoute,
   updateSelectedWireColor,
   updateSelectionName,
   updateSelectionState,
@@ -147,14 +147,20 @@ describe('Electronics M1 editor document operations', () => {
       { componentId: 'resistor', terminal: 'a' },
       'wire-1',
       '#e3212b',
+      [
+        { x: 260, y: 220 },
+        { x: 260, y: 340 },
+      ],
     );
     expect(created.kind).toBe('created');
     if (created.kind !== 'created') return;
     document = created.document;
+    expect(document.connections[0]?.vertices).toEqual([
+      { x: 260, y: 220 },
+      { x: 260, y: 340 },
+    ]);
     const selection = { kind: 'wire' as const, id: 'wire-1' };
     document = updateSelectedWireColor(document, selection, '#2c62c9') as SchematicDocument;
-    document = toggleSelectedWireRoute(document, selection) as SchematicDocument;
-    expect(document.connections[0]?.vertices).toHaveLength(2);
     document = moveWireVertex(document, 'wire-1', 0, { x: 420, y: 320 });
     expect(document.connections[0]?.vertices?.[0]).toEqual({ x: 420, y: 320 });
     document = reconnectWireEndpoint(document, 'wire-1', 'to', {
@@ -167,5 +173,22 @@ describe('Electronics M1 editor document operations', () => {
     });
     document = removeSelectedWireBends(document, selection) as SchematicDocument;
     expect(document.connections[0]?.vertices).toEqual([]);
+  });
+
+  it('adds a control point to the closest wire segment on double click', () => {
+    let document = populated();
+    const created = connectTerminals(
+      document,
+      { componentId: 'source', terminal: 'BAT+' },
+      { componentId: 'resistor', terminal: 'lead-1' },
+      'wire-double-click',
+      '#149447',
+      [],
+    );
+    expect(created.kind).toBe('created');
+    if (created.kind !== 'created') return;
+    document = insertWireVertex(created.document, 'wire-double-click', { x: 300, y: 210 });
+    expect(document.connections[0]?.vertices).toHaveLength(1);
+    expect(document.connections[0]?.vertices?.[0]).toEqual({ x: 300, y: 150 });
   });
 });

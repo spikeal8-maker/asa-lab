@@ -201,9 +201,14 @@
 }
 
 .workbench-wire-vertex {
-  fill: #fff;
-  stroke: #137db6;
-  stroke-width: 4;
+  stroke: #bfe1ef;
+  stroke-width: 3;
+  cursor: move;
+}
+
+.workbench-wire-endpoint {
+  stroke: #bfe1ef;
+  stroke-width: 3;
   cursor: move;
 }
 
@@ -396,9 +401,9 @@
   cursor: crosshair;
 }
 .workbench-terminal-dot {
-  fill: #1596ce;
-  stroke: #fff;
-  stroke-width: 1.4;
+  fill: #f21f27;
+  stroke: #171b1e;
+  stroke-width: 2;
   opacity: 0;
   pointer-events: none;
 }
@@ -419,6 +424,36 @@
   stroke-width: 4px;
   stroke-linejoin: round;
   pointer-events: none;
+}
+.workbench-contact-square {
+  fill: #f21f27;
+  stroke: #171b1e;
+  stroke-width: 2;
+  opacity: 0;
+  pointer-events: none;
+}
+.workbench-terminal-tooltip {
+  opacity: 0;
+  pointer-events: none;
+}
+.workbench-terminal-tooltip rect {
+  fill: #40515f;
+  stroke: none;
+}
+.workbench-terminal-tooltip text {
+  fill: #fff;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: normal;
+  stroke: none;
+}
+.workbench-terminal:hover .workbench-terminal-tooltip,
+.workbench-terminal.pending .workbench-terminal-tooltip,
+.workbench-breadboard-terminal:hover .workbench-terminal-tooltip,
+.workbench-breadboard-terminal.pending .workbench-terminal-tooltip,
+.workbench-breadboard-terminal:hover .workbench-contact-square,
+.workbench-breadboard-terminal.pending .workbench-contact-square {
+  opacity: 1;
 }
 .workbench-wire-layer {
   fill: none;
@@ -2051,8 +2086,6 @@
 }
 .workbench-terminal-dot,
 .workbench-breadboard-hole {
-  fill: #2f8fca;
-  stroke: #fff;
   stroke-width: 1.2;
 }
 
