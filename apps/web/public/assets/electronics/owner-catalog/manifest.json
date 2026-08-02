@@ -11178,15 +11178,15 @@
       "pins": [
         {
           "id": "lead-1",
-          "xMm": 1.3414,
-          "yMm": 0.9334,
+          "xMm": 1.27,
+          "yMm": 0.711,
           "electricalRole": "lead-1",
           "toleranceMm": 0.0
         },
         {
           "id": "lead-2",
-          "xMm": 1.3414,
-          "yMm": 10.8339,
+          "xMm": 1.27,
+          "yMm": 10.871,
           "electricalRole": "lead-2",
           "toleranceMm": 0.0
         }
@@ -28418,22 +28418,22 @@
       "searchAliases": ["battery-holder-aa-1", "Батарейный отсек AA", "1×AA"],
       "displayNameEn": "battery-holder-aa-1",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 25.5808,
-      "physicalHeightMm": 76.2,
+      "physicalWidthMm": 20.0,
+      "physicalHeightMm": 60.2,
       "viewBox": [0, 0, 283, 843],
       "assetFit": "meet",
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 8.09,
-          "yMm": 6.689,
+          "xMm": 8.7279,
+          "yMm": 0.7141,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 17.5812,
-          "yMm": 6.689,
+          "xMm": 11.2721,
+          "yMm": 0.7141,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28493,22 +28493,22 @@
       "searchAliases": ["battery-holder-aa-2", "Батарейный отсек AA", "2×AA"],
       "displayNameEn": "battery-holder-aa-2",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 43.8399,
-      "physicalHeightMm": 76.2,
+      "physicalWidthMm": 34.2756,
+      "physicalHeightMm": 60.2,
       "viewBox": [0, 0, 485, 843],
       "assetFit": "meet",
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 17.2196,
-          "yMm": 6.689,
+          "xMm": 15.8657,
+          "yMm": 0.7141,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 26.7107,
-          "yMm": 6.689,
+          "xMm": 18.4099,
+          "yMm": 0.7141,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28568,22 +28568,22 @@
       "searchAliases": ["battery-holder-aa-3", "Батарейный отсек AA", "3×AA"],
       "displayNameEn": "battery-holder-aa-3",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 62.0989,
-      "physicalHeightMm": 76.2,
+      "physicalWidthMm": 48.5512,
+      "physicalHeightMm": 60.2,
       "viewBox": [0, 0, 687, 843],
       "assetFit": "meet",
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 26.3491,
-          "yMm": 6.689,
+          "xMm": 23.0035,
+          "yMm": 0.7141,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 35.8402,
-          "yMm": 6.689,
+          "xMm": 25.5477,
+          "yMm": 0.7141,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28643,22 +28643,22 @@
       "searchAliases": ["battery-holder-aa-4", "Батарейный отсек AA", "4×AA"],
       "displayNameEn": "battery-holder-aa-4",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 80.358,
-      "physicalHeightMm": 76.2,
+      "physicalWidthMm": 62.8269,
+      "physicalHeightMm": 60.2,
       "viewBox": [0, 0, 889, 843],
       "assetFit": "meet",
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 35.4786,
-          "yMm": 6.689,
+          "xMm": 30.1413,
+          "yMm": 0.7141,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 44.9697,
-          "yMm": 6.689,
+          "xMm": 32.6855,
+          "yMm": 0.7141,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28767,22 +28767,22 @@
       "searchAliases": ["battery-holder-aa-6", "Батарейный отсек AA", "6×AA"],
       "displayNameEn": "battery-holder-aa-6",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 116.8762,
-      "physicalHeightMm": 76.2,
+      "physicalWidthMm": 91.3781,
+      "physicalHeightMm": 60.2,
       "viewBox": [0, 0, 1293, 843],
       "assetFit": "meet",
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 53.7377,
-          "yMm": 6.689,
+          "xMm": 44.417,
+          "yMm": 0.7141,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 63.2288,
-          "yMm": 6.689,
+          "xMm": 46.9611,
+          "yMm": 0.7141,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28842,22 +28842,22 @@
       "searchAliases": ["battery-holder-aa-8", "Батарейный отсек AA", "8×AA"],
       "displayNameEn": "battery-holder-aa-8",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 153.3943,
-      "physicalHeightMm": 76.2,
+      "physicalWidthMm": 119.9293,
+      "physicalHeightMm": 60.2,
       "viewBox": [0, 0, 1697, 843],
       "assetFit": "meet",
       "pins": [
         {
           "id": "BAT-",
-          "xMm": 71.9968,
-          "yMm": 6.689,
+          "xMm": 58.6926,
+          "yMm": 0.7141,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
-          "xMm": 81.4879,
-          "yMm": 6.689,
+          "xMm": 61.2367,
+          "yMm": 0.7141,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28917,21 +28917,21 @@
       "searchAliases": ["diode-do35", "Диод", "DO-35"],
       "displayNameEn": "diode-do35",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 13.5,
-      "physicalHeightMm": 4.5,
+      "physicalWidthMm": 11.582,
+      "physicalHeightMm": 2.54,
       "viewBox": [0, 0, 18.0, 6.0],
       "pins": [
         {
           "id": "anode",
-          "xMm": 2.25,
-          "yMm": 2.25,
+          "xMm": 0.711,
+          "yMm": 1.27,
           "electricalRole": "anode",
           "toleranceMm": 0.0
         },
         {
           "id": "cathode",
-          "xMm": 9.87,
-          "yMm": 2.25,
+          "xMm": 10.871,
+          "yMm": 1.27,
           "electricalRole": "cathode",
           "toleranceMm": 0.0
         }
@@ -28940,7 +28940,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [7.62, 0]
+          [10.16, 0]
         ]
       },
       "states": ["default"],
@@ -29991,7 +29991,7 @@
       "kind": "axial",
       "pinOffsetsMm": [
         [0, 0],
-        [7.62, 0]
+        [10.16, 0]
       ]
     },
     {

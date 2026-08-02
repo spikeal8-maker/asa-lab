@@ -64,42 +64,38 @@ describe('Electronics owner SVG foundation', () => {
     ).toBeCloseTo(2.54, 4);
 
     const batteryOne = catalog.find((item) => item.key === 'battery-holder-aa-1');
-    expect(batteryOne?.physicalSizeMm).toEqual({ width: 25.5808, height: 76.2 });
+    expect(batteryOne?.physicalSizeMm).toEqual({ width: 20, height: 60.2 });
     for (const item of catalog.filter((candidate) => candidate.familyId === 'battery-holder-aa')) {
       const svg = readFileSync(runtimePath(item.asset), 'utf8');
-      const metadata = svg.match(/<metadata>(\{.*?\})<\/metadata>/s)?.[1];
-      expect(metadata, item.key).toBeDefined();
-      if (!metadata) continue;
-      const battery = JSON.parse(metadata) as {
-        displayMm: { width: number; height: number };
-        sourcePngSizePx: { width: number; height: number };
-      };
       expect(item.assetFit, item.key).toBe('meet');
-      expect(item.physicalSizeMm, `${item.key}:owner-physical-size`).toEqual(battery.displayMm);
-      for (const pinId of ['BAT-', 'BAT+'] as const) {
+      expect(item.physicalSizeMm.height, `${item.key}:holder-height`).toBe(60.2);
+      expect(item.physicalSizeMm.width, `${item.key}:holder-width`).toBeCloseTo(
+        item.viewBox.width * (20 / 283),
+        3,
+      );
+      const topPosts = svg.match(/<g id="top-posts">([\s\S]*?)<\/g>/)?.[1] ?? '';
+      const freeEnds = [...topPosts.matchAll(/<rect x="([0-9.]+)" y="10" width="([0-9.]+)"/g)];
+      expect(freeEnds, `${item.key}:wire-free-ends`).toHaveLength(2);
+      for (const [index, pinId] of (['BAT-', 'BAT+'] as const).entries()) {
         const pin = item.terminals[pinId];
-        const ownerCircleId = pinId === 'BAT-' ? 'BAT_MINUS' : 'BAT_PLUS';
-        const ownerCircle = svg.match(
-          new RegExp(`<circle id="${ownerCircleId}" cx="([0-9.]+)" cy="([0-9.]+)"`),
-        );
+        const ownerFreeEnd = freeEnds[index];
         expect(pin, `${item.key}:${pinId}`).toBeDefined();
-        expect(ownerCircle, `${item.key}:${pinId}:owner-circle`).toBeDefined();
-        if (!ownerCircle) continue;
+        expect(ownerFreeEnd, `${item.key}:${pinId}:owner-free-end`).toBeDefined();
+        if (!ownerFreeEnd) continue;
+        const ownerX = Number(ownerFreeEnd[1]) + Number(ownerFreeEnd[2]) / 2;
         expect(pin?.xMm, `${item.key}:${pinId}:wire-x`).toBeCloseTo(
-          Number(ownerCircle[1]) *
-            (item.physicalSizeMm.width / battery.sourcePngSizePx.width),
+          ownerX * (item.physicalSizeMm.width / item.viewBox.width),
           3,
         );
         expect(pin?.yMm, `${item.key}:${pinId}:wire-y`).toBeCloseTo(
-          Number(ownerCircle[2]) *
-            (item.physicalSizeMm.height / battery.sourcePngSizePx.height),
+          10 * (item.physicalSizeMm.height / item.viewBox.height),
           3,
         );
       }
     }
 
     for (const [componentId, width, height, pinSpan] of [
-      ['diode-do35', 13.5, 4.5, 7.62],
+      ['diode-do35', 11.582, 2.54, 10.16],
       ['diode-do41', 15, 5.25, 7.62],
     ] as const) {
       const diode = catalog.find((item) => item.key === componentId);

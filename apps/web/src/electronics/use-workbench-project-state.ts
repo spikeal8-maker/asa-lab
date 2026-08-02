@@ -9,6 +9,7 @@ import {
 import { cloneJson } from './workbench-geometry';
 import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
+import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
 
 function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument {
@@ -44,13 +45,19 @@ function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument
       ...(internalConnections.length > 0 ? { internalConnections } : {}),
     };
   });
-  return {
+  let normalized: SchematicDocument = {
     ...document,
     schemaVersion: 3,
     components,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
     simulation: legacy.simulation ?? { running: false, maxIterations: 24 },
   };
+  for (const component of normalized.components) {
+    if (Object.keys(component.holeBindings ?? {}).length > 0) {
+      normalized = snapComponentToBreadboard(normalized, component.id);
+    }
+  }
+  return normalized;
 }
 
 export function useWorkbenchProjectState(projectId: string) {
@@ -84,10 +91,11 @@ export function useWorkbenchProjectState(projectId: string) {
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
     const nextDocument = normalizeLoadedDocument(response.data.draft.document);
+    const migrated = JSON.stringify(nextDocument) !== JSON.stringify(response.data.draft.document);
     setDocument(nextDocument);
     setResult(response.data.result);
     setVersions(response.data.versions);
-    setSaveStatus('saved');
+    setSaveStatus(migrated ? 'dirty' : 'saved');
     setSimulationRunning(nextDocument.simulation.running);
     initialiseHistory(nextDocument);
     setStatus('ready');

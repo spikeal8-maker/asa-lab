@@ -8,10 +8,22 @@ import {
   rgbLedColour,
   rgbLedState,
   sevenSegmentState,
+  WORLD_UNITS_PER_MM,
   type RgbCommonMode,
   type ResistorTolerancePercent,
   type SevenSegmentId,
 } from './production-asset-contracts';
+
+const TINKERCAD_MODEL_UNIT_MM = 0.254;
+const TINKERCAD_MODEL_TO_WORLD = TINKERCAD_MODEL_UNIT_MM * WORLD_UNITS_PER_MM;
+const TINKERCAD_RESISTOR_BODY =
+  'M3.69-3.66c0-2.16,1.11-2.67,1.11-5.53s-3.35-3.81-3.58-4.55c-0.17-0.53-0.19-0.95-0.19-0.95s0.05-0.25-0.56-0.28-1.49,0.28-1.49,0.28-0.02,0.41-0.19,0.95C-1.45-13.01-4.8-12.06-4.8-9.2s1.11,3.37,1.11,5.53c0,0.99,0,6.05,0,7.04,0,2.16-1.11,2.67-1.11,5.53s3.35,3.81,3.58,4.55c0.17,0.53,0.19,0.95,0.19,0.95s-0.01,0.42,0.5,0.42,1.55-0.42,1.55-0.42,0.02-0.41,0.19-0.95c0.23-0.74,3.58-1.69,3.58-4.55S3.69,5.53,3.69,3.38C3.69,2.39,3.69-2.68,3.69-3.66z';
+const TINKERCAD_RESISTOR_BAND_PATHS = [
+  'M-4.8,8.91c0-0.7,0.07-1.25,0.17-1.73h9.26c0.1,0.48,0.17,1.03,0.17,1.73,0,0.3-0.04,0.57-0.11,0.82h-9.38c-0.06-0.25-0.11-0.53-0.11-0.82z',
+  'M3.69,3.38c0-0.24,0-0.71,0-1.31h-7.38c0,0.6,0,1.07,0,1.31,0,0.49-0.06,0.89-0.15,1.25h7.68c-0.09-0.37-0.15-0.77-0.15-1.25z',
+  'M3.69-3.06h-7.38c0,0.63,0,1.58,0,2.56h7.38C3.69-1.48,3.69-2.43,3.69-3.06z',
+  'M-4.8-9.2c0,0.22,0.02,0.41,0.03,0.6h9.53c0.01-0.2,0.03-0.38,0.03-0.6,0-0.13-0.01-0.25-0.03-0.37h-9.53C-4.78-9.45-4.8-9.33-4.8-9.2z',
+] as const;
 
 interface Props {
   readonly entry: CatalogEntry;
@@ -75,7 +87,7 @@ export function ProductionComponentVisual({
       overflow="visible"
       aria-hidden="true"
     >
-      {selected ? (
+      {selected && entry.key !== 'resistor-axial' && entry.key !== 'diode-do35' ? (
         <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
           <defs>
             <filter
@@ -109,30 +121,107 @@ export function ProductionComponentVisual({
         </g>
       ) : null}
       {entry.key === 'resistor-axial' ? (
-        <g className="workbench-owner-resistor">
-          <image href={asset} width={width} height={height} preserveAspectRatio="none" />
-          {resistorBands ? (
-            <g data-testid="resistor-colour-bands">
-              {resistorBands.map((band, index) => {
-                // Zones are mapped to the four colour bands in the exact owner SVG.
-                // The owner body and leads stay untouched; only the electrical
-                // colour-code zones change with resistance and tolerance.
-                const positions = [0.326, 0.443, 0.553, 0.667] as const;
-                return (
-                  <rect
-                    key={`${band}-${index}`}
-                    data-band={index + 1}
-                    x={width * 0.264}
-                    y={height * positions[index]}
-                    width={width * 0.528}
-                    height={height * 0.056}
-                    rx={width * 0.018}
-                    fill={RESISTOR_BAND_CSS[band]}
-                  />
-                );
-              })}
+        <g
+          className="workbench-owner-resistor"
+          data-visual-contract="tinkercad-four-pitch"
+          transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
+        >
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="0"
+                y1="-20"
+                x2="0"
+                y2="20"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d={TINKERCAD_RESISTOR_BODY}
+                fill="#3b8ed7"
+                stroke="#3b8ed7"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </g>
           ) : null}
+          <path d={TINKERCAD_RESISTOR_BODY} fill="#d9b477" />
+          {resistorBands ? (
+            <g data-testid="resistor-colour-bands">
+              {TINKERCAD_RESISTOR_BAND_PATHS.map((path, index) => {
+                const sourceIndex = [0, 1, 2, 3][index] as number;
+                const band = resistorBands[sourceIndex];
+                return band ? (
+                  <path
+                    key={`${band}-${index}`}
+                    data-band={index + 1}
+                    d={path}
+                    fill={RESISTOR_BAND_CSS[band]}
+                  />
+                ) : null;
+              })}
+              <rect x="-0.16" y="-9.57" width="4.63" height="0.97" opacity="0.4" />
+              <rect x="-4.65" y="-9.57" width="2.38" height="0.97" fill="#ffff33" opacity="0.5" />
+            </g>
+          ) : null}
+        </g>
+      ) : entry.key === 'diode-do35' ? (
+        <g
+          className="workbench-tinkercad-diode"
+          data-visual-contract="tinkercad-four-pitch"
+          transform={`translate(${width / 2} ${height / 2}) rotate(-90) scale(${TINKERCAD_MODEL_TO_WORLD})`}
+        >
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="0"
+                y1="-20"
+                x2="0"
+                y2="20"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <rect
+                x="-4.75"
+                y="-12.5"
+                width="9.5"
+                height="25"
+                rx="1"
+                fill="#3b8ed7"
+                stroke="#3b8ed7"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          ) : null}
+          <rect x="-4.75" y="-12.5" width="9.5" height="25" rx="1" fill="#333333" />
+          <rect x="-4.75" y="5.5" width="9.5" height="2.3" fill="#67757f" />
         </g>
       ) : (
         <image href={asset} width={width} height={height} preserveAspectRatio={imageFit} />
