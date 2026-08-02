@@ -13,20 +13,23 @@ import {
   insertWireVertex,
   mirrorSelectionInDocument,
   moveWireVertex,
-  orthogonalizeWireInDocument,
   reconnectWireEndpoint,
   removeWireVertex,
   removeSelectionFromDocument,
   removeSelectedWireBends,
   rotateSelectionInDocument,
-  terminalPositionInDocument,
   updateSelectedWireColor,
   updateSelectionName,
   updateSelectionState,
   updateSelectionValue,
   updateWiperPosition,
 } from '../workbench-document';
-import { lockOrthogonalPoint, wirePoints } from '../workbench-geometry';
+import {
+  lockOrthogonalBend,
+  lockOrthogonalPoint,
+  magneticWirePoint,
+  wirePoints,
+} from '../workbench-geometry';
 
 const EMPTY: SchematicDocument = {
   schemaVersion: 3,
@@ -63,34 +66,19 @@ function populated(): SchematicDocument {
   );
 }
 
-function expectOrthogonalWire(document: SchematicDocument, wireId: string): void {
-  const wire = document.connections.find((item) => item.id === wireId);
-  const fromComponent = wire
-    ? document.components.find((item) => item.id === wire.from.componentId)
-    : null;
-  const toComponent = wire
-    ? document.components.find((item) => item.id === wire.to.componentId)
-    : null;
-  const from =
-    wire && fromComponent
-      ? terminalPositionInDocument(document, fromComponent, wire.from.terminal)
-      : null;
-  const to =
-    wire && toComponent
-      ? terminalPositionInDocument(document, toComponent, wire.to.terminal)
-      : null;
-  expect(wire && from && to).toBeTruthy();
-  if (!wire || !from || !to) return;
-  const points = wirePoints(from, to, wire.vertices);
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index];
-    const end = points[index + 1];
-    expect(start && end && (start.x === end.x || start.y === end.y)).toBe(true);
-  }
-}
-
 describe('Electronics M1 editor document operations', () => {
-  it('locks every new wire segment to a snapped horizontal or vertical line', () => {
+  it('keeps free user points by default and applies 90-degree locking only on demand', () => {
+    expect(
+      wirePoints({ x: 100, y: 100 }, { x: 300, y: 260 }, [
+        { x: 150, y: 180 },
+        { x: 240, y: 210 },
+      ]),
+    ).toEqual([
+      { x: 100, y: 100 },
+      { x: 150, y: 180 },
+      { x: 240, y: 210 },
+      { x: 300, y: 260 },
+    ]);
     expect(lockOrthogonalPoint({ x: 100, y: 100 }, { x: 187, y: 124 })).toEqual({
       x: 190,
       y: 100,
@@ -98,6 +86,22 @@ describe('Electronics M1 editor document operations', () => {
     expect(lockOrthogonalPoint({ x: 100, y: 100 }, { x: 117, y: 184 })).toEqual({
       x: 100,
       y: 180,
+    });
+    expect(lockOrthogonalBend({ x: 100, y: 100 }, { x: 300, y: 260 }, { x: 280, y: 120 })).toEqual({
+      x: 300,
+      y: 100,
+    });
+    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 237, y: 106 })).toEqual({
+      x: 240,
+      y: 100,
+    });
+    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 106, y: 237 })).toEqual({
+      x: 100,
+      y: 240,
+    });
+    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 237, y: 166 })).toEqual({
+      x: 240,
+      y: 170,
     });
   });
 
@@ -196,13 +200,14 @@ describe('Electronics M1 editor document operations', () => {
     expect(created.kind).toBe('created');
     if (created.kind !== 'created') return;
     document = created.document;
-    expectOrthogonalWire(document, 'wire-1');
+    expect(document.connections[0]?.vertices).toEqual([
+      { x: 260, y: 220 },
+      { x: 260, y: 340 },
+    ]);
     const selection = { kind: 'wire' as const, id: 'wire-1' };
     document = updateSelectedWireColor(document, selection, '#2c62c9') as SchematicDocument;
     document = moveWireVertex(document, 'wire-1', 0, { x: 420, y: 320 });
     expect(document.connections[0]?.vertices?.[0]).toEqual({ x: 420, y: 320 });
-    document = orthogonalizeWireInDocument(document, 'wire-1');
-    expectOrthogonalWire(document, 'wire-1');
     document = reconnectWireEndpoint(document, 'wire-1', 'to', {
       componentId: 'led',
       terminal: 'a',
@@ -234,7 +239,7 @@ describe('Electronics M1 editor document operations', () => {
     const after = removeWireVertex(created.document, 'wire-bend-delete', 0);
     expect(after.connections).toHaveLength(1);
     expect(after.connections[0]?.vertices).toHaveLength(before - 1);
-    expectOrthogonalWire(after, 'wire-bend-delete');
+    expect(after.connections[0]?.vertices).toEqual([{ x: 260, y: 340 }]);
   });
 
   it('adds a control point to the closest wire segment on double click', () => {
@@ -252,6 +257,5 @@ describe('Electronics M1 editor document operations', () => {
     const before = created.document.connections[0]?.vertices?.length ?? 0;
     document = insertWireVertex(created.document, 'wire-double-click', { x: 300, y: 210 });
     expect(document.connections[0]?.vertices).toHaveLength(before + 1);
-    expectOrthogonalWire(document, 'wire-double-click');
   });
 });

@@ -7,7 +7,7 @@ import {
 } from './component-catalog';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
-import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
+import { roundedWirePath, wirePoints } from './workbench-geometry';
 import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
@@ -87,7 +87,7 @@ export function WorkbenchStage({
       {
         wire,
         selected,
-        path: roundedOrthogonalPath(wirePoints(displayedFrom, displayedTo, wire.vertices)),
+        path: roundedWirePath(wirePoints(displayedFrom, displayedTo, wire.vertices)),
       },
     ];
   });
@@ -130,6 +130,8 @@ export function WorkbenchStage({
           {routedWires.map(({ wire, path }) => (
             <path
               key={wire.id}
+              data-testid="wire-hit"
+              data-wire-id={wire.id}
               className="workbench-wire-hit"
               d={path}
               vectorEffect="non-scaling-stroke"
@@ -425,6 +427,7 @@ export function WorkbenchStage({
                 ) : null}
                 <path
                   data-testid="schematic-wire"
+                  data-wire-id={wire.id}
                   className="workbench-wire"
                   d={path}
                   stroke={wire.color ?? '#e3212b'}
@@ -446,13 +449,12 @@ export function WorkbenchStage({
                         cy={vertex.y}
                         r={7 / c.viewport.zoom}
                         fill={wire.color ?? '#e3212b'}
+                        data-testid="wire-vertex"
+                        data-wire-id={wire.id}
+                        data-wire-vertex-index={index}
                         onClick={(event) => {
                           event.stopPropagation();
                           c.setSelection({ kind: 'wire', id: wire.id, vertexIndex: index });
-                        }}
-                        onDoubleClick={(event) => {
-                          event.stopPropagation();
-                          c.removeWireVertexAt(wire.id, index);
                         }}
                         onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
                         role="button"
@@ -467,9 +469,7 @@ export function WorkbenchStage({
           {c.pendingStart && c.wirePreviewEnd ? (
             <path
               className="workbench-wire-preview"
-              d={roundedOrthogonalPath(
-                wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices),
-              )}
+              d={roundedWirePath(wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices))}
               stroke={c.activeWireColor}
               vectorEffect="non-scaling-stroke"
             />
@@ -486,6 +486,9 @@ export function WorkbenchStage({
               <circle
                 key={endpoint}
                 className="workbench-wire-endpoint"
+                data-testid="wire-endpoint"
+                data-wire-id={selectedWire.id}
+                data-wire-endpoint={endpoint}
                 cx={point.x}
                 cy={point.y}
                 r={6 / c.viewport.zoom}

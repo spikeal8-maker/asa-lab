@@ -13,7 +13,7 @@ import {
 } from './component-catalog';
 import { PIN_ANCHOR_TOLERANCE_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
-import { orthogonalWireVertices, snap, wirePoints, type Point } from './workbench-geometry';
+import { snap, wirePoints, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
 function internalConnectionsForType(componentTypeId: string): [string, string][] {
@@ -412,35 +412,6 @@ export function removeWireVertex(
   };
 }
 
-export function orthogonalizeWireInDocument(
-  document: SchematicDocument,
-  wireId: string,
-): SchematicDocument {
-  const wire = document.connections.find((item) => item.id === wireId);
-  const fromComponent = wire
-    ? document.components.find((item) => item.id === wire.from.componentId)
-    : null;
-  const toComponent = wire
-    ? document.components.find((item) => item.id === wire.to.componentId)
-    : null;
-  const from =
-    wire && fromComponent
-      ? terminalPositionInDocument(document, fromComponent, wire.from.terminal)
-      : null;
-  const to =
-    wire && toComponent
-      ? terminalPositionInDocument(document, toComponent, wire.to.terminal)
-      : null;
-  if (!wire || !from || !to) return document;
-  const vertices = orthogonalWireVertices(from, wire.vertices ?? [], to);
-  return {
-    ...document,
-    connections: document.connections.map((item) =>
-      item.id === wireId ? { ...item, vertices } : item,
-    ),
-  };
-}
-
 function closestPointOnSegment(point: Point, start: Point, end: Point): Point {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -471,7 +442,7 @@ export function insertWireVertex(
   if (!from || !to) return document;
 
   const route = wirePoints(from, to, wire.vertices);
-  const baseVertices = route.slice(1, -1);
+  const baseVertices = wire.vertices === undefined ? route.slice(1, -1) : [...wire.vertices];
   let best: { index: number; point: Point; distance: number } | null = null;
   for (let index = 0; index < route.length - 1; index += 1) {
     const projected = closestPointOnSegment(
@@ -715,21 +686,12 @@ export function connectTerminals(
         wire.from.terminal === to.terminal),
   );
   if (duplicate) return { kind: 'duplicate' };
-  const fromComponent = document.components.find((item) => item.id === from.componentId);
-  const toComponent = document.components.find((item) => item.id === to.componentId);
-  const fromPoint = fromComponent
-    ? terminalPositionInDocument(document, fromComponent, from.terminal)
-    : null;
-  const toPoint = toComponent
-    ? terminalPositionInDocument(document, toComponent, to.terminal)
-    : null;
   const wire: SchematicConnection = {
     id,
     from: { ...from },
     to: { ...to },
     color,
-    vertices:
-      fromPoint && toPoint ? orthogonalWireVertices(fromPoint, vertices, toPoint) : [...vertices],
+    vertices: [...vertices],
   };
   return {
     kind: 'created',

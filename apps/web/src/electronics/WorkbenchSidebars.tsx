@@ -519,7 +519,7 @@ export function WorkbenchSidebars({
               </div>
               <div className="workbench-inspector-actions vertical">
                 <button type="button" onClick={c.toggleWireRoute}>
-                  <WireIcon /> Добавить/изменить изгиб
+                  <WireIcon /> Проложить автоматически под 90°
                 </button>
                 <button type="button" onClick={c.removeWireBends}>
                   Убрать изгибы

@@ -17,7 +17,7 @@ export function snap(value: number, grid = 10): number {
   return Math.round(value / grid) * grid;
 }
 
-export function roundedOrthogonalPath(points: readonly Point[], radius = 12): string {
+export function roundedWirePath(points: readonly Point[], radius = 12): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
@@ -57,32 +57,6 @@ export function defaultWirePoints(from: Point, to: Point): Point[] {
   return [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
 }
 
-function samePoint(left: Point, right: Point): boolean {
-  return left.x === right.x && left.y === right.y;
-}
-
-function simplifyOrthogonalPoints(points: readonly Point[]): Point[] {
-  const unique = points.filter(
-    (point, index) => index === 0 || !samePoint(point, points[index - 1] as Point),
-  );
-  const simplified: Point[] = [];
-  for (const point of unique) {
-    const previous = simplified[simplified.length - 1];
-    const beforePrevious = simplified[simplified.length - 2];
-    if (
-      previous &&
-      beforePrevious &&
-      ((beforePrevious.x === previous.x && previous.x === point.x) ||
-        (beforePrevious.y === previous.y && previous.y === point.y))
-    ) {
-      simplified[simplified.length - 1] = point;
-    } else {
-      simplified.push(point);
-    }
-  }
-  return simplified;
-}
-
 export function lockOrthogonalPoint(anchor: Point, point: Point): Point {
   const snapped = { x: snap(point.x), y: snap(point.y) };
   return Math.abs(snapped.x - anchor.x) >= Math.abs(snapped.y - anchor.y)
@@ -90,36 +64,41 @@ export function lockOrthogonalPoint(anchor: Point, point: Point): Point {
     : { x: anchor.x, y: snapped.y };
 }
 
-export function orthogonalizePoints(points: readonly Point[]): Point[] {
-  if (points.length < 2) return [...points];
-  const route: Point[] = [points[0] as Point];
-  for (const target of points.slice(1)) {
-    const current = route[route.length - 1] as Point;
-    if (current.x !== target.x && current.y !== target.y) {
-      const previous = route[route.length - 2];
-      const continueHorizontally = previous
-        ? previous.y === current.y
-        : Math.abs(target.x - current.x) >= Math.abs(target.y - current.y);
-      route.push(
-        continueHorizontally ? { x: target.x, y: current.y } : { x: current.x, y: target.y },
-      );
-    }
-    route.push(target);
+export function lockOrthogonalBend(previous: Point, next: Point, point: Point): Point {
+  const snapped = { x: snap(point.x), y: snap(point.y) };
+  const candidates = [
+    { x: previous.x, y: next.y },
+    { x: next.x, y: previous.y },
+  ];
+  return candidates.reduce((closest, candidate) => {
+    const closestDistance = Math.hypot(closest.x - snapped.x, closest.y - snapped.y);
+    const candidateDistance = Math.hypot(candidate.x - snapped.x, candidate.y - snapped.y);
+    return candidateDistance < closestDistance ? candidate : closest;
+  });
+}
+
+export function freeWirePoint(point: Point): Point {
+  return { x: snap(point.x), y: snap(point.y) };
+}
+
+export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): Point {
+  const snapped = freeWirePoint(point);
+  const horizontalDistance = Math.abs(snapped.y - anchor.y);
+  const verticalDistance = Math.abs(snapped.x - anchor.x);
+  if (horizontalDistance <= threshold && horizontalDistance <= verticalDistance) {
+    return { x: snapped.x, y: anchor.y };
   }
-  return simplifyOrthogonalPoints(route);
+  if (verticalDistance <= threshold) {
+    return { x: anchor.x, y: snapped.y };
+  }
+  return snapped;
 }
 
 export function wirePoints(from: Point, to: Point, vertices?: readonly Point[]): Point[] {
-  if (vertices !== undefined) return orthogonalizePoints([from, ...vertices, to]);
+  if (vertices !== undefined) {
+    return [from, ...vertices, to];
+  }
   return defaultWirePoints(from, to);
-}
-
-export function orthogonalWireVertices(
-  from: Point,
-  vertices: readonly Point[],
-  to: Point,
-): Point[] {
-  return wirePoints(from, to, vertices).slice(1, -1);
 }
 
 export function cloneJson<T>(value: T): T {

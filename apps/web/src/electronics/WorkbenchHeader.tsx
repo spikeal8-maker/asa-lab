@@ -205,8 +205,8 @@ export function WorkbenchHeader({
             <button
               type="button"
               className="workbench-wire-style"
-              aria-label="Стиль и изгиб провода"
-              title="Стиль и изгиб провода"
+              aria-label="Автоматическая прокладка провода под 90 градусов"
+              title="Автоматическая прокладка под 90°"
               disabled={c.selection?.kind !== 'wire'}
               onClick={c.toggleWireRoute}
             >

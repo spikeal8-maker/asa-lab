@@ -91,7 +91,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.zoomBy(0.85)');
     expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
     expect(stageSource).toContain('onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}');
-    expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
+    expect(stageSource).toContain('data-testid="wire-vertex"');
+    expect(stageSource).toContain('data-testid="wire-hit"');
+    expect(stageSource).toContain('data-testid="wire-endpoint"');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.wireDraftVertices');
     expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
@@ -107,7 +109,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerSource).toContain('catalogPlacement');
     expect(controllerSource).toContain('actuatorPressRef');
     expect(controllerSource).toContain('lockOrthogonalPoint');
+    expect(controllerSource).toContain('magneticWirePoint');
     expect(controllerSource).toContain('removeWireVertexAt');
+    expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
     expect(stageSource).toContain('onPointerDownCapture={c.placeCatalogComponent}');
   });

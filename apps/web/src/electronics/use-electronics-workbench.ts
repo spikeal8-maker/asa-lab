@@ -26,7 +26,10 @@ import {
   clientToWorld,
   clamp,
   fitViewport,
+  freeWirePoint,
+  lockOrthogonalBend,
   lockOrthogonalPoint,
+  magneticWirePoint,
   snap,
   viewportViewBox,
   type Point,
@@ -43,7 +46,6 @@ import {
   moveComponentsInDocument,
   moveWireVertex,
   mirrorSelectionInDocument,
-  orthogonalizeWireInDocument,
   reconnectWireEndpoint,
   removeWireVertex,
   removeSelectedWireBends,
@@ -287,6 +289,10 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeSelection(): void {
     if (!document || !selection) return;
+    if (selection.kind === 'wire' && selection.vertexIndex !== undefined) {
+      removeWireVertexAt(selection.id, selection.vertexIndex);
+      return;
+    }
     commitDocument(
       removeSelectionFromDocument(document, selection),
       selection.kind === 'wire' ? 'Провод удалён.' : 'Элемент удалён.',
@@ -403,7 +409,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function toggleWireRoute(): void {
     if (!document) return;
     const next = toggleSelectedWireRoute(document, selection);
-    if (next) commitDocument(next);
+    if (next) commitDocument(next, 'Провод проложен автоматически под прямыми углами.');
   }
 
   function removeWireBends(): void {
@@ -434,7 +440,9 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
       setWireDraftVertices([]);
-      setNotice('Ведите провод к цели. Щелчок по полю добавляет точку изгиба, Esc отменяет.');
+      setNotice(
+        'Ведите провод к цели. Щелчок добавляет точку, Shift фиксирует участок под 90°, Esc отменяет.',
+      );
       return;
     }
     if (pendingTerminal.componentId === componentId && pendingTerminal.terminal === terminal) {
@@ -494,6 +502,32 @@ export function useElectronicsWorkbench(projectId: string) {
       STAGE_WIDTH,
       STAGE_HEIGHT,
     );
+  }
+
+  function wireVertexDragPoint(
+    wireId: string,
+    vertexIndex: number,
+    point: Point,
+    lockRightAngle: boolean,
+  ): Point {
+    const freePoint = freeWirePoint(point);
+    if (!document) return freePoint;
+    const wire = document.connections.find((item) => item.id === wireId);
+    if (!wire?.vertices?.[vertexIndex]) return freePoint;
+    const fromComponent = document.components.find((item) => item.id === wire.from.componentId);
+    const toComponent = document.components.find((item) => item.id === wire.to.componentId);
+    const previous =
+      wire.vertices[vertexIndex - 1] ??
+      (fromComponent
+        ? terminalPositionInDocument(document, fromComponent, wire.from.terminal)
+        : null);
+    const next =
+      wire.vertices[vertexIndex + 1] ??
+      (toComponent ? terminalPositionInDocument(document, toComponent, wire.to.terminal) : null);
+    if (!previous || !next) return freePoint;
+    if (lockRightAngle) return lockOrthogonalBend(previous, next, point);
+    const alignedToPrevious = magneticWirePoint(previous, freePoint);
+    return magneticWirePoint(next, alignedToPrevious);
   }
 
   function startComponentDrag(
@@ -604,14 +638,21 @@ export function useElectronicsWorkbench(projectId: string) {
   function startPan(event: PointerEvent<SVGSVGElement>): void {
     const onEmptyCanvas = (event.target as Element).classList.contains('workbench-grid-hit');
     if (event.button === 0 && pendingTerminal && onEmptyCanvas) {
-      const rawPoint = toWorld(event);
+      const rawPoint = freeWirePoint(toWorld(event));
       setWireDraftVertices((current) => {
         if (current.length >= 48 || !pendingStart) return current;
-        const point = lockOrthogonalPoint(current[current.length - 1] ?? pendingStart, rawPoint);
+        const anchor = current[current.length - 1] ?? pendingStart;
+        const point = event.shiftKey
+          ? lockOrthogonalPoint(anchor, rawPoint)
+          : magneticWirePoint(anchor, rawPoint);
         setWirePreviewEnd(point);
         return [...current, point];
       });
-      setNotice('Точка изгиба добавлена. Продолжайте провод или выберите контакт назначения.');
+      setNotice(
+        event.shiftKey
+          ? 'Точка добавлена с фиксацией 90°. Продолжайте провод или выберите контакт.'
+          : 'Точка изгиба добавлена. Shift фиксирует следующий участок под 90°.',
+      );
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -662,7 +703,14 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId && document) {
-      setDocument(moveWireVertex(document, vertexDrag.wireId, vertexDrag.vertexIndex, world));
+      setDocument(
+        moveWireVertex(
+          document,
+          vertexDrag.wireId,
+          vertexDrag.vertexIndex,
+          wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
+        ),
+      );
       setSaveStatus('dirty');
       return;
     }
@@ -670,7 +718,14 @@ export function useElectronicsWorkbench(projectId: string) {
       setMarquee({ ...marquee, current: world });
       return;
     }
-    if (pendingTerminal || reconnectEndpoint) setWirePreviewEnd(world);
+    if (pendingTerminal && pendingStart) {
+      const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? pendingStart;
+      setWirePreviewEnd(
+        event.shiftKey ? lockOrthogonalPoint(anchor, world) : magneticWirePoint(anchor, world),
+      );
+    } else if (reconnectEndpoint) {
+      setWirePreviewEnd(world);
+    }
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
       const component = document.components.find((item) => item.id === drag.componentId);
@@ -766,11 +821,7 @@ export function useElectronicsWorkbench(projectId: string) {
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId) {
       vertexDragRef.current = null;
-      if (document) {
-        const orthogonal = orthogonalizeWireInDocument(document, vertexDrag.wireId);
-        setDocument(orthogonal);
-        pushHistory(orthogonal);
-      }
+      if (document) pushHistory(document);
       setNotice('Изгиб провода перемещён.');
     }
     if (marquee?.pointerId === event.pointerId && document) {
@@ -846,10 +897,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeWireVertexAt(wireId: string, vertexIndex: number): void {
     if (!document) return;
-    const next = orthogonalizeWireInDocument(
-      removeWireVertex(document, wireId, vertexIndex),
-      wireId,
-    );
+    const next = removeWireVertex(document, wireId, vertexIndex);
     commitDocument(next, 'Точка изгиба удалена.');
     setSelection({ kind: 'wire', id: wireId });
   }
@@ -950,11 +998,7 @@ export function useElectronicsWorkbench(projectId: string) {
         duplicateSelected();
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
-        if (selection?.kind === 'wire' && selection.vertexIndex !== undefined) {
-          removeWireVertexAt(selection.id, selection.vertexIndex);
-        } else {
-          removeSelection();
-        }
+        removeSelection();
       } else if (event.key.toLowerCase() === 'r' && selection?.kind === 'component') {
         event.preventDefault();
         rotateSelected();
