@@ -13,7 +13,9 @@ export const DRAG_MIME = 'application/x-asa-electronics-component';
 export type WorkbenchView = 'breadboard' | 'schematic' | 'bom';
 
 export type Selection =
-  { kind: 'component'; id: string; ids: string[] } | { kind: 'wire'; id: string } | null;
+  | { kind: 'component'; id: string; ids: string[] }
+  | { kind: 'wire'; id: string; vertexIndex?: number }
+  | null;
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
 export interface TerminalRef {

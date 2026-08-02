@@ -71,6 +71,26 @@ export function WorkbenchStage({
     selectedWire && selectedWireToComponent
       ? terminalPositionInDocument(document, selectedWireToComponent, selectedWire.to.terminal)
       : null;
+  const routedWires = document.connections.flatMap((wire) => {
+    const fromComponent = document.components.find((item) => item.id === wire.from.componentId);
+    const toComponent = document.components.find((item) => item.id === wire.to.componentId);
+    if (!fromComponent || !toComponent) return [];
+    const from = terminalPositionInDocument(document, fromComponent, wire.from.terminal);
+    const to = terminalPositionInDocument(document, toComponent, wire.to.terminal);
+    if (!from || !to) return [];
+    const selected = c.selection?.kind === 'wire' && c.selection.id === wire.id;
+    const displayedFrom =
+      selected && c.reconnectEndpoint === 'from' && c.wirePreviewEnd ? c.wirePreviewEnd : from;
+    const displayedTo =
+      selected && c.reconnectEndpoint === 'to' && c.wirePreviewEnd ? c.wirePreviewEnd : to;
+    return [
+      {
+        wire,
+        selected,
+        path: roundedOrthogonalPath(wirePoints(displayedFrom, displayedTo, wire.vertices)),
+      },
+    ];
+  });
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <svg
@@ -106,84 +126,20 @@ export function WorkbenchStage({
           height="7000"
           fill={showGrid ? 'url(#asa-grid-large)' : '#f4f5f6'}
         />
-        <g className="workbench-wire-layer" data-testid="wire-layer">
-          {document.connections.map((wire) => {
-            const fromComponent = document.components.find(
-              (item) => item.id === wire.from.componentId,
-            );
-            const toComponent = document.components.find((item) => item.id === wire.to.componentId);
-            if (!fromComponent || !toComponent) return null;
-            const from = terminalPositionInDocument(document, fromComponent, wire.from.terminal);
-            const to = terminalPositionInDocument(document, toComponent, wire.to.terminal);
-            if (!from || !to) return null;
-            const selected = c.selection?.kind === 'wire' && c.selection.id === wire.id;
-            const displayedFrom =
-              selected && c.reconnectEndpoint === 'from' && c.wirePreviewEnd
-                ? c.wirePreviewEnd
-                : from;
-            const displayedTo =
-              selected && c.reconnectEndpoint === 'to' && c.wirePreviewEnd ? c.wirePreviewEnd : to;
-            const path = roundedOrthogonalPath(
-              wirePoints(displayedFrom, displayedTo, wire.vertices),
-            );
-            return (
-              <g key={wire.id}>
-                <path
-                  className="workbench-wire-hit"
-                  d={path}
-                  vectorEffect="non-scaling-stroke"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    c.setSelection({ kind: 'wire', id: wire.id });
-                  }}
-                  onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
-                />
-                {selected
-                  ? (wire.vertices ?? []).map((vertex, index) => (
-                      <circle
-                        key={`${wire.id}-vertex-${index}`}
-                        className="workbench-wire-vertex"
-                        cx={vertex.x}
-                        cy={vertex.y}
-                        r={5 / c.viewport.zoom}
-                        fill={wire.color ?? '#e3212b'}
-                        onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
-                        aria-label={`Изгиб провода ${index + 1}`}
-                      />
-                    ))
-                  : null}
-                {selected ? (
-                  <path
-                    className="workbench-wire-selection"
-                    d={path}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ) : null}
-                <path
-                  data-testid="schematic-wire"
-                  className="workbench-wire"
-                  d={path}
-                  stroke={wire.color ?? '#e3212b'}
-                  vectorEffect="non-scaling-stroke"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    c.setSelection({ kind: 'wire', id: wire.id });
-                  }}
-                  onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
-                />
-              </g>
-            );
-          })}
-          {c.pendingStart && c.wirePreviewEnd ? (
+        <g className="workbench-wire-layer workbench-wire-hit-layer">
+          {routedWires.map(({ wire, path }) => (
             <path
-              className="workbench-wire-preview"
-              d={roundedOrthogonalPath(
-                wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices),
-              )}
-              stroke={c.activeWireColor}
+              key={wire.id}
+              className="workbench-wire-hit"
+              d={path}
               vectorEffect="non-scaling-stroke"
+              onClick={(event) => {
+                event.stopPropagation();
+                c.setSelection({ kind: 'wire', id: wire.id });
+              }}
+              onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
             />
-          ) : null}
+          ))}
         </g>
         {orderedComponents
           .filter((component) => component.kind !== 'wire')
@@ -456,6 +412,69 @@ export function WorkbenchStage({
               </g>
             );
           })}
+        <g className="workbench-wire-layer workbench-wire-overlay" data-testid="wire-layer">
+          {routedWires.map(({ wire, path, selected }) => {
+            return (
+              <g key={wire.id}>
+                {selected ? (
+                  <path
+                    className="workbench-wire-selection"
+                    d={path}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
+                <path
+                  data-testid="schematic-wire"
+                  className="workbench-wire"
+                  d={path}
+                  stroke={wire.color ?? '#e3212b'}
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+                {selected
+                  ? (wire.vertices ?? []).map((vertex, index) => (
+                      <circle
+                        key={`${wire.id}-vertex-${index}`}
+                        className={`workbench-wire-vertex${
+                          c.selection?.kind === 'wire' &&
+                          c.selection.id === wire.id &&
+                          c.selection.vertexIndex === index
+                            ? ' active'
+                            : ''
+                        }`}
+                        cx={vertex.x}
+                        cy={vertex.y}
+                        r={7 / c.viewport.zoom}
+                        fill={wire.color ?? '#e3212b'}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          c.setSelection({ kind: 'wire', id: wire.id, vertexIndex: index });
+                        }}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          c.removeWireVertexAt(wire.id, index);
+                        }}
+                        onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Изгиб провода ${index + 1}`}
+                      />
+                    ))
+                  : null}
+              </g>
+            );
+          })}
+          {c.pendingStart && c.wirePreviewEnd ? (
+            <path
+              className="workbench-wire-preview"
+              d={roundedOrthogonalPath(
+                wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices),
+              )}
+              stroke={c.activeWireColor}
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+        </g>
         {selectedWire && selectedWireFrom && selectedWireTo ? (
           <g className="workbench-wire-control-layer" data-testid="wire-control-layer">
             {(

@@ -204,6 +204,12 @@
   stroke: #bfe1ef;
   stroke-width: 3;
   cursor: move;
+  pointer-events: all;
+}
+
+.workbench-wire-vertex.active {
+  stroke: #fff;
+  stroke-width: 3.5;
 }
 
 .workbench-wire-endpoint {
@@ -457,6 +463,9 @@
 }
 .workbench-wire-layer {
   fill: none;
+}
+.workbench-wire-overlay {
+  isolation: isolate;
 }
 .workbench-mounted-leads line {
   stroke: #8d9599;

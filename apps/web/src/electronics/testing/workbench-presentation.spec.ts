@@ -91,14 +91,23 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.zoomBy(0.85)');
     expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
     expect(stageSource).toContain('onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}');
+    expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.wireDraftVertices');
+    expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
+      stageSource.indexOf('{orderedComponents'),
+    );
+    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeLessThan(
+      stageSource.indexOf('{orderedComponents'),
+    );
     const controllerSource = readFileSync(
       resolve(electronicsRoot, 'use-electronics-workbench.ts'),
       'utf8',
     );
     expect(controllerSource).toContain('catalogPlacement');
     expect(controllerSource).toContain('actuatorPressRef');
+    expect(controllerSource).toContain('lockOrthogonalPoint');
+    expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
     expect(stageSource).toContain('onPointerDownCapture={c.placeCatalogComponent}');
   });

@@ -238,6 +238,21 @@ describe('owner SVG integration in the real Electronics document', () => {
       stateProperties: { red: 20, green: 80, blue: 55, commonMode: 'common-anode' },
       pinIds: ['red', 'common', 'green', 'blue'],
     });
+    const rgb = document.components[0];
+    const pins = rgb
+      ? ['red', 'common', 'green', 'blue'].map((pinId) =>
+          terminalPosition(rgb, rgb.position, pinId, rgb.rotation ?? 0),
+        )
+      : [];
+    expect(pins.every(Boolean)).toBe(true);
+    expect(pins[0]?.y).toBeCloseTo((rgb?.position.y ?? 0) + 9.3 * WORLD_UNITS_PER_MM, 6);
+    for (let index = 1; index < pins.length; index += 1) {
+      expect(pins[index]?.y).toBeCloseTo(pins[0]?.y ?? 0, 6);
+      expect((pins[index]?.x ?? 0) - (pins[index - 1]?.x ?? 0)).toBeCloseTo(
+        2.54 * WORLD_UNITS_PER_MM,
+        6,
+      );
+    }
   });
 
   it('snaps a real four-pin footprint to stable 2.54mm holes and joins board nets', () => {

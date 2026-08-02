@@ -29084,28 +29084,28 @@
         {
           "id": "red",
           "xMm": 0.565,
-          "yMm": 10.125,
+          "yMm": 9.3,
           "electricalRole": "channel-red",
           "toleranceMm": 0.0
         },
         {
           "id": "common",
           "xMm": 3.105,
-          "yMm": 10.125,
+          "yMm": 9.3,
           "electricalRole": "common",
           "toleranceMm": 0.0
         },
         {
           "id": "green",
           "xMm": 5.645,
-          "yMm": 10.125,
+          "yMm": 9.3,
           "electricalRole": "channel-green",
           "toleranceMm": 0.0
         },
         {
           "id": "blue",
           "xMm": 8.185,
-          "yMm": 10.125,
+          "yMm": 9.3,
           "electricalRole": "channel-blue",
           "toleranceMm": 0.0
         }

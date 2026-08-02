@@ -57,9 +57,69 @@ export function defaultWirePoints(from: Point, to: Point): Point[] {
   return [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
 }
 
+function samePoint(left: Point, right: Point): boolean {
+  return left.x === right.x && left.y === right.y;
+}
+
+function simplifyOrthogonalPoints(points: readonly Point[]): Point[] {
+  const unique = points.filter(
+    (point, index) => index === 0 || !samePoint(point, points[index - 1] as Point),
+  );
+  const simplified: Point[] = [];
+  for (const point of unique) {
+    const previous = simplified[simplified.length - 1];
+    const beforePrevious = simplified[simplified.length - 2];
+    if (
+      previous &&
+      beforePrevious &&
+      ((beforePrevious.x === previous.x && previous.x === point.x) ||
+        (beforePrevious.y === previous.y && previous.y === point.y))
+    ) {
+      simplified[simplified.length - 1] = point;
+    } else {
+      simplified.push(point);
+    }
+  }
+  return simplified;
+}
+
+export function lockOrthogonalPoint(anchor: Point, point: Point): Point {
+  const snapped = { x: snap(point.x), y: snap(point.y) };
+  return Math.abs(snapped.x - anchor.x) >= Math.abs(snapped.y - anchor.y)
+    ? { x: snapped.x, y: anchor.y }
+    : { x: anchor.x, y: snapped.y };
+}
+
+export function orthogonalizePoints(points: readonly Point[]): Point[] {
+  if (points.length < 2) return [...points];
+  const route: Point[] = [points[0] as Point];
+  for (const target of points.slice(1)) {
+    const current = route[route.length - 1] as Point;
+    if (current.x !== target.x && current.y !== target.y) {
+      const previous = route[route.length - 2];
+      const continueHorizontally = previous
+        ? previous.y === current.y
+        : Math.abs(target.x - current.x) >= Math.abs(target.y - current.y);
+      route.push(
+        continueHorizontally ? { x: target.x, y: current.y } : { x: current.x, y: target.y },
+      );
+    }
+    route.push(target);
+  }
+  return simplifyOrthogonalPoints(route);
+}
+
 export function wirePoints(from: Point, to: Point, vertices?: readonly Point[]): Point[] {
-  if (vertices !== undefined) return [from, ...vertices, to];
+  if (vertices !== undefined) return orthogonalizePoints([from, ...vertices, to]);
   return defaultWirePoints(from, to);
+}
+
+export function orthogonalWireVertices(
+  from: Point,
+  vertices: readonly Point[],
+  to: Point,
+): Point[] {
+  return wirePoints(from, to, vertices).slice(1, -1);
 }
 
 export function cloneJson<T>(value: T): T {
