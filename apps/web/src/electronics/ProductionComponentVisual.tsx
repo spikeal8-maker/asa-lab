@@ -24,6 +24,10 @@ const TINKERCAD_RESISTOR_BAND_PATHS = [
   'M3.69-3.06h-7.38c0,0.63,0,1.58,0,2.56h7.38C3.69-1.48,3.69-2.43,3.69-3.06z',
   'M-4.8-9.2c0,0.22,0.02,0.41,0.03,0.6h9.53c0.01-0.2,0.03-0.38,0.03-0.6,0-0.13-0.01-0.25-0.03-0.37h-9.53C-4.78-9.45-4.8-9.33-4.8-9.2z',
 ] as const;
+const TINKERCAD_BUTTON_FRAME =
+  'M11-11.5c0.28,0,0.5,0.22,0.5,0.5v22c0,0.28-0.22,0.5-0.5,0.5h-22c-0.28,0-0.5-0.22-0.5-0.5v-22c0-0.28,0.22-0.5,0.5-0.5H11 M11-12h-22c-0.55,0-1,0.45-1,1v22c0,0.55,0.45,1,1,1h22c0.55,0,1-0.45,1-1v-22C12-11.55,11.55-12,11-12L11-12z';
+const TINKERCAD_BUTTON_RIM =
+  'M0-6.99c-3.86,0-6.99,3.13-6.99,6.99S-3.86,6.99,0,6.99c3.86,0,6.99-3.13,6.99-6.99C6.99-3.86,3.86-6.99,0-6.99z M0,6.44c-3.56,0-6.43-2.88-6.43-6.44S-3.55-6.44,0-6.44c3.56,0,6.44,2.88,6.44,6.44S3.56,6.44,0,6.44z';
 
 interface Props {
   readonly entry: CatalogEntry;
@@ -78,6 +82,12 @@ export function ProductionComponentVisual({
       : null;
   const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
+  const usesMeasuredTinkercadGeometry = [
+    'resistor-axial',
+    'diode-do35',
+    'button-tactile-6mm',
+    'switch-spdt',
+  ].includes(entry.key);
   return (
     <svg
       className="workbench-production-visual"
@@ -87,7 +97,7 @@ export function ProductionComponentVisual({
       overflow="visible"
       aria-hidden="true"
     >
-      {selected && entry.key !== 'resistor-axial' && entry.key !== 'diode-do35' ? (
+      {selected && !usesMeasuredTinkercadGeometry ? (
         <g className="workbench-selection-silhouette" pointerEvents="none" aria-hidden="true">
           <defs>
             <filter
@@ -222,6 +232,130 @@ export function ProductionComponentVisual({
           ) : null}
           <rect x="-4.75" y="-12.5" width="9.5" height="25" rx="1" fill="#333333" />
           <rect x="-4.75" y="5.5" width="9.5" height="2.3" fill="#67757f" />
+        </g>
+      ) : entry.key === 'button-tactile-6mm' ? (
+        <g
+          className="workbench-tinkercad-button"
+          data-visual-contract="tinkercad-four-pin-6x6"
+          transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
+        >
+          <line
+            x1="-10"
+            y1="-15"
+            x2="-10"
+            y2="15"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <line
+            x1="10"
+            y1="-15"
+            x2="10"
+            y2="15"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="-10"
+                y1="-15"
+                x2="-10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <line
+                x1="10"
+                y1="-15"
+                x2="10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <rect
+                x="-12"
+                y="-12"
+                width="24"
+                height="24"
+                rx="1"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth="3"
+              />
+            </g>
+          ) : null}
+          <rect x="-12" y="-12" width="24" height="24" rx="1" fill="#bfbfbf" />
+          <path d={TINKERCAD_BUTTON_FRAME} fill="#a3a3a3" />
+          {[
+            [-8.58, -8.58],
+            [8.58, -8.58],
+            [-8.58, 8.57],
+            [8.58, 8.57],
+          ].map(([cx, cy]) => (
+            <circle key={`${cx}:${cy}`} cx={cx} cy={cy} r="2.5" fill="#4c4c4c" />
+          ))}
+          {visualState !== 'pressed' ? <circle cx="0" cy="1.5" r="6.99" opacity="0.3" /> : null}
+          <circle cx="0" cy="0" r="6.99" fill="#333333" />
+          <path d={TINKERCAD_BUTTON_RIM} fill="#f4f4f4" opacity="0.2" />
+        </g>
+      ) : entry.key === 'switch-spdt' ? (
+        <g
+          className="workbench-tinkercad-switch"
+          data-visual-contract="tinkercad-spdt-three-pin"
+          transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
+        >
+          {[-10, 0, 10].map((x) => (
+            <line
+              key={`pin-${x}`}
+              x1={x}
+              y1="0"
+              x2={x}
+              y2="-5"
+              stroke="#8c8c8c"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          ))}
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              {[-10, 0, 10].map((x) => (
+                <line
+                  key={`selected-${x}`}
+                  x1={x}
+                  y1="0"
+                  x2={x}
+                  y2="-5"
+                  stroke="#3b8ed7"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              ))}
+              <rect
+                x="-14"
+                y="-15"
+                width="28"
+                height="10"
+                rx="1"
+                fill="#3b8ed7"
+                stroke="#3b8ed7"
+                strokeWidth="3.5"
+              />
+            </g>
+          ) : null}
+          <g transform="translate(0 -10)">
+            <rect x="-14" y="-5" width="28" height="10" rx="1" fill="#565656" />
+            <rect x="-9.5" y="-3.75" width="19" height="7.5" fill="#222222" />
+            <g transform={visualState === 'on' ? undefined : 'translate(-10 0)'} stroke="#afafaf">
+              {[2, 3.5, 5, 6.5, 8].map((x) => (
+                <line key={x} x1={x} y1="-2.75" x2={x} y2="2.75" />
+              ))}
+            </g>
+          </g>
         </g>
       ) : (
         <image href={asset} width={width} height={height} preserveAspectRatio={imageFit} />

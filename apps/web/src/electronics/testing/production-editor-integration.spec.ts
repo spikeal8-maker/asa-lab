@@ -38,7 +38,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'led-5mm': [4.8381, 8.0635],
   'button-tactile-6mm': [10, 10],
   potentiometer: [12.131, 13.66],
-  'switch-spdt': [18, 10],
+  'switch-spdt': [7.112, 3.81],
   'breadboard-small': [47, 35],
   'breadboard-medium': [83, 55],
   'breadboard-large': [165.1, 54.6],

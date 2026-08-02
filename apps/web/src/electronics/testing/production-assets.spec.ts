@@ -63,6 +63,21 @@ describe('Electronics owner SVG foundation', () => {
       (led?.terminals.cathode?.xMm ?? 0) - (led?.terminals.anode?.xMm ?? 0),
     ).toBeCloseTo(2.54, 4);
 
+    const button = catalog.find((item) => item.key === 'button-tactile-6mm');
+    expect(button?.physicalSizeMm).toEqual({ width: 10, height: 10 });
+    expect(
+      (button?.terminals['SW-B1']?.xMm ?? 0) - (button?.terminals['SW-A1']?.xMm ?? 0),
+    ).toBeCloseTo(5.08, 4);
+    expect(
+      (button?.terminals['SW-A2']?.yMm ?? 0) - (button?.terminals['SW-A1']?.yMm ?? 0),
+    ).toBeCloseTo(7.62, 4);
+
+    const spdt = catalog.find((item) => item.key === 'switch-spdt');
+    expect(spdt?.physicalSizeMm).toEqual({ width: 7.112, height: 3.81 });
+    expect(
+      (spdt?.terminals.common?.xMm ?? 0) - (spdt?.terminals['throw-left']?.xMm ?? 0),
+    ).toBeCloseTo(2.54, 4);
+
     const batteryOne = catalog.find((item) => item.key === 'battery-holder-aa-1');
     expect(batteryOne?.physicalSizeMm).toEqual({ width: 20, height: 60.2 });
     for (const item of catalog.filter((candidate) => candidate.familyId === 'battery-holder-aa')) {

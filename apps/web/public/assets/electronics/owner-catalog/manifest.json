@@ -16814,29 +16814,29 @@
       "pins": [
         {
           "id": "SW-A1",
-          "xMm": 2.65,
-          "yMm": 1.2,
+          "xMm": 2.46,
+          "yMm": 1.19,
           "electricalRole": "paired-a",
           "toleranceMm": 0.0
         },
         {
           "id": "SW-B1",
-          "xMm": 7.35,
-          "yMm": 1.2,
+          "xMm": 7.54,
+          "yMm": 1.19,
           "electricalRole": "paired-b",
           "toleranceMm": 0.0
         },
         {
           "id": "SW-A2",
-          "xMm": 2.65,
-          "yMm": 8.8,
+          "xMm": 2.46,
+          "yMm": 8.81,
           "electricalRole": "paired-a",
           "toleranceMm": 0.0
         },
         {
           "id": "SW-B2",
-          "xMm": 7.35,
-          "yMm": 8.8,
+          "xMm": 7.54,
+          "yMm": 8.81,
           "electricalRole": "paired-b",
           "toleranceMm": 0.0
         }
@@ -17066,28 +17066,28 @@
       "searchAliases": ["switch-spdt", "Ползунковый переключатель", "SPDT slide switch"],
       "displayNameEn": "SPDT slide switch",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 18.0,
-      "physicalHeightMm": 10.0,
-      "viewBox": [0, 0, 18.0, 10.0],
+      "physicalWidthMm": 7.112,
+      "physicalHeightMm": 3.81,
+      "viewBox": [0, 0, 7.112, 3.81],
       "pins": [
         {
           "id": "throw-left",
-          "xMm": 6.46,
-          "yMm": 9.0,
+          "xMm": 1.016,
+          "yMm": 3.81,
           "electricalRole": "throw",
           "toleranceMm": 0.0
         },
         {
           "id": "common",
-          "xMm": 9.0,
-          "yMm": 9.0,
+          "xMm": 3.556,
+          "yMm": 3.81,
           "electricalRole": "common",
           "toleranceMm": 0.0
         },
         {
           "id": "throw-right",
-          "xMm": 11.54,
-          "yMm": 9.0,
+          "xMm": 6.096,
+          "yMm": 3.81,
           "electricalRole": "throw",
           "toleranceMm": 0.0
         }

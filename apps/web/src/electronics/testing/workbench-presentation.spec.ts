@@ -51,6 +51,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-selection-box');
     expect(stageSource).toContain("workbench-part${selected ? ' selected' : ''}");
     expect(productionVisualSource).toContain('workbench-selection-silhouette');
+    expect(productionVisualSource).toContain('tinkercad-four-pin-6x6');
+    expect(productionVisualSource).toContain('tinkercad-spdt-three-pin');
     expect(stageSource).toContain('selectionOffset={1.6 / c.viewport.zoom}');
     expect(productionVisualSource).toContain('<feMorphology');
     expect(productionVisualSource).toContain('operator="dilate"');
