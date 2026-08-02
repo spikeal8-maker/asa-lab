@@ -37,7 +37,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
   'button-tactile-6mm': [10, 10],
-  potentiometer: [12.131, 13.66],
+  potentiometer: [12.192, 13.716],
   'switch-spdt': [7.112, 3.81],
   'breadboard-small': [47, 35],
   'breadboard-medium': [83, 55],
@@ -405,6 +405,18 @@ describe('owner SVG integration in the real Electronics document', () => {
         new Set(Object.values(bindings).map((binding) => binding.holeId)).size,
         componentTypeId,
       ).toBe(Object.keys(bindings).length);
+      for (const pinId of snapped?.pinIds ?? []) {
+        const physical = snapped
+          ? terminalPosition(snapped, snapped.position, pinId, snapped.rotation ?? 0)
+          : null;
+        const landing = snapped ? terminalPositionInDocument(document, snapped, pinId) : null;
+        expect(physical && landing, `${componentTypeId}:${pinId}:landing`).toBeTruthy();
+        if (!physical || !landing) continue;
+        expect(
+          Math.hypot(physical.x - landing.x, physical.y - landing.y) / WORLD_UNITS_PER_MM,
+          `${componentTypeId}:${pinId}:landing-error-mm`,
+        ).toBeLessThanOrEqual(0.01);
+      }
     }
   });
 });

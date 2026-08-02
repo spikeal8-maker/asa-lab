@@ -78,6 +78,17 @@ describe('Electronics owner SVG foundation', () => {
       (spdt?.terminals.common?.xMm ?? 0) - (spdt?.terminals['throw-left']?.xMm ?? 0),
     ).toBeCloseTo(2.54, 4);
 
+    const potentiometer = catalog.find((item) => item.key === 'potentiometer');
+    expect(potentiometer?.physicalSizeMm).toEqual({ width: 12.192, height: 13.716 });
+    expect(
+      (potentiometer?.terminals.wiper?.xMm ?? 0) -
+        (potentiometer?.terminals['terminal-1']?.xMm ?? 0),
+    ).toBeCloseTo(2.54, 4);
+    expect(
+      (potentiometer?.terminals['terminal-2']?.xMm ?? 0) -
+        (potentiometer?.terminals.wiper?.xMm ?? 0),
+    ).toBeCloseTo(2.54, 4);
+
     const batteryOne = catalog.find((item) => item.key === 'battery-holder-aa-1');
     expect(batteryOne?.physicalSizeMm).toEqual({ width: 20, height: 60.2 });
     for (const item of catalog.filter((candidate) => candidate.familyId === 'battery-holder-aa')) {

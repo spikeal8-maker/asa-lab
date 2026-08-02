@@ -16921,28 +16921,28 @@
       "searchAliases": ["potentiometer", "Потенциометр", "Поворотный"],
       "displayNameEn": "potentiometer",
       "provenance": "exact_owner_svg",
-      "physicalWidthMm": 12.131,
-      "physicalHeightMm": 13.66,
-      "viewBox": [0, 0, 12.131, 13.66],
+      "physicalWidthMm": 12.192,
+      "physicalHeightMm": 13.716,
+      "viewBox": [0, 0, 12.192, 13.716],
       "pins": [
         {
           "id": "terminal-1",
-          "xMm": 3.8068,
-          "yMm": 12.9035,
+          "xMm": 3.556,
+          "yMm": 13.716,
           "electricalRole": "terminal-1",
           "toleranceMm": 0.0
         },
         {
           "id": "terminal-2",
-          "xMm": 8.3051,
-          "yMm": 12.8756,
+          "xMm": 8.636,
+          "yMm": 13.716,
           "electricalRole": "terminal-2",
           "toleranceMm": 0.0
         },
         {
           "id": "wiper",
-          "xMm": 6.0559,
-          "yMm": 12.9035,
+          "xMm": 6.096,
+          "yMm": 13.716,
           "electricalRole": "wiper",
           "toleranceMm": 0.0
         }
