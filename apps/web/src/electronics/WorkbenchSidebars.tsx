@@ -159,6 +159,7 @@ export function WorkbenchSidebars({
                         <ComponentPreview
                           preview={selectedVariant.entry.preview}
                           asset={visualAsset(selectedVariant.entry)}
+                          entry={selectedVariant.entry}
                         />
                       </span>
                       <span className="workbench-catalog-copy">

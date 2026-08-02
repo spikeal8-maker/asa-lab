@@ -1357,6 +1357,18 @@
   max-width: 65px;
   max-height: 61px;
 }
+.workbench-component-vector-preview {
+  display: grid;
+  place-items: center;
+  width: 65px;
+  height: 61px;
+}
+.workbench-component-vector-preview .workbench-production-visual {
+  width: 100%;
+  height: 100%;
+  max-width: 65px;
+  max-height: 61px;
+}
 .workbench-catalog-grid.list-view {
   display: grid;
   grid-template-columns: 1fr;

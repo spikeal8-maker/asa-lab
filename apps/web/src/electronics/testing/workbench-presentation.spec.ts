@@ -11,6 +11,7 @@ const productionVisualSource = readFileSync(
   resolve(electronicsRoot, 'ProductionComponentVisual.tsx'),
   'utf8',
 );
+const previewSource = readFileSync(resolve(electronicsRoot, 'component-preview.tsx'), 'utf8');
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
@@ -43,6 +44,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('workbench-catalog-copy');
     expect(sidebarSource).toContain('selectedVariant.entry.description');
     expect(sidebarSource).toContain('c.beginFamilyPlacement(family.familyId)');
+    expect(sidebarSource).toContain('entry={selectedVariant.entry}');
+    expect(previewSource).toContain('<ProductionComponentVisual');
+    expect(workbenchCss).toContain('.workbench-component-vector-preview');
   });
 
   it('matches the compact editor chrome and shape-following selection contract', () => {
