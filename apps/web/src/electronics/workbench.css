@@ -367,6 +367,21 @@
   fill: rgba(255, 255, 255, 0.01);
   cursor: crosshair;
 }
+.workbench-breadboard-net-ring {
+  fill: none;
+  stroke: #7f5cc8;
+  stroke-width: 1.8;
+  opacity: 0;
+  pointer-events: none;
+}
+.workbench-breadboard-terminal.connected .workbench-breadboard-net-ring {
+  opacity: 0.95;
+}
+.workbench-breadboard-terminal.landing .workbench-breadboard-net-ring {
+  stroke: #1596ce;
+  stroke-width: 2.2;
+  opacity: 1;
+}
 .workbench-breadboard-terminal:hover .workbench-breadboard-hole,
 .workbench-breadboard-terminal.pending .workbench-breadboard-hole {
   opacity: 1;
@@ -412,6 +427,11 @@
 }
 .workbench-wire-layer {
   fill: none;
+}
+.workbench-mounted-leads line {
+  stroke: #8d9599;
+  stroke-linecap: round;
+  stroke-width: 2.2;
 }
 .workbench-wire {
   fill: none;

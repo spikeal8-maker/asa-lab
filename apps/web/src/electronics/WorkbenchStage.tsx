@@ -1,4 +1,4 @@
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   catalogEntry,
   componentPointPosition,
@@ -10,6 +10,7 @@ import { productionBreadboard } from './production-manifest-adapter';
 import { roundedOrthogonalPath, wirePoints } from './workbench-geometry';
 import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
+import { terminalPositionInDocument } from './workbench-document';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 export function WorkbenchStage({
@@ -20,6 +21,28 @@ export function WorkbenchStage({
   showGrid: boolean;
 }): JSX.Element {
   const document = c.document!;
+  const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<{
+    boardId: string;
+    groupId: string;
+  } | null>(null);
+  const orderedComponents = [
+    ...document.components.filter((component) => component.kind === 'breadboard'),
+    ...document.components.filter((component) => component.kind !== 'breadboard'),
+  ];
+  const selectedLandingHoles = new Set(
+    c.selection?.kind === 'component'
+      ? document.components
+          .filter(
+            (component) =>
+              c.selection?.kind === 'component' && c.selection.ids.includes(component.id),
+          )
+          .flatMap((component) =>
+            Object.values(component.holeBindings ?? {}).map(
+              (binding) => `${binding.breadboardComponentId}:${binding.holeId}`,
+            ),
+          )
+      : [],
+  );
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <svg
@@ -62,18 +85,8 @@ export function WorkbenchStage({
             );
             const toComponent = document.components.find((item) => item.id === wire.to.componentId);
             if (!fromComponent || !toComponent) return null;
-            const from = terminalPosition(
-              fromComponent,
-              fromComponent.position,
-              wire.from.terminal,
-              fromComponent.rotation ?? 0,
-            );
-            const to = terminalPosition(
-              toComponent,
-              toComponent.position,
-              wire.to.terminal,
-              toComponent.rotation ?? 0,
-            );
+            const from = terminalPositionInDocument(document, fromComponent, wire.from.terminal);
+            const to = terminalPositionInDocument(document, toComponent, wire.to.terminal);
             if (!from || !to) return null;
             const path = roundedOrthogonalPath(wirePoints(from, to, wire.vertices));
             const selected = c.selection?.kind === 'wire' && c.selection.id === wire.id;
@@ -122,7 +135,7 @@ export function WorkbenchStage({
             />
           ) : null}
         </g>
-        {document.components
+        {orderedComponents
           .filter((component) => component.kind !== 'wire')
           .map((component) => {
             const entry = catalogEntry(component);
@@ -155,6 +168,33 @@ export function WorkbenchStage({
                 data-x={component.position.x}
                 data-y={component.position.y}
               >
+                {Object.keys(component.holeBindings ?? {}).length > 0 ? (
+                  <g className="workbench-mounted-leads" pointerEvents="none" aria-hidden="true">
+                    {Object.keys(component.holeBindings ?? {}).map((terminal) => {
+                      const physicalPoint = terminalPosition(
+                        component,
+                        component.position,
+                        terminal,
+                        component.rotation ?? 0,
+                      );
+                      const landingPoint = terminalPositionInDocument(
+                        document,
+                        component,
+                        terminal,
+                      );
+                      if (!physicalPoint || !landingPoint) return null;
+                      return (
+                        <line
+                          key={terminal}
+                          x1={physicalPoint.x}
+                          y1={physicalPoint.y}
+                          x2={landingPoint.x}
+                          y2={landingPoint.y}
+                        />
+                      );
+                    })}
+                  </g>
+                ) : null}
                 <g
                   className={`workbench-part${selected ? ' selected' : ''}`}
                   transform={componentTransform(component)}
@@ -181,6 +221,7 @@ export function WorkbenchStage({
                     visualState={visualState}
                     effectiveBrightness={c.componentLedBrightness(component)}
                     selected={selected}
+                    simulationRunning={c.simulationRunning}
                   />
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle
@@ -206,11 +247,23 @@ export function WorkbenchStage({
                         const pending =
                           c.pendingTerminal?.componentId === component.id &&
                           c.pendingTerminal.terminal === hole.id;
+                        const connected =
+                          hoveredBreadboardNet?.boardId === component.id &&
+                          hoveredBreadboardNet.groupId === hole.groupId;
+                        const landing = selectedLandingHoles.has(`${component.id}:${hole.id}`);
                         return (
                           <g
                             key={hole.id}
-                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}`}
+                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${connected ? ' connected' : ''}${landing ? ' landing' : ''}`}
                             data-hole-id={hole.id}
+                            data-group-id={hole.groupId}
+                            onPointerEnter={() =>
+                              setHoveredBreadboardNet({
+                                boardId: component.id,
+                                groupId: hole.groupId,
+                              })
+                            }
+                            onPointerLeave={() => setHoveredBreadboardNet(null)}
                           >
                             <circle
                               className="workbench-breadboard-hole-hit"
@@ -240,6 +293,12 @@ export function WorkbenchStage({
                             >
                               <title>{hole.id}</title>
                             </circle>
+                            <circle
+                              className="workbench-breadboard-net-ring"
+                              cx={point.x}
+                              cy={point.y}
+                              r="4.5"
+                            />
                           </g>
                         );
                       },

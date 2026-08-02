@@ -1,4 +1,5 @@
 export const WORLD_UNITS_PER_MM = 5 as const;
+export const BREADBOARD_PITCH_MM = 2.54 as const;
 export const PIN_ANCHOR_TOLERANCE_MM = 0.25 as const;
 
 export type OrdinaryLedColour = 'blue' | 'green' | 'orange' | 'red' | 'white' | 'yellow';

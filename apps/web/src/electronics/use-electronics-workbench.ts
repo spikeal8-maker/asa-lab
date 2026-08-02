@@ -17,7 +17,6 @@ import {
   familySearchText,
   renderedSize,
   selectedFamilyVariant,
-  terminalPosition,
   workbenchCatalog,
   type ComponentCategory,
   type ComponentVisualState,
@@ -34,6 +33,7 @@ import {
 import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
   addComponentToDocument,
+  componentsBoundToBreadboard,
   connectTerminals,
   duplicateComponentInDocument,
   moveComponentInDocument,
@@ -46,6 +46,7 @@ import {
   rotateSelectionInDocument,
   sceneBounds,
   snapComponentToBreadboard,
+  terminalPositionInDocument,
   toggleSelectedWireRoute,
   updateSelectedWireColor,
   updateSelectionName,
@@ -505,10 +506,21 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     const point = toWorld(event);
-    const componentIds =
+    const selectedComponentIds =
       selection?.kind === 'component' && selection.ids.includes(component.id)
         ? selection.ids
         : [component.id];
+    const componentIds = [
+      ...new Set([
+        ...selectedComponentIds,
+        ...selectedComponentIds.flatMap((id) => {
+          const selected = document?.components.find((item) => item.id === id);
+          return selected?.kind === 'breadboard' && document
+            ? componentsBoundToBreadboard(document, id)
+            : [];
+        }),
+      ]),
+    ];
     const startedPositions = Object.fromEntries(
       document?.components
         .filter((item) => componentIds.includes(item.id))
@@ -644,10 +656,14 @@ export function useElectronicsWorkbench(projectId: string) {
           return [id, { x: start.x + delta.x, y: start.y + delta.y }];
         }),
       );
-      setDocument(
+      const movedDocument =
         drag.componentIds.length === 1
           ? moveComponentInDocument(document, drag.componentId, next)
-          : moveComponentsInDocument(document, positions),
+          : moveComponentsInDocument(document, positions);
+      setDocument(
+        drag.componentIds.length === 1 && component.kind !== 'breadboard'
+          ? snapComponentToBreadboard(movedDocument, drag.componentId)
+          : movedDocument,
       );
       setSaveStatus('dirty');
       return;
@@ -946,12 +962,7 @@ export function useElectronicsWorkbench(projectId: string) {
             (item) => item.id === pendingTerminal.componentId,
           );
           return component
-            ? terminalPosition(
-                component,
-                component.position,
-                pendingTerminal.terminal,
-                component.rotation ?? 0,
-              )
+            ? terminalPositionInDocument(document, component, pendingTerminal.terminal)
             : null;
         })()
       : null;

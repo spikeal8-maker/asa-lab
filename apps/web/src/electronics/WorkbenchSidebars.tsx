@@ -426,24 +426,9 @@ export function WorkbenchSidebars({
                       }
                     />
                   </label>
-                  <label>
-                    <span>
-                      Яркость:{' '}
-                      {Number(c.selectedComponent.stateProperties?.['segmentBrightness'] ?? 100)}%
-                    </span>
-                    <input
-                      aria-label="Яркость семисегментного индикатора"
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={Number(
-                        c.selectedComponent.stateProperties?.['segmentBrightness'] ?? 100,
-                      )}
-                      onChange={(event) =>
-                        c.setSelectedProperties({ segmentBrightness: Number(event.target.value) })
-                      }
-                    />
-                  </label>
+                  <p className="workbench-simulation-note">
+                    Яркость сегментов определяется электрической схемой при моделировании.
+                  </p>
                 </fieldset>
               ) : null}
 

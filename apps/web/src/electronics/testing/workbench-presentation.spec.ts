@@ -21,6 +21,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-terminal-dot\s*\{[^}]*opacity:\s*0;/s);
     expect(workbenchCss).toContain('.workbench-canvas.wiring .workbench-terminal-dot');
     expect(workbenchCss).toMatch(/\.workbench-breadboard-hole\s*\{[^}]*opacity:\s*0;/s);
+    expect(stageSource).toContain('hoveredBreadboardNet.groupId === hole.groupId');
+    expect(stageSource).toContain('workbench-breadboard-net-ring');
+    expect(workbenchCss).toContain('.workbench-breadboard-terminal.connected');
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {

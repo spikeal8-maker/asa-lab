@@ -11194,7 +11194,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [7.62, 0]
+          [0, 10.16]
         ]
       },
       "states": [],
@@ -16946,7 +16946,14 @@
           "toleranceMm": 0.0
         }
       ],
-      "footprint": null,
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [5.08, 0],
+          [2.54, 0]
+        ]
+      },
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -28926,7 +28933,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [7.62, 0]
+          [20.32, 0]
         ]
       },
       "states": ["default"],
@@ -29006,7 +29013,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [7.62, 0]
+          [20.32, 0]
         ]
       },
       "states": ["default"],
@@ -29341,70 +29348,70 @@
         {
           "id": "top-1",
           "xMm": 1.27,
-          "yMm": 0.0,
+          "yMm": 1.905,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "top-2",
           "xMm": 3.81,
-          "yMm": 0.0,
+          "yMm": 1.905,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "top-3",
           "xMm": 6.35,
-          "yMm": 0.0,
+          "yMm": 1.905,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "top-4",
           "xMm": 8.89,
-          "yMm": 0.0,
+          "yMm": 1.905,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "top-5",
           "xMm": 11.43,
-          "yMm": 0.0,
+          "yMm": 1.905,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "bottom-1",
           "xMm": 1.27,
-          "yMm": 19.05,
+          "yMm": 17.145,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "bottom-2",
           "xMm": 3.81,
-          "yMm": 19.05,
+          "yMm": 17.145,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "bottom-3",
           "xMm": 6.35,
-          "yMm": 19.05,
+          "yMm": 17.145,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "bottom-4",
           "xMm": 8.89,
-          "yMm": 19.05,
+          "yMm": 17.145,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         },
         {
           "id": "bottom-5",
           "xMm": 11.43,
-          "yMm": 19.05,
+          "yMm": 17.145,
           "electricalRole": "segment_pin",
           "toleranceMm": 0.0
         }
@@ -29501,7 +29508,13 @@
           "toleranceMm": 0.0
         }
       ],
-      "footprint": null,
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0]
+        ]
+      },
       "states": ["off", "dim", "on", "max"],
       "stateAssets": [
         {
@@ -29932,11 +29945,20 @@
       ]
     },
     {
+      "componentId": "potentiometer",
+      "kind": "inline",
+      "pinOffsetsMm": [
+        [0, 0],
+        [5.08, 0],
+        [2.54, 0]
+      ]
+    },
+    {
       "componentId": "resistor-axial",
       "kind": "axial",
       "pinOffsetsMm": [
         [0, 0],
-        [7.62, 0]
+        [0, 10.16]
       ]
     },
     {
@@ -29962,7 +29984,7 @@
       "kind": "axial",
       "pinOffsetsMm": [
         [0, 0],
-        [7.62, 0]
+        [20.32, 0]
       ]
     },
     {
@@ -29970,7 +29992,7 @@
       "kind": "axial",
       "pinOffsetsMm": [
         [0, 0],
-        [7.62, 0]
+        [20.32, 0]
       ]
     },
     {
@@ -29987,6 +30009,14 @@
         [5.08, 15.24],
         [7.62, 15.24],
         [10.16, 15.24]
+      ]
+    },
+    {
+      "componentId": "incandescent-lamp",
+      "kind": "inline",
+      "pinOffsetsMm": [
+        [0, 0],
+        [2.54, 0]
       ]
     }
   ]

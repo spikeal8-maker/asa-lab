@@ -1,6 +1,6 @@
 import type { ComponentKind, ProductionStateValue } from '../api';
 import type { PreviewKey } from './component-preview';
-import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
+import { BREADBOARD_PITCH_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 
 export const OWNER_CATALOG_MANIFEST_URL = '/assets/electronics/owner-catalog/manifest.json';
 
@@ -276,7 +276,7 @@ function defaults(componentId: string): {
     return {
       value: 0,
       unit: '',
-      properties: { glyph: '0', segmentMask: '', segmentBrightness: 100 },
+      properties: { glyph: '0', segmentMask: '', segmentBrightness: 0 },
     };
   if (componentId === 'button-tactile-6mm')
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };
@@ -414,6 +414,13 @@ export function configureProductionLibrary(manifest: OwnerCatalogManifest): void
     throw new Error(
       `owner catalog worldUnitsPerMm=${manifest.worldUnitsPerMm}, expected ${WORLD_UNITS_PER_MM}`,
     );
+  }
+  for (const board of manifest.breadboards) {
+    if (board.pitchMm !== BREADBOARD_PITCH_MM) {
+      throw new Error(
+        `owner breadboard ${board.componentId} pitchMm=${board.pitchMm}, expected ${BREADBOARD_PITCH_MM}`,
+      );
+    }
   }
   ownerItems = manifest.components.map(toCatalogItem);
   catalog = ownerItems.filter((item) => item.enabled);

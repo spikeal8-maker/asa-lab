@@ -5,8 +5,13 @@ import type {
   SchematicDocument,
   Terminal,
 } from '../api';
-import { catalogEntry, renderedSize, terminalPosition } from './component-catalog';
-import { WORLD_UNITS_PER_MM } from './production-asset-contracts';
+import {
+  catalogEntry,
+  componentPointPosition,
+  renderedSize,
+  terminalPosition,
+} from './component-catalog';
+import { PIN_ANCHOR_TOLERANCE_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
 import { snap, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
@@ -424,44 +429,103 @@ export function snapComponentToBreadboard(
   ) {
     return document;
   }
-  const firstPin = entry.terminals[pinIds[0] as string];
-  if (!firstPin) return document;
-  const firstPoint = terminalPosition(
-    component,
-    component.position,
-    firstPin.id,
-    component.rotation ?? 0,
+  const pinPoints = pinIds.map((pinId) =>
+    terminalPosition(component, component.position, pinId, component.rotation ?? 0),
   );
-  if (!firstPoint) return document;
+  if (pinPoints.some((point) => point === null)) return document;
+
+  const normalizedRotation = (((component.rotation ?? 0) % 360) + 360) % 360;
+  const mirrorX = component.stateProperties?.['mirrorX'] === true ? -1 : 1;
+  const mirrorY = component.stateProperties?.['mirrorY'] === true ? -1 : 1;
+  const footprintOffsetWorld = ([rawX, rawY]: readonly [number, number]): Point => {
+    const x = rawX * mirrorX * WORLD_UNITS_PER_MM;
+    const y = rawY * mirrorY * WORLD_UNITS_PER_MM;
+    if (normalizedRotation === 90) return { x: -y, y: x };
+    if (normalizedRotation === 180) return { x: -x, y: -y };
+    if (normalizedRotation === 270) return { x: y, y: -x };
+    return { x, y };
+  };
+  const footprintOffsets = offsets.map(footprintOffsetWorld);
+  const rigidFootprint = ['rectangle', 'dual-inline'].includes(entry.footprint?.kind ?? '');
+  const maximumLeadAdjustment =
+    (rigidFootprint ? PIN_ANCHOR_TOLERANCE_MM : 1.6) * WORLD_UNITS_PER_MM;
 
   let best: {
     board: SchematicComponent;
     holes: { id: string; xMm: number; yMm: number }[];
-    distance: number;
+    translation: Point;
+    score: number;
   } | null = null;
   for (const boardComponent of document.components.filter((item) => item.kind === 'breadboard')) {
     const board = productionBreadboard(boardComponent.componentTypeId ?? '');
     if (!board) continue;
-    for (const originHole of board.holes) {
-      const originWorld = {
-        x: boardComponent.position.x + originHole.xMm * WORLD_UNITS_PER_MM,
-        y: boardComponent.position.y + originHole.yMm * WORLD_UNITS_PER_MM,
-      };
-      const distance = Math.hypot(originWorld.x - firstPoint.x, originWorld.y - firstPoint.y);
-      if (distance > 30 || (best && best.distance <= distance)) continue;
-      const holes = offsets.flatMap(([dxMm, dyMm]) => {
-        const targetX = originHole.xMm + dxMm;
-        const targetY = originHole.yMm + dyMm;
-        const hole = board.holes.find(
-          (candidate) => Math.hypot(candidate.xMm - targetX, candidate.yMm - targetY) <= 0.25,
+    const holeWorld = new Map(
+      board.holes.flatMap((hole) => {
+        const point = componentPointPosition(
+          boardComponent,
+          boardComponent.position,
+          hole,
+          boardComponent.rotation ?? 0,
         );
-        return hole ? [{ id: hole.id, xMm: hole.xMm, yMm: hole.yMm }] : [];
+        return point ? [[hole.id, point] as const] : [];
+      }),
+    );
+    for (const originHole of board.holes) {
+      const originWorld = holeWorld.get(originHole.id);
+      if (!originWorld) continue;
+      if (
+        Math.hypot(
+          originWorld.x - (pinPoints[0] as Point).x,
+          originWorld.y - (pinPoints[0] as Point).y,
+        ) > 30
+      )
+        continue;
+      const holes = footprintOffsets.flatMap((offset) => {
+        const target = { x: originWorld.x + offset.x, y: originWorld.y + offset.y };
+        let nearest: { hole: (typeof board.holes)[number]; distance: number } | null = null;
+        for (const candidate of board.holes) {
+          const point = holeWorld.get(candidate.id);
+          if (!point) continue;
+          const distance = Math.hypot(point.x - target.x, point.y - target.y);
+          if (!nearest || distance < nearest.distance) nearest = { hole: candidate, distance };
+        }
+        return nearest && nearest.distance <= PIN_ANCHOR_TOLERANCE_MM * WORLD_UNITS_PER_MM
+          ? [{ id: nearest.hole.id, xMm: nearest.hole.xMm, yMm: nearest.hole.yMm }]
+          : [];
       });
       if (
-        holes.length === offsets.length &&
+        holes.length === footprintOffsets.length &&
         new Set(holes.map((hole) => hole.id)).size === holes.length
       ) {
-        best = { board: boardComponent, holes, distance };
+        const targetPoints = holes.map((hole) => holeWorld.get(hole.id) as Point);
+        const translationSum = targetPoints.reduce(
+          (sum, target, index) => ({
+            x: sum.x + target.x - (pinPoints[index] as Point).x,
+            y: sum.y + target.y - (pinPoints[index] as Point).y,
+          }),
+          { x: 0, y: 0 },
+        );
+        const translation = {
+          x: translationSum.x / targetPoints.length,
+          y: translationSum.y / targetPoints.length,
+        };
+        const maximumError = Math.max(
+          ...targetPoints.map((target, index) =>
+            Math.hypot(
+              (pinPoints[index] as Point).x + translation.x - target.x,
+              (pinPoints[index] as Point).y + translation.y - target.y,
+            ),
+          ),
+        );
+        const distance = Math.hypot(translation.x, translation.y);
+        const score = distance + maximumError * 4;
+        if (
+          distance <= 30 &&
+          maximumError <= maximumLeadAdjustment &&
+          (!best || score < best.score)
+        ) {
+          best = { board: boardComponent, holes, translation, score };
+        }
       }
     }
   }
@@ -474,14 +538,9 @@ export function snapComponentToBreadboard(
       ),
     };
   }
-  const firstHole = best.holes[0] as { id: string; xMm: number; yMm: number };
   const alignedPosition = {
-    x:
-      component.position.x +
-      (best.board.position.x + firstHole.xMm * WORLD_UNITS_PER_MM - firstPoint.x),
-    y:
-      component.position.y +
-      (best.board.position.y + firstHole.yMm * WORLD_UNITS_PER_MM - firstPoint.y),
+    x: component.position.x + best.translation.x,
+    y: component.position.y + best.translation.y,
   };
   const holeBindings = Object.fromEntries(
     pinIds.map((pinId, index) => [
@@ -495,6 +554,45 @@ export function snapComponentToBreadboard(
       item.id === componentId ? { ...item, position: alignedPosition, holeBindings } : item,
     ),
   };
+}
+
+export function componentsBoundToBreadboard(
+  document: SchematicDocument,
+  breadboardComponentId: string,
+): string[] {
+  return document.components
+    .filter((component) =>
+      Object.values(component.holeBindings ?? {}).some(
+        (binding) => binding.breadboardComponentId === breadboardComponentId,
+      ),
+    )
+    .map((component) => component.id);
+}
+
+export function terminalPositionInDocument(
+  document: SchematicDocument,
+  component: SchematicComponent,
+  terminal: Terminal,
+): Point | null {
+  const binding = component.holeBindings?.[terminal];
+  if (binding) {
+    const boardComponent = document.components.find(
+      (item) => item.id === binding.breadboardComponentId,
+    );
+    const board = boardComponent
+      ? productionBreadboard(boardComponent.componentTypeId ?? '')
+      : null;
+    const hole = board?.holes.find((candidate) => candidate.id === binding.holeId);
+    if (boardComponent && hole) {
+      return componentPointPosition(
+        boardComponent,
+        boardComponent.position,
+        hole,
+        boardComponent.rotation ?? 0,
+      );
+    }
+  }
+  return terminalPosition(component, component.position, terminal, component.rotation ?? 0);
 }
 
 export function connectTerminals(

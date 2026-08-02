@@ -104,4 +104,27 @@ describe('breadboard fit and internal connectivity contracts', () => {
       reason: 'pin_outside_snap_tolerance',
     });
   });
+
+  it('uses pitch-derived landing widths for axial, inline and display components', () => {
+    const footprint = (componentId: string) =>
+      manifest.componentFootprints.find((item) => item.componentId === componentId)?.pinOffsetsMm;
+    expect(footprint('resistor-axial')).toEqual([
+      [0, 0],
+      [0, 10.16],
+    ]);
+    expect(footprint('potentiometer')).toEqual([
+      [0, 0],
+      [5.08, 0],
+      [2.54, 0],
+    ]);
+    expect(footprint('diode-do35')).toEqual([
+      [0, 0],
+      [20.32, 0],
+    ]);
+    expect(footprint('incandescent-lamp')).toEqual([
+      [0, 0],
+      [2.54, 0],
+    ]);
+    expect(footprint('seven-segment-display')).toHaveLength(10);
+  });
 });

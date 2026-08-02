@@ -16,8 +16,10 @@ import {
 } from '../production-manifest-adapter';
 import {
   addComponentToDocument,
+  componentsBoundToBreadboard,
   moveComponentInDocument,
   snapComponentToBreadboard,
+  terminalPositionInDocument,
   updateSelectionProperties,
   updateSelectionVariant,
 } from '../workbench-document';
@@ -211,5 +213,81 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(
       document.components.find((item) => item.id === 'board')?.internalConnections,
     ).toContainEqual(['J1', 'I1']);
+  });
+
+  it('lands an axial resistor across the full five-hole tie group', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'breadboard-medium',
+      { x: 600, y: 360 },
+      'board',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'resistor-axial',
+      { x: 400, y: 300 },
+      'resistor',
+    ).document;
+    const board = document.components.find((component) => component.id === 'board');
+    const resistor = document.components.find((component) => component.id === 'resistor');
+    const definition = productionBreadboard('breadboard-medium');
+    const originHole = definition?.holes.find((hole) => hole.id === 'J1');
+    const pin = resistor
+      ? terminalPosition(resistor, resistor.position, 'lead-1', resistor.rotation ?? 0)
+      : null;
+    expect(board && resistor && definition && originHole && pin).toBeTruthy();
+    if (!board || !resistor || !definition || !originHole || !pin) return;
+    document = moveComponentInDocument(document, 'resistor', {
+      x: resistor.position.x + board.position.x + originHole.xMm * WORLD_UNITS_PER_MM - pin.x,
+      y: resistor.position.y + board.position.y + originHole.yMm * WORLD_UNITS_PER_MM - pin.y,
+    });
+    document = snapComponentToBreadboard(document, 'resistor');
+    const snapped = document.components.find((component) => component.id === 'resistor');
+    expect(snapped?.holeBindings).toEqual({
+      'lead-1': { breadboardComponentId: 'board', holeId: 'J1' },
+      'lead-2': { breadboardComponentId: 'board', holeId: 'F1' },
+    });
+    expect(componentsBoundToBreadboard(document, 'board')).toContain('resistor');
+    expect(snapped && terminalPositionInDocument(document, snapped, 'lead-2')).toEqual({
+      x: board.position.x + originHole.xMm * WORLD_UNITS_PER_MM,
+      y: board.position.y + (originHole.yMm + 10.16) * WORLD_UNITS_PER_MM,
+    });
+  });
+
+  it('mounts the ten real seven-segment pins on two stable breadboard rows', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'breadboard-medium',
+      { x: 600, y: 360 },
+      'board',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'seven-segment-display',
+      { x: 400, y: 300 },
+      'display',
+    ).document;
+    const board = document.components.find((component) => component.id === 'board');
+    const display = document.components.find((component) => component.id === 'display');
+    const definition = productionBreadboard('breadboard-medium');
+    const originHole = definition?.holes.find((hole) => hole.id === 'F1');
+    const pin = display
+      ? terminalPosition(display, display.position, 'top-1', display.rotation ?? 0)
+      : null;
+    expect(board && display && definition && originHole && pin).toBeTruthy();
+    if (!board || !display || !definition || !originHole || !pin) return;
+    document = moveComponentInDocument(document, 'display', {
+      x: display.position.x + board.position.x + originHole.xMm * WORLD_UNITS_PER_MM - pin.x,
+      y: display.position.y + board.position.y + originHole.yMm * WORLD_UNITS_PER_MM - pin.y,
+    });
+    document = snapComponentToBreadboard(document, 'display');
+    const snapped = document.components.find((component) => component.id === 'display');
+    expect(Object.keys(snapped?.holeBindings ?? {})).toHaveLength(10);
+    expect(snapped?.holeBindings).toMatchObject({
+      'top-1': { breadboardComponentId: 'board', holeId: 'F1' },
+      'top-5': { breadboardComponentId: 'board', holeId: 'F5' },
+      'bottom-1': { breadboardComponentId: 'board', holeId: 'B1' },
+      'bottom-5': { breadboardComponentId: 'board', holeId: 'B5' },
+    });
   });
 });

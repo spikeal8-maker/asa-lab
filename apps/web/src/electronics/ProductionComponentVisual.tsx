@@ -21,6 +21,7 @@ interface Props {
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
   readonly selected?: boolean;
+  readonly simulationRunning?: boolean;
 }
 
 const SELECTION_OFFSETS = [
@@ -53,6 +54,7 @@ export function ProductionComponentVisual({
   visualState,
   effectiveBrightness,
   selected = false,
+  simulationRunning = false,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const visualComponent =
@@ -213,11 +215,13 @@ export function ProductionComponentVisual({
               custom.length > 0
                 ? {
                     active: new Set<SevenSegmentId>(custom),
-                    brightness: Number(properties['segmentBrightness'] ?? 100),
+                    brightness: simulationRunning
+                      ? Number(properties['segmentBrightness'] ?? 100)
+                      : 0,
                   }
                 : sevenSegmentState(
                     String(properties['glyph'] ?? '0'),
-                    Number(properties['segmentBrightness'] ?? 100),
+                    simulationRunning ? Number(properties['segmentBrightness'] ?? 100) : 0,
                   );
             return [...state.active].map((segment) => {
               const [x, y, segmentWidth, segmentHeight] = SEGMENT_BOXES[segment];
