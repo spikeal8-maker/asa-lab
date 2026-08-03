@@ -1,0 +1,31 @@
+export type {
+  ComponentKind,
+  ElectronicsDocument,
+  ElectronicsViewport,
+  Rotation,
+  SchematicComponent,
+  SchematicConnection,
+  SimulationSettings,
+  Terminal,
+  TerminalRef,
+} from './domain/document.js';
+export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
+export {
+  analyseCircuit,
+  compileCircuit,
+  type CompiledCircuit,
+  type CompiledNet,
+  type SimulationQuality,
+  type SimulationResult,
+  type SimulationStatus,
+} from './domain/simulation.js';
+export type {
+  ComponentResult,
+  Diagnostic,
+  DiagnosticAnchor,
+  DiagnosticCode,
+  DiagnosticSeverity,
+  NodeResult,
+  SimulationSolveStatus,
+  SolveResult,
+} from './domain/solver.js';
