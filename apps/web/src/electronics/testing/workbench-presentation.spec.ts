@@ -76,17 +76,24 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain("onViewChange('schematic')");
     expect(headerSource).toContain("onViewChange('bom')");
     expect(headerSource).not.toContain('Время моделирования:');
-    expect(headerSource).toContain("c.simulationRunning ? 'Остановить' : 'Начать моделирование'");
+    expect(headerSource).toContain(
+      "c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'",
+    );
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
     expect(headerSource).toContain('workbench-wire-color-menu');
     expect(headerSource).toContain('role="menuitemradio"');
     expect(headerSource).not.toContain('<option key={color} value={color}>');
     expect(workbenchCss).toContain('.workbench-wire-color-menu button > span');
-    expect(workbenchCss).toContain('width: 212px');
+    expect(headerSource).toContain('aria-label="Код — пока недоступен"');
+    expect(headerSource).toContain('aria-label="Отправить — пока недоступно"');
+    expect(workbenchCss).toContain('width: 222px');
     expect(workbenchCss).toContain('overflow-x: clip');
     expect(workbenchCss).toMatch(
-      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\s*\{[^}]*height:\s*32px;/s,
+      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\s*\{[^}]*height:\s*36px;/s,
     );
+    expect(workbenchCss).toMatch(/\.workbench-tool svg\s*\{[^}]*width:\s*28px;/s);
+    expect(workbenchCss).toMatch(/\.workbench-wire-preview\s*\{[^}]*stroke-dasharray:\s*none;/s);
+    expect(workbenchCss).toMatch(/\.workbench-canvas\.wiring[^}]*cursor:\s*default;/s);
   });
 
   it('shows stage diagnostics only for a selected error while simulation is running', () => {
@@ -130,6 +137,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerSource).toContain('lockOrthogonalPoint');
     expect(controllerSource).toContain('magneticWirePoint');
     expect(controllerSource).toContain('orthogonalWireMode || event.shiftKey');
+    expect(controllerSource).toContain(
+      'orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, world) : world',
+    );
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');

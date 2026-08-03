@@ -449,6 +449,10 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!pendingTerminal) {
       setPendingTerminal({ componentId, terminal });
       setWireDraftVertices([]);
+      const sourceComponent = document.components.find((item) => item.id === componentId);
+      setWirePreviewEnd(
+        sourceComponent ? terminalPositionInDocument(document, sourceComponent, terminal) : null,
+      );
       setNotice(
         'Ведите провод к цели. Щелчок добавляет точку, Shift фиксирует участок под 90°, Esc отменяет.',
       );
@@ -655,14 +659,12 @@ export function useElectronicsWorkbench(projectId: string) {
   function startPan(event: PointerEvent<SVGSVGElement>): void {
     const onEmptyCanvas = (event.target as Element).classList.contains('workbench-grid-hit');
     if (event.button === 0 && pendingTerminal && onEmptyCanvas) {
-      const rawPoint = freeWirePoint(toWorld(event));
+      const rawPoint = toWorld(event);
       setWireDraftVertices((current) => {
         if (current.length >= 48 || !pendingStart) return current;
         const anchor = current[current.length - 1] ?? pendingStart;
         const point =
-          orthogonalWireMode || event.shiftKey
-            ? lockOrthogonalPoint(anchor, rawPoint)
-            : magneticWirePoint(anchor, rawPoint);
+          orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, rawPoint) : rawPoint;
         setWirePreviewEnd(point);
         return [...current, point];
       });
@@ -739,9 +741,7 @@ export function useElectronicsWorkbench(projectId: string) {
     if (pendingTerminal && pendingStart) {
       const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? pendingStart;
       setWirePreviewEnd(
-        orthogonalWireMode || event.shiftKey
-          ? lockOrthogonalPoint(anchor, world)
-          : magneticWirePoint(anchor, world),
+        orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, world) : world,
       );
     } else if (reconnectEndpoint) {
       setWirePreviewEnd(world);

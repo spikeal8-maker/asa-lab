@@ -60,11 +60,8 @@ export function WorkbenchHeader({
   user,
   view,
   onViewChange,
-  showGrid,
-  onToggleGrid,
   notesOpen,
   onToggleNotes,
-  codeOpen,
   onToggleCode,
   onOpenShare,
   onExportView,
@@ -74,11 +71,8 @@ export function WorkbenchHeader({
   user: PublicUser;
   view: WorkbenchView;
   onViewChange: (view: WorkbenchView) => void;
-  showGrid: boolean;
-  onToggleGrid: () => void;
   notesOpen: boolean;
   onToggleNotes: () => void;
-  codeOpen: boolean;
   onToggleCode: () => void;
   onOpenShare: () => void;
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
@@ -193,7 +187,11 @@ export function WorkbenchHeader({
             <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
               <CommentIcon />
             </ToolButton>
-            <ToolButton label="Сетка рабочего поля" active={showGrid} onClick={onToggleGrid}>
+            <ToolButton
+              label="Показать или скрыть заметки"
+              active={notesOpen}
+              onClick={onToggleNotes}
+            >
               <ViewIcon />
             </ToolButton>
             <span className="workbench-toolbar-gap small" />
@@ -231,6 +229,7 @@ export function WorkbenchHeader({
                 c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
               }
               onClick={c.toggleWireRoute}
+              style={{ color: c.activeWireColor }}
             >
               <WireIcon />
               <ChevronIcon />
@@ -285,9 +284,11 @@ export function WorkbenchHeader({
         <div className="workbench-toolbar-group right">
           <button
             type="button"
-            className={`workbench-pill${codeOpen ? ' active' : ''}`}
-            title="Код"
-            aria-pressed={codeOpen}
+            className="workbench-pill"
+            title="Редактор кода пока недоступен в локальной версии"
+            aria-label="Код — пока недоступен"
+            aria-disabled="true"
+            disabled
             onClick={onToggleCode}
           >
             <CodeIcon /> Код
@@ -300,9 +301,17 @@ export function WorkbenchHeader({
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
-            {c.simulationRunning ? 'Остановить' : 'Начать моделирование'}
+            {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           </button>
-          <button type="button" className="workbench-pill" onClick={onOpenShare}>
+          <button
+            type="button"
+            className="workbench-pill"
+            title="Публикация и совместный доступ пока недоступны в локальной версии"
+            aria-label="Отправить — пока недоступно"
+            aria-disabled="true"
+            disabled
+            onClick={onOpenShare}
+          >
             Отправить
           </button>
         </div>

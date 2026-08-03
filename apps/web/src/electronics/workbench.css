@@ -2323,3 +2323,86 @@
   font-size: 10px;
   line-height: 1.25;
 }
+
+/* Owner toolbar/wire parity: full-size controls and the native arrow cursor. */
+.workbench-tool svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2;
+}
+.workbench-tool {
+  color: #344c5c;
+}
+.workbench-tool:hover:not(:disabled),
+.workbench-tool.active {
+  color: #0b84b9;
+}
+.workbench-wire-color summary > span,
+.workbench-wire-color-menu button > span {
+  border-radius: 4px;
+}
+.workbench-wire-style {
+  height: 38px;
+  border-color: #d4dbe0;
+  color: #149447;
+}
+.workbench-wire-style > svg:first-child {
+  width: 34px;
+  height: 30px;
+}
+.workbench-wire-style > svg:last-child {
+  width: 14px;
+  height: 14px;
+  color: #536877;
+}
+.workbench-toolbar-group.right .workbench-pill {
+  height: 36px;
+  min-height: 36px;
+  font-size: 14px;
+}
+.workbench-toolbar-group.right .workbench-pill:first-child svg,
+.workbench-toolbar-group.right .workbench-pill.simulate svg {
+  width: 21px;
+  height: 21px;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate {
+  width: 222px;
+  min-width: 222px;
+  height: 36px;
+  min-height: 36px;
+  border-color: #2b83c6;
+  background: #fff;
+  color: #226fa8;
+  font-weight: 600;
+  line-height: 34px;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running {
+  border-color: #149447;
+  background: #149447;
+  color: #fff;
+}
+.workbench-toolbar-group.right .workbench-pill:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+.workbench-canvas,
+.workbench-grid-hit,
+.workbench-canvas.panning,
+.workbench-canvas.panning .workbench-grid-hit,
+.workbench-canvas.placing,
+.workbench-canvas.placing .workbench-grid-hit,
+.workbench-canvas.wiring,
+.workbench-canvas.wiring .workbench-grid-hit,
+.workbench-part,
+.workbench-part:active,
+.workbench-terminal,
+.workbench-terminal-hit,
+.workbench-breadboard-hole-hit,
+.workbench-component-selected .workbench-terminal-hit {
+  cursor: default;
+}
+.workbench-wire-preview {
+  stroke-width: 4.4;
+  stroke-dasharray: none;
+  animation: none;
+}

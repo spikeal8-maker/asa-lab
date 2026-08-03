@@ -350,7 +350,7 @@ export function SchematicEditor({
 }): JSX.Element {
   const controller = useElectronicsWorkbench(projectId);
   const [view, setView] = useState<WorkbenchView>('breadboard');
-  const [showGrid, setShowGrid] = useState(false);
+  const [showGrid] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -410,11 +410,8 @@ export function SchematicEditor({
         user={user}
         view={view}
         onViewChange={setView}
-        showGrid={showGrid}
-        onToggleGrid={() => setShowGrid((value) => !value)}
         notesOpen={notesOpen}
         onToggleNotes={() => setNotesOpen((value) => !value)}
-        codeOpen={codeOpen}
         onToggleCode={() => setCodeOpen((value) => !value)}
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}

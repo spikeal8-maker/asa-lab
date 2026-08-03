@@ -8,7 +8,7 @@ function IconBase({ children, ...props }: IconProps): JSX.Element {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -30,8 +30,8 @@ export function ArrowLeftIcon(props: IconProps): JSX.Element {
 export function DuplicateIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
-      <rect x="8" y="8" width="11" height="11" rx="1.5" />
-      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+      <rect x="8" y="8" width="12" height="12" />
+      <path d="M16 8V4H4v12h4" />
     </IconBase>
   );
 }
@@ -39,19 +39,16 @@ export function PasteIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
       <path d="M9 5V3h6v2" />
-      <path d="M7 5h10v4H7z" />
-      <rect x="5" y="5" width="14" height="16" rx="1.5" />
-      <path d="M9 13h6M9 17h5" />
+      <rect x="7" y="4" width="10" height="5" rx="1" />
+      <path d="M7 7H5v14h14V7h-2" />
     </IconBase>
   );
 }
 export function DeleteIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
-      <path d="M4 7h16" />
-      <path d="m9 7 .7-2h4.6l.7 2" />
-      <path d="m6.5 7 .8 13h9.4l.8-13" />
-      <path d="M10 11v5M14 11v5" />
+      <path d="M4 6h16M9 6V3h6v3" />
+      <path d="m6.5 6 1 15h9l1-15M10 10v7M14 10v7" />
     </IconBase>
   );
 }
@@ -74,8 +71,8 @@ export function RedoIcon(props: IconProps): JSX.Element {
 export function CommentIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
-      <path d="M4 4h16v12H9l-5 4z" />
-      <path d="M8 8h8M8 12h5" />
+      <path d="M4 3h16v14H9l-5 4z" />
+      <path d="M8 8h8M8 12h8" />
     </IconBase>
   );
 }
@@ -91,8 +88,9 @@ export function InspectIcon(props: IconProps): JSX.Element {
 export function ViewIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
-      <path d="M3 12s3.3-5 9-5 9 5 9 5-3.3 5-9 5-9-5-9-5Z" />
-      <circle cx="12" cy="12" r="2.5" />
+      <path d="M3 3h18v14H9l-6 4z" />
+      <path d="M6 10s2.2-3.2 6-3.2 6 3.2 6 3.2-2.2 3.2-6 3.2S6 10 6 10Z" />
+      <circle cx="12" cy="10" r="2.1" />
     </IconBase>
   );
 }
@@ -233,9 +231,9 @@ export function MirrorIcon(props: IconProps): JSX.Element {
 export function WireIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
-      <circle cx="5" cy="17" r="2" />
-      <circle cx="19" cy="7" r="2" />
-      <path d="M7 17h4c2 0 2-4 4-4h2V9" />
+      <path d="M4 12h16" strokeWidth="3.2" />
+      <rect x="2.5" y="10.5" width="3" height="3" fill="currentColor" stroke="none" />
+      <rect x="18.5" y="10.5" width="3" height="3" fill="currentColor" stroke="none" />
     </IconBase>
   );
 }
