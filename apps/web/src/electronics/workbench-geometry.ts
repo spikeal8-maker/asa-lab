@@ -139,9 +139,14 @@ export function clientToWorld(
   canvasHeight: number,
 ): Point {
   const box = viewportViewBox(viewport, canvasWidth, canvasHeight);
+  const scale = Math.max(rect.width / box.width, rect.height / box.height);
+  const renderedWidth = box.width * scale;
+  const renderedHeight = box.height * scale;
+  const offsetX = (rect.width - renderedWidth) / 2;
+  const offsetY = (rect.height - renderedHeight) / 2;
   return {
-    x: box.x + ((clientX - rect.left) / rect.width) * box.width,
-    y: box.y + ((clientY - rect.top) / rect.height) * box.height,
+    x: box.x + (clientX - rect.left - offsetX) / scale,
+    y: box.y + (clientY - rect.top - offsetY) / scale,
   };
 }
 
