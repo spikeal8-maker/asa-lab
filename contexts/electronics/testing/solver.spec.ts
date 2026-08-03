@@ -7,6 +7,7 @@ import {
   type Terminal,
 } from '../domain/document';
 import { buildNetlist, terminalKey } from '../domain/netlist';
+import { electricalModelFor } from '../domain/model-registry';
 import { solveCircuit } from '../domain/solver';
 
 function component(
@@ -182,9 +183,115 @@ describe('netlist', () => {
       netlist.nodeOf.get(terminalKey('board', 'I1')),
     );
   });
+
+  it('assigns the same canonical node ids regardless of component and wire order', () => {
+    const components = [component('source', 'source', 5), component('r1', 'resistor', 100)];
+    const connections = [
+      connect('positive', 'source', 'a', 'r1', 'a'),
+      connect('negative', 'r1', 'b', 'source', 'b'),
+    ];
+    const forward = buildNetlist(doc(components, connections));
+    const reordered = buildNetlist(doc([...components].reverse(), [...connections].reverse()));
+
+    expect([...forward.nodeOf.entries()]).toEqual([...reordered.nodeOf.entries()]);
+    expect([...forward.terminalsByNode.entries()]).toEqual([
+      ...reordered.terminalsByNode.entries(),
+    ]);
+  });
+});
+
+describe('electrical model registry', () => {
+  it('marks owner-visible components without an electrical model as unsupported', () => {
+    expect(electricalModelFor(component('sensor', 'visual', 0))).toMatchObject({
+      support: 'unsupported',
+      topology: 'unsupported',
+    });
+    expect(electricalModelFor(component('board', 'breadboard', 0))).toMatchObject({
+      support: 'infrastructure',
+      topology: 'connectivity-only',
+    });
+  });
 });
 
 describe('deterministic DC solver', () => {
+  it('fails closed when the document contains an unsupported electrical component', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 5),
+          component('r1', 'resistor', 1000),
+          component('sensor', 'visual', 0, { componentTypeId: 'temperature-sensor' }),
+        ],
+        [connect('w1', 'source', 'a', 'r1', 'a'), connect('w2', 'r1', 'b', 'source', 'b')],
+      ),
+    );
+
+    expect(result.solved).toBe(false);
+    expect(result.status).toBe('unsupported');
+    expect(result.current).toBe(0);
+    expect(result.components).toEqual([]);
+    expect(result.nodes).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'unsupported_component',
+        severity: 'error',
+        componentIds: ['sensor'],
+        anchors: [{ kind: 'component', id: 'sensor' }],
+      }),
+    );
+  });
+
+  it('fails before matrix assembly when a production component has an incomplete pin map', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 3, {
+            componentTypeId: 'battery-holder-aa-2',
+            pinIds: ['BAT+'],
+          }),
+        ],
+        [],
+      ),
+    );
+
+    expect(result.status).toBe('invalid');
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid_terminal_contract',
+        componentIds: ['source'],
+      }),
+    );
+  });
+
+  it('rejects conflicting ideal voltage sources on the same two nets', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('source-5v', 'source', 5),
+          component('source-9v', 'source', 9),
+          component('load', 'resistor', 1000),
+        ],
+        [
+          connect('p1', 'source-5v', 'a', 'load', 'a'),
+          connect('n1', 'source-5v', 'b', 'load', 'b'),
+          connect('p2', 'source-9v', 'a', 'load', 'a'),
+          connect('n2', 'source-9v', 'b', 'load', 'b'),
+        ],
+      ),
+    );
+
+    expect(result.solved).toBe(false);
+    expect(result.status).toBe('invalid');
+    expect(result.diagnostics.map((item) => item.code)).toContain('conflicting_sources');
+  });
+
+  it('reports a bounded numerical residual for a solved circuit', () => {
+    const result = solveCircuit(
+      series([component('r1', 'resistor', 220), component('led1', 'led', 2)], 5),
+    );
+    expect(result.status).toBe('solved');
+    expect(result.numericalResidual).toBeLessThanOrEqual(result.numericalTolerance);
+  });
   it('applies Ohm law', () => {
     const result = solveCircuit(series([component('r1', 'resistor', 1000)], 5));
     expect(result.solved).toBe(true);
@@ -230,6 +337,11 @@ describe('deterministic DC solver', () => {
       0.01,
       6,
     );
+    const sourcePower = result.components.find((item) => item.componentId === 'source')?.power ?? 0;
+    const loadPower = result.components
+      .filter((item) => item.componentId !== 'source')
+      .reduce((sum, item) => sum + (item.power ?? 0), 0);
+    expect(loadPower).toBeCloseTo(sourcePower, 9);
   });
 
   it('reports the midpoint voltage of a divider', () => {
@@ -262,6 +374,59 @@ describe('deterministic DC solver', () => {
     );
     expect(released.current).toBe(0);
     expect(pressed.current).toBeCloseTo(0.025, 5);
+  });
+
+  it('models all four physical button pins as two permanent sides and one momentary bridge', () => {
+    const button = component('button', 'button', 0, {
+      componentTypeId: 'button-tactile-6mm',
+      pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+      internalConnections: [
+        ['SW-A1', 'SW-A2'],
+        ['SW-B1', 'SW-B2'],
+      ],
+    });
+    const circuit = (pressed: boolean) =>
+      doc(
+        [
+          component('source', 'source', 5),
+          { ...button, state: pressed },
+          component('r1', 'resistor', 200),
+        ],
+        [
+          connect('w1', 'source', 'a', 'button', 'SW-A2'),
+          connect('w2', 'button', 'SW-B2', 'r1', 'a'),
+          connect('w3', 'r1', 'b', 'source', 'b'),
+        ],
+      );
+
+    expect(solveCircuit(circuit(false)).current).toBe(0);
+    expect(solveCircuit(circuit(true)).current).toBeCloseTo(0.025, 5);
+  });
+
+  it('connects an SPDT common terminal to exactly one selected throw', () => {
+    const circuit = (right: boolean) =>
+      doc(
+        [
+          component('source', 'source', 5),
+          component('switch', 'switch', 0, {
+            componentTypeId: 'switch-spdt',
+            pinIds: ['throw-left', 'common', 'throw-right'],
+            state: right,
+          }),
+          component('left-load', 'resistor', 500),
+          component('right-load', 'resistor', 1000),
+        ],
+        [
+          connect('source-common', 'source', 'a', 'switch', 'common'),
+          connect('left', 'switch', 'throw-left', 'left-load', 'a'),
+          connect('left-return', 'left-load', 'b', 'source', 'b'),
+          connect('right', 'switch', 'throw-right', 'right-load', 'a'),
+          connect('right-return', 'right-load', 'b', 'source', 'b'),
+        ],
+      );
+
+    expect(solveCircuit(circuit(false)).current).toBeCloseTo(0.01, 5);
+    expect(solveCircuit(circuit(true)).current).toBeCloseTo(0.005, 5);
   });
 
   it.each([
@@ -373,6 +538,56 @@ describe('deterministic DC solver', () => {
       brightness: 0,
     });
     expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
+  });
+
+  it('solves a complete LED circuit through breadboard contact groups', () => {
+    const board = component('board', 'breadboard', 0, {
+      componentTypeId: 'breadboard-small',
+      pinIds: ['P1', 'P2', 'N1', 'N2', 'J1', 'I1', 'J2', 'I2'],
+      internalConnections: [
+        ['P1', 'P2'],
+        ['N1', 'N2'],
+        ['J1', 'I1'],
+        ['J2', 'I2'],
+      ],
+    });
+    const source = component('battery', 'source', 5, {
+      componentTypeId: 'battery-holder-aa-3',
+      pinIds: ['BAT-', 'BAT+'],
+      holeBindings: {
+        'BAT+': { breadboardComponentId: 'board', holeId: 'P1' },
+        'BAT-': { breadboardComponentId: 'board', holeId: 'N1' },
+      },
+    });
+    const resistor = component('resistor', 'resistor', 220, {
+      componentTypeId: 'resistor-axial',
+      pinIds: ['lead-1', 'lead-2'],
+      holeBindings: {
+        'lead-1': { breadboardComponentId: 'board', holeId: 'J1' },
+        'lead-2': { breadboardComponentId: 'board', holeId: 'J2' },
+      },
+    });
+    const led = component('led', 'led', 2, {
+      componentTypeId: 'led-5mm',
+      pinIds: ['anode', 'cathode'],
+      stateProperties: { ledColour: 'red' },
+      holeBindings: {
+        anode: { breadboardComponentId: 'board', holeId: 'I2' },
+        cathode: { breadboardComponentId: 'board', holeId: 'N2' },
+      },
+    });
+    const result = solveCircuit(
+      doc([board, source, resistor, led], [connect('rail-to-row', 'board', 'P2', 'board', 'I1')]),
+    );
+
+    expect(result.status).toBe('solved');
+    expect(result.current).toBeGreaterThan(0.013);
+    expect(
+      resultFor(
+        doc([board, source, resistor, led], [connect('rail-to-row', 'board', 'P2', 'board', 'I1')]),
+        'led',
+      )?.lit,
+    ).toBe(true);
   });
 
   it('keeps an isolated LED dark without inventing terminal voltage', () => {
@@ -495,5 +710,15 @@ describe('deterministic DC solver', () => {
   it('returns byte-for-byte deterministic results', () => {
     const document = series([component('r1', 'resistor', 470), component('led1', 'led', 2)], 9);
     expect(JSON.stringify(solveCircuit(document))).toBe(JSON.stringify(solveCircuit(document)));
+  });
+
+  it('solves the maximum supported 300-component document without losing numerical validity', () => {
+    const resistors = Array.from({ length: 299 }, (_, index) =>
+      component(`r-${String(index).padStart(3, '0')}`, 'resistor', 1000),
+    );
+    const result = solveCircuit(series(resistors, 5));
+    expect(result.status).toBe('solved');
+    expect(result.current).toBeCloseTo(5 / 299_000, 6);
+    expect(result.numericalResidual).toBeLessThanOrEqual(result.numericalTolerance);
   });
 });

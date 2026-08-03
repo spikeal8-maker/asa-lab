@@ -163,6 +163,7 @@ export interface Diagnostic {
   wireIds?: string[];
   netIds?: string[];
   suggestedAction?: string;
+  anchors?: { kind: 'component' | 'wire' | 'net'; id: string }[];
 }
 
 export interface ComponentResult {
@@ -180,11 +181,14 @@ export interface ComponentResult {
 
 export interface SolveResult {
   solved: boolean;
+  status: 'solved' | 'invalid' | 'unsupported' | 'nonconvergent';
   current: number;
   components: ComponentResult[];
   nodes: { id: string; voltage: number; terminals: string[] }[];
   diagnostics: Diagnostic[];
   iterations: number;
+  numericalResidual: number;
+  numericalTolerance: number;
 }
 
 export interface ApiError {

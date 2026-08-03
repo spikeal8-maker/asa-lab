@@ -80,6 +80,7 @@ describe('owner-reference Electronics presentation contract', () => {
       "c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'",
     );
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
+    expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
     expect(headerSource).toContain('workbench-wire-color-menu');
     expect(headerSource).toContain('role="menuitemradio"');
     expect(headerSource).not.toContain('<option key={color} value={color}>');

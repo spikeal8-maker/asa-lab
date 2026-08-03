@@ -22,7 +22,7 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-  active_checkpoint: owner_visual_review_pending
+  active_checkpoint: owner_simulation_implementation_in_progress
   reference_audit_sha: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
   production_evidence_sha: e604762057a839c2683c5788e83e1b686273828c
   rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
@@ -185,8 +185,8 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_progress
-    checkpoint: owner_visual_correction_in_progress
-    owner_acceptance: family_library_cfce81c_rejected_against_owner_tinkercad_reference
+    checkpoint: owner_simulation_implementation_in_progress
+    owner_acceptance: simulation_plan_activated_after_visual_recovery
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
     base_branch: main
@@ -197,8 +197,8 @@ tasks:
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
     next_task: null
     capabilities: [CAP-PROJECTS]
-    visible_result: The real Electronics project editor matches the owner Tinkercad reference at 100 percent viewport with a clean stage, three-column basic shelf, contextual terminals and compact variant popovers.
-    user_flow: Open real Electronics project -> see the exact 15-position Основные shelf -> place a small breadboard and components -> hover or enter wiring mode -> inspect clean selection -> compare owner/current screenshots.
+    visible_result: The real Electronics project editor runs a deterministic fail-closed R4-M1 DC simulation with live component states, measured values and anchored diagnostics.
+    user_flow: Open real Electronics project -> build a supported DC circuit directly or through a breadboard -> start simulation -> interact with button, SPDT and potentiometer -> inspect voltage/current/power -> receive honest diagnostics -> save and reload the same circuit.
     required_scope:
       - production_manifest_runtime_adapter
       - deterministic_component_categories_and_order

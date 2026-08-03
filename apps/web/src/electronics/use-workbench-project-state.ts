@@ -11,6 +11,16 @@ import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
+import { calculateSimulationPreflight, canStartSimulation } from './live-simulation';
+
+export type SimulationRuntimeStatus =
+  | 'stopped'
+  | 'validating'
+  | 'starting'
+  | 'running'
+  | 'stopping'
+  | 'validation_failed'
+  | 'runtime_failed';
 
 function migratedTerminal(
   component: SchematicDocument['components'][number] | undefined,
@@ -120,6 +130,7 @@ export function useWorkbenchProjectState(projectId: string) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [notice, setNotice] = useState<string | null>(null);
   const [simulationRunning, setSimulationRunning] = useState(false);
+  const [simulationStatus, setSimulationStatus] = useState<SimulationRuntimeStatus>('stopped');
   const [busy, setBusy] = useState(false);
   const [projectTitle, setProjectTitle] = useState('');
   const [historyTick, setHistoryTick] = useState(0);
@@ -148,6 +159,7 @@ export function useWorkbenchProjectState(projectId: string) {
     setVersions(response.data.versions);
     setSaveStatus(migrated ? 'dirty' : 'saved');
     setSimulationRunning(nextDocument.simulation.running);
+    setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
     setStatus('ready');
   }, [initialiseHistory, projectId]);
@@ -242,6 +254,7 @@ export function useWorkbenchProjectState(projectId: string) {
   async function toggleSimulation(): Promise<void> {
     if (!document || busy) return;
     if (simulationRunning) {
+      setSimulationStatus('stopping');
       const nextDocument = {
         ...document,
         simulation: { ...document.simulation, running: false },
@@ -250,24 +263,46 @@ export function useWorkbenchProjectState(projectId: string) {
       pushHistory(nextDocument);
       setSaveStatus('dirty');
       setSimulationRunning(false);
+      setSimulationStatus('stopped');
       setNotice('Моделирование остановлено.');
       return;
     }
-    setBusy(true);
+    setSimulationStatus('validating');
     const nextDocument = {
       ...document,
       simulation: { ...document.simulation, running: true },
     };
+    const preflight = calculateSimulationPreflight(nextDocument);
+    setResult(preflight);
+    if (!canStartSimulation(preflight)) {
+      setSimulationRunning(false);
+      setSimulationStatus('validation_failed');
+      const diagnostic = preflight.diagnostics.find((item) => item.severity === 'error');
+      setNotice(
+        diagnostic
+          ? `Моделирование не запущено: ${diagnostic.message}`
+          : 'Моделирование не запущено: схема не прошла проверку.',
+      );
+      return;
+    }
+    setBusy(true);
+    setSimulationStatus('starting');
     const nextResult = await persist(nextDocument, true);
     setBusy(false);
-    if (nextResult) {
+    if (nextResult && canStartSimulation(nextResult)) {
       setDocument(nextDocument);
       pushHistory(nextDocument);
       setSimulationRunning(true);
+      setSimulationStatus('running');
       setNotice('Моделирование запущено. Изменения схемы пересчитываются автоматически.');
     } else {
       setSimulationRunning(false);
-      setNotice('Моделирование не запущено: сначала исправьте ошибку сохранения.');
+      setSimulationStatus(nextResult ? 'validation_failed' : 'runtime_failed');
+      setNotice(
+        nextResult
+          ? 'Моделирование не запущено: сервер отклонил результат проверки схемы.'
+          : 'Моделирование не запущено: сначала исправьте ошибку сохранения.',
+      );
     }
   }
 
@@ -281,6 +316,7 @@ export function useWorkbenchProjectState(projectId: string) {
     pushHistory(nextDocument);
     setSaveStatus('dirty');
     setSimulationRunning(false);
+    setSimulationStatus('stopped');
     setResult(null);
     setNotice('Моделирование сброшено. Схема и соединения сохранены.');
   }
@@ -336,6 +372,7 @@ export function useWorkbenchProjectState(projectId: string) {
     notice,
     setNotice,
     simulationRunning,
+    simulationStatus,
     busy,
     projectTitle,
     setProjectTitle,

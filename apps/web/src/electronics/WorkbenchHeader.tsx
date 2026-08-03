@@ -298,6 +298,7 @@ export function WorkbenchHeader({
             className={`workbench-pill simulate${c.simulationRunning ? ' running' : ''}`}
             onClick={() => void c.toggleSimulation()}
             disabled={c.busy}
+            data-simulation-status={c.simulationStatus}
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}

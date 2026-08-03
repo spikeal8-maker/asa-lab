@@ -5,6 +5,10 @@ import {
   type Terminal,
 } from './document.js';
 import { buildNetlist, terminalKey } from './netlist.js';
+import {
+  unsupportedElectricalComponents,
+  validateElectricalTerminalContract,
+} from './model-registry.js';
 
 export type DiagnosticCode =
   | 'circuit_ok'
@@ -13,11 +17,16 @@ export type DiagnosticCode =
   | 'dangling_terminal'
   | 'short_circuit'
   | 'invalid_property'
+  | 'invalid_terminal_contract'
+  | 'conflicting_sources'
   | 'reverse_polarity'
   | 'led_overcurrent'
   | 'unsupported_component'
+  | 'unsupported_topology'
+  | 'numerical_instability'
   | 'nonconvergent_topology';
 export type DiagnosticSeverity = 'info' | 'warning' | 'error';
+export type SimulationSolveStatus = 'solved' | 'invalid' | 'unsupported' | 'nonconvergent';
 
 export interface Diagnostic {
   readonly code: DiagnosticCode;
@@ -27,6 +36,12 @@ export interface Diagnostic {
   readonly wireIds?: readonly string[];
   readonly netIds?: readonly string[];
   readonly suggestedAction?: string;
+  readonly anchors?: readonly DiagnosticAnchor[];
+}
+
+export interface DiagnosticAnchor {
+  readonly kind: 'component' | 'wire' | 'net';
+  readonly id: string;
 }
 
 export interface ComponentResult {
@@ -50,11 +65,14 @@ export interface NodeResult {
 
 export interface SolveResult {
   readonly solved: boolean;
+  readonly status: SimulationSolveStatus;
   readonly current: number;
   readonly components: readonly ComponentResult[];
   readonly nodes: readonly NodeResult[];
   readonly diagnostics: readonly Diagnostic[];
   readonly iterations: number;
+  readonly numericalResidual: number;
+  readonly numericalTolerance: number;
 }
 
 const GMIN = 1e-12;
@@ -266,17 +284,35 @@ function propertyError(component: SchematicComponent): string | null {
   return null;
 }
 
+function withDiagnosticAnchors(diagnostic: Diagnostic): Diagnostic {
+  if (diagnostic.anchors) return diagnostic;
+  const anchors: DiagnosticAnchor[] = [
+    ...(diagnostic.componentIds ?? []).map((id) => ({ kind: 'component' as const, id })),
+    ...(diagnostic.wireIds ?? []).map((id) => ({ kind: 'wire' as const, id })),
+    ...(diagnostic.netIds ?? []).map((id) => ({ kind: 'net' as const, id })),
+  ];
+  return anchors.length === 0 ? diagnostic : { ...diagnostic, anchors };
+}
+
 export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const diagnostics: Diagnostic[] = [];
   const netlist = buildNetlist(document);
   const sources = document.components.filter((component) => component.kind === 'source');
-  const empty = (iterations = 0): SolveResult => ({
+  const empty = (
+    status: Exclude<SimulationSolveStatus, 'solved'>,
+    iterations = 0,
+    numericalResidual = 0,
+    numericalTolerance = 0,
+  ): SolveResult => ({
     solved: false,
+    status,
     current: 0,
     components: [],
     nodes: [],
-    diagnostics,
+    diagnostics: diagnostics.map(withDiagnosticAnchors),
     iterations,
+    numericalResidual,
+    numericalTolerance,
   });
 
   const invalid = document.components.flatMap((component) => {
@@ -292,17 +328,32 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       suggestedAction: 'Исправьте значение в инспекторе компонента.',
     });
   }
-  if (invalid.length > 0) return empty();
-  const unsupported = document.components.filter((component) => component.kind === 'visual');
+  if (invalid.length > 0) return empty('invalid');
+  const invalidTerminalContracts = document.components.flatMap((component) => {
+    const contract = validateElectricalTerminalContract(component);
+    return contract.valid ? [] : [{ component, missing: contract.missing }];
+  });
+  for (const entry of invalidTerminalContracts) {
+    diagnostics.push({
+      code: 'invalid_terminal_contract',
+      severity: 'error',
+      message: `${entry.component.name ?? entry.component.id}: отсутствуют обязательные выводы ${entry.missing.join(', ')}.`,
+      componentIds: [entry.component.id],
+      suggestedAction: 'Восстановите подтверждённый pin map компонента перед моделированием.',
+    });
+  }
+  if (invalidTerminalContracts.length > 0) return empty('invalid');
+  const unsupported = unsupportedElectricalComponents(document.components);
   if (unsupported.length > 0) {
     diagnostics.push({
       code: 'unsupported_component',
-      severity: 'warning',
-      message: `${unsupported.length} production-компонент(а) показаны визуально без электрической модели.`,
+      severity: 'error',
+      message: `${unsupported.length} компонент(а) не имеют подтверждённой электрической модели. Расчёт остановлен без вымышленных значений.`,
       componentIds: unsupported.map((component) => component.id),
       suggestedAction:
-        'Их variant/state сохранены; solver не подменяет расчёт вымышленными значениями.',
+        'Удалите неподдерживаемый компонент или дождитесь отдельной реализации его модели.',
     });
+    return empty('unsupported');
   }
   if (sources.length === 0) {
     diagnostics.push({
@@ -311,7 +362,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       message: 'В схеме нет источника постоянного напряжения.',
       suggestedAction: 'Добавьте источник и соедините замкнутую цепь.',
     });
-    return empty();
+    return empty('invalid');
   }
 
   const referenceNode = netlist.nodeOf.get(
@@ -329,8 +380,44 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         netIds: a === undefined ? [] : [`net-${a}`],
         suggestedAction: 'Разорвите прямое соединение и добавьте нагрузку.',
       });
-      return empty();
+      return empty('invalid');
     }
+  }
+
+  const sourceByNodePair = new Map<
+    string,
+    { readonly sourceId: string; readonly orientedVoltage: number }
+  >();
+  for (const source of sources) {
+    const positive = netlist.nodeOf.get(
+      terminalKey(source.id, logicalTerminal(source, 'a')),
+    ) as number;
+    const negative = netlist.nodeOf.get(
+      terminalKey(source.id, logicalTerminal(source, 'b')),
+    ) as number;
+    const low = Math.min(positive, negative);
+    const high = Math.max(positive, negative);
+    const key = `${low}:${high}`;
+    const orientedVoltage = positive === low ? source.value : -source.value;
+    const existing = sourceByNodePair.get(key);
+    if (!existing) {
+      sourceByNodePair.set(key, { sourceId: source.id, orientedVoltage });
+      continue;
+    }
+    const sameVoltage = Math.abs(existing.orientedVoltage - orientedVoltage) <= 1e-9;
+    diagnostics.push({
+      code: sameVoltage ? 'unsupported_topology' : 'conflicting_sources',
+      severity: 'error',
+      message: sameVoltage
+        ? 'Параллельные идеальные источники не имеют однозначного распределения токов.'
+        : 'Источники задают разные напряжения между одной парой электрических сетей.',
+      componentIds: [existing.sourceId, source.id],
+      netIds: [`net-${low}`, `net-${high}`],
+      suggestedAction: sameVoltage
+        ? 'Оставьте один источник или добавьте подтверждённые внутренние сопротивления.'
+        : 'Разъедините конфликтующие источники и проверьте их полярность.',
+    });
+    return empty(sameVoltage ? 'unsupported' : 'invalid');
   }
 
   const nodeVariables = new Map<number, number>();
@@ -349,6 +436,8 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   let solution: number[] | null = null;
   let converged = false;
   let iterations = 1;
+  let finalMatrix: number[][] | null = null;
+  let finalRhs: number[] | null = null;
   const maxIterations = document.simulation.maxIterations;
   const nodeIndex = (component: SchematicComponent, terminal: LogicalTerminal): number =>
     netlist.nodeOf.get(terminalKey(component.id, logicalTerminal(component, terminal))) as number;
@@ -433,6 +522,8 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       rhs[row] = source.value;
     }
 
+    finalMatrix = matrix;
+    finalRhs = rhs;
     solution = solveLinear(matrix, rhs);
     if (!solution) break;
     let changed = false;
@@ -460,7 +551,35 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       message: 'DC-расчёт не сошёлся для этой топологии.',
       suggestedAction: 'Проверьте источники, короткие замыкания и полярность диодов.',
     });
-    return empty(iterations);
+    return empty('nonconvergent', iterations);
+  }
+
+  const numericalResidual = Math.max(
+    0,
+    ...(finalMatrix ?? []).map((row, rowIndex) =>
+      Math.abs(
+        row.reduce(
+          (sum, coefficient, columnIndex) =>
+            sum + coefficient * ((solution as number[])[columnIndex] ?? 0),
+          0,
+        ) - ((finalRhs ?? [])[rowIndex] ?? 0),
+      ),
+    ),
+  );
+  const numericalScale = Math.max(
+    1,
+    ...(finalRhs ?? []).map(Math.abs),
+    ...(solution ?? []).map(Math.abs),
+  );
+  const numericalTolerance = 1e-9 * numericalScale;
+  if (!Number.isFinite(numericalResidual) || numericalResidual > numericalTolerance) {
+    diagnostics.push({
+      code: 'numerical_instability',
+      severity: 'error',
+      message: 'Численная невязка DC-расчёта превышает допустимый предел.',
+      suggestedAction: 'Проверьте источники, экстремальные сопротивления и короткие замыкания.',
+    });
+    return empty('nonconvergent', iterations, numericalResidual, numericalTolerance);
   }
 
   const voltageAt = (component: SchematicComponent, terminal: LogicalTerminal): number =>
@@ -668,11 +787,14 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     terminals: netlist.terminalsByNode.get(node) ?? [],
   }));
   return {
-    solved: !diagnostics.some((diagnostic) => diagnostic.severity === 'error'),
+    solved: true,
+    status: 'solved',
     current: round(totalSourceCurrent),
     components,
     nodes,
-    diagnostics,
+    diagnostics: diagnostics.map(withDiagnosticAnchors),
     iterations,
+    numericalResidual,
+    numericalTolerance,
   };
 }

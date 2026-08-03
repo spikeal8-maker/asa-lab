@@ -10,8 +10,8 @@ active issue:            #63
 active branch:           agent/r4-electronics-m1
 active PR:               #72
 status:                  in_progress
-execution mode:          assistant_recovery
-coding bot:              STOP — do not modify or push
+execution mode:          assistant_r4_m1_simulation
+coding bot:              STOP — current assistant owns implementation
 execution manifest:      docs/delivery/EXECUTION_MANIFEST.yaml
 rejected runtime SHA:    e779e634a25e040108ba3d5447fb8d3d986a07fb
 recovery baseline SHA:   817d8eab2e54cbace0339d2c031b171e770fc0cb
@@ -22,10 +22,11 @@ owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198A
 contract. Текущий task сохраняет нормативный статус `in_progress`, но его
 исполнение временно передано текущему assistant для recovery-прохода.
 
-До отдельного изменения этого файла coding-агент обязан остановиться. Нельзя
-pull/rebase/merge локальной незапушенной работы, продолжать архивный аудит,
-перерисовывать компоненты, менять UI, запускать Docker или публиковать отчёты.
-Ветку восстанавливает текущий assistant напрямую через GitHub.
+Owner directive от 2026-08-03 активировал для текущего assistant реализацию
+качественной R4-M1 DC-симуляции по Issue №63 в существующей ветке и PR №72.
+Отдельный coding-агент остаётся остановлен. Нельзя создавать ветки, менять
+`main`, выполнять merge, начинать R4-M2, перерисовывать компоненты или запускать
+full matrix. Текущий assistant выполняет implementation и focused verification.
 
 ## 2. Что уже установлено
 
@@ -60,7 +61,7 @@ auto-traced SVG. В recovery-проходе:
 - `main`;
 - PR №29 и ветку `assistant/map-ux-owner-view`.
 
-## 4. Разрешённый recovery scope
+## 4. Разрешённый implementation scope
 
 Только существующая ветка `agent/r4-electronics-m1` и PR №72.
 
@@ -71,13 +72,19 @@ auto-traced SVG. В recovery-проходе:
 - отключить компонент без подтверждённого owner SVG;
 - исправить tests, которые требовали auto-trace или invented artwork;
 - подготовить один настоящий editor checkpoint с owner components.
+- укрепить deterministic netlist и fail-closed DC solver;
+- реализовать и проверить только существующие R4-M1 electrical models;
+- исправить live simulation flow без изменения Project ownership semantics;
+- добавить focused domain/web/integration tests для R4-M1 simulation.
 
 Запрещено:
 
 - новые SVG и ручная перерисовка;
 - PNG tracing/vectorization;
 - генерация `production/components`;
-- новые компоненты, solver/API/persistence features;
+- новые компоненты и R4-M2 component families;
+- изменение Account/Portal/Classroom ownership semantics;
+- fake numeric success для неподдерживаемой модели или topology;
 - UI-polish поверх неподтверждённых assets;
 - новая ветка;
 - full matrix;

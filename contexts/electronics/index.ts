@@ -17,12 +17,23 @@ export {
 } from './domain/document.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
 export {
+  electricalModelFor,
+  unsupportedElectricalComponents,
+  validateElectricalTerminalContract,
+  type ElectricalModelDescriptor,
+  type ElectricalModelId,
+  type ElectricalModelSupport,
+  type ElectricalTerminalContractResult,
+} from './domain/model-registry.js';
+export {
   solveCircuit,
   type ComponentResult,
   type Diagnostic,
+  type DiagnosticAnchor,
   type DiagnosticCode,
   type DiagnosticSeverity,
   type NodeResult,
+  type SimulationSolveStatus,
   type SolveResult,
 } from './domain/solver.js';
 export { ELECTRONICS_MODULE } from './module.js';

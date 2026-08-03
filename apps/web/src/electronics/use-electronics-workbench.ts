@@ -80,6 +80,7 @@ import {
   type TerminalRef,
   type VertexDrag,
 } from './workbench-model';
+import { calculateLiveSimulation } from './live-simulation';
 
 export function useElectronicsWorkbench(projectId: string) {
   const projectState = useWorkbenchProjectState(projectId);
@@ -87,7 +88,7 @@ export function useElectronicsWorkbench(projectId: string) {
     project,
     document,
     setDocument,
-    result,
+    result: persistedResult,
     versions,
     status,
     saveStatus,
@@ -96,6 +97,7 @@ export function useElectronicsWorkbench(projectId: string) {
     notice,
     setNotice,
     simulationRunning,
+    simulationStatus,
     busy,
     projectTitle,
     setProjectTitle,
@@ -111,6 +113,11 @@ export function useElectronicsWorkbench(projectId: string) {
     checkpoint,
     renameProject,
   } = projectState;
+
+  const result = useMemo(
+    () => calculateLiveSimulation(document, persistedResult, simulationRunning),
+    [document, persistedResult, simulationRunning],
+  );
 
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
@@ -1153,6 +1160,7 @@ export function useElectronicsWorkbench(projectId: string) {
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
+    simulationStatus,
     libraryOpen,
     setLibraryOpen,
     libraryQuery,

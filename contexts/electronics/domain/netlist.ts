@@ -63,23 +63,27 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     );
   }
 
-  const nodeOf = new Map<string, number>();
-  const rootToIndex = new Map<string, number>();
-  const terminalsByNode = new Map<number, string[]>();
-  for (const component of document.components) {
-    for (const terminal of terminalsForComponent(component)) {
-      const key = terminalKey(component.id, terminal);
-      const root = union.find(key);
-      let index = rootToIndex.get(root);
-      if (index === undefined) {
-        index = rootToIndex.size;
-        rootToIndex.set(root, index);
-      }
-      nodeOf.set(key, index);
-      const members = terminalsByNode.get(index) ?? [];
-      members.push(key);
-      terminalsByNode.set(index, members);
-    }
+  const keys = document.components
+    .flatMap((component) =>
+      terminalsForComponent(component).map((terminal) => terminalKey(component.id, terminal)),
+    )
+    .sort((left, right) => left.localeCompare(right));
+  const keysByRoot = new Map<string, string[]>();
+  for (const key of keys) {
+    const root = union.find(key);
+    const members = keysByRoot.get(root) ?? [];
+    members.push(key);
+    keysByRoot.set(root, members);
   }
-  return { nodeOf, nodeCount: rootToIndex.size, terminalsByNode };
+  const canonicalGroups = [...keysByRoot.values()]
+    .map((members) => members.sort((left, right) => left.localeCompare(right)))
+    .sort((left, right) => (left[0] ?? '').localeCompare(right[0] ?? ''));
+
+  const nodeOf = new Map<string, number>();
+  const terminalsByNode = new Map<number, readonly string[]>();
+  for (const [index, members] of canonicalGroups.entries()) {
+    terminalsByNode.set(index, members);
+    for (const key of members) nodeOf.set(key, index);
+  }
+  return { nodeOf, nodeCount: canonicalGroups.length, terminalsByNode };
 }
