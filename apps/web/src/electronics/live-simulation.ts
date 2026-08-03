@@ -1,4 +1,4 @@
-import { analyseCircuit } from '@asa-lab/electronics';
+import { analyseCircuit } from '@asa-lab/electronics/simulation';
 import type { SchematicDocument, SolveResult } from '../api';
 
 /**
