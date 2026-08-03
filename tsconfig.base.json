@@ -28,7 +28,8 @@
       "@asa-lab/authz": ["packages/authz/src/index.ts"],
       "@asa-lab/eventing": ["packages/eventing/src/index.ts"],
       "@asa-lab/ui-kit": ["packages/ui-kit/src/index.ts"],
-      "@asa-lab/test-kit": ["packages/test-kit/src/index.ts"]
+      "@asa-lab/test-kit": ["packages/test-kit/src/index.ts"],
+      "@asa-lab/electronics": ["contexts/electronics/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "tmp"]
