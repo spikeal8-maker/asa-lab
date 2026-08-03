@@ -25,4 +25,13 @@ export {
   type NodeResult,
   type SolveResult,
 } from './domain/solver.js';
+export {
+  analyseCircuit,
+  compileCircuit,
+  type CompiledCircuit,
+  type CompiledNet,
+  type SimulationQuality,
+  type SimulationResult,
+  type SimulationStatus,
+} from './domain/simulation.js';
 export { ELECTRONICS_MODULE } from './module.js';
