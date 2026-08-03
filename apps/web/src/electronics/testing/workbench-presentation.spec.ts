@@ -55,8 +55,8 @@ describe('owner-reference Electronics presentation contract', () => {
   });
 
   it('matches the compact editor chrome and shape-following selection contract', () => {
-    expect(workbenchCss).toContain('--wb-header-height: 28px');
-    expect(workbenchCss).toContain('--wb-toolbar-height: 56px');
+    expect(workbenchCss).toContain('--wb-header-height: 48px');
+    expect(workbenchCss).toContain('--wb-toolbar-height: 48px');
     expect(stageSource).not.toContain('workbench-selection-box');
     expect(stageSource).toContain("workbench-part${selected ? ' selected' : ''}");
     expect(productionVisualSource).toContain('workbench-selection-silhouette');
@@ -78,6 +78,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).not.toContain('Время моделирования:');
     expect(headerSource).toContain("c.simulationRunning ? 'Остановить' : 'Начать моделирование'");
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
+    expect(headerSource).toContain('workbench-wire-color-menu');
+    expect(headerSource).toContain('role="menuitemradio"');
+    expect(headerSource).not.toContain('<option key={color} value={color}>');
+    expect(workbenchCss).toContain('.workbench-wire-color-menu button > span');
     expect(workbenchCss).toContain('width: 212px');
     expect(workbenchCss).toContain('overflow-x: clip');
     expect(workbenchCss).toMatch(
@@ -133,7 +137,7 @@ describe('owner-reference Electronics presentation contract', () => {
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
-    expect(workbenchCss).toMatch(/\.workbench-inspector\s*\{[^}]*width:\s*256px;/s);
+    expect(workbenchCss).toMatch(/\.workbench-inspector\s*\{[^}]*width:\s*300px;/s);
     expect(workbenchCss).toMatch(/\.workbench-inspector-body\s*\{[^}]*padding:\s*2px;/s);
     expect(sidebarSource).toContain('RESISTANCE_UNITS');
     expect(sidebarSource).toContain('workbench-inspector-help-popover');

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { PublicUser } from '../api';
 import {
   CheckIcon,
@@ -21,6 +22,15 @@ import {
 } from './workbench-icons';
 import { WIRE_COLORS, initials, type ToolButtonProps, type WorkbenchView } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+
+const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
+  '#e3212b': 'Красный',
+  '#2a3035': 'Чёрный',
+  '#149447': 'Зелёный',
+  '#2c62c9': 'Синий',
+  '#e7a400': 'Жёлтый',
+  '#8d45c7': 'Фиолетовый',
+};
 
 function ToolButton({
   label,
@@ -74,6 +84,7 @@ export function WorkbenchHeader({
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
+  const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
   return (
     <>
       <header className="workbench-header">
@@ -186,21 +197,30 @@ export function WorkbenchHeader({
               <ViewIcon />
             </ToolButton>
             <span className="workbench-toolbar-gap small" />
-            <div className="workbench-wire-color" title="Цвет провода">
-              <span style={{ background: c.activeWireColor }} />
-              <select
-                value={c.activeWireColor}
-                onChange={(event) => c.setWireColor(event.target.value)}
-                aria-label="Цвет провода"
-              >
+            <details className="workbench-wire-color" ref={wireColorMenuRef}>
+              <summary aria-label="Цвет провода" title="Цвет провода">
+                <span style={{ background: c.activeWireColor }} />
+                <ChevronIcon />
+              </summary>
+              <div className="workbench-wire-color-menu" role="menu" aria-label="Цвет провода">
                 {WIRE_COLORS.map((color) => (
-                  <option key={color} value={color}>
-                    {color}
-                  </option>
+                  <button
+                    key={color}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={c.activeWireColor === color}
+                    className={c.activeWireColor === color ? 'active' : ''}
+                    onClick={() => {
+                      c.setWireColor(color);
+                      wireColorMenuRef.current?.removeAttribute('open');
+                    }}
+                  >
+                    <span style={{ background: color }} />
+                    {WIRE_COLOR_NAMES[color]}
+                  </button>
                 ))}
-              </select>
-              <ChevronIcon />
-            </div>
+              </div>
+            </details>
             <span className="workbench-toolbar-gap small" />
             <button
               type="button"

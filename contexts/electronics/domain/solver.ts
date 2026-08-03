@@ -604,12 +604,19 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       return anodeVoltage - cathodeVoltage < -0.05;
     });
     if (reverseBranches.length > 0) {
+      const isTwoTerminalDiode = component.kind === 'led' || component.kind === 'diode';
       diagnostics.push({
         code: 'reverse_polarity',
         severity: 'warning',
-        message: `${component.name ?? component.id}: обратная полярность ${reverseBranches.map((branch) => branch.id).join(', ')}.`,
+        message: `${component.name ?? component.id}: обратная полярность${
+          isTwoTerminalDiode
+            ? ' — анод подключён к минусу, катод к плюсу.'
+            : ` ${reverseBranches.map((branch) => branch.id).join(', ')}.`
+        }`,
         componentIds: [component.id],
-        suggestedAction: 'Проверьте анод, катод и общий вывод.',
+        suggestedAction: isTwoTerminalDiode
+          ? 'Подключите BAT+ к аноду, BAT− к катоду.'
+          : 'Проверьте анод, катод и общий вывод.',
       });
     }
     const overloaded = componentBranches.filter(

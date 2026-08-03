@@ -299,6 +299,9 @@ describe('deterministic DC solver', () => {
     expect(forward.current).toBeGreaterThan(0.009);
     expect(reverse.current).toBe(0);
     expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
+    expect(reverse.diagnostics.find((item) => item.code === 'reverse_polarity')).toMatchObject({
+      suggestedAction: 'Подключите BAT+ к аноду, BAT− к катоду.',
+    });
   });
 
   it('lights an LED at normal current and diagnoses overcurrent', () => {
@@ -329,6 +332,47 @@ describe('deterministic DC solver', () => {
     expect(led?.current).toBeGreaterThan(0.013);
     expect(led?.brightness).toBeGreaterThan(70);
     expect(led?.branchBrightness?.led).toBe(led?.brightness);
+  });
+
+  it('drives the owner AA holder and LED pins with real polarity', () => {
+    const source = component('battery', 'source', 3, {
+      componentTypeId: 'battery-holder-aa-2',
+      pinIds: ['BAT-', 'BAT+'],
+    });
+    const led = component('led', 'led', 2, {
+      componentTypeId: 'led-5mm',
+      pinIds: ['anode', 'cathode'],
+      stateProperties: { ledColour: 'red' },
+    });
+    const forward = solveCircuit(
+      doc(
+        [source, led],
+        [
+          connect('positive', 'battery', 'BAT+', 'led', 'anode'),
+          connect('negative', 'led', 'cathode', 'battery', 'BAT-'),
+        ],
+      ),
+    );
+    const reverse = solveCircuit(
+      doc(
+        [source, led],
+        [
+          connect('negative', 'battery', 'BAT-', 'led', 'anode'),
+          connect('positive', 'led', 'cathode', 'battery', 'BAT+'),
+        ],
+      ),
+    );
+
+    expect(forward.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: true,
+      brightness: 100,
+    });
+    expect(forward.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
+    expect(reverse.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: false,
+      brightness: 0,
+    });
+    expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
   });
 
   it('keeps an isolated LED dark without inventing terminal voltage', () => {
