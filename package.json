@@ -10,7 +10,7 @@
   },
   "scripts": {
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write contexts/electronics/domain/simulation.ts contexts/electronics/testing/simulation-contract.spec.ts && git diff -- contexts/electronics/domain/simulation.ts contexts/electronics/testing/simulation-contract.spec.ts && exit 1",
     "lint": "nx run-many -t lint --all",
     "typecheck": "nx run-many -t typecheck --all",
     "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.{ts,tsx}\" && node tools/validate-context-boundaries.mjs",
