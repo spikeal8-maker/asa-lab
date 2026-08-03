@@ -55,8 +55,8 @@ describe('owner-reference Electronics presentation contract', () => {
   });
 
   it('matches the compact editor chrome and shape-following selection contract', () => {
-    expect(workbenchCss).toContain('--wb-header-height: 48px');
-    expect(workbenchCss).toContain('--wb-toolbar-height: 48px');
+    expect(workbenchCss).toContain('--wb-header-height: 28px');
+    expect(workbenchCss).toContain('--wb-toolbar-height: 56px');
     expect(stageSource).not.toContain('workbench-selection-box');
     expect(stageSource).toContain("workbench-part${selected ? ' selected' : ''}");
     expect(productionVisualSource).toContain('workbench-selection-silhouette');
