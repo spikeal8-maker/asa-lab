@@ -1,0 +1,62 @@
+name: Electronics R4-M1 Focused
+
+on:
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - 'contexts/electronics/**'
+      - 'apps/web/src/electronics/**'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/tsconfig.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/electronics-r4-m1-focused.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: Shared solver, editor contracts and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test shared Electronics simulation core
+        run: pnpm test:electronics
+
+      - name: Test actual editor integration contracts
+        run: pnpm vitest run apps/web/src/electronics/testing
+
+      - name: Typecheck applications and contexts
+        run: pnpm typecheck
+
+      - name: Production build
+        run: pnpm build
