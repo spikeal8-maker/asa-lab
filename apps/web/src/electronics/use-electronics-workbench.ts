@@ -726,12 +726,7 @@ export function useElectronicsWorkbench(projectId: string) {
           document,
           vertexDrag.wireId,
           vertexDrag.vertexIndex,
-          wireVertexDragPoint(
-            vertexDrag.wireId,
-            vertexDrag.vertexIndex,
-            world,
-            orthogonalWireMode || event.shiftKey,
-          ),
+          wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
         ),
       );
       setSaveStatus('dirty');

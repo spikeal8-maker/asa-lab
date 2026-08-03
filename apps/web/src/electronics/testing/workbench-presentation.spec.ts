@@ -107,6 +107,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-testid="wire-endpoint"');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
+    expect(stageSource).toContain('event.detail >= 2');
     expect(stageSource).toContain('c.wireDraftVertices');
     expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
       stageSource.indexOf('{orderedComponents'),

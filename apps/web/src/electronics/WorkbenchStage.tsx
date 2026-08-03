@@ -439,12 +439,18 @@ export function WorkbenchStage({
                         data-wire-vertex-index={index}
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (event.detail >= 2) {
+                            c.removeWireVertexAt(wire.id, index);
+                            return;
+                          }
                           c.setSelection({ kind: 'wire', id: wire.id, vertexIndex: index });
                         }}
-                        onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
-                        onDoubleClick={(event) => {
-                          event.stopPropagation();
-                          c.removeWireVertexAt(wire.id, index);
+                        onPointerDown={(event) => {
+                          if (event.detail > 1) {
+                            event.stopPropagation();
+                            return;
+                          }
+                          c.startVertexDrag(event, wire.id, index);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Delete' || event.key === 'Backspace') {
