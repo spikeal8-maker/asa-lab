@@ -204,10 +204,12 @@ export function WorkbenchHeader({
             <span className="workbench-toolbar-gap small" />
             <button
               type="button"
-              className="workbench-wire-style"
+              className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
               aria-label="Автоматическая прокладка провода под 90 градусов"
-              title="Автоматическая прокладка под 90°"
-              disabled={c.selection?.kind !== 'wire'}
+              aria-pressed={c.orthogonalWireMode}
+              title={
+                c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
+              }
               onClick={c.toggleWireRoute}
             >
               <WireIcon />

@@ -201,13 +201,20 @@
 }
 
 .workbench-wire-vertex {
+  fill: #fff;
   stroke: #bfe1ef;
   stroke-width: 3;
   cursor: move;
   pointer-events: all;
 }
 
+.workbench-wire-vertex:hover {
+  stroke: #1596ce;
+  stroke-width: 4;
+}
+
 .workbench-wire-vertex.active {
+  fill: #1596ce;
   stroke: #fff;
   stroke-width: 3.5;
 }
@@ -1795,6 +1802,11 @@
 }
 .workbench-wire-style:disabled {
   opacity: 0.3;
+}
+.workbench-wire-style.active {
+  border-color: #1596ce;
+  background: #e9f7fd;
+  color: #087fad;
 }
 .workbench-wire-style > svg:first-child {
   width: 30px;

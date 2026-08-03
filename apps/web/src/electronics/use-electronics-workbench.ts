@@ -25,6 +25,7 @@ import {
 import {
   clientToWorld,
   clamp,
+  completeOrthogonalRoute,
   fitViewport,
   freeWirePoint,
   lockOrthogonalBend,
@@ -117,6 +118,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#149447');
+  const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState('');
   const [category, setCategory] = useState<ComponentCategory>('basic');
@@ -407,9 +409,16 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function toggleWireRoute(): void {
-    if (!document) return;
-    const next = toggleSelectedWireRoute(document, selection);
-    if (next) commitDocument(next, 'Провод проложен автоматически под прямыми углами.');
+    const nextMode = !orthogonalWireMode;
+    setOrthogonalWireMode(nextMode);
+    if (nextMode && document && selection?.kind === 'wire') {
+      const next = toggleSelectedWireRoute(document, selection);
+      if (next) commitDocument(next, 'Провод проложен автоматически под прямыми углами.');
+      return;
+    }
+    setNotice(
+      nextMode ? 'Фиксация провода под 90° включена.' : 'Свободная прокладка провода включена.',
+    );
   }
 
   function removeWireBends(): void {
@@ -452,13 +461,21 @@ export function useElectronicsWorkbench(projectId: string) {
       setNotice('Прокладка провода отменена.');
       return;
     }
+    const targetComponent = document.components.find((item) => item.id === componentId);
+    const targetPoint = targetComponent
+      ? terminalPositionInDocument(document, targetComponent, terminal)
+      : null;
+    const finalVertices =
+      orthogonalWireMode && pendingStart && targetPoint
+        ? completeOrthogonalRoute(pendingStart, targetPoint, wireDraftVertices)
+        : wireDraftVertices;
     const connected = connectTerminals(
       document,
       pendingTerminal,
       { componentId, terminal },
       nextId('wire'),
       activeWireColor,
-      wireDraftVertices,
+      finalVertices,
     );
     if (connected.kind === 'duplicate') {
       setPendingTerminal(null);
@@ -642,16 +659,17 @@ export function useElectronicsWorkbench(projectId: string) {
       setWireDraftVertices((current) => {
         if (current.length >= 48 || !pendingStart) return current;
         const anchor = current[current.length - 1] ?? pendingStart;
-        const point = event.shiftKey
-          ? lockOrthogonalPoint(anchor, rawPoint)
-          : magneticWirePoint(anchor, rawPoint);
+        const point =
+          orthogonalWireMode || event.shiftKey
+            ? lockOrthogonalPoint(anchor, rawPoint)
+            : magneticWirePoint(anchor, rawPoint);
         setWirePreviewEnd(point);
         return [...current, point];
       });
       setNotice(
-        event.shiftKey
+        orthogonalWireMode || event.shiftKey
           ? 'Точка добавлена с фиксацией 90°. Продолжайте провод или выберите контакт.'
-          : 'Точка изгиба добавлена. Shift фиксирует следующий участок под 90°.',
+          : 'Точка изгиба добавлена. Shift или режим 90° фиксирует следующий участок.',
       );
       event.preventDefault();
       event.stopPropagation();
@@ -708,7 +726,12 @@ export function useElectronicsWorkbench(projectId: string) {
           document,
           vertexDrag.wireId,
           vertexDrag.vertexIndex,
-          wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
+          wireVertexDragPoint(
+            vertexDrag.wireId,
+            vertexDrag.vertexIndex,
+            world,
+            orthogonalWireMode || event.shiftKey,
+          ),
         ),
       );
       setSaveStatus('dirty');
@@ -721,7 +744,9 @@ export function useElectronicsWorkbench(projectId: string) {
     if (pendingTerminal && pendingStart) {
       const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? pendingStart;
       setWirePreviewEnd(
-        event.shiftKey ? lockOrthogonalPoint(anchor, world) : magneticWirePoint(anchor, world),
+        orthogonalWireMode || event.shiftKey
+          ? lockOrthogonalPoint(anchor, world)
+          : magneticWirePoint(anchor, world),
       );
     } else if (reconnectEndpoint) {
       setWirePreviewEnd(world);
@@ -1131,6 +1156,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireDraftVertices,
     wirePreviewEnd,
     activeWireColor,
+    orthogonalWireMode,
     simulationRunning,
     libraryOpen,
     setLibraryOpen,

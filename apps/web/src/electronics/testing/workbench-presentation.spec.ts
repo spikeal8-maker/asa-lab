@@ -106,6 +106,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-testid="wire-hit"');
     expect(stageSource).toContain('data-testid="wire-endpoint"');
     expect(stageSource).toContain('workbench-wire-endpoint');
+    expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('c.wireDraftVertices');
     expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
       stageSource.indexOf('{orderedComponents'),
@@ -121,6 +122,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerSource).toContain('actuatorPressRef');
     expect(controllerSource).toContain('lockOrthogonalPoint');
     expect(controllerSource).toContain('magneticWirePoint');
+    expect(controllerSource).toContain('orthogonalWireMode || event.shiftKey');
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');

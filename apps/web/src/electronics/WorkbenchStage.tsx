@@ -442,6 +442,17 @@ export function WorkbenchStage({
                           c.setSelection({ kind: 'wire', id: wire.id, vertexIndex: index });
                         }}
                         onPointerDown={(event) => c.startVertexDrag(event, wire.id, index)}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          c.removeWireVertexAt(wire.id, index);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Delete' || event.key === 'Backspace') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            c.removeWireVertexAt(wire.id, index);
+                          }
+                        }}
                         role="button"
                         tabIndex={0}
                         aria-label={`Изгиб провода ${index + 1}`}

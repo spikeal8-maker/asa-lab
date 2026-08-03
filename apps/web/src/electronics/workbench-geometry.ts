@@ -94,6 +94,18 @@ export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): 
   return snapped;
 }
 
+export function completeOrthogonalRoute(
+  start: Point,
+  target: Point,
+  vertices: readonly Point[],
+): readonly Point[] {
+  const anchor = vertices[vertices.length - 1] ?? start;
+  const elbow = lockOrthogonalPoint(anchor, target);
+  const isAnchor = elbow.x === anchor.x && elbow.y === anchor.y;
+  const isTarget = elbow.x === target.x && elbow.y === target.y;
+  return isAnchor || isTarget ? vertices : [...vertices, elbow];
+}
+
 export function wirePoints(from: Point, to: Point, vertices?: readonly Point[]): Point[] {
   if (vertices !== undefined) {
     return [from, ...vertices, to];

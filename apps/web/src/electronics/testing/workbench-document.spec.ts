@@ -25,6 +25,7 @@ import {
   updateWiperPosition,
 } from '../workbench-document';
 import {
+  completeOrthogonalRoute,
   lockOrthogonalBend,
   lockOrthogonalPoint,
   magneticWirePoint,
@@ -95,6 +96,15 @@ describe('Electronics M1 editor document operations', () => {
       x: 240,
       y: 100,
     });
+    expect(completeOrthogonalRoute({ x: 100, y: 100 }, { x: 300, y: 260 }, [])).toEqual([
+      { x: 300, y: 100 },
+    ]);
+    expect(
+      completeOrthogonalRoute({ x: 100, y: 100 }, { x: 300, y: 260 }, [{ x: 180, y: 100 }]),
+    ).toEqual([
+      { x: 180, y: 100 },
+      { x: 180, y: 260 },
+    ]);
     expect(magneticWirePoint({ x: 100, y: 100 }, { x: 106, y: 237 })).toEqual({
       x: 100,
       y: 240,
