@@ -84,6 +84,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('role="menuitemradio"');
     expect(headerSource).not.toContain('<option key={color} value={color}>');
     expect(workbenchCss).toContain('.workbench-wire-color-menu button > span');
+    expect(workbenchCss).toMatch(
+      /\.workbench-wire-color summary > span\s*\{[^}]*flex:\s*0 0 30px;/s,
+    );
     expect(headerSource).toContain('aria-label="Код — пока недоступен"');
     expect(headerSource).toContain('aria-label="Отправить — пока недоступно"');
     expect(workbenchCss).toContain('width: 222px');
