@@ -82,16 +82,15 @@ export function freeWirePoint(point: Point): Point {
 }
 
 export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): Point {
-  const snapped = freeWirePoint(point);
-  const horizontalDistance = Math.abs(snapped.y - anchor.y);
-  const verticalDistance = Math.abs(snapped.x - anchor.x);
+  const horizontalDistance = Math.abs(point.y - anchor.y);
+  const verticalDistance = Math.abs(point.x - anchor.x);
   if (horizontalDistance <= threshold && horizontalDistance <= verticalDistance) {
-    return { x: snapped.x, y: anchor.y };
+    return { x: point.x, y: anchor.y };
   }
   if (verticalDistance <= threshold) {
-    return { x: anchor.x, y: snapped.y };
+    return { x: anchor.x, y: point.y };
   }
-  return snapped;
+  return point;
 }
 
 export function completeOrthogonalRoute(

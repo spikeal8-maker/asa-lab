@@ -93,7 +93,7 @@ describe('Electronics M1 editor document operations', () => {
       y: 100,
     });
     expect(magneticWirePoint({ x: 100, y: 100 }, { x: 237, y: 106 })).toEqual({
-      x: 240,
+      x: 237,
       y: 100,
     });
     expect(completeOrthogonalRoute({ x: 100, y: 100 }, { x: 300, y: 260 }, [])).toEqual([
@@ -107,11 +107,11 @@ describe('Electronics M1 editor document operations', () => {
     ]);
     expect(magneticWirePoint({ x: 100, y: 100 }, { x: 106, y: 237 })).toEqual({
       x: 100,
-      y: 240,
+      y: 237,
     });
     expect(magneticWirePoint({ x: 100, y: 100 }, { x: 237, y: 166 })).toEqual({
-      x: 240,
-      y: 170,
+      x: 237,
+      y: 166,
     });
   });
 
