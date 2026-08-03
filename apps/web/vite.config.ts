@@ -33,9 +33,16 @@ export default defineConfig({
   root,
   plugins: [react()],
   resolve: {
-    alias: {
-      '@asa-lab/electronics': resolve(repositoryRoot, 'contexts/electronics/index.ts'),
-    },
+    alias: [
+      {
+        find: '@asa-lab/electronics/simulation',
+        replacement: resolve(repositoryRoot, 'contexts/electronics/simulation.ts'),
+      },
+      {
+        find: '@asa-lab/electronics',
+        replacement: resolve(repositoryRoot, 'contexts/electronics/index.ts'),
+      },
+    ],
   },
   define: {
     __ASA_BUILD_REVISION__: JSON.stringify(process.env['VITE_ASA_BUILD_REVISION'] ?? 'development'),
