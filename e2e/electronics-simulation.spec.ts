@@ -131,8 +131,11 @@ function circuitDocument(options: {
 }
 
 async function createProject(page: Page, title: string): Promise<string> {
-  const response = await page.request.post('/api/projects', {
-    headers: { 'idempotency-key': `electronics-simulation-${crypto.randomUUID()}` },
+  const response = await page.context().request.post('/api/projects', {
+    headers: {
+      origin: new URL(page.url()).origin,
+      'idempotency-key': `electronics-simulation-${crypto.randomUUID()}`,
+    },
     data: {
       scope: 'personal',
       classroomId: null,
@@ -150,7 +153,8 @@ async function saveDocument(
   projectId: string,
   document: SchematicDocument,
 ): Promise<void> {
-  const response = await page.request.put(`/api/projects/${projectId}/draft`, {
+  const response = await page.context().request.put(`/api/projects/${projectId}/draft`, {
+    headers: { origin: new URL(page.url()).origin },
     data: { document },
   });
   expect(response.status()).toBe(200);
@@ -229,7 +233,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(
     page.locator('.workbench-measurements div').filter({ hasText: 'Состояние' }).locator('dd'),
   ).toHaveText('Не горит');
-  await expect(led.locator('image')).toHaveAttribute('href', /led_red_i000\.svg$/);
+  await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
   await page.screenshot({ path: `${ARTIFACT_DIR}/01-open-switch-led-off.png`, fullPage: true });
 
   await switchComponent.locator('.workbench-part').click();
@@ -240,7 +244,10 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(
     page.locator('.workbench-measurements div').filter({ hasText: 'Состояние' }).locator('dd'),
   ).toHaveText('Горит');
-  await expect(led.locator('image')).not.toHaveAttribute('href', /led_red_i000\.svg$/);
+  await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
+    'href',
+    /led_red_i000\.svg$/,
+  );
   await page.screenshot({ path: `${ARTIFACT_DIR}/02-closed-switch-led-lit.png`, fullPage: true });
 
   await resistor.locator('.workbench-part').click();
@@ -278,7 +285,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await selectLed(page);
   await expect(calculatedBrightness(page)).toHaveText('0%');
   await expect(led).toHaveAttribute('data-diagnostics', /reverse_polarity/);
-  await expect(led.locator('image')).toHaveAttribute(
+  await expect(led.locator('image:not([filter])')).toHaveAttribute(
     'href',
     /special\/led_red_reverse_polarity\.svg$/,
   );
