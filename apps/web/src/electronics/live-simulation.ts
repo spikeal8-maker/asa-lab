@@ -1,4 +1,4 @@
-import { solveCircuit } from '@asa-lab/electronics';
+import { analyseCircuit } from '@asa-lab/electronics';
 import type { SchematicDocument, SolveResult } from '../api';
 
 /**
@@ -16,7 +16,7 @@ export function calculateLiveSimulation(
 }
 
 export function calculateSimulationPreflight(document: SchematicDocument): SolveResult {
-  return solveCircuit(document) as SolveResult;
+  return analyseCircuit(document) as SolveResult;
 }
 
 export function canStartSimulation(result: SolveResult): boolean {

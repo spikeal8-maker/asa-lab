@@ -4,11 +4,11 @@ import {
   parseElectronicsDocument,
   type ElectronicsDocument,
 } from './domain/document.js';
-import { solveCircuit, type SolveResult } from './domain/solver.js';
+import { analyseCircuit, type SimulationResult } from './domain/simulation.js';
 
 const ELECTRONICS_MANIFEST = {
   moduleKey: 'electronics',
-  moduleVersion: '3.0.0',
+  moduleVersion: '3.1.0',
   displayName: 'Электроника',
   shortDescription: 'Создание электрических схем, соединение компонентов и моделирование.',
   projectType: 'circuit',
@@ -33,8 +33,9 @@ function invalidDocument(message: string): readonly ModuleDiagnostic[] {
 }
 
 /** First-party Electronics provider registered through the same contract that
- * future Blocks, 3D and board modules will use. */
-export const ELECTRONICS_MODULE = defineModule<ElectronicsDocument, SolveResult>(
+ * future Blocks, 3D and board modules will use. Browser and server consumers
+ * use the same deterministic simulation contract. */
+export const ELECTRONICS_MODULE = defineModule<ElectronicsDocument, SimulationResult>(
   ELECTRONICS_MANIFEST,
   {
     createEmptyProject: () => EMPTY_DOCUMENT,
@@ -49,6 +50,6 @@ export const ELECTRONICS_MODULE = defineModule<ElectronicsDocument, SolveResult>
       kind: 'schematic',
       summary: `${payload.components.length} компонентов · ${payload.connections.length} соединений`,
     }),
-    analyse: (payload: ElectronicsDocument) => solveCircuit(payload),
+    analyse: (payload: ElectronicsDocument) => analyseCircuit(payload),
   },
 );

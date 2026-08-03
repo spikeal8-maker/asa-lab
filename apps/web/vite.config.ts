@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 const root = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(root, '../..');
 
 /** Canonical ports per docs/delivery/LOCAL_PORT_POLICY.md. Overrides come from
  * the same ASA_* variables tools/dev.mjs uses; forbidden legacy dev ports are
@@ -31,6 +32,11 @@ const apiPort = resolvePort('ASA_API_PORT', 4611);
 export default defineConfig({
   root,
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@asa-lab/electronics': resolve(repositoryRoot, 'contexts/electronics/index.ts'),
+    },
+  },
   define: {
     __ASA_BUILD_REVISION__: JSON.stringify(process.env['VITE_ASA_BUILD_REVISION'] ?? 'development'),
   },
@@ -38,12 +44,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     commonjsOptions: {
-      include: [
-        /node_modules/,
-        /contexts\/chess\/dist/,
-        /contexts\/electronics\/dist/,
-        /packages\/module-sdk\/dist/,
-      ],
+      include: [/node_modules/, /contexts\/chess\/dist/, /packages\/module-sdk\/dist/],
     },
   },
   server: {

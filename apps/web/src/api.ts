@@ -189,6 +189,15 @@ export interface SolveResult {
   iterations: number;
   numericalResidual: number;
   numericalTolerance: number;
+  quality?: {
+    finite: boolean;
+    passed: boolean;
+    maxKclResidualAmp: number;
+    maxSourceVoltageResidualVolt: number;
+    kclToleranceAmp: number;
+    sourceVoltageToleranceVolt: number;
+  };
+  topologySignature?: string;
 }
 
 export interface ApiError {

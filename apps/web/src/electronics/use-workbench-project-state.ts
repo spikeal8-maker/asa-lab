@@ -264,6 +264,7 @@ export function useWorkbenchProjectState(projectId: string) {
       setSaveStatus('dirty');
       setSimulationRunning(false);
       setSimulationStatus('stopped');
+      setResult(null);
       setNotice('Моделирование остановлено.');
       return;
     }
@@ -285,25 +286,26 @@ export function useWorkbenchProjectState(projectId: string) {
       );
       return;
     }
-    setBusy(true);
     setSimulationStatus('starting');
-    const nextResult = await persist(nextDocument, true);
-    setBusy(false);
-    if (nextResult && canStartSimulation(nextResult)) {
-      setDocument(nextDocument);
-      pushHistory(nextDocument);
-      setSimulationRunning(true);
-      setSimulationStatus('running');
-      setNotice('Моделирование запущено. Изменения схемы пересчитываются автоматически.');
-    } else {
-      setSimulationRunning(false);
-      setSimulationStatus(nextResult ? 'validation_failed' : 'runtime_failed');
-      setNotice(
-        nextResult
-          ? 'Моделирование не запущено: сервер отклонил результат проверки схемы.'
-          : 'Моделирование не запущено: сначала исправьте ошибку сохранения.',
-      );
-    }
+    setDocument(nextDocument);
+    pushHistory(nextDocument);
+    setSaveStatus('dirty');
+    setSimulationRunning(true);
+    setSimulationStatus('running');
+    setNotice(
+      'Моделирование запущено. Изменения пересчитываются сразу, сохранение выполняется отдельно.',
+    );
+    void persist(nextDocument, true).then((serverResult) => {
+      if (serverResult && !canStartSimulation(serverResult)) {
+        setSimulationStatus('runtime_failed');
+        setNotice('Серверная проверка схемы не совпала с локальной. Моделирование остановлено.');
+        setSimulationRunning(false);
+        setDocument({
+          ...nextDocument,
+          simulation: { ...nextDocument.simulation, running: false },
+        });
+      }
+    });
   }
 
   function resetSimulation(): void {
