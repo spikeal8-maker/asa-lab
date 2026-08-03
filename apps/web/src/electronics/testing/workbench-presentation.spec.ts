@@ -115,6 +115,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeLessThan(
       stageSource.indexOf('{orderedComponents'),
     );
+    expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*pointer-events:\s*none;/s);
+    expect(workbenchCss).toMatch(/\.workbench-wire-hit\s*\{[^}]*pointer-events:\s*stroke;/s);
     const controllerSource = readFileSync(
       resolve(electronicsRoot, 'use-electronics-workbench.ts'),
       'utf8',

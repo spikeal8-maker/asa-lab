@@ -491,8 +491,7 @@
   stroke-width: 5.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  pointer-events: stroke;
-  cursor: pointer;
+  pointer-events: none;
 }
 .workbench-wire-hit {
   fill: none;
