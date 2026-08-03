@@ -119,7 +119,10 @@ function circuitDocument(options: {
         from: { componentId: 'led', terminal: ledReturn },
         to: { componentId: 'source', terminal: 'BAT-' },
         color: '#2a3035',
-        vertices: [{ x: 820, y: 330 }, { x: 160, y: 330 }],
+        vertices: [
+          { x: 820, y: 330 },
+          { x: 160, y: 330 },
+        ],
       },
     ],
     viewport: { x: 0, y: 0, zoom: 1 },
