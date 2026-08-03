@@ -1,0 +1,33 @@
+name: Electronics Formatting Probe
+
+on:
+  pull_request:
+    paths:
+      - 'e2e/electronics-simulation.spec.ts'
+      - '.github/workflows/electronics-format-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Print exact Prettier diff
+        run: |
+          pnpm exec prettier --write e2e/electronics-simulation.spec.ts
+          git diff -- e2e/electronics-simulation.spec.ts
+          test -z "$(git status --porcelain -- e2e/electronics-simulation.spec.ts)"
