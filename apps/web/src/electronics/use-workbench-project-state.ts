@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { analyseCircuit } from '@asa-lab/electronics';
 import {
   api,
   type Project,
@@ -34,6 +35,10 @@ function migratedTerminal(
   };
   const migrated = aliases[component.kind]?.[terminal] ?? terminal;
   return entry?.terminals[migrated] ? migrated : terminal;
+}
+
+function solveLocally(document: SchematicDocument): SolveResult {
+  return analyseCircuit(document) as SolveResult;
 }
 
 export function normalizeLoadedDocument(document: SchematicDocument): SchematicDocument {
@@ -144,7 +149,7 @@ export function useWorkbenchProjectState(projectId: string) {
     const nextDocument = normalizeLoadedDocument(response.data.draft.document);
     const migrated = JSON.stringify(nextDocument) !== JSON.stringify(response.data.draft.document);
     setDocument(nextDocument);
-    setResult(response.data.result);
+    setResult(nextDocument.simulation.running ? solveLocally(nextDocument) : response.data.result);
     setVersions(response.data.versions);
     setSaveStatus(migrated ? 'dirty' : 'saved');
     setSimulationRunning(nextDocument.simulation.running);
@@ -155,6 +160,11 @@ export function useWorkbenchProjectState(projectId: string) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!document || !simulationRunning) return;
+    setResult(solveLocally(document));
+  }, [document, simulationRunning]);
 
   const pushHistory = useCallback((next: SchematicDocument): void => {
     const state = historyRef.current;
@@ -210,7 +220,7 @@ export function useWorkbenchProjectState(projectId: string) {
         setNotice(`Ошибка сохранения: ${response.error.message}`);
         return null;
       }
-      setResult(response.data.result);
+      if (!nextDocument.simulation.running) setResult(response.data.result);
       setSaveStatus('saved');
       if (!quiet) setNotice('Все изменения сохранены.');
       return response.data.result;
@@ -239,36 +249,31 @@ export function useWorkbenchProjectState(projectId: string) {
     setBusy(false);
   }
 
-  async function toggleSimulation(): Promise<void> {
+  function toggleSimulation(): void {
     if (!document || busy) return;
-    if (simulationRunning) {
-      const nextDocument = {
-        ...document,
-        simulation: { ...document.simulation, running: false },
-      };
-      setDocument(nextDocument);
-      pushHistory(nextDocument);
-      setSaveStatus('dirty');
-      setSimulationRunning(false);
+    const running = !simulationRunning;
+    const nextDocument = {
+      ...document,
+      simulation: { ...document.simulation, running },
+    };
+    setDocument(nextDocument);
+    pushHistory(nextDocument);
+    setSaveStatus('dirty');
+    setSimulationRunning(running);
+    if (!running) {
+      setResult(null);
       setNotice('Моделирование остановлено.');
       return;
     }
-    setBusy(true);
-    const nextDocument = {
-      ...document,
-      simulation: { ...document.simulation, running: true },
-    };
-    const nextResult = await persist(nextDocument, true);
-    setBusy(false);
-    if (nextResult) {
-      setDocument(nextDocument);
-      pushHistory(nextDocument);
-      setSimulationRunning(true);
-      setNotice('Моделирование запущено. Изменения схемы пересчитываются автоматически.');
-    } else {
-      setSimulationRunning(false);
-      setNotice('Моделирование не запущено: сначала исправьте ошибку сохранения.');
-    }
+
+    const nextResult = solveLocally(nextDocument);
+    setResult(nextResult);
+    setNotice(
+      nextResult.solved
+        ? 'Моделирование запущено. Изменения пересчитываются сразу, сохранение выполняется отдельно.'
+        : 'Моделирование запущено в fail-closed режиме. Исправьте указанные ошибки схемы.',
+    );
+    void persist(nextDocument, true);
   }
 
   function resetSimulation(): void {
