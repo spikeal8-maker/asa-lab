@@ -16,14 +16,11 @@ docs
 # CI workflow formatting is owned by the governance task, not the code gate.
 .github
 
-# Immutable owner evidence and generated connectivity metadata are byte-preserved;
-# formatting them would create large unrelated diffs and invalidate evidence hashes.
+# Immutable owner evidence is byte-preserved; formatting it would create large
+# unrelated diffs and invalidate evidence hashes.
 apps/web/public/assets/electronics/owner-audit/breadboard-footprint-map.json
 apps/web/public/assets/electronics/owner-audit/manifest.json
 apps/web/public/assets/electronics/owner-audit/state-family-map.json
-apps/web/public/assets/electronics/production/breadboard-connectivity.json
-apps/web/public/assets/electronics/production/manifest.json
-apps/web/public/assets/electronics/production/state-contracts.json
 
 # Recovery files contain explicit long owner-archive paths. They remain subject to
 # ESLint, strict TypeScript checks and focused tests; only reflow is suppressed.

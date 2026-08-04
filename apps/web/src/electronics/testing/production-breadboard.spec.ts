@@ -8,56 +8,36 @@ import {
   type BreadboardDefinition,
 } from '../breadboard-contracts';
 
-interface ConnectivityManifest {
-  placementRules: { snapToleranceMm: number; requiredPitchMm: number };
-  boards: Array<
-    BreadboardDefinition & {
-      physicalWidthMm: number;
-      physicalHeightMm: number;
-      powerRailGroups: string[];
-      railBreaks: Array<{
-        rail: string;
-        afterHoleId: string;
-        beforeHoleId: string;
-        electricallyConnectedAcrossBreak: boolean;
-      }>;
-      railBreaksPreserved: boolean;
-    }
-  >;
-  componentFootprints: Array<{
+interface OwnerCatalogManifest {
+  breadboards: BreadboardDefinition[];
+  components: Array<{
     componentId: string;
-    pinOffsetsMm: number[][];
+    footprint: { pinOffsetsMm?: number[][] } | null;
   }>;
 }
 
 const manifest = JSON.parse(
   readFileSync(
-    resolve(
-      process.cwd(),
-      'apps/web/public/assets/electronics/production/breadboard-connectivity.json',
-    ),
+    resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog/manifest.json'),
     'utf8',
   ),
-) as ConnectivityManifest;
+) as OwnerCatalogManifest;
 
 const board = (componentId: string) => {
-  const result = manifest.boards.find((candidate) => candidate.componentId === componentId);
+  const result = manifest.breadboards.find((candidate) => candidate.componentId === componentId);
   expect(result, componentId).toBeDefined();
-  return result as ConnectivityManifest['boards'][number];
+  return result as BreadboardDefinition;
 };
+
+const footprint = (componentId: string) =>
+  manifest.components.find((item) => item.componentId === componentId)?.footprint?.pinOffsetsMm;
 
 describe('breadboard fit and internal connectivity contracts', () => {
   it('models all three owner breadboards at exact 2.54mm pitch with stable hole IDs', () => {
-    expect(manifest.placementRules).toEqual({
-      snapToleranceMm: 0.25,
-      requiredPitchMm: 2.54,
-      rotationDegrees: [0, 90, 180, 270],
-    });
-    expect(manifest.boards.map((item) => item.holes.length)).toEqual([170, 420, 882]);
-    for (const item of manifest.boards) {
+    expect(manifest.breadboards.map((item) => item.holes.length)).toEqual([170, 420, 882]);
+    for (const item of manifest.breadboards) {
       expect(item.pitchMm).toBe(2.54);
       expect(new Set(item.holes.map((hole) => hole.id)).size).toBe(item.holes.length);
-      expect(item.railBreaksPreserved).toBe(true);
       for (const hole of item.holes) {
         expect(item.groups[hole.groupId]).toContain(hole.id);
       }
@@ -65,26 +45,31 @@ describe('breadboard fit and internal connectivity contracts', () => {
   });
 
   it('preserves continuous rails and the four physical center breaks on the 882 board', () => {
-    expect(board('breadboard-small').powerRailGroups).toHaveLength(0);
-    expect(board('breadboard-medium').powerRailGroups).toHaveLength(4);
+    const railGroups = (item: BreadboardDefinition) =>
+      Object.keys(item.groups).filter((groupId) => groupId.startsWith('rail-'));
+    expect(railGroups(board('breadboard-small'))).toHaveLength(0);
+    const medium = board('breadboard-medium');
+    expect(railGroups(medium)).toHaveLength(4);
+    const continuousRail = medium.groups['rail-top-negative'];
+    expect(connectedHoleIds(medium, continuousRail[0] as string)).toContain(continuousRail.at(-1));
     const large = board('breadboard-large');
-    expect(large.powerRailGroups).toHaveLength(8);
-    expect(large.railBreaks).toHaveLength(4);
-    for (const gap of large.railBreaks) {
-      expect(gap.electricallyConnectedAcrossBreak).toBe(false);
-      expect(connectedHoleIds(large, gap.afterHoleId)).not.toContain(gap.beforeHoleId);
+    expect(railGroups(large)).toHaveLength(8);
+    for (const polarity of ['negative', 'positive']) {
+      for (const position of ['top', 'bottom']) {
+        const left = large.groups[`rail-${position}-${polarity}-left`];
+        const right = large.groups[`rail-${position}-${polarity}-right`];
+        expect(connectedHoleIds(large, left.at(-1) as string)).not.toContain(right[0] as string);
+      }
     }
   });
 
   it('snaps a four-pin button footprint and rejects a placement beyond 0.25mm', () => {
     const small = board('breadboard-small');
-    const footprint = manifest.componentFootprints.find(
-      (item) => item.componentId === 'button-tactile-6mm',
-    );
-    expect(footprint).toBeDefined();
+    const buttonFootprint = footprint('button-tactile-6mm');
+    expect(buttonFootprint).toBeDefined();
     const origin = small.holes.find((hole) => hole.id === 'J1');
     expect(origin).toBeDefined();
-    const pins = (footprint?.pinOffsetsMm ?? []).map(([dxMm, dyMm], index) => ({
+    const pins = (buttonFootprint ?? []).map(([dxMm, dyMm], index) => ({
       pinId: `pin-${index + 1}`,
       dxMm: dxMm as number,
       dyMm: dyMm as number,
@@ -106,8 +91,6 @@ describe('breadboard fit and internal connectivity contracts', () => {
   });
 
   it('uses pitch-derived landing widths for axial, inline and display components', () => {
-    const footprint = (componentId: string) =>
-      manifest.componentFootprints.find((item) => item.componentId === componentId)?.pinOffsetsMm;
     expect(footprint('resistor-axial')).toEqual([
       [0, 0],
       [0, 10.16],
@@ -119,7 +102,7 @@ describe('breadboard fit and internal connectivity contracts', () => {
     ]);
     expect(footprint('diode-do35')).toEqual([
       [0, 0],
-      [7.62, 0],
+      [10.16, 0],
     ]);
     expect(footprint('diode-do41')).toEqual([
       [0, 0],

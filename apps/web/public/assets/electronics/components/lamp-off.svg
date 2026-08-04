@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="title desc">
-  <title id="title">ASA Lab lamp off</title><desc id="desc">Incandescent lamp switched off</desc>
-  <circle cx="90" cy="70" r="54" fill="#eef2f3" stroke="#687984" stroke-width="6"/>
-  <path d="M62 76c18-30 38 30 56 0M70 115h40M68 126h44M76 137h28" fill="none" stroke="#596a75" stroke-width="6" stroke-linecap="round"/>
-  <path d="M52 137v29M128 137v29" stroke="#b8782b" stroke-width="10" stroke-linecap="round"/>
-</svg>

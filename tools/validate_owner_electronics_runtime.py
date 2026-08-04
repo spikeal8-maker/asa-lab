@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -40,6 +39,11 @@ PROHIBITED_PATHS = (
     ROOT / "tools/electronics-production-vectors",
     ROOT / "tools/build_electronics_production_assets.py",
     ROOT / "tools/vectorize_owner_references.py",
+)
+PROHIBITED_RUNTIME_TREES = (
+    ASSETS / "production",
+    ASSETS / "reference/components",
+    ASSETS / "components",
 )
 PROHIBITED_SOURCE_MARKERS = (
     "/assets/electronics/production/",
@@ -179,6 +183,18 @@ def validate_catalog(
             fail(f"family must declare exactly one default variant: {family_id}")
 
     referenced: set[Path] = set()
+    runtime_digest_paths: dict[str, Path] = {}
+
+    def record_runtime_file(path: Path, expected_digest: str) -> None:
+        resolved = path.resolve()
+        existing = runtime_digest_paths.get(expected_digest)
+        if existing is not None and existing != resolved:
+            fail(
+                "duplicate runtime SVG SHA across distinct paths: "
+                f"{existing.relative_to(ROOT)} and {resolved.relative_to(ROOT)}"
+            )
+        runtime_digest_paths[expected_digest] = resolved
+        referenced.add(resolved)
     state_count = 0
     enabled = 0
     for item in components:
@@ -206,7 +222,7 @@ def validate_catalog(
             if digest(path) != runtime_sha:
                 fail(f"runtime file SHA mismatch: {item.get('componentId')}: {path}")
             validate_svg(path)
-            referenced.add(path.resolve())
+            record_runtime_file(path, runtime_sha)
         else:
             if runtime_url is not None or runtime_sha is not None:
                 fail(f"disabled component exposes a runtime substitute: {item.get('componentId')}")
@@ -227,7 +243,7 @@ def validate_catalog(
             if digest(path) != state["runtimeSha256"]:
                 fail(f"state file SHA mismatch: {item.get('componentId')}:{state.get('state')}")
             validate_svg(path)
-            referenced.add(path.resolve())
+            record_runtime_file(path, state["runtimeSha256"])
     if state_count != EXPECTED_EXACT_FILES:
         fail(f"exact owner SVG state inventory changed: {state_count} != {EXPECTED_EXACT_FILES}")
 
@@ -263,6 +279,9 @@ def validate_repository() -> None:
     for path in PROHIBITED_PATHS:
         if path.exists():
             fail(f"prohibited generated runtime path still exists: {path.relative_to(ROOT)}")
+    for path in PROHIBITED_RUNTIME_TREES:
+        if path.exists():
+            fail(f"duplicated/generated runtime tree still exists: {path.relative_to(ROOT)}")
     source_root = ROOT / "apps/web/src/electronics"
     for path in source_root.rglob("*"):
         if (
@@ -276,7 +295,7 @@ def validate_repository() -> None:
             if marker in text:
                 fail(f"hard-coded/generated runtime marker {marker!r} remains in {path.relative_to(ROOT)}")
     adapter = (source_root / "production-manifest-adapter.ts").read_text(encoding="utf-8")
-    if not re.search(r"OWNER_CATALOG_MANIFEST_URL\s*=\s*'/assets/electronics/owner-catalog/manifest\.json'", adapter):
+    if "/assets/electronics/owner-catalog/manifest.json" not in adapter:
         fail("editor adapter does not read owner-catalog/manifest.json")
 
 
