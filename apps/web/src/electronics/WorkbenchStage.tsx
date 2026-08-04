@@ -161,7 +161,6 @@ export function WorkbenchStage({
                   }`,
               )
               .join(' ');
-            const ledBurnedOut = diagnostics.includes('led_burnout');
             return (
               <g
                 key={component.id}
@@ -264,41 +263,6 @@ export function WorkbenchStage({
                       <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
                         !
                       </text>
-                    </g>
-                  ) : null}
-                  {entry.key === 'led-5mm' && c.simulationRunning && ledBurnedOut ? (
-                    <g
-                      className="workbench-led-burnout-explosion"
-                      data-testid="led-burnout-explosion"
-                      transform={`translate(${baseSize.width / 2} ${baseSize.height * 0.42})`}
-                      pointerEvents="none"
-                      aria-hidden="true"
-                    >
-                      <circle className="workbench-led-explosion-flash" r={30 / c.viewport.zoom} />
-                      <circle
-                        className="workbench-led-explosion-ring"
-                        r={22 / c.viewport.zoom}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      {Array.from({ length: 12 }, (_, index) => (
-                        <line
-                          key={index}
-                          className="workbench-led-explosion-ray"
-                          x1={12 / c.viewport.zoom}
-                          x2={38 / c.viewport.zoom}
-                          transform={`rotate(${index * 30})`}
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      ))}
-                      {Array.from({ length: 8 }, (_, index) => (
-                        <circle
-                          key={index}
-                          className="workbench-led-explosion-spark"
-                          cx={(26 / c.viewport.zoom) * Math.cos((index * Math.PI) / 4)}
-                          cy={(26 / c.viewport.zoom) * Math.sin((index * Math.PI) / 4)}
-                          r={3 / c.viewport.zoom}
-                        />
-                      ))}
                     </g>
                   ) : null}
                   {component.kind === 'potentiometer' && c.simulationRunning ? (

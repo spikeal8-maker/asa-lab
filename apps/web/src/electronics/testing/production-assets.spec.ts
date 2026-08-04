@@ -161,7 +161,10 @@ describe('Electronics owner SVG foundation', () => {
       '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
     );
     expect(visualAsset(led!, component, 'reverse')).toBe(
-      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
+      '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg',
+    );
+    expect(visualAsset(led!, component, 'burned')).toBe(
+      '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg',
     );
   });
 

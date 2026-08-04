@@ -289,7 +289,28 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'href',
     /special\/led_red_reverse_polarity\.svg$/,
   );
+  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
+  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
   await page.screenshot({ path: `${ARTIFACT_DIR}/04-reverse-polarity.png`, fullPage: true });
+
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: true, resistorOhms: 20, reversedLed: false }),
+  );
+  await page.reload();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await selectLed(page);
+  await expect(led).toHaveAttribute('data-diagnostics', /led_burnout/);
+  await expect(led.locator('image:not([filter])')).toHaveAttribute(
+    'href',
+    /special\/led_red_burned\.svg$/,
+  );
+  await expect(page.locator('.workbench-inspector')).toContainText('Светодиод перегорел');
+  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
+  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
+  await page.screenshot({ path: `${ARTIFACT_DIR}/05-led-burnout-owner-svg.png`, fullPage: true });
 
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,

@@ -114,12 +114,14 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('fontSize={20 / c.viewport.zoom}');
     expect(stageSource).toContain('diagnostic.suggestedAction');
     expect(stageSource).toContain('pointerEvents="all"');
-    expect(stageSource).toContain('data-testid="led-burnout-explosion"');
-    expect(stageSource).toContain("diagnostics.includes('led_burnout')");
+    expect(stageSource).not.toContain('data-testid="led-burnout-explosion"');
+    expect(stageSource).not.toContain('workbench-led-burnout-explosion');
     expect(workbenchCss).toContain('.workbench-led-diagnostic-badge circle');
     expect(workbenchCss).toContain('.workbench-led-diagnostic-badge.error circle');
-    expect(workbenchCss).toContain('@keyframes workbench-led-explosion-flash');
-    expect(workbenchCss).toContain('@keyframes workbench-led-explosion-ring');
+    expect(workbenchCss).not.toContain('workbench-led-explosion-flash');
+    expect(workbenchCss).not.toContain('workbench-led-explosion-ring');
+    expect(workbenchCss).not.toContain('workbench-led-explosion-ray');
+    expect(workbenchCss).not.toContain('workbench-led-explosion-spark');
     expect(sidebarSource).toContain('Нагрузка относительно номинального тока');
     expect(sidebarSource).toContain('Светодиод перегорел');
     expect(workbenchCss).not.toContain('drop-shadow(0 0 7px rgba(211, 74, 48');
