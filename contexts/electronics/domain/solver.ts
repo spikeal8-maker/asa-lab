@@ -82,7 +82,12 @@ export interface SolveResult {
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const DIODE_ON_RESISTANCE = 2;
-const LED_ON_RESISTANCE = 8;
+// The catalogue voltage is a nominal forward drop measured at useful current,
+// not an ideal switch threshold. Use a lower colour-specific knee plus the
+// package's dynamic resistance so a 3 V AA holder can drive a blue LED dimly
+// through a resistor instead of making the LED jump from fully dark to on.
+const LED_DYNAMIC_RESISTANCE = 24;
+const INDICATOR_ON_RESISTANCE = 8;
 const LED_MIN_CURRENT_A = 0.0001;
 const LED_NOMINAL_CURRENT_A = 0.02;
 const DEFAULT_LED_MAX_CURRENT_A = 0.03;
@@ -91,13 +96,13 @@ const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
 
-const LED_FORWARD_VOLTAGE: Readonly<Record<string, number>> = {
-  red: 1.9,
-  orange: 2,
-  yellow: 2.1,
-  green: 2.2,
-  blue: 3,
-  white: 3.1,
+const LED_KNEE_VOLTAGE: Readonly<Record<string, number>> = {
+  red: 1.65,
+  orange: 1.72,
+  yellow: 1.78,
+  green: 1.85,
+  blue: 2.55,
+  white: 2.65,
 };
 
 const RGB_FORWARD_VOLTAGE: Readonly<Record<string, number>> = {
@@ -146,8 +151,8 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
         id: 'led',
         anode: logicalTerminal(component, 'a'),
         cathode: logicalTerminal(component, 'b'),
-        forwardVoltage: LED_FORWARD_VOLTAGE[colour] ?? component.value,
-        resistance: LED_ON_RESISTANCE,
+        forwardVoltage: LED_KNEE_VOLTAGE[colour] ?? component.value,
+        resistance: LED_DYNAMIC_RESISTANCE,
         nominalCurrent: LED_NOMINAL_CURRENT_A,
         maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
       },
@@ -176,7 +181,7 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
       anode: commonAnode ? common : channel,
       cathode: commonAnode ? channel : common,
       forwardVoltage: RGB_FORWARD_VOLTAGE[channel] ?? 2,
-      resistance: LED_ON_RESISTANCE,
+      resistance: INDICATOR_ON_RESISTANCE,
       nominalCurrent: LED_NOMINAL_CURRENT_A,
       maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
     }));
@@ -190,7 +195,7 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
       anode: commonAnode ? common : terminal,
       cathode: commonAnode ? terminal : common,
       forwardVoltage: 1.9,
-      resistance: LED_ON_RESISTANCE,
+      resistance: INDICATOR_ON_RESISTANCE,
       nominalCurrent: 0.01,
       maxCurrent: 0.02,
     }));

@@ -42,13 +42,13 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-terminal-tooltip text\s*\{[^}]*text-shadow:/s);
   });
 
-  it('keeps visible wires physically scaled and exposes the calculated LED visual state', () => {
+  it('keeps visible wires screen-stable and exposes the calculated LED visual state', () => {
     const visibleWireMarkup =
       stageSource.match(/data-testid="schematic-wire"[\s\S]*?\/>/)?.[0] ?? '';
     const previewWireMarkup =
       stageSource.match(/className="workbench-wire-preview"[\s\S]*?\/>/)?.[0] ?? '';
-    expect(visibleWireMarkup).not.toContain('non-scaling-stroke');
-    expect(previewWireMarkup).not.toContain('non-scaling-stroke');
+    expect(visibleWireMarkup).toContain('non-scaling-stroke');
+    expect(previewWireMarkup).toContain('non-scaling-stroke');
     expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*stroke-width:\s*3\.2;/s);
     expect(productionVisualSource).toContain('data-led-runtime-state');
     expect(productionVisualSource).toContain('data-led-brightness');
@@ -172,6 +172,9 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*pointer-events:\s*none;/s);
     expect(workbenchCss).toMatch(/\.workbench-wire-hit\s*\{[^}]*pointer-events:\s*stroke;/s);
+    expect(stageSource).toContain('className="workbench-wire-selection"');
+    expect(stageSource).toContain('data-testid="schematic-wire"');
+    expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     const controllerSource = readFileSync(
       resolve(electronicsRoot, 'use-electronics-workbench.ts'),
       'utf8',

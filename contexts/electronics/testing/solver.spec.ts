@@ -568,6 +568,27 @@ describe('deterministic DC solver', () => {
     expect(led?.branchBrightness?.led).toBe(led?.brightness);
   });
 
+  it('keeps a 3 V blue LED visibly dim through a 1 kOhm resistor', () => {
+    const result = solveCircuit(
+      series(
+        [
+          component('r1', 'resistor', 1000),
+          component('led1', 'led', 2, {
+            stateProperties: { ledColour: 'blue' },
+          }),
+        ],
+        3,
+      ),
+    );
+    const led = result.components.find((item) => item.componentId === 'led1');
+
+    expect(led?.current).toBeGreaterThan(0.0001);
+    expect(led?.current).toBeLessThan(0.001);
+    expect(led?.lit).toBe(true);
+    expect(led?.brightness).toBeGreaterThan(0);
+    expect(led?.brightness).toBeLessThan(20);
+  });
+
   it('drives the owner AA holder and LED pins with real polarity', () => {
     const source = component('battery', 'source', 3, {
       componentTypeId: 'battery-holder-aa-2',

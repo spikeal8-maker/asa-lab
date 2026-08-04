@@ -119,6 +119,7 @@ describe('live Electronics simulation', () => {
     const red220 = calculateLiveSimulation(seriesLed('red', 220), null, true);
     const red1000 = calculateLiveSimulation(seriesLed('red', 1000), null, true);
     const blue220 = calculateLiveSimulation(seriesLed('blue', 220), null, true);
+    const blue1000 = calculateLiveSimulation(seriesLed('blue', 1000), null, true);
     const resultForLed = (result: SolveResult | null) =>
       result?.components.find((component) => component.componentId === 'led');
 
@@ -126,6 +127,11 @@ describe('live Electronics simulation', () => {
     expect(resultForLed(red220)?.brightness).toBeGreaterThan(
       resultForLed(red1000)?.brightness ?? 100,
     );
-    expect(resultForLed(blue220)).toMatchObject({ lit: false, brightness: 0 });
+    expect(resultForLed(blue220)?.lit).toBe(true);
+    expect(resultForLed(blue1000)?.lit).toBe(true);
+    expect(resultForLed(blue1000)?.brightness).toBeGreaterThan(0);
+    expect(resultForLed(blue1000)?.brightness).toBeLessThan(
+      resultForLed(blue220)?.brightness ?? 100,
+    );
   });
 });

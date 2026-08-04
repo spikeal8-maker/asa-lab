@@ -434,13 +434,20 @@ export function WorkbenchStage({
           {routedWires.map(({ wire, path, selected }) => {
             return (
               <g key={wire.id}>
-                {selected ? <path className="workbench-wire-selection" d={path} /> : null}
+                {selected ? (
+                  <path
+                    className="workbench-wire-selection"
+                    d={path}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
                 <path
                   data-testid="schematic-wire"
                   data-wire-id={wire.id}
                   className="workbench-wire"
                   d={path}
                   stroke={wire.color ?? '#e3212b'}
+                  vectorEffect="non-scaling-stroke"
                   pointerEvents="none"
                 />
                 {selected
@@ -497,6 +504,7 @@ export function WorkbenchStage({
               className="workbench-wire-preview"
               d={roundedWirePath(wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices))}
               stroke={c.activeWireColor}
+              vectorEffect="non-scaling-stroke"
             />
           ) : null}
         </g>
