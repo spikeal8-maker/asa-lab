@@ -81,6 +81,12 @@ export function WorkbenchSidebars({
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
+  const selectedDiagnostics = c.selectedComponent
+    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
+    : [];
+  const ledStressDiagnostic = ['led_burnout', 'led_overcurrent', 'led_near_limit']
+    .map((code) => selectedDiagnostics.find((diagnostic) => diagnostic.code === code))
+    .find((diagnostic) => diagnostic !== undefined);
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -527,17 +533,33 @@ export function WorkbenchSidebars({
                 <div
                   className={`workbench-led-electrical-state${
                     c.simulationRunning && (measurement?.brightness ?? 0) > 0 ? ' lit' : ''
-                  }`}
+                  }${measurement?.stressState ? ` ${measurement.stressState}` : ''}`}
                   data-testid="led-electrical-state"
                 >
                   <strong>
                     {c.simulationRunning
-                      ? (measurement?.brightness ?? 0) > 0
-                        ? `Светится: ${measurement?.brightness?.toFixed(0) ?? '0'}%`
-                        : 'Не светится'
+                      ? measurement?.stressState === 'burned'
+                        ? 'Светодиод перегорел'
+                        : measurement?.stressState === 'overcurrent'
+                          ? 'Опасная перегрузка по току'
+                          : measurement?.stressState === 'warning'
+                            ? 'Ток близок к пределу'
+                            : (measurement?.brightness ?? 0) > 0
+                              ? `Светится: ${measurement?.brightness?.toFixed(0) ?? '0'}%`
+                              : 'Не светится'
                       : 'Моделирование остановлено'}
                   </strong>
-                  <small>Анод справа → к плюсу. Катод слева → к минусу.</small>
+                  {c.simulationRunning && measurement?.currentUtilizationPercent !== undefined ? (
+                    <output>
+                      Нагрузка относительно номинального тока:{' '}
+                      {measurement.currentUtilizationPercent.toFixed(0)}%
+                    </output>
+                  ) : null}
+                  <small>
+                    {ledStressDiagnostic
+                      ? `${ledStressDiagnostic.message} ${ledStressDiagnostic.suggestedAction ?? ''}`
+                      : 'Анод справа → к плюсу. Катод слева → к минусу.'}
+                  </small>
                 </div>
               ) : null}
 

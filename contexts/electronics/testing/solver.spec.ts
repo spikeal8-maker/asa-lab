@@ -481,6 +481,75 @@ describe('deterministic DC solver', () => {
     expect(unsafe.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
   });
 
+  it('distinguishes safe, near-limit, overcurrent and destructive LED operating points', () => {
+    const operatingPoint = (resistance: number) =>
+      solveCircuit(
+        series([component('r1', 'resistor', resistance), component('led', 'led', 2)], 5),
+      );
+    const safe = operatingPoint(220);
+    const nearLimit = operatingPoint(180);
+    const overcurrent = operatingPoint(100);
+    const burned = operatingPoint(68);
+    const ledResult = (result: ReturnType<typeof solveCircuit>) =>
+      result.components.find((item) => item.componentId === 'led');
+
+    expect(ledResult(safe)).toMatchObject({ stressState: 'normal' });
+    expect(safe.diagnostics.map((item) => item.code)).not.toContain('led_near_limit');
+    expect(ledResult(nearLimit)).toMatchObject({ stressState: 'warning' });
+    expect(nearLimit.diagnostics.map((item) => item.code)).toContain('led_near_limit');
+    expect(ledResult(overcurrent)).toMatchObject({ stressState: 'overcurrent' });
+    expect(overcurrent.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
+    expect(overcurrent.diagnostics.map((item) => item.code)).not.toContain('led_burnout');
+    expect(ledResult(burned)).toMatchObject({ stressState: 'burned' });
+    expect(burned.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining(['led_overcurrent', 'led_burnout']),
+    );
+    expect(
+      burned.diagnostics.find((item) => item.code === 'led_burnout')?.suggestedAction,
+    ).toContain('уменьшите напряжение');
+  });
+
+  it('solves LEDs in series and independent parallel resistor branches', () => {
+    const seriesResult = solveCircuit(
+      series(
+        [
+          component('r-series', 'resistor', 220),
+          component('led-series-1', 'led', 2),
+          component('led-series-2', 'led', 2),
+        ],
+        5,
+      ),
+    );
+    const parallelDocument = doc(
+      [
+        component('source', 'source', 5),
+        component('r-left', 'resistor', 220),
+        component('led-left', 'led', 2),
+        component('r-right', 'resistor', 470),
+        component('led-right', 'led', 2),
+      ],
+      [
+        connect('left-positive', 'source', 'a', 'r-left', 'a'),
+        connect('left-led', 'r-left', 'b', 'led-left', 'a'),
+        connect('left-negative', 'led-left', 'b', 'source', 'b'),
+        connect('right-positive', 'source', 'a', 'r-right', 'a'),
+        connect('right-led', 'r-right', 'b', 'led-right', 'a'),
+        connect('right-negative', 'led-right', 'b', 'source', 'b'),
+      ],
+    );
+    const parallelResult = solveCircuit(parallelDocument);
+    const seriesLed1 = seriesResult.components.find((item) => item.componentId === 'led-series-1');
+    const seriesLed2 = seriesResult.components.find((item) => item.componentId === 'led-series-2');
+    const left = parallelResult.components.find((item) => item.componentId === 'led-left');
+    const right = parallelResult.components.find((item) => item.componentId === 'led-right');
+
+    expect(seriesLed1?.current).toBeCloseTo(seriesLed2?.current ?? 0, 8);
+    expect(seriesLed1?.lit).toBe(true);
+    expect(seriesLed2?.lit).toBe(true);
+    expect(left?.current ?? 0).toBeGreaterThan(right?.current ?? 0);
+    expect(parallelResult.current).toBeCloseTo((left?.current ?? 0) + (right?.current ?? 0), 5);
+  });
+
   it('derives ordinary LED brightness from current and colour-specific forward voltage', () => {
     const red = solveCircuit(
       series(

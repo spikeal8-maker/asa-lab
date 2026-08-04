@@ -151,7 +151,17 @@ export function WorkbenchStage({
             const selected =
               c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
             const visualState = c.componentVisualState(component);
-            const diagnostics = [...(c.diagnosticCodesByComponent.get(component.id) ?? [])];
+            const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
+            const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
+            const diagnosticText = componentDiagnostics
+              .map(
+                (diagnostic) =>
+                  `${diagnostic.message}${
+                    diagnostic.suggestedAction ? ` ${diagnostic.suggestedAction}` : ''
+                  }`,
+              )
+              .join(' ');
+            const ledBurnedOut = diagnostics.includes('led_burnout');
             return (
               <g
                 key={component.id}
@@ -243,14 +253,52 @@ export function WorkbenchStage({
                       transform={`translate(${baseSize.width - 8 / c.viewport.zoom} ${
                         8 / c.viewport.zoom
                       })`}
-                      pointerEvents="none"
-                      aria-label={`Проблемы светодиода: ${diagnostics.join(', ')}`}
+                      pointerEvents="all"
+                      role="img"
+                      tabIndex={0}
+                      aria-label={diagnosticText}
+                      onPointerDown={(event) => event.stopPropagation()}
                     >
-                      <title>{`Проблемы светодиода: ${diagnostics.join(', ')}`}</title>
+                      <title>{diagnosticText}</title>
                       <circle r={18 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
                       <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
                         !
                       </text>
+                    </g>
+                  ) : null}
+                  {entry.key === 'led-5mm' && c.simulationRunning && ledBurnedOut ? (
+                    <g
+                      className="workbench-led-burnout-explosion"
+                      data-testid="led-burnout-explosion"
+                      transform={`translate(${baseSize.width / 2} ${baseSize.height * 0.42})`}
+                      pointerEvents="none"
+                      aria-hidden="true"
+                    >
+                      <circle className="workbench-led-explosion-flash" r={30 / c.viewport.zoom} />
+                      <circle
+                        className="workbench-led-explosion-ring"
+                        r={22 / c.viewport.zoom}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                      {Array.from({ length: 12 }, (_, index) => (
+                        <line
+                          key={index}
+                          className="workbench-led-explosion-ray"
+                          x1={12 / c.viewport.zoom}
+                          x2={38 / c.viewport.zoom}
+                          transform={`rotate(${index * 30})`}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      ))}
+                      {Array.from({ length: 8 }, (_, index) => (
+                        <circle
+                          key={index}
+                          className="workbench-led-explosion-spark"
+                          cx={(26 / c.viewport.zoom) * Math.cos((index * Math.PI) / 4)}
+                          cy={(26 / c.viewport.zoom) * Math.sin((index * Math.PI) / 4)}
+                          r={3 / c.viewport.zoom}
+                        />
+                      ))}
                     </g>
                   ) : null}
                   {component.kind === 'potentiometer' && c.simulationRunning ? (

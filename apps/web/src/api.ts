@@ -177,6 +177,8 @@ export interface ComponentResult {
   branchBrightness?: Record<string, number>;
   lit?: boolean;
   energized?: boolean;
+  currentUtilizationPercent?: number;
+  stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
 }
 
 export interface SolveResult {

@@ -8,7 +8,12 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import { type ComponentResult, type SchematicComponent, type Terminal } from '../api';
+import {
+  type ComponentResult,
+  type Diagnostic,
+  type SchematicComponent,
+  type Terminal,
+} from '../api';
 import {
   catalogEntry,
   componentPointPosition,
@@ -1146,17 +1151,25 @@ export function useElectronicsWorkbench(projectId: string) {
     return Math.round(clamp(resultByComponent.get(component.id)?.brightness ?? 0, 0, 100));
   }
 
-  const diagnosticCodesByComponent = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+  const diagnosticsByComponent = useMemo(() => {
+    const map = new Map<string, Diagnostic[]>();
     for (const diagnostic of result?.diagnostics ?? []) {
       for (const componentId of diagnostic.componentIds ?? []) {
-        const codes = map.get(componentId) ?? new Set<string>();
-        codes.add(diagnostic.code);
-        map.set(componentId, codes);
+        map.set(componentId, [...(map.get(componentId) ?? []), diagnostic]);
       }
     }
     return map;
   }, [result]);
+  const diagnosticCodesByComponent = useMemo(
+    () =>
+      new Map(
+        [...diagnosticsByComponent.entries()].map(([componentId, diagnostics]) => [
+          componentId,
+          new Set(diagnostics.map((diagnostic) => diagnostic.code)),
+        ]),
+      ),
+    [diagnosticsByComponent],
+  );
   const errorDiagnosticComponentIds = useMemo(() => {
     const ids = new Set<string>();
     for (const diagnostic of result?.diagnostics ?? []) {
@@ -1175,7 +1188,7 @@ export function useElectronicsWorkbench(projectId: string) {
     if (component.kind !== 'led' || !simulationRunning) return 'default';
     const codes = diagnosticCodesByComponent.get(component.id);
     if (codes?.has('reverse_polarity')) return 'reverse';
-    if (codes?.has('short_circuit')) return 'burned';
+    if (codes?.has('led_burnout') || codes?.has('short_circuit')) return 'burned';
     if (codes?.has('led_overcurrent')) return 'overcurrent';
     return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
   }
@@ -1281,6 +1294,7 @@ export function useElectronicsWorkbench(projectId: string) {
     resultByComponent,
     terminalConnectionCount,
     terminalConnectionLabel,
+    diagnosticsByComponent,
     diagnosticCodesByComponent,
     errorDiagnosticComponentIds,
     componentVisualState,

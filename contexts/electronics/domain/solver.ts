@@ -20,7 +20,9 @@ export type DiagnosticCode =
   | 'invalid_terminal_contract'
   | 'conflicting_sources'
   | 'reverse_polarity'
+  | 'led_near_limit'
   | 'led_overcurrent'
+  | 'led_burnout'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -55,6 +57,8 @@ export interface ComponentResult {
   readonly branchBrightness?: Readonly<Record<string, number>>;
   readonly lit?: boolean;
   readonly energized?: boolean;
+  readonly currentUtilizationPercent?: number;
+  readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
 }
 
 export interface NodeResult {
@@ -82,6 +86,7 @@ const LED_ON_RESISTANCE = 8;
 const LED_MIN_CURRENT_A = 0.0001;
 const LED_NOMINAL_CURRENT_A = 0.02;
 const DEFAULT_LED_MAX_CURRENT_A = 0.03;
+const LED_WARNING_RATIO = 0.8;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
@@ -657,6 +662,33 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         component.kind === 'lamp'
           ? Math.min(100, Math.pow(power / LAMP_NOMINAL_POWER_W, 0.55) * 100)
           : Math.max(0, ...Object.values(branchBrightness));
+      const currentUtilizationPercent =
+        branches.length > 0
+          ? Math.max(
+              0,
+              ...branchResults.map(({ branch, current: branchCurrent }) =>
+                Math.abs((branchCurrent / branch.nominalCurrent) * 100),
+              ),
+            )
+          : undefined;
+      const stressState =
+        branches.length === 0
+          ? undefined
+          : branchResults.some(
+                ({ branch, current: branchCurrent }) => Math.abs(branchCurrent) > branch.maxCurrent,
+              )
+            ? 'burned'
+            : branchResults.some(
+                  ({ branch, current: branchCurrent }) =>
+                    Math.abs(branchCurrent) > branch.nominalCurrent,
+                )
+              ? 'overcurrent'
+              : branchResults.some(
+                    ({ branch, current: branchCurrent }) =>
+                      Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
+                  )
+                ? 'warning'
+                : 'normal';
       return {
         componentId: component.id,
         voltageDrop: round(voltageDrop),
@@ -665,6 +697,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         power: round(power),
         brightness: round(brightness, 2),
         ...(branches.length > 0 ? { branchCurrents, branchBrightness } : {}),
+        ...(currentUtilizationPercent === undefined || stressState === undefined
+          ? {}
+          : {
+              currentUtilizationPercent: round(currentUtilizationPercent, 2),
+              stressState,
+            }),
         ...(component.kind === 'led' ||
         component.kind === 'rgb-led' ||
         component.kind === 'seven-segment'
@@ -738,16 +776,44 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
           : 'Проверьте анод, катод и общий вывод.',
       });
     }
+    const nearLimit = componentBranches.filter((branch) => {
+      const current = Math.abs(result?.branchCurrents?.[branch.id] ?? 0);
+      return (
+        current >= branch.nominalCurrent * LED_WARNING_RATIO && current <= branch.nominalCurrent
+      );
+    });
+    if (nearLimit.length > 0) {
+      diagnostics.push({
+        code: 'led_near_limit',
+        severity: 'warning',
+        message: `${component.name ?? component.id}: ток близок к номинальному пределу в ${nearLimit.map((branch) => branch.id).join(', ')}. Светодиод пока работает, но запас по току мал.`,
+        componentIds: [component.id],
+        suggestedAction: 'Увеличьте сопротивление, чтобы оставить безопасный запас по току.',
+      });
+    }
     const overloaded = componentBranches.filter(
-      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.maxCurrent,
+      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.nominalCurrent,
     );
     if (overloaded.length > 0) {
       diagnostics.push({
         code: 'led_overcurrent',
-        severity: 'error',
-        message: `${component.name ?? component.id}: ток выше безопасного предела в ${overloaded.map((branch) => branch.id).join(', ')}.`,
+        severity: 'warning',
+        message: `${component.name ?? component.id}: ток выше номинальных ${(overloaded[0]!.nominalCurrent * 1000).toFixed(0)} мА в ${overloaded.map((branch) => branch.id).join(', ')}. Возможна деградация светодиода.`,
         componentIds: [component.id],
         suggestedAction: 'Увеличьте токоограничивающее сопротивление.',
+      });
+    }
+    const burnedOut = componentBranches.filter(
+      (branch) => Math.abs(result?.branchCurrents?.[branch.id] ?? 0) > branch.maxCurrent,
+    );
+    if (burnedOut.length > 0) {
+      diagnostics.push({
+        code: 'led_burnout',
+        severity: 'error',
+        message: `${component.name ?? component.id}: ток превысил разрушительный предел ${(burnedOut[0]!.maxCurrent * 1000).toFixed(0)} мА в ${burnedOut.map((branch) => branch.id).join(', ')}. Светодиод перегорел в этой рабочей точке.`,
+        componentIds: [component.id],
+        suggestedAction:
+          'Остановите моделирование, уменьшите напряжение или добавьте сопротивление.',
       });
     }
   }
