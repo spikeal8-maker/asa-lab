@@ -2,7 +2,10 @@ import type { ComponentKind, ProductionStateValue } from '../api';
 import type { PreviewKey } from './component-preview';
 import { BREADBOARD_PITCH_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 
-export const OWNER_CATALOG_MANIFEST_URL = '/assets/electronics/owner-catalog/manifest.json';
+const OWNER_CATALOG_REVISION =
+  typeof __ASA_BUILD_REVISION__ === 'undefined' ? 'development' : __ASA_BUILD_REVISION__;
+export const OWNER_CATALOG_MANIFEST_URL =
+  `/assets/electronics/owner-catalog/manifest.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
 
 export interface ProductionPin {
   readonly id: string;

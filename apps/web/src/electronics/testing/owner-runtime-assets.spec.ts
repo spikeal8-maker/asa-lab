@@ -17,7 +17,9 @@ const manifest = JSON.parse(
 
 describe('owner SVG runtime catalog adapter', () => {
   it('loads the complete owner catalog and fails closed on a runtime SHA substitution', () => {
-    expect(OWNER_CATALOG_MANIFEST_URL).toBe('/assets/electronics/owner-catalog/manifest.json');
+    const manifestUrl = new URL(OWNER_CATALOG_MANIFEST_URL, 'http://asa-lab.local');
+    expect(manifestUrl.pathname).toBe('/assets/electronics/owner-catalog/manifest.json');
+    expect(manifestUrl.searchParams.get('rev')).toBeTruthy();
 
     configureProductionLibrary(manifest);
     expect(ownerCatalogItems().length).toBeGreaterThan(33);
