@@ -10,7 +10,7 @@ active issue:            #63
 active branch:           agent/r4-electronics-m1
 active PR:               #72
 status:                  in_review
-checkpoint:              m1_release_candidate
+checkpoint:              m1_led_visual_corrective
 sole executor:           coding_bot
 assistant role:          read_only_reviewer
 execution manifest:      docs/delivery/EXECUTION_MANIFEST.yaml
@@ -19,9 +19,10 @@ owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198A
 ```
 
 `docs/delivery/EXECUTION_MANIFEST.yaml` остаётся каноническим execution
-contract. Текущий checkpoint — `m1_release_candidate`: coding-бот завершил
-convergence и остановлен для owner review, а assistant работает только как
-read-only reviewer. Второй исполнитель не меняет ветку до решения владельца.
+contract. Текущий checkpoint — `m1_led_visual_corrective`: после owner visual
+rejection исправлены состояния обычного LED, визуализация расчётной яркости и
+масштабирование проводов/контактных подписей. Результат снова остановлен для
+owner review, а assistant работает только как read-only reviewer.
 
 ## 2. Цель текущего прохода
 

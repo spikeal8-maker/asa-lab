@@ -8,7 +8,7 @@ Current PR: #72
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
 status: in_review
-checkpoint: m1_release_candidate
+checkpoint: m1_led_visual_corrective
 sole_executor: coding_bot
 assistant_role: read_only_reviewer
 rejected implementation: cfce81c163d69310f8091b558968f79145496a3a
@@ -20,6 +20,12 @@ The family-library checkpoint was rejected because its presentation layer did
 not match the owner reference. Functional foundation, production SVG assets,
 physical scale, pins, breadboard connectivity, persistence and current solver
 remain preserved.
+
+The later release-candidate visual was also rejected for ambiguous ordinary-LED
+states and unstable wire/terminal-label presentation during zoom. The corrective
+checkpoint now keeps a stopped LED at the exact 0% owner state, uses the selected
+colour and calculated brightness while running, adds a current-dependent glow,
+explains why an LED is off, and keeps visible wires physically scaled.
 
 ## Current convergence scope
 

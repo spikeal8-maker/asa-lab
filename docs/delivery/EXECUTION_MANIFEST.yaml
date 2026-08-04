@@ -22,7 +22,7 @@ canonical_state:
   active_task: TASK-ELECTRONICS-M1-001
   active_branch: agent/r4-electronics-m1
   active_issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-  active_checkpoint: m1_release_candidate
+  active_checkpoint: m1_led_visual_corrective
   sole_executor: coding_bot
   assistant_role: read_only_reviewer
   reference_audit_sha: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
@@ -187,7 +187,7 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     status: in_review
-    checkpoint: m1_release_candidate
+    checkpoint: m1_led_visual_corrective
     owner_acceptance: pending
     sole_executor: coding_bot
     assistant_role: read_only_reviewer

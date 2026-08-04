@@ -10,7 +10,7 @@ TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
 status in_review
-checkpoint m1_release_candidate
+checkpoint m1_led_visual_corrective
 sole executor coding_bot
 assistant role read_only_reviewer
 ```
@@ -30,7 +30,8 @@ It does not declare full R3 completion; R3B remains blocked/deferred.
 
 Electronics M1 is converging without new features: one fail-closed owner
 catalog, one exact runtime SHA, one Compose project and one real-editor owner
-flow. R4-M2 remains blocked.
+flow. The current corrective checkpoint covers ordinary-LED runtime states and
+zoom-stable wire/terminal presentation. R4-M2 remains blocked.
 
 ## Quality gate
 
