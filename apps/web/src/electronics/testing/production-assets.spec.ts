@@ -135,7 +135,7 @@ describe('Electronics owner SVG foundation', () => {
     }
   });
 
-  it('keeps the selected LED package colour visible while electrical brightness is stopped', () => {
+  it('keeps the selected LED package colour unlit while electrical brightness is stopped', () => {
     const led = productionCatalog().find((item) => item.key === 'led-5mm');
     expect(led).toBeDefined();
     const component: SchematicComponent = {
@@ -148,7 +148,7 @@ describe('Electronics owner SVG foundation', () => {
     };
 
     expect(visualAsset(led!, component, 'default')).toBe(
-      '/assets/electronics/owner-audit/components/led/blue/led_blue_i016.svg',
+      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
     );
     expect(
       visualAsset(
@@ -156,7 +156,7 @@ describe('Electronics owner SVG foundation', () => {
         { ...component, stateProperties: { ...component.stateProperties, ledColour: 'green' } },
         'default',
       ),
-    ).toBe('/assets/electronics/owner-audit/components/led/green/led_green_i016.svg');
+    ).toBe('/assets/electronics/owner-audit/components/led/green/led_green_i000.svg');
     expect(visualAsset(led!, component, 'off')).toBe(
       '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
     );

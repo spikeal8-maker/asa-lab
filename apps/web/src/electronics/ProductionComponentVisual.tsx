@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
@@ -12,6 +13,15 @@ import {
   type ResistorTolerancePercent,
   type SevenSegmentId,
 } from './production-asset-contracts';
+
+const LED_GLOW_RGB: Readonly<Record<string, string>> = {
+  blue: '47, 132, 255',
+  green: '46, 214, 82',
+  orange: '255, 145, 28',
+  red: '255, 48, 56',
+  white: '238, 248, 255',
+  yellow: '255, 221, 48',
+};
 
 const TINKERCAD_MODEL_UNIT_MM = 0.254;
 const TINKERCAD_MODEL_TO_WORLD = TINKERCAD_MODEL_UNIT_MM * WORLD_UNITS_PER_MM;
@@ -69,6 +79,22 @@ export function ProductionComponentVisual({
   simulationRunning = false,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
+  const ledColour = String(properties['ledColour'] ?? 'red');
+  const ledBrightness =
+    entry.key === 'led-5mm' && simulationRunning
+      ? Math.round(Math.min(100, Math.max(0, effectiveBrightness ?? 0)))
+      : 0;
+  const ledIsLit = entry.key === 'led-5mm' && visualState === 'lit' && ledBrightness > 0;
+  const ledRuntimeState =
+    entry.key !== 'led-5mm'
+      ? undefined
+      : !simulationRunning
+        ? 'stopped'
+        : visualState === 'lit'
+          ? 'lit'
+          : visualState === 'off'
+            ? 'off'
+            : 'fault';
   const visualComponent: SchematicComponent =
     entry.key === 'led-5mm' && effectiveBrightness !== undefined
       ? {
@@ -111,11 +137,26 @@ export function ProductionComponentVisual({
   ].includes(entry.key);
   return (
     <svg
-      className="workbench-production-visual"
+      className={`workbench-production-visual${
+        entry.key === 'led-5mm' ? ` workbench-led-visual${ledIsLit ? ' is-lit' : ''}` : ''
+      }`}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       overflow="visible"
+      data-led-colour={entry.key === 'led-5mm' ? ledColour : undefined}
+      data-led-brightness={entry.key === 'led-5mm' ? ledBrightness : undefined}
+      data-led-runtime-state={ledRuntimeState}
+      style={
+        ledIsLit
+          ? ({
+              '--workbench-led-glow': `rgba(${LED_GLOW_RGB[ledColour] ?? LED_GLOW_RGB['red']}, ${(
+                0.28 +
+                (ledBrightness / 100) * 0.62
+              ).toFixed(3)})`,
+            } as CSSProperties)
+          : undefined
+      }
       aria-hidden="true"
     >
       {selected && !usesMeasuredTinkercadGeometry ? (
@@ -439,7 +480,13 @@ export function ProductionComponentVisual({
           </g>
         </g>
       ) : (
-        <image href={asset} width={width} height={height} preserveAspectRatio={imageFit} />
+        <image
+          className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
+          href={asset}
+          width={width}
+          height={height}
+          preserveAspectRatio={imageFit}
+        />
       )}
 
       {entry.key === 'rgb-led' ? (

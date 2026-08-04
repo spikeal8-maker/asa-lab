@@ -484,7 +484,6 @@
 }
 .workbench-terminal text {
   fill: #405562;
-  font-size: 12px;
   font-weight: 800;
   paint-order: stroke;
   stroke: #fff;
@@ -543,7 +542,7 @@
 }
 .workbench-wire {
   fill: none;
-  stroke-width: 5.2;
+  stroke-width: 3.2;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
@@ -558,7 +557,7 @@
 .workbench-wire-selection {
   fill: none;
   stroke: #18a4df;
-  stroke-width: 10;
+  stroke-width: 6.4;
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0.35;
@@ -566,12 +565,17 @@
 }
 .workbench-wire-preview {
   fill: none;
-  stroke-width: 4;
+  stroke-width: 3.2;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 10 7;
   animation: wb-wire-flow 0.8s linear infinite;
   pointer-events: none;
+}
+
+.workbench-led-visual.is-lit .workbench-led-asset {
+  filter: drop-shadow(0 0 2.5px var(--workbench-led-glow))
+    drop-shadow(0 0 7px var(--workbench-led-glow));
 }
 @keyframes wb-wire-flow {
   to {
@@ -2481,7 +2485,7 @@
   cursor: default;
 }
 .workbench-wire-preview {
-  stroke-width: 4.4;
+  stroke-width: 3.2;
   stroke-dasharray: none;
   animation: none;
 }

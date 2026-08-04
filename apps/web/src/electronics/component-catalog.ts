@@ -239,15 +239,13 @@ export function visualAsset(
       visualState === 'reverse' || visualState === 'overcurrent' || visualState === 'burned'
         ? visualState
         : explicitFault;
-    // While modelling is stopped, keep the selected package colour visible without
-    // presenting it as a calculated electrical brightness. Running simulation states
-    // continue to use the exact solver result, including a fully dark LED at 0%.
+    // A stopped or electrically-off LED must use the exact 0% owner state. The package
+    // still keeps its selected body colour, but no light is emitted until the solver
+    // reports current through the LED.
     const normalizedBrightness =
-      visualState === 'off' || visualState === 'reverse'
+      visualState === 'default' || visualState === 'off' || visualState === 'reverse'
         ? 0
-        : visualState === 'default'
-          ? Math.max(16, brightness)
-          : brightness;
+        : brightness;
     return ordinaryLedAsset(ordinaryLedState(colour, normalizedBrightness, fault));
   }
   if (entry.key === 'button-tactile-6mm')
