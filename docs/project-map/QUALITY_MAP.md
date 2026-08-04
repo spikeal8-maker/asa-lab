@@ -10,6 +10,9 @@ TASK-ELECTRONICS-M1-001  in_progress
 current_focus             TASK-ELECTRONICS-M1-001
 branch                    agent/r4-electronics-m1
 Issue                     #63
+checkpoint                m1_convergence_in_progress
+sole_executor             coding_bot
+assistant_role            read_only_reviewer
 ```
 
 ## Governance IDs
@@ -36,22 +39,19 @@ TST-ELECTRONICS-COMPONENT-LIBRARY-001
 TST-ELECTRONICS-M1-E2E-001
 ```
 
-The production-vector commands and owner-reference presentation tests run as
-one focused asset/state/breadboard/library suite. The full repository matrix
-remains intentionally out of scope before owner visual acceptance.
+The canonical owner-catalog validator and focused
+asset/state/breadboard/library tests run with common static CI. The full
+repository matrix remains intentionally out of scope before owner acceptance.
 
 ## Required browser evidence
 
 ```text
-editor-idle-clean.png
-library-basic-three-columns.png
-library-basic-exact-order.png
-component-hover-terminal.png
-wiring-mode-terminals.png
-component-selected.png
-breadboard-placement-clean.png
-library-disabled-components.png
-owner-reference-vs-current.png
+electronics-empty.png
+electronics-wired.png
+electronics-running.png
+electronics-resistance-changed.png
+electronics-reverse-polarity.png
+electronics-reload.png
 console errors = 0
 pageerror = 0
 unexpected requestfailed = 0

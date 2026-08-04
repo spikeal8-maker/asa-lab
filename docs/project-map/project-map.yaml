@@ -5,6 +5,9 @@ project:
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
   current_focus: TASK-ELECTRONICS-M1-001
+  active_checkpoint: m1_convergence_in_progress
+  sole_executor: coding_bot
+  assistant_role: read_only_reviewer
   canonical_branch: main
   active_branch: agent/r4-electronics-m1
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
@@ -102,7 +105,7 @@ nodes:
   - {id: TASK-ACCOUNT-C1-001, label: Account C1, kind: task, layer: delivery, status: done, summary: "Issue 48 completed and merged.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/48}
   - {id: TASK-CREATOR-PORTAL-001, label: R2 Creator Portal, kind: task, layer: delivery, status: done, summary: "Creator Home and capability-aware Portal shell merged by PR #71.", phase: PHASE-R2, issue: https://github.com/spikeal8-maker/asa-lab/issues/62}
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
-  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_progress, summary: "Present the accepted production-vector foundation through a Tinkercad-style family library in the real editor before owner review.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
+  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_progress, summary: "Converge the real Electronics editor on one owner catalog, one verified runtime and one focused release candidate.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
@@ -214,4 +217,4 @@ execution_queue:
   - {position: 3, task_id: TASK-ACCOUNT-C1-001, instruction: "Completed Account C1 and merged PR #70.", gate: "done"}
   - {position: 4, task_id: TASK-CREATOR-PORTAL-001, instruction: "Implement only R2 Creator Home and capability-aware Portal shell on agent/r2-creator-portal.", gate: "focused tests, full regression, live browser evidence and owner review"}
   - {position: 5, task_id: TASK-R3A-ELECTRONICS-GATEWAY-001, instruction: "Verify the existing Registry, Editor Host and module-neutral lifecycle without an architecture rewrite.", gate: "focused module and project tests"}
-  - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Group the preserved owner production catalog into categories, families and persisted variants in the real /projects/:projectId Electronics editor.", gate: "focused asset/family/state/breadboard/browser tests, seven real-editor screenshots and owner visual review"}
+  - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Converge the preserved Electronics M1 implementation on one owner catalog and one exact release-candidate SHA.", gate: "common and focused CI, one actual-editor journey, six final screenshots and owner review"}

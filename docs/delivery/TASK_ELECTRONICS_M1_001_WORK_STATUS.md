@@ -8,10 +8,12 @@ Current PR: #72
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
 status: in_progress
-checkpoint: owner_simulation_implementation_in_progress
+checkpoint: m1_convergence_in_progress
+sole_executor: coding_bot
+assistant_role: read_only_reviewer
 rejected implementation: cfce81c163d69310f8091b558968f79145496a3a
 visual reference: owner-supplied Tinkercad screenshot at 100 percent
-simulation baseline: efc6faf043525498b1d613d7c58ae52ac4f417e7
+convergence baseline: f27ac1594761265a326229fa2aa8d841081a5dd8
 ```
 
 The family-library checkpoint was rejected because its presentation layer did
@@ -19,18 +21,14 @@ not match the owner reference. Functional foundation, production SVG assets,
 physical scale, pins, breadboard connectivity, persistence and current solver
 remain preserved.
 
-## Current implementation scope
+## Current convergence scope
 
-- deterministic fail-closed netlist and DC simulation;
-- explicit model registry for existing R4-M1 components only;
-- stable breadboard/wire/component topology;
-- numerically checked voltages, currents, power and convergence;
-- source, resistor, button, SPDT, potentiometer, diode, LED, RGB LED,
-  seven-segment, lamp and breadboard models;
-- honest unsupported component/topology diagnostics without fake success;
-- live recalculation independent from draft persistence;
-- save/reload/checkpoint input consistency;
-- focused domain/web/integration tests and one actual-editor smoke.
+- preserve the existing deterministic fail-closed DC implementation;
+- use only `owner-catalog/manifest.json` as the runtime asset catalog;
+- remove generated/duplicated runtime assets and rejected review surfaces;
+- keep only the product integration, focused tests and final owner evidence;
+- pass the focused/common CI and dependency gate on one exact SHA;
+- deploy one `asa-lab-dev` and verify one actual-editor owner flow.
 
 ## Prohibited
 
@@ -44,16 +42,15 @@ remain preserved.
 - additional permanent Compose projects;
 - declaring owner acceptance before visual comparison.
 
-## Required simulation evidence
+## Required release-candidate evidence
 
 ```text
-dc-series-led-running.png
-dc-parallel-branches.png
-breadboard-connectivity.png
-spdt-button-potentiometer.png
-rgb-seven-segment.png
-reverse-and-short-diagnostics.png
-reload-result-consistency.png
+electronics-empty.png
+electronics-wired.png
+electronics-running.png
+electronics-resistance-changed.png
+electronics-reverse-polarity.png
+electronics-reload.png
 ```
 
 Stop after focused checks and screenshot publication. PR №72 remains Draft and

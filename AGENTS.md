@@ -10,39 +10,34 @@ active issue:            #63
 active branch:           agent/r4-electronics-m1
 active PR:               #72
 status:                  in_progress
-execution mode:          assistant_simulation_implementation
-coding bot:              STOP — current assistant owns implementation
+checkpoint:              m1_convergence_in_progress
+sole executor:           coding_bot
+assistant role:          read_only_reviewer
 execution manifest:      docs/delivery/EXECUTION_MANIFEST.yaml
-simulation baseline SHA: efc6faf043525498b1d613d7c58ae52ac4f417e7
+convergence baseline SHA:f27ac1594761265a326229fa2aa8d841081a5dd8
 owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
 ```
 
 `docs/delivery/EXECUTION_MANIFEST.yaml` остаётся каноническим execution
-contract. После явной команды владельца «реализуй» текущий checkpoint переведён
-из визуального recovery в `simulation_implementation_in_progress`.
-
-Coding-бот обязан остановиться на чтении этого файла. Он не должен выполнять
-pull, rebase, commit, push, Docker-запуски или публикацию отчётов. Реализацию
-выполняет текущий assistant непосредственно в существующей ветке и PR №72.
+contract. Текущий checkpoint — `m1_convergence_in_progress`: coding-бот является
+единственным исполнителем, а assistant работает только как read-only reviewer.
+Второй исполнитель не меняет ветку до завершения convergence.
 
 ## 2. Цель текущего прохода
 
-Построить детерминированное R4-M1 DC-ядро, а не набор визуальных эффектов:
+Не добавляя возможностей, привести существующий Electronics M1 к единому
+release candidate:
 
 ```text
-document + pins + wires + breadboard connectivity
-→ validated netlist
-→ device models
-→ DC solve
-→ numerical quality checks
-→ diagnostics
-→ owner SVG states
+один owner-catalog
+→ один проверяемый runtime
+→ focused/common CI
+→ один exact SHA
+→ один asa-lab-dev
+→ один настоящий owner flow
 ```
 
-Расчёт в браузере и на сервере должен использовать одно общее чистое ядро.
-Изменение кнопки, SPDT, потенциометра, сопротивления или соединения должно
-немедленно пересчитывать локальный результат; сохранение выполняется отдельно и
-не блокирует уже запущенное моделирование.
+R4-M2, новые component families и расширение solver остаются заблокированы.
 
 ## 3. Разрешённый scope
 
