@@ -84,7 +84,14 @@ export function WorkbenchSidebars({
   const selectedDiagnostics = c.selectedComponent
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
-  const ledStressDiagnostic = ['led_burnout', 'led_overcurrent', 'led_near_limit']
+  const ledStateDiagnostic = [
+    'led_burnout',
+    'led_overcurrent',
+    'led_near_limit',
+    'reverse_polarity',
+    'open_circuit',
+    'dangling_terminal',
+  ]
     .map((code) => selectedDiagnostics.find((diagnostic) => diagnostic.code === code))
     .find((diagnostic) => diagnostic !== undefined);
   const resistanceComponent =
@@ -556,9 +563,13 @@ export function WorkbenchSidebars({
                     </output>
                   ) : null}
                   <small>
-                    {ledStressDiagnostic
-                      ? `${ledStressDiagnostic.message} ${ledStressDiagnostic.suggestedAction ?? ''}`
-                      : 'Анод справа → к плюсу. Катод слева → к минусу.'}
+                    {ledStateDiagnostic
+                      ? `${ledStateDiagnostic.message} ${ledStateDiagnostic.suggestedAction ?? ''}`
+                      : !c.simulationRunning
+                        ? 'До запуска LED не излучает свет. Выбранный цвет сохраняется как цвет корпуса.'
+                        : (measurement?.brightness ?? 0) > 0
+                          ? 'Яркость рассчитана по току, напряжению и сопротивлению этой цепи.'
+                          : 'Ток ниже порога свечения выбранного цвета. Проверьте напряжение, сопротивление и замкнутость цепи.'}
                   </small>
                 </div>
               ) : null}

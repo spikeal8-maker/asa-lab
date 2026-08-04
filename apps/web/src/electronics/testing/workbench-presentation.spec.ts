@@ -54,6 +54,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('data-led-brightness');
     expect(productionVisualSource).toContain('workbench-led-visual');
     expect(workbenchCss).toContain('.workbench-led-visual.is-lit .workbench-led-asset');
+    expect(sidebarSource).toContain('До запуска LED не излучает свет');
+    expect(sidebarSource).toContain('Ток ниже порога свечения выбранного цвета');
+    expect(sidebarSource).toContain('Яркость рассчитана по току, напряжению и сопротивлению');
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {
