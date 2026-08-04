@@ -64,4 +64,68 @@ describe('live Electronics simulation', () => {
     expect(result?.status).toBe('unsupported');
     expect(result && canStartSimulation(result)).toBe(false);
   });
+
+  it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {
+    const seriesLed = (colour: string, resistance: number): SchematicDocument => ({
+      schemaVersion: 3,
+      components: [
+        {
+          id: 'battery',
+          kind: 'source',
+          componentTypeId: 'battery-holder-aa-2',
+          pinIds: ['BAT-', 'BAT+'],
+          position: { x: 0, y: 0 },
+          value: 3,
+        },
+        {
+          id: 'resistor',
+          kind: 'resistor',
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          position: { x: 20, y: 0 },
+          value: resistance,
+        },
+        {
+          id: 'led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          pinIds: ['cathode', 'anode'],
+          position: { x: 40, y: 0 },
+          value: 2,
+          stateProperties: { ledColour: colour },
+        },
+      ],
+      connections: [
+        {
+          id: 'positive',
+          from: { componentId: 'battery', terminal: 'BAT+' },
+          to: { componentId: 'resistor', terminal: 'lead-1' },
+        },
+        {
+          id: 'limited',
+          from: { componentId: 'resistor', terminal: 'lead-2' },
+          to: { componentId: 'led', terminal: 'anode' },
+        },
+        {
+          id: 'negative',
+          from: { componentId: 'led', terminal: 'cathode' },
+          to: { componentId: 'battery', terminal: 'BAT-' },
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: true, maxIterations: 24 },
+    });
+
+    const red220 = calculateLiveSimulation(seriesLed('red', 220), null, true);
+    const red1000 = calculateLiveSimulation(seriesLed('red', 1000), null, true);
+    const blue220 = calculateLiveSimulation(seriesLed('blue', 220), null, true);
+    const resultForLed = (result: SolveResult | null) =>
+      result?.components.find((component) => component.componentId === 'led');
+
+    expect(resultForLed(red220)?.lit).toBe(true);
+    expect(resultForLed(red220)?.brightness).toBeGreaterThan(
+      resultForLed(red1000)?.brightness ?? 100,
+    );
+    expect(resultForLed(blue220)).toMatchObject({ lit: false, brightness: 0 });
+  });
 });

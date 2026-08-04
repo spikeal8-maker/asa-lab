@@ -160,6 +160,9 @@ describe('Electronics owner SVG foundation', () => {
     expect(visualAsset(led!, component, 'off')).toBe(
       '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
     );
+    expect(visualAsset(led!, component, 'reverse')).toBe(
+      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
+    );
   });
 
   it('uses the complete owner LED state family directly from owner-audit', () => {

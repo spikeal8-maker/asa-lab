@@ -356,11 +356,15 @@ export function WorkbenchStage({
                   const pending =
                     c.pendingTerminal?.componentId === component.id &&
                     c.pendingTerminal.terminal === terminal;
+                  const connected = c.terminalConnectionCount(component.id, terminal) > 0;
                   return (
                     <g
                       key={terminal}
-                      className={`workbench-terminal${pending ? ' pending' : ''}`}
+                      className={`workbench-terminal${pending ? ' pending' : ''}${
+                        connected ? ' connected' : ''
+                      }`}
                       transform={`translate(${point.x} ${point.y})`}
+                      data-connected={connected ? 'true' : 'false'}
                     >
                       <circle
                         className="workbench-terminal-hit"
@@ -374,7 +378,9 @@ export function WorkbenchStage({
                         }}
                         role="button"
                         tabIndex={0}
-                        aria-label={`${entry.label}: вывод ${terminalSpec.label}`}
+                        aria-label={`${entry.label}: вывод ${terminalSpec.label}, ${
+                          connected ? 'подключён' : 'свободен'
+                        }`}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
@@ -581,7 +587,11 @@ export function WorkbenchStage({
             <MoreIcon />
           </button>
           <div className="workbench-results-card">
-            <strong>Ток</strong>
+            <strong>
+              {c.result?.solved && Math.abs(c.result.current) > 1e-8
+                ? 'Цепь проводит ток'
+                : 'Ток не течёт'}
+            </strong>
             <span data-testid="current-reading">
               {c.simulationRunning && c.result?.solved
                 ? `${(c.result.current * 1000).toFixed(1)} мА`

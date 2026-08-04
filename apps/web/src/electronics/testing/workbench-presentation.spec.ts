@@ -166,7 +166,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-inspector-body\s*\{[^}]*padding:\s*2px;/s);
     expect(sidebarSource).toContain('RESISTANCE_UNITS');
     expect(sidebarSource).toContain('workbench-inspector-help-popover');
-    expect(sidebarSource).toContain('c.simulationRunning ? (');
+    expect(sidebarSource).toContain('aria-label="Подключение выводов"');
+    expect(sidebarSource).toContain('workbench-terminal-status');
+    expect(sidebarSource).toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');
     expect(editorSource).toContain('<th>Имя</th>');

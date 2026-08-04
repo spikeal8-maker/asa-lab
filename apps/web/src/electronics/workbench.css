@@ -245,6 +245,37 @@
   margin: 0;
 }
 
+.workbench-terminal-status {
+  color: #a43b2f;
+  font-weight: 700;
+}
+
+.workbench-terminal-status.connected {
+  color: #16734a;
+}
+
+.workbench-led-electrical-state {
+  display: grid;
+  gap: 2px;
+  margin-top: 5px;
+  padding: 6px 7px;
+  border-left: 3px solid #d59622;
+  background: #fff7df;
+  color: #735519;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.workbench-led-electrical-state.lit {
+  border-left-color: #159447;
+  background: #eaf7f0;
+  color: #12613d;
+}
+
+.workbench-led-electrical-state small {
+  font-size: 9px;
+}
+
 .workbench-toggle-property {
   display: flex !important;
   flex-direction: row !important;
@@ -424,6 +455,10 @@
 .workbench-terminal.pending .workbench-terminal-dot,
 .workbench-canvas.wiring .workbench-terminal-dot {
   opacity: 1;
+}
+.workbench-terminal.connected:hover .workbench-terminal-dot,
+.workbench-terminal.connected.pending .workbench-terminal-dot {
+  fill: #159447;
 }
 .workbench-canvas.wiring .workbench-breadboard-hole {
   opacity: 0.72;

@@ -499,17 +499,46 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {c.simulationRunning ? (
-                <dl className="workbench-terminal-list">
-                  {Object.entries(c.selectedEntry.terminals)
-                    .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
-                    .map(([terminal, spec]) => (
+              <dl className="workbench-terminal-list" aria-label="Подключение выводов">
+                {Object.entries(c.selectedEntry.terminals)
+                  .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
+                  .map(([terminal, spec]) => {
+                    const connected =
+                      c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0;
+                    const voltage = measurement?.terminalVoltages[terminal];
+                    return (
                       <div key={terminal}>
                         <dt>{spec?.label ?? terminal}</dt>
-                        <dd>{`${measurement?.terminalVoltages[terminal]?.toFixed(3) ?? '—'} В`}</dd>
+                        <dd
+                          className={`workbench-terminal-status${connected ? ' connected' : ''}`}
+                          title={c.terminalConnectionLabel(c.selectedComponent!.id, terminal)}
+                        >
+                          {connected ? 'Подключён' : 'Свободен'}
+                          {c.simulationRunning && voltage !== undefined
+                            ? ` · ${voltage.toFixed(3)} В`
+                            : ''}
+                        </dd>
                       </div>
-                    ))}
-                </dl>
+                    );
+                  })}
+              </dl>
+
+              {c.selectedEntry.key === 'led-5mm' ? (
+                <div
+                  className={`workbench-led-electrical-state${
+                    c.simulationRunning && (measurement?.brightness ?? 0) > 0 ? ' lit' : ''
+                  }`}
+                  data-testid="led-electrical-state"
+                >
+                  <strong>
+                    {c.simulationRunning
+                      ? (measurement?.brightness ?? 0) > 0
+                        ? `Светится: ${measurement?.brightness?.toFixed(0) ?? '0'}%`
+                        : 'Не светится'
+                      : 'Моделирование остановлено'}
+                  </strong>
+                  <small>Анод справа → к плюсу. Катод слева → к минусу.</small>
+                </div>
               ) : null}
 
               {Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (

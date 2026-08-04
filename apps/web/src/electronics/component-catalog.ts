@@ -235,15 +235,20 @@ export function visualAsset(
       Math.max(0, Math.round(Number(component.stateProperties?.['ledBrightness'] ?? 0))),
     );
     const explicitFault = (component.stateProperties?.['ledFault'] ?? 'none') as OrdinaryLedFault;
+    // Reverse polarity is communicated by the electrical diagnostic and badge.
+    // Keep the selected package colour visible instead of replacing every LED
+    // with the same red fault artwork, which made colour changes look broken.
     const fault: OrdinaryLedFault =
-      visualState === 'reverse' || visualState === 'overcurrent' || visualState === 'burned'
-        ? visualState
-        : explicitFault;
+      visualState === 'overcurrent' || visualState === 'burned' ? visualState : explicitFault;
     // While modelling is stopped, keep the selected package colour visible without
     // presenting it as a calculated electrical brightness. Running simulation states
     // continue to use the exact solver result, including a fully dark LED at 0%.
     const normalizedBrightness =
-      visualState === 'off' ? 0 : visualState === 'default' ? Math.max(16, brightness) : brightness;
+      visualState === 'off' || visualState === 'reverse'
+        ? 0
+        : visualState === 'default'
+          ? Math.max(16, brightness)
+          : brightness;
     return ordinaryLedAsset(ordinaryLedState(colour, normalizedBrightness, fault));
   }
   if (entry.key === 'button-tactile-6mm')

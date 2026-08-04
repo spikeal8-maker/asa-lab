@@ -82,6 +82,10 @@ import {
 } from './workbench-model';
 import { calculateLiveSimulation } from './live-simulation';
 
+function terminalRefKey(componentId: string, terminal: Terminal): string {
+  return `${componentId}:${terminal}`;
+}
+
 export function useElectronicsWorkbench(projectId: string) {
   const projectState = useWorkbenchProjectState(projectId);
   const {
@@ -1090,6 +1094,53 @@ export function useElectronicsWorkbench(projectId: string) {
     return map;
   }, [result]);
 
+  const terminalConnections = useMemo(() => {
+    const connections = new Map<string, TerminalRef[]>();
+    if (!document) return connections;
+
+    const add = (endpoint: TerminalRef, peer: TerminalRef): void => {
+      const key = terminalRefKey(endpoint.componentId, endpoint.terminal);
+      connections.set(key, [...(connections.get(key) ?? []), peer]);
+    };
+
+    for (const wire of document.connections) {
+      add(wire.from, wire.to);
+      add(wire.to, wire.from);
+    }
+    for (const component of document.components) {
+      for (const [terminal, binding] of Object.entries(component.holeBindings ?? {})) {
+        const componentTerminal = { componentId: component.id, terminal };
+        const breadboardTerminal = {
+          componentId: binding.breadboardComponentId,
+          terminal: binding.holeId,
+        };
+        add(componentTerminal, breadboardTerminal);
+        add(breadboardTerminal, componentTerminal);
+      }
+    }
+    return connections;
+  }, [document]);
+
+  function terminalConnectionCount(componentId: string, terminal: Terminal): number {
+    return terminalConnections.get(terminalRefKey(componentId, terminal))?.length ?? 0;
+  }
+
+  function terminalConnectionLabel(componentId: string, terminal: Terminal): string {
+    if (!document) return 'Свободен';
+    const peers = terminalConnections.get(terminalRefKey(componentId, terminal)) ?? [];
+    if (peers.length === 0) return 'Свободен';
+    return peers
+      .map((peer) => {
+        const component = document.components.find((item) => item.id === peer.componentId);
+        if (!component) return peer.terminal;
+        const entry = catalogEntry(component);
+        const componentLabel = component.name ?? entry?.label ?? component.id;
+        const terminalLabel = entry?.terminals[peer.terminal]?.label ?? peer.terminal;
+        return `${componentLabel}: ${terminalLabel}`;
+      })
+      .join(', ');
+  }
+
   function componentLedBrightness(component: SchematicComponent): number {
     if (component.kind !== 'led' || !simulationRunning) return 0;
     return Math.round(clamp(resultByComponent.get(component.id)?.brightness ?? 0, 0, 100));
@@ -1228,6 +1279,8 @@ export function useElectronicsWorkbench(projectId: string) {
     selectedEntry,
     selectedFamily,
     resultByComponent,
+    terminalConnectionCount,
+    terminalConnectionLabel,
     diagnosticCodesByComponent,
     errorDiagnosticComponentIds,
     componentVisualState,
