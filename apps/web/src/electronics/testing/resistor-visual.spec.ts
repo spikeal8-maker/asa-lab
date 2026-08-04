@@ -50,7 +50,7 @@ describe('owner axial resistor visual', () => {
     expect(resistorBandState(4_700, 5).bands).toEqual(['yellow', 'violet', 'red', 'gold']);
     expect(resistorBandState(10_000, 1).bands).toEqual(['brown', 'black', 'orange', 'brown']);
     expect(RUNTIME_VISUAL).toContain('workbench-owner-resistor');
-    expect(RUNTIME_VISUAL).toContain('<image href={asset}');
+    expect(RUNTIME_VISUAL).toMatch(/<image[\s\S]*?href=\{asset\}/);
     expect(RUNTIME_VISUAL).toContain('data-testid="resistor-colour-bands"');
     expect(RUNTIME_VISUAL).toContain('RESISTOR_BAND_CSS[band]');
     expect(RUNTIME_VISUAL).not.toContain('workbench-parametric-resistor');
