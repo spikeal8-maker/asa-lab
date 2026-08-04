@@ -5,7 +5,7 @@ project:
   name: ASA Lab
   repository: spikeal8-maker/asa-lab
   current_focus: TASK-ELECTRONICS-M1-001
-  active_checkpoint: m1_convergence_in_progress
+  active_checkpoint: m1_release_candidate
   sole_executor: coding_bot
   assistant_role: read_only_reviewer
   canonical_branch: main
@@ -105,7 +105,7 @@ nodes:
   - {id: TASK-ACCOUNT-C1-001, label: Account C1, kind: task, layer: delivery, status: done, summary: "Issue 48 completed and merged.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/48}
   - {id: TASK-CREATOR-PORTAL-001, label: R2 Creator Portal, kind: task, layer: delivery, status: done, summary: "Creator Home and capability-aware Portal shell merged by PR #71.", phase: PHASE-R2, issue: https://github.com/spikeal8-maker/asa-lab/issues/62}
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
-  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_progress, summary: "Converge the real Electronics editor on one owner catalog, one verified runtime and one focused release candidate.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
+  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_review, summary: "One owner catalog, one verified runtime and one focused release candidate are ready for owner review.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}

@@ -9,8 +9,8 @@ Execution: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFES
 TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
-status in_progress
-checkpoint m1_convergence_in_progress
+status in_review
+checkpoint m1_release_candidate
 sole executor coding_bot
 assistant role read_only_reviewer
 ```

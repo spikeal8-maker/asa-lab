@@ -6,11 +6,11 @@ Sources: `docs/delivery/EXECUTION_MANIFEST.yaml`, `test-catalog.yaml`,
 ## Current task
 
 ```text
-TASK-ELECTRONICS-M1-001  in_progress
+TASK-ELECTRONICS-M1-001  in_review
 current_focus             TASK-ELECTRONICS-M1-001
 branch                    agent/r4-electronics-m1
 Issue                     #63
-checkpoint                m1_convergence_in_progress
+checkpoint                m1_release_candidate
 sole_executor             coding_bot
 assistant_role            read_only_reviewer
 ```
