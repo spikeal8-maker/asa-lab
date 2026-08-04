@@ -231,10 +231,11 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   );
   await sourcePositive.click();
   const previewWire = page.locator('.workbench-wire-preview');
-  await expect(previewWire).toBeVisible();
-  const initialPreviewPath = await previewWire.getAttribute('d');
   const stageBox = await page.locator('svg.workbench-canvas').boundingBox();
   if (!stageBox) throw new Error('workbench canvas has no visual bounding box');
+  await page.mouse.move(stageBox.x + stageBox.width * 0.46, stageBox.y + stageBox.height * 0.38);
+  await expect(previewWire).toBeVisible();
+  const initialPreviewPath = await previewWire.getAttribute('d');
   await page.mouse.move(stageBox.x + stageBox.width * 0.52, stageBox.y + stageBox.height * 0.42);
   await expect.poll(() => previewWire.getAttribute('d')).not.toBe(initialPreviewPath);
   await page.keyboard.press('Escape');
