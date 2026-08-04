@@ -208,18 +208,37 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await loginWithOrganization(page, teacher);
 
   const projectId = await createProject(page, 'R4-M1 live simulation');
+  await openProject(page, projectId);
+  await expect(page.getByText('Рабочее поле пустое')).toBeVisible();
+  await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-empty.png`, fullPage: true });
+
   await saveDocument(
     page,
     projectId,
     circuitDocument({ switchClosed: false, resistorOhms: 220, reversedLed: false }),
   );
-  await openProject(page, projectId);
+  await page.reload();
 
   const led = component(page, 'led-5mm');
   const switchComponent = component(page, 'switch-spdt');
   const resistor = component(page, 'resistor-axial');
   await expect(component(page, 'breadboard-medium')).toBeVisible();
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
+  await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-wired.png`, fullPage: true });
+
+  const sourcePositive = component(page, 'battery-holder-aa-2').locator(
+    '.workbench-terminal-hit[data-terminal-id="BAT+"]',
+  );
+  await sourcePositive.click();
+  const previewWire = page.locator('.workbench-wire-preview');
+  await expect(previewWire).toBeVisible();
+  const initialPreviewPath = await previewWire.getAttribute('d');
+  const stageBox = await page.locator('svg.workbench-canvas').boundingBox();
+  if (!stageBox) throw new Error('workbench canvas has no visual bounding box');
+  await page.mouse.move(stageBox.x + stageBox.width * 0.52, stageBox.y + stageBox.height * 0.42);
+  await expect.poll(() => previewWire.getAttribute('d')).not.toBe(initialPreviewPath);
+  await page.keyboard.press('Escape');
+  await expect(previewWire).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
@@ -234,8 +253,6 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     page.locator('.workbench-measurements div').filter({ hasText: 'Состояние' }).locator('dd'),
   ).toHaveText('Не горит');
   await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
-  await page.screenshot({ path: `${ARTIFACT_DIR}/01-open-switch-led-off.png`, fullPage: true });
-
   await switchComponent.locator('.workbench-part').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
@@ -248,7 +265,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'href',
     /led_red_i000\.svg$/,
   );
-  await page.screenshot({ path: `${ARTIFACT_DIR}/02-closed-switch-led-lit.png`, fullPage: true });
+  await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-running.png`, fullPage: true });
 
   await resistor.locator('.workbench-part').click();
   const resistanceInput = page
@@ -261,16 +278,28 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
   const brightAt1000Ohms = await brightnessValue(page);
   expect(brightAt1000Ohms).toBeLessThan(brightAt220Ohms);
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-resistance-changed.png`,
+    fullPage: true,
+  });
 
   await expect(page.locator('.workbench-save-state')).toContainText('Все изменения сохранены', {
     timeout: 15_000,
+  });
+  const checkpoint = await page.context().request.post(`/api/projects/${projectId}/checkpoints`, {
+    headers: { origin: new URL(page.url()).origin },
+    data: { label: 'Electronics M1 release candidate' },
+  });
+  expect(checkpoint.status()).toBe(201);
+  expect((await checkpoint.json()) as { version: { versionNo: number } }).toMatchObject({
+    version: { versionNo: 1 },
   });
   await page.reload();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(brightAt1000Ohms);
-  await page.screenshot({ path: `${ARTIFACT_DIR}/03-reload-preserves-result.png`, fullPage: true });
+  await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-reload.png`, fullPage: true });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
@@ -291,7 +320,10 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   );
   await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
   await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
-  await page.screenshot({ path: `${ARTIFACT_DIR}/04-reverse-polarity.png`, fullPage: true });
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-reverse-polarity.png`,
+    fullPage: true,
+  });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await saveDocument(
@@ -310,8 +342,6 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.locator('.workbench-inspector')).toContainText('Светодиод перегорел');
   await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
   await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
-  await page.screenshot({ path: `${ARTIFACT_DIR}/05-led-burnout-owner-svg.png`, fullPage: true });
-
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,
     pageErrors: 0,
