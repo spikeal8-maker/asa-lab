@@ -110,8 +110,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
     expect(stageSource).toContain('data-testid="led-diagnostic-badge"');
     expect(stageSource).toContain('c.simulationRunning && diagnostics.length > 0');
-    expect(stageSource).toContain('r={11 / c.viewport.zoom}');
-    expect(stageSource).toContain('fontSize={14 / c.viewport.zoom}');
+    expect(stageSource).toContain('r={18 / c.viewport.zoom}');
+    expect(stageSource).toContain('fontSize={20 / c.viewport.zoom}');
     expect(workbenchCss).toContain('.workbench-led-diagnostic-badge circle');
     expect(workbenchCss).toContain('.workbench-led-diagnostic-badge.error circle');
     expect(workbenchCss).not.toContain('drop-shadow(0 0 7px rgba(211, 74, 48');

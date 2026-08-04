@@ -240,15 +240,15 @@ export function WorkbenchStage({
                       }`}
                       data-testid="led-diagnostic-badge"
                       data-diagnostic-count={diagnostics.length}
-                      transform={`translate(${baseSize.width - 4 / c.viewport.zoom} ${
-                        4 / c.viewport.zoom
+                      transform={`translate(${baseSize.width - 8 / c.viewport.zoom} ${
+                        8 / c.viewport.zoom
                       })`}
                       pointerEvents="none"
                       aria-label={`Проблемы светодиода: ${diagnostics.join(', ')}`}
                     >
                       <title>{`Проблемы светодиода: ${diagnostics.join(', ')}`}</title>
-                      <circle r={11 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
-                      <text y={4 / c.viewport.zoom} fontSize={14 / c.viewport.zoom}>
+                      <circle r={18 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
+                      <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
                         !
                       </text>
                     </g>
