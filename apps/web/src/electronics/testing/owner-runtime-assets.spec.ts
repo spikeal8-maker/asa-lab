@@ -59,5 +59,21 @@ describe('owner SVG runtime catalog adapter', () => {
     expect(() =>
       configureProductionLibrary(unknownScale as unknown as OwnerCatalogManifest),
     ).toThrow(/owner catalog rejected unknown physical scale/);
+
+    const reversedLed = structuredClone(manifest) as unknown as {
+      components: Array<{
+        componentId: string;
+        pins: Array<{ id: string; xMm: number }>;
+      }>;
+    };
+    const led = reversedLed.components.find((item) => item.componentId === 'led-5mm');
+    if (!led) throw new Error('focused fixture contains no owner LED');
+    const anode = led.pins.find((pin) => pin.id === 'anode');
+    const cathode = led.pins.find((pin) => pin.id === 'cathode');
+    if (!anode || !cathode) throw new Error('focused fixture contains incomplete LED pins');
+    [anode.xMm, cathode.xMm] = [cathode.xMm, anode.xMm];
+    expect(() =>
+      configureProductionLibrary(reversedLed as unknown as OwnerCatalogManifest),
+    ).toThrow(/owner catalog rejected LED polarity/);
   });
 });

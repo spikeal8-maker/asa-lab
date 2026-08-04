@@ -33,6 +33,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('<title>{hole.id}</title>');
     expect(stageSource).not.toContain('tooltipWidth(hole.id');
     expect(stageSource).toContain('tooltipPlacement(label, point, c.viewBox');
+    const terminalTooltipMarkup =
+      stageSource.match(/<g className="workbench-terminal-tooltip">[\s\S]*?<\/g>/)?.[0] ?? '';
+    expect(terminalTooltipMarkup).not.toContain('<rect');
+    expect(workbenchCss).not.toContain('.workbench-terminal-tooltip rect');
+    expect(workbenchCss).toMatch(/\.workbench-terminal-tooltip text\s*\{[^}]*text-shadow:/s);
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {
@@ -100,9 +105,15 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-canvas\.wiring[^}]*cursor:\s*default;/s);
   });
 
-  it('shows stage diagnostics only for a selected error while simulation is running', () => {
+  it('keeps selected-error emphasis and adds a zoom-stable LED diagnostic badge', () => {
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
+    expect(stageSource).toContain('data-testid="led-diagnostic-badge"');
+    expect(stageSource).toContain('c.simulationRunning && diagnostics.length > 0');
+    expect(stageSource).toContain('r={11 / c.viewport.zoom}');
+    expect(stageSource).toContain('fontSize={14 / c.viewport.zoom}');
+    expect(workbenchCss).toContain('.workbench-led-diagnostic-badge circle');
+    expect(workbenchCss).toContain('.workbench-led-diagnostic-badge.error circle');
     expect(workbenchCss).not.toContain('drop-shadow(0 0 7px rgba(211, 74, 48');
   });
 

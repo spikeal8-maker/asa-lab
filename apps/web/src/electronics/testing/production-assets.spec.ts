@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { SchematicComponent } from '../../api';
+import { visualAsset } from '../component-catalog';
 import { ordinaryLedAsset, ordinaryLedState } from '../production-asset-contracts';
 import {
   configureProductionLibrary,
@@ -60,7 +62,7 @@ describe('Electronics owner SVG foundation', () => {
     const led = catalog.find((item) => item.key === 'led-5mm');
     expect(led?.physicalSizeMm).toEqual({ width: 4.8381, height: 8.0635 });
     expect(
-      (led?.terminals.cathode?.xMm ?? 0) - (led?.terminals.anode?.xMm ?? 0),
+      (led?.terminals.anode?.xMm ?? 0) - (led?.terminals.cathode?.xMm ?? 0),
     ).toBeCloseTo(2.54, 4);
 
     const button = catalog.find((item) => item.key === 'button-tactile-6mm');
@@ -131,6 +133,33 @@ describe('Electronics owner SVG foundation', () => {
         `${componentId}:pin-span`,
       ).toBeCloseTo(pinSpan, 4);
     }
+  });
+
+  it('keeps the selected LED package colour visible while electrical brightness is stopped', () => {
+    const led = productionCatalog().find((item) => item.key === 'led-5mm');
+    expect(led).toBeDefined();
+    const component: SchematicComponent = {
+      id: 'led-preview',
+      kind: 'led',
+      componentTypeId: 'led-5mm',
+      position: { x: 0, y: 0 },
+      value: 2,
+      stateProperties: { ledColour: 'blue', ledBrightness: 0, ledFault: 'none' },
+    };
+
+    expect(visualAsset(led!, component, 'default')).toBe(
+      '/assets/electronics/owner-audit/components/led/blue/led_blue_i016.svg',
+    );
+    expect(
+      visualAsset(
+        led!,
+        { ...component, stateProperties: { ...component.stateProperties, ledColour: 'green' } },
+        'default',
+      ),
+    ).toBe('/assets/electronics/owner-audit/components/led/green/led_green_i016.svg');
+    expect(visualAsset(led!, component, 'off')).toBe(
+      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
+    );
   });
 
   it('uses the complete owner LED state family directly from owner-audit', () => {

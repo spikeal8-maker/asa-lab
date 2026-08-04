@@ -377,6 +377,13 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
         throw new Error(`owner catalog rejected out-of-bounds pin: ${item.componentId}:${pin.id}`);
       }
     }
+    if (item.componentId === 'led-5mm') {
+      const anode = item.pins.find((pin) => pin.id === 'anode');
+      const cathode = item.pins.find((pin) => pin.id === 'cathode');
+      if (!anode || !cathode || anode.xMm <= cathode.xMm) {
+        throw new Error('owner catalog rejected LED polarity: anode must be right of cathode');
+      }
+    }
     if (
       item.footprint?.pinOffsetsMm &&
       item.footprint.pinOffsetsMm.length !== item.pins.length

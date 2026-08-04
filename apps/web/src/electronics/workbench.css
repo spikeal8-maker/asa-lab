@@ -450,16 +450,17 @@
   display: none;
   pointer-events: none;
 }
-.workbench-terminal-tooltip rect {
-  fill: #40515f;
-  stroke: none;
-}
 .workbench-terminal-tooltip text {
   fill: #fff;
-  font-weight: 700;
+  font-weight: 800;
   text-anchor: middle;
   paint-order: normal;
   stroke: none;
+  text-shadow:
+    0 1px 2px rgba(16, 28, 36, 0.98),
+    0 0 4px rgba(16, 28, 36, 0.94),
+    1px 0 1px rgba(16, 28, 36, 0.9),
+    -1px 0 1px rgba(16, 28, 36, 0.9);
 }
 .workbench-terminal:hover .workbench-terminal-tooltip,
 .workbench-terminal.pending .workbench-terminal-tooltip,
@@ -2233,6 +2234,21 @@
 }
 .workbench-component-actuator-active .workbench-part {
   filter: drop-shadow(0 0 7px rgba(25, 151, 205, 0.82));
+}
+.workbench-led-diagnostic-badge circle {
+  fill: #f4a51c;
+  stroke: #fff;
+  stroke-width: 2.4;
+  filter: drop-shadow(0 2px 3px rgba(34, 43, 49, 0.55));
+}
+.workbench-led-diagnostic-badge.error circle {
+  fill: #e43b32;
+}
+.workbench-led-diagnostic-badge text {
+  fill: #fff;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
 }
 .workbench-potentiometer-hit {
   fill: rgba(255, 255, 255, 0.001);

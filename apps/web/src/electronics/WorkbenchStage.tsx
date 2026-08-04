@@ -233,6 +233,26 @@ export function WorkbenchStage({
                     selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
                   />
+                  {entry.key === 'led-5mm' && c.simulationRunning && diagnostics.length > 0 ? (
+                    <g
+                      className={`workbench-led-diagnostic-badge${
+                        c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''
+                      }`}
+                      data-testid="led-diagnostic-badge"
+                      data-diagnostic-count={diagnostics.length}
+                      transform={`translate(${baseSize.width - 4 / c.viewport.zoom} ${
+                        4 / c.viewport.zoom
+                      })`}
+                      pointerEvents="none"
+                      aria-label={`Проблемы светодиода: ${diagnostics.join(', ')}`}
+                    >
+                      <title>{`Проблемы светодиода: ${diagnostics.join(', ')}`}</title>
+                      <circle r={11 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
+                      <text y={4 / c.viewport.zoom} fontSize={14 / c.viewport.zoom}>
+                        !
+                      </text>
+                    </g>
+                  ) : null}
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle
                       className="workbench-potentiometer-hit"
@@ -376,13 +396,6 @@ export function WorkbenchStage({
                         const tooltip = tooltipPlacement(label, point, c.viewBox, c.viewport.zoom);
                         return (
                           <g className="workbench-terminal-tooltip">
-                            <rect
-                              x={tooltip.x}
-                              y={tooltip.y}
-                              width={tooltip.width}
-                              height={22 / c.viewport.zoom}
-                              rx={2 / c.viewport.zoom}
-                            />
                             <text
                               x={tooltip.x + tooltip.width / 2}
                               y={tooltip.textY}

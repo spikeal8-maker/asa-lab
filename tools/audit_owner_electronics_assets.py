@@ -675,7 +675,22 @@ def main() -> None:
 
     led_meta_path = canonical.find_suffix("led_component_metadata_v6.json")
     led_meta = read_json_bytes(canonical.read(led_meta_path))
-    pin_by_id["led-5mm"].update({"pinCount": 2, "pins": led_meta["pinAnchors"], "status": "owner_declared", "source": led_meta_path})
+    led_pins = sorted(
+        (dict(pin) for pin in led_meta["pinAnchors"]),
+        key=lambda pin: pin["positionMm"]["x"],
+    )
+    if len(led_pins) != 2:
+        raise ValueError("owner LED metadata must provide exactly two pin anchors")
+    led_pins[0].update({"id": "cathode", "electricalRole": "cathode"})
+    led_pins[1].update({"id": "anode", "electricalRole": "anode"})
+    pin_by_id["led-5mm"].update(
+        {
+            "pinCount": 2,
+            "pins": led_pins,
+            "status": "owner_coordinates_with_owner_confirmed_polarity",
+            "source": led_meta_path,
+        }
+    )
 
     exact_pin_values = {
         "button-tactile-6mm": [

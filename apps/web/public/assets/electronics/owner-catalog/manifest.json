@@ -11253,14 +11253,14 @@
       "viewBox": [0, 0, 240, 400],
       "pins": [
         {
-          "id": "anode",
+          "id": "cathode",
           "xMm": 1.6732,
           "yMm": 7.499,
           "electricalRole": "terminal",
           "toleranceMm": 0.0
         },
         {
-          "id": "cathode",
+          "id": "anode",
           "xMm": 4.2132,
           "yMm": 7.499,
           "electricalRole": "terminal",

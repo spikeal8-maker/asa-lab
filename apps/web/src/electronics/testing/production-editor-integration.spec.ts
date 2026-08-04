@@ -57,7 +57,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
 
 const BREADBOARD_MOUNTABLE = [
   ['resistor-axial', 'lead-1', 'J1'],
-  ['led-5mm', 'anode', 'J1'],
+  ['led-5mm', 'cathode', 'J1'],
   ['button-tactile-6mm', 'SW-A1', 'J1'],
   ['potentiometer', 'terminal-1', 'J1'],
   ['switch-spdt', 'throw-left', 'J1'],
