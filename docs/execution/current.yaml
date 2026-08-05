@@ -77,17 +77,16 @@ gates:
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    # Reset by the phase 2 transition: PR #74 merged and the head moved to
-    # 71ecb7a, which rewrote the draft save path — far outside the paths a
-    # result can survive.
-    status: NOT_RUN
-    verified_sha: null
+    # The browser journey additionally ran five consecutive times on this head
+    # outside CI: 5 passed, 0 failed. One green run does not disprove a race.
+    status: PASS
+    verified_sha: 81daca8b097d0d49265d3e950e40c601f6512fed
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    status: NOT_RUN
-    verified_sha: null
+    status: PASS
+    verified_sha: 81daca8b097d0d49265d3e950e40c601f6512fed
 
 # Conditions that must clear before the task can return to in_review.
 #
@@ -96,6 +95,11 @@ gates:
 #                         validator fails if it drifts again
 #   BLOCK-GENERAL-GATE    2026-08-05 — the general gate passed on 6973564,
 #                         governance, code and PostgreSQL/RLS all green
+#   BLOCK-E2E-AUTOSAVE-RACE
+#                         2026-08-05 — PR #74 merged; the browser journey passed
+#                         five consecutive runs on 81daca8 plus the CI run. A
+#                         race is not disproved by one green run, which is why
+#                         the exit condition asked for five
 blocking:
   - id: BLOCK-MAIN-MISDIRECTS-AGENTS
     summary: >-
@@ -104,19 +108,17 @@ blocking:
       on this branch until the repo-wide layer is delivered to main.
     plan: docs/execution/CONTROL_PLANE_DELIVERY.md
     resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
-  - id: BLOCK-E2E-AUTOSAVE-RACE
+  - id: BLOCK-PERSISTENCE-TEST-COUPLING
     summary: >-
-      A draft save that finished could report success for a newer document,
-      so an edit made while a save was in flight could be lost and a checkpoint
-      taken right after it captured the previous document. Observed as brightness
-      43 (220 Ω) where 17 (1000 Ω) was expected. Not a flaky test: a user could
-      lose an edit the editor had already called saved.
-    fix_pr: 74
-    resolved_by: pnpm e2e:electronics-simulation
-    note: >-
-      Fixed on fix/electronics-autosave-race (PR #74) — save status is derived
-      from which document the server holds rather than assigned on any response,
-      and saves are serialised. Clears when that PR merges.
+      tests/portal/projects-api.spec.ts asserts the solver's LED numbers, so a
+      deliberate model change stops the general gate through a test that does not
+      exist to check physics. It has already happened twice in one week. The test
+      should assert that a saved result reloads unchanged and leave the numbers to
+      contexts/electronics/testing/solver.spec.ts.
+    plan: docs/execution/STABILIZATION_PLAN.md
+    resolved_by: >-
+      change LED_KNEE_VOLTAGE.red locally — solver.spec.ts must fail,
+      projects-api.spec.ts must stay green
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
