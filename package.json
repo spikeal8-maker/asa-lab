@@ -54,7 +54,15 @@
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
     "e2e:account-c1": "playwright test e2e/account-c1.spec.ts",
     "test:creator-portal": "node tools/run-creator-portal-tests.mjs",
-    "e2e:creator-portal": "playwright test e2e/creator-portal.spec.ts"
+    "e2e:creator-portal": "playwright test e2e/creator-portal.spec.ts",
+    "e2e:electronics-simulation": "playwright test e2e/electronics-simulation.spec.ts",
+    "control-plane:check": "python tools/validate_control_plane.py",
+    "gate:governance": "bash tools/gate-governance.sh",
+    "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm security:dependencies && pnpm build",
+    "gate:data": "pnpm db:migrate:check && pnpm test && pnpm test:rls",
+    "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",
+    "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run apps/web/src/electronics/testing && pnpm typecheck && pnpm build",
+    "gate:electronics-m1:browser": "pnpm e2e:electronics-simulation"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
@@ -100,10 +108,10 @@
   "pnpm": {
     "overrides": {
       "minimatch@>=9.0.0 <9.0.7": "9.0.7",
-      "fast-uri@>=3.0.0 <=3.1.3": "3.1.4",
-      "fast-uri@>=4.0.0 <=4.1.0": "4.1.1",
+      "fast-uri@>=3.0.0 <=3.1.4": "3.1.5",
+      "fast-uri@>=4.0.0 <=4.1.1": "4.1.2",
       "find-my-way@<=9.6.0": "9.7.0",
-      "brace-expansion@5.0.6": "5.0.8",
+      "brace-expansion@>=5.0.0 <=5.0.8": "5.0.9",
       "axios@>=1.15.2 <1.18.0": "1.18.0"
     }
   }

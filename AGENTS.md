@@ -1,148 +1,150 @@
-# AGENTS.md — обязательный контракт coding-агента ASA Lab
+# AGENTS.md — обязательный контракт ASA Lab
 
-## 1. Каноническое состояние
+Этот файл содержит **политику**. Он не содержит состояния.
+
+Активная задача, ветка, Issue, PR, статус, checkpoint, SHA и владелец
+execution lease читаются только из
+[`docs/execution/current.yaml`](docs/execution/current.yaml). Ни один параграф
+ниже не имеет права дублировать эти значения — дубликат состояния и есть та
+поломка, из-за которой процесс разъезжается.
+
+Порядок входа описан в [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md).
+
+## 1. Единственный писатель
+
+`execution_lease` в `current.yaml` определяет ровно одного агента, которому
+разрешено коммитить в продуктовую ветку.
+
+- Держатель лиза — единственный исполнитель.
+- Любой другой агент автоматически является **read-only reviewer**: читает,
+  анализирует, запускает тесты, публикует отчёт, но не коммитит в продуктовую
+  ветку.
+- Передача лиза выполняется одним явным переходом владельца, а не репликой в
+  чате и не правкой документа «попутно».
+- Роль нельзя присвоить себе, объявив её в ответе.
+
+Работа вне продуктовой ветки (например, восстановление управляющей
+инфраструктуры в отдельной ветке) лиза не требует, но требует явного поручения
+владельца.
+
+## 2. Правила Git
+
+- Работать только в ветке из `current.yaml` либо в отдельной ветке, явно
+  разрешённой владельцем.
+- Запрещены: force-push, `reset --hard` на опубликованную историю, rebase
+  опубликованной истории, merge продуктовых веток и создание тегов.
+- Запрещено удалять untracked backups, credentials, owner screenshots и
+  локальные owner ZIP.
+- `main` не редактируется напрямую.
+- PR №29 и ветка `assistant/map-ux-owner-view` не трогаются.
+- Снятие Draft, merge и активация следующей задачи — только решением владельца.
+
+## 3. Неприкосновенные данные
+
+Запрещено удалять или изменять:
+
+- `apps/web/public/assets/electronics/owner-supplied/**`;
+- `apps/web/public/assets/electronics/owner-audit/**`;
+- локальные owner ZIP и backups;
+- PostgreSQL volume, рабочую БД и backup dumps.
+
+Запрещено: новые SVG, ручная перерисовка, PNG tracing, vectorization,
+generated runtime artwork и любая подмена owner SVG.
+
+## 4. Порты и данные
 
 ```text
-canonical branch:        main
-active task:             TASK-CREATOR-PORTAL-001
-active issue:            #62
-active branch:           agent/r2-creator-portal
-status:                  in_review
-completed dependency:    TASK-ACCOUNT-C1-001
-product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
-verified Account SHA:    35c06c42012672b9b4cb2626b85ba1f21b973bc0
+bind: 127.0.0.1
+web:  4610
+api:  4611
+e2e:  4612
+preview reserved: 4613
+forbidden: 3000, 3100, 5173
 ```
 
-R2 Creator Portal — единственная исполняемая product task. R3, R4 и School Pilot остаются blocked.
+Один постоянный Compose-проект `asa-lab-dev`. Дополнительные постоянные проекты
+не создаются. Изменение tenant/RLS-модели и destructive persistence migration
+запрещены.
 
-## 2. Источники истины
+## 5. Инварианты симуляции
 
-Читать в таком порядке:
+Это долговременные инженерные требования к электрическому ядру, а не статус
+задачи. Любой принимаемый пакет обязан их сохранять:
 
-1. `AGENTS.md`;
-2. `docs/project-map/infrastructure-focus.yaml`;
-3. `docs/project-map/project-map.yaml`;
-4. `docs/delivery/EXECUTION_MANIFEST.yaml`;
-5. GitHub Issue #62;
-6. `docs/testing/test-catalog.yaml`;
-7. `docs/testing/active-task-tests.yaml`.
+- детерминированный netlist независимо от геометрии провода;
+- breadboard hole groups входят в те же электрические сети;
+- unsupported component завершает расчёт fail-closed;
+- все численные значения конечны: без `NaN` и `Infinity`;
+- контролируется максимальная невязка KCL и напряжения идеальных источников;
+- одинаковый документ даёт байт-в-байт одинаковый результат;
+- браузер пересчитывает локально до завершения autosave;
+- сервер повторно использует то же ядро для проверки результата.
 
-При конфликте остановиться и назвать точные источники. Не выбирать другой task догадкой.
+Компонент без подтверждённого owner SVG остаётся disabled/missing. Компонент без
+электрической модели делает simulation result `unsupported`; solver не имеет
+права выдумывать результат для остальной схемы. Ложные токи, напряжения,
+яркость и `solved: true` для unsupported topology запрещены.
 
-## 3. Ветка и Git
+Детерминизм нумерации сетей не должен зависеть от локали рантайма: сравнение
+ключей терминалов выполняется посимвольно, а не через `localeCompare`.
 
-- выполнить `git fetch --all --prune`;
-- перейти на `agent/r2-creator-portal` и fast-forward до `origin/agent/r2-creator-portal`;
-- ветка должна происходить от актуального `main`;
-- не создавать другую product branch;
-- не использовать force-push, rebase опубликованной истории или reset-hard;
-- не merge в `main`, не создавать release tag;
-- не закрывать и не удалять старые PR/ветки;
-- не коммитить backups, dumps, credentials и owner-only screenshots.
+## 6. Gates
 
-## 4. Текущая задача
-
-**Task:** `TASK-CREATOR-PORTAL-001`  
-**Issue:** `https://github.com/spikeal8-maker/asa-lab/issues/62`  
-**Branch:** `agent/r2-creator-portal`
-
-Пользовательский результат:
-
-```text
-Account login
-→ Creator Home
-→ recent projects
-→ Projects / Learning / Collections / Challenges
-→ capability-aware Classes
-→ Help
-→ Account and workspace switcher
-```
-
-Интерфейс должен выглядеть как цельный пользовательский кабинет, а не как техническая Account-панель.
-
-## 5. Что уже работает и не реализуется повторно
-
-- public registration и universal login;
-- Account / Profile / Principal;
-- Personal Workspace и ActiveContext;
-- educator capability и AuditEvent;
-- sessions_v2 и session revocation;
-- Teacher Portal baseline;
-- Project Hub;
-- Electronics, Chess и Chess Online;
-- PostgreSQL, RLS, Docker, persistence и backup/restore.
-
-Запрещено создавать второй Account/Profile/Principal/Workspace/Session model.
-
-## 6. Scope R2
-
-Реализовать только:
-
-- Creator Home как default authenticated route;
-- recent projects и понятные continue/create actions;
-- loading, empty, error и restricted states;
-- server-derived capability-aware navigation;
-- workspace switcher без выдачи capability;
-- Classes только для educator capability;
-- честные Learning, Collections, Challenges и Help surfaces;
-- Account/Profile/Sessions внутри единого Portal shell;
-- desktop, tablet и mobile layout;
-- refresh, deep links, Back и Forward;
-- сохранение всех существующих данных и product flows.
-
-Вне scope:
-
-- R3 Module Registry/Editor Host rewrite;
-- R4 Electronics parity;
-- StudentSeat provisioning;
-- publication/community backend;
-- assignments/review/grades;
-- admin/billing;
-- аудит старых PR.
-
-## 7. Обязательные проверки
-
-Реестр активной задачи: `docs/testing/active-task-tests.yaml`.
+У каждого результата ровно один скрипт, и он один и тот же локально, в CI и в
+owner evidence run:
 
 ```bash
-python -m compileall -q tools
-python tools/validate_architecture.py
-python tools/validate_capability_map.py
-python tools/validate_infrastructure_focus.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
-python tools/validate_delivery_program.py
-python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
+pnpm gate:governance             # валидаторы и согласованность состояния
+pnpm gate:code                   # формат, lint, типы, границы, контракты, сборка
+pnpm gate:data                   # миграции, полный Vitest, RLS — нужен PostgreSQL
+pnpm gate:repository             # governance + code + data
+pnpm gate:electronics-m1         # focused: солвер, редактор, типы, сборка
+pnpm gate:electronics-m1:browser # реальный браузерный journey — нужен стек
+pnpm control-plane:check         # только согласованность состояния
 ```
 
-Нужно реализовать реальные команды:
+Каждый gate называет ровно то, что проверяет. `gate:electronics-m1` намеренно
+**не включает** браузерный journey — это отдельный gate, потому что ему нужен
+поднятый стек. `gate:repository` включает `gate:data`, поэтому без PostgreSQL он
+не пройдёт: PASS без базы означал бы не то же самое, что PASS в CI.
 
-```bash
-pnpm test:creator-portal
-pnpm e2e:creator-portal
-```
+`compose:check` без Docker печатает `SKIPPED`, а не `PASS`, и это не полный
+`gate:code` — при отчёте так и указывается.
 
-`PASS` существует только после реального exit `0`. Отсутствующая среда или ещё не реализованная команда — `BLOCKED`, не фиктивный PASS.
+Правила:
 
-## 8. Browser gate
+- расхождение между локальной командой и командой в workflow запрещено;
+- удалённая часть `control-plane:check` (голова PR, тело PR, записанные
+  результаты gates) обязательна везде, где есть токен GitHub; в CI без
+  `GH_TOKEN` governance-gate останавливается, а не пропускает проверку;
+- `gates.last_known` в `current.yaml` сверяется с фактическим conclusion
+  workflow на том же SHA — расхождение это FAIL, а не расхождение мнений;
+- owner evidence run обязан выполняться с `NX_SKIP_NX_CACHE=true`; результат из
+  кэша Nx не является новым доказательством. Значение обязано быть буквально
+  `true` — Nx сравнивает строку, и `NX_SKIP_NX_CACHE=1` молча использует кэш;
+- в отчёте указывается, сколько задач Nx выполнил заново: строка
+  `Cache: N/N hit (100%)` означает, что ничего не проверялось;
+- зелёный автоматический CI сам по себе не является owner acceptance;
+- красный `gate:repository` запрещает заявлять release candidate независимо от
+  того, что показывает focused gate.
 
-Live API/PostgreSQL без mocks. Проверить creator и educator, desktop/tablet/mobile, existing projects и workspace switching.
+## 7. Критерии остановки
+
+Остановиться и вернуть управление владельцу, если:
+
+- `pnpm control-plane:check` даёт FAIL;
+- в `current.yaml` есть незакрытый пункт `blocking`;
+- лиз держит другой исполнитель;
+- задача требует выхода за `required_scope` из
+  [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml);
+- запрошено то, что запрещено разделами 2–4.
+
+## 8. Отчёт
 
 ```text
-console errors = 0
-pageerror = 0
-unexpected requestfailed = 0
-unexpected HTTP 5xx = 0
+TASK, ISSUE, STATUS, VISIBLE_RESULT, USER_FLOW, PORTS, DEMO_URLS,
+SCREENSHOTS, TESTS_RUN, MAP_NODES_CHANGED, WORKING_TREE, NEXT_ALLOWED_TASK
 ```
 
-## 9. Stop condition
-
-Открыть Draft PR из `agent/r2-creator-portal` в `main` и остановиться после:
-
-1. завершённого R2 user flow;
-2. focused tests PASS;
-3. полного regression/static gate;
-4. owner-visible screenshots;
-5. точного итогового SHA и чистого tracked tree.
-
-R3 не начинать.
+`TESTS_RUN` перечисляет фактически выполненные команды и указывает, был ли
+задействован кэш. Заявлять PASS по кэшированному результату запрещено.

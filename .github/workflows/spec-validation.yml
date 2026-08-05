@@ -8,8 +8,15 @@ name: ASA Lab Governance and Code Gates
       - "assistant/**"
   pull_request: {}
 
+# Read-only, but wider than contents alone: the control-plane validator compares
+# the recorded state against the pull request (head, body, draft state) and
+# against the conclusions of previous workflow runs. Without pull-requests and
+# actions the remote comparison cannot run, and with --require-github that is a
+# failure rather than a silent skip.
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
 
 concurrency:
   group: asa-gates-${{ github.workflow }}-${{ github.ref }}
@@ -41,26 +48,14 @@ jobs:
       - name: Install validator dependencies
         run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
-      - name: Compile validator sources
-        run: python -m compileall -q tools
-
-      - name: Validate architecture foundation
-        run: python tools/validate_architecture.py
-
-      - name: Validate product capabilities
-        run: python tools/validate_capability_map.py
-
-      - name: Validate project knowledge graph
-        run: python tools/validate_project_map.py
-
-      - name: Validate executable test registry
-        run: python tools/validate_test_catalog.py
-
-      - name: Validate delivery program
-        run: python tools/validate_delivery_program.py
-
-      - name: Validate infrastructure terminal or active state
-        run: python tools/validate_infrastructure_focus.py
+      # One gate per result: identical to `pnpm gate:governance` locally.
+      # Add validators to tools/gate-governance.sh, never inline here.
+      # GH_TOKEN makes the remote control-plane comparison mandatory rather than
+      # silently skipped: PR head, PR body and recorded gate results are checked.
+      - name: Governance gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tools/gate-governance.sh
 
   code:
     name: Format lint types contracts build
@@ -90,32 +85,9 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Validate boundaries
-        run: pnpm boundaries:check
-
-      - name: Validate executable contracts
-        run: pnpm contracts:check
-
-      - name: Validate Compose structure
-        run: pnpm compose:check
-
-      - name: Scan committed secrets
-        run: pnpm security:secrets
-
-      - name: Validate dependency inventory
-        run: pnpm security:dependencies
-
-      - name: Production build
-        run: pnpm build
+      # One gate per result: identical to `pnpm gate:code` locally.
+      - name: Code gate
+        run: pnpm gate:code
 
   postgres-tests:
     name: PostgreSQL tests and RLS
@@ -170,19 +142,15 @@ jobs:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm migration
 
-      - name: Run complete Vitest suite
+      # One gate per result: `pnpm gate:data` is migrations, the complete Vitest
+      # suite and the explicit RLS gate. Running it here as one command is what
+      # makes a local PASS mean the same thing as this job.
+      - name: Data gate
         env:
           ASA_BUILD_REVISION: ${{ github.sha }}
           ASA_IMAGE_TAG: ${{ github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm test
-
-      - name: Run explicit RLS gate
-        env:
-          ASA_BUILD_REVISION: ${{ github.sha }}
-          ASA_IMAGE_TAG: ${{ github.sha }}
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm test:rls
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
 
       - name: Cleanup isolated test environment
         if: always()

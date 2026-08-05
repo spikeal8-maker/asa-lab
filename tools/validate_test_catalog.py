@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -12,8 +14,11 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+CURRENT_PATH = ROOT / "docs/execution/current.yaml"
 CATALOG_PATH = ROOT / "docs/testing/test-catalog.yaml"
+PLANNED_CATALOG_PATH = ROOT / "docs/testing/planned-test-catalog.yaml"
 ACTIVE_CATALOG_PATH = ROOT / "docs/testing/active-task-tests.yaml"
+PACKAGE_JSON_PATH = ROOT / "package.json"
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 STRATEGY_PATH = ROOT / "docs/testing/TEST_STRATEGY.md"
 RUNBOOK_PATH = ROOT / "docs/delivery/BOT_RUNBOOK.md"
@@ -26,7 +31,58 @@ TASK_ID_PATTERN = re.compile(r"^TASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$")
 ROADMAP_ALIAS_PATTERN = re.compile(r"^TASK-(?:R[0-9]+|SEAT)$")
 PHASE_ID_PATTERN = re.compile(r"^PHASE-(?:[0-9]|1[0-2])$")
 ALLOWED_RESULT_STATES = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
-ACTIVE_TASK = "TASK-CREATOR-PORTAL-001"
+
+
+def _control_plane_task() -> dict[str, Any]:
+    """The active task has exactly one home: docs/execution/current.yaml."""
+    document = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8"))
+    return dict(document["task"])
+
+
+def _checkout_contains_task_branch(branch: str) -> bool:
+    """Is the active task's code present in this checkout?
+
+    The active task's test registry names specs that live on its branch. On the
+    canonical branch — or any other branch that predates the task — those files
+    genuinely do not exist, and demanding them would make main unable to record
+    which task is active at all.
+
+    This is a precondition, not a waiver: when the branch is absent the caller
+    still verifies that it exists on the remote, and says which layer went
+    unchecked.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", f"origin/{branch}", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def _remote_branch_exists(branch: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+_CURRENT_TASK = _control_plane_task()
+ACTIVE_TASK = str(_CURRENT_TASK["id"])
+ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
+ACTIVE_CODE_PRESENT = _checkout_contains_task_branch(ACTIVE_BRANCH)
+ACTIVE_CHAIN_TASKS = {"TASK-R3A-ELECTRONICS-GATEWAY-001", ACTIVE_TASK}
 EXTERNAL_GOVERNANCE_TASKS = {"TASK-GOV-001"}
 HISTORICAL_TASK_IDS = {
     "TASK-CI-001", "TASK-ARCH-001", "TASK-ENV-001", "TASK-TEN-001",
@@ -70,7 +126,52 @@ def task_nodes_from_map(document: Any, errors: list[str]) -> tuple[dict[str, dic
     return task_nodes, roadmap_aliases
 
 
-def validate_command(test_id: str, command: Any, errors: list[str]) -> None:
+def package_scripts() -> dict[str, str]:
+    try:
+        return json.loads(PACKAGE_JSON_PATH.read_text(encoding="utf-8")).get("scripts", {})
+    except Exception:  # noqa: BLE001 - reported by the caller as a missing script
+        return {}
+
+
+PACKAGE_SCRIPTS = package_scripts()
+# Binaries pnpm may run directly instead of a named script.
+PNPM_BINARIES = {"vitest", "playwright", "exec", "node", "tsx", "dlx"}
+PATH_EXTENSIONS = (".ts", ".tsx", ".mjs", ".js", ".py", ".sh", ".yaml", ".yml")
+
+
+def looks_like_path(argument: str) -> bool:
+    if argument.startswith("-"):
+        return False
+    return "/" in argument or argument.endswith(PATH_EXTENSIONS)
+
+
+def validate_command_executable(test_id: str, parts: list[str], errors: list[str]) -> None:
+    """A registered gate must actually be runnable, not merely well-formed.
+
+    A catalog entry that names a missing pnpm script or a missing spec file is a
+    gate that can never fail, which is worse than having no gate at all.
+    """
+    head = parts[0]
+    arguments = parts[1:]
+    if head == "pnpm":
+        if not arguments:
+            errors.append(f"{test_id}: pnpm command has no target")
+            return
+        target = arguments[0]
+        if target not in PACKAGE_SCRIPTS and target not in PNPM_BINARIES:
+            errors.append(
+                f"{test_id}: pnpm script {target!r} does not exist in package.json"
+            )
+            return
+        arguments = arguments[1:]
+    elif head in {"python", "python3"}:
+        arguments = [item for item in arguments if item != "-m"]
+    for argument in arguments:
+        if looks_like_path(argument) and not (ROOT / argument).exists():
+            errors.append(f"{test_id}: command references a missing path: {argument}")
+
+
+def validate_command(test_id: str, command: Any, errors: list[str], executable: bool = True) -> None:
     if not isinstance(command, str) or not command.strip():
         errors.append(f"{test_id}: command must be non-empty")
         return
@@ -85,6 +186,9 @@ def validate_command(test_id: str, command: Any, errors: list[str]) -> None:
         return
     if not parts:
         errors.append(f"{test_id}: command has no executable")
+        return
+    if executable:
+        validate_command_executable(test_id, parts, errors)
 
 
 def collect_catalogs(errors: list[str]) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
@@ -147,7 +251,14 @@ def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], activ
                     errors.append(f"{test_id}: blocked roadmap alias cannot own a gate: {task_id}")
                 elif task_id not in known_tasks:
                     errors.append(f"{test_id}: unknown task {task_id}")
-        validate_command(str(test_id), test.get("command"), errors)
+        # Entries of the active task are only executable where its code is.
+        owns_active_task = isinstance(required_for, list) and ACTIVE_TASK in required_for
+        validate_command(
+            str(test_id),
+            test.get("command"),
+            errors,
+            executable=ACTIVE_CODE_PRESENT or not owns_active_task,
+        )
         timeout = test.get("timeout_seconds")
         if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 14400:
             errors.append(f"{test_id}: timeout_seconds must be 1..14400")
@@ -158,8 +269,9 @@ def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], activ
             errors.append(f"{test_id}: artifacts must contain non-empty strings")
     for active_id in active_ids:
         test = next((item for item in tests if item.get("id") == active_id), {})
-        if test.get("required_for") != [ACTIVE_TASK]:
-            errors.append(f"{active_id}: active tests must belong only to {ACTIVE_TASK}")
+        required_for = test.get("required_for")
+        if not isinstance(required_for, list) or len(required_for) != 1 or required_for[0] not in ACTIVE_CHAIN_TASKS:
+            errors.append(f"{active_id}: active tests must belong to the owner-activated R3A/M1 chain")
     tasks_requiring_coverage = {
         task_id for task_id, node in task_nodes.items()
         if task_id != "TASK-CI-001" and node.get("status") in COVERAGE_REQUIRED_STATUSES
@@ -196,12 +308,52 @@ def validate_documents(active_ids: list[str], errors: list[str]) -> None:
                 errors.append(f"QUALITY_MAP.md must report {test_id} PASS while task is in_review")
 
 
+def validate_planned_catalog(executable_ids: set[str], errors: list[str]) -> int:
+    """Planned tests are a roadmap, not a gate.
+
+    They live in their own registry so a PASS from the executable catalog can
+    never be produced by an entry whose command does not exist yet.
+    """
+    planned = load_yaml(PLANNED_CATALOG_PATH, errors)
+    if not isinstance(planned, dict):
+        return 0
+    entries = planned.get("tests")
+    if not isinstance(entries, list):
+        errors.append("planned-test-catalog.yaml must contain a tests array")
+        return 0
+    seen: set[str] = set()
+    for index, test in enumerate(entries, start=1):
+        if not isinstance(test, dict):
+            errors.append(f"Planned test #{index} must be a mapping")
+            continue
+        test_id = test.get("id")
+        if not isinstance(test_id, str) or not TEST_ID_PATTERN.fullmatch(test_id):
+            errors.append(f"Planned test #{index} has invalid id: {test_id!r}")
+            continue
+        if test_id in seen:
+            errors.append(f"Duplicate planned test id: {test_id}")
+        seen.add(test_id)
+        if test_id in executable_ids:
+            errors.append(f"{test_id}: registered as both executable and planned")
+        # Shape is checked; executability deliberately is not.
+        validate_command(test_id, test.get("command"), errors, executable=False)
+    return len(seen)
+
+
 def main() -> int:
     errors: list[str] = []
+    if not ACTIVE_CODE_PRESENT and not _remote_branch_exists(ACTIVE_BRANCH):
+        # The waiver above is only sound while the branch that carries the code
+        # actually exists. Without it, nothing anywhere can verify the registry.
+        errors.append(
+            f"current.yaml names branch {ACTIVE_BRANCH!r}, which is neither in this "
+            "checkout nor on the remote; the active task's tests cannot be verified anywhere"
+        )
     project_map = load_yaml(MAP_PATH, errors)
     task_nodes, roadmap_aliases = task_nodes_from_map(project_map, errors)
     stable, tests, active_ids = collect_catalogs(errors)
     test_count, suite_count = validate_catalogs(stable, tests, active_ids, task_nodes, roadmap_aliases, errors)
+    planned_count = validate_planned_catalog({str(test.get("id")) for test in tests}, errors)
     validate_documents(active_ids, errors)
     if errors:
         print("ASA Lab test catalog validation: FAIL", file=sys.stderr)
@@ -211,8 +363,15 @@ def main() -> int:
     print("ASA Lab test catalog validation: PASS")
     print(f"registeredTests={test_count}")
     print(f"registeredSuites={suite_count}")
+    print(f"plannedTests={planned_count}")
     print(f"activeTask={ACTIVE_TASK}")
     print(f"activeTests={len(active_ids)}")
+    if ACTIVE_CODE_PRESENT:
+        print("activeTaskLayer=executable (its branch is in this checkout)")
+    else:
+        # Said out loud rather than passed over: this checkout could not confirm
+        # that the active task's commands resolve, only that its branch exists.
+        print(f"activeTaskLayer=not verified here (origin/{ACTIVE_BRANCH} is not in this history)")
     return 0
 
 

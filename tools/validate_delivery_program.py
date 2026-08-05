@@ -21,16 +21,33 @@ ACTIVE_CATALOG_PATH = ROOT / "docs/testing/active-task-tests.yaml"
 AGENTS_PATH = ROOT / "AGENTS.md"
 PROJECT_MAP_RENDERED_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
 QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
-WORK_STATUS_PATH = ROOT / "docs/delivery/TASK_CREATOR_PORTAL_001_WORK_STATUS.md"
+WORK_STATUS_PATH = ROOT / "docs/delivery/TASK_ELECTRONICS_M1_001_WORK_STATUS.md"
 
-EXPECTED_TASKS = ["TASK-PRODUCT-DOC-001", "TASK-PORTAL-001", "TASK-ACCOUNT-C1-001", "TASK-CREATOR-PORTAL-001"]
-ACTIVE_TASK = "TASK-CREATOR-PORTAL-001"
-ACTIVE_BRANCH = "agent/r2-creator-portal"
-ACTIVE_ISSUE = "https://github.com/spikeal8-maker/asa-lab/issues/62"
+EXPECTED_TASKS = [
+    "TASK-PRODUCT-DOC-001",
+    "TASK-PORTAL-001",
+    "TASK-ACCOUNT-C1-001",
+    "TASK-CREATOR-PORTAL-001",
+    "TASK-R3A-ELECTRONICS-GATEWAY-001",
+    "TASK-ELECTRONICS-M1-001",
+]
+CURRENT_PATH = ROOT / "docs/execution/current.yaml"
+
+
+def _control_plane() -> dict[str, Any]:
+    """Active task, branch and issue have exactly one home."""
+    document = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8"))
+    return dict(document["task"])
+
+
+_CURRENT_TASK = _control_plane()
+ACTIVE_TASK = str(_CURRENT_TASK["id"])
+ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
+ACTIVE_ISSUE = f"https://github.com/spikeal8-maker/asa-lab/issues/{_CURRENT_TASK['issue']}"
 ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
 EXPECTED_ROADMAP = {
-    "R3": "https://github.com/spikeal8-maker/asa-lab/issues/37",
-    "R4": "https://github.com/spikeal8-maker/asa-lab/issues/63",
+    "R3B": "https://github.com/spikeal8-maker/asa-lab/issues/37",
+    "R4-M2": "https://github.com/spikeal8-maker/asa-lab/issues/63",
 }
 CANONICAL_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
 FORBIDDEN_PORTS = {3000, 3100, 5173}
@@ -145,17 +162,21 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
     if not isinstance(state, dict):
         errors.append("canonical_state must be an object")
     else:
+        # canonical_state records history about main only. Active task, branch
+        # and issue live in docs/execution/current.yaml and must not be copied
+        # back in here — validate_control_plane.py enforces their absence.
         expected_state = {
             "branch": "main",
-            "product_merge_sha": "e01ac85095ddaabef19ed618964deac3aa5b2406",
+            "product_merge_sha": "67b4f8eea3804d750684dd1c6dce929f5f1f9bfa",
             "verified_account_implementation_sha": "35c06c42012672b9b4cb2626b85ba1f21b973bc0",
-            "active_task": ACTIVE_TASK,
-            "active_branch": ACTIVE_BRANCH,
-            "active_issue": ACTIVE_ISSUE,
         }
         for field, expected in expected_state.items():
             if state.get(field) != expected:
                 errors.append(f"canonical_state.{field} must be {expected!r}")
+        if manifest.get("execution_state_source") != "docs/execution/current.yaml":
+            errors.append(
+                "execution_state_source must be docs/execution/current.yaml"
+            )
     validate_roadmap(manifest, errors)
 
     raw_profiles = manifest.get("test_profiles")
@@ -198,8 +219,8 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
         if task.get("next_task") != expected_next:
             errors.append(f"Task {task_id} next_task must be {expected_next!r}")
         dependencies = string_list(task.get("depends_on"), f"{task_id}.depends_on", errors)
-        if task_id == ACTIVE_TASK and dependencies != ["TASK-ACCOUNT-C1-001"]:
-            errors.append("R2 must depend only on completed Account C1")
+        if task_id == ACTIVE_TASK and dependencies != ["TASK-R3A-ELECTRONICS-GATEWAY-001"]:
+            errors.append("Electronics M1 must depend only on the completed R3A gateway")
         map_nodes = string_list(task.get("map_nodes"), f"{task_id}.map_nodes", errors)
         if "PROGRAM-ALPHA-001" not in map_nodes or task.get("architecture_horizon") not in map_nodes:
             errors.append(f"Task {task_id} map_nodes must include program and architecture horizon")
@@ -263,17 +284,18 @@ def validate_active_status_documents(
         if not isinstance(node, dict) or node.get("status") != status:
             errors.append(f"Project map node {node_id} must match active task status {status}")
 
+    # AGENTS.md deliberately absent: it carries policy only. Restating status
+    # there is what let the documents drift apart in the first place.
     documents = {
-        "AGENTS.md": (AGENTS_PATH, rf"(?m)^status:\s+{re.escape(status)}\s*$"),
         "PROJECT_MAP.md": (
             PROJECT_MAP_RENDERED_PATH,
             rf"(?m)^status {re.escape(status)}\s*$",
         ),
         "QUALITY_MAP.md": (
             QUALITY_MAP_PATH,
-            rf"(?m)^TASK-CREATOR-PORTAL-001\s+{re.escape(status)}\s*$",
+            rf"(?m)^TASK-ELECTRONICS-M1-001\s+{re.escape(status)}\s*$",
         ),
-        "TASK_CREATOR_PORTAL_001_WORK_STATUS.md": (
+        "TASK_ELECTRONICS_M1_001_WORK_STATUS.md": (
             WORK_STATUS_PATH,
             rf"(?m)^status:\s+{re.escape(status)}\s*$",
         ),
@@ -304,7 +326,7 @@ def main() -> int:
     print(f"- executable tasks: {len(tasks)}")
     print(f"- current focus: {ACTIVE_TASK} ({active['status']})")
     print(f"- branch: {ACTIVE_BRANCH}")
-    print("- future roadmap: R3 -> R4 (blocked)")
+    print("- deferred roadmap: R3B and R4-M2 (blocked)")
     print("- automatic future activation: forbidden")
     return 0
 

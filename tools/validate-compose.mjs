@@ -93,6 +93,32 @@ if ((baseServices.api?.ports ?? []).length > 0) {
   errors.push('base/staging API must remain internal; publish it only in compose.dev.yaml');
 }
 
+// `docker compose config` needs a Docker CLI. It is always present in CI; on a
+// developer machine it may not be (for example a WSL distro without Docker
+// Desktop integration, where the daemon is reachable only from the host). Skip
+// loudly there instead of crashing, and never skip where CI enforces the gate.
+const dockerProbe = spawnSync('docker', ['version', '--format', '{{.Client.Version}}'], {
+  encoding: 'utf8',
+});
+const dockerAvailable = dockerProbe.error === undefined && dockerProbe.status === 0;
+const dockerRequired = process.env.CI === 'true' || process.env.ASA_REQUIRE_DOCKER === 'true';
+
+if (!dockerAvailable && !dockerRequired) {
+  if (errors.length > 0) {
+    console.error('compose:check FAIL');
+    for (const error of errors) console.error(`- ${error}`);
+    process.exit(1);
+  }
+  // Deliberately never the word PASS: the rendered-config checks — loopback
+  // binding, non-root users, cap_drop, forbidden ports across all four profiles
+  // — did not run. Calling this a pass is how a partial result gets quoted as
+  // evidence later.
+  console.log('compose:check SKIPPED (static file checks only)');
+  console.log('- no Docker CLI on PATH; rendered compose config was not validated');
+  console.log('- run in CI, or set ASA_REQUIRE_DOCKER=true, for the complete gate');
+  process.exit(0);
+}
+
 for (const [profile, overlays] of Object.entries(OVERLAYS)) {
   const args = ['compose', '-f', BASE_PATH];
   for (const overlay of overlays) args.push('-f', overlay);
@@ -113,7 +139,9 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
     },
   });
   if (result.status !== 0) {
-    errors.push(`${profile} compose config failed: ${(result.stderr || result.stdout).trim()}`);
+    // result.stderr/stdout are undefined when the binary could not be spawned.
+    const detail = (result.error?.message ?? result.stderr ?? result.stdout ?? 'no output').trim();
+    errors.push(`${profile} compose config failed: ${detail}`);
     continue;
   }
   const config = JSON.parse(result.stdout);

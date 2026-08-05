@@ -15,7 +15,14 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
 MANIFEST_PATH = ROOT / "docs/delivery/EXECUTION_MANIFEST.yaml"
+CURRENT_PATH = ROOT / "docs/execution/current.yaml"
 RENDERED_MAP_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
+
+
+def active_task_from_control_plane() -> str:
+    """The active task has exactly one home: docs/execution/current.yaml."""
+    document = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8"))
+    return str(document["task"]["id"])
 
 ALLOWED_STATUSES = {
     "planned",
@@ -344,7 +351,8 @@ def validate_delivery_alignment(
     if not isinstance(canonical_state, dict) or not isinstance(tasks, list):
         errors.append("Execution manifest must expose canonical_state and tasks")
         return
-    active_task = canonical_state.get("active_task")
+    # Read from the control plane, not from a copy inside the manifest.
+    active_task = active_task_from_control_plane()
     manifest_task = next(
         (
             task

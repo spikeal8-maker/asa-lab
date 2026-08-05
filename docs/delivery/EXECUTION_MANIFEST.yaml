@@ -4,6 +4,12 @@ program_issue: https://github.com/spikeal8-maker/asa-lab/issues/23
 human_program: docs/delivery/DEVELOPMENT_PROGRAM_V1.md
 state_source: docs/project-map/project-map.yaml
 quality_source: docs/testing/test-catalog.yaml
+planned_quality_source: docs/testing/planned-test-catalog.yaml
+
+# Which task is active, on which branch, in which PR, at which status and
+# checkpoint, and who holds the execution lease — all of that lives here and
+# nowhere else. This manifest describes the programme; it never restates state.
+execution_state_source: docs/execution/current.yaml
 
 semantics:
   execution_order: Defined only by tasks.position and project-map execution_queue.
@@ -13,27 +19,30 @@ semantics:
   next_task_rule: A future task becomes executable only through a separate owner transition.
   no_automatic_future_activation: true
 
+# Historical facts about main. Active-task fields deliberately absent — see
+# execution_state_source above.
 canonical_state:
   branch: main
-  product_merge_sha: e01ac85095ddaabef19ed618964deac3aa5b2406
+  product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   verified_account_implementation_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
-  merged_pr: 70
+  merged_pr: 71
   functional_completeness: false
-  active_task: TASK-CREATOR-PORTAL-001
-  active_branch: agent/r2-creator-portal
-  active_issue: https://github.com/spikeal8-maker/asa-lab/issues/62
+  reference_audit_sha: 9654ce3b9cd2605cb69d9b2d3f8821618364e480
+  production_evidence_sha: e604762057a839c2683c5788e83e1b686273828c
+  rejected_checkpoint_sha: 1abc608ef6a8c45efa3205c817dfb6054c289e5e
+  owner_directive_pr_comment: https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5147079314
 
 roadmap_after_current:
-  - release: R3
+  - release: R3B
     issue: https://github.com/spikeal8-maker/asa-lab/issues/37
-    name: Module Registry, Project Hub and full project lifecycle
+    name: Remaining Project lifecycle roadmap
     status: blocked
-    activation: separate_owner_transition_after_R2
-  - release: R4
+    activation: deferred_by_owner
+  - release: R4-M2
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-    name: Complete Circuits and Electronics functional parity
+    name: Electronics follow-up beyond accepted M1
     status: blocked
-    activation: separate_owner_transition_after_R3
+    activation: separate_owner_transition_after_M1
 
 ports:
   bind: 127.0.0.1
@@ -51,6 +60,14 @@ map_protocol:
   draft_pr:
     - current task becomes in_review only after implementation and focused PASS
     - maps and quality evidence reflect the exact diff
+  owner_rejection:
+    - current task returns to in_progress with an explicit corrective checkpoint
+    - rejected evidence is preserved and must not be called accepted
+    - future milestones remain blocked
+  owner_integration_request:
+    - accepted evidence becomes an integration input, not a completed product claim
+    - standalone review surfaces do not satisfy the user-visible result
+    - the real product route must consume the integrated contracts before review
   after_merge:
     - accepted task becomes done
     - project.current_focus becomes null unless another task is separately activated
@@ -127,7 +144,7 @@ tasks:
 
   - position: 4
     task_id: TASK-CREATOR-PORTAL-001
-    status: in_review
+    status: done
     issue: https://github.com/spikeal8-maker/asa-lab/issues/62
     branch: agent/r2-creator-portal
     base_branch: main
@@ -136,7 +153,9 @@ tasks:
     delivery_stage: STAGE-2-CREATOR-PORTAL
     architecture_horizon: PHASE-R2
     depends_on: [TASK-ACCOUNT-C1-001]
-    next_task: null
+    next_task: TASK-R3A-ELECTRONICS-GATEWAY-001
+    merged_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
+    merged_pr: 71
     capabilities: [CAP-IDENTITY, CAP-PORTAL-BASIC, CAP-PROJECTS, CAP-CLASSROOM, CAP-SAFETY]
     visible_result: A useful capability-aware Creator Home and coherent Portal shell replace the sparse technical cabinet.
     user_flow: Account login -> Creator Home -> recent projects -> Projects/Learning/Collections/Challenges -> capability-aware Classes -> Account.
@@ -146,3 +165,76 @@ tasks:
     task_tests: [TST-R2-STATIC-001, TST-R2-CREATOR-HOME-001, TST-R2-CAPABILITY-NAV-001, TST-R2-ROUTING-001, TST-R2-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R2, APP-WEB, CTX-IDENTITY, CTX-ORG, CTX-PROJECTS]
     artifacts: [creator-home-desktop.png, creator-home-mobile.png, capability-navigation-matrix, playwright-report, accessibility-report]
+
+  - position: 5
+    task_id: TASK-R3A-ELECTRONICS-GATEWAY-001
+    status: done
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/63
+    branch: agent/r4-electronics-m1
+    base_branch: main
+    milestone: R3A Electronics Gateway
+    track: product-roadmap
+    delivery_stage: STAGE-3A-ELECTRONICS-GATEWAY
+    architecture_horizon: PHASE-R3
+    depends_on: [TASK-CREATOR-PORTAL-001]
+    next_task: TASK-ELECTRONICS-M1-001
+    capabilities: [CAP-PROJECTS]
+    visible_result: Existing Module Registry, shared Editor Host and module-neutral Project lifecycle are verified for Electronics delivery.
+    read: [AGENTS.md, https://github.com/spikeal8-maker/asa-lab/issues/63]
+    test_profiles: []
+    task_tests: [TST-R3A-MODULE-GATEWAY-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R3, CTX-MODULES, CTX-PROJECTS, SDK-MODULE]
+    artifacts: [focused-test-report, gateway-source-audit]
+
+  - position: 6
+    task_id: TASK-ELECTRONICS-M1-001
+    # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
+    status: in_progress
+    checkpoint: m1_led_visual_corrective
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/63
+    branch: agent/r4-electronics-m1
+    base_branch: main
+    milestone: R4 Electronics M1
+    track: product-roadmap
+    delivery_stage: STAGE-4-ELECTRONICS-M1
+    architecture_horizon: PHASE-R4
+    depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
+    next_task: null
+    capabilities: [CAP-PROJECTS]
+    visible_result: The real Electronics project editor runs a deterministic fail-closed R4-M1 DC simulation with live component states, measured values and anchored diagnostics.
+    user_flow: Open real Electronics project -> build a supported DC circuit directly or through a breadboard -> start simulation -> interact with button, SPDT and potentiometer -> inspect voltage/current/power -> receive honest diagnostics -> save and reload the same circuit.
+    required_scope:
+      - production_manifest_runtime_adapter
+      - deterministic_component_categories_and_order
+      - exact_owner_reference_basic_order_15_positions
+      - family_cards_and_compact_variant_picker
+      - three_column_330px_desktop_shelf
+      - family_variant_alias_search
+      - disabled_non_draggable_unsupported_cards_in_canonical_positions
+      - image_and_name_only_grid_cards
+      - clean_svg_only_preview_assets
+      - idle_terminals_hidden_contextual_wiring_markers
+      - snap_links_hidden_outside_drag_preview
+      - neutral_idle_components_without_diagnostic_glow
+      - calm_selection_outline_and_clean_100_percent_stage
+      - owner_reference_toolbar_header_geometry
+      - remove_old_hard_coded_catalog_from_new_projects
+      - legacy_document_asset_migration
+      - battery_holders_1_2_3_4_6_8_variants
+      - ordinary_led_six_colours_brightness_and_faults
+      - parametric_resistor_bands
+      - four_pin_momentary_button
+      - three_pin_spdt
+      - potentiometer_diode_and_lamp_runtime_states
+      - rgb_led_four_pin_channel_mixing
+      - seven_segment_physical_pins_segments_masks_and_brightness
+      - breadboards_170_420_882_holes_rails_snap_and_netlist
+      - single_world_units_per_mm_and_exact_pin_anchors
+      - additive_schema_and_save_reload_checkpoint
+      - actual_editor_e2e_and_screenshots
+    non_goals: [full repository matrix before owner review, merge, R4-M2, R5, new branch, additional permanent Compose projects, fake simulation for unsupported catalog candidates]
+    read: [AGENTS.md, docs/product/ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/63, https://github.com/spikeal8-maker/asa-lab/pull/72#issuecomment-5147079314]
+    test_profiles: []
+    task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001, TST-ELECTRONICS-RESISTOR-VISUAL-001, TST-ELECTRONICS-COMPONENT-LIBRARY-001, TST-ELECTRONICS-M1-E2E-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]
+    artifacts: [production-manifest-adapter, component-family-map, parametric-resistor-visual, breadboard-connectivity-map, editor-idle-clean.png, library-basic-three-columns.png, library-basic-exact-order.png, component-hover-terminal.png, wiring-mode-terminals.png, component-selected.png, breadboard-placement-clean.png, library-disabled-components.png, owner-reference-vs-current.png, focused-test-report]

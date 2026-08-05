@@ -1,93 +1,57 @@
 # Карта проекта ASA Lab
 
 Source: [`project-map.yaml`](project-map.yaml)  
-Execution: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
+Execution: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)  
+State of record: [`../execution/current.yaml`](../execution/current.yaml)
 
 ## Current focus
 
+Rendered from the control plane. Do not edit these values here — change
+[`current.yaml`](../execution/current.yaml) and re-render, or
+`pnpm control-plane:check` will fail.
+
 ```text
-TASK-CREATOR-PORTAL-001
-Issue #62
-branch agent/r2-creator-portal
-status in_review
+TASK-ELECTRONICS-M1-001
+Issue #63
+branch agent/r4-electronics-m1
+status in_progress
+checkpoint m1_led_visual_corrective
+execution lease unassigned
 ```
+
+Returned from `in_review` on 2026-08-05: the general repository gate fails on the
+branch head, so no release-candidate claim is currently defensible. See
+`blocking` in the control plane.
 
 ```mermaid
 flowchart LR
-  DOC[Product Docs\ndone]
-  PORTAL[Teacher Portal\ndone]
-  ACCOUNT[Account C1\ndone]
-  R2[Creator Portal\nin review]
-  STOP[Owner review]
-  R3[R3 Project Lifecycle\nblocked]
-  R4[R4 Electronics Parity\nblocked]
-
-  DOC --> PORTAL --> ACCOUNT --> R2 --> STOP
-  STOP -. separate owner transition .-> R3
-  R3 -. acceptance .-> R4
+  ACCOUNT["Account C1 done"] --> PORTAL["Creator Portal done"]
+  PORTAL --> GATE["R3A Electronics Gateway done"]
+  GATE --> M1["Electronics M1 in progress"]
+  M1 -. owner transition .-> M2["R4-M2 blocked"]
+  GATE -. deferred .-> R3B["R3B blocked"]
 ```
 
-## R2 visible flow
+R3A verified the existing server-side Module Registry, manifest/provider
+registration, shared Editor Host and module-neutral personal Project lifecycle.
+It does not declare full R3 completion; R3B remains blocked/deferred.
 
-```mermaid
-flowchart LR
-  LOGIN[Account login]
-  HOME[Creator Home]
-  RECENT[Recent projects]
-  PROJECTS[Projects]
-  LEARN[Learning]
-  COLLECTIONS[Collections]
-  CHALLENGES[Challenges]
-  CLASSES[Classes when educator]
-  HELP[Help]
-  ACCOUNT_UI[Account and workspace]
+Electronics M1 is converging without new features: one fail-closed owner
+catalog, one exact runtime SHA, one Compose project and one real-editor owner
+flow. The current corrective checkpoint covers ordinary-LED runtime states and
+zoom-stable wire/terminal presentation. R4-M2 remains blocked.
 
-  LOGIN --> HOME --> RECENT
-  HOME --> PROJECTS
-  HOME --> LEARN
-  HOME --> COLLECTIONS
-  HOME --> CHALLENGES
-  HOME --> CLASSES
-  HOME --> HELP
-  HOME --> ACCOUNT_UI
-```
-
-## Preserved architecture
-
-```mermaid
-flowchart TB
-  WEB[Web / PWA]
-  API[API]
-  ID[Identity]
-  ORG[Workspace and ActiveContext]
-  PROJECTS[Projects]
-  CLASS[Classroom]
-  PG[(PostgreSQL / RLS)]
-  ELECTRONICS[Electronics]
-  CHESS[Chess / Chess Online]
-
-  WEB --> API
-  API --> ID
-  API --> ORG
-  API --> PROJECTS
-  API --> CLASS
-  ID --> PG
-  ORG --> PG
-  PROJECTS --> PG
-  CLASS --> PG
-  PROJECTS --> ELECTRONICS
-  PROJECTS --> CHESS
-```
-
-R2 changes the Portal experience. It does not create a second identity/workspace/session model and does not start R3 or R4.
+Draft persistence is now ordered. The saved indicator is derived from which
+document the server is known to hold rather than set by whichever request
+happened to finish, so an edit made while a save is in flight can no longer be
+reported as saved and then lost by a checkpoint taken straight after it.
 
 ## Quality gate
 
-See [`QUALITY_MAP.md`](QUALITY_MAP.md) and [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml).
-
-```bash
-python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
-```
+See [`QUALITY_MAP.md`](QUALITY_MAP.md) and
+[`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml).
+Only focused tests run before owner visual acceptance; the final full matrix is
+intentionally not active.
 
 ## Ports
 
