@@ -50,9 +50,9 @@ execution_lease:
   # Held for the stabilisation transitions. Released back to unassigned once the
   # product branch is verified on its own head.
   executor_id: assistant-stabilisation
-  holder: unassigned
-  acquired_at: null
-  expires_at: null
+  holder: assistant-stabilisation
+  acquired_at: '2026-08-05T21:03:52Z'
+  expires_at: '2026-08-06T03:03:52Z'
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
@@ -104,10 +104,28 @@ gates:
 #                         run: with LED_KNEE_VOLTAGE.red moved to 1.8 the solver
 #                         suite failed and the persistence test stayed green
 #   BLOCK-MAIN-MISDIRECTS-AGENTS
-#                         2026-08-06 — closed by the merge that produced this
-#                         very file on main. Verified on a fresh clone, because
-#                         the symptom was what a new agent sees.
-blocking: []
+#                         2026-08-06 — PR #75 merged into main at d3c9058.
+#                         Checked on a fresh clone rather than a working copy,
+#                         because the symptom was what a new agent sees: zero
+#                         mentions of the finished R2 branch, zero hard-coded
+#                         task ids or SHAs in the entry point, and the governance
+#                         gate passing on the clone itself
+blocking:
+  - id: BLOCK-STATE-FILE-HAS-TWO-COPIES
+    summary: >-
+      docs/execution/current.yaml exists on both main and the product branch, so
+      the single source of state is two files asked to agree. They already drifted
+      once: a blocker was closed on the product branch while main went on
+      declaring it open. Repairing the instance does not remove the possibility.
+    plan: >-
+      Non-canonical branches stop carrying the file. The validator resolves it
+      from origin/main, so there is one file rather than two. Gate results, which
+      describe a branch head, stay recorded there because main is where the
+      programme record belongs.
+    resolved_by: >-
+      git show origin/main:docs/execution/current.yaml must be the only copy;
+      a checkout of any other branch must not contain the file
+
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
