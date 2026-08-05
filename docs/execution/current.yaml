@@ -55,22 +55,34 @@ execution_lease:
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
-# What is known to be true about the PRODUCT BRANCH head, and what is not.
-# last_known is not an honour-system claim: validate_control_plane.py queries
-# the named workflow's conclusion on that exact head and fails when they differ.
+# What has been observed, and on exactly which revision.
+#
+# A result is the pair (status, verified_sha). That pair is history, so
+# validate_control_plane.py can always confirm it against the named workflow's
+# conclusion at that SHA. It deliberately does NOT require the current head to
+# have a completed run: the first run on a new head is the one asking, so such a
+# rule would fail every push.
+#
+# When verified_sha is behind the head, the result simply does not describe the
+# head yet — that is normal mid-work and is reported as a note. Claiming
+# in_review while any gate is unverified on the head is a failure.
+#
+# After a merge: set status to NOT_RUN and verified_sha to null, let CI run, then
+# record the result with the new SHA in one explicit transition.
 gates:
   focused:
     workflow: Electronics R4-M1 Focused
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    last_known: PASS
+    status: PASS
+    verified_sha: 5314aad970fbc683866e9f1d4196e5eb079da9c7
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    # Still FAIL on the product branch head; the fix is not merged yet.
-    last_known: FAIL
+    status: FAIL
+    verified_sha: 5314aad970fbc683866e9f1d4196e5eb079da9c7
     failure: >-
       tests/portal/projects-api.spec.ts asserted the pre-checkpoint LED model
       (ideal 1.9 V drop, 8 Ω) after the solver moved to a colour-specific knee

@@ -174,10 +174,15 @@ def check_gate_shape(gates: Any, errors: list[str]) -> None:
         if not isinstance(gate, dict):
             errors.append(f"current.yaml gates.{name} must be a mapping")
             continue
-        if gate.get("last_known") not in ALLOWED_GATE_RESULTS:
+        if gate.get("status") not in ALLOWED_GATE_RESULTS:
             errors.append(
-                f"current.yaml gates.{name}.last_known must be one of "
+                f"current.yaml gates.{name}.status must be one of "
                 f"{', '.join(sorted(ALLOWED_GATE_RESULTS))}"
+            )
+        if "last_known" in gate:
+            errors.append(
+                f"current.yaml gates.{name} uses last_known; a result must be recorded as "
+                "status plus the verified_sha it was observed on"
             )
         if not isinstance(gate.get("workflow"), str):
             errors.append(f"current.yaml gates.{name}.workflow must name a GitHub workflow")
@@ -401,43 +406,110 @@ def check_github(task: dict[str, Any], errors: list[str], notes: list[str], requ
     head_oid = str(data.get("headRefOid", ""))
     body = str(data.get("body") or "")
     # A body that never mentions the current head is describing a different
-    # revision, whatever it claims in prose. This is the check that would have
-    # caught PR #72 asserting a verified release candidate four commits back.
-    if head_oid and head_oid not in body:
-        errors.append(
-            f"PR #{pr} body does not reference the current head {head_oid[:7]}; "
-            "it describes a superseded revision and must be refreshed"
-        )
     notes.append(f"PR #{pr}: draft={data.get('isDraft')} state={data.get('state')} head={head_oid[:7]}")
-    check_gate_results(task, head_oid, errors, notes, require)
+    head_verified = check_gate_results(task, head_oid, errors, notes, require)
+    check_pr_body(task, pr, head_oid, body, head_verified, errors, notes)
+
+
+def check_pr_body(
+    task: dict[str, Any],
+    pr: Any,
+    head_oid: str,
+    body: str,
+    head_verified: bool,
+    errors: list[str],
+    notes: list[str],
+) -> None:
+    """The body must describe an identified revision, and a review claim must
+    describe the current one.
+
+    Demanding the current head unconditionally would turn every ordinary push
+    into a red gate, which trains people to ignore the check. The rule instead
+    scales with what is being claimed: while work is in progress the body may
+    describe the last verified revision, but a task offered for review must
+    describe the head a reviewer will actually see.
+    """
+    if not head_oid:
+        return
+    verified = {
+        str(gate.get("verified_sha"))
+        for gate in (task.get("_gates") or {}).values()
+        if isinstance(gate.get("verified_sha"), str)
+    }
+    if head_oid in body:
+        return
+    if str(task.get("status")) == "in_review":
+        errors.append(
+            f"PR #{pr} body does not reference the current head {head_oid[:7]} while "
+            f"{task.get('id')} is in_review; a review claim must describe the revision "
+            "a reviewer sees"
+        )
+        return
+    if verified & set(re.findall(SHA_PATTERN, body)):
+        notes.append(
+            f"PR #{pr} body describes the last verified revision, not head {head_oid[:7]}; "
+            "refresh it before returning the task to review"
+        )
+        return
+    errors.append(
+        f"PR #{pr} body references neither the current head {head_oid[:7]} nor any "
+        "verified revision from current.yaml; it describes an unidentified state"
+    )
 
 
 def check_gate_results(
     task: dict[str, Any], head_oid: str, errors: list[str], notes: list[str], require: bool
-) -> None:
-    """Compare recorded gate results with what GitHub Actions actually concluded.
+) -> bool:
+    """Check that each recorded gate result is a fact GitHub can confirm.
 
-    Without this, `last_known` is a claim an agent typed once. After the fix for
-    a failing gate merges, the recorded FAIL silently becomes a lie while the
-    validator keeps reporting PASS — so the comparison is the check, not the
-    honour system.
+    A result is a pair: `status` and the `verified_sha` it was observed on. That
+    pair is history, so it can always be checked without waiting for anything.
+
+    Comparing the record against the *current* head instead would deadlock: the
+    first run on a new head is the one asking the question, so no completed run
+    exists yet and every push would fail. Whether the head itself is verified is
+    a separate question, answered by the return value and enforced only where a
+    claim depends on it.
+
+    Returns True when every gate's verified_sha is the current head.
     """
     conclusion_to_result = {"success": "PASS", "failure": "FAIL", "cancelled": "NOT_RUN"}
-    for name, gate in (task.get("_gates") or {}).items():
+    gates = task.get("_gates") or {}
+    head_verified = bool(gates)
+    for name, gate in gates.items():
         workflow = gate.get("workflow")
-        recorded = gate.get("last_known")
+        recorded = gate.get("status")
+        verified_sha = gate.get("verified_sha")
+
+        if recorded == "NOT_RUN":
+            if verified_sha is not None:
+                errors.append(
+                    f"current.yaml gates.{name} is NOT_RUN but names verified_sha; "
+                    "a result that was never observed has no revision"
+                )
+            notes.append(f"gate {name}: NOT_RUN, awaiting a run")
+            head_verified = False
+            continue
+        if not isinstance(verified_sha, str) or not SHA_PATTERN.fullmatch(verified_sha):
+            errors.append(
+                f"current.yaml gates.{name} records {recorded} without a full verified_sha; "
+                "a result must name the revision it was observed on"
+            )
+            head_verified = False
+            continue
+        if verified_sha != head_oid:
+            head_verified = False
+
         code, payload = run(
             [
                 "gh", "run", "list",
                 "--branch", str(task.get("branch")),
                 "--workflow", str(workflow),
-                "--limit", "20",
+                "--limit", "40",
                 "--json", "headSha,status,conclusion",
             ]
         )
         # Under --require-github an unreadable remote is a failure, not a note.
-        # Degrading to a note here would put the whole comparison back on the
-        # honour system through the error path instead of the happy path.
         sink = errors if require else notes
         if code != 0:
             sink.append(f"gate {name}: cannot read runs of workflow {workflow!r}")
@@ -447,34 +519,43 @@ def check_gate_results(
         except json.JSONDecodeError:
             sink.append(f"gate {name}: unreadable workflow run payload for {workflow!r}")
             continue
-        latest = next(
+        observed = next(
             (
                 item
                 for item in runs
-                if item.get("headSha") == head_oid and item.get("status") == "completed"
+                if item.get("headSha") == verified_sha and item.get("status") == "completed"
             ),
             None,
         )
-        if latest is None:
-            # NOT_RUN is the honest record when nothing has concluded yet;
-            # claiming PASS or FAIL without a run to back it is not.
-            if recorded in {"PASS", "FAIL"}:
-                sink.append(
-                    f"current.yaml gates.{name}.last_known claims {recorded}, but no completed "
-                    f"run of {workflow!r} exists for head {head_oid[:7]} to support it"
-                )
-            else:
-                notes.append(f"gate {name}: {recorded}, no completed run for {head_oid[:7]} yet")
+        if observed is None:
+            sink.append(
+                f"current.yaml gates.{name} records {recorded} on {verified_sha[:7]}, but no "
+                f"completed run of {workflow!r} exists there; the cited evidence is absent"
+            )
             continue
-        actual = conclusion_to_result.get(str(latest.get("conclusion")), "NOT_RUN")
+        actual = conclusion_to_result.get(str(observed.get("conclusion")), "NOT_RUN")
         if actual != recorded:
             errors.append(
-                f"current.yaml gates.{name}.last_known is {recorded}, but {workflow!r} "
-                f"concluded {latest.get('conclusion')} on head {head_oid[:7]}; "
-                "the recorded gate state is stale"
+                f"current.yaml gates.{name} records {recorded} on {verified_sha[:7]}, but "
+                f"{workflow!r} concluded {observed.get('conclusion')} there"
             )
+        elif verified_sha == head_oid:
+            notes.append(f"gate {name}: {actual} confirmed on head {head_oid[:7]}")
         else:
-            notes.append(f"gate {name}: {actual} confirmed on {head_oid[:7]}")
+            notes.append(
+                f"gate {name}: {actual} on {verified_sha[:7]}, head is {head_oid[:7]} — "
+                "not yet verified"
+            )
+
+    # A task offered for review must stand on a verified head. Mid-work drift is
+    # normal and only noted; claiming readiness on an unverified revision is the
+    # failure this whole mechanism exists to prevent.
+    if str(task.get("status")) == "in_review" and not head_verified:
+        errors.append(
+            f"{task.get('id')} is in_review, but not every gate is verified on head "
+            f"{head_oid[:7]}; run the gates on this revision before offering it"
+        )
+    return head_verified
 
 
 def main() -> int:
