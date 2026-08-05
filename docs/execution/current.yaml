@@ -27,7 +27,7 @@ task:
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
   status: in_progress
-  checkpoint: m1_led_visual_corrective
+  checkpoint: control_plane_stabilisation
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -36,9 +36,8 @@ revisions:
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   # Owner-visible convergence baseline for the current task.
   convergence_baseline_sha: f27ac1594761265a326229fa2aa8d841081a5dd8
-  # Last branch head where BOTH the focused and the general gate were green.
-  # Four commits landed after it and broke the general gate.
-  last_full_green_sha: 255b0d5e8badc79b33897646b9077d44add03fde
+  # Most recent product-branch head where BOTH gates were green.
+  last_full_green_sha: 4d821552a710cbccd4737c109ccb5951cf7cbd81
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 
@@ -57,34 +56,22 @@ execution_lease:
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
-# What has been observed, and on exactly which revision.
+# Which checks exist, and what runs them. Not their outcomes.
 #
-# A result is the pair (status, verified_sha). That pair is history, so
-# validate_control_plane.py can always confirm it against the named workflow's
-# conclusion at that SHA. It deliberately does NOT require the current head to
-# have a completed run: the first run on a new head is the one asking, so such a
-# rule would fail every push.
-#
-# When verified_sha is behind the head, the result simply does not describe the
-# head yet — that is normal mid-work and is reported as a note. Claiming
-# in_review while any gate is unverified on the head is a failure.
-#
-# After a merge: set status to NOT_RUN and verified_sha to null, let CI run, then
-# record the result with the new SHA in one explicit transition.
+# Outcomes live in GitHub Actions, which already holds a conclusion per commit.
+# validate_control_plane.py reads them for the current head rather than comparing
+# against a copy kept here — a copy would have to be rewritten after every push,
+# on every branch carrying this file, and would be wrong in between.
 gates:
   focused:
     workflow: Electronics R4-M1 Focused
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    status: NOT_RUN
-    verified_sha: null
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    status: NOT_RUN
-    verified_sha: null
 
 # Conditions that must clear before the task can return to in_review.
 #
@@ -104,14 +91,31 @@ gates:
 #                         numbers. Closed by experiment rather than by a green
 #                         run: with LED_KNEE_VOLTAGE.red moved to 1.8 the solver
 #                         suite failed and the persistence test stayed green
+#   BLOCK-MAIN-MISDIRECTS-AGENTS
+#                         2026-08-06 — PR #75 merged into main at d3c9058.
+#                         Checked on a fresh clone rather than a working copy,
+#                         because the symptom was what a new agent sees: zero
+#                         mentions of the finished R2 branch, zero hard-coded
+#                         task ids or SHAs in the entry point, and the governance
+#                         gate passing on the clone itself
 blocking:
-  - id: BLOCK-MAIN-MISDIRECTS-AGENTS
+  - id: BLOCK-STATE-FILE-HAS-TWO-COPIES
     summary: >-
-      main still declares the finished R2 task in four places, so a fresh clone
-      sends an agent into a completed branch. The control plane is restored only
-      on this branch until the repo-wide layer is delivered to main.
-    plan: docs/execution/CONTROL_PLANE_DELIVERY.md
-    resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
+      docs/execution/current.yaml exists on both main and the product branch, so
+      the single source of state is two files asked to agree. They already drifted
+      once: a blocker was closed on the product branch while main went on
+      declaring it open. Repairing the instance does not remove the possibility.
+    plan: >-
+      A file tracked in main is inherited by every branch cut from it, so "absent
+      elsewhere" is not a condition Git can satisfy. The condition that can be is
+      that no other branch MODIFIES it: programme state changes on main and is
+      inherited, never edited on a task branch. Outcomes of CI are not written
+      here at all — GitHub Actions already holds one per commit, and copying them
+      created the second record that drifted.
+    resolved_by: >-
+      on any branch other than main, docs/execution/current.yaml must be
+      byte-identical to git show origin/main:docs/execution/current.yaml
+
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null

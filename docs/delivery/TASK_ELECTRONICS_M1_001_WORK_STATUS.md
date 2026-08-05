@@ -11,7 +11,7 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
 status: in_progress
-checkpoint: m1_led_visual_corrective
+checkpoint: control_plane_stabilisation
 execution_lease: unassigned
 rejected implementation: cfce81c163d69310f8091b558968f79145496a3a
 visual reference: owner-supplied Tinkercad screenshot at 100 percent
