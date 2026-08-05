@@ -77,17 +77,17 @@ gates:
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    status: PASS
-    verified_sha: 697356417a2372c7f4fceb070681f63d3938798e
+    # Reset by the phase 2 transition: PR #74 merged and the head moved to
+    # 71ecb7a, which rewrote the draft save path — far outside the paths a
+    # result can survive.
+    status: NOT_RUN
+    verified_sha: null
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    # First time green on the product branch. It failed on 5314aad because
-    # tests/portal/projects-api.spec.ts asserted the pre-checkpoint LED model;
-    # the correction arrived with the control plane in PR #73.
-    status: PASS
-    verified_sha: 697356417a2372c7f4fceb070681f63d3938798e
+    status: NOT_RUN
+    verified_sha: null
 
 # Conditions that must clear before the task can return to in_review.
 #
