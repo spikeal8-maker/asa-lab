@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -32,13 +33,55 @@ PHASE_ID_PATTERN = re.compile(r"^PHASE-(?:[0-9]|1[0-2])$")
 ALLOWED_RESULT_STATES = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
 
 
-def _active_task_from_control_plane() -> str:
+def _control_plane_task() -> dict[str, Any]:
     """The active task has exactly one home: docs/execution/current.yaml."""
     document = yaml.safe_load(CURRENT_PATH.read_text(encoding="utf-8"))
-    return str(document["task"]["id"])
+    return dict(document["task"])
 
 
-ACTIVE_TASK = _active_task_from_control_plane()
+def _checkout_contains_task_branch(branch: str) -> bool:
+    """Is the active task's code present in this checkout?
+
+    The active task's test registry names specs that live on its branch. On the
+    canonical branch — or any other branch that predates the task — those files
+    genuinely do not exist, and demanding them would make main unable to record
+    which task is active at all.
+
+    This is a precondition, not a waiver: when the branch is absent the caller
+    still verifies that it exists on the remote, and says which layer went
+    unchecked.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", f"origin/{branch}", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def _remote_branch_exists(branch: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+_CURRENT_TASK = _control_plane_task()
+ACTIVE_TASK = str(_CURRENT_TASK["id"])
+ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
+ACTIVE_CODE_PRESENT = _checkout_contains_task_branch(ACTIVE_BRANCH)
 ACTIVE_CHAIN_TASKS = {"TASK-R3A-ELECTRONICS-GATEWAY-001", ACTIVE_TASK}
 EXTERNAL_GOVERNANCE_TASKS = {"TASK-GOV-001"}
 HISTORICAL_TASK_IDS = {
@@ -208,7 +251,14 @@ def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], activ
                     errors.append(f"{test_id}: blocked roadmap alias cannot own a gate: {task_id}")
                 elif task_id not in known_tasks:
                     errors.append(f"{test_id}: unknown task {task_id}")
-        validate_command(str(test_id), test.get("command"), errors)
+        # Entries of the active task are only executable where its code is.
+        owns_active_task = isinstance(required_for, list) and ACTIVE_TASK in required_for
+        validate_command(
+            str(test_id),
+            test.get("command"),
+            errors,
+            executable=ACTIVE_CODE_PRESENT or not owns_active_task,
+        )
         timeout = test.get("timeout_seconds")
         if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 14400:
             errors.append(f"{test_id}: timeout_seconds must be 1..14400")
@@ -292,6 +342,13 @@ def validate_planned_catalog(executable_ids: set[str], errors: list[str]) -> int
 
 def main() -> int:
     errors: list[str] = []
+    if not ACTIVE_CODE_PRESENT and not _remote_branch_exists(ACTIVE_BRANCH):
+        # The waiver above is only sound while the branch that carries the code
+        # actually exists. Without it, nothing anywhere can verify the registry.
+        errors.append(
+            f"current.yaml names branch {ACTIVE_BRANCH!r}, which is neither in this "
+            "checkout nor on the remote; the active task's tests cannot be verified anywhere"
+        )
     project_map = load_yaml(MAP_PATH, errors)
     task_nodes, roadmap_aliases = task_nodes_from_map(project_map, errors)
     stable, tests, active_ids = collect_catalogs(errors)
@@ -309,6 +366,12 @@ def main() -> int:
     print(f"plannedTests={planned_count}")
     print(f"activeTask={ACTIVE_TASK}")
     print(f"activeTests={len(active_ids)}")
+    if ACTIVE_CODE_PRESENT:
+        print("activeTaskLayer=executable (its branch is in this checkout)")
+    else:
+        # Said out loud rather than passed over: this checkout could not confirm
+        # that the active task's commands resolve, only that its branch exists.
+        print(f"activeTaskLayer=not verified here (origin/{ACTIVE_BRANCH} is not in this history)")
     return 0
 
 

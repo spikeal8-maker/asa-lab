@@ -77,14 +77,14 @@ gates:
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    status: PASS
-    verified_sha: 5516f7c2deaa68409859984d8f682a8d12f09b2f
+    status: NOT_RUN
+    verified_sha: null
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    status: PASS
-    verified_sha: 5516f7c2deaa68409859984d8f682a8d12f09b2f
+    status: NOT_RUN
+    verified_sha: null
 
 # Conditions that must clear before the task can return to in_review.
 #
