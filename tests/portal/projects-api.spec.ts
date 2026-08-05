@@ -263,7 +263,16 @@ describe('workbench draft and immutable versions', () => {
       payload: { document },
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().result.current).toBeCloseTo((5 - 1.9) / (300 + 8.0001), 6);
+    // The R4-M1 LED model is a colour-specific knee voltage plus the package's
+    // dynamic resistance, not an ideal 1.9 V switch. Keep the expectation derived
+    // from those terms so a deliberate model change reads as a model change here.
+    const ledRedKneeVolts = 1.65;
+    const ledDynamicOhms = 24;
+    const closedSwitchOhms = 0.0001;
+    expect(saved.json().result.current).toBeCloseTo(
+      (5 - ledRedKneeVolts) / (300 + ledDynamicOhms + closedSwitchOhms),
+      5,
+    );
 
     const reloaded = await inject(app, {
       method: 'GET',
