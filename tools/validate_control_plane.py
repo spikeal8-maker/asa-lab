@@ -53,14 +53,7 @@ FORBIDDEN_MANIFEST_KEYS = (
 
 REQUIRED_TASK_FIELDS = ("id", "issue", "branch", "base_branch", "pr", "status", "checkpoint")
 ALLOWED_STATUSES = {"ready", "in_progress", "in_review", "blocked", "done"}
-ALLOWED_GATE_RESULTS = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
 ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
-
-# Paths that cannot change what a gate would conclude. Recording a gate result
-# is itself a commit, so a result would otherwise be invalidated by the very act
-# of writing it down — the head would always be one bookkeeping commit ahead of
-# the revision that was verified. Anything outside these paths does invalidate it.
-BOOKKEEPING_PREFIXES = ("docs/execution/",)
 
 # Engineering invariants AGENTS.md states as already in force. A policy claim
 # that nothing checks is how the documents drifted apart in the first place, so
@@ -180,16 +173,16 @@ def check_gate_shape(gates: Any, errors: list[str]) -> None:
         if not isinstance(gate, dict):
             errors.append(f"current.yaml gates.{name} must be a mapping")
             continue
-        if gate.get("status") not in ALLOWED_GATE_RESULTS:
-            errors.append(
-                f"current.yaml gates.{name}.status must be one of "
-                f"{', '.join(sorted(ALLOWED_GATE_RESULTS))}"
-            )
-        if "last_known" in gate:
-            errors.append(
-                f"current.yaml gates.{name} uses last_known; a result must be recorded as "
-                "status plus the verified_sha it was observed on"
-            )
+        # Outcomes belong to GitHub Actions, which already holds them per commit
+        # and cannot be talked out of them. Copying them here produced a second
+        # record to keep in step with the first, rewritten after every push, on
+        # every branch that carried the file.
+        for stale in ("status", "verified_sha", "last_known"):
+            if stale in gate:
+                errors.append(
+                    f"current.yaml gates.{name} records {stale}; outcomes are read from "
+                    "GitHub Actions, not written here"
+                )
         if not isinstance(gate.get("workflow"), str):
             errors.append(f"current.yaml gates.{name}.workflow must name a GitHub workflow")
 
@@ -363,7 +356,16 @@ def check_git(task: dict[str, Any], errors: list[str], notes: list[str]) -> str 
     branch = str(task.get("branch"))
     code, _ = run(["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"])
     if code != 0:
-        errors.append(f"Product branch origin/{branch} does not exist on the remote")
+        # A missing remote-tracking ref is not the same as a missing branch: a
+        # single-branch or shallow clone simply never fetched it. Ask the remote
+        # before blaming it, or the validator reports a cause that is not true.
+        code, _ = run(["git", "ls-remote", "--exit-code", "--heads", "origin", branch])
+        if code != 0:
+            errors.append(f"Product branch {branch} does not exist on the remote")
+        else:
+            notes.append(
+                f"origin/{branch} is not fetched in this clone; confirmed on the remote instead"
+            )
     code, current_branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     if code == 0 and current_branch != branch:
         notes.append(
@@ -437,11 +439,6 @@ def check_pr_body(
     """
     if not head_oid:
         return
-    verified = {
-        str(gate.get("verified_sha"))
-        for gate in (task.get("_gates") or {}).values()
-        if isinstance(gate.get("verified_sha"), str)
-    }
     if head_oid in body:
         return
     if str(task.get("status")) == "in_review":
@@ -451,91 +448,31 @@ def check_pr_body(
             "a reviewer sees"
         )
         return
-    if verified & set(re.findall(SHA_PATTERN, body)):
-        notes.append(
-            f"PR #{pr} body describes the last verified revision, not head {head_oid[:7]}; "
-            "refresh it before returning the task to review"
-        )
-        return
-    errors.append(
-        f"PR #{pr} body references neither the current head {head_oid[:7]} nor any "
-        "verified revision from current.yaml; it describes an unidentified state"
+    # Not an error while work is in progress: a push moves the head, and the body
+    # is refreshed straight after. Naming a superseded revision is only a lie once
+    # the task is offered for review, which the branch above already covers.
+    notes.append(
+        f"PR #{pr} body does not name head {head_oid[:7]}; refresh it before review"
     )
-
-
-def result_still_describes_head(verified_sha: str, head_oid: str) -> tuple[bool, str]:
-    """Does a result observed on `verified_sha` still describe `head_oid`?
-
-    Exact equality is the obvious answer and the wrong one: writing the result
-    down is a commit, so the head is always at least one bookkeeping commit
-    ahead of the revision the gates actually ran on. Requiring equality would
-    make a verified head unreachable rather than merely hard.
-
-    A result survives commits that cannot change what the gates would conclude,
-    and only those. The second run of the transition protocol re-checks the
-    bookkeeping itself, so a lie written into it does not go unexamined.
-    """
-    if verified_sha == head_oid:
-        return True, ""
-    code, _ = run(["git", "merge-base", "--is-ancestor", verified_sha, head_oid])
-    if code != 0:
-        return False, f"{verified_sha[:7]} is not an ancestor of head {head_oid[:7]}"
-    code, output = run(["git", "diff", "--name-only", f"{verified_sha}..{head_oid}"])
-    if code != 0:
-        return False, f"cannot diff {verified_sha[:7]} against head {head_oid[:7]}"
-    changed = [line.strip() for line in output.splitlines() if line.strip()]
-    functional = [path for path in changed if not path.startswith(BOOKKEEPING_PREFIXES)]
-    if functional:
-        listed = ", ".join(functional[:3])
-        more = f" and {len(functional) - 3} more" if len(functional) > 3 else ""
-        return False, f"{len(functional)} file(s) changed since {verified_sha[:7]}: {listed}{more}"
-    return True, ""
 
 
 def check_gate_results(
     task: dict[str, Any], head_oid: str, errors: list[str], notes: list[str], require: bool
 ) -> bool:
-    """Check that each recorded gate result is a fact GitHub can confirm.
+    """Read each gate's conclusion for the current head from GitHub Actions.
 
-    A result is a pair: `status` and the `verified_sha` it was observed on. That
-    pair is history, so it can always be checked without waiting for anything.
+    Nothing is recorded in current.yaml and then compared: GitHub already holds a
+    conclusion per commit, and a second copy only creates something to keep in
+    step. Reading it makes the answer current by construction, and removes the
+    bookkeeping commit that used to follow every push on every branch carrying the
+    file.
 
-    Comparing the record against the *current* head instead would deadlock: the
-    first run on a new head is the one asking the question, so no completed run
-    exists yet and every push would fail. Whether the head itself is verified is
-    a separate question, answered by the return value and enforced only where a
-    claim depends on it.
-
-    Returns True when every gate's verified_sha is the current head.
+    Returns True when every gate has a successful completed run on this head.
     """
-    conclusion_to_result = {"success": "PASS", "failure": "FAIL", "cancelled": "NOT_RUN"}
     gates = task.get("_gates") or {}
-    head_verified = bool(gates)
+    all_green = bool(gates)
     for name, gate in gates.items():
         workflow = gate.get("workflow")
-        recorded = gate.get("status")
-        verified_sha = gate.get("verified_sha")
-
-        if recorded == "NOT_RUN":
-            if verified_sha is not None:
-                errors.append(
-                    f"current.yaml gates.{name} is NOT_RUN but names verified_sha; "
-                    "a result that was never observed has no revision"
-                )
-            notes.append(f"gate {name}: NOT_RUN, awaiting a run")
-            head_verified = False
-            continue
-        if not isinstance(verified_sha, str) or not SHA_PATTERN.fullmatch(verified_sha):
-            errors.append(
-                f"current.yaml gates.{name} records {recorded} without a full verified_sha; "
-                "a result must name the revision it was observed on"
-            )
-            head_verified = False
-            continue
-        describes_head, drift = result_still_describes_head(verified_sha, head_oid)
-        if not describes_head:
-            head_verified = False
-
         code, payload = run(
             [
                 "gh", "run", "list",
@@ -545,55 +482,78 @@ def check_gate_results(
                 "--json", "headSha,status,conclusion",
             ]
         )
-        # Under --require-github an unreadable remote is a failure, not a note.
         sink = errors if require else notes
         if code != 0:
             sink.append(f"gate {name}: cannot read runs of workflow {workflow!r}")
+            all_green = False
             continue
         try:
             runs = json.loads(payload)
         except json.JSONDecodeError:
             sink.append(f"gate {name}: unreadable workflow run payload for {workflow!r}")
+            all_green = False
             continue
-        observed = next(
-            (
-                item
-                for item in runs
-                if item.get("headSha") == verified_sha and item.get("status") == "completed"
-            ),
-            None,
-        )
-        if observed is None:
-            sink.append(
-                f"current.yaml gates.{name} records {recorded} on {verified_sha[:7]}, but no "
-                f"completed run of {workflow!r} exists there; the cited evidence is absent"
-            )
+        here = [
+            item
+            for item in runs
+            if item.get("headSha") == head_oid and item.get("status") == "completed"
+        ]
+        if not here:
+            notes.append(f"gate {name}: no completed run on head {head_oid[:7]} yet")
+            all_green = False
             continue
-        actual = conclusion_to_result.get(str(observed.get("conclusion")), "NOT_RUN")
-        if actual != recorded:
-            errors.append(
-                f"current.yaml gates.{name} records {recorded} on {verified_sha[:7]}, but "
-                f"{workflow!r} concluded {observed.get('conclusion')} there"
-            )
-        elif describes_head:
-            where = (
-                "head"
-                if verified_sha == head_oid
-                else f"{verified_sha[:7]}, still describing head {head_oid[:7]}"
-            )
-            notes.append(f"gate {name}: {actual} confirmed on {where}")
+        conclusions = {str(item.get("conclusion")) for item in here}
+        if conclusions == {"success"}:
+            notes.append(f"gate {name}: success on head {head_oid[:7]}")
         else:
-            notes.append(f"gate {name}: {actual} on {verified_sha[:7]} — superseded, {drift}")
+            all_green = False
+            notes.append(
+                f"gate {name}: {', '.join(sorted(conclusions))} on head {head_oid[:7]}"
+            )
 
-    # A task offered for review must stand on a verified head. Mid-work drift is
-    # normal and only noted; claiming readiness on an unverified revision is the
-    # failure this whole mechanism exists to prevent.
-    if str(task.get("status")) == "in_review" and not head_verified:
+    # A task offered for review must stand on a head the gates have actually
+    # passed. Mid-work this is normal and only noted; claiming readiness without
+    # it is the failure this mechanism exists to prevent.
+    if str(task.get("status")) == "in_review" and not all_green:
         errors.append(
-            f"{task.get('id')} is in_review, but not every gate is verified on head "
-            f"{head_oid[:7]}; run the gates on this revision before offering it"
+            f"{task.get('id')} is in_review, but not every gate has a successful run on "
+            f"head {head_oid[:7]}"
         )
-    return head_verified
+    return all_green
+
+
+def check_state_file_is_canonical(
+    task: dict[str, Any], errors: list[str], notes: list[str]
+) -> None:
+    """The branch doing the work inherits programme state; it does not author it.
+
+    A file tracked in main is inherited by every branch cut from it, so "the file
+    exists nowhere else" is not a condition Git can satisfy. What can be required
+    is that the branch doing the work does not also rewrite the record of what the
+    work is — otherwise the two copies drift, which is what happened.
+
+    A governance branch proposing a change to main is the intended way to change
+    it, so the rule does not apply there.
+    """
+    code, branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    if code != 0:
+        notes.append("cannot determine the current branch; canonical-copy check skipped")
+        return
+    if branch != str(task.get("branch")):
+        notes.append(f"on {branch}: not the task branch, so it may propose state changes")
+        return
+    code, canonical = run(["git", "show", "origin/main:docs/execution/current.yaml"])
+    if code != 0:
+        notes.append("origin/main copy of current.yaml unavailable; comparison skipped")
+        return
+    if CURRENT_PATH.read_text(encoding="utf-8") == canonical:
+        notes.append("current.yaml matches origin/main byte for byte")
+        return
+    errors.append(
+        f"task branch {branch} modifies docs/execution/current.yaml relative to "
+        "origin/main; programme state changes on main and is inherited, never edited "
+        "where the work happens"
+    )
 
 
 def main() -> int:
@@ -617,6 +577,7 @@ def main() -> int:
         task = {**task, "_revisions": current.get("revisions") or {}, "_gates": current.get("gates") or {}}
         check_stateless_documents(errors)
         check_source_invariants(errors)
+        check_state_file_is_canonical(task, errors, notes)
         check_manifest(task, errors)
         check_project_map(task, errors)
         check_active_tests(task, errors)
