@@ -1,0 +1,117 @@
+schema_version: 1.0.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# THE single source of execution state for ASA Lab.
+#
+# Every other document — START_HERE_FOR_AI.md, AGENTS.md, EXECUTION_MANIFEST,
+# project-map, QUALITY_MAP, PR bodies — describes policy, history or structure.
+# None of them may restate the fields below. When they disagree with this file,
+# this file wins and the disagreement is a validation failure, not a judgement
+# call.
+#
+# Verify with:  pnpm control-plane:check
+#
+# What "stabilised" means, in which order it is reached and which decisions the
+# owner still has to make: docs/execution/STABILIZATION_PLAN.md
+# ─────────────────────────────────────────────────────────────────────────────
+
+task:
+  id: TASK-ELECTRONICS-M1-001
+  issue: 63
+  branch: agent/r4-electronics-m1
+  base_branch: main
+  pr: 72
+  # The PR stays a Draft until the owner decides otherwise. Taking it out of
+  # Draft is a decision, not a side effect, so the validator watches for it.
+  pr_draft: true
+  # Returned from in_review on 2026-08-05: the general repository gate fails on
+  # the branch head, so no release-candidate claim is currently defensible.
+  status: in_progress
+  checkpoint: m1_led_visual_corrective
+  owner_acceptance: pending
+
+# Commits that mean something. Anything not listed here is ordinary history.
+revisions:
+  # Last merge into main. The product baseline every release candidate builds on.
+  product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
+  # Owner-visible convergence baseline for the current task.
+  convergence_baseline_sha: f27ac1594761265a326229fa2aa8d841081a5dd8
+  # Last branch head where BOTH the focused and the general gate were green.
+  # Four commits landed after it and broke the general gate.
+  last_full_green_sha: 255b0d5e8badc79b33897646b9077d44add03fde
+  # Set only by an owner acceptance transition. Never set by an agent.
+  owner_accepted_sha: null
+
+# Who is allowed to write to the product branch right now.
+# A second agent that finds a held lease stays a reviewer and does not commit.
+# holder must be either 'unassigned' or exactly executor_id; while it is held
+# both timestamps are required and expires_at must be after acquired_at.
+# validate_control_plane.py enforces all of that.
+execution_lease:
+  # Held for the stabilisation transitions. Released back to unassigned once the
+  # product branch is verified on its own head.
+  executor_id: assistant-stabilisation
+  holder: assistant-stabilisation
+  acquired_at: '2026-08-05T21:03:52Z'
+  expires_at: '2026-08-06T03:03:52Z'
+  # Anyone may read, analyse, run tests and report without holding the lease.
+  reviewer_role_requires_lease: false
+
+# What has been observed, and on exactly which revision.
+#
+# A result is the pair (status, verified_sha). That pair is history, so
+# validate_control_plane.py can always confirm it against the named workflow's
+# conclusion at that SHA. It deliberately does NOT require the current head to
+# have a completed run: the first run on a new head is the one asking, so such a
+# rule would fail every push.
+#
+# When verified_sha is behind the head, the result simply does not describe the
+# head yet — that is normal mid-work and is reported as a note. Claiming
+# in_review while any gate is unverified on the head is a failure.
+#
+# After a merge: set status to NOT_RUN and verified_sha to null, let CI run, then
+# record the result with the new SHA in one explicit transition.
+gates:
+  focused:
+    workflow: Electronics R4-M1 Focused
+    commands:
+      - pnpm gate:electronics-m1
+      - pnpm gate:electronics-m1:browser
+    status: NOT_RUN
+    verified_sha: null
+  general:
+    workflow: ASA Lab Governance and Code Gates
+    commands:
+      - pnpm gate:repository
+    status: NOT_RUN
+    verified_sha: null
+
+# Conditions that must clear before the task can return to in_review.
+#
+# Closed so far:
+#   BLOCK-PR-BODY-DRIFT   2026-08-05 — the body describes its head, and the
+#                         validator fails if it drifts again
+#   BLOCK-GENERAL-GATE    2026-08-05 — the general gate passed on 6973564,
+#                         governance, code and PostgreSQL/RLS all green
+#   BLOCK-E2E-AUTOSAVE-RACE
+#                         2026-08-05 — PR #74 merged; the browser journey passed
+#                         five consecutive runs on 81daca8 plus the CI run. A
+#                         race is not disproved by one green run, which is why
+#                         the exit condition asked for five
+#   BLOCK-PERSISTENCE-TEST-COUPLING
+#                         2026-08-06 — the persistence test asserts that a saved
+#                         result reloads unchanged instead of asserting the LED
+#                         numbers. Closed by experiment rather than by a green
+#                         run: with LED_KNEE_VOLTAGE.red moved to 1.8 the solver
+#                         suite failed and the persistence test stayed green
+blocking:
+  - id: BLOCK-MAIN-MISDIRECTS-AGENTS
+    summary: >-
+      main still declares the finished R2 task in four places, so a fresh clone
+      sends an agent into a completed branch. The control plane is restored only
+      on this branch until the repo-wide layer is delivered to main.
+    plan: docs/execution/CONTROL_PLANE_DELIVERY.md
+    resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
+
+# A future task becomes executable only through a separate owner transition.
+next_task: null

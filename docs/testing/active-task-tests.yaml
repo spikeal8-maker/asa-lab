@@ -1,59 +1,117 @@
 schema_version: 1.0.0
-active_task: TASK-CREATOR-PORTAL-001
+active_task: TASK-ELECTRONICS-M1-001
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
-  - id: TST-R2-STATIC-001
-    title: R2 static and full regression gate
-    suite: static
+  - id: TST-R3A-MODULE-GATEWAY-001
+    title: Existing Module Registry and module-neutral Project lifecycle gateway
+    suite: integration
     level: repository
     phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: node tools/run-r2-static.mjs
-    timeout_seconds: 3600
-    owner: developer-experience
-    artifacts: [console-report, build-manifest, regression-report]
-
-  - id: TST-R2-CREATOR-HOME-001
-    title: Creator Home recent projects and visible states
-    suite: integration
-    level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm test:creator-portal -- --run tests/portal/creator-home.spec.ts
+    required_for: [TASK-R3A-ELECTRONICS-GATEWAY-001]
+    command: pnpm vitest run packages/module-sdk/src/registry.spec.ts apps/api/src/modules.controller.spec.ts contexts/projects/testing/projects.spec.ts
     timeout_seconds: 900
     owner: experience-platform
-    artifacts: [junit, creator-home-report]
+    artifacts: [console-report, gateway-source-audit]
 
-  - id: TST-R2-CAPABILITY-NAV-001
-    title: Server-authorized capability navigation and workspace scope
-    suite: authorization
-    level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm test:creator-portal -- --run tests/portal/capability-navigation.spec.ts
-    timeout_seconds: 1200
-    owner: identity-and-experience
-    artifacts: [junit, capability-navigation-matrix]
-
-  - id: TST-R2-ROUTING-001
-    title: Creator Portal refresh deep-link Back and Forward routing
-    suite: integration
-    level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm test:creator-portal -- --run tests/portal/creator-routing.spec.ts
+  - id: TST-ELECTRONICS-ASSET-MANIFEST-001
+    title: Immutable owner archive reference and complete production manifest
+    suite: contracts
+    level: repository
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts apps/web/src/electronics/testing/production-assets.spec.ts
     timeout_seconds: 900
-    owner: experience-platform
-    artifacts: [junit, routing-report]
+    owner: electronics
+    artifacts: [owner-asset-manifest, reference-manifest, production-manifest, vitest-report]
 
-  - id: TST-R2-E2E-001
-    title: Live Creator Portal desktop tablet and mobile flow
+  - id: TST-ELECTRONICS-TRANSPARENCY-001
+    title: Production SVG transparency, raster and active-content audit
+    suite: security
+    level: repository
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [production-manifest, transparency-audit, vitest-report]
+
+  - id: TST-ELECTRONICS-PHYSICAL-SCALE-001
+    title: Single-scale production physical-dimensions contract
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [production-manifest, physical-scale-page, vitest-report]
+
+  - id: TST-ELECTRONICS-PIN-ANCHOR-001
+    title: Production pin anchors and terminal provenance within 0.25 mm
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [production-manifest, pin-map, vitest-report]
+
+  - id: TST-ELECTRONICS-STATE-FAMILIES-001
+    title: Typed LED, RGB, display and motion state contracts
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-state-contracts.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [state-animation-contracts, led-rgb-state-lab, display-and-motion-state-lab, vitest-report]
+
+  - id: TST-ELECTRONICS-BREADBOARD-001
+    title: Production breadboard snap, placement and internal connectivity
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-breadboard.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [breadboard-connectivity-map, breadboard-fit-page, vitest-report]
+
+  - id: TST-ELECTRONICS-RESISTOR-VISUAL-001
+    title: Transparent parametric resistor body, semantic bands and tolerance states
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/resistor-visual.spec.ts apps/web/src/electronics/testing/production-state-contracts.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [parametric-resistor-visual, resistor-band-contract, vitest-report]
+
+  - id: TST-ELECTRONICS-COMPONENT-LIBRARY-001
+    title: Owner-reference shelf geometry, exact order, contextual terminals and persisted variants
+    suite: integration
+    level: bounded-context
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    command: pnpm vitest run apps/web/src/electronics/testing/production-editor-integration.spec.ts apps/web/src/electronics/testing/workbench-presentation.spec.ts apps/web/src/electronics/testing/workbench-document.spec.ts
+    timeout_seconds: 900
+    owner: electronics
+    artifacts: [component-family-map, presentation-contract, focused-test-report]
+
+  - id: TST-ELECTRONICS-M1-E2E-001
+    title: Real-editor owner-reference presentation and wiring interaction states
     suite: e2e
     level: system
-    phase_available: PHASE-3
-    required_for: [TASK-CREATOR-PORTAL-001]
-    command: pnpm e2e:creator-portal
-    timeout_seconds: 2400
-    owner: experience-platform
-    artifacts: [playwright-report, screenshots, browser-failure-report]
+    phase_available: PHASE-4
+    required_for: [TASK-ELECTRONICS-M1-001]
+    # The same command the focused workflow runs. This registry previously named
+    # pnpm e2e:electronics (the older slice spec) while CI ran the simulation
+    # journey, so the local gate and CI verified different things.
+    command: pnpm e2e:electronics-simulation
+    timeout_seconds: 1500
+    owner: electronics
+    artifacts: [playwright-report, eight-real-editor-screenshots, owner-reference-side-by-side, browser-failure-report]
