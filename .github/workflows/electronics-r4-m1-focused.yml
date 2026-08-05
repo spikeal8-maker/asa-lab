@@ -50,17 +50,10 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test shared Electronics simulation core
-        run: pnpm test:electronics
-
-      - name: Test actual editor integration contracts
-        run: pnpm vitest run apps/web/src/electronics/testing
-
-      - name: Typecheck applications and contexts
-        run: pnpm typecheck
-
-      - name: Production build
-        run: pnpm build
+      # One gate per result: the same command a local agent and an owner
+      # evidence run invoke. Do not inline its steps here.
+      - name: Focused Electronics M1 gate
+        run: pnpm gate:electronics-m1
 
   browser:
     name: Actual editor live simulation journey
@@ -96,11 +89,14 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           up -d --wait --wait-timeout 240 postgres api web
 
-      - name: Run one real-editor simulation journey
+      # Identical to the command registered in docs/testing/active-task-tests.yaml.
+      # Named as its own gate because `gate:electronics-m1` deliberately does not
+      # include it: that gate needs no browser stack, this one does.
+      - name: Electronics M1 browser gate
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm playwright test e2e/electronics-simulation.spec.ts
+          pnpm gate:electronics-m1:browser
 
       - name: Show isolated stack state
         if: always()

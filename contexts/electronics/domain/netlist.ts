@@ -15,6 +15,22 @@ export function terminalKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
 }
 
+/**
+ * Code-unit ordering, deliberately not `localeCompare`.
+ *
+ * Net numbering is derived from this order and reaches the caller as `net-0`,
+ * `net-1`, … `localeCompare` without an explicit locale uses the runtime's ICU
+ * data, which differs between a browser and a small-icu Node build — notably in
+ * how it weights the `:` and `-` that appear in every terminal key. The
+ * simulation contract requires the browser and the server to produce
+ * byte-identical results from the same document, so the comparison must not
+ * depend on the runtime at all.
+ */
+function compareTerminalKeys(left: string, right: string): number {
+  if (left < right) return -1;
+  return left > right ? 1 : 0;
+}
+
 class UnionFind {
   private readonly parent = new Map<string, string>();
 
@@ -67,7 +83,7 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     .flatMap((component) =>
       terminalsForComponent(component).map((terminal) => terminalKey(component.id, terminal)),
     )
-    .sort((left, right) => left.localeCompare(right));
+    .sort(compareTerminalKeys);
   const keysByRoot = new Map<string, string[]>();
   for (const key of keys) {
     const root = union.find(key);
@@ -76,8 +92,8 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     keysByRoot.set(root, members);
   }
   const canonicalGroups = [...keysByRoot.values()]
-    .map((members) => members.sort((left, right) => left.localeCompare(right)))
-    .sort((left, right) => (left[0] ?? '').localeCompare(right[0] ?? ''));
+    .map((members) => members.sort(compareTerminalKeys))
+    .sort((left, right) => compareTerminalKeys(left[0] ?? '', right[0] ?? ''));
 
   const nodeOf = new Map<string, number>();
   const terminalsByNode = new Map<number, readonly string[]>();
