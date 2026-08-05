@@ -77,16 +77,16 @@ gates:
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    # The browser journey additionally ran five consecutive times on this head
-    # outside CI: 5 passed, 0 failed. One green run does not disprove a race.
-    status: PASS
-    verified_sha: 81daca8b097d0d49265d3e950e40c601f6512fed
+    # Reset by the phase 3 transition: tests/portal changed, which is outside
+    # the paths a result survives.
+    status: NOT_RUN
+    verified_sha: null
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    status: PASS
-    verified_sha: 81daca8b097d0d49265d3e950e40c601f6512fed
+    status: NOT_RUN
+    verified_sha: null
 
 # Conditions that must clear before the task can return to in_review.
 #
@@ -100,6 +100,12 @@ gates:
 #                         five consecutive runs on 81daca8 plus the CI run. A
 #                         race is not disproved by one green run, which is why
 #                         the exit condition asked for five
+#   BLOCK-PERSISTENCE-TEST-COUPLING
+#                         2026-08-06 — the persistence test asserts that a saved
+#                         result reloads unchanged instead of asserting the LED
+#                         numbers. Closed by experiment rather than by a green
+#                         run: with LED_KNEE_VOLTAGE.red moved to 1.8 the solver
+#                         suite failed and the persistence test stayed green
 blocking:
   - id: BLOCK-MAIN-MISDIRECTS-AGENTS
     summary: >-
@@ -108,17 +114,6 @@ blocking:
       on this branch until the repo-wide layer is delivered to main.
     plan: docs/execution/CONTROL_PLANE_DELIVERY.md
     resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
-  - id: BLOCK-PERSISTENCE-TEST-COUPLING
-    summary: >-
-      tests/portal/projects-api.spec.ts asserts the solver's LED numbers, so a
-      deliberate model change stops the general gate through a test that does not
-      exist to check physics. It has already happened twice in one week. The test
-      should assert that a saved result reloads unchanged and leave the numbers to
-      contexts/electronics/testing/solver.spec.ts.
-    plan: docs/execution/STABILIZATION_PLAN.md
-    resolved_by: >-
-      change LED_KNEE_VOLTAGE.red locally — solver.spec.ts must fail,
-      projects-api.spec.ts must stay green
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null

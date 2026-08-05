@@ -263,16 +263,15 @@ describe('workbench draft and immutable versions', () => {
       payload: { document },
     });
     expect(saved.statusCode).toBe(200);
-    // The R4-M1 LED model is a colour-specific knee voltage plus the package's
-    // dynamic resistance, not an ideal 1.9 V switch. Keep the expectation derived
-    // from those terms so a deliberate model change reads as a model change here.
-    const ledRedKneeVolts = 1.65;
-    const ledDynamicOhms = 24;
-    const closedSwitchOhms = 0.0001;
-    expect(saved.json().result.current).toBeCloseTo(
-      (5 - ledRedKneeVolts) / (300 + ledDynamicOhms + closedSwitchOhms),
-      5,
-    );
+    // Persistence, not physics. This test asserts that what was saved comes back
+    // unchanged; what the numbers ought to be belongs to
+    // contexts/electronics/testing/solver.spec.ts. Asserting the LED model here
+    // stopped the general gate twice in one week through a test that does not
+    // exist to check the model.
+    //
+    // `solved` is kept because an unsupported circuit would make the round trip
+    // vacuous — it is a status, not a measurement.
+    expect(saved.json().result.solved).toBe(true);
 
     const reloaded = await inject(app, {
       method: 'GET',
@@ -281,11 +280,9 @@ describe('workbench draft and immutable versions', () => {
     });
     expect(reloaded.statusCode).toBe(200);
     expect(reloaded.json().draft.document).toEqual(document);
-    expect(
-      reloaded
-        .json()
-        .result.components.find((item: { componentId: string }) => item.componentId === 'led1').lit,
-    ).toBe(true);
+    // Stronger than any single measurement, and independent of the model: every
+    // voltage, current and component state has to survive the round trip exactly.
+    expect(reloaded.json().result).toEqual(saved.json().result);
     expect(reloaded.json().draft.document).toMatchObject({
       schemaVersion: 3,
       viewport: { x: 42, y: -18, zoom: 1.25 },
