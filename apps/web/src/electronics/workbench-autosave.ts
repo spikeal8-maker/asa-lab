@@ -7,6 +7,12 @@ import type { SaveStatus } from './workbench-model';
  * new document object, so `document === savedDocument` means the server holds
  * exactly the document the user is looking at.
  *
+ * That makes immutable updates a contract rather than a style preference. A
+ * document mutated in place would read as already saved and the change would be
+ * lost — the exact failure this module exists to prevent. `setDocument` in
+ * use-workbench-project-state.ts is the single write path that honours it, and
+ * the contract is asserted in workbench-autosave.spec.ts.
+ *
  * A save only makes durable the document it carried, which is why the document
  * in flight is tracked separately. A request that started before the latest edit
  * says nothing about that edit, and treating its completion as "saved" is what

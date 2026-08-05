@@ -81,6 +81,35 @@ describe('workbench draft save state', () => {
     ).toBe(false);
   });
 
+  it('depends on documents being replaced rather than mutated', () => {
+    // The comparison is identity, which is what makes it cheap and exact. The
+    // cost is a contract: an edit must produce a new document object. Mutating
+    // one in place leaves the editor believing the server already holds the
+    // change, and the change is then lost exactly as before this fix.
+    //
+    // This is asserted rather than described so the contract fails loudly if a
+    // future call site starts mutating. Every write goes through setDocument in
+    // use-workbench-project-state.ts, which is the only place that has to honour it.
+    const mutable = { resistorOhms: 220 };
+    const stateBefore = {
+      document: mutable,
+      savedDocument: mutable,
+      savingDocument: null,
+      failed: false,
+    };
+    expect(draftSaveStatus(stateBefore)).toBe('saved');
+
+    mutable.resistorOhms = 1000;
+
+    expect(draftSaveStatus(stateBefore)).toBe('saved');
+    expect(autosaveIsDue(stateBefore)).toBe(false);
+
+    // Replacing the object — what every edit path actually does — is detected.
+    const stateAfterReplacement = { ...stateBefore, document: { resistorOhms: 1000 } };
+    expect(draftSaveStatus(stateAfterReplacement)).toBe('dirty');
+    expect(autosaveIsDue(stateAfterReplacement)).toBe(true);
+  });
+
   it('stops autosave after a failed save and resumes on the next edit', () => {
     expect(
       draftSaveStatus({

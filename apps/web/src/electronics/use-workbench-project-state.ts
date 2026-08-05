@@ -145,6 +145,11 @@ export function useWorkbenchProjectState(projectId: string) {
   // Saves run one at a time and in call order, so the stored draft cannot end up
   // holding an older document than the one the editor last sent.
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // A queued save can still be in flight when the hook is pointed at another
+  // project. Its response describes the previous project and must not be
+  // written into the new one's state.
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
 
   const saveStatus = draftSaveStatus({
     document,
@@ -238,21 +243,36 @@ export function useWorkbenchProjectState(projectId: string) {
 
   const sendDraft = useCallback(
     async (nextDocument: SchematicDocument, quiet: boolean): Promise<SolveResult | null> => {
+      const sentForProject = projectId;
       setSavingDocument(nextDocument);
-      const response = await api.saveDraft<SchematicDocument, SolveResult>(projectId, nextDocument);
-      setSavingDocument(null);
-      if (!response.ok) {
-        setSaveFailed(true);
-        setNotice(`Ошибка сохранения: ${response.error.message}`);
-        return null;
+      try {
+        const response = await api.saveDraft<SchematicDocument, SolveResult>(
+          sentForProject,
+          nextDocument,
+        );
+        // The editor moved to another project while this was in flight. The
+        // response describes the previous one and says nothing about what is on
+        // screen now.
+        if (projectIdRef.current !== sentForProject) return null;
+        if (!response.ok) {
+          setSaveFailed(true);
+          setNotice(`Ошибка сохранения: ${response.error.message}`);
+          return null;
+        }
+        setResult(response.data.result);
+        // The server now holds exactly this document, and nothing more. If the
+        // user edited while the request was in flight, that edit is still unsaved
+        // and both the indicator and autosave have to keep treating it as such.
+        setSavedDocument(nextDocument);
+        if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
+        return response.data.result;
+      } finally {
+        // Runs even if saveDraft throws instead of returning { ok: false }.
+        // Leaving savingDocument set would pin the indicator on 'saving' and stop
+        // autosave from ever firing again. Cleared only if this save is still the
+        // one in flight, so a newer request is not disturbed.
+        setSavingDocument((current) => (current === nextDocument ? null : current));
       }
-      setResult(response.data.result);
-      // The server now holds exactly this document, and nothing more. If the
-      // user edited while the request was in flight, that edit is still unsaved
-      // and both the indicator and autosave have to keep treating it as such.
-      setSavedDocument(nextDocument);
-      if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
-      return response.data.result;
     },
     [projectId],
   );
