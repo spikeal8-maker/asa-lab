@@ -33,6 +33,11 @@ catalog, one exact runtime SHA, one Compose project and one real-editor owner
 flow. The current corrective checkpoint covers ordinary-LED runtime states and
 zoom-stable wire/terminal presentation. R4-M2 remains blocked.
 
+Draft persistence is now ordered. The saved indicator is derived from which
+document the server is known to hold rather than set by whichever request
+happened to finish, so an edit made while a save is in flight can no longer be
+reported as saved and then lost by a checkpoint taken straight after it.
+
 ## Quality gate
 
 See [`QUALITY_MAP.md`](QUALITY_MAP.md) and
