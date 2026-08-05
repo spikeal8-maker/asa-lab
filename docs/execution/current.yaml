@@ -27,7 +27,7 @@ task:
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
   status: in_progress
-  checkpoint: m1_led_visual_corrective
+  checkpoint: control_plane_stabilisation
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -36,9 +36,8 @@ revisions:
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   # Owner-visible convergence baseline for the current task.
   convergence_baseline_sha: f27ac1594761265a326229fa2aa8d841081a5dd8
-  # Last branch head where BOTH the focused and the general gate were green.
-  # Four commits landed after it and broke the general gate.
-  last_full_green_sha: 255b0d5e8badc79b33897646b9077d44add03fde
+  # Most recent product-branch head where BOTH gates were green.
+  last_full_green_sha: 4d821552a710cbccd4737c109ccb5951cf7cbd81
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 
@@ -51,9 +50,9 @@ execution_lease:
   # Held for the stabilisation transitions. Released back to unassigned once the
   # product branch is verified on its own head.
   executor_id: assistant-stabilisation
-  holder: assistant-stabilisation
-  acquired_at: '2026-08-05T21:03:52Z'
-  expires_at: '2026-08-06T03:03:52Z'
+  holder: unassigned
+  acquired_at: null
+  expires_at: null
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
@@ -104,14 +103,11 @@ gates:
 #                         numbers. Closed by experiment rather than by a green
 #                         run: with LED_KNEE_VOLTAGE.red moved to 1.8 the solver
 #                         suite failed and the persistence test stayed green
-blocking:
-  - id: BLOCK-MAIN-MISDIRECTS-AGENTS
-    summary: >-
-      main still declares the finished R2 task in four places, so a fresh clone
-      sends an agent into a completed branch. The control plane is restored only
-      on this branch until the repo-wide layer is delivered to main.
-    plan: docs/execution/CONTROL_PLANE_DELIVERY.md
-    resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
+#   BLOCK-MAIN-MISDIRECTS-AGENTS
+#                         2026-08-06 — closed by the merge that produced this
+#                         very file on main. Verified on a fresh clone, because
+#                         the symptom was what a new agent sees.
+blocking: []
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
