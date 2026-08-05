@@ -54,22 +54,31 @@ gates:
   general:
     workflow: ASA Lab Governance and Code Gates
     command: pnpm gate:repository
+    # Still FAIL on the product branch head; the fix is not merged yet.
     last_known: FAIL
     failure: >-
       tests/portal/projects-api.spec.ts asserted the pre-checkpoint LED model
       (ideal 1.9 V drop, 8 Ω) after the solver moved to a colour-specific knee
-      voltage plus dynamic resistance. Fixed on chore/control-plane-recovery.
+      voltage plus dynamic resistance.
+    fix: >-
+      Verified green on chore/control-plane-recovery (PR #73), including the
+      complete Vitest suite and the RLS gate in an isolated PostgreSQL.
 
 # Conditions that must clear before the task can return to in_review.
+# BLOCK-PR-BODY-DRIFT was closed on 2026-08-05: the PR #72 body now describes
+# its actual head, and validate_control_plane.py fails if it drifts again.
 blocking:
   - id: BLOCK-GENERAL-GATE
-    summary: General repository gate must pass on the branch head.
+    summary: General repository gate must pass on the product branch head.
     resolved_by: pnpm gate:repository
-  - id: BLOCK-PR-BODY-DRIFT
+    note: Fix verified on PR #73; clears when that PR merges.
+  - id: BLOCK-E2E-AUTOSAVE-RACE
     summary: >-
-      PR #72 body must describe the actual head and the actual gate results
-      instead of a superseded release-candidate claim.
-    resolved_by: pnpm control-plane:check
+      e2e/electronics-simulation.spec.ts can reload before the resistance
+      autosave lands, so the reloaded document still holds the previous value.
+      Observed once as brightness 43 (220 Ω) where 17 (1000 Ω) was expected;
+      passed on rerun. The save-state indicator reports success too early.
+    resolved_by: pnpm e2e:electronics-simulation
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
