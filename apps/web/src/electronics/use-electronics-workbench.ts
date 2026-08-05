@@ -101,7 +101,6 @@ export function useElectronicsWorkbench(projectId: string) {
     versions,
     status,
     saveStatus,
-    setSaveStatus,
     saveCopy,
     notice,
     setNotice,
@@ -171,7 +170,6 @@ export function useElectronicsWorkbench(projectId: string) {
     setViewport(next);
     if (document) {
       setDocument({ ...document, viewport: next });
-      setSaveStatus('dirty');
     }
   }
 
@@ -656,7 +654,6 @@ export function useElectronicsWorkbench(projectId: string) {
     const next = updateWiperPosition(document, target, position);
     if (!next) return;
     setDocument(next);
-    setSaveStatus('dirty');
   }
 
   function startPotentiometerControl(
@@ -747,7 +744,6 @@ export function useElectronicsWorkbench(projectId: string) {
           wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
         ),
       );
-      setSaveStatus('dirty');
       return;
     }
     if (marquee?.pointerId === event.pointerId) {
@@ -789,7 +785,6 @@ export function useElectronicsWorkbench(projectId: string) {
           ? snapComponentToBreadboard(movedDocument, drag.componentId)
           : movedDocument,
       );
-      setSaveStatus('dirty');
       return;
     }
     const pan = panDragRef.current;

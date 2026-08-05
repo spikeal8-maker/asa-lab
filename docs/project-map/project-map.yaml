@@ -73,7 +73,7 @@ nodes:
   - {id: OBS-OTEL, label: OpenTelemetry, kind: observability, layer: operations, status: planned, summary: "Future production telemetry."}
 
   - {id: SDK-MODULE, label: Module SDK, kind: sdk, layer: modules, status: in_progress, summary: "Existing provider contract is verified for the R3A gateway.", path: packages/module-sdk}
-  - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "The real project editor groups owner production assets into deterministic categories, families and persisted physical variants; unsupported candidates are isolated and disabled.", path: contexts/electronics}
+  - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "The real project editor groups owner production assets into deterministic categories, families and persisted physical variants; unsupported candidates are isolated and disabled. Draft saves are ordered and the saved indicator reports only the document the server actually holds.", path: contexts/electronics}
   - {id: MOD-CHESS, label: ASA Chess, kind: subject_module, layer: modules, status: in_progress, summary: "Existing Chess and Chess Online must remain reachable.", path: contexts/chess}
   - {id: MOD-BLOCKS, label: Block Coding, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
   - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
