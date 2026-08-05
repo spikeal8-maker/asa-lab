@@ -77,20 +77,25 @@ gates:
     commands:
       - pnpm gate:electronics-m1
       - pnpm gate:electronics-m1:browser
-    # Reset by the phase 1 transition: PR #73 merged and the head moved to
-    # 7efb9eb, so the result observed on 5314aad no longer describes it.
-    status: NOT_RUN
-    verified_sha: null
+    status: PASS
+    verified_sha: 697356417a2372c7f4fceb070681f63d3938798e
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
-    status: NOT_RUN
-    verified_sha: null
+    # First time green on the product branch. It failed on 5314aad because
+    # tests/portal/projects-api.spec.ts asserted the pre-checkpoint LED model;
+    # the correction arrived with the control plane in PR #73.
+    status: PASS
+    verified_sha: 697356417a2372c7f4fceb070681f63d3938798e
 
 # Conditions that must clear before the task can return to in_review.
-# BLOCK-PR-BODY-DRIFT was closed on 2026-08-05: the PR #72 body now describes
-# its actual head, and validate_control_plane.py fails if it drifts again.
+#
+# Closed so far:
+#   BLOCK-PR-BODY-DRIFT   2026-08-05 — the body describes its head, and the
+#                         validator fails if it drifts again
+#   BLOCK-GENERAL-GATE    2026-08-05 — the general gate passed on 6973564,
+#                         governance, code and PostgreSQL/RLS all green
 blocking:
   - id: BLOCK-MAIN-MISDIRECTS-AGENTS
     summary: >-
@@ -99,13 +104,6 @@ blocking:
       on this branch until the repo-wide layer is delivered to main.
     plan: docs/execution/CONTROL_PLANE_DELIVERY.md
     resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
-  - id: BLOCK-GENERAL-GATE
-    summary: General repository gate must pass on the product branch head.
-    resolved_by: pnpm gate:repository
-    note: >-
-      The stale LED expectation that caused it arrived with PR #73 on 7efb9eb.
-      Stays open until a completed run confirms PASS on this head — the merge
-      creates the condition, the run closes the blocker.
   - id: BLOCK-E2E-AUTOSAVE-RACE
     summary: >-
       A draft save that finished could report success for a newer document,
