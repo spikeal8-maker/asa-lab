@@ -190,7 +190,7 @@ tasks:
     task_id: TASK-ELECTRONICS-M1-001
     # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
     status: in_progress
-    checkpoint: m1_led_visual_corrective
+    checkpoint: control_plane_stabilisation
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
     base_branch: main

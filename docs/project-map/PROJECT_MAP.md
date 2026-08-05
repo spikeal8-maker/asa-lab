@@ -15,7 +15,7 @@ TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
 status in_progress
-checkpoint m1_led_visual_corrective
+checkpoint control_plane_stabilisation
 execution lease unassigned
 ```
 

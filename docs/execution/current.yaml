@@ -27,7 +27,7 @@ task:
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
   status: in_progress
-  checkpoint: m1_led_visual_corrective
+  checkpoint: control_plane_stabilisation
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -36,9 +36,8 @@ revisions:
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   # Owner-visible convergence baseline for the current task.
   convergence_baseline_sha: f27ac1594761265a326229fa2aa8d841081a5dd8
-  # Last branch head where BOTH the focused and the general gate were green.
-  # Four commits landed after it and broke the general gate.
-  last_full_green_sha: 255b0d5e8badc79b33897646b9077d44add03fde
+  # Most recent product-branch head where BOTH gates were green.
+  last_full_green_sha: 4d821552a710cbccd4737c109ccb5951cf7cbd81
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 
@@ -111,7 +110,22 @@ gates:
 #                         mentions of the finished R2 branch, zero hard-coded
 #                         task ids or SHAs in the entry point, and the governance
 #                         gate passing on the clone itself
-blocking: []
+blocking:
+  - id: BLOCK-STATE-FILE-HAS-TWO-COPIES
+    summary: >-
+      docs/execution/current.yaml exists on both main and the product branch, so
+      the single source of state is two files asked to agree. They already drifted
+      once: a blocker was closed on the product branch while main went on
+      declaring it open. Repairing the instance does not remove the possibility.
+    plan: >-
+      Non-canonical branches stop carrying the file. The validator resolves it
+      from origin/main, so there is one file rather than two. Gate results, which
+      describe a branch head, stay recorded there because main is where the
+      programme record belongs.
+    resolved_by: >-
+      git show origin/main:docs/execution/current.yaml must be the only copy;
+      a checkout of any other branch must not contain the file
+
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
