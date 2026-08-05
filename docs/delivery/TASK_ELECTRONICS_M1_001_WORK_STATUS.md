@@ -1,20 +1,25 @@
 # TASK-ELECTRONICS-M1-001 work status
 
-Execution source: `docs/delivery/EXECUTION_MANIFEST.yaml`  
+State source: `docs/execution/current.yaml`  
+Programme source: `docs/delivery/EXECUTION_MANIFEST.yaml`  
 Owner scope: Issue #63  
 Current PR: #72
+
+Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 
 ```text
 task: TASK-ELECTRONICS-M1-001
 branch: agent/r4-electronics-m1
-status: in_review
+status: in_progress
 checkpoint: m1_led_visual_corrective
-sole_executor: coding_bot
-assistant_role: read_only_reviewer
+execution_lease: unassigned
 rejected implementation: cfce81c163d69310f8091b558968f79145496a3a
 visual reference: owner-supplied Tinkercad screenshot at 100 percent
 convergence baseline: f27ac1594761265a326229fa2aa8d841081a5dd8
 ```
+
+Returned from `in_review` on 2026-08-05: the general repository gate fails on the
+branch head, so the task is back in progress until it is green again.
 
 The family-library checkpoint was rejected because its presentation layer did
 not match the owner reference. Functional foundation, production SVG assets,

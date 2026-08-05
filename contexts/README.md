@@ -1,9 +1,24 @@
 # contexts/
 
-Bounded contexts of the Classroom Core (Identity, Organization, Classroom,
-Projects, Activities, Assessment, Module Registry, Billing, Safety & Audit).
+Bounded contexts of the Classroom Core. Each context owns its `domain`,
+`application`, `infrastructure`, `presentation` and `testing` layers behind a
+single public entry point. Classroom Core never imports subject modules, and
+subject modules never reach into core internals.
 
-Intentionally empty in the Bootstrap iteration (TASK-BOOT-001). Each context is
-introduced by its own vertical-slice task with its own `domain`, `application`,
-`infrastructure`, `presentation` and `testing` layers and a single public entry
-point. Classroom Core never imports subject modules.
+Introduced so far:
+
+| Context | Role |
+|---|---|
+| `identity` | Accounts, sessions, capabilities |
+| `organization` | Workspaces and tenancy |
+| `classroom` | Classes and membership |
+| `projects` | Module-neutral project lifecycle, drafts and versions |
+| `electronics` | Electrical document, netlist and DC simulation kernel |
+| `chess` | Chess rules, PGN and bot |
+| `chess-live` | Server-authoritative live play protocol |
+
+Still to come, each through its own vertical-slice task: Activities,
+Assessment, Module Registry expansion, Billing, Safety & Audit.
+
+Sibling directories `modules/` and `crates/` remain intentionally empty until
+their own phases; that is by design and not a sign of missing work here.

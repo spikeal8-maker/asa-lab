@@ -1,19 +1,35 @@
 # Карта качества ASA Lab
 
-Sources: `docs/delivery/EXECUTION_MANIFEST.yaml`, `test-catalog.yaml`,
-`active-task-tests.yaml` and `project-map.yaml`.
+State source: `docs/execution/current.yaml`.
+Programme source: `docs/delivery/EXECUTION_MANIFEST.yaml`.
+Test registries: `test-catalog.yaml`, `planned-test-catalog.yaml`,
+`active-task-tests.yaml`; graph: `project-map.yaml`.
 
 ## Current task
 
+Rendered from the control plane; `pnpm control-plane:check` fails if these
+values drift from [`current.yaml`](../execution/current.yaml).
+
 ```text
-TASK-ELECTRONICS-M1-001  in_review
+TASK-ELECTRONICS-M1-001  in_progress
 current_focus             TASK-ELECTRONICS-M1-001
 branch                    agent/r4-electronics-m1
 Issue                     #63
 checkpoint                m1_led_visual_corrective
-sole_executor             coding_bot
-assistant_role            read_only_reviewer
+execution_lease           unassigned
 ```
+
+## Gate results on the branch head
+
+```text
+focused   Electronics R4-M1 Focused             PASS
+general   ASA Lab Governance and Code Gates     FAIL
+```
+
+The general gate fails on a stale LED expectation in
+`tests/portal/projects-api.spec.ts`; a fix is prepared on
+`chore/control-plane-recovery`. Until it passes, no release-candidate claim is
+valid regardless of the focused result.
 
 ## Governance IDs
 

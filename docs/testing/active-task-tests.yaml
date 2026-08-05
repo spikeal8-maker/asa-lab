@@ -108,7 +108,10 @@ tests:
     level: system
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm e2e:electronics
+    # The same command the focused workflow runs. This registry previously named
+    # pnpm e2e:electronics (the older slice spec) while CI ran the simulation
+    # journey, so the local gate and CI verified different things.
+    command: pnpm e2e:electronics-simulation
     timeout_seconds: 1500
     owner: electronics
     artifacts: [playwright-report, eight-real-editor-screenshots, owner-reference-side-by-side, browser-failure-report]

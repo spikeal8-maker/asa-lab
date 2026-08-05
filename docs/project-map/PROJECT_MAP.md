@@ -1,19 +1,27 @@
 # Карта проекта ASA Lab
 
 Source: [`project-map.yaml`](project-map.yaml)  
-Execution: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)
+Execution: [`../delivery/EXECUTION_MANIFEST.yaml`](../delivery/EXECUTION_MANIFEST.yaml)  
+State of record: [`../execution/current.yaml`](../execution/current.yaml)
 
 ## Current focus
+
+Rendered from the control plane. Do not edit these values here — change
+[`current.yaml`](../execution/current.yaml) and re-render, or
+`pnpm control-plane:check` will fail.
 
 ```text
 TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
-status in_review
+status in_progress
 checkpoint m1_led_visual_corrective
-sole executor coding_bot
-assistant role read_only_reviewer
+execution lease unassigned
 ```
+
+Returned from `in_review` on 2026-08-05: the general repository gate fails on the
+branch head, so no release-candidate claim is currently defensible. See
+`blocking` in the control plane.
 
 ```mermaid
 flowchart LR
