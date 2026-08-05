@@ -8,8 +8,15 @@ name: ASA Lab Governance and Code Gates
       - "assistant/**"
   pull_request: {}
 
+# Read-only, but wider than contents alone: the control-plane validator compares
+# the recorded state against the pull request (head, body, draft state) and
+# against the conclusions of previous workflow runs. Without pull-requests and
+# actions the remote comparison cannot run, and with --require-github that is a
+# failure rather than a silent skip.
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
 
 concurrency:
   group: asa-gates-${{ github.workflow }}-${{ github.ref }}
