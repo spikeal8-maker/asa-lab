@@ -11,6 +11,7 @@ import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
+import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
 import { calculateSimulationPreflight, canStartSimulation } from './live-simulation';
 
 export type SimulationRuntimeStatus =
@@ -123,11 +124,13 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
 
 export function useWorkbenchProjectState(projectId: string) {
   const [project, setProject] = useState<Project | null>(null);
-  const [document, setDocument] = useState<SchematicDocument | null>(null);
+  const [document, setDocumentState] = useState<SchematicDocument | null>(null);
+  const [savedDocument, setSavedDocument] = useState<SchematicDocument | null>(null);
+  const [savingDocument, setSavingDocument] = useState<SchematicDocument | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [notice, setNotice] = useState<string | null>(null);
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [simulationStatus, setSimulationStatus] = useState<SimulationRuntimeStatus>('stopped');
@@ -136,7 +139,27 @@ export function useWorkbenchProjectState(projectId: string) {
   const [historyTick, setHistoryTick] = useState(0);
 
   const historyRef = useRef<HistoryState>({ entries: [], cursor: -1 });
-  const autosaveTimerRef = useRef<number | null>(null);
+  // Read when a save resolves: React state still holds the document as it was
+  // when the request started.
+  const documentRef = useRef<SchematicDocument | null>(null);
+  // Saves run one at a time and in call order, so the stored draft cannot end up
+  // holding an older document than the one the editor last sent.
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  const saveStatus = draftSaveStatus({
+    document,
+    savedDocument,
+    savingDocument,
+    failed: saveFailed,
+  });
+
+  // Every document write goes through here so the ref and the dirty state move
+  // together: no call site can change the document and forget to mark it unsaved.
+  const setDocument = useCallback((next: SchematicDocument): void => {
+    documentRef.current = next;
+    setSaveFailed(false);
+    setDocumentState(next);
+  }, []);
 
   const initialiseHistory = useCallback((next: SchematicDocument) => {
     historyRef.current = { entries: [cloneJson(next)], cursor: 0 };
@@ -157,12 +180,15 @@ export function useWorkbenchProjectState(projectId: string) {
     setDocument(nextDocument);
     setResult(response.data.result);
     setVersions(response.data.versions);
-    setSaveStatus(migrated ? 'dirty' : 'saved');
+    // A migrated document is not what the server holds, so it stays unsaved
+    // until autosave writes the migration back.
+    setSavedDocument(migrated ? null : nextDocument);
+    setSavingDocument(null);
     setSimulationRunning(nextDocument.simulation.running);
     setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
     setStatus('ready');
-  }, [initialiseHistory, projectId]);
+  }, [initialiseHistory, projectId, setDocument]);
 
   useEffect(() => {
     void load();
@@ -181,10 +207,9 @@ export function useWorkbenchProjectState(projectId: string) {
     (next: SchematicDocument, message?: string): void => {
       setDocument(next);
       pushHistory(next);
-      setSaveStatus('dirty');
       if (message) setNotice(message);
     },
-    [pushHistory],
+    [pushHistory, setDocument],
   );
 
   const canUndo = historyRef.current.cursor > 0;
@@ -198,7 +223,6 @@ export function useWorkbenchProjectState(projectId: string) {
     if (history.cursor <= 0) return;
     history.cursor -= 1;
     setDocument(cloneJson(history.entries[history.cursor] as SchematicDocument));
-    setSaveStatus('dirty');
     setHistoryTick((value) => value + 1);
     setNotice('Последнее изменение отменено.');
   }
@@ -208,41 +232,54 @@ export function useWorkbenchProjectState(projectId: string) {
     if (history.cursor >= history.entries.length - 1) return;
     history.cursor += 1;
     setDocument(cloneJson(history.entries[history.cursor] as SchematicDocument));
-    setSaveStatus('dirty');
     setHistoryTick((value) => value + 1);
     setNotice('Изменение повторено.');
   }
 
-  const persist = useCallback(
-    async (nextDocument: SchematicDocument, quiet = false): Promise<SolveResult | null> => {
-      setSaveStatus('saving');
+  const sendDraft = useCallback(
+    async (nextDocument: SchematicDocument, quiet: boolean): Promise<SolveResult | null> => {
+      setSavingDocument(nextDocument);
       const response = await api.saveDraft<SchematicDocument, SolveResult>(projectId, nextDocument);
+      setSavingDocument(null);
       if (!response.ok) {
-        setSaveStatus('error');
+        setSaveFailed(true);
         setNotice(`Ошибка сохранения: ${response.error.message}`);
         return null;
       }
       setResult(response.data.result);
-      setSaveStatus('saved');
-      if (!quiet) setNotice('Все изменения сохранены.');
+      // The server now holds exactly this document, and nothing more. If the
+      // user edited while the request was in flight, that edit is still unsaved
+      // and both the indicator and autosave have to keep treating it as such.
+      setSavedDocument(nextDocument);
+      if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
       return response.data.result;
     },
     [projectId],
   );
 
+  const persist = useCallback(
+    (nextDocument: SchematicDocument, quiet = false): Promise<SolveResult | null> => {
+      const queued = saveQueueRef.current.then(() => sendDraft(nextDocument, quiet));
+      saveQueueRef.current = queued.then(
+        () => undefined,
+        () => undefined,
+      );
+      return queued;
+    },
+    [sendDraft],
+  );
+
   useEffect(() => {
-    if (!document || saveStatus !== 'dirty') return;
-    if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(
+    if (!document) return;
+    if (!autosaveIsDue({ document, savedDocument, savingDocument, failed: saveFailed })) return;
+    const timer = window.setTimeout(
       () => {
         void persist(document, true);
       },
       simulationRunning ? 700 : 1800,
     );
-    return () => {
-      if (autosaveTimerRef.current !== null) window.clearTimeout(autosaveTimerRef.current);
-    };
-  }, [document, persist, saveStatus, simulationRunning]);
+    return () => window.clearTimeout(timer);
+  }, [document, persist, saveFailed, savedDocument, savingDocument, simulationRunning]);
 
   async function saveNow(): Promise<void> {
     if (!document || busy) return;
@@ -261,7 +298,6 @@ export function useWorkbenchProjectState(projectId: string) {
       };
       setDocument(nextDocument);
       pushHistory(nextDocument);
-      setSaveStatus('dirty');
       setSimulationRunning(false);
       setSimulationStatus('stopped');
       setResult(null);
@@ -289,7 +325,6 @@ export function useWorkbenchProjectState(projectId: string) {
     setSimulationStatus('starting');
     setDocument(nextDocument);
     pushHistory(nextDocument);
-    setSaveStatus('dirty');
     setSimulationRunning(true);
     setSimulationStatus('running');
     setNotice(
@@ -316,7 +351,6 @@ export function useWorkbenchProjectState(projectId: string) {
     };
     setDocument(nextDocument);
     pushHistory(nextDocument);
-    setSaveStatus('dirty');
     setSimulationRunning(false);
     setSimulationStatus('stopped');
     setResult(null);
@@ -369,7 +403,6 @@ export function useWorkbenchProjectState(projectId: string) {
     versions,
     status,
     saveStatus,
-    setSaveStatus,
     saveCopy,
     notice,
     setNotice,
