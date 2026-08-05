@@ -54,7 +54,13 @@
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
     "e2e:account-c1": "playwright test e2e/account-c1.spec.ts",
     "test:creator-portal": "node tools/run-creator-portal-tests.mjs",
-    "e2e:creator-portal": "playwright test e2e/creator-portal.spec.ts"
+    "e2e:creator-portal": "playwright test e2e/creator-portal.spec.ts",
+    "e2e:electronics-simulation": "playwright test e2e/electronics-simulation.spec.ts",
+    "control-plane:check": "python tools/validate_control_plane.py",
+    "gate:governance": "bash tools/gate-governance.sh",
+    "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm security:dependencies && pnpm build",
+    "gate:repository": "pnpm gate:governance && pnpm gate:code",
+    "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run apps/web/src/electronics/testing && pnpm typecheck && pnpm build"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

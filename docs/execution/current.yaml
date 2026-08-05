@@ -1,0 +1,75 @@
+schema_version: 1.0.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# THE single source of execution state for ASA Lab.
+#
+# Every other document — START_HERE_FOR_AI.md, AGENTS.md, EXECUTION_MANIFEST,
+# project-map, QUALITY_MAP, PR bodies — describes policy, history or structure.
+# None of them may restate the fields below. When they disagree with this file,
+# this file wins and the disagreement is a validation failure, not a judgement
+# call.
+#
+# Verify with:  pnpm control-plane:check
+# ─────────────────────────────────────────────────────────────────────────────
+
+task:
+  id: TASK-ELECTRONICS-M1-001
+  issue: 63
+  branch: agent/r4-electronics-m1
+  base_branch: main
+  pr: 72
+  # Returned from in_review on 2026-08-05: the general repository gate fails on
+  # the branch head, so no release-candidate claim is currently defensible.
+  status: in_progress
+  checkpoint: m1_led_visual_corrective
+  owner_acceptance: pending
+
+# Commits that mean something. Anything not listed here is ordinary history.
+revisions:
+  # Last merge into main. The product baseline every release candidate builds on.
+  product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
+  # Owner-visible convergence baseline for the current task.
+  convergence_baseline_sha: f27ac1594761265a326229fa2aa8d841081a5dd8
+  # Last branch head where BOTH the focused and the general gate were green.
+  # Four commits landed after it and broke the general gate.
+  last_full_green_sha: 255b0d5e8badc79b33897646b9077d44add03fde
+  # Set only by an owner acceptance transition. Never set by an agent.
+  owner_accepted_sha: null
+
+# Who is allowed to write to the product branch right now.
+# A second agent that finds a held lease stays a reviewer and does not commit.
+execution_lease:
+  executor_id: coding_bot
+  holder: unassigned
+  acquired_at: null
+  # Anyone may read, analyse, run tests and report without holding the lease.
+  reviewer_role_requires_lease: false
+
+# What is known to be true about the branch head, and what is not.
+gates:
+  focused:
+    workflow: Electronics R4-M1 Focused
+    command: pnpm gate:electronics-m1
+    last_known: PASS
+  general:
+    workflow: ASA Lab Governance and Code Gates
+    command: pnpm gate:repository
+    last_known: FAIL
+    failure: >-
+      tests/portal/projects-api.spec.ts asserted the pre-checkpoint LED model
+      (ideal 1.9 V drop, 8 Ω) after the solver moved to a colour-specific knee
+      voltage plus dynamic resistance. Fixed on chore/control-plane-recovery.
+
+# Conditions that must clear before the task can return to in_review.
+blocking:
+  - id: BLOCK-GENERAL-GATE
+    summary: General repository gate must pass on the branch head.
+    resolved_by: pnpm gate:repository
+  - id: BLOCK-PR-BODY-DRIFT
+    summary: >-
+      PR #72 body must describe the actual head and the actual gate results
+      instead of a superseded release-candidate claim.
+    resolved_by: pnpm control-plane:check
+
+# A future task becomes executable only through a separate owner transition.
+next_task: null

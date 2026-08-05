@@ -41,26 +41,10 @@ jobs:
       - name: Install validator dependencies
         run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
-      - name: Compile validator sources
-        run: python -m compileall -q tools
-
-      - name: Validate architecture foundation
-        run: python tools/validate_architecture.py
-
-      - name: Validate product capabilities
-        run: python tools/validate_capability_map.py
-
-      - name: Validate project knowledge graph
-        run: python tools/validate_project_map.py
-
-      - name: Validate executable test registry
-        run: python tools/validate_test_catalog.py
-
-      - name: Validate delivery program
-        run: python tools/validate_delivery_program.py
-
-      - name: Validate infrastructure terminal or active state
-        run: python tools/validate_infrastructure_focus.py
+      # One gate per result: identical to `pnpm gate:governance` locally.
+      # Add validators to tools/gate-governance.sh, never inline here.
+      - name: Governance gate
+        run: bash tools/gate-governance.sh
 
   code:
     name: Format lint types contracts build
@@ -90,32 +74,9 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Validate boundaries
-        run: pnpm boundaries:check
-
-      - name: Validate executable contracts
-        run: pnpm contracts:check
-
-      - name: Validate Compose structure
-        run: pnpm compose:check
-
-      - name: Scan committed secrets
-        run: pnpm security:secrets
-
-      - name: Validate dependency inventory
-        run: pnpm security:dependencies
-
-      - name: Production build
-        run: pnpm build
+      # One gate per result: identical to `pnpm gate:code` locally.
+      - name: Code gate
+        run: pnpm gate:code
 
   postgres-tests:
     name: PostgreSQL tests and RLS

@@ -1,88 +1,77 @@
 # AGENTS.md — обязательный контракт ASA Lab
 
-## 1. Каноническое состояние
+Этот файл содержит **политику**. Он не содержит состояния.
 
-```text
-canonical branch:        main
-product merge SHA:       67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
-active task:             TASK-ELECTRONICS-M1-001
-active issue:            #63
-active branch:           agent/r4-electronics-m1
-active PR:               #72
-status:                  in_review
-checkpoint:              m1_led_visual_corrective
-sole executor:           coding_bot
-assistant role:          read_only_reviewer
-execution manifest:      docs/delivery/EXECUTION_MANIFEST.yaml
-convergence baseline SHA:f27ac1594761265a326229fa2aa8d841081a5dd8
-owner-confirmed archive: C5BFD26760DB7A92D06E0B51B0BDE3BB45595278A762BAB3AB9198ABB04B4D75
-```
+Активная задача, ветка, Issue, PR, статус, checkpoint, SHA и владелец
+execution lease читаются только из
+[`docs/execution/current.yaml`](docs/execution/current.yaml). Ни один параграф
+ниже не имеет права дублировать эти значения — дубликат состояния и есть та
+поломка, из-за которой процесс разъезжается.
 
-`docs/delivery/EXECUTION_MANIFEST.yaml` остаётся каноническим execution
-contract. Текущий checkpoint — `m1_led_visual_corrective`: после owner visual
-rejection исправлены состояния обычного LED, визуализация расчётной яркости и
-масштабирование проводов/контактных подписей. Результат снова остановлен для
-owner review, а assistant работает только как read-only reviewer.
+Порядок входа описан в [`START_HERE_FOR_AI.md`](START_HERE_FOR_AI.md).
 
-## 2. Цель текущего прохода
+## 1. Единственный писатель
 
-Не добавляя возможностей, привести существующий Electronics M1 к единому
-release candidate:
+`execution_lease` в `current.yaml` определяет ровно одного агента, которому
+разрешено коммитить в продуктовую ветку.
 
-```text
-один owner-catalog
-→ один проверяемый runtime
-→ focused/common CI
-→ один exact SHA
-→ один asa-lab-dev
-→ один настоящий owner flow
-```
+- Держатель лиза — единственный исполнитель.
+- Любой другой агент автоматически является **read-only reviewer**: читает,
+  анализирует, запускает тесты, публикует отчёт, но не коммитит в продуктовую
+  ветку.
+- Передача лиза выполняется одним явным переходом владельца, а не репликой в
+  чате и не правкой документа «попутно».
+- Роль нельзя присвоить себе, объявив её в ответе.
 
-R4-M2, новые component families и расширение solver остаются заблокированы.
+Работа вне продуктовой ветки (например, восстановление управляющей
+инфраструктуры в отдельной ветке) лиза не требует, но требует явного поручения
+владельца.
 
-## 3. Разрешённый scope
+## 2. Правила Git
 
-Работать только в `agent/r4-electronics-m1` и PR №72.
+- Работать только в ветке из `current.yaml` либо в отдельной ветке, явно
+  разрешённой владельцем.
+- Запрещены: force-push, `reset --hard` на опубликованную историю, rebase
+  опубликованной истории, merge продуктовых веток и создание тегов.
+- Запрещено удалять untracked backups, credentials, owner screenshots и
+  локальные owner ZIP.
+- `main` не редактируется напрямую.
+- PR №29 и ветка `assistant/map-ux-owner-view` не трогаются.
+- Снятие Draft, merge и активация следующей задачи — только решением владельца.
 
-Разрешено:
+## 3. Неприкосновенные данные
 
-- укреплять `contexts/electronics/domain/netlist.ts` и DC solver;
-- добавлять fail-closed simulation contract и численные quality checks;
-- исправлять ложный `solved: true` для неподдерживаемых схем;
-- реализовывать локальный интерактивный перерасчёт тем же общим ядром;
-- улучшать модели уже существующих R4-M1 компонентов без добавления новых;
-- добавлять focused golden tests, diagnostics и browser smoke;
-- обновлять execution/test contracts в пределах TASK-ELECTRONICS-M1-001.
-
-## 4. Неприкосновенные данные и запреты
-
-Запрещено удалять или менять:
+Запрещено удалять или изменять:
 
 - `apps/web/public/assets/electronics/owner-supplied/**`;
 - `apps/web/public/assets/electronics/owner-audit/**`;
 - локальные owner ZIP и backups;
-- PostgreSQL volume, рабочую БД и backup dumps;
-- `main`;
-- PR №29 и ветку `assistant/map-ux-owner-view`.
+- PostgreSQL volume, рабочую БД и backup dumps.
 
-Также запрещено:
+Запрещено: новые SVG, ручная перерисовка, PNG tracing, vectorization,
+generated runtime artwork и любая подмена owner SVG.
 
-- новые SVG, ручная перерисовка, PNG tracing или vectorization;
-- generated runtime artwork и подмена owner SVG;
-- новая ветка, merge PR №72 или перевод из Draft без решения владельца;
-- R4-M2, transient solver, Arduino, micro:bit и новые component families;
-- изменение tenant/RLS модели или destructive persistence migration;
-- ложные токи, напряжения, яркость или `solved: true` для unsupported topology.
+## 4. Порты и данные
 
-Компонент без подтверждённого owner SVG остаётся disabled/missing. Компонент без
-электрической модели делает simulation result `unsupported`; solver не имеет
-права выдумывать результат для остальной схемы.
+```text
+bind: 127.0.0.1
+web:  4610
+api:  4611
+e2e:  4612
+preview reserved: 4613
+forbidden: 3000, 3100, 5173
+```
 
-## 5. Обязательные simulation contracts
+Один постоянный Compose-проект `asa-lab-dev`. Дополнительные постоянные проекты
+не создаются. Изменение tenant/RLS-модели и destructive persistence migration
+запрещены.
 
-Первый принимаемый пакет должен доказать:
+## 5. Инварианты симуляции
 
-- deterministic netlist независимо от геометрии провода;
+Это долговременные инженерные требования к электрическому ядру, а не статус
+задачи. Любой принимаемый пакет обязан их сохранять:
+
+- детерминированный netlist независимо от геометрии провода;
 - breadboard hole groups входят в те же электрические сети;
 - unsupported component завершает расчёт fail-closed;
 - все численные значения конечны: без `NaN` и `Infinity`;
@@ -91,19 +80,54 @@ R4-M2, новые component families и расширение solver остают
 - браузер пересчитывает локально до завершения autosave;
 - сервер повторно использует то же ядро для проверки результата.
 
-## 6. Focused checks
+Компонент без подтверждённого owner SVG остаётся disabled/missing. Компонент без
+электрической модели делает simulation result `unsupported`; solver не имеет
+права выдумывать результат для остальной схемы. Ложные токи, напряжения,
+яркость и `solved: true` для unsupported topology запрещены.
 
-До следующего owner checkpoint запускать только релевантные проверки:
+Детерминизм нумерации сетей не должен зависеть от локали рантайма: сравнение
+ключей терминалов выполняется посимвольно, а не через `localeCompare`.
 
-```text
-pnpm test:electronics
-pnpm vitest run apps/web/src/electronics/testing
-pnpm lint
-pnpm typecheck
-pnpm build
-один actual-editor browser smoke
+## 6. Gates
+
+У каждого результата ровно один скрипт, и он один и тот же локально, в focused
+CI и в owner evidence run:
+
+```bash
+pnpm gate:electronics-m1     # focused gate текущей задачи
+pnpm gate:repository         # общий gate репозитория
+pnpm control-plane:check     # согласованность состояния
 ```
 
-Full repository matrix вручную не запускать. Автоматический CI репозитория не
-считать owner acceptance. После focused PASS PR остаётся Draft; merge и R4-M2
-по-прежнему запрещены.
+Правила:
+
+- расхождение между локальной командой и командой в workflow запрещено;
+- owner evidence run обязан выполняться с `NX_SKIP_NX_CACHE=true`; результат из
+  кэша Nx не является новым доказательством. Значение обязано быть буквально
+  `true` — Nx сравнивает строку, и `NX_SKIP_NX_CACHE=1` молча использует кэш;
+- в отчёте указывается, сколько задач Nx выполнил заново: строка
+  `Cache: N/N hit (100%)` означает, что ничего не проверялось;
+- зелёный автоматический CI сам по себе не является owner acceptance;
+- красный `gate:repository` запрещает заявлять release candidate независимо от
+  того, что показывает focused gate.
+
+## 7. Критерии остановки
+
+Остановиться и вернуть управление владельцу, если:
+
+- `pnpm control-plane:check` даёт FAIL;
+- в `current.yaml` есть незакрытый пункт `blocking`;
+- лиз держит другой исполнитель;
+- задача требует выхода за `required_scope` из
+  [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml);
+- запрошено то, что запрещено разделами 2–4.
+
+## 8. Отчёт
+
+```text
+TASK, ISSUE, STATUS, VISIBLE_RESULT, USER_FLOW, PORTS, DEMO_URLS,
+SCREENSHOTS, TESTS_RUN, MAP_NODES_CHANGED, WORKING_TREE, NEXT_ALLOWED_TASK
+```
+
+`TESTS_RUN` перечисляет фактически выполненные команды и указывает, был ли
+задействован кэш. Заявлять PASS по кэшированному результату запрещено.
