@@ -104,14 +104,18 @@ const dockerAvailable = dockerProbe.error === undefined && dockerProbe.status ==
 const dockerRequired = process.env.CI === 'true' || process.env.ASA_REQUIRE_DOCKER === 'true';
 
 if (!dockerAvailable && !dockerRequired) {
-  console.log(
-    'compose:check SKIPPED: no Docker CLI on PATH; run in CI or set ASA_REQUIRE_DOCKER=true',
-  );
-  console.log(`compose:check PASS (static checks only, ${errors.length} error(s))`);
   if (errors.length > 0) {
+    console.error('compose:check FAIL');
     for (const error of errors) console.error(`- ${error}`);
     process.exit(1);
   }
+  // Deliberately never the word PASS: the rendered-config checks — loopback
+  // binding, non-root users, cap_drop, forbidden ports across all four profiles
+  // — did not run. Calling this a pass is how a partial result gets quoted as
+  // evidence later.
+  console.log('compose:check SKIPPED (static file checks only)');
+  console.log('- no Docker CLI on PATH; rendered compose config was not validated');
+  console.log('- run in CI, or set ASA_REQUIRE_DOCKER=true, for the complete gate');
   process.exit(0);
 }
 

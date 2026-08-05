@@ -89,9 +89,15 @@ AGENTS.md
 запускают **одну и ту же** команду; расхождение между ними запрещено.
 
 ```bash
-pnpm gate:electronics-m1     # focused gate текущей задачи
-pnpm gate:repository         # общий gate репозитория
+pnpm gate:electronics-m1         # focused gate задачи, без браузера
+pnpm gate:electronics-m1:browser # браузерный journey, нужен поднятый стек
+pnpm gate:repository             # governance + code + data, нужен PostgreSQL
 ```
+
+Список gates задачи и то, что каждый из них покрывает, читается из
+`gates` в `current.yaml`. Не подменяй gate его частью: `gate:code` без
+PostgreSQL не равен `gate:repository`, а `gate:electronics-m1` не включает
+браузер.
 
 Для owner evidence кэш Nx обязан быть отключён. Значение обязано быть буквально
 `true`: Nx сравнивает строку, поэтому `NX_SKIP_NX_CACHE=1` тихо берёт результат

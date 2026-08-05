@@ -52,6 +52,20 @@ FORBIDDEN_MANIFEST_KEYS = (
 
 REQUIRED_TASK_FIELDS = ("id", "issue", "branch", "base_branch", "pr", "status", "checkpoint")
 ALLOWED_STATUSES = {"ready", "in_progress", "in_review", "blocked", "done"}
+ALLOWED_GATE_RESULTS = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
+ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
+
+# Engineering invariants AGENTS.md states as already in force. A policy claim
+# that nothing checks is how the documents drifted apart in the first place, so
+# each one here is a grep the governance gate actually runs.
+SOURCE_INVARIANTS = (
+    (
+        "contexts/electronics/domain/netlist.ts",
+        re.compile(r"\blocaleCompare\b"),
+        "net numbering must not depend on runtime locale (AGENTS.md §5); "
+        "use code-unit comparison instead of localeCompare",
+    ),
+)
 
 
 def run(command: list[str], cwd: Path = ROOT) -> tuple[int, str]:
@@ -90,10 +104,77 @@ def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
         errors.append(f"current.yaml task.status invalid: {task.get('status')!r}")
     if not TASK_ID_PATTERN.fullmatch(str(task.get("id", ""))):
         errors.append(f"current.yaml task.id invalid: {task.get('id')!r}")
-    lease = current.get("execution_lease")
-    if not isinstance(lease, dict) or "holder" not in lease:
-        errors.append("current.yaml must declare execution_lease.holder")
+    check_lease(current.get("execution_lease"), errors)
+    check_gate_shape(current.get("gates"), errors)
     return task
+
+
+def check_lease(lease: Any, errors: list[str]) -> None:
+    """The lease decides who may write. Declaring it is not enough to trust it."""
+    if not isinstance(lease, dict):
+        errors.append("current.yaml must declare an execution_lease mapping")
+        return
+    holder = lease.get("holder")
+    executor = lease.get("executor_id")
+    acquired = lease.get("acquired_at")
+    expires = lease.get("expires_at")
+    if not isinstance(executor, str) or not executor.strip():
+        errors.append("execution_lease.executor_id must be a non-empty string")
+    if holder is None or (not isinstance(holder, str)) or not holder.strip():
+        errors.append("execution_lease.holder must be 'unassigned' or the executor id")
+        return
+    if holder not in {"unassigned", executor}:
+        errors.append(
+            f"execution_lease.holder {holder!r} must be 'unassigned' or the declared "
+            f"executor_id {executor!r}; a second agent cannot grant itself the lease"
+        )
+    if holder == "unassigned":
+        # An unheld lease must not carry the timestamps of a held one, or a
+        # reader cannot tell a released lease from a live one.
+        if acquired is not None:
+            errors.append("execution_lease.acquired_at must be null while holder is unassigned")
+        if expires is not None:
+            errors.append("execution_lease.expires_at must be null while holder is unassigned")
+        return
+    for field, value in (("acquired_at", acquired), ("expires_at", expires)):
+        if not isinstance(value, str) or not ISO_TIMESTAMP.fullmatch(value):
+            errors.append(
+                f"execution_lease.{field} must be an ISO-8601 timestamp while the lease is held"
+            )
+    if isinstance(acquired, str) and isinstance(expires, str) and expires <= acquired:
+        errors.append("execution_lease.expires_at must be after acquired_at")
+
+
+def check_gate_shape(gates: Any, errors: list[str]) -> None:
+    if not isinstance(gates, dict) or not gates:
+        errors.append("current.yaml must declare gates")
+        return
+    for name, gate in gates.items():
+        if not isinstance(gate, dict):
+            errors.append(f"current.yaml gates.{name} must be a mapping")
+            continue
+        if gate.get("last_known") not in ALLOWED_GATE_RESULTS:
+            errors.append(
+                f"current.yaml gates.{name}.last_known must be one of "
+                f"{', '.join(sorted(ALLOWED_GATE_RESULTS))}"
+            )
+        if not isinstance(gate.get("workflow"), str):
+            errors.append(f"current.yaml gates.{name}.workflow must name a GitHub workflow")
+
+
+def check_source_invariants(errors: list[str]) -> None:
+    for relative, pattern, message in SOURCE_INVARIANTS:
+        path = ROOT / relative
+        if not path.is_file():
+            errors.append(f"Invariant target is missing: {relative}")
+            continue
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            # The rationale comment names the forbidden call; only code counts.
+            stripped = line.lstrip()
+            if stripped.startswith(("*", "//", "/*")):
+                continue
+            if pattern.search(line):
+                errors.append(f"{relative}:{line_number} violates an AGENTS.md invariant — {message}")
 
 
 def check_stateless_documents(errors: list[str]) -> None:
@@ -227,12 +308,17 @@ def check_gate_scripts(current: dict[str, Any], errors: list[str]) -> None:
         if not isinstance(gate, dict):
             errors.append(f"current.yaml gates.{name} must be a mapping")
             continue
-        command = str(gate.get("command", ""))
-        script = command.removeprefix("pnpm ").strip()
-        if not script or script not in scripts:
-            errors.append(
-                f"current.yaml gates.{name}.command {command!r} is not a package.json script"
-            )
+        commands = gate.get("commands")
+        if not isinstance(commands, list) or not commands:
+            errors.append(f"current.yaml gates.{name}.commands must be a non-empty list")
+            continue
+        for command in commands:
+            script = str(command).removeprefix("pnpm ").strip()
+            if not script or script not in scripts:
+                errors.append(
+                    f"current.yaml gates.{name} references {command!r}, "
+                    "which is not a package.json script"
+                )
     if "control-plane:check" not in scripts:
         errors.append("package.json must expose the control-plane:check script")
 
@@ -288,6 +374,60 @@ def check_github(task: dict[str, Any], errors: list[str], notes: list[str], requ
             "it describes a superseded revision and must be refreshed"
         )
     notes.append(f"PR #{pr}: draft={data.get('isDraft')} state={data.get('state')} head={head_oid[:7]}")
+    check_gate_results(task, head_oid, errors, notes)
+
+
+def check_gate_results(
+    task: dict[str, Any], head_oid: str, errors: list[str], notes: list[str]
+) -> None:
+    """Compare recorded gate results with what GitHub Actions actually concluded.
+
+    Without this, `last_known` is a claim an agent typed once. After the fix for
+    a failing gate merges, the recorded FAIL silently becomes a lie while the
+    validator keeps reporting PASS — so the comparison is the check, not the
+    honour system.
+    """
+    conclusion_to_result = {"success": "PASS", "failure": "FAIL", "cancelled": "NOT_RUN"}
+    for name, gate in (task.get("_gates") or {}).items():
+        workflow = gate.get("workflow")
+        recorded = gate.get("last_known")
+        code, payload = run(
+            [
+                "gh", "run", "list",
+                "--branch", str(task.get("branch")),
+                "--workflow", str(workflow),
+                "--limit", "20",
+                "--json", "headSha,status,conclusion",
+            ]
+        )
+        if code != 0:
+            notes.append(f"gate {name}: cannot read workflow runs, comparison skipped")
+            continue
+        try:
+            runs = json.loads(payload)
+        except json.JSONDecodeError:
+            notes.append(f"gate {name}: unreadable workflow run payload, comparison skipped")
+            continue
+        latest = next(
+            (
+                item
+                for item in runs
+                if item.get("headSha") == head_oid and item.get("status") == "completed"
+            ),
+            None,
+        )
+        if latest is None:
+            notes.append(f"gate {name}: no completed run for head {head_oid[:7]} yet")
+            continue
+        actual = conclusion_to_result.get(str(latest.get("conclusion")), "NOT_RUN")
+        if actual != recorded:
+            errors.append(
+                f"current.yaml gates.{name}.last_known is {recorded}, but {workflow!r} "
+                f"concluded {latest.get('conclusion')} on head {head_oid[:7]}; "
+                "the recorded gate state is stale"
+            )
+        else:
+            notes.append(f"gate {name}: {actual} confirmed on {head_oid[:7]}")
 
 
 def main() -> int:
@@ -308,8 +448,9 @@ def main() -> int:
     task = check_current(current, errors)
     if task:
         # Revisions listed in current.yaml are legitimate historical references.
-        task = {**task, "_revisions": current.get("revisions") or {}}
+        task = {**task, "_revisions": current.get("revisions") or {}, "_gates": current.get("gates") or {}}
         check_stateless_documents(errors)
+        check_source_invariants(errors)
         check_manifest(task, errors)
         check_project_map(task, errors)
         check_active_tests(task, errors)

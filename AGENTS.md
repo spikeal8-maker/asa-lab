@@ -90,18 +90,35 @@ forbidden: 3000, 3100, 5173
 
 ## 6. Gates
 
-У каждого результата ровно один скрипт, и он один и тот же локально, в focused
-CI и в owner evidence run:
+У каждого результата ровно один скрипт, и он один и тот же локально, в CI и в
+owner evidence run:
 
 ```bash
-pnpm gate:electronics-m1     # focused gate текущей задачи
-pnpm gate:repository         # общий gate репозитория
-pnpm control-plane:check     # согласованность состояния
+pnpm gate:governance             # валидаторы и согласованность состояния
+pnpm gate:code                   # формат, lint, типы, границы, контракты, сборка
+pnpm gate:data                   # миграции, полный Vitest, RLS — нужен PostgreSQL
+pnpm gate:repository             # governance + code + data
+pnpm gate:electronics-m1         # focused: солвер, редактор, типы, сборка
+pnpm gate:electronics-m1:browser # реальный браузерный journey — нужен стек
+pnpm control-plane:check         # только согласованность состояния
 ```
+
+Каждый gate называет ровно то, что проверяет. `gate:electronics-m1` намеренно
+**не включает** браузерный journey — это отдельный gate, потому что ему нужен
+поднятый стек. `gate:repository` включает `gate:data`, поэтому без PostgreSQL он
+не пройдёт: PASS без базы означал бы не то же самое, что PASS в CI.
+
+`compose:check` без Docker печатает `SKIPPED`, а не `PASS`, и это не полный
+`gate:code` — при отчёте так и указывается.
 
 Правила:
 
 - расхождение между локальной командой и командой в workflow запрещено;
+- удалённая часть `control-plane:check` (голова PR, тело PR, записанные
+  результаты gates) обязательна везде, где есть токен GitHub; в CI без
+  `GH_TOKEN` governance-gate останавливается, а не пропускает проверку;
+- `gates.last_known` в `current.yaml` сверяется с фактическим conclusion
+  workflow на том же SHA — расхождение это FAIL, а не расхождение мнений;
 - owner evidence run обязан выполняться с `NX_SKIP_NX_CACHE=true`; результат из
   кэша Nx не является новым доказательством. Значение обязано быть буквально
   `true` — Nx сравнивает строку, и `NX_SKIP_NX_CACHE=1` молча использует кэш;

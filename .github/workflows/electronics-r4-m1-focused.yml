@@ -90,11 +90,13 @@ jobs:
           up -d --wait --wait-timeout 240 postgres api web
 
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
-      - name: Run one real-editor simulation journey
+      # Named as its own gate because `gate:electronics-m1` deliberately does not
+      # include it: that gate needs no browser stack, this one does.
+      - name: Electronics M1 browser gate
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm e2e:electronics-simulation
+          pnpm gate:electronics-m1:browser
 
       - name: Show isolated stack state
         if: always()

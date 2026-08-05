@@ -38,22 +38,31 @@ revisions:
 
 # Who is allowed to write to the product branch right now.
 # A second agent that finds a held lease stays a reviewer and does not commit.
+# holder must be either 'unassigned' or exactly executor_id; while it is held
+# both timestamps are required and expires_at must be after acquired_at.
+# validate_control_plane.py enforces all of that.
 execution_lease:
   executor_id: coding_bot
   holder: unassigned
   acquired_at: null
+  expires_at: null
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
-# What is known to be true about the branch head, and what is not.
+# What is known to be true about the PRODUCT BRANCH head, and what is not.
+# last_known is not an honour-system claim: validate_control_plane.py queries
+# the named workflow's conclusion on that exact head and fails when they differ.
 gates:
   focused:
     workflow: Electronics R4-M1 Focused
-    command: pnpm gate:electronics-m1
+    commands:
+      - pnpm gate:electronics-m1
+      - pnpm gate:electronics-m1:browser
     last_known: PASS
   general:
     workflow: ASA Lab Governance and Code Gates
-    command: pnpm gate:repository
+    commands:
+      - pnpm gate:repository
     # Still FAIL on the product branch head; the fix is not merged yet.
     last_known: FAIL
     failure: >-

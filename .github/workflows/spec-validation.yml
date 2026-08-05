@@ -43,7 +43,11 @@ jobs:
 
       # One gate per result: identical to `pnpm gate:governance` locally.
       # Add validators to tools/gate-governance.sh, never inline here.
+      # GH_TOKEN makes the remote control-plane comparison mandatory rather than
+      # silently skipped: PR head, PR body and recorded gate results are checked.
       - name: Governance gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash tools/gate-governance.sh
 
   code:
@@ -131,19 +135,15 @@ jobs:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm migration
 
-      - name: Run complete Vitest suite
+      # One gate per result: `pnpm gate:data` is migrations, the complete Vitest
+      # suite and the explicit RLS gate. Running it here as one command is what
+      # makes a local PASS mean the same thing as this job.
+      - name: Data gate
         env:
           ASA_BUILD_REVISION: ${{ github.sha }}
           ASA_IMAGE_TAG: ${{ github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm test
-
-      - name: Run explicit RLS gate
-        env:
-          ASA_BUILD_REVISION: ${{ github.sha }}
-          ASA_IMAGE_TAG: ${{ github.sha }}
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm test:rls
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
 
       - name: Cleanup isolated test environment
         if: always()
