@@ -18,6 +18,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -136,13 +137,33 @@ def check_lease(lease: Any, errors: list[str]) -> None:
         if expires is not None:
             errors.append("execution_lease.expires_at must be null while holder is unassigned")
         return
+    parsed: dict[str, datetime] = {}
     for field, value in (("acquired_at", acquired), ("expires_at", expires)):
         if not isinstance(value, str) or not ISO_TIMESTAMP.fullmatch(value):
             errors.append(
                 f"execution_lease.{field} must be an ISO-8601 timestamp while the lease is held"
             )
-    if isinstance(acquired, str) and isinstance(expires, str) and expires <= acquired:
-        errors.append("execution_lease.expires_at must be after acquired_at")
+            continue
+        try:
+            # Compared as instants, not as text: two timestamps written in
+            # different UTC offsets sort correctly one way and not the other.
+            moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            errors.append(f"execution_lease.{field} is not a valid timestamp: {exc}")
+            continue
+        if moment.tzinfo is None:
+            errors.append(f"execution_lease.{field} must carry a UTC offset")
+            continue
+        parsed[field] = moment
+    if len(parsed) == 2:
+        if parsed["expires_at"] <= parsed["acquired_at"]:
+            errors.append("execution_lease.expires_at must be after acquired_at")
+        elif parsed["expires_at"] <= datetime.now(timezone.utc):
+            # A lease nobody released still locks out every other agent. Expiry
+            # has to be observed, or the lock outlives the work it protected.
+            errors.append(
+                f"execution_lease expired at {expires}; release or extend it before working"
+            )
 
 
 def check_gate_shape(gates: Any, errors: list[str]) -> None:
@@ -363,6 +384,20 @@ def check_github(task: dict[str, Any], errors: list[str], notes: list[str], requ
             f"PR #{pr} head branch {data.get('headRefName')!r} != "
             f"current.yaml task.branch {task.get('branch')!r}"
         )
+    # A closed or merged PR cannot be the one an in-flight task points at, and a
+    # PR silently taken out of Draft is an owner decision the control plane must
+    # not discover by accident.
+    if data.get("state") != "OPEN":
+        errors.append(
+            f"PR #{pr} is {data.get('state')}, but current.yaml still names it as the "
+            f"pull request for {task.get('id')}"
+        )
+    expected_draft = task.get("pr_draft")
+    if isinstance(expected_draft, bool) and bool(data.get("isDraft")) != expected_draft:
+        errors.append(
+            f"PR #{pr} isDraft={data.get('isDraft')} but current.yaml declares "
+            f"task.pr_draft={expected_draft}"
+        )
     head_oid = str(data.get("headRefOid", ""))
     body = str(data.get("body") or "")
     # A body that never mentions the current head is describing a different
@@ -374,11 +409,11 @@ def check_github(task: dict[str, Any], errors: list[str], notes: list[str], requ
             "it describes a superseded revision and must be refreshed"
         )
     notes.append(f"PR #{pr}: draft={data.get('isDraft')} state={data.get('state')} head={head_oid[:7]}")
-    check_gate_results(task, head_oid, errors, notes)
+    check_gate_results(task, head_oid, errors, notes, require)
 
 
 def check_gate_results(
-    task: dict[str, Any], head_oid: str, errors: list[str], notes: list[str]
+    task: dict[str, Any], head_oid: str, errors: list[str], notes: list[str], require: bool
 ) -> None:
     """Compare recorded gate results with what GitHub Actions actually concluded.
 
@@ -400,13 +435,17 @@ def check_gate_results(
                 "--json", "headSha,status,conclusion",
             ]
         )
+        # Under --require-github an unreadable remote is a failure, not a note.
+        # Degrading to a note here would put the whole comparison back on the
+        # honour system through the error path instead of the happy path.
+        sink = errors if require else notes
         if code != 0:
-            notes.append(f"gate {name}: cannot read workflow runs, comparison skipped")
+            sink.append(f"gate {name}: cannot read runs of workflow {workflow!r}")
             continue
         try:
             runs = json.loads(payload)
         except json.JSONDecodeError:
-            notes.append(f"gate {name}: unreadable workflow run payload, comparison skipped")
+            sink.append(f"gate {name}: unreadable workflow run payload for {workflow!r}")
             continue
         latest = next(
             (
@@ -417,7 +456,15 @@ def check_gate_results(
             None,
         )
         if latest is None:
-            notes.append(f"gate {name}: no completed run for head {head_oid[:7]} yet")
+            # NOT_RUN is the honest record when nothing has concluded yet;
+            # claiming PASS or FAIL without a run to back it is not.
+            if recorded in {"PASS", "FAIL"}:
+                sink.append(
+                    f"current.yaml gates.{name}.last_known claims {recorded}, but no completed "
+                    f"run of {workflow!r} exists for head {head_oid[:7]} to support it"
+                )
+            else:
+                notes.append(f"gate {name}: {recorded}, no completed run for {head_oid[:7]} yet")
             continue
         actual = conclusion_to_result.get(str(latest.get("conclusion")), "NOT_RUN")
         if actual != recorded:

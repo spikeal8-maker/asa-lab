@@ -18,6 +18,9 @@ task:
   branch: agent/r4-electronics-m1
   base_branch: main
   pr: 72
+  # The PR stays a Draft until the owner decides otherwise. Taking it out of
+  # Draft is a decision, not a side effect, so the validator watches for it.
+  pr_draft: true
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
   status: in_progress
@@ -90,11 +93,17 @@ blocking:
     note: Fix verified on PR #73; clears when that PR merges.
   - id: BLOCK-E2E-AUTOSAVE-RACE
     summary: >-
-      e2e/electronics-simulation.spec.ts can reload before the resistance
-      autosave lands, so the reloaded document still holds the previous value.
-      Observed once as brightness 43 (220 Ω) where 17 (1000 Ω) was expected;
-      passed on rerun. The save-state indicator reports success too early.
+      A draft save that finished could report success for a newer document,
+      so an edit made while a save was in flight could be lost and a checkpoint
+      taken right after it captured the previous document. Observed as brightness
+      43 (220 Ω) where 17 (1000 Ω) was expected. Not a flaky test: a user could
+      lose an edit the editor had already called saved.
+    fix_pr: 74
     resolved_by: pnpm e2e:electronics-simulation
+    note: >-
+      Fixed on fix/electronics-autosave-race (PR #74) — save status is derived
+      from which document the server holds rather than assigned on any response,
+      and saves are serialised. Clears when that PR merges.
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
