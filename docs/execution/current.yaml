@@ -104,14 +104,14 @@ gates:
 #                         numbers. Closed by experiment rather than by a green
 #                         run: with LED_KNEE_VOLTAGE.red moved to 1.8 the solver
 #                         suite failed and the persistence test stayed green
-blocking:
-  - id: BLOCK-MAIN-MISDIRECTS-AGENTS
-    summary: >-
-      main still declares the finished R2 task in four places, so a fresh clone
-      sends an agent into a completed branch. The control plane is restored only
-      on this branch until the repo-wide layer is delivered to main.
-    plan: docs/execution/CONTROL_PLANE_DELIVERY.md
-    resolved_by: grep -c "agent/r2-creator-portal" START_HERE_FOR_AI.md
+#   BLOCK-MAIN-MISDIRECTS-AGENTS
+#                         2026-08-06 — PR #75 merged into main at d3c9058.
+#                         Checked on a fresh clone rather than a working copy,
+#                         because the symptom was what a new agent sees: zero
+#                         mentions of the finished R2 branch, zero hard-coded
+#                         task ids or SHAs in the entry point, and the governance
+#                         gate passing on the clone itself
+blocking: []
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null

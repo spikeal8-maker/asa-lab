@@ -363,7 +363,16 @@ def check_git(task: dict[str, Any], errors: list[str], notes: list[str]) -> str 
     branch = str(task.get("branch"))
     code, _ = run(["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"])
     if code != 0:
-        errors.append(f"Product branch origin/{branch} does not exist on the remote")
+        # A missing remote-tracking ref is not the same as a missing branch: a
+        # single-branch or shallow clone simply never fetched it. Ask the remote
+        # before blaming it, or the validator reports a cause that is not true.
+        code, _ = run(["git", "ls-remote", "--exit-code", "--heads", "origin", branch])
+        if code != 0:
+            errors.append(f"Product branch {branch} does not exist on the remote")
+        else:
+            notes.append(
+                f"origin/{branch} is not fetched in this clone; confirmed on the remote instead"
+            )
     code, current_branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     if code == 0 and current_branch != branch:
         notes.append(
