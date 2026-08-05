@@ -56,6 +56,12 @@ ALLOWED_STATUSES = {"ready", "in_progress", "in_review", "blocked", "done"}
 ALLOWED_GATE_RESULTS = {"PASS", "FAIL", "NOT_RUN", "BLOCKED"}
 ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 
+# Paths that cannot change what a gate would conclude. Recording a gate result
+# is itself a commit, so a result would otherwise be invalidated by the very act
+# of writing it down — the head would always be one bookkeeping commit ahead of
+# the revision that was verified. Anything outside these paths does invalidate it.
+BOOKKEEPING_PREFIXES = ("docs/execution/",)
+
 # Engineering invariants AGENTS.md states as already in force. A policy claim
 # that nothing checks is how the documents drifted apart in the first place, so
 # each one here is a grep the governance gate actually runs.
@@ -457,6 +463,35 @@ def check_pr_body(
     )
 
 
+def result_still_describes_head(verified_sha: str, head_oid: str) -> tuple[bool, str]:
+    """Does a result observed on `verified_sha` still describe `head_oid`?
+
+    Exact equality is the obvious answer and the wrong one: writing the result
+    down is a commit, so the head is always at least one bookkeeping commit
+    ahead of the revision the gates actually ran on. Requiring equality would
+    make a verified head unreachable rather than merely hard.
+
+    A result survives commits that cannot change what the gates would conclude,
+    and only those. The second run of the transition protocol re-checks the
+    bookkeeping itself, so a lie written into it does not go unexamined.
+    """
+    if verified_sha == head_oid:
+        return True, ""
+    code, _ = run(["git", "merge-base", "--is-ancestor", verified_sha, head_oid])
+    if code != 0:
+        return False, f"{verified_sha[:7]} is not an ancestor of head {head_oid[:7]}"
+    code, output = run(["git", "diff", "--name-only", f"{verified_sha}..{head_oid}"])
+    if code != 0:
+        return False, f"cannot diff {verified_sha[:7]} against head {head_oid[:7]}"
+    changed = [line.strip() for line in output.splitlines() if line.strip()]
+    functional = [path for path in changed if not path.startswith(BOOKKEEPING_PREFIXES)]
+    if functional:
+        listed = ", ".join(functional[:3])
+        more = f" and {len(functional) - 3} more" if len(functional) > 3 else ""
+        return False, f"{len(functional)} file(s) changed since {verified_sha[:7]}: {listed}{more}"
+    return True, ""
+
+
 def check_gate_results(
     task: dict[str, Any], head_oid: str, errors: list[str], notes: list[str], require: bool
 ) -> bool:
@@ -497,7 +532,8 @@ def check_gate_results(
             )
             head_verified = False
             continue
-        if verified_sha != head_oid:
+        describes_head, drift = result_still_describes_head(verified_sha, head_oid)
+        if not describes_head:
             head_verified = False
 
         code, payload = run(
@@ -539,13 +575,15 @@ def check_gate_results(
                 f"current.yaml gates.{name} records {recorded} on {verified_sha[:7]}, but "
                 f"{workflow!r} concluded {observed.get('conclusion')} there"
             )
-        elif verified_sha == head_oid:
-            notes.append(f"gate {name}: {actual} confirmed on head {head_oid[:7]}")
-        else:
-            notes.append(
-                f"gate {name}: {actual} on {verified_sha[:7]}, head is {head_oid[:7]} — "
-                "not yet verified"
+        elif describes_head:
+            where = (
+                "head"
+                if verified_sha == head_oid
+                else f"{verified_sha[:7]}, still describing head {head_oid[:7]}"
             )
+            notes.append(f"gate {name}: {actual} confirmed on {where}")
+        else:
+            notes.append(f"gate {name}: {actual} on {verified_sha[:7]} — superseded, {drift}")
 
     # A task offered for review must stand on a verified head. Mid-work drift is
     # normal and only noted; claiming readiness on an unverified revision is the
