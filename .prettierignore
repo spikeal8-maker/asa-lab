@@ -15,3 +15,9 @@ docs
 
 # CI workflow formatting is owned by the governance task, not the code gate.
 .github
+
+# Immutable owner evidence is byte-preserved; formatting it would create large
+# unrelated diffs and invalidate evidence hashes.
+apps/web/public/assets/electronics/owner-audit/breadboard-footprint-map.json
+apps/web/public/assets/electronics/owner-audit/manifest.json
+apps/web/public/assets/electronics/owner-audit/state-family-map.json
