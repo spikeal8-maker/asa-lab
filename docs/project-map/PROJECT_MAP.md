@@ -46,6 +46,14 @@ document the server is known to hold rather than set by whichever request
 happened to finish, so an edit made while a save is in flight can no longer be
 reported as saved and then lost by a checkpoint taken straight after it.
 
+The canonical owner runtime assets live in `main`, delivered as their own
+reviewable unit rather than inside the product pull request. Membership is the
+value of a `runtimePath` key, compared as an exact path. `pnpm assets:check` fails
+if a named file is absent, is not an SVG, does not hash to the value recorded
+beside it, disagrees between source and runtime hashes, carries embedded raster,
+a script or an external reference, escapes the asset root, or if the runtime tree
+holds a file the catalog does not name.
+
 ## Quality gate
 
 See [`QUALITY_MAP.md`](QUALITY_MAP.md) and
