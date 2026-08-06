@@ -89,6 +89,54 @@ def load_yaml(path: Path, errors: list[str]) -> Any:
         return None
 
 
+# YAML permits a repeated key and keeps the last one, silently. In a file whose
+# whole purpose is to be the single answer, a second answer that quietly wins is
+# worse than a malformed file: it parses, it validates, and it is not what the
+# author wrote. This happened here — current.yaml carried two `blocking` keys and
+# every check passed.
+STRUCTURED_DOCUMENTS = (
+    "docs/execution/current.yaml",
+    "docs/delivery/EXECUTION_MANIFEST.yaml",
+    "docs/project-map/project-map.yaml",
+    "docs/testing/test-catalog.yaml",
+    "docs/testing/planned-test-catalog.yaml",
+    "docs/testing/active-task-tests.yaml",
+)
+
+
+class _RejectDuplicateKeys(yaml.SafeLoader):
+    """A loader that refuses what safe_load accepts."""
+
+
+def _no_duplicates(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict:
+    seen: set = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                None, None, f"duplicate key {key!r}", key_node.start_mark
+            )
+        seen.add(key)
+    return loader.construct_mapping(node, deep=True)
+
+
+_RejectDuplicateKeys.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicates
+)
+
+
+def check_no_duplicate_keys(errors: list[str]) -> None:
+    for relative in STRUCTURED_DOCUMENTS:
+        path = ROOT / relative
+        if not path.is_file():
+            continue
+        try:
+            yaml.load(path.read_text(encoding="utf-8"), Loader=_RejectDuplicateKeys)
+        except yaml.YAMLError as exc:
+            detail = str(exc).replace("\n", " ")
+            errors.append(f"{relative}: {detail}")
+
+
 def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
     if not isinstance(current, dict):
         errors.append("current.yaml must be a mapping")
@@ -571,6 +619,7 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
         return 1
 
+    check_no_duplicate_keys(errors)
     task = check_current(current, errors)
     if task:
         # Revisions listed in current.yaml are legitimate historical references.

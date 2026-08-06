@@ -27,17 +27,18 @@ task:
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
   status: in_progress
-  checkpoint: control_plane_stabilisation
+  checkpoint: phase_5_asset_separation
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
 revisions:
   # Last merge into main. The product baseline every release candidate builds on.
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
+  # Which revision is green is a fact GitHub Actions holds per commit. It is
+  # not recorded here: a hand-maintained copy went stale within hours the last
+  # time, and it would go stale again on the next push.
   # Owner-visible convergence baseline for the current task.
   convergence_baseline_sha: f27ac1594761265a326229fa2aa8d841081a5dd8
-  # Most recent product-branch head where BOTH gates were green.
-  last_full_green_sha: 4d821552a710cbccd4737c109ccb5951cf7cbd81
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 
@@ -96,7 +97,6 @@ gates:
 #                         mentions of the finished R2 branch, zero hard-coded
 #                         task ids or SHAs in the entry point, and the governance
 #                         gate passing on the clone itself
-blocking:
 #   BLOCK-STATE-FILE-HAS-TWO-COPIES
 #                         2026-08-06 — programme state changes on main and is
 #                         inherited; the task branch is refused if it modifies
