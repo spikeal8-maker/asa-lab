@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 400" role="img" aria-label="white LED 96.0%" data-component="led" data-version="v9-from-v6-verified" data-color="white" data-intensity="0.96" data-fault="none" data-render-quality="high" style="--led-body-opacity: 0.972623; --led-rim-opacity: 0.923992; --led-inner-opacity: 0.978996; --led-outer-glow-opacity: 0.681395; --led-die-opacity: 0.975908; --led-wire-opacity: 0.820836; --led-label-opacity: 0">
+      <g data-layer="v6-locked-visual"><defs>
+    <style><![CDATA[
+      .connection-pin { opacity: 0; pointer-events: all; }
+      .metal { stroke-linecap: round; stroke-linejoin: round; }
+      .polarity-label { font: 700 18px system-ui, -apple-system, Segoe UI, sans-serif; opacity: 0; pointer-events: none; }
+      #led-white-i096-on-overlay { opacity: 0.972623; }
+      #led-white-i096-on-rim { opacity: 0.923992; }
+      #led-white-i096-inner-light { opacity: 0.978996; }
+      #led-white-i096-outer-glow-shape { opacity: 0.681395; }
+    ]]></style>
+    <linearGradient id="led-white-i096-metal-left" x1="68" y1="0" x2="96" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#747a78"/><stop offset="0.45" stop-color="#c8ccca"/><stop offset="1" stop-color="#858b89"/>
+    </linearGradient>
+    <linearGradient id="led-white-i096-metal-right" x1="166" y1="0" x2="222" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6f7573"/><stop offset="0.50" stop-color="#b8bdbb"/><stop offset="1" stop-color="#7d8381"/>
+    </linearGradient>
+    <linearGradient id="led-white-i096-lens-off" x1="120" y1="10" x2="120" y2="270" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d9ddd9"/><stop offset="0.40" stop-color="#c4c9c6"/><stop offset="0.76" stop-color="#aeb5b1"/><stop offset="1" stop-color="#e4e7e2"/>
+    </linearGradient>
+    <linearGradient id="led-white-i096-rim-off" x1="120" y1="217" x2="120" y2="295" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f1f2ee"/><stop offset="0.32" stop-color="#c7ccc8"/><stop offset="1" stop-color="#9ca39f"/>
+    </linearGradient>
+    <linearGradient id="led-white-i096-rim-off-shadow" x1="120" y1="248" x2="120" y2="297" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b4bbb7"/><stop offset="1" stop-color="#7c8580"/>
+    </linearGradient>
+    <radialGradient id="led-white-i096-lens-on" cx="92" cy="62" r="198" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.17" stop-color="#f4fbff"/><stop offset="0.44" stop-color="#dff4ff"/><stop offset="0.78" stop-color="#c7e8fa"/><stop offset="1" stop-color="#8abed4"/>
+    </radialGradient>
+    <radialGradient id="led-white-i096-inside-light" cx="116" cy="184" r="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/><stop offset="0.22" stop-color="#f6fdff" stop-opacity="0.62"/><stop offset="0.62" stop-color="#dff6ff" stop-opacity="0.30"/><stop offset="1" stop-color="#ccecff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="led-white-i096-rim-on" x1="120" y1="216" x2="120" y2="296" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.32" stop-color="#edfaff"/><stop offset="1" stop-color="#9fcfe2"/>
+    </linearGradient>
+    <linearGradient id="led-white-i096-inner-metal-off" x1="94" y1="0" x2="184" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5d6661" stop-opacity="0.48"/><stop offset="0.52" stop-color="#ffffff" stop-opacity="0.30"/><stop offset="1" stop-color="#4d5551" stop-opacity="0.50"/>
+    </linearGradient>
+    <linearGradient id="led-white-i096-inner-metal-on" x1="94" y1="0" x2="184" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#cbdce3" stop-opacity="0.45"/><stop offset="0.48" stop-color="#ffffff" stop-opacity="0.62"/><stop offset="1" stop-color="#8ab7ca" stop-opacity="0.48"/>
+    </linearGradient>
+    <clipPath id="led-white-i096-lens-clip"><path d="M44 228V101C44 52.4 82.8 13 130 13S216 52.4 216 101V228C216 249 177.5 266 130 266S44 249 44 228Z"/></clipPath>
+    <filter id="led-white-i096-body-shadow" x="-12%" y="-10%" width="124%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="1" flood-color="#17201d" flood-opacity="0.20"/></filter>
+    <filter id="led-white-i096-outer-glow" x="-65%" y="-60%" width="230%" height="230%"><feGaussianBlur stdDeviation="9"/></filter>
+    <filter id="led-white-i096-inner-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"/></filter>
+    <filter id="led-white-i096-die-glow" x="-160%" y="-160%" width="420%" height="420%"><feGaussianBlur stdDeviation="4" result="b"/><feFlood flood-color="#ffffff" flood-opacity="0.90"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <g data-v6-id="led" data-component="led" data-color="white" data-intensity="var(--led-intensity, 0)">
+    <g data-v6-id="pins" data-layer="metal-leads">
+      <path data-v6-id="lead-anode" class="metal" d="M83 272V372" fill="none" stroke="url(#led-white-i096-metal-left)" stroke-width="25"/>
+      <path data-v6-id="lead-cathode" class="metal" d="M176 272V304C176 316 186 326 197 336C206 344 209 351 209 362V372" fill="none" stroke="url(#led-white-i096-metal-right)" stroke-width="25"/>
+      <path data-v6-id="lead-anode-light" class="metal" d="M76 280V360" fill="none" stroke="#eef0ef" stroke-width="4.5" stroke-opacity="0.28"/>
+      <path data-v6-id="lead-cathode-light" class="metal" d="M169 281V303C169 314 179 323 190 333" fill="none" stroke="#eef0ef" stroke-width="4.5" stroke-opacity="0.20"/>
+    </g>
+
+    <g data-v6-id="body-off" data-layer="base-off">
+      <path data-v6-id="rim-back-off" d="M44 227C44 202 82.5 182 130 182S216 202 216 227S177.5 272 130 272S44 252 44 227Z" fill="#c7ccc8" opacity="0.62"/>
+      <g filter="url(#led-white-i096-body-shadow)">
+        <path data-v6-id="lens-off" d="M44 228V101C44 52.4 82.8 13 130 13S216 52.4 216 101V228C216 249 177.5 266 130 266S44 249 44 228Z" fill="url(#led-white-i096-lens-off)"/>
+        <g data-v6-id="internal-structure-off" clip-path="url(#led-white-i096-lens-clip)">
+          <path data-v6-id="left-leadframe-off" d="M95 269V198C95 189 102 182 111 182H121C130 182 137 189 137 198V269Z" fill="url(#led-white-i096-inner-metal-off)" opacity="0.21"/>
+          <path data-v6-id="right-leadframe-off" d="M148 269V180C148 171 155 164 164 164H174C183 164 190 171 190 180V269Z" fill="url(#led-white-i096-inner-metal-off)" opacity="0.17"/>
+          <rect data-v6-id="die-off" x="112" y="187" width="22" height="18" rx="3" fill="#ffffff" opacity="0.14"/>
+          <path data-v6-id="bond-wire-off" d="M133 191C145 179 155 171 164 169" fill="none" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round" opacity="0.16"/>
+        </g>
+        <path data-v6-id="top-highlight-off" d="M67 86C78 50 102 30 130 30" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" opacity="0.10"/>
+        <path data-v6-id="side-highlight-off" d="M203 110V214C203 232 172 248 131 248" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.06"/>
+      </g>
+      <g data-v6-id="base-off">
+        <path data-v6-id="rim-front-off" d="M30 229C30 265 75 295 130 295C185 295 230 265 230 229L216 229C216 250 178 267 130 267C82 267 44 250 44 229Z" fill="url(#led-white-i096-rim-off)"/>
+        <path data-v6-id="rim-top-shine-off" d="M45 227C45 248 83 265 130 265S215 248 215 227" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.13"/>
+        <path data-v6-id="rim-bottom-shadow-off" d="M31 253C31 276 75 294 130 294S229 276 229 253" fill="none" stroke="url(#led-white-i096-rim-off-shadow)" stroke-width="4" opacity="0.65"/>
+      </g>
+    </g>
+
+    <g data-v6-id="body-on-gradation" data-layer="brightness-overlays">
+      <path id="led-white-i096-outer-glow-shape" d="M44 228V101C44 52.4 82.8 13 130 13S216 52.4 216 101V228C216 249 177.5 266 130 266S44 249 44 228Z" fill="#e8fbff" opacity="0.681395" filter="url(#led-white-i096-outer-glow)"/>
+      <g id="led-white-i096-on-overlay" opacity="0.972623">
+        <path data-v6-id="lens-on" d="M44 228V101C44 52.4 82.8 13 130 13S216 52.4 216 101V228C216 249 177.5 266 130 266S44 249 44 228Z" fill="url(#led-white-i096-lens-on)" stroke="#8ca0a8" stroke-width="0.6" stroke-opacity="0.18"/>
+        <g clip-path="url(#led-white-i096-lens-clip)">
+          <ellipse id="led-white-i096-inner-light" cx="119" cy="160" rx="78" ry="106" fill="url(#led-white-i096-inside-light)" opacity="0.978996" filter="url(#led-white-i096-inner-glow)"/>
+          <path data-v6-id="left-leadframe-on" d="M95 269V198C95 189 102 182 111 182H121C130 182 137 189 137 198V269Z" fill="url(#led-white-i096-inner-metal-on)" opacity="0.47"/>
+          <path data-v6-id="right-leadframe-on" d="M148 269V180C148 171 155 164 164 164H174C183 164 190 171 190 180V269Z" fill="url(#led-white-i096-inner-metal-on)" opacity="0.38"/>
+          <rect data-v6-id="die-on" x="111" y="186" width="24" height="20" rx="3.5" fill="#ffffff" opacity="0.975908" filter="url(#led-white-i096-die-glow)"/>
+          <path data-v6-id="bond-wire-on" d="M134 191C145 179 155 171 164 169" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" opacity="0.820836"/>
+          <ellipse data-v6-id="lower-light" cx="130" cy="224" rx="75" ry="34" fill="#e7f8ff" opacity="0.34"/>
+        </g>
+        <path data-v6-id="top-highlight-on" d="M67 86C78 50 102 30 130 30" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.46"/>
+        <path data-v6-id="side-highlight-on" d="M203 110V214C203 232 172 248 131 248" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.20"/>
+      </g>
+      <g id="led-white-i096-on-rim" opacity="0.923992">
+        <path data-v6-id="rim-back-on" d="M44 227C44 202 82.5 182 130 182S216 202 216 227S177.5 272 130 272S44 252 44 227Z" fill="#edfaff" opacity="0.48"/>
+        <path data-v6-id="rim-front-on" d="M30 229C30 265 75 295 130 295C185 295 230 265 230 229L216 229C216 250 178 267 130 267C82 267 44 250 44 229Z" fill="url(#led-white-i096-rim-on)"/>
+        <path data-v6-id="rim-top-shine-on" d="M45 227C45 248 83 265 130 265S215 248 215 227" fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" opacity="0.30"/>
+        <path data-v6-id="rim-bottom-shadow-on" d="M31 253C31 276 75 294 130 294S229 276 229 253" fill="none" stroke="#9fcfe2" stroke-width="4" opacity="0.42"/>
+      </g>
+    </g>
+
+    <g data-v6-id="polarity-markers" data-layer="education" opacity="0">
+      <text x="72" y="394" fill="#2b2f2d" class="polarity-label">A</text><text x="198" y="394" fill="#2b2f2d" class="polarity-label">K</text>
+    </g>
+</g></g>
+      
+      
+      <g data-layer="logic-pins" data-debug-visible="false">
+        <circle data-pin-id="anode" data-pin-name="A" cx="83" cy="372" r="13" fill="#00aaff" opacity="0" pointer-events="all"/>
+        <circle data-pin-id="cathode" data-pin-name="K" cx="209" cy="372" r="13" fill="#00aaff" opacity="0" pointer-events="all"/>
+      </g>
+    </svg>
