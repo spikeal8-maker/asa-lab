@@ -52,7 +52,16 @@ value of a `runtimePath` key, compared as an exact path. `pnpm assets:check` fai
 if a named file is absent, is not an SVG, does not hash to the value recorded
 beside it, disagrees between source and runtime hashes, carries embedded raster,
 a script or an external reference, escapes the asset root, or if the runtime tree
-holds a file the catalog does not name.
+holds a file neither manifest declares.
+
+Two manifests declare owner art, and both are checked. `owner-catalog/manifest.json`
+names the 662 assets the editor loads; `owner-audit/manifest.json` records the 697
+files imported from the owner archives, including the reference photographs and the
+candidate drawings that document where the artwork came from. A file declared by
+either is legitimate, its recorded hash is verified either way, and the two must
+agree wherever they describe the same file. Reading the catalog alone once reported
+35 declared, hash-pinned owner files as undeclared dead weight, which is why the
+check reads both.
 
 ## Quality gate
 
