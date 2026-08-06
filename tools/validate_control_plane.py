@@ -542,11 +542,25 @@ def check_state_file_is_canonical(
     if branch != str(task.get("branch")):
         notes.append(f"on {branch}: not the task branch, so it may propose state changes")
         return
-    code, canonical = run(["git", "show", "origin/main:docs/execution/current.yaml"])
-    if code != 0:
+    # Read verbatim rather than through run(), which strips: a stripped blob can
+    # never equal a file ending in a newline, so the comparison would fail on
+    # every branch for a reason that has nothing to do with the content.
+    try:
+        shown = subprocess.run(
+            ["git", "show", "origin/main:docs/execution/current.yaml"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=90,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        notes.append(f"origin/main copy of current.yaml unreadable ({exc}); comparison skipped")
+        return
+    if shown.returncode != 0:
         notes.append("origin/main copy of current.yaml unavailable; comparison skipped")
         return
-    if CURRENT_PATH.read_text(encoding="utf-8") == canonical:
+    if CURRENT_PATH.read_text(encoding="utf-8") == shown.stdout:
         notes.append("current.yaml matches origin/main byte for byte")
         return
     errors.append(
