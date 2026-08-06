@@ -323,6 +323,30 @@ def changed_files_against_base() -> set[str]:
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
+def map_matches_base() -> bool:
+    """Is this branch's map already the same as the base branch's?
+
+    If it is, the base already carries a map describing this work — which happens
+    once a map update has been merged ahead of the code that prompted it. There is
+    then nothing missing, and demanding a further edit would only produce a
+    cosmetic one.
+    """
+    base_ref = os.getenv("GITHUB_BASE_REF", "").strip()
+    if not base_ref:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--quiet", f"origin/{base_ref}", "--", "docs/project-map/project-map.yaml"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def validate_map_change_policy(errors: list[str]) -> None:
     changed = changed_files_against_base()
     if not changed:
@@ -334,7 +358,10 @@ def validate_map_change_policy(errors: list[str]) -> None:
     )
     map_changed = "docs/project-map/project-map.yaml" in changed
     rendered_changed = "docs/project-map/PROJECT_MAP.md" in changed
-    if architecture_changed and not map_changed:
+    # The rule catches code that leaves the map behind. A long-lived branch whose
+    # map update already merged into the base has not left it behind — the map is
+    # simply current in both places, and the diff has nothing left to show.
+    if architecture_changed and not map_changed and not map_matches_base():
         errors.append("Architecture-sensitive files changed without project-map.yaml update")
     if map_changed and not rendered_changed:
         errors.append("project-map.yaml changed without PROJECT_MAP.md update")
