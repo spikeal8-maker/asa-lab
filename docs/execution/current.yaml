@@ -47,12 +47,10 @@ revisions:
 # both timestamps are required and expires_at must be after acquired_at.
 # validate_control_plane.py enforces all of that.
 execution_lease:
-  # Held for the stabilisation transitions. Released back to unassigned once the
-  # product branch is verified on its own head.
   executor_id: assistant-stabilisation
-  holder: assistant-stabilisation
-  acquired_at: '2026-08-05T21:03:52Z'
-  expires_at: '2026-08-06T03:03:52Z'
+  holder: unassigned
+  acquired_at: null
+  expires_at: null
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
@@ -99,23 +97,14 @@ gates:
 #                         task ids or SHAs in the entry point, and the governance
 #                         gate passing on the clone itself
 blocking:
-  - id: BLOCK-STATE-FILE-HAS-TWO-COPIES
-    summary: >-
-      docs/execution/current.yaml exists on both main and the product branch, so
-      the single source of state is two files asked to agree. They already drifted
-      once: a blocker was closed on the product branch while main went on
-      declaring it open. Repairing the instance does not remove the possibility.
-    plan: >-
-      A file tracked in main is inherited by every branch cut from it, so "absent
-      elsewhere" is not a condition Git can satisfy. The condition that can be is
-      that no other branch MODIFIES it: programme state changes on main and is
-      inherited, never edited on a task branch. Outcomes of CI are not written
-      here at all — GitHub Actions already holds one per commit, and copying them
-      created the second record that drifted.
-    resolved_by: >-
-      on any branch other than main, docs/execution/current.yaml must be
-      byte-identical to git show origin/main:docs/execution/current.yaml
-
+#   BLOCK-STATE-FILE-HAS-TWO-COPIES
+#                         2026-08-06 — programme state changes on main and is
+#                         inherited; the task branch is refused if it modifies
+#                         this file. CI outcomes left the file entirely, since
+#                         GitHub Actions already holds one per commit. Confirmed
+#                         on agent/r4-electronics-m1: "current.yaml matches
+#                         origin/main byte for byte".
+blocking: []
 
 # A future task becomes executable only through a separate owner transition.
 next_task: null
