@@ -15,7 +15,7 @@ TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
 status in_progress
-checkpoint control_plane_stabilisation
+checkpoint phase_5_asset_separation
 execution lease unassigned
 ```
 
