@@ -38,6 +38,11 @@ else
     exit 1
   fi
 fi
+# The control plane decides what the project is doing, and for a long time
+# nothing checked it back. Both defects found in it during stabilisation surfaced
+# only because something went red at an awkward moment; a third turned up while
+# these cases were being written.
+run "$PYTHON" tools/test_validate_control_plane.py
 run "$PYTHON" tools/validate_control_plane.py "${CONTROL_PLANE_ARGS[@]}"
 
 run "$PYTHON" tools/validate_architecture.py
