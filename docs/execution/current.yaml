@@ -26,14 +26,14 @@ task:
   pr_draft: false
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
-  status: in_review
-  checkpoint: phase_6_return_to_review
+  status: done
+  checkpoint: merged_to_main
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
 revisions:
   # Last merge into main. The product baseline every release candidate builds on.
-  product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
+  product_merge_sha: affb18fe1fe5020909d4a01de7926147d3724c24
   # Which revision is green is a fact GitHub Actions holds per commit. It is
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
@@ -49,9 +49,9 @@ revisions:
 # validate_control_plane.py enforces all of that.
 execution_lease:
   executor_id: assistant-stabilisation
-  holder: assistant-stabilisation
-  acquired_at: '2026-08-07T12:28:48Z'
-  expires_at: '2026-08-07T20:28:48Z'
+  holder: unassigned
+  acquired_at: null
+  expires_at: null
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
