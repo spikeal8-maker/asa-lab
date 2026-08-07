@@ -429,6 +429,34 @@ def check_git(task: dict[str, Any], errors: list[str], notes: list[str]) -> str 
     return head
 
 
+def pull_request_state_error(status: str, state: str, task_id: str, pr: Any) -> str | None:
+    """Is this pull request in the state the task's status implies?
+
+    While work is in flight a merged or closed pull request cannot be the one the
+    task points at. Once the task is done the opposite holds: it must have been
+    merged, and an open one would mean the work was called finished without
+    landing anywhere.
+
+    The rule used to demand OPEN whatever the status, which made a completed task
+    impossible to record: merging the pull request turned main's own gate red, and
+    the only way to stay green was never to finish anything. It lived inside
+    check_github, which talks to GitHub, so nothing could test it either.
+    """
+    if status == "done":
+        if state != "MERGED":
+            return (
+                f"current.yaml says {task_id} is done, but PR #{pr} is {state}; "
+                "a finished task's pull request is a merged one"
+            )
+        return None
+    if state != "OPEN":
+        return (
+            f"PR #{pr} is {state}, but current.yaml still names it as the "
+            f"pull request for {task_id}"
+        )
+    return None
+
+
 def check_github(task: dict[str, Any], errors: list[str], notes: list[str], require: bool) -> None:
     code, _ = run(["gh", "auth", "status"])
     if code != 0:
@@ -452,14 +480,14 @@ def check_github(task: dict[str, Any], errors: list[str], notes: list[str], requ
             f"PR #{pr} head branch {data.get('headRefName')!r} != "
             f"current.yaml task.branch {task.get('branch')!r}"
         )
-    # A closed or merged PR cannot be the one an in-flight task points at, and a
-    # PR silently taken out of Draft is an owner decision the control plane must
-    # not discover by accident.
-    if data.get("state") != "OPEN":
-        errors.append(
-            f"PR #{pr} is {data.get('state')}, but current.yaml still names it as the "
-            f"pull request for {task.get('id')}"
-        )
+    problem = pull_request_state_error(
+        status=str(task.get("status")),
+        state=str(data.get("state")),
+        task_id=str(task.get("id")),
+        pr=pr,
+    )
+    if problem:
+        errors.append(problem)
     expected_draft = task.get("pr_draft")
     if isinstance(expected_draft, bool) and bool(data.get("isDraft")) != expected_draft:
         errors.append(

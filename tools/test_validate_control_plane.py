@@ -174,6 +174,46 @@ def task_bad_status(_):
     return errors
 
 
+# ── the pull request a task points at ────────────────────────────────────────
+#
+# The rule demanded OPEN whatever the status, which made a finished task
+# impossible to record: merging its pull request turned main's own gate red, so
+# the only way to stay green was never to complete anything. It also sat inside
+# the function that talks to GitHub, where no test could reach it.
+
+
+def state_error(status: str, state: str) -> list[str]:
+    problem = cp.pull_request_state_error(
+        status=status, state=state, task_id="TASK-ELECTRONICS-M1-001", pr=72
+    )
+    return [problem] if problem else []
+
+
+@case("work in flight pointing at a merged pull request", expect="still names it")
+def pr_merged_while_in_flight(_):
+    return state_error("in_progress", "MERGED")
+
+
+@case("work in flight pointing at a closed pull request", expect="still names it")
+def pr_closed_while_in_flight(_):
+    return state_error("in_review", "CLOSED")
+
+
+@case("work in flight with its pull request open", expect="")
+def pr_open_while_in_flight(_):
+    return state_error("in_progress", "OPEN")
+
+
+@case("a task called done whose pull request never landed", expect="a merged one")
+def pr_open_while_done(_):
+    return state_error("done", "OPEN")
+
+
+@case("a task called done whose pull request was merged", expect="")
+def pr_merged_while_done(_):
+    return state_error("done", "MERGED")
+
+
 @case("a task id that does not match the scheme", expect="task.id invalid")
 def task_bad_id(_):
     errors: list[str] = []

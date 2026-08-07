@@ -21,13 +21,13 @@ task:
   branch: agent/r4-electronics-m1
   base_branch: main
   pr: 72
-  # The PR stays a Draft until the owner decides otherwise. Taking it out of
-  # Draft is a decision, not a side effect, so the validator watches for it.
-  pr_draft: true
+  # Out of Draft on the owner's instruction: main has to carry this work so it
+  # can be deployed anywhere, which means the pull request has to be merged.
+  pr_draft: false
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
-  status: in_progress
-  checkpoint: phase_5_asset_separation
+  status: in_review
+  checkpoint: phase_6_return_to_review
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -49,9 +49,9 @@ revisions:
 # validate_control_plane.py enforces all of that.
 execution_lease:
   executor_id: assistant-stabilisation
-  holder: unassigned
-  acquired_at: null
-  expires_at: null
+  holder: assistant-stabilisation
+  acquired_at: '2026-08-07T12:28:48Z'
+  expires_at: '2026-08-07T20:28:48Z'
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
