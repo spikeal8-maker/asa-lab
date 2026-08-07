@@ -8,7 +8,7 @@ project:
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
   current_focus: TASK-ELECTRONICS-M1-001
-  active_checkpoint: phase_5_asset_separation
+  active_checkpoint: phase_6_return_to_review
   canonical_branch: main
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
@@ -43,7 +43,7 @@ nodes:
   - {id: ACT-EDUCATOR, label: Educator, kind: actor, layer: actors, status: in_progress, summary: "Uses capability-aware Classes and creator surfaces."}
   - {id: ACT-STUDENT, label: Student, kind: actor, layer: actors, status: blocked, summary: "StudentSeat remains future work."}
   - {id: ACT-ADMIN, label: School Admin, kind: actor, layer: actors, status: planned, summary: "Future organization administration."}
-  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Execution lease is unassigned; see docs/execution/current.yaml before any product work."}
+  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_review, summary: "Execution lease is unassigned; see docs/execution/current.yaml before any product work."}
 
   - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: in_progress, summary: "Public entry, Creator Portal, Account and editors."}
   - {id: PLANE-CONTROL, label: Control Plane, kind: plane, layer: architecture, status: in_progress, summary: "Modular monolith API and bounded contexts."}
@@ -97,7 +97,7 @@ nodes:
   - {id: PHASE-1, label: Account C1, kind: roadmap_phase, layer: roadmap, status: done, summary: "Identity/security slice complete."}
   - {id: PHASE-R2, label: R2 Creator Portal, kind: roadmap_phase, layer: roadmap, status: done, summary: "Portal shell accepted and merged by PR #71."}
   - {id: PHASE-R3, label: R3 Project Lifecycle, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "R3A gateway done; R3B remains blocked and deferred."}
-  - {id: PHASE-R4, label: R4 Electronics Parity, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Electronics M1 is back in progress until the general repository gate passes on the head; M2 remains blocked."}
+  - {id: PHASE-R4, label: R4 Electronics Parity, kind: roadmap_phase, layer: roadmap, status: in_review, summary: "Electronics M1 is in review: the branch is green and the pull request is open passes on the head; M2 remains blocked."}
   - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and learning cycle."}
 
   - {id: TASK-BOOT-001, label: Bootstrap, kind: task, layer: delivery, status: done, summary: "Monorepo foundation.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
@@ -106,7 +106,7 @@ nodes:
   - {id: TASK-ACCOUNT-C1-001, label: Account C1, kind: task, layer: delivery, status: done, summary: "Issue 48 completed and merged.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/48}
   - {id: TASK-CREATOR-PORTAL-001, label: R2 Creator Portal, kind: task, layer: delivery, status: done, summary: "Creator Home and capability-aware Portal shell merged by PR #71.", phase: PHASE-R2, issue: https://github.com/spikeal8-maker/asa-lab/issues/62}
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
-  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_progress, summary: "Returned from review: the general repository gate must pass on the branch head before a release candidate can be claimed again.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
+  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_review, summary: "In review: the branch is green on every workflow and the pull request is open for the branch head before a release candidate can be claimed again.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
