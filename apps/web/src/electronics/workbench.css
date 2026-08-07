@@ -21,7 +21,7 @@
 .workbench-header {
   height: var(--wb-header-height);
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) auto minmax(280px, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   border-bottom: 1px solid #d4d9df;
   background: #fff;
@@ -54,17 +54,30 @@
   height: 20px;
 }
 .workbench-brand {
-  display: grid;
-  place-items: center;
-  width: 47px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   height: 100%;
+  padding: 0 14px 0 10px;
   border: 0;
   border-right: 1px solid #e0e4e8;
   background: #fff;
+  cursor: pointer;
 }
-.workbench-brand-grid {
-  grid-template-columns: repeat(2, 18px);
-  grid-template-rows: repeat(2, 18px);
+.workbench-brand:hover {
+  background: #f5f8fa;
+}
+.workbench-brand-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+}
+.workbench-brand-name {
+  color: #0b3558;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 .workbench-title-input {
   width: 260px;
@@ -84,11 +97,21 @@
   box-shadow: none;
   outline: none;
 }
+/* The middle column, and it must stay inside it. A save failure now carries the
+   server's reason, which is long — as plain text it pushed the tabs off the right
+   edge and under the avatar. It truncates instead; the full sentence is in the
+   title, and it is repeated in the notice when it happens. */
 .workbench-save-state {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: #7a8791;
   font-size: 12px;
 }
@@ -102,26 +125,43 @@
 }
 .workbench-mode-buttons {
   display: flex;
-  justify-content: flex-end;
-  align-items: stretch;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
   height: 100%;
   margin-left: auto;
+  padding-right: 8px;
 }
+/* Nothing in this row gives way. It is the last column, and when the middle one
+   grew, the tabs were the first thing to be squeezed out of sight. */
+.workbench-mode-buttons > button,
+.workbench-mode-buttons > .workbench-avatar {
+  flex: 0 0 auto;
+}
+/* Named tabs, each a pill. The active one is outlined rather than filled, so the
+   row reads as a set of choices with one taken, not as one button lit up. */
 .workbench-mode-buttons > button {
-  display: grid;
-  place-items: center;
-  width: 51px;
-  border: 0;
-  border-left: 1px solid #e1e5e9;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1.5px solid transparent;
+  border-radius: 19px;
   background: #fff;
   color: #385267;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
 }
 .workbench-mode-buttons > button:hover:not(:disabled) {
   background: #f2f5f7;
 }
 .workbench-mode-buttons > button.active {
-  background: #1494c9;
-  color: #fff;
+  border-color: #1494c9;
+  background: #fff;
+  color: #1494c9;
 }
 .workbench-mode-buttons > button:disabled {
   opacity: 0.36;
@@ -1253,16 +1293,18 @@
 }
 
 /* Tinkercad-parity workbench shell. Keep these measurements synchronized with the live reference. */
+/* The outer columns size to what they hold, and the middle one takes the rest.
+   Fixed widths here cut the brand down to a single letter and left the three
+   named tabs no room, so they slid under the avatar. */
 .workbench-header {
-  grid-template-columns: minmax(360px, 1fr) auto minmax(260px, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   box-shadow: 0 1px 2px rgba(33, 48, 60, 0.08);
 }
 .workbench-brand-zone {
   gap: 10px;
 }
 .workbench-brand {
-  flex: 0 0 48px;
-  width: 48px;
+  flex: 0 0 auto;
   border-right: 1px solid #e2e5e8;
 }
 .workbench-title-input {
@@ -1285,9 +1327,9 @@
 .workbench-save-state.error {
   opacity: 1;
 }
-.workbench-mode-buttons > button {
-  width: 52px;
-}
+/* A tab is as wide as its name. This used to pin every one to 52px — the width
+   of the icon that used to be all they contained — so each label was cut off
+   mid-word and the row ran out past the avatar. */
 .workbench-mode-buttons > button:disabled {
   opacity: 0.35;
 }

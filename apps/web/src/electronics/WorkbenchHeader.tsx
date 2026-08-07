@@ -84,12 +84,17 @@ export function WorkbenchHeader({
       <header className="workbench-header">
         <div className="workbench-brand-zone">
           <button type="button" className="workbench-brand" onClick={onBack} aria-label="ASA Lab">
-            <span className="workbench-brand-grid" aria-hidden="true">
-              <span>A</span>
-              <span>S</span>
-              <span>A</span>
-              <span>LAB</span>
-            </span>
+            {/* The project's own mark — the flask that is also the favicon — and its
+                name beside it. What stood here was a four-cell grid of letters
+                imitating another product's logo, in the one place where this
+                editor should not resemble anything but itself. */}
+            <img
+              className="workbench-brand-mark"
+              src="/asa-lab-mark.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span className="workbench-brand-name">ASA Lab</span>
           </button>
           <input
             className="workbench-title-input"
@@ -107,41 +112,38 @@ export function WorkbenchHeader({
             }}
           />
         </div>
-        <span className={`workbench-save-state ${c.saveStatus}`}>
+        {/* When a save fails, say what the server refused. The reason used to
+            appear in a notice that cleared itself after two seconds, leaving the
+            word "Ошибка сохранения" alone on screen with nothing to act on. */}
+        <span className={`workbench-save-state ${c.saveStatus}`} title={c.saveError ?? undefined}>
           {c.saveStatus === 'saved' ? <CheckIcon /> : null}
-          {c.saveCopy[c.saveStatus]}
+          {c.saveStatus === 'error' && c.saveError
+            ? `${c.saveCopy.error}: ${c.saveError}`
+            : c.saveCopy[c.saveStatus]}
         </span>
+        {/* Named tabs rather than bare icons. Three unlabelled squares gave no way
+            to tell the breadboard from the schematic without clicking one. */}
         <nav className="workbench-mode-buttons" aria-label="Представления проекта">
-          <button
-            className={view === 'breadboard' ? 'active' : ''}
-            type="button"
-            title="Макет"
-            aria-label="Макет"
-            aria-pressed={view === 'breadboard'}
-            onClick={() => onViewChange('breadboard')}
-          >
-            <CircuitIcon />
-          </button>
-          <button
-            className={view === 'schematic' ? 'active' : ''}
-            type="button"
-            title="Схема"
-            aria-label="Схема"
-            aria-pressed={view === 'schematic'}
-            onClick={() => onViewChange('schematic')}
-          >
-            <SchematicIcon />
-          </button>
-          <button
-            className={view === 'bom' ? 'active' : ''}
-            type="button"
-            title="Список компонентов"
-            aria-label="Список компонентов"
-            aria-pressed={view === 'bom'}
-            onClick={() => onViewChange('bom')}
-          >
-            <ListIcon />
-          </button>
+          {(
+            [
+              { id: 'breadboard', label: 'Цепи', icon: <CircuitIcon /> },
+              { id: 'schematic', label: 'Схемы', icon: <SchematicIcon /> },
+              { id: 'bom', label: 'Компоненты', icon: <ListIcon /> },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              className={view === tab.id ? 'active' : ''}
+              type="button"
+              title={tab.label}
+              aria-label={tab.label}
+              aria-pressed={view === tab.id}
+              onClick={() => onViewChange(tab.id)}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
           <span className="workbench-avatar" title={user.displayName}>
             {initials(user.displayName)}
           </span>

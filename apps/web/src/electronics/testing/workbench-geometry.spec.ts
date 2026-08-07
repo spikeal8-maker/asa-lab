@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { clientToWorld, viewportViewBox, type Point, type Viewport } from '../workbench-geometry';
+import {
+  clientToWorld,
+  freeWirePoint,
+  lockOrthogonalPoint,
+  viewportViewBox,
+  type Point,
+  type Viewport,
+} from '../workbench-geometry';
 
 function worldToClient(
   point: Point,
@@ -52,5 +59,27 @@ describe('workbench pointer coordinates', () => {
       expect(roundTrip.x).toBeCloseTo(point.x, 8);
       expect(roundTrip.y).toBeCloseTo(point.y, 8);
     }
+  });
+});
+
+describe('what the canvas is allowed to move', () => {
+  // A ten-unit grid used to capture every hand-placed point, so a part let go at
+  // 143 landed at 140 and the canvas felt as though it were pulling away from
+  // the cursor. Nothing captures a free point now; alignment happens only where
+  // it was asked for.
+  it.each([
+    { at: { x: 143, y: 207 } },
+    { at: { x: 6, y: 4 } },
+    { at: { x: -21, y: 99 } },
+    { at: { x: 1004.4, y: 55.6 } },
+  ])('leaves a free wire point at $at', ({ at }) => {
+    expect(freeWirePoint(at)).toEqual({ x: Math.round(at.x), y: Math.round(at.y) });
+  });
+
+  it('still aligns when the 90° mode asks for it', () => {
+    const anchor: Point = { x: 100, y: 100 };
+    const locked = lockOrthogonalPoint(anchor, { x: 187, y: 104 });
+    expect(locked.y).toBe(anchor.y);
+    expect(locked.x % 10).toBe(0);
   });
 });

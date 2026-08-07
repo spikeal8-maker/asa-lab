@@ -42,13 +42,20 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-terminal-tooltip text\s*\{[^}]*text-shadow:/s);
   });
 
-  it('keeps visible wires screen-stable and exposes the calculated LED visual state', () => {
+  it('scales wires with the scene and exposes the calculated LED visual state', () => {
+    // Wires used to hold a constant screen width. Zoomed in, a magnified LED sat
+    // beside a wire that had not grown at all, and the connection read as a hair
+    // rather than a lead. A wire is a physical object here, so it scales with
+    // everything else. The invisible hit path keeps its screen width, because
+    // that one is a target for the pointer rather than something being looked at.
     const visibleWireMarkup =
       stageSource.match(/data-testid="schematic-wire"[\s\S]*?\/>/)?.[0] ?? '';
     const previewWireMarkup =
       stageSource.match(/className="workbench-wire-preview"[\s\S]*?\/>/)?.[0] ?? '';
-    expect(visibleWireMarkup).toContain('non-scaling-stroke');
-    expect(previewWireMarkup).toContain('non-scaling-stroke');
+    const hitWireMarkup = stageSource.match(/className="workbench-wire-hit"[\s\S]*?\/>/)?.[0] ?? '';
+    expect(visibleWireMarkup).not.toContain('non-scaling-stroke');
+    expect(previewWireMarkup).not.toContain('non-scaling-stroke');
+    expect(hitWireMarkup).toContain('non-scaling-stroke');
     expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*stroke-width:\s*3\.2;/s);
     expect(productionVisualSource).toContain('data-led-runtime-state');
     expect(productionVisualSource).toContain('data-led-brightness');
@@ -97,8 +104,17 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('workbench-inspector-preview');
     expect(headerSource).toContain('Копировать (Ctrl+C)');
     expect(headerSource).toContain('Вставить (Ctrl+V)');
-    expect(headerSource).toContain("onViewChange('schematic')");
-    expect(headerSource).toContain("onViewChange('bom')");
+    // Three named tabs, and the project's own mark beside its name. The tabs used
+    // to be bare icons, which gave no way to tell the breadboard from the
+    // schematic without clicking one; the mark used to be a grid of letters
+    // imitating another product's logo.
+    expect(headerSource).toContain("{ id: 'breadboard', label: 'Цепи'");
+    expect(headerSource).toContain("{ id: 'schematic', label: 'Схемы'");
+    expect(headerSource).toContain("{ id: 'bom', label: 'Компоненты'");
+    expect(headerSource).toContain('onViewChange(tab.id)');
+    expect(headerSource).toContain('src="/asa-lab-mark.svg"');
+    expect(headerSource).toContain('ASA Lab');
+    expect(headerSource).not.toContain('workbench-brand-grid');
     expect(headerSource).not.toContain('Время моделирования:');
     expect(headerSource).toContain(
       "c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'",
@@ -182,13 +198,36 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerSource).toContain('catalogPlacement');
     expect(controllerSource).toContain('actuatorPressRef');
     expect(controllerSource).toContain('lockOrthogonalPoint');
-    expect(controllerSource).toContain('magneticWirePoint');
+    // A dragged bend goes where the pointer is. There used to be a magnet on
+    // every drag, aligning the vertex to whichever neighbour happened to be
+    // nearer; the anchor changed mid-drag and the point jumped between axes, so a
+    // wire could not be laid deliberately alongside another one. Squaring a bend
+    // is available on request — Shift, or the 90° mode — and only then.
+    expect(controllerSource).not.toContain('magneticWirePoint');
+    expect(controllerSource).toContain('lockOrthogonalBend');
     expect(controllerSource).toContain('orthogonalWireMode || event.shiftKey');
     expect(controllerSource).toContain(
       'orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, world) : world',
     );
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
+
+    // A running simulation is a circuit under power: it can be operated, not
+    // rebuilt. Components used to stay draggable while it ran, so the board could
+    // be rearranged underneath a result that described the old arrangement.
+    // Actuators, the potentiometer and the value fields keep working.
+    expect(controllerSource).toContain(
+      'Идёт моделирование: остановите его, чтобы переставлять компоненты.',
+    );
+    expect(controllerSource).toContain(
+      'Идёт моделирование: остановите его, чтобы менять соединения.',
+    );
+    const vertexDrag = controllerSource.slice(controllerSource.indexOf('function startVertexDrag'));
+    expect(vertexDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
+    const endpointDrag = controllerSource.slice(
+      controllerSource.indexOf('function startEndpointDrag'),
+    );
+    expect(endpointDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
     expect(stageSource).toContain('onPointerDownCapture={c.placeCatalogComponent}');
   });

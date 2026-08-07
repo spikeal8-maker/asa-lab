@@ -388,8 +388,12 @@ export function moveWireVertex(
       if (wire.id !== wireId || !wire.vertices?.[vertexIndex]) return wire;
       return {
         ...wire,
+        // Free placement. This pulled the vertex onto a ten-unit grid after the
+        // caller had already decided where it goes, so no care in the drag
+        // handler could put a bend where it was wanted — it jumped to the nearest
+        // node instead, and running a wire alongside another wire was impossible.
         vertices: wire.vertices.map((vertex, index) =>
-          index === vertexIndex ? { x: snap(point.x), y: snap(point.y) } : vertex,
+          index === vertexIndex ? { x: Math.round(point.x), y: Math.round(point.y) } : vertex,
         ),
       };
     }),
@@ -456,7 +460,10 @@ export function insertWireVertex(
     if (!best || distance < best.distance) best = { index, point: projected, distance };
   }
   if (!best) return document;
-  baseVertices.splice(best.index, 0, { x: snap(best.point.x), y: snap(best.point.y) });
+  // The new bend appears exactly on the wire, where it was clicked. Snapping it
+  // to a grid moved it off the line the moment it was created, which is the jump
+  // people saw before they had even started dragging.
+  baseVertices.splice(best.index, 0, { x: Math.round(best.point.x), y: Math.round(best.point.y) });
   return {
     ...document,
     connections: document.connections.map((item) =>

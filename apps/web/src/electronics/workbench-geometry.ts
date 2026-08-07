@@ -77,8 +77,14 @@ export function lockOrthogonalBend(previous: Point, next: Point, point: Point): 
   });
 }
 
+/** A wire point placed by hand, outside the 90° mode.
+ *
+ * It used to be pulled onto the same ten-unit grid as everything else, which is
+ * exactly what "free" was not. Alignment belongs to the orthogonal mode, where
+ * it was asked for; here the point belongs where it was put.
+ */
 export function freeWirePoint(point: Point): Point {
-  return { x: snap(point.x), y: snap(point.y) };
+  return { x: Math.round(point.x), y: Math.round(point.y) };
 }
 
 export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): Point {

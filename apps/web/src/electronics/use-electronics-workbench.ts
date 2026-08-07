@@ -35,8 +35,6 @@ import {
   freeWirePoint,
   lockOrthogonalBend,
   lockOrthogonalPoint,
-  magneticWirePoint,
-  snap,
   viewportViewBox,
   type Point,
   type Viewport,
@@ -72,6 +70,8 @@ import {
 import {
   DEFAULT_VIEWPORT,
   DRAG_MIME,
+  MAX_ZOOM,
+  MIN_ZOOM,
   STAGE_HEIGHT,
   STAGE_WIDTH,
   type ActuatorPress,
@@ -102,6 +102,7 @@ export function useElectronicsWorkbench(projectId: string) {
     status,
     saveStatus,
     saveCopy,
+    saveError,
     notice,
     setNotice,
     simulationRunning,
@@ -149,6 +150,9 @@ export function useElectronicsWorkbench(projectId: string) {
   const stageRef = useRef<SVGSVGElement>(null);
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
+  // Where the view actually is while a pan is in flight, since React state is
+  // deliberately not being updated for each frame of it.
+  const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
   const endpointDragRef = useRef<EndpointDrag | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
@@ -173,10 +177,47 @@ export function useElectronicsWorkbench(projectId: string) {
     }
   }
 
+  /** Move the view during a drag without re-rendering the scene.
+   *
+   * Panning fires on every pointer move. Writing the viewport into the document
+   * there rebuilt the whole document object per frame; putting it in React state
+   * still re-rendered the entire stage — every component, wire and terminal —
+   * for a change that only moves the window over them. Nothing inside the canvas
+   * changes while panning, so the viewBox is written straight to the element and
+   * the browser simply redraws what it already has.
+   *
+   * React learns the final position once, when the drag ends. Anything derived
+   * from the viewport — the minimap, tooltip placement — is a frame behind during
+   * the drag and correct the moment it stops.
+   */
+  function moveViewport(next: Viewport): void {
+    panViewportRef.current = next;
+    const stage = stageRef.current;
+    if (!stage) {
+      setViewport(next);
+      return;
+    }
+    const box = viewportViewBox(next, STAGE_WIDTH, STAGE_HEIGHT);
+    stage.setAttribute('viewBox', `${box.x} ${box.y} ${box.width} ${box.height}`);
+  }
+
+  function commitViewport(next: Viewport): void {
+    if (!document) return;
+    const current = document.viewport;
+    if (current && current.x === next.x && current.y === next.y && current.zoom === next.zoom) {
+      return;
+    }
+    setDocument({ ...document, viewport: next });
+  }
+
   useEffect(() => {
     if (project && document && viewportProjectRef.current !== project.id) {
       viewportProjectRef.current = project.id;
-      setViewport(document.viewport ?? DEFAULT_VIEWPORT);
+      const stored = document.viewport ?? DEFAULT_VIEWPORT;
+      // A document saved while the editor allowed a wider range would otherwise
+      // reopen at a zoom the server will not accept back, and every save from
+      // then on would fail for a reason the drawing does not explain.
+      setViewport({ ...stored, zoom: clamp(stored.zoom, MIN_ZOOM, MAX_ZOOM) });
     }
   }, [document, project]);
 
@@ -450,6 +491,11 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function clickTerminal(componentId: string, terminal: Terminal): void {
     if (!document) return;
+    // Wiring is rebuilding, not operating.
+    if (simulationRunning) {
+      setNotice('Идёт моделирование: остановите его, чтобы менять соединения.');
+      return;
+    }
     if (reconnectEndpoint && selection?.kind === 'wire') {
       const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, {
         componentId,
@@ -560,9 +606,17 @@ export function useElectronicsWorkbench(projectId: string) {
       wire.vertices[vertexIndex + 1] ??
       (toComponent ? terminalPositionInDocument(document, toComponent, wire.to.terminal) : null);
     if (!previous || !next) return freePoint;
+    // Alignment happens where it was asked for. Holding Shift, or turning on the
+    // 90° mode, squares the bend against its neighbours; otherwise the vertex
+    // goes exactly where the pointer is.
+    //
+    // There used to be a magnet here regardless — two of them, in fact, pulling
+    // against each other, so near a bend the point flipped between axes as the
+    // pointer moved. Making it one magnet was not enough: the choice of which
+    // neighbour to align to changed mid-drag, and the point jumped again. A wire
+    // laid deliberately alongside another wire could not be placed at all.
     if (lockRightAngle) return lockOrthogonalBend(previous, next, point);
-    const alignedToPrevious = magneticWirePoint(previous, freePoint);
-    return magneticWirePoint(next, alignedToPrevious);
+    return freePoint;
   }
 
   function startComponentDrag(
@@ -587,6 +641,16 @@ export function useElectronicsWorkbench(projectId: string) {
       }
       event.stopPropagation();
       event.preventDefault();
+      return;
+    }
+    // A running simulation is a circuit under power: it can be operated, not
+    // rebuilt. Actuators above still work, a potentiometer still turns, and
+    // values stay editable in the inspector — but nothing moves, because moving a
+    // part would change the circuit the running result describes.
+    if (simulationRunning) {
+      setSelection({ kind: 'component', id: component.id, ids: [component.id] });
+      setNotice('Идёт моделирование: остановите его, чтобы переставлять компоненты.');
+      event.stopPropagation();
       return;
     }
     const point = toWorld(event);
@@ -766,8 +830,12 @@ export function useElectronicsWorkbench(projectId: string) {
       const size = renderedSize(entry, component.rotation ?? 0);
       const margin = 20;
       const next = {
-        x: snap(clamp(world.x - drag.offset.x, -1000 + margin, 5000 - size.width - margin)),
-        y: snap(clamp(world.y - drag.offset.y, -1000 + margin, 4000 - size.height - margin)),
+        // Free placement. A component lands where it was dropped; the only thing
+        // allowed to move it afterwards is the breadboard, which pulls its pins
+        // into the holes below. A background grid that captured everything made
+        // the canvas feel sticky and put parts where nobody put them.
+        x: Math.round(clamp(world.x - drag.offset.x, -1000 + margin, 5000 - size.width - margin)),
+        y: Math.round(clamp(world.y - drag.offset.y, -1000 + margin, 4000 - size.height - margin)),
       };
       const delta = { x: next.x - drag.startedAt.x, y: next.y - drag.startedAt.y };
       const positions = Object.fromEntries(
@@ -792,7 +860,7 @@ export function useElectronicsWorkbench(projectId: string) {
       const rect = event.currentTarget.getBoundingClientRect();
       const scaleX = STAGE_WIDTH / pan.startViewport.zoom / rect.width;
       const scaleY = STAGE_HEIGHT / pan.startViewport.zoom / rect.height;
-      applyViewport({
+      moveViewport({
         ...pan.startViewport,
         x: pan.startViewport.x - (event.clientX - pan.startClient.x) * scaleX,
         y: pan.startViewport.y - (event.clientY - pan.startClient.y) * scaleY,
@@ -906,6 +974,13 @@ export function useElectronicsWorkbench(projectId: string) {
     if (panDragRef.current?.pointerId === event.pointerId) {
       panDragRef.current = null;
       setPanning(false);
+      const settled = panViewportRef.current;
+      panViewportRef.current = null;
+      if (settled) {
+        // React and the document both learn the resting place, once.
+        setViewport(settled);
+        commitViewport(settled);
+      }
     }
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -919,6 +994,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     vertexIndex: number,
   ): void {
+    if (simulationRunning) return;
     vertexDragRef.current = { pointerId: event.pointerId, wireId, vertexIndex };
     setSelection({ kind: 'wire', id: wireId, vertexIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
@@ -938,6 +1014,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     endpoint: 'from' | 'to',
   ): void {
+    if (simulationRunning) return;
     endpointDragRef.current = { pointerId: event.pointerId, wireId, endpoint };
     setSelection({ kind: 'wire', id: wireId });
     setReconnectEndpoint(endpoint);
@@ -960,18 +1037,34 @@ export function useElectronicsWorkbench(projectId: string) {
   function handleWheel(event: WheelEvent<SVGSVGElement>): void {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
+    const zoom = clamp(viewport.zoom * (event.deltaY > 0 ? 0.88 : 1.14), MIN_ZOOM, MAX_ZOOM);
+    if (zoom === viewport.zoom) return;
+
+    // Keep whatever is under the pointer under the pointer. The old arithmetic
+    // placed the view from a plain fraction of the element's width, which ignores
+    // the xMidYMid slice cropping the canvas — so the scene drifted sideways on
+    // every step, and kept drifting at the zoom limits where nothing should have
+    // moved at all. Asking the same inverse transform the rest of the editor uses
+    // removes the discrepancy instead of compensating for it.
     const before = toWorld(event);
-    const zoom = clamp(viewport.zoom * (event.deltaY > 0 ? 0.88 : 1.14), 0.35, 3.2);
-    const visibleWidth = STAGE_WIDTH / zoom;
-    const visibleHeight = STAGE_HEIGHT / zoom;
-    const rx = (event.clientX - rect.left) / rect.width;
-    const ry = (event.clientY - rect.top) / rect.height;
-    applyViewport({ x: before.x - rx * visibleWidth, y: before.y - ry * visibleHeight, zoom });
+    const after = clientToWorld(
+      event.clientX,
+      event.clientY,
+      rect,
+      { x: viewport.x, y: viewport.y, zoom },
+      STAGE_WIDTH,
+      STAGE_HEIGHT,
+    );
+    applyViewport({
+      x: viewport.x + (before.x - after.x),
+      y: viewport.y + (before.y - after.y),
+      zoom,
+    });
   }
 
   function zoomBy(factor: number): void {
     const center = visibleCenter();
-    const zoom = clamp(viewport.zoom * factor, 0.35, 3.2);
+    const zoom = clamp(viewport.zoom * factor, MIN_ZOOM, MAX_ZOOM);
     applyViewport({
       x: center.x - STAGE_WIDTH / zoom / 2,
       y: center.y - STAGE_HEIGHT / zoom / 2,
@@ -1188,7 +1281,10 @@ export function useElectronicsWorkbench(projectId: string) {
     return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
   }
 
-  const viewBox = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
+  // While a pan is in flight the element carries a viewBox React did not write.
+  // If anything else re-renders mid-drag, render the position the canvas is
+  // actually at, or React would put it back where the drag started.
+  const viewBox = viewportViewBox(panViewportRef.current ?? viewport, STAGE_WIDTH, STAGE_HEIGHT);
   const pendingStart =
     pendingTerminal && document
       ? (() => {
@@ -1209,6 +1305,7 @@ export function useElectronicsWorkbench(projectId: string) {
     status,
     saveStatus,
     saveCopy,
+    saveError,
     notice,
     setNotice,
     selection,

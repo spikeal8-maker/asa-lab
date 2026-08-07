@@ -434,20 +434,19 @@ export function WorkbenchStage({
           {routedWires.map(({ wire, path, selected }) => {
             return (
               <g key={wire.id}>
-                {selected ? (
-                  <path
-                    className="workbench-wire-selection"
-                    d={path}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ) : null}
+                {/* No non-scaling-stroke on the wire itself. A wire is a physical
+                    object: zoom in and it should thicken along with the parts it
+                    connects. Pinning its width to screen pixels made it look like
+                    a hair stretched across magnified components. The hit path
+                    keeps a constant screen width, because that one is a target for
+                    the pointer rather than a thing being looked at. */}
+                {selected ? <path className="workbench-wire-selection" d={path} /> : null}
                 <path
                   data-testid="schematic-wire"
                   data-wire-id={wire.id}
                   className="workbench-wire"
                   d={path}
                   stroke={wire.color ?? '#e3212b'}
-                  vectorEffect="non-scaling-stroke"
                   pointerEvents="none"
                 />
                 {selected
@@ -504,7 +503,6 @@ export function WorkbenchStage({
               className="workbench-wire-preview"
               d={roundedWirePath(wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices))}
               stroke={c.activeWireColor}
-              vectorEffect="non-scaling-stroke"
             />
           ) : null}
         </g>

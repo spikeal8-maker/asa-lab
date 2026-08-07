@@ -7,6 +7,29 @@ import type { Point, Viewport } from './workbench-geometry';
 export const STAGE_WIDTH = 1600;
 export const STAGE_HEIGHT = 980;
 export const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
+
+/** How far the canvas may be scaled.
+ *
+ * The ceiling used to be 3.2, which stopped while a 5mm LED was still a small
+ * shape on screen — you could not get close enough to see which hole a leg was
+ * in. Owner artwork is vector, so it stays sharp all the way up.
+ *
+ * The numbers are the domain contract's, not a preference: parseElectronicsDocument
+ * rejects a viewport outside 0.1..8, so anything wider here produces a document
+ * the server refuses to store. Raising the ceiling past 8 means changing that
+ * contract first — a canvas that lets you reach a state which cannot be saved is
+ * worse than one that stops.
+ */
+export const MIN_ZOOM = 0.2;
+export const MAX_ZOOM = 8;
+
+/** How close a dragged wire vertex has to be before it lines up with a neighbour.
+ *
+ * Measured on screen and divided by the zoom at the point of use, so the magnet
+ * feels the same whatever the scale. As a world distance it grew with every step
+ * of zoom until it swallowed the area the pointer was working in.
+ */
+export const MAGNET_SCREEN_UNITS = 10;
 export const WIRE_COLORS = ['#e3212b', '#2a3035', '#149447', '#2c62c9', '#e7a400', '#8d45c7'];
 export const DRAG_MIME = 'application/x-asa-electronics-component';
 

@@ -128,6 +128,10 @@ export function useWorkbenchProjectState(projectId: string) {
   const [savedDocument, setSavedDocument] = useState<SchematicDocument | null>(null);
   const [savingDocument, setSavingDocument] = useState<SchematicDocument | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  // Why the last save failed. The reason used to travel in a notice that cleared
+  // itself after two seconds, leaving the word "Ошибка сохранения" and nothing
+  // to act on — the one piece of information that mattered was the first to go.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -256,9 +260,11 @@ export function useWorkbenchProjectState(projectId: string) {
         if (projectIdRef.current !== sentForProject) return null;
         if (!response.ok) {
           setSaveFailed(true);
+          setSaveError(response.error.message);
           setNotice(`Ошибка сохранения: ${response.error.message}`);
           return null;
         }
+        setSaveError(null);
         setResult(response.data.result);
         // The server now holds exactly this document, and nothing more. If the
         // user edited while the request was in flight, that edit is still unsaved
@@ -424,6 +430,7 @@ export function useWorkbenchProjectState(projectId: string) {
     status,
     saveStatus,
     saveCopy,
+    saveError,
     notice,
     setNotice,
     simulationRunning,
