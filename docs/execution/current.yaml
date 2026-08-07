@@ -49,9 +49,9 @@ revisions:
 # validate_control_plane.py enforces all of that.
 execution_lease:
   executor_id: assistant-stabilisation
-  holder: unassigned
-  acquired_at: null
-  expires_at: null
+  holder: assistant-stabilisation
+  acquired_at: '2026-08-07T11:23:10Z'
+  expires_at: '2026-08-07T19:23:10Z'
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
