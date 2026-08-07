@@ -14,7 +14,7 @@ Rendered from the control plane. Do not edit these values here — change
 TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
-status in_progress
+status in_review
 checkpoint phase_6_return_to_review
 execution lease unassigned
 ```
