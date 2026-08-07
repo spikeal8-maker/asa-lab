@@ -582,6 +582,13 @@ def check_state_file_is_canonical(
 
     A governance branch proposing a change to main is the intended way to change
     it, so the rule does not apply there.
+
+    The comparison is against the merge base, not against the tip of main. Against
+    the tip, a branch that has never touched the file fails the moment main's copy
+    changes for reasons of its own — releasing a lease did exactly that — because
+    "inherited and now behind" and "edited here" look identical from the tip. From
+    the merge base they do not: equal means this branch left the file alone,
+    whatever main has done since.
     """
     code, branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     if code != 0:
@@ -590,32 +597,46 @@ def check_state_file_is_canonical(
     if branch != str(task.get("branch")):
         notes.append(f"on {branch}: not the task branch, so it may propose state changes")
         return
-    # Read verbatim rather than through run(), which strips: a stripped blob can
-    # never equal a file ending in a newline, so the comparison would fail on
-    # every branch for a reason that has nothing to do with the content.
-    try:
-        shown = subprocess.run(
-            ["git", "show", "origin/main:docs/execution/current.yaml"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            timeout=90,
-            check=False,
+
+    code, base = run(["git", "merge-base", "HEAD", "origin/main"])
+    if code != 0 or not base:
+        notes.append("no merge base with origin/main; canonical-copy check skipped")
+        return
+
+    def blob(ref: str) -> str | None:
+        """Read verbatim: run() strips, and a stripped blob can never equal a file
+        that ends in a newline, so every comparison would fail for the wrong reason."""
+        try:
+            shown = subprocess.run(
+                ["git", "show", f"{ref}:docs/execution/current.yaml"],
+                cwd=ROOT, capture_output=True, text=True, timeout=90, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return shown.stdout if shown.returncode == 0 else None
+
+    inherited = blob(base)
+    if inherited is None:
+        notes.append("merge-base copy of current.yaml unreadable; comparison skipped")
+        return
+
+    here = CURRENT_PATH.read_text(encoding="utf-8")
+    if here != inherited:
+        errors.append(
+            f"task branch {branch} modifies docs/execution/current.yaml relative to the "
+            "merge base with origin/main; programme state changes on main and is "
+            "inherited, never edited where the work happens"
         )
-    except (OSError, subprocess.SubprocessError) as exc:
-        notes.append(f"origin/main copy of current.yaml unreadable ({exc}); comparison skipped")
         return
-    if shown.returncode != 0:
-        notes.append("origin/main copy of current.yaml unavailable; comparison skipped")
-        return
-    if CURRENT_PATH.read_text(encoding="utf-8") == shown.stdout:
+
+    tip = blob("origin/main")
+    if tip is not None and here != tip:
+        notes.append(
+            "current.yaml is inherited unmodified but behind origin/main; "
+            "merging main will bring it forward"
+        )
+    else:
         notes.append("current.yaml matches origin/main byte for byte")
-        return
-    errors.append(
-        f"task branch {branch} modifies docs/execution/current.yaml relative to "
-        "origin/main; programme state changes on main and is inherited, never edited "
-        "where the work happens"
-    )
 
 
 def main() -> int:
