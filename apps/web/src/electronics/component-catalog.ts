@@ -1,380 +1,322 @@
-import type { ComponentKind } from '../api';
-import type { PreviewKey } from './component-preview';
+import type { ComponentKind, SchematicComponent, Terminal } from '../api';
+import {
+  defaultProductionType,
+  ownerCatalogItems,
+  productionCatalogEntry,
+  type ProductionCatalogItem,
+} from './production-manifest-adapter';
+import {
+  ordinaryLedAsset,
+  ordinaryLedState,
+  physicalToWorld,
+  WORLD_UNITS_PER_MM,
+  type OrdinaryLedColour,
+  type OrdinaryLedFault,
+} from './production-asset-contracts';
 
-/**
- * Visual definitions used by the electronics workbench.
- *
- * Every `asset` below is a sanitised, still-vector SVG copied from the owner's
- * `Компоненты.zip` archive unless `authored` is explicitly false. Active parts
- * expose simulation-aware state assets and exact terminal coordinates from the
- * source package. Future parts are visible in the catalogue as real artwork,
- * but remain disabled until their electrical model exists.
- */
+export type ComponentCategory =
+  | 'basic'
+  | 'all'
+  | 'power'
+  | 'prototyping'
+  | 'passives'
+  | 'semiconductors'
+  | 'input'
+  | 'output'
+  | 'sensors'
+  | 'motors'
+  | 'controllers'
+  | 'instruments'
+  | 'preview';
 
-export type ComponentCategory = 'all' | 'basic' | 'power' | 'inputs' | 'outputs' | 'boards';
+export type SemanticComponentCategory = Exclude<ComponentCategory, 'basic' | 'all' | 'preview'>;
+export type CatalogTier = 'core' | 'supported' | 'preview';
+export type CatalogEntry = ProductionCatalogItem;
 export type ComponentVisualState =
   'default' | 'off' | 'lit' | 'reverse' | 'overcurrent' | 'burned' | 'pressed' | 'on';
 
-export interface TerminalSpec {
-  readonly x: number;
-  readonly y: number;
-  readonly label: string;
-}
-
-export interface CatalogEntry {
-  readonly key: string;
-  readonly kind: ComponentKind | null;
-  readonly label: string;
-  readonly category: Exclude<ComponentCategory, 'all'>;
-  readonly description: string;
-  readonly keywords: readonly string[];
-  readonly preview: PreviewKey;
-  readonly asset: string | null;
-  readonly stateAssets?: Partial<Record<ComponentVisualState, string>>;
-  readonly viewBox: { readonly width: number; readonly height: number };
-  readonly renderWidth: number;
-  readonly terminals: { readonly a: TerminalSpec; readonly b: TerminalSpec } | null;
-  readonly defaultValue: number;
-  readonly unit: string;
-  readonly authored: boolean;
-  readonly sourceFile: string;
+export interface CatalogVariant {
+  readonly variantId: string;
+  readonly variantLabel: string;
+  readonly componentTypeId: string;
+  readonly entry: CatalogEntry;
   readonly enabled: boolean;
+  readonly blockReason: string | null;
 }
 
-const ASSET_ROOT = '/assets/electronics/components';
-
-export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
-  all: 'Основные',
-  basic: 'Основные',
-  power: 'Питание',
-  inputs: 'Входы',
-  outputs: 'Выходы',
-  boards: 'Платы и макетки',
-};
-
-const ACTIVE: CatalogEntry[] = [
-  {
-    key: 'source',
-    kind: 'source',
-    label: 'Батарейный отсек',
-    category: 'power',
-    description: 'Авторский батарейный отсек 2×AA, 3 В.',
-    keywords: ['источник', 'батарея', 'питание', 'aa', '3v', '3 в'],
-    preview: 'source',
-    asset: `${ASSET_ROOT}/power-source.svg`,
-    viewBox: { width: 485, height: 843 },
-    renderWidth: 118,
-    terminals: {
-      a: { x: 295.5, y: 74, label: '+' },
-      b: { x: 190.5, y: 74, label: '−' },
-    },
-    defaultValue: 3,
-    unit: 'В',
-    authored: true,
-    sourceFile: 'aa_holder_2x_sketch_exact_v6.svg',
-    enabled: true,
-  },
-  {
-    key: 'resistor',
-    kind: 'resistor',
-    label: 'Резистор',
-    category: 'basic',
-    description: 'Токоограничивающий резистор. Вектор создан по спецификации ASA Lab.',
-    keywords: ['резистор', 'сопротивление', 'ом', '300'],
-    preview: 'resistor',
-    asset: `${ASSET_ROOT}/resistor.svg`,
-    viewBox: { width: 260, height: 96 },
-    renderWidth: 164,
-    terminals: {
-      a: { x: 12, y: 48, label: '1' },
-      b: { x: 248, y: 48, label: '2' },
-    },
-    defaultValue: 300,
-    unit: 'Ом',
-    authored: false,
-    sourceFile: 'native SVG drawn from owner specification; replace when authored artwork exists',
-    enabled: true,
-  },
-  {
-    key: 'led',
-    kind: 'led',
-    label: 'Светодиод',
-    category: 'outputs',
-    description: 'Авторский светодиод с реальными SVG-кадрами состояния.',
-    keywords: ['светодиод', 'led', 'лампа', 'индикатор', 'красный'],
-    preview: 'led',
-    asset: `${ASSET_ROOT}/led-red-off.svg`,
-    stateAssets: {
-      default: `${ASSET_ROOT}/led-red-off.svg`,
-      off: `${ASSET_ROOT}/led-red-off.svg`,
-      lit: `${ASSET_ROOT}/led-red-lit.svg`,
-      reverse: `${ASSET_ROOT}/led-red-reverse.svg`,
-      overcurrent: `${ASSET_ROOT}/led-red-overcurrent.svg`,
-      burned: `${ASSET_ROOT}/led-red-burned.svg`,
-    },
-    viewBox: { width: 240, height: 400 },
-    renderWidth: 92,
-    terminals: {
-      a: { x: 83, y: 372, label: 'A' },
-      b: { x: 209, y: 372, label: 'K' },
-    },
-    defaultValue: 2,
-    unit: 'В',
-    authored: true,
-    sourceFile: 'led_v9_verified_pack (off/lit/reverse/overcurrent/burned states)',
-    enabled: true,
-  },
-];
-
-function future(options: {
-  key: string;
-  label: string;
-  category: Exclude<ComponentCategory, 'all'>;
-  preview: PreviewKey;
-  description: string;
-  asset?: string;
-  stateAssets?: Partial<Record<ComponentVisualState, string>>;
-  sourceFile?: string;
-  authored?: boolean;
-}): CatalogEntry {
-  return {
-    key: options.key,
-    kind: null,
-    label: options.label,
-    category: options.category,
-    description: options.description,
-    keywords: [options.label.toLowerCase(), options.key],
-    preview: options.preview,
-    asset: options.asset ? `${ASSET_ROOT}/${options.asset}` : null,
-    ...(options.stateAssets
-      ? {
-          stateAssets: Object.fromEntries(
-            Object.entries(options.stateAssets).map(([state, file]) => [
-              state,
-              `${ASSET_ROOT}/${file}`,
-            ]),
-          ),
-        }
-      : {}),
-    viewBox: { width: 100, height: 80 },
-    renderWidth: 100,
-    terminals: null,
-    defaultValue: 0,
-    unit: '',
-    authored: options.authored ?? true,
-    sourceFile: options.sourceFile ?? 'owner component archive / future implementation',
-    enabled: false,
-  };
+export interface ComponentFamily {
+  readonly familyId: string;
+  readonly familyLabel: string;
+  readonly categoryId: SemanticComponentCategory;
+  readonly subcategoryId: string;
+  readonly catalogTier: CatalogTier;
+  readonly catalogOrder: number;
+  readonly defaultVariantId: string;
+  readonly variants: readonly CatalogVariant[];
+  readonly searchAliases: readonly string[];
+  readonly simulationStatus: 'supported' | 'not_yet_supported';
+  readonly assetProvenance: readonly string[];
+  readonly enabled: boolean;
+  readonly appearsInBasic: boolean;
+  readonly blockReason: string | null;
 }
 
-const FUTURE: CatalogEntry[] = [
-  future({
-    key: 'button',
-    label: 'Кнопка',
-    category: 'inputs',
-    preview: 'button',
-    description: 'Авторская кнопка с отпущенным и нажатым SVG-состоянием.',
-    asset: 'button-up.svg',
-    stateAssets: { default: 'button-up.svg', pressed: 'button-down.svg' },
-  }),
-  future({
-    key: 'potentiometer',
-    label: 'Потенциометр',
-    category: 'inputs',
-    preview: 'potentiometer',
-    description: 'Регулируемое сопротивление.',
-    asset: 'potentiometer.svg',
-  }),
-  future({
-    key: 'capacitor',
-    label: 'Конденсатор',
-    category: 'basic',
-    preview: 'capacitor',
-    description: 'Накопление заряда и временные процессы.',
-    asset: 'capacitor.svg',
-  }),
-  future({
-    key: 'slide-switch',
-    label: 'Ползунковый переключатель',
-    category: 'inputs',
-    preview: 'slide-switch',
-    description: 'Авторский переключатель с двумя SVG-положениями.',
-    asset: 'switch-left.svg',
-    stateAssets: { default: 'switch-left.svg', on: 'switch-right.svg' },
-  }),
-  future({
-    key: 'battery-9v',
-    label: 'Батарея 9 В',
-    category: 'power',
-    preview: 'battery-9v',
-    description: 'Источник постоянного напряжения 9 В.',
-    asset: 'battery-9v.svg',
-  }),
-  future({
-    key: 'coin-cell',
-    label: 'Кнопочная батарея 3 В',
-    category: 'power',
-    preview: 'coin-cell',
-    description: 'Компактный источник 3 В. В архиве пока нет отдельного SVG.',
-    authored: false,
-  }),
-  future({
-    key: 'battery-aa',
-    label: 'Батарея 1,5 В',
-    category: 'power',
-    preview: 'battery-aa',
-    description: 'Один элемент AA из авторского набора.',
-    asset: 'battery-aa.svg',
-  }),
-  future({
-    key: 'adjustable-source',
-    label: 'Регулируемый источник',
-    category: 'power',
-    preview: 'battery-9v',
-    description:
-      'Источник с регулируемым напряжением; крупный asset будет подключён отдельным оптимизационным проходом.',
-  }),
-  future({
-    key: 'breadboard',
-    label: 'Малая макетная плата',
-    category: 'boards',
-    preview: 'breadboard',
-    description:
-      'Авторская макетная плата; крупный asset будет подключён вместе с моделью внутренних шин.',
-  }),
-  future({
-    key: 'microbit',
-    label: 'micro:bit',
-    category: 'boards',
-    preview: 'microbit',
-    description: 'Учебная микроконтроллерная плата. Пока только место в каталоге.',
-    authored: false,
-  }),
-  future({
-    key: 'arduino',
-    label: 'Arduino Uno',
-    category: 'boards',
-    preview: 'arduino',
-    description: 'Авторский вектор Arduino будет подключён после оптимизации большого SVG.',
-  }),
-  future({
-    key: 'servo',
-    label: 'Сервопривод',
-    category: 'outputs',
-    preview: 'servo',
-    description: 'Авторский привод будет подключён вместе с моделью управления.',
-  }),
-  future({
-    key: 'motor',
-    label: 'Двигатель постоянного тока',
-    category: 'outputs',
-    preview: 'motor',
-    description: 'Простой электродвигатель.',
-    asset: 'motor.svg',
-  }),
-  future({
-    key: 'buzzer',
-    label: 'Пьезодинамик',
-    category: 'outputs',
-    preview: 'motor',
-    description: 'Звуковой излучатель.',
-    asset: 'buzzer.svg',
-  }),
-  future({
-    key: 'lamp',
-    label: 'Лампа накаливания',
-    category: 'outputs',
-    preview: 'led',
-    description: 'Авторская лампа с выключенным и светящимся SVG-состоянием.',
-    asset: 'lamp-off.svg',
-    stateAssets: { default: 'lamp-off.svg', on: 'lamp-on.svg' },
-  }),
-  future({
-    key: 'transistor',
-    label: 'NPN-транзистор',
-    category: 'basic',
-    preview: 'transistor',
-    description: 'Ключ и усилитель.',
-    asset: 'transistor.svg',
-  }),
-  future({
-    key: 'rgb-led',
-    label: 'RGB-светодиод',
-    category: 'outputs',
-    preview: 'rgb-led',
-    description: 'Авторский RGB-светодиод с отдельными SVG-состояниями.',
-    asset: 'rgb-led-off.svg',
-    stateAssets: { default: 'rgb-led-off.svg', lit: 'rgb-led-lit.svg' },
-  }),
-  future({
-    key: 'diode',
-    label: 'Диод',
-    category: 'basic',
-    preview: 'diode',
-    description: 'Авторский диод; электрическая модель будет добавлена позже.',
-    asset: 'diode.svg',
-  }),
-  future({
-    key: 'photoresistor',
-    label: 'Фоторезистор',
-    category: 'inputs',
-    preview: 'photoresistor',
-    description: 'Датчик освещённости.',
-    asset: 'photoresistor.svg',
-  }),
-  future({
-    key: 'seven-segment',
-    label: 'Семисегментный индикатор',
-    category: 'outputs',
-    preview: 'seven-segment',
-    description: 'Авторский многоконтактный индикатор.',
-    asset: 'seven-segment.svg',
-  }),
+export const CATEGORY_OPTIONS: readonly {
+  readonly id: ComponentCategory;
+  readonly label: string;
+}[] = [
+  { id: 'basic', label: 'Основные' },
+  { id: 'all', label: 'Все компоненты' },
+  { id: 'power', label: 'Питание' },
+  { id: 'prototyping', label: 'Макетки и монтаж' },
+  { id: 'passives', label: 'Пассивные' },
+  { id: 'semiconductors', label: 'Полупроводники' },
+  { id: 'input', label: 'Ввод и управление' },
+  { id: 'output', label: 'Вывод и индикация' },
+  { id: 'sensors', label: 'Датчики' },
+  { id: 'motors', label: 'Двигатели и приводы' },
+  { id: 'controllers', label: 'Контроллеры' },
+  { id: 'instruments', label: 'Измерительные приборы' },
+  { id: 'preview', label: 'В разработке' },
 ];
 
-export const WORKBENCH_CATALOG: readonly CatalogEntry[] = [...ACTIVE, ...FUTURE];
-export const ACTIVE_COMPONENTS: Record<Exclude<ComponentKind, 'wire'>, CatalogEntry> = {
-  source: ACTIVE[0] as CatalogEntry,
-  resistor: ACTIVE[1] as CatalogEntry,
-  led: ACTIVE[2] as CatalogEntry,
-};
+export const CATEGORY_LABELS: Readonly<Record<ComponentCategory, string>> = Object.fromEntries(
+  CATEGORY_OPTIONS.map((category) => [category.id, category.label]),
+) as Readonly<Record<ComponentCategory, string>>;
 
-export function catalogEntry(kind: ComponentKind): CatalogEntry | null {
-  return kind === 'wire' ? null : ACTIVE_COMPONENTS[kind];
+export function workbenchCatalog(): readonly ComponentFamily[] {
+  const ownerItems = ownerCatalogItems();
+  const familiesWithOwnerArt = new Set(
+    ownerItems.filter((item) => item.asset).map((item) => item.familyId),
+  );
+  const grouped = new Map<string, ProductionCatalogItem[]>();
+  for (const item of ownerItems) {
+    // A missing variant must not pollute a family that already has confirmed owner artwork.
+    // Standalone missing families remain visible in the disabled preview category.
+    if (!item.asset && familiesWithOwnerArt.has(item.familyId)) continue;
+    grouped.set(item.familyId, [...(grouped.get(item.familyId) ?? []), item]);
+  }
+  return [...grouped.values()]
+    .map((items): ComponentFamily => {
+      const ordered = [...items].sort(
+        (left, right) =>
+          left.catalogOrder - right.catalogOrder || left.variantId.localeCompare(right.variantId),
+      );
+      const first = ordered[0] as ProductionCatalogItem;
+      const enabled = ordered.some((item) => item.enabled);
+      const defaultItem =
+        ordered.find((item) => item.isDefaultVariant && item.enabled) ??
+        ordered.find((item) => item.enabled) ??
+        ordered.find((item) => item.isDefaultVariant) ??
+        first;
+      const blockReasons = [
+        ...new Set(ordered.flatMap((item) => (item.blockReason ? [item.blockReason] : []))),
+      ];
+      return {
+        familyId: first.familyId,
+        familyLabel: first.familyLabel,
+        categoryId: first.semanticCategory as SemanticComponentCategory,
+        subcategoryId: first.subcategoryId,
+        catalogTier: enabled ? 'core' : 'preview',
+        catalogOrder: first.catalogOrder,
+        defaultVariantId: defaultItem.variantId,
+        variants: ordered.map((item) => ({
+          variantId: item.variantId,
+          variantLabel: item.variantLabel,
+          componentTypeId: item.key,
+          entry: item,
+          enabled: item.enabled,
+          blockReason: item.blockReason,
+        })),
+        searchAliases: [...new Set(ordered.flatMap((item) => item.keywords))],
+        simulationStatus: ordered.some((item) => item.simulationSupported)
+          ? 'supported'
+          : 'not_yet_supported',
+        assetProvenance: [...new Set(ordered.map((item) => item.provenance))],
+        enabled,
+        appearsInBasic: ordered.some((item) => item.appearsInBasic),
+        blockReason: enabled ? null : blockReasons.join('; '),
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.catalogOrder - right.catalogOrder ||
+        left.familyLabel.localeCompare(right.familyLabel, 'ru'),
+    );
+}
+
+export function familyById(familyId: string): ComponentFamily | null {
+  return workbenchCatalog().find((family) => family.familyId === familyId) ?? null;
+}
+
+export function familyForVariant(variantId: string | null | undefined): ComponentFamily | null {
+  if (!variantId) return null;
+  return (
+    workbenchCatalog().find((family) =>
+      family.variants.some((variant) => variant.variantId === variantId),
+    ) ?? null
+  );
+}
+
+export function selectedFamilyVariant(
+  family: ComponentFamily,
+  variantId: string | null | undefined,
+): CatalogVariant {
+  return (
+    family.variants.find((variant) => variant.variantId === variantId && variant.enabled) ??
+    family.variants.find(
+      (variant) => variant.variantId === family.defaultVariantId && variant.enabled,
+    ) ??
+    family.variants.find((variant) => variant.enabled) ??
+    (family.variants[0] as CatalogVariant)
+  );
+}
+
+export function familyMatchesCategory(
+  family: ComponentFamily,
+  category: ComponentCategory,
+): boolean {
+  // The owner expects the default shelf to be a discoverable inventory, like
+  // Tinkercad's "Basic" drawer. Unsupported owner items remain visible but
+  // disabled, so nothing silently disappears from the supplied catalog.
+  if (category === 'basic') return true;
+  if (category === 'all') return true;
+  if (category === 'preview') return !family.enabled;
+  return family.categoryId === category;
+}
+
+export function familySearchText(family: ComponentFamily): string {
+  return [
+    family.familyId,
+    family.familyLabel,
+    family.categoryId,
+    family.subcategoryId,
+    ...family.searchAliases,
+    ...family.variants.flatMap((variant) => [
+      variant.variantId,
+      variant.variantLabel,
+      variant.entry.label,
+      variant.entry.description,
+      ...variant.entry.keywords,
+    ]),
+  ]
+    .join(' ')
+    .toLocaleLowerCase('ru');
+}
+
+export function catalogEntry(
+  componentOrType: SchematicComponent | ComponentKind | string,
+): CatalogEntry | null {
+  if (typeof componentOrType === 'object') {
+    const variant = componentOrType.variantId
+      ? productionCatalogEntry(componentOrType.variantId)
+      : null;
+    if (variant) return variant;
+    const componentTypeId =
+      componentOrType.componentTypeId ?? defaultProductionType(componentOrType.kind);
+    return componentTypeId ? productionCatalogEntry(componentTypeId) : null;
+  }
+  const exact = productionCatalogEntry(componentOrType);
+  if (exact) return exact;
+  const fallbackType = defaultProductionType(componentOrType as ComponentKind);
+  return fallbackType ? productionCatalogEntry(fallbackType) : null;
 }
 
 export function visualAsset(
   entry: CatalogEntry,
-  state: ComponentVisualState = 'default',
-): string | null {
-  return entry.stateAssets?.[state] ?? entry.stateAssets?.default ?? entry.asset;
+  component?: SchematicComponent,
+  visualState: ComponentVisualState = 'default',
+): string {
+  if (!component) return entry.asset;
+  if (entry.key === 'led-5mm') {
+    const colour = (component.stateProperties?.['ledColour'] ?? 'red') as OrdinaryLedColour;
+    const brightness = Math.min(
+      100,
+      Math.max(0, Math.round(Number(component.stateProperties?.['ledBrightness'] ?? 0))),
+    );
+    const explicitFault = (component.stateProperties?.['ledFault'] ?? 'none') as OrdinaryLedFault;
+    const fault: OrdinaryLedFault =
+      visualState === 'reverse' || visualState === 'overcurrent' || visualState === 'burned'
+        ? visualState
+        : explicitFault;
+    // A stopped or electrically-off LED must use the exact 0% owner state. The package
+    // still keeps its selected body colour, but no light is emitted until the solver
+    // reports current through the LED.
+    const normalizedBrightness =
+      visualState === 'default' || visualState === 'off' || visualState === 'reverse'
+        ? 0
+        : brightness;
+    return ordinaryLedAsset(ordinaryLedState(colour, normalizedBrightness, fault));
+  }
+  if (entry.key === 'button-tactile-6mm')
+    return entry.stateAssets[component.state ? 'pressed' : 'released'] ?? entry.asset;
+  if (entry.key === 'switch-spdt')
+    return entry.stateAssets[component.state ? 'right' : 'left'] ?? entry.asset;
+  if (entry.key === 'incandescent-lamp') {
+    const level = String(
+      component.stateProperties?.['lampLevel'] ?? (visualState === 'lit' ? 'on' : 'off'),
+    );
+    return entry.stateAssets[level] ?? entry.asset;
+  }
+  return entry.asset;
+}
+
+export function componentPointPosition(
+  componentOrType: SchematicComponent | ComponentKind | string,
+  origin: { x: number; y: number },
+  pointMm: { xMm: number; yMm: number },
+  rotation = 0,
+): { x: number; y: number } | null {
+  const entry = catalogEntry(componentOrType);
+  if (!entry) return null;
+  const component = typeof componentOrType === 'object' ? componentOrType : null;
+  const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
+  const originalPx = pointMm.xMm * WORLD_UNITS_PER_MM;
+  const originalPy = pointMm.yMm * WORLD_UNITS_PER_MM;
+  const px = component?.stateProperties?.['mirrorX'] === true ? baseWidth - originalPx : originalPx;
+  const py =
+    component?.stateProperties?.['mirrorY'] === true ? baseHeight - originalPy : originalPy;
+  const normalized = ((rotation % 360) + 360) % 360;
+  if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
+  if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };
+  if (normalized === 270) return { x: origin.x + py, y: origin.y + baseWidth - px };
+  return { x: origin.x + px, y: origin.y + py };
 }
 
 export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number; height: number } {
-  const scale = entry.renderWidth / entry.viewBox.width;
-  const original = { width: entry.renderWidth, height: entry.viewBox.height * scale };
+  const original = physicalToWorld(entry.physicalSizeMm);
   return Math.abs(rotation % 180) === 90
     ? { width: original.height, height: original.width }
     : original;
 }
 
 export function terminalPosition(
-  kind: ComponentKind,
+  componentOrType: SchematicComponent | ComponentKind | string,
   origin: { x: number; y: number },
-  terminal: 'a' | 'b',
+  terminal: Terminal,
   rotation = 0,
 ): { x: number; y: number } | null {
-  const entry = catalogEntry(kind);
-  if (!entry?.terminals) return null;
-  const scale = entry.renderWidth / entry.viewBox.width;
-  const baseWidth = entry.renderWidth;
-  const baseHeight = entry.viewBox.height * scale;
-  const spec = entry.terminals[terminal];
-  const px = spec.x * scale;
-  const py = spec.y * scale;
-  const normalized = ((rotation % 360) + 360) % 360;
-  if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
-  if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };
-  if (normalized === 270) return { x: origin.x + py, y: origin.y + baseWidth - px };
-  return { x: origin.x + px, y: origin.y + py };
+  const entry = catalogEntry(componentOrType);
+  const component = typeof componentOrType === 'object' ? componentOrType : null;
+  const aliases: Readonly<Partial<Record<ComponentKind, Readonly<Record<string, string>>>>> = {
+    source: {
+      a: entry?.terminals['BAT+'] ? 'BAT+' : 'positive',
+      b: entry?.terminals['BAT-'] ? 'BAT-' : 'negative',
+    },
+    resistor: { a: 'lead-1', b: 'lead-2' },
+    led: { a: 'anode', b: 'cathode' },
+    button: { a: 'SW-A1', b: 'SW-B1' },
+    switch: { a: 'common', b: component?.state === true ? 'throw-right' : 'throw-left' },
+    potentiometer: { a: 'terminal-1', b: 'terminal-2', wiper: 'wiper' },
+    diode: { a: 'anode', b: 'cathode' },
+    lamp: { a: 'L1', b: 'L2' },
+  };
+  const resolved = entry?.terminals[terminal]
+    ? terminal
+    : component
+      ? (aliases[component.kind]?.[terminal] ?? terminal)
+      : terminal;
+  const spec = entry?.terminals[resolved];
+  if (!entry || !spec) return null;
+  return componentPointPosition(componentOrType, origin, spec, rotation);
 }

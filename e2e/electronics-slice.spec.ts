@@ -79,9 +79,11 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
   await addComponent(page, 'Резистор');
   await addComponent(page, 'Светодиод');
   await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(3);
-  await expect(page.locator('image[href$="power-source.svg"]')).toBeVisible();
-  await expect(page.locator('image[href$="resistor.svg"]')).toBeVisible();
-  await expect(page.locator('image[href$="led-red-off.svg"]')).toBeVisible();
+  await expect(page.locator('image[href$="battery-holders/aa-2.svg"]')).toBeVisible();
+  await expect(
+    page.locator('image[href$="reference-candidates/resistor-axial.svg"]'),
+  ).toBeVisible();
+  await expect(page.locator('image[href$="led/red/led_red_i000.svg"]')).toBeVisible();
 
   await connect(page, 'Батарейный отсек: вывод +', 'Резистор: вывод 1');
   await connect(page, 'Резистор: вывод 2', 'Светодиод: вывод A');
@@ -96,7 +98,7 @@ test('teacher builds and preserves a personal circuit in the Tinkercad-style wor
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.locator('.workbench-stage-status')).toContainText('Моделирование запущено');
   await expect(page.getByTestId('current-reading')).toContainText('3.3 мА');
-  await expect(page.locator('image[href$="led-red-lit.svg"]')).toBeVisible();
+  await expect(page.locator('image[href$="led/red/led_red_i100.svg"]')).toBeVisible();
   await expect(page.getByTestId('diagnostics')).toContainText('Цепь замкнута');
 
   mkdirSync('e2e/artifacts', { recursive: true });

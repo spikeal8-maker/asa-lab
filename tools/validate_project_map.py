@@ -306,17 +306,21 @@ def validate_focus(
         errors.append(f"current_focus {focus} does not match active task {active_tasks}")
 
 
-def changed_files_against_base() -> set[str]:
-    """What this branch changes relative to the branch it will merge into.
+def base_ref_candidate() -> str:
+    """The ref this branch will merge into.
 
-    CI supplies the base through GITHUB_BASE_REF. Locally there is no such
-    variable, and returning nothing here meant the change policy below applied on
-    GitHub and nowhere else: a gate that passes on the machine writing the code
-    and fails after the push is not one gate, it is two. So when the variable is
-    absent the base is origin/main, which is what a pull request would use.
+    CI names it in GITHUB_BASE_REF for pull requests and leaves it unset for
+    pushes. Every caller has to answer against the same base. When the change
+    policy resolved one and its exemption resolved another, a push-event run
+    failed on a branch whose map was already current, while the pull-request run
+    on the identical commit passed.
     """
     base_ref = os.getenv("GITHUB_BASE_REF", "").strip()
-    candidate = f"origin/{base_ref}" if base_ref else "origin/main"
+    return f"origin/{base_ref}" if base_ref else "origin/main"
+
+
+def base_ref_exists(candidate: str) -> bool:
+    """A shallow clone, or a repository with no origin, cannot answer this."""
     try:
         subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
@@ -326,8 +330,20 @@ def changed_files_against_base() -> set[str]:
             capture_output=True,
         )
     except (OSError, subprocess.CalledProcessError):
-        # No such ref in this checkout — a shallow clone, or a fresh repository
-        # with no origin. Silence beats a false accusation.
+        return False
+    return True
+
+
+def changed_files_against_base() -> set[str]:
+    """What this branch changes relative to the branch it will merge into.
+
+    Returning nothing when GITHUB_BASE_REF was absent meant the change policy
+    below applied on GitHub and nowhere else: a gate that passes on the machine
+    writing the code and fails after the push is not one gate, it is two.
+    """
+    candidate = base_ref_candidate()
+    if not base_ref_exists(candidate):
+        # Silence beats a false accusation.
         return set()
     try:
         result = subprocess.run(
@@ -342,6 +358,30 @@ def changed_files_against_base() -> set[str]:
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
+def map_matches_base() -> bool:
+    """Is this branch's map already the same as the base branch's?
+
+    If it is, the base already carries a map describing this work — which happens
+    once a map update has been merged ahead of the code that prompted it. There is
+    then nothing missing, and demanding a further edit would only produce a
+    cosmetic one.
+    """
+    candidate = base_ref_candidate()
+    if not base_ref_exists(candidate):
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--quiet", candidate, "--", "docs/project-map/project-map.yaml"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def validate_map_change_policy(errors: list[str]) -> None:
     changed = changed_files_against_base()
     if not changed:
@@ -353,7 +393,10 @@ def validate_map_change_policy(errors: list[str]) -> None:
     )
     map_changed = "docs/project-map/project-map.yaml" in changed
     rendered_changed = "docs/project-map/PROJECT_MAP.md" in changed
-    if architecture_changed and not map_changed:
+    # The rule catches code that leaves the map behind. A long-lived branch whose
+    # map update already merged into the base has not left it behind — the map is
+    # simply current in both places, and the diff has nothing left to show.
+    if architecture_changed and not map_changed and not map_matches_base():
         errors.append("Architecture-sensitive files changed without project-map.yaml update")
     if map_changed and not rendered_changed:
         errors.append("project-map.yaml changed without PROJECT_MAP.md update")

@@ -65,17 +65,24 @@ def _checkout_contains_task_branch(branch: str) -> bool:
 
 
 def _remote_branch_exists(branch: str) -> bool:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
-            cwd=ROOT,
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return result.returncode == 0
+    """A missing remote-tracking ref only means this clone never fetched it.
+
+    Single-branch and shallow clones are ordinary; asking the remote keeps the
+    answer about the branch rather than about the clone.
+    """
+    for command in (
+        ["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
+        ["git", "ls-remote", "--exit-code", "--heads", "origin", branch],
+    ):
+        try:
+            result = subprocess.run(
+                command, cwd=ROOT, capture_output=True, timeout=30, check=False
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode == 0:
+            return True
+    return False
 
 
 _CURRENT_TASK = _control_plane_task()

@@ -1,6 +1,6 @@
+import { useRef } from 'react';
 import type { PublicUser } from '../api';
 import {
-  ArrowLeftIcon,
   CheckIcon,
   ChevronIcon,
   CircuitIcon,
@@ -8,21 +8,29 @@ import {
   CommentIcon,
   DeleteIcon,
   DuplicateIcon,
-  FitIcon,
-  InspectIcon,
   ListIcon,
+  MirrorIcon,
+  PasteIcon,
   PlayIcon,
   RedoIcon,
   RotateIcon,
-  SaveIcon,
   SchematicIcon,
-  ShareIcon,
   StopIcon,
   UndoIcon,
+  ViewIcon,
   WireIcon,
 } from './workbench-icons';
-import { WIRE_COLORS, initials, type ToolButtonProps } from './workbench-model';
+import { WIRE_COLORS, initials, type ToolButtonProps, type WorkbenchView } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+
+const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
+  '#e3212b': 'Красный',
+  '#2a3035': 'Чёрный',
+  '#149447': 'Зелёный',
+  '#2c62c9': 'Синий',
+  '#e7a400': 'Жёлтый',
+  '#8d45c7': 'Фиолетовый',
+};
 
 function ToolButton({
   label,
@@ -50,132 +58,240 @@ export function WorkbenchHeader({
   controller: c,
   onBack,
   user,
+  view,
+  onViewChange,
+  notesOpen,
+  onToggleNotes,
+  onToggleCode,
+  onOpenShare,
+  onExportView,
 }: {
   controller: ElectronicsWorkbenchController;
   onBack: () => void;
   user: PublicUser;
+  view: WorkbenchView;
+  onViewChange: (view: WorkbenchView) => void;
+  notesOpen: boolean;
+  onToggleNotes: () => void;
+  onToggleCode: () => void;
+  onOpenShare: () => void;
+  onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
+  const hasComponentSelection = c.selection?.kind === 'component';
+  const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
   return (
     <>
       <header className="workbench-header">
         <div className="workbench-brand-zone">
-          <button
-            type="button"
-            className="workbench-back"
-            onClick={onBack}
-            aria-label="Вернуться к проектам"
-            title="Вернуться к проектам"
-          >
-            <ArrowLeftIcon />
-          </button>
           <button type="button" className="workbench-brand" onClick={onBack} aria-label="ASA Lab">
-            <span className="workbench-brand-grid" aria-hidden="true">
-              <span>A</span>
-              <span>S</span>
-              <span>A</span>
-              <span>LAB</span>
-            </span>
+            {/* The project's own mark — the flask that is also the favicon — and its
+                name beside it. What stood here was a four-cell grid of letters
+                imitating another product's logo, in the one place where this
+                editor should not resemble anything but itself. */}
+            <img
+              className="workbench-brand-mark"
+              src="/asa-lab-mark.svg"
+              alt=""
+              aria-hidden="true"
+            />
+            <span className="workbench-brand-name">ASA Lab</span>
           </button>
           <input
             className="workbench-title-input"
             value={c.projectTitle}
             aria-label="Название проекта"
             maxLength={255}
-            onChange={(e) => c.setProjectTitle(e.target.value)}
+            onChange={(event) => c.setProjectTitle(event.target.value)}
             onBlur={() => void c.renameProject()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-              if (e.key === 'Escape') {
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+              if (event.key === 'Escape') {
                 c.setProjectTitle(c.project?.title ?? '');
-                e.currentTarget.blur();
+                event.currentTarget.blur();
               }
             }}
           />
         </div>
-        <span className={`workbench-save-state ${c.saveStatus}`}>
+        {/* When a save fails, say what the server refused. The reason used to
+            appear in a notice that cleared itself after two seconds, leaving the
+            word "Ошибка сохранения" alone on screen with nothing to act on. */}
+        <span className={`workbench-save-state ${c.saveStatus}`} title={c.saveError ?? undefined}>
           {c.saveStatus === 'saved' ? <CheckIcon /> : null}
-          {c.saveCopy[c.saveStatus]}
+          {c.saveStatus === 'error' && c.saveError
+            ? `${c.saveCopy.error}: ${c.saveError}`
+            : c.saveCopy[c.saveStatus]}
         </span>
-        <div className="workbench-mode-buttons" aria-label="Представления проекта">
-          <button className="active" type="button" title="Макет">
-            <CircuitIcon />
-          </button>
-          <button type="button" disabled title="Схема появится позже">
-            <SchematicIcon />
-          </button>
-          <button type="button" disabled title="Список компонентов появится позже">
-            <ListIcon />
-          </button>
+        {/* Named tabs rather than bare icons. Three unlabelled squares gave no way
+            to tell the breadboard from the schematic without clicking one. */}
+        <nav className="workbench-mode-buttons" aria-label="Представления проекта">
+          {(
+            [
+              { id: 'breadboard', label: 'Цепи', icon: <CircuitIcon /> },
+              { id: 'schematic', label: 'Схемы', icon: <SchematicIcon /> },
+              { id: 'bom', label: 'Компоненты', icon: <ListIcon /> },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              className={view === tab.id ? 'active' : ''}
+              type="button"
+              title={tab.label}
+              aria-label={tab.label}
+              aria-pressed={view === tab.id}
+              onClick={() => onViewChange(tab.id)}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
           <span className="workbench-avatar" title={user.displayName}>
             {initials(user.displayName)}
           </span>
-        </div>
+        </nav>
       </header>
-      <div className="workbench-toolbar" role="toolbar" aria-label="Инструменты редактора">
-        <div className="workbench-toolbar-group">
-          <ToolButton
-            label="Дублировать"
-            onClick={c.duplicateSelected}
-            disabled={c.selection?.kind !== 'component'}
-          >
-            <DuplicateIcon />
-          </ToolButton>
-          <ToolButton label="Удалить" onClick={c.removeSelection} disabled={!c.selection} danger>
-            <DeleteIcon />
-          </ToolButton>
-          <ToolButton label="Отменить" onClick={c.undo} disabled={!c.canUndo}>
-            <UndoIcon />
-          </ToolButton>
-          <ToolButton label="Повторить" onClick={c.redo} disabled={!c.canRedo}>
-            <RedoIcon />
-          </ToolButton>
-          <ToolButton label="Комментарии — следующий этап" disabled>
-            <CommentIcon />
-          </ToolButton>
-          <ToolButton label="Параметры выделения" active={Boolean(c.selection)}>
-            <InspectIcon />
-          </ToolButton>
-          <span className="workbench-toolbar-divider" />
-          <div className="workbench-wire-color" title="Цвет провода">
-            <span style={{ background: c.activeWireColor }} />
-            <select
-              value={c.activeWireColor}
-              onChange={(e) => c.setWireColor(e.target.value)}
-              aria-label="Цвет провода"
+      <div
+        className={`workbench-toolbar ${view}`}
+        role="toolbar"
+        aria-label="Инструменты редактора"
+      >
+        {view === 'breadboard' ? (
+          <div className="workbench-toolbar-group workbench-breadboard-tools">
+            <ToolButton
+              label="Копировать (Ctrl+C)"
+              onClick={c.copySelected}
+              disabled={!hasComponentSelection}
             >
-              {WIRE_COLORS.map((color) => (
-                <option key={color} value={color}>
-                  {color}
-                </option>
-              ))}
-            </select>
-            <ChevronIcon />
+              <DuplicateIcon />
+            </ToolButton>
+            <ToolButton
+              label="Вставить (Ctrl+V)"
+              onClick={c.pasteCopied}
+              disabled={!c.hasClipboard}
+            >
+              <PasteIcon />
+            </ToolButton>
+            <ToolButton
+              label="Удалить (Delete)"
+              onClick={c.removeSelection}
+              disabled={!c.selection}
+              danger
+            >
+              <DeleteIcon />
+            </ToolButton>
+            <span className="workbench-toolbar-divider" />
+            <ToolButton label="Отменить (Ctrl+Z)" onClick={c.undo} disabled={!c.canUndo}>
+              <UndoIcon />
+            </ToolButton>
+            <ToolButton label="Повторить (Ctrl+Shift+Z)" onClick={c.redo} disabled={!c.canRedo}>
+              <RedoIcon />
+            </ToolButton>
+            <span className="workbench-toolbar-divider" />
+            <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
+              <CommentIcon />
+            </ToolButton>
+            <ToolButton
+              label="Показать или скрыть заметки"
+              active={notesOpen}
+              onClick={onToggleNotes}
+            >
+              <ViewIcon />
+            </ToolButton>
+            <span className="workbench-toolbar-gap small" />
+            <details className="workbench-wire-color" ref={wireColorMenuRef}>
+              <summary aria-label="Цвет провода" title="Цвет провода">
+                <span style={{ background: c.activeWireColor }} />
+                <ChevronIcon />
+              </summary>
+              <div className="workbench-wire-color-menu" role="menu" aria-label="Цвет провода">
+                {WIRE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={c.activeWireColor === color}
+                    className={c.activeWireColor === color ? 'active' : ''}
+                    onClick={() => {
+                      c.setWireColor(color);
+                      wireColorMenuRef.current?.removeAttribute('open');
+                    }}
+                  >
+                    <span style={{ background: color }} />
+                    {WIRE_COLOR_NAMES[color]}
+                  </button>
+                ))}
+              </div>
+            </details>
+            <span className="workbench-toolbar-gap small" />
+            <button
+              type="button"
+              className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
+              aria-label="Автоматическая прокладка провода под 90 градусов"
+              aria-pressed={c.orthogonalWireMode}
+              title={
+                c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
+              }
+              onClick={c.toggleWireRoute}
+              style={{ color: c.activeWireColor }}
+            >
+              <WireIcon />
+              <ChevronIcon />
+            </button>
+            <span className="workbench-toolbar-gap rotate" />
+            <ToolButton
+              label="Повернуть (R)"
+              onClick={c.rotateSelected}
+              disabled={!hasComponentSelection}
+            >
+              <RotateIcon />
+            </ToolButton>
+            <ToolButton
+              label="Отразить"
+              onClick={() => c.mirrorSelected('horizontal')}
+              disabled={!hasComponentSelection}
+            >
+              <MirrorIcon />
+            </ToolButton>
           </div>
-          <ToolButton
-            label="Изменить изгиб провода"
-            onClick={c.toggleWireRoute}
-            disabled={c.selection?.kind !== 'wire'}
-          >
-            <WireIcon />
-          </ToolButton>
-          <ToolButton
-            label="Повернуть компонент (R)"
-            onClick={c.rotateSelected}
-            disabled={c.selection?.kind !== 'component'}
-          >
-            <RotateIcon />
-          </ToolButton>
-          <ToolButton label="Подогнать под экран" onClick={c.fitScene}>
-            <FitIcon />
-          </ToolButton>
-        </div>
+        ) : (
+          <div className="workbench-toolbar-group workbench-view-tools">
+            <strong>{view === 'schematic' ? 'Схема' : 'Список компонентов'}</strong>
+            {view === 'schematic' ? (
+              <>
+                <ToolButton
+                  label="Повернуть (R)"
+                  onClick={c.rotateSelected}
+                  disabled={!hasComponentSelection}
+                >
+                  <RotateIcon />
+                </ToolButton>
+                <ToolButton
+                  label="Отразить"
+                  onClick={() => c.mirrorSelected('horizontal')}
+                  disabled={!hasComponentSelection}
+                >
+                  <MirrorIcon />
+                </ToolButton>
+              </>
+            ) : null}
+            <button
+              type="button"
+              className="workbench-export-button"
+              onClick={() => onExportView(view)}
+            >
+              {view === 'schematic' ? 'Скачать PDF' : 'Скачать CSV'}
+            </button>
+          </div>
+        )}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
           <button
             type="button"
             className="workbench-pill"
+            title="Редактор кода пока недоступен в локальной версии"
+            aria-label="Код — пока недоступен"
+            aria-disabled="true"
             disabled
-            title="Редактор кода появится с Arduino"
+            onClick={onToggleCode}
           >
             <CodeIcon /> Код
           </button>
@@ -184,6 +300,8 @@ export function WorkbenchHeader({
             className={`workbench-pill simulate${c.simulationRunning ? ' running' : ''}`}
             onClick={() => void c.toggleSimulation()}
             disabled={c.busy}
+            data-simulation-status={c.simulationStatus}
+            aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
@@ -191,14 +309,14 @@ export function WorkbenchHeader({
           <button
             type="button"
             className="workbench-pill"
-            onClick={() => void c.checkpoint()}
-            disabled={c.busy}
+            title="Публикация и совместный доступ пока недоступны в локальной версии"
+            aria-label="Отправить — пока недоступно"
+            aria-disabled="true"
+            disabled
+            onClick={onOpenShare}
           >
-            <ShareIcon /> Создать версию
+            Отправить
           </button>
-          <ToolButton label="Сохранить сейчас" onClick={() => void c.saveNow()} disabled={c.busy}>
-            <SaveIcon />
-          </ToolButton>
         </div>
       </div>
     </>

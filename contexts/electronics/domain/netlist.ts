@@ -1,6 +1,4 @@
-import type { ElectronicsDocument, Terminal } from './document.js';
-
-/** Netlist: terminals joined by wires and direct links collapse into nodes. */
+import { terminalsForComponent, type ElectronicsDocument, type Terminal } from './document.js';
 
 export interface TerminalRef {
   readonly componentId: string;
@@ -8,13 +6,29 @@ export interface TerminalRef {
 }
 
 export interface Netlist {
-  /** node index per "componentId:terminal" key */
   readonly nodeOf: ReadonlyMap<string, number>;
   readonly nodeCount: number;
+  readonly terminalsByNode: ReadonlyMap<number, readonly string[]>;
 }
 
 export function terminalKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
+}
+
+/**
+ * Code-unit ordering, deliberately not `localeCompare`.
+ *
+ * Net numbering is derived from this order and reaches the caller as `net-0`,
+ * `net-1`, … `localeCompare` without an explicit locale uses the runtime's ICU
+ * data, which differs between a browser and a small-icu Node build — notably in
+ * how it weights the `:` and `-` that appear in every terminal key. The
+ * simulation contract requires the browser and the server to produce
+ * byte-identical results from the same document, so the comparison must not
+ * depend on the runtime at all.
+ */
+function compareTerminalKeys(left: string, right: string): number {
+  if (left < right) return -1;
+  return left > right ? 1 : 0;
 }
 
 class UnionFind {
@@ -26,9 +40,7 @@ class UnionFind {
       this.parent.set(key, key);
       return key;
     }
-    if (seen === key) {
-      return key;
-    }
+    if (seen === key) return key;
     const root = this.find(seen);
     this.parent.set(key, root);
     return root;
@@ -37,21 +49,25 @@ class UnionFind {
   union(left: string, right: string): void {
     const a = this.find(left);
     const b = this.find(right);
-    if (a !== b) {
-      this.parent.set(a, b);
-    }
+    if (a !== b) this.parent.set(a, b);
   }
 }
 
-/**
- * Build the netlist. Wires are not circuit elements: both of their terminals
- * belong to the same node, so a wire simply merges what it connects.
- */
+/** Connections are ideal wires; legacy `wire` components also collapse to a node. */
 export function buildNetlist(document: ElectronicsDocument): Netlist {
   const union = new UnionFind();
   for (const component of document.components) {
-    union.find(terminalKey(component.id, 'a'));
-    union.find(terminalKey(component.id, 'b'));
+    const terminals = terminalsForComponent(component);
+    for (const terminal of terminals) union.find(terminalKey(component.id, terminal));
+    for (const [left, right] of component.internalConnections ?? []) {
+      union.union(terminalKey(component.id, left), terminalKey(component.id, right));
+    }
+    for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
+      union.union(
+        terminalKey(component.id, pinId),
+        terminalKey(binding.breadboardComponentId, binding.holeId),
+      );
+    }
     if (component.kind === 'wire') {
       union.union(terminalKey(component.id, 'a'), terminalKey(component.id, 'b'));
     }
@@ -63,19 +79,27 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     );
   }
 
-  const nodeOf = new Map<string, number>();
-  const rootToIndex = new Map<string, number>();
-  for (const component of document.components) {
-    for (const terminal of ['a', 'b'] as const) {
-      const key = terminalKey(component.id, terminal);
-      const root = union.find(key);
-      let index = rootToIndex.get(root);
-      if (index === undefined) {
-        index = rootToIndex.size;
-        rootToIndex.set(root, index);
-      }
-      nodeOf.set(key, index);
-    }
+  const keys = document.components
+    .flatMap((component) =>
+      terminalsForComponent(component).map((terminal) => terminalKey(component.id, terminal)),
+    )
+    .sort(compareTerminalKeys);
+  const keysByRoot = new Map<string, string[]>();
+  for (const key of keys) {
+    const root = union.find(key);
+    const members = keysByRoot.get(root) ?? [];
+    members.push(key);
+    keysByRoot.set(root, members);
   }
-  return { nodeOf, nodeCount: rootToIndex.size };
+  const canonicalGroups = [...keysByRoot.values()]
+    .map((members) => members.sort(compareTerminalKeys))
+    .sort((left, right) => compareTerminalKeys(left[0] ?? '', right[0] ?? ''));
+
+  const nodeOf = new Map<string, number>();
+  const terminalsByNode = new Map<number, readonly string[]>();
+  for (const [index, members] of canonicalGroups.entries()) {
+    terminalsByNode.set(index, members);
+    for (const key of members) nodeOf.set(key, index);
+  }
+  return { nodeOf, nodeCount: canonicalGroups.length, terminalsByNode };
 }

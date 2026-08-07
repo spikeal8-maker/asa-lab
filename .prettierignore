@@ -21,3 +21,8 @@ docs
 apps/web/public/assets/electronics/owner-audit/breadboard-footprint-map.json
 apps/web/public/assets/electronics/owner-audit/manifest.json
 apps/web/public/assets/electronics/owner-audit/state-family-map.json
+
+# Recovery files contain explicit long owner-archive paths. They remain subject to
+# ESLint, strict TypeScript checks and focused tests; only reflow is suppressed.
+apps/web/src/electronics/production-manifest-adapter.ts
+apps/web/src/electronics/testing/production-assets.spec.ts

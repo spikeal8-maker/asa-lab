@@ -17,7 +17,7 @@ export function snap(value: number, grid = 10): number {
   return Math.round(value / grid) * grid;
 }
 
-export function roundedOrthogonalPath(points: readonly Point[], radius = 12): string {
+export function roundedWirePath(points: readonly Point[], radius = 12): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
@@ -57,8 +57,64 @@ export function defaultWirePoints(from: Point, to: Point): Point[] {
   return [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
 }
 
+export function lockOrthogonalPoint(anchor: Point, point: Point): Point {
+  const snapped = { x: snap(point.x), y: snap(point.y) };
+  return Math.abs(snapped.x - anchor.x) >= Math.abs(snapped.y - anchor.y)
+    ? { x: snapped.x, y: anchor.y }
+    : { x: anchor.x, y: snapped.y };
+}
+
+export function lockOrthogonalBend(previous: Point, next: Point, point: Point): Point {
+  const snapped = { x: snap(point.x), y: snap(point.y) };
+  const candidates = [
+    { x: previous.x, y: next.y },
+    { x: next.x, y: previous.y },
+  ];
+  return candidates.reduce((closest, candidate) => {
+    const closestDistance = Math.hypot(closest.x - snapped.x, closest.y - snapped.y);
+    const candidateDistance = Math.hypot(candidate.x - snapped.x, candidate.y - snapped.y);
+    return candidateDistance < closestDistance ? candidate : closest;
+  });
+}
+
+/** A wire point placed by hand, outside the 90° mode.
+ *
+ * It used to be pulled onto the same ten-unit grid as everything else, which is
+ * exactly what "free" was not. Alignment belongs to the orthogonal mode, where
+ * it was asked for; here the point belongs where it was put.
+ */
+export function freeWirePoint(point: Point): Point {
+  return { x: Math.round(point.x), y: Math.round(point.y) };
+}
+
+export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): Point {
+  const horizontalDistance = Math.abs(point.y - anchor.y);
+  const verticalDistance = Math.abs(point.x - anchor.x);
+  if (horizontalDistance <= threshold && horizontalDistance <= verticalDistance) {
+    return { x: point.x, y: anchor.y };
+  }
+  if (verticalDistance <= threshold) {
+    return { x: anchor.x, y: point.y };
+  }
+  return point;
+}
+
+export function completeOrthogonalRoute(
+  start: Point,
+  target: Point,
+  vertices: readonly Point[],
+): readonly Point[] {
+  const anchor = vertices[vertices.length - 1] ?? start;
+  const elbow = lockOrthogonalPoint(anchor, target);
+  const isAnchor = elbow.x === anchor.x && elbow.y === anchor.y;
+  const isTarget = elbow.x === target.x && elbow.y === target.y;
+  return isAnchor || isTarget ? vertices : [...vertices, elbow];
+}
+
 export function wirePoints(from: Point, to: Point, vertices?: readonly Point[]): Point[] {
-  if (vertices && vertices.length > 0) return [from, ...vertices, to];
+  if (vertices !== undefined) {
+    return [from, ...vertices, to];
+  }
   return defaultWirePoints(from, to);
 }
 
@@ -88,9 +144,14 @@ export function clientToWorld(
   canvasHeight: number,
 ): Point {
   const box = viewportViewBox(viewport, canvasWidth, canvasHeight);
+  const scale = Math.max(rect.width / box.width, rect.height / box.height);
+  const renderedWidth = box.width * scale;
+  const renderedHeight = box.height * scale;
+  const offsetX = (rect.width - renderedWidth) / 2;
+  const offsetY = (rect.height - renderedHeight) / 2;
   return {
-    x: box.x + ((clientX - rect.left) / rect.width) * box.width,
-    y: box.y + ((clientY - rect.top) / rect.height) * box.height,
+    x: box.x + (clientX - rect.left - offsetX) / scale,
+    y: box.y + (clientY - rect.top - offsetY) / scale,
   };
 }
 

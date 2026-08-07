@@ -9,6 +9,7 @@
   },
   "include": [
     "index.ts",
+    "simulation.ts",
     "domain/**/*.ts",
     "application/**/*.ts",
     "infrastructure/**/*.ts",

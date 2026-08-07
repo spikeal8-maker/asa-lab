@@ -100,28 +100,59 @@ export interface ProjectVersion {
   createdAt: string;
 }
 
-export type ComponentKind = 'source' | 'resistor' | 'led' | 'wire';
+export type ComponentKind =
+  | 'source'
+  | 'resistor'
+  | 'led'
+  | 'rgb-led'
+  | 'seven-segment'
+  | 'button'
+  | 'switch'
+  | 'potentiometer'
+  | 'diode'
+  | 'lamp'
+  | 'breadboard'
+  | 'visual'
+  | 'wire';
+export type Terminal = string;
+export type ProductionStateValue = string | number | boolean | readonly string[];
+
+export interface BreadboardHoleBinding {
+  breadboardComponentId: string;
+  holeId: string;
+}
 
 export interface SchematicComponent {
   id: string;
   kind: ComponentKind;
+  componentTypeId?: string;
+  variantId?: string;
   position: { x: number; y: number };
   value: number;
   rotation?: 0 | 90 | 180 | 270;
+  name?: string;
+  state?: boolean;
+  wiperPosition?: number;
+  stateProperties?: Record<string, ProductionStateValue>;
+  pinIds?: string[];
+  holeBindings?: Record<string, BreadboardHoleBinding>;
+  internalConnections?: [string, string][];
 }
 
 export interface SchematicConnection {
   id: string;
-  from: { componentId: string; terminal: 'a' | 'b' };
-  to: { componentId: string; terminal: 'a' | 'b' };
+  from: { componentId: string; terminal: Terminal };
+  to: { componentId: string; terminal: Terminal };
   color?: string;
   vertices?: { x: number; y: number }[];
 }
 
 export interface SchematicDocument {
-  schemaVersion: 1;
+  schemaVersion: 3;
   components: SchematicComponent[];
   connections: SchematicConnection[];
+  viewport: { x: number; y: number; zoom: number };
+  simulation: { running: boolean; maxIterations: number };
 }
 
 export interface Diagnostic {
@@ -129,20 +160,46 @@ export interface Diagnostic {
   severity: 'info' | 'warning' | 'error';
   message: string;
   componentIds?: string[];
+  wireIds?: string[];
+  netIds?: string[];
+  suggestedAction?: string;
+  anchors?: { kind: 'component' | 'wire' | 'net'; id: string }[];
 }
 
 export interface ComponentResult {
   componentId: string;
   voltageDrop: number;
   current: number;
+  terminalVoltages: Partial<Record<Terminal, number>>;
+  power?: number;
+  brightness?: number;
+  branchCurrents?: Record<string, number>;
+  branchBrightness?: Record<string, number>;
   lit?: boolean;
+  energized?: boolean;
+  currentUtilizationPercent?: number;
+  stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
 }
 
 export interface SolveResult {
   solved: boolean;
+  status: 'solved' | 'invalid' | 'unsupported' | 'nonconvergent';
   current: number;
   components: ComponentResult[];
+  nodes: { id: string; voltage: number; terminals: string[] }[];
   diagnostics: Diagnostic[];
+  iterations: number;
+  numericalResidual: number;
+  numericalTolerance: number;
+  quality?: {
+    finite: boolean;
+    passed: boolean;
+    maxKclResidualAmp: number;
+    maxSourceVoltageResidualVolt: number;
+    kclToleranceAmp: number;
+    sourceVoltageToleranceVolt: number;
+  };
+  topologySignature?: string;
 }
 
 export interface ApiError {

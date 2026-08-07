@@ -1,13 +1,14 @@
-<svg preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
      version="1.1"
-    
-    
+     width="43.84mm"
+     height="76.2mm"
      viewBox="0 0 485 843"
      data-component-type="aa-battery-holder"
      data-component-id="aa_holder_2x_sketch_exact_v6">
   <title>AA holder 2x — normalized full-size battery SVG v6</title>
   <desc>Pure SVG. All battery cells share one normalized full visual size; 2x and 3x no longer have shortened cells.</desc>
-  
+  <metadata>{"id": "aa_holder_2x_sketch_exact_v6", "type": "aa-battery-holder", "variant": "2x", "style": "normalized linear sketch style", "fix": "All variants use identical battery visual size; fixes 2x and 3x short batteries.", "layout": {"rows": 1, "columns": 2}, "sourcePngSizePx": {"width": 485, "height": 843}, "displayMm": {"width": 43.8399, "height": 76.2}, "nominalVoltageAlkaline": 3.0, "chemistryProfiles": {"alkaline": {"cellVoltage": 1.5, "packVoltage": 3.0}, "nimh": {"cellVoltage": 1.2, "packVoltage": 2.4}}, "aaReferenceMm": {"diameter": 14.5, "length": 50.5}, "visualBatteryPx": {"widthA": 191, "widthB": 190, "height": 697, "topA": 88, "topB": 82}, "snapPoints": {"BAT-": {"xMm": 16.8399, "yMm": 6.05}, "BAT+": {"xMm": 26.9999, "yMm": 6.05}, "spacingMm": 10.16}, "containsRaster": false, "seriesConnection": ["cell1+ -> cell2-"]}</metadata>
 
   <defs>
     <linearGradient id="caseGrad" x1="0" y1="0" x2="0" y2="1">
