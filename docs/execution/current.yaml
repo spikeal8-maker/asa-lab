@@ -26,7 +26,7 @@ task:
   pr_draft: false
   # Returned from in_review on 2026-08-05: the general repository gate fails on
   # the branch head, so no release-candidate claim is currently defensible.
-  status: in_review
+  status: in_progress
   checkpoint: phase_6_return_to_review
   owner_acceptance: pending
 
