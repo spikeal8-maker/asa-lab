@@ -1,24 +1,35 @@
 #!/usr/bin/env python3
-"""Every runtime asset is exactly the file the owner catalog names, and nothing else.
+"""Every asset in the runtime tree is exactly the file the owner declared, and nothing else.
 
-The catalog declares `byte_exact_owner_svg_only` and records a SHA-256 beside each
-runtime path. A promise is worth what checks it, so this exits non-zero on:
+Two documents declare owner art, and a file is legitimate if either names it:
 
-  * a named runtime path that is absent, or is not an SVG;
-  * a runtime path with no hash contract at all;
-  * bytes that do not hash to the recorded runtimeSha256;
+  * `owner-catalog/manifest.json` — what the editor loads, one `runtimeSha256`
+    per `runtimePath`, under the `byte_exact_owner_svg_only` policy;
+  * `owner-audit/manifest.json` — the import record, one `sha256` per
+    `importedFile`, covering the catalogued art and the reference material
+    imported beside it.
+
+A promise is worth what checks it, so this exits non-zero on:
+
+  * a declared path that is absent, or is not an SVG;
+  * a declared path with no hash contract at all;
+  * bytes that do not hash to the recorded hash;
   * sourceSha256 disagreeing with runtimeSha256 under the byte-exact policy;
+  * the two manifests recording different hashes for one file;
   * two records claiming the same path with different hashes;
   * embedded raster, a script element, or an external reference;
   * a path escaping the asset root, or carrying a query or fragment;
-  * any file in the runtime tree the catalog does not name.
+  * any file in the runtime tree that neither manifest declares.
 
-Membership is decided by the exact value of a `runtimePath` key. Two earlier
-versions of this file got that wrong in two different ways: the first compared
-file names, so a same-named file in another directory was taken for the asset; the
-second collected any string that looked like an asset path, so an unrelated field
-could have promoted a file to runtime art by accident. Both are why the collector
-below records where each path came from.
+Membership is decided by the exact value of a `runtimePath` or `importedFile`
+key. Three earlier versions of this file got that wrong in three different ways:
+the first compared file names, so a same-named file in another directory was
+taken for the asset; the second collected any string that looked like an asset
+path, so an unrelated field could have promoted a file to runtime art by
+accident; the third read the catalog alone and so called thirty-five files
+undeclared that the audit manifest declares and pins by hash — it would have had
+them deleted as dead weight. That is why the collectors below record where each
+path came from, and why a file may be declared by either document.
 """
 
 from __future__ import annotations
@@ -29,10 +40,12 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_RELATIVE = "apps/web/public/assets/electronics/owner-catalog/manifest.json"
+AUDIT_RELATIVE = "apps/web/public/assets/electronics/owner-audit/manifest.json"
+AUDIT_ROOT_RELATIVE = "apps/web/public/assets/electronics/owner-audit"
 WEB_PUBLIC_RELATIVE = "apps/web/public"
 RUNTIME_TREE_RELATIVE = "apps/web/public/assets/electronics/owner-audit/components"
 ASSET_URL_ROOT = "/assets/electronics/"
@@ -126,16 +139,59 @@ def relative_for(url: str, trail: str, findings: Findings) -> str | None:
     return f"{WEB_PUBLIC_RELATIVE}{url}"
 
 
-def check_file(root: Path, relative: str, findings: Findings) -> bytes | None:
+def collect_audit_records(audit: object, findings: Findings) -> list[tuple[str, str, str]]:
+    """Collect `importedFile` and its `sha256` from the audit manifest.
+
+    Paths there are relative to the audit root rather than URLs, so they get the
+    same refusal of traversal and backslashes that catalog URLs get; a manifest is
+    only as trustworthy as the checking of what it says.
+    """
+    collected: list[tuple[str, str, str]] = []
+    entries = audit.get("importedReviewAssets") if isinstance(audit, dict) else None
+    if not isinstance(entries, list):
+        return collected
+
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        imported = entry.get("importedFile")
+        digest = entry.get("sha256")
+        if not isinstance(imported, str):
+            continue
+        trail = f"audit.importedReviewAssets[{index}]"
+        if not isinstance(digest, str):
+            findings.fail(f"{trail}: {imported!r} is imported with no sha256 recorded")
+            continue
+        if imported.startswith("/") or "\\" in imported or ".." in PurePosixPath(imported).parts:
+            findings.fail(f"{trail}: importedFile {imported!r} escapes the audit root")
+            continue
+        collected.append((f"{AUDIT_ROOT_RELATIVE}/{imported}", digest, trail))
+    return collected
+
+
+def looks_like_svg(body: bytes) -> bool:
+    head = body[:512].lstrip()
+    return head.startswith(b"<svg") or head.startswith(b"<?xml") or head.startswith(b"<!--")
+
+
+def check_file(root: Path, relative: str, findings: Findings, *, require_svg: bool) -> bytes | None:
+    """Read a declared file and judge it by what it is declared as.
+
+    The catalog declares art the editor loads, and that must be SVG. The audit
+    manifest also covers the PNG reference photographs imported beside the
+    artwork; those are provenance, never loaded as art, and demanding SVG of them
+    would be the check misreading its own subject.
+    """
     path = root / relative
     if not path.is_file():
-        findings.fail(f"{relative}: named as runtime art but absent")
+        findings.fail(f"{relative}: declared as owner art but absent")
         return None
     body = path.read_bytes()
-    head = body[:512].lstrip()
-    if not (head.startswith(b"<svg") or head.startswith(b"<?xml") or head.startswith(b"<!--")):
-        findings.fail(f"{relative}: named as runtime art but is not an SVG")
-        return None
+    if not looks_like_svg(body):
+        if require_svg:
+            findings.fail(f"{relative}: named as runtime art but is not an SVG")
+            return None
+        return body
     for pattern, label in FORBIDDEN_CONTENT:
         if pattern.search(body):
             findings.fail(f"{relative}: contains {label}")
@@ -149,9 +205,9 @@ def main() -> int:
     parser.add_argument(
         "--allow-unnamed",
         action="store_true",
-        help="permit files in the runtime tree the catalog does not name; off by "
-        "default, because an unnamed file there is either dead weight or art the "
-        "editor will never load",
+        help="permit files in the runtime tree that neither manifest declares; off "
+        "by default, because an undeclared file there is either dead weight or art "
+        "with no provenance",
     )
     args = parser.parse_args()
     root = Path(args.root).resolve()
@@ -193,21 +249,42 @@ def main() -> int:
                     f"differ at {record.trail}"
                 )
 
-    for relative in sorted(named):
-        body = check_file(root, relative, findings)
-        declared = claims.get(relative, set())
-        if len(declared) > 1:
+    # The second declaration. Where it is absent — on main, which carries the
+    # catalogued art alone — nothing below changes what this checks.
+    audit_path = root / AUDIT_RELATIVE
+    audited: set[str] = set()
+    audit_records: list[tuple[str, str, str]] = []
+    if audit_path.is_file():
+        try:
+            audit = json.loads(
+                audit_path.read_text(encoding="utf-8"),
+                object_pairs_hook=reject_duplicate_json_keys,
+            )
+        except ValueError as exc:
+            print("electronics assets: FAIL", file=sys.stderr)
+            print(f"- {AUDIT_RELATIVE}: {exc}", file=sys.stderr)
+            return 1
+        audit_records = collect_audit_records(audit, findings)
+        for relative, digest, _trail in audit_records:
+            audited.add(relative)
+            claims.setdefault(relative, set()).add(digest)
+
+    declared = named | audited
+    for relative in sorted(declared):
+        body = check_file(root, relative, findings, require_svg=relative in named)
+        expected_all = claims.get(relative, set())
+        if len(expected_all) > 1:
             findings.fail(
-                f"{relative}: claimed with {len(declared)} different hashes; "
+                f"{relative}: claimed with {len(expected_all)} different hashes; "
                 "records naming one file must agree about it"
             )
         if body is None:
             continue
         actual = hashlib.sha256(body).hexdigest()
-        for expected in declared:
+        for expected in expected_all:
             if actual != expected:
                 findings.fail(
-                    f"{relative}: bytes hash to {actual[:12]}… but the catalog records "
+                    f"{relative}: bytes hash to {actual[:12]}… but a manifest records "
                     f"{expected[:12]}…"
                 )
 
@@ -215,7 +292,7 @@ def main() -> int:
     # that policy the absence of a contract is itself the defect.
     if byte_exact:
         for relative in sorted(without_contract - set(claims)):
-            findings.fail(f"{relative}: named as runtime art with no runtimeSha256 recorded")
+            findings.fail(f"{relative}: declared as owner art with no hash recorded")
 
     unnamed: list[str] = []
     runtime_tree = root / RUNTIME_TREE_RELATIVE
@@ -223,17 +300,20 @@ def main() -> int:
         for path in sorted(runtime_tree.rglob("*")):
             if path.is_file():
                 relative = path.relative_to(root).as_posix()
-                if relative not in named:
+                if relative not in declared:
                     unnamed.append(relative)
     if not args.allow_unnamed:
         for relative in unnamed:
-            findings.fail(f"{relative}: in the runtime tree but not named by the catalog")
+            findings.fail(f"{relative}: in the runtime tree but declared by neither manifest")
 
     hashed = len(claims)
     report = {
-        "schema": "asa-lab.electronics-asset-check.v2",
+        "schema": "asa-lab.electronics-asset-check.v3",
         "runtimePathRecords": len(findings.records),
+        "auditImportRecords": len(audit_records),
         "uniqueRuntimePaths": len(named),
+        "auditOnlyPaths": sorted(audited - named),
+        "declaredPaths": len(declared),
         "pathsWithHashContract": hashed,
         "pathsWithoutHashContract": sorted(without_contract - set(claims)),
         "unnamedInRuntimeTree": unnamed,
@@ -254,10 +334,12 @@ def main() -> int:
 
     print("electronics assets: PASS")
     print(f"runtimePath records read from the catalog : {len(findings.records)}")
-    print(f"unique runtime paths                      : {len(named)}")
+    print(f"importedFile records read from the audit  : {len(audit_records)}")
+    print(f"unique catalogued runtime paths           : {len(named)}")
+    print(f"declared by the audit manifest alone      : {len(audited - named)}")
     print(f"paths with a recorded hash, all verified  : {hashed}")
     print(f"paths without a hash contract             : {len(without_contract - set(claims))}")
-    print(f"unnamed files in the runtime tree         : {len(unnamed)}"
+    print(f"undeclared files in the runtime tree      : {len(unnamed)}"
           + ("  (permitted)" if args.allow_unnamed else "  (enforced empty)"))
     return 0
 

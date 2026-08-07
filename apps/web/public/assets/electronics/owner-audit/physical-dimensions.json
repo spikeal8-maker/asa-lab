@@ -1,0 +1,238 @@
+{
+  "schema": "asa-lab.owner-electronics-physical-dimensions.v1",
+  "provenance": "owner_supplied",
+  "worldUnitsPerMm": 5,
+  "components": [
+    {
+      "componentId": "arduino-uno",
+      "physicalWidthMm": 138.942,
+      "physicalHeightMm": 68.164,
+      "confidence": "medium",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "battery-1.5v",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "not_declared",
+      "source": "not_declared_in_owner_package"
+    },
+    {
+      "componentId": "battery-3v",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "not_declared",
+      "source": "not_declared_in_owner_package"
+    },
+    {
+      "componentId": "battery-6v",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "not_declared",
+      "source": "not_declared_in_owner_package"
+    },
+    {
+      "componentId": "battery-9v",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "battery-holder-aa-1",
+      "physicalWidthMm": 25.5808,
+      "physicalHeightMm": 76.2,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_1x_sketch_exact_v6.model.json"
+    },
+    {
+      "componentId": "battery-holder-aa-2",
+      "physicalWidthMm": 43.8399,
+      "physicalHeightMm": 76.2,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_2x_sketch_exact_v6.model.json"
+    },
+    {
+      "componentId": "battery-holder-aa-3",
+      "physicalWidthMm": 62.0989,
+      "physicalHeightMm": 76.2,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_3x_sketch_exact_v6.model.json"
+    },
+    {
+      "componentId": "battery-holder-aa-4",
+      "physicalWidthMm": 80.358,
+      "physicalHeightMm": 76.2,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_4x_sketch_exact_v6.model.json"
+    },
+    {
+      "componentId": "battery-holder-aa-5",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "not_declared",
+      "source": "not_declared_in_owner_package"
+    },
+    {
+      "componentId": "battery-holder-aa-6",
+      "physicalWidthMm": 116.8762,
+      "physicalHeightMm": 76.2,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_6x_sketch_exact_v6.model.json"
+    },
+    {
+      "componentId": "battery-holder-aa-8",
+      "physicalWidthMm": 153.3943,
+      "physicalHeightMm": 76.2,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/батарейный отсек/aa_battery_holders_sketch_exact_v6_normalized/aa_battery_holders_sketch_exact_v6_normalized/models/aa_holder_8x_sketch_exact_v6.model.json"
+    },
+    {
+      "componentId": "breadboard-small",
+      "physicalWidthMm": 47.0,
+      "physicalHeightMm": 35.0,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/small-170.model.json"
+    },
+    {
+      "componentId": "breadboard-medium",
+      "physicalWidthMm": 83.0,
+      "physicalHeightMm": 55.0,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/medium-reference-420.model.json"
+    },
+    {
+      "componentId": "breadboard-large",
+      "physicalWidthMm": 165.1,
+      "physicalHeightMm": 54.6,
+      "confidence": "owner_declared",
+      "source": "Копмоненты SVG/Макетка/breadboard_clean_v6_3/models/large-reference-882.model.json"
+    },
+    {
+      "componentId": "button-tactile-6mm",
+      "physicalWidthMm": 10.0,
+      "physicalHeightMm": 10.0,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg_mm_canvas; body 6x6 mm"
+    },
+    {
+      "componentId": "switch-spdt",
+      "physicalWidthMm": 18.0,
+      "physicalHeightMm": 10.0,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg_mm_canvas"
+    },
+    {
+      "componentId": "resistor-axial",
+      "physicalWidthMm": 4.354,
+      "physicalHeightMm": 11.582,
+      "confidence": "medium",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "potentiometer",
+      "physicalWidthMm": 12.131,
+      "physicalHeightMm": 13.66,
+      "confidence": "high",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "electrolytic-capacitor",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "photoresistor",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "led-5mm",
+      "physicalWidthMm": 7.735,
+      "physicalHeightMm": 11.735,
+      "confidence": "high",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "rgb-led",
+      "physicalWidthMm": 8.75,
+      "physicalHeightMm": 10.125,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg viewBox divided by declared 40 SVG units/mm"
+    },
+    {
+      "componentId": "diode-do35",
+      "physicalWidthMm": 20.0,
+      "physicalHeightMm": 7.0,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg_mm_canvas"
+    },
+    {
+      "componentId": "diode-do41",
+      "physicalWidthMm": 20.0,
+      "physicalHeightMm": 7.0,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg_mm_canvas"
+    },
+    {
+      "componentId": "transistor-npn",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "incandescent-lamp",
+      "physicalWidthMm": 20.0,
+      "physicalHeightMm": 30.0,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg_mm_canvas"
+    },
+    {
+      "componentId": "dc-motor",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "servo-motor",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "piezo",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "seven-segment-display",
+      "physicalWidthMm": 12.7,
+      "physicalHeightMm": 19.05,
+      "confidence": "owner_declared_or_derived_from_owner_metadata",
+      "source": "owner_svg_data_body_dimensions"
+    },
+    {
+      "componentId": "multimeter",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    },
+    {
+      "componentId": "regulated-power-supply",
+      "physicalWidthMm": null,
+      "physicalHeightMm": null,
+      "confidence": "draft",
+      "source": "reference-lab runtime component contract"
+    }
+  ]
+}
