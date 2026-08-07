@@ -68,10 +68,17 @@ SOURCE_INVARIANTS = (
 )
 
 
-def run(command: list[str], cwd: Path = ROOT) -> tuple[int, str]:
+def run(command: list[str], cwd: Path | None = None) -> tuple[int, str]:
+    """Run a command in the repository under validation.
+
+    The default is resolved here rather than in the signature: a default argument
+    is bound once, when the function is defined, so `cwd: Path = ROOT` would keep
+    pointing at the original repository even after bind_root moved everything else
+    — and every git question would be answered by the wrong tree.
+    """
     try:
         result = subprocess.run(
-            command, cwd=cwd, capture_output=True, text=True, timeout=90, check=False
+            command, cwd=cwd or ROOT, capture_output=True, text=True, timeout=90, check=False
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return 1, str(exc)
@@ -639,10 +646,43 @@ def check_state_file_is_canonical(
         notes.append("current.yaml matches origin/main byte for byte")
 
 
+def bind_root(root: Path) -> None:
+    """Point every path this validator reads at `root`.
+
+    The paths are module-level so the checks can stay small, which also means the
+    validator could only ever examine the repository it happens to live in — and
+    so could only be tested by breaking that repository. A fixture repository is
+    the only way to exercise a rule like "a task branch must not modify the state
+    file" without doing it here for real.
+    """
+    global ROOT, CURRENT_PATH, START_HERE_PATH, AGENTS_PATH, MANIFEST_PATH
+    global MAP_PATH, ACTIVE_TESTS_PATH, CATALOG_VALIDATOR_PATH, PACKAGE_JSON_PATH
+    global STATELESS_DOCUMENTS
+
+    ROOT = root.resolve()
+    CURRENT_PATH = ROOT / "docs/execution/current.yaml"
+    START_HERE_PATH = ROOT / "START_HERE_FOR_AI.md"
+    AGENTS_PATH = ROOT / "AGENTS.md"
+    MANIFEST_PATH = ROOT / "docs/delivery/EXECUTION_MANIFEST.yaml"
+    MAP_PATH = ROOT / "docs/project-map/project-map.yaml"
+    ACTIVE_TESTS_PATH = ROOT / "docs/testing/active-task-tests.yaml"
+    CATALOG_VALIDATOR_PATH = ROOT / "tools/validate_test_catalog.py"
+    PACKAGE_JSON_PATH = ROOT / "package.json"
+    STATELESS_DOCUMENTS = (START_HERE_PATH, AGENTS_PATH)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--require-github", action="store_true")
+    parser.add_argument(
+        "--root",
+        help="repository to validate; defaults to the one this file lives in. "
+        "Used by the regression suite, which needs fixture repositories that are "
+        "broken on purpose.",
+    )
     args = parser.parse_args()
+    if args.root:
+        bind_root(Path(args.root))
 
     errors: list[str] = []
     notes: list[str] = []
