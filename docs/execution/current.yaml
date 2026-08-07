@@ -53,8 +53,8 @@ execution_lease:
   # be the two-writer failure this mechanism was built after.
   executor_id: assistant-stabilisation
   holder: assistant-stabilisation
-  acquired_at: '2026-08-06T17:03:23Z'
-  expires_at: '2026-08-07T01:03:23Z'
+  acquired_at: '2026-08-07T03:24:35Z'
+  expires_at: '2026-08-07T11:24:35Z'
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
