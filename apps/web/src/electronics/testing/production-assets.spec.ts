@@ -102,7 +102,9 @@ describe('Electronics owner SVG foundation', () => {
         3,
       );
       const topPosts = svg.match(/<g id="top-posts">([\s\S]*?)<\/g>/)?.[1] ?? '';
-      const freeEnds = [...topPosts.matchAll(/<rect x="([0-9.]+)" y="10" width="([0-9.]+)"/g)];
+      const freeEnds = [
+        ...topPosts.matchAll(/<rect x="([0-9.]+)" y="10" width="([0-9.]+)" height="([0-9.]+)"/g),
+      ];
       expect(freeEnds, `${item.key}:wire-free-ends`).toHaveLength(2);
       for (const [index, pinId] of (['BAT-', 'BAT+'] as const).entries()) {
         const pin = item.terminals[pinId];
@@ -115,8 +117,13 @@ describe('Electronics owner SVG foundation', () => {
           ownerX * (item.physicalSizeMm.width / item.viewBox.width),
           3,
         );
+        // Centre of the drawn free end, on both axes. The horizontal coordinate
+        // was already its centre while the vertical one was its top edge, so a
+        // wire met the very tip of the metal — where the rounded corner is
+        // already curving away — and read as not quite touching the contact.
+        const ownerY = 10 + Number(ownerFreeEnd[3]) / 2;
         expect(pin?.yMm, `${item.key}:${pinId}:wire-y`).toBeCloseTo(
-          10 * (item.physicalSizeMm.height / item.viewBox.height),
+          ownerY * (item.physicalSizeMm.height / item.viewBox.height),
           3,
         );
       }

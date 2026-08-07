@@ -28426,14 +28426,14 @@
         {
           "id": "BAT-",
           "xMm": 8.7279,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 11.2721,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28501,14 +28501,14 @@
         {
           "id": "BAT-",
           "xMm": 15.8657,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 18.4099,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28576,14 +28576,14 @@
         {
           "id": "BAT-",
           "xMm": 23.0035,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 25.5477,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28651,14 +28651,14 @@
         {
           "id": "BAT-",
           "xMm": 30.1413,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 32.6855,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28775,14 +28775,14 @@
         {
           "id": "BAT-",
           "xMm": 44.417,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 46.9611,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28850,14 +28850,14 @@
         {
           "id": "BAT-",
           "xMm": 58.6926,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 61.2367,
-          "yMm": 0.7141,
+          "yMm": 1.1604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
