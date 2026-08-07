@@ -189,8 +189,8 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
-    status: in_review
-    checkpoint: phase_6_return_to_review
+    status: done
+    checkpoint: merged_to_main
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/r4-electronics-m1
     base_branch: main

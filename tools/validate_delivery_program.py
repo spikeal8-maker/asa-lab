@@ -45,6 +45,10 @@ ACTIVE_TASK = str(_CURRENT_TASK["id"])
 ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
 ACTIVE_ISSUE = f"https://github.com/spikeal8-maker/asa-lab/issues/{_CURRENT_TASK['issue']}"
 ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
+# A task the control plane records as finished is expected to read "done"
+# everywhere, exactly like the ones before it. Insisting the named task always be
+# in flight left no way to record the last one completing.
+ACTIVE_TASK_IS_DONE = str(_CURRENT_TASK.get("status")) == "done"
 EXPECTED_ROADMAP = {
     "R3B": "https://github.com/spikeal8-maker/asa-lab/issues/37",
     "R4-M2": "https://github.com/spikeal8-maker/asa-lab/issues/63",
@@ -208,7 +212,11 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
 
     for index, task in enumerate(tasks):
         task_id = str(task.get("task_id"))
-        expected_statuses = ACTIVE_STATUSES if task_id == ACTIVE_TASK else {"done"}
+        expected_statuses = (
+            ACTIVE_STATUSES
+            if task_id == ACTIVE_TASK and not ACTIVE_TASK_IS_DONE
+            else {"done"}
+        )
         if task.get("status") not in expected_statuses:
             errors.append(f"Task {task_id} has invalid status {task.get('status')!r}")
         for field in ("issue", "branch", "milestone", "track", "delivery_stage", "architecture_horizon", "visible_result"):
@@ -249,7 +257,10 @@ def validate_map(tasks: list[dict[str, Any]], document: dict[str, Any], errors: 
     if queue_ids != canonical_ids:
         errors.append("Project map execution_queue differs from manifest")
     focus = document.get("project", {}).get("current_focus")
-    if focus != ACTIVE_TASK:
+    # Null once the named task is done: there is nothing to focus on until the next
+    # task exists, and validate_project_map allows that only when the whole
+    # executable queue is complete.
+    if focus != ACTIVE_TASK and not (focus is None and ACTIVE_TASK_IS_DONE):
         errors.append(f"Project map current_focus must be {ACTIVE_TASK}, got {focus!r}")
     for task in tasks:
         node = nodes.get(task["task_id"])

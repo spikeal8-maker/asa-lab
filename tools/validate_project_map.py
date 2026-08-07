@@ -427,7 +427,18 @@ def validate_delivery_alignment(
         errors.append("Execution manifest active task is missing from tasks")
         return
     status = manifest_task.get("status")
-    if document.get("project", {}).get("current_focus") != active_task:
+    focus = document.get("project", {}).get("current_focus")
+    # The map's focus names the task being worked on. Once that task is done there
+    # is nothing to focus on until the next one is defined, and the focus is null —
+    # which validate_focus already permits, but only when the executable queue is
+    # complete, so a null focus cannot hide unfinished work.
+    #
+    # Requiring the focus to equal the task's id whatever its status made the two
+    # rules contradict each other the moment a task finished: one demanded the id,
+    # the other demanded that the named node be active. Nothing could satisfy both,
+    # so no task could be recorded as done.
+    focus_may_be_null = status == "done"
+    if focus != active_task and not (focus is None and focus_may_be_null):
         errors.append("Project map current_focus differs from execution manifest")
     for node_id in (active_task, manifest_task.get("architecture_horizon"), "ACT-AGENT"):
         node = nodes.get(str(node_id))

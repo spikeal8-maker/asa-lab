@@ -328,10 +328,18 @@ def check_project_map(task: dict[str, Any], errors: list[str]) -> None:
         return
     project = document.get("project")
     project = project if isinstance(project, dict) else document
-    if project.get("current_focus") != task.get("id"):
+    focus = project.get("current_focus")
+    # While a task is in flight the map names it. Once it is done there is nothing
+    # to focus on until the next task is defined, and the map says null — which
+    # validate_project_map permits only when the executable queue is complete, so
+    # a null focus cannot stand in for unfinished work.
+    #
+    # Demanding the id whatever the status left no way to record a finished task:
+    # this check wanted the name, while the map's own focus rule wanted an active
+    # node, and a done task is not one.
+    if focus != task.get("id") and not (focus is None and task.get("status") == "done"):
         errors.append(
-            f"project-map.yaml current_focus {project.get('current_focus')!r} != "
-            f"current.yaml task.id {task.get('id')!r}"
+            f"project-map.yaml current_focus {focus!r} != current.yaml task.id {task.get('id')!r}"
         )
     if project.get("active_checkpoint") != task.get("checkpoint"):
         errors.append(

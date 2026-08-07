@@ -11,11 +11,11 @@ Rendered from the control plane; `pnpm control-plane:check` fails if these
 values drift from [`current.yaml`](../execution/current.yaml).
 
 ```text
-TASK-ELECTRONICS-M1-001  in_review
+TASK-ELECTRONICS-M1-001  done
 current_focus             TASK-ELECTRONICS-M1-001
 branch                    agent/r4-electronics-m1
 Issue                     #63
-checkpoint                phase_6_return_to_review
+checkpoint                merged_to_main
 execution_lease           unassigned
 ```
 
