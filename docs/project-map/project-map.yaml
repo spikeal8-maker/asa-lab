@@ -8,7 +8,7 @@ project:
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
   current_focus: TASK-ELECTRONICS-M1-001
-  active_checkpoint: control_plane_stabilisation
+  active_checkpoint: phase_5_asset_separation
   canonical_branch: main
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
@@ -73,7 +73,7 @@ nodes:
   - {id: OBS-OTEL, label: OpenTelemetry, kind: observability, layer: operations, status: planned, summary: "Future production telemetry."}
 
   - {id: SDK-MODULE, label: Module SDK, kind: sdk, layer: modules, status: in_progress, summary: "Existing provider contract is verified for the R3A gateway.", path: packages/module-sdk}
-  - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "The real project editor groups owner production assets into deterministic categories, families and persisted physical variants; unsupported candidates are isolated and disabled. Draft saves are ordered and the saved indicator reports only the document the server actually holds.", path: contexts/electronics}
+  - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "The real project editor groups owner production assets into deterministic categories, families and persisted physical variants; unsupported candidates are isolated and disabled. Draft saves are ordered and the saved indicator reports only the document the server actually holds. main carries the canonical owner runtime assets and the audit material that records their provenance, 697 files in all, each verified byte-exact against the hash one of the two owner manifests records for it.", path: contexts/electronics}
   - {id: MOD-CHESS, label: ASA Chess, kind: subject_module, layer: modules, status: in_progress, summary: "Existing Chess and Chess Online must remain reachable.", path: contexts/chess}
   - {id: MOD-BLOCKS, label: Block Coding, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
   - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: planned, summary: "Future module."}

@@ -62,7 +62,9 @@
     "gate:data": "pnpm db:migrate:check && pnpm test && pnpm test:rls",
     "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",
     "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run apps/web/src/electronics/testing && pnpm typecheck && pnpm build",
-    "gate:electronics-m1:browser": "pnpm e2e:electronics-simulation"
+    "gate:electronics-m1:browser": "pnpm e2e:electronics-simulation",
+    "assets:check": "python tools/validate_electronics_assets.py",
+    "assets:test": "python tools/test_validate_electronics_assets.py"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
@@ -112,7 +114,8 @@
       "fast-uri@>=4.0.0 <=4.1.1": "4.1.2",
       "find-my-way@<=9.6.0": "9.7.0",
       "brace-expansion@>=5.0.0 <=5.0.8": "5.0.9",
-      "axios@>=1.15.2 <1.18.0": "1.18.0"
+      "axios@>=1.15.2 <1.18.0": "1.18.0",
+      "js-yaml@>=4.0.0 <4.3.1": "^4.3.1"
     }
   }
 }

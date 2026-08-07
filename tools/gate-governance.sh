@@ -47,4 +47,11 @@ run "$PYTHON" tools/validate_test_catalog.py
 run "$PYTHON" tools/validate_delivery_program.py
 run "$PYTHON" tools/validate_infrastructure_focus.py
 
+# The catalog promises byte-exact owner art. Twelve of those files were silently
+# rewritten during an import before anything checked. Strict by default: an
+# unnamed file in the runtime tree is either dead weight or art the editor will
+# never load, and both are defects.
+run "$PYTHON" tools/test_validate_electronics_assets.py
+run "$PYTHON" tools/validate_electronics_assets.py
+
 echo "governance gate: PASS"

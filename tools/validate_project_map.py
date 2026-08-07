@@ -307,12 +307,31 @@ def validate_focus(
 
 
 def changed_files_against_base() -> set[str]:
+    """What this branch changes relative to the branch it will merge into.
+
+    CI supplies the base through GITHUB_BASE_REF. Locally there is no such
+    variable, and returning nothing here meant the change policy below applied on
+    GitHub and nowhere else: a gate that passes on the machine writing the code
+    and fails after the push is not one gate, it is two. So when the variable is
+    absent the base is origin/main, which is what a pull request would use.
+    """
     base_ref = os.getenv("GITHUB_BASE_REF", "").strip()
-    if not base_ref:
+    candidate = f"origin/{base_ref}" if base_ref else "origin/main"
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        # No such ref in this checkout — a shallow clone, or a fresh repository
+        # with no origin. Silence beats a false accusation.
         return set()
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", f"origin/{base_ref}...HEAD"],
+            ["git", "diff", "--name-only", f"{candidate}...HEAD"],
             cwd=ROOT,
             check=True,
             text=True,

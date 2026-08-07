@@ -15,7 +15,7 @@ TASK-ELECTRONICS-M1-001
 Issue #63
 branch agent/r4-electronics-m1
 status in_progress
-checkpoint control_plane_stabilisation
+checkpoint phase_5_asset_separation
 execution lease unassigned
 ```
 
@@ -45,6 +45,23 @@ Draft persistence is now ordered. The saved indicator is derived from which
 document the server is known to hold rather than set by whichever request
 happened to finish, so an edit made while a save is in flight can no longer be
 reported as saved and then lost by a checkpoint taken straight after it.
+
+The canonical owner runtime assets live in `main`, delivered as their own
+reviewable unit rather than inside the product pull request. Membership is the
+value of a `runtimePath` key, compared as an exact path. `pnpm assets:check` fails
+if a named file is absent, is not an SVG, does not hash to the value recorded
+beside it, disagrees between source and runtime hashes, carries embedded raster,
+a script or an external reference, escapes the asset root, or if the runtime tree
+holds a file neither manifest declares.
+
+Two manifests declare owner art, and both are checked. `owner-catalog/manifest.json`
+names the 662 assets the editor loads; `owner-audit/manifest.json` records the 697
+files imported from the owner archives, including the reference photographs and the
+candidate drawings that document where the artwork came from. A file declared by
+either is legitimate, its recorded hash is verified either way, and the two must
+agree wherever they describe the same file. Reading the catalog alone once reported
+35 declared, hash-pinned owner files as undeclared dead weight, which is why the
+check reads both.
 
 ## Quality gate
 
