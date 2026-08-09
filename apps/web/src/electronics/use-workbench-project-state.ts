@@ -112,7 +112,12 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
     components,
     connections,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
-    simulation: legacy.simulation ?? { running: false, maxIterations: 24 },
+    // A document opens with the simulation stopped, whatever it was doing when it
+    // was last saved. Running is something the person is doing, not something the
+    // circuit is: reloading the page used to resume a simulation nobody started,
+    // with the board locked against editing for a reason that had scrolled off
+    // the screen an hour earlier.
+    simulation: { ...(legacy.simulation ?? { maxIterations: 24 }), running: false },
   };
   for (const component of normalized.components) {
     if (Object.keys(component.holeBindings ?? {}).length > 0) {

@@ -105,8 +105,6 @@ export function WorkbenchStage({
         onPointerUp={c.finishPointer}
         onPointerCancel={c.finishPointer}
         onWheel={c.handleWheel}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={c.handleDrop}
       >
         <defs>
           <pattern id="asa-grid-small" width="20" height="20" patternUnits="userSpaceOnUse">

@@ -7,7 +7,7 @@ import {
 } from './component-catalog';
 import { ComponentPreview } from './component-preview';
 import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
-import { DRAG_MIME, WIRE_COLORS } from './workbench-model';
+import { WIRE_COLORS } from './workbench-model';
 import {
   defaultResistanceUnit,
   RESISTANCE_UNITS,
@@ -170,20 +170,17 @@ export function WorkbenchSidebars({
                     className={`workbench-catalog-card${family.enabled ? '' : ' disabled'}${
                       c.libraryVariantPopover === family.familyId ? ' popover-open' : ''
                     }`}
-                    draggable={family.enabled}
                     aria-disabled={!family.enabled}
-                    onDragStart={(event) => {
-                      if (!family.enabled) {
-                        event.preventDefault();
-                        return;
-                      }
-                      event.dataTransfer.setData(DRAG_MIME, selectedVariant.componentTypeId);
-                      event.dataTransfer.effectAllowed = 'copy';
-                      const art = event.currentTarget.querySelector('.workbench-catalog-art');
-                      if (art instanceof HTMLElement) {
-                        const box = art.getBoundingClientRect();
-                        event.dataTransfer.setDragImage(art, box.width / 2, box.height / 2);
-                      }
+                    // Pressing a card picks the part up. It used to start the
+                    // browser's own drag and hand it a picture of the catalogue
+                    // thumbnail, so what followed the cursor was a snapshot of the
+                    // list entry rather than the component — and it was dropped
+                    // through a different code path than the one clicking uses.
+                    // Now both do the same thing: the component itself follows the
+                    // pointer and lands where it is put.
+                    onPointerDown={(event) => {
+                      if (!family.enabled || event.button !== 0) return;
+                      c.beginFamilyPlacement(family.familyId);
                     }}
                     data-family-id={family.familyId}
                     data-catalog-tier={family.catalogTier}
@@ -193,7 +190,11 @@ export function WorkbenchSidebars({
                       type="button"
                       className="workbench-catalog-add"
                       disabled={!family.enabled}
-                      onClick={() => {
+                      // The card's pointerdown already picked the part up; this
+                      // stays so the catalogue is reachable from the keyboard,
+                      // where there is no pointer to press.
+                      onClick={(event) => {
+                        if (event.detail !== 0) return;
                         c.beginFamilyPlacement(family.familyId);
                       }}
                       title={

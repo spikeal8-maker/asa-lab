@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type MouseEvent,
   type PointerEvent,
   type WheelEvent,
@@ -69,7 +68,6 @@ import {
 } from './workbench-document';
 import {
   DEFAULT_VIEWPORT,
-  DRAG_MIME,
   MAX_ZOOM,
   MIN_ZOOM,
   STAGE_HEIGHT,
@@ -1081,19 +1079,6 @@ export function useElectronicsWorkbench(projectId: string) {
     applyViewport(bounds ? fitViewport(bounds, STAGE_WIDTH, STAGE_HEIGHT) : DEFAULT_VIEWPORT);
   }
 
-  function handleDrop(event: DragEvent<SVGSVGElement>): void {
-    event.preventDefault();
-    const componentTypeId = event.dataTransfer.getData(DRAG_MIME);
-    const family = familyForVariant(componentTypeId);
-    if (
-      !catalogEntry(componentTypeId) ||
-      !family?.enabled ||
-      !family.variants.some((variant) => variant.variantId === componentTypeId && variant.enabled)
-    )
-      return;
-    addComponent(componentTypeId, toWorld(event));
-  }
-
   useEffect(() => {
     function keyDown(event: globalThis.KeyboardEvent): void {
       if (event.code === 'Space' && !(event.target instanceof HTMLInputElement))
@@ -1371,7 +1356,6 @@ export function useElectronicsWorkbench(projectId: string) {
     handleWheel,
     zoomBy,
     fitScene,
-    handleDrop,
     placeCatalogComponent,
     saveNow,
     toggleSimulation,

@@ -31,7 +31,6 @@ export const MAX_ZOOM = 8;
  */
 export const MAGNET_SCREEN_UNITS = 10;
 export const WIRE_COLORS = ['#e3212b', '#2a3035', '#149447', '#2c62c9', '#e7a400', '#8d45c7'];
-export const DRAG_MIME = 'application/x-asa-electronics-component';
 
 export type WorkbenchView = 'breadboard' | 'schematic' | 'bom';
 
