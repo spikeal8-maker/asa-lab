@@ -2531,3 +2531,20 @@
   stroke-dasharray: none;
   animation: none;
 }
+
+/* The part in hand, over everything, including the panel it came from. Fixed
+   rather than absolute so no ancestors
+
+/* The part in hand, over everything including the panel it came from. Fixed rather
+   than absolute so no ancestor's overflow can clip it, and inert to the pointer so
+   it never becomes the thing under the cursor. */
+.workbench-picked-up {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  margin: -6px 0 0 -6px;
+  pointer-events: none;
+  opacity: 0.92;
+  filter: drop-shadow(0 6px 14px rgba(20, 40, 60, 0.35));
+}

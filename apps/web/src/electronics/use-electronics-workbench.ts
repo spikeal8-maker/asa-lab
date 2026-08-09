@@ -142,6 +142,12 @@ export function useElectronicsWorkbench(projectId: string) {
   const [catalogPlacement, setCatalogPlacement] = useState<CatalogPlacement | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [panning, setPanning] = useState(false);
+  // A breadboard draws one invisible group per hole — several hundred of them —
+  // and every one recomputes its world position when the board moves. They are
+  // hover targets, so while something is being dragged they have nothing to do,
+  // and not drawing them is the difference between the board following the
+  // pointer and crawling after it.
+  const [draggingComponents, setDraggingComponents] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeDrag | null>(null);
   const [reconnectEndpoint, setReconnectEndpoint] = useState<'from' | 'to' | null>(null);
 
@@ -680,6 +686,7 @@ export function useElectronicsWorkbench(projectId: string) {
       startedAt: component.position,
       startedPositions,
     };
+    setDraggingComponents(true);
     stageRef.current?.setPointerCapture(event.pointerId);
     if (selection?.kind !== 'component' || !selection.ids.includes(component.id)) {
       setSelection({ kind: 'component', id: component.id, ids: [component.id] });
@@ -950,7 +957,9 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     const drag = componentDragRef.current;
     if (drag?.pointerId === event.pointerId) {
+      setDraggingComponents(false);
       componentDragRef.current = null;
+      setDraggingComponents(false);
       if (document) {
         const moved = document.components.find((item) => item.id === drag.componentId);
         const didMove = Boolean(
@@ -1379,6 +1388,7 @@ export function useElectronicsWorkbench(projectId: string) {
     pendingStart,
     busy,
     panning,
+    draggingComponents,
     marquee,
     catalogPlacement,
     catalogPlacementComponent,

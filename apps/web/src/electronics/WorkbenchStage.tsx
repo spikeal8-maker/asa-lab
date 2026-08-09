@@ -1,10 +1,12 @@
-import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   catalogEntry,
   componentPointPosition,
   renderedSize,
   terminalPosition,
+  visualAsset,
 } from './component-catalog';
+import { ComponentPreview } from './component-preview';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedWirePath, wirePoints } from './workbench-geometry';
@@ -12,6 +14,51 @@ import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workb
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+
+/** The part currently in hand, drawn on the cursor wherever the cursor is.
+ *
+ * The placement preview lives inside the canvas, so until the pointer crossed
+ * onto the board there was nothing to see: a part picked from the catalogue
+ * disappeared behind the panel it came from, and the only sign anything had
+ * happened was a line of text. This follows the pointer over the whole window,
+ * including the panel, from the moment the card is pressed.
+ *
+ * It writes its own transform rather than holding the position in state: this sits
+ * above a canvas that is expensive to re-render, and a pointer move must not cost
+ * a render of the scene.
+ */
+function PickedUpPart({
+  controller: c,
+}: {
+  controller: ElectronicsWorkbenchController;
+}): JSX.Element | null {
+  const holder = useRef<HTMLDivElement>(null);
+  // Driven by the intent to place, not by the preview on the canvas. That preview
+  // needs a point on the board, and there is none until the pointer crosses onto
+  // it — so keying this to the preview drew nothing at all while the cursor was
+  // still over the panel, which is exactly the moment it is needed.
+  const placing = c.catalogPlacement;
+  const typeId = placing?.componentTypeId;
+
+  useEffect(() => {
+    if (!typeId) return;
+    function follow(event: PointerEvent): void {
+      const node = holder.current;
+      if (node) node.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
+    }
+    window.addEventListener('pointermove', follow);
+    return () => window.removeEventListener('pointermove', follow);
+  }, [typeId]);
+
+  if (!typeId) return null;
+  const entry = catalogEntry(typeId);
+  if (!entry) return null;
+  return (
+    <div className="workbench-picked-up" ref={holder} aria-hidden="true">
+      <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} entry={entry} />
+    </div>
+  );
+}
 
 function tooltipWidth(label: string, zoom: number): number {
   return Math.max(58, label.length * 7.4 + 18) / zoom;
@@ -92,6 +139,7 @@ export function WorkbenchStage({
   });
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
+      <PickedUpPart controller={c} />
       <svg
         ref={c.stageRef}
         className={`workbench-canvas${c.panning ? ' panning' : ''}${
@@ -274,7 +322,12 @@ export function WorkbenchStage({
                     />
                   ) : null}
                 </g>
-                {component.kind === 'breadboard'
+                {/* Several hundred invisible hover targets, each recomputing its
+                    world position from the board's. While something is being
+                    dragged they have nothing to respond to, and drawing them is
+                    the difference between the board following the pointer and
+                    crawling after it. */}
+                {component.kind === 'breadboard' && !c.draggingComponents
                   ? (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map(
                       (hole) => {
                         const point = componentPointPosition(
