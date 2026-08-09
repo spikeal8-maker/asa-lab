@@ -1,0 +1,18 @@
+{
+  "name": "chess",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "modules/chess",
+  "tags": ["type:lib", "scope:module", "context:chess"],
+  "targets": {
+    "build": {
+      "command": "tsc -p modules/chess/tsconfig.build.json"
+    },
+    "typecheck": {
+      "command": "tsc -p modules/chess/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint modules/chess"
+    }
+  }
+}

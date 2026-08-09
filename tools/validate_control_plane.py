@@ -60,7 +60,7 @@ ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|
 # each one here is a grep the governance gate actually runs.
 SOURCE_INVARIANTS = (
     (
-        "contexts/electronics/domain/netlist.ts",
+        "modules/electronics/domain/netlist.ts",
         re.compile(r"\blocaleCompare\b"),
         "net numbering must not depend on runtime locale (AGENTS.md §5); "
         "use code-unit comparison instead of localeCompare",

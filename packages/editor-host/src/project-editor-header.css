@@ -1,0 +1,177 @@
+.editor-host-header {
+  height: var(--editor-header-height, 48px);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid #d4d9df;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(52, 73, 94, 0.15);
+  position: relative;
+  z-index: 30;
+}
+
+.editor-host-brand-zone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+}
+
+.editor-host-brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  height: 100%;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-right: 1px solid #e2e5e8;
+  background: #fff;
+  cursor: pointer;
+}
+
+.editor-host-brand:hover {
+  background: #f5f8fa;
+}
+
+.editor-host-brand-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+}
+
+.editor-host-brand-name {
+  color: #0b3558;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.editor-host-title-input {
+  box-sizing: border-box;
+  width: 250px;
+  min-width: 160px;
+  height: 34px;
+  margin: 0;
+  padding: 6px 16px;
+  border: 1px solid #d9dee3;
+  border-radius: 20px;
+  background: #fff;
+  color: #405565;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.editor-host-title-input:hover,
+.editor-host-title-input:focus {
+  border-color: #aebbc5;
+  box-shadow: none;
+  outline: none;
+}
+
+.editor-host-save-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #7a8791;
+  font-size: 12px;
+}
+
+.editor-host-save-state svg {
+  width: 15px;
+  height: 15px;
+  color: #29965c;
+}
+
+.editor-host-save-state.saved {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-host-save-state.dirty,
+.editor-host-save-state.saving,
+.editor-host-save-state.error {
+  opacity: 1;
+}
+
+.editor-host-save-state.error {
+  color: #b93830;
+}
+
+.editor-host-mode-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  margin-left: auto;
+  padding-right: 8px;
+}
+
+.editor-host-mode-buttons > button,
+.editor-host-mode-buttons > .editor-host-avatar {
+  flex: 0 0 auto;
+}
+
+.editor-host-mode-buttons > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1.5px solid transparent;
+  border-radius: 19px;
+  background: #fff;
+  color: #385267;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.editor-host-mode-buttons > button:hover:not(:disabled) {
+  background: #f2f5f7;
+}
+
+.editor-host-mode-buttons > button.active {
+  border-color: #1494c9;
+  color: #1494c9;
+}
+
+.editor-host-mode-buttons > button:disabled {
+  opacity: 0.35;
+}
+
+.editor-host-mode-buttons svg {
+  width: 24px;
+  height: 24px;
+}
+
+.editor-host-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  align-self: center;
+  margin: 0 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #26465b, #5e8ba4);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media print {
+  .editor-host-header {
+    display: none !important;
+  }
+}

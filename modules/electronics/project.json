@@ -1,0 +1,18 @@
+{
+  "name": "electronics",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "modules/electronics",
+  "tags": ["type:lib", "scope:module", "context:electronics"],
+  "targets": {
+    "build": {
+      "command": "tsc -p modules/electronics/tsconfig.build.json"
+    },
+    "typecheck": {
+      "command": "tsc -p modules/electronics/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint modules/electronics"
+    }
+  }
+}

@@ -282,7 +282,7 @@ def validate_repository() -> None:
     for path in PROHIBITED_RUNTIME_TREES:
         if path.exists():
             fail(f"duplicated/generated runtime tree still exists: {path.relative_to(ROOT)}")
-    source_root = ROOT / "apps/web/src/electronics"
+    source_root = ROOT / "modules/electronics/editor"
     for path in source_root.rglob("*"):
         if (
             not path.is_file()

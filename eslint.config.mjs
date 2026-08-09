@@ -26,12 +26,22 @@ export const depConstraints = [
     onlyDependOnLibsWithTags: ['scope:shared', 'scope:contract'],
   },
   {
+    sourceTag: 'scope:platform-ui',
+    onlyDependOnLibsWithTags: ['scope:platform-ui', 'scope:shared', 'scope:contract'],
+  },
+  {
     sourceTag: 'scope:contract',
     onlyDependOnLibsWithTags: ['scope:contract'],
   },
   {
     sourceTag: 'scope:app',
-    onlyDependOnLibsWithTags: ['scope:core', 'scope:module', 'scope:shared', 'scope:contract'],
+    onlyDependOnLibsWithTags: [
+      'scope:core',
+      'scope:module',
+      'scope:platform-ui',
+      'scope:shared',
+      'scope:contract',
+    ],
   },
   {
     sourceTag: 'context:identity',
@@ -44,6 +54,14 @@ export const depConstraints = [
   {
     sourceTag: 'context:classroom',
     onlyDependOnLibsWithTags: ['context:classroom', 'scope:shared', 'scope:contract'],
+  },
+  {
+    sourceTag: 'context:projects',
+    onlyDependOnLibsWithTags: ['context:projects', 'scope:shared', 'scope:contract'],
+  },
+  {
+    sourceTag: 'context:electronics',
+    onlyDependOnLibsWithTags: ['context:electronics', 'scope:shared', 'scope:contract'],
   },
   {
     sourceTag: 'context:chess',

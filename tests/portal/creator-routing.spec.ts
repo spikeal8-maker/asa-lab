@@ -3,7 +3,7 @@ import {
   creatorViewFromHash,
   creatorViewToHash,
   type CreatorPortalView,
-} from '../../apps/web/src/creator-portal/navigation';
+} from '@asa-lab/portal-shell/navigation';
 
 describe('Creator Portal routing', () => {
   it.each([

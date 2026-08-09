@@ -36,11 +36,42 @@ export default defineConfig(({ command }) => ({
     alias: [
       {
         find: '@asa-lab/electronics/simulation',
-        replacement: resolve(repositoryRoot, 'contexts/electronics/simulation.ts'),
+        replacement: resolve(repositoryRoot, 'modules/electronics/simulation.ts'),
+      },
+      {
+        find: '@asa-lab/electronics/editor',
+        replacement: resolve(repositoryRoot, 'modules/electronics/editor.tsx'),
       },
       {
         find: '@asa-lab/electronics',
-        replacement: resolve(repositoryRoot, 'contexts/electronics/index.ts'),
+        replacement: resolve(repositoryRoot, 'modules/electronics/index.ts'),
+      },
+      {
+        find: '@asa-lab/chess/editor',
+        replacement: resolve(repositoryRoot, 'modules/chess/editor.ts'),
+      },
+      {
+        find: '@asa-lab/ui-kit',
+        replacement: resolve(repositoryRoot, 'packages/ui-kit/src/index.ts'),
+      },
+      {
+        find: '@asa-lab/editor-host',
+        replacement: resolve(repositoryRoot, 'packages/editor-host/src/index.ts'),
+      },
+      {
+        find: '@asa-lab/web-api-client',
+        replacement: resolve(repositoryRoot, 'packages/web-api-client/src/index.ts'),
+      },
+      {
+        find: '@asa-lab/portal-shell/navigation',
+        replacement: resolve(
+          repositoryRoot,
+          'packages/portal-shell/src/creator-portal/navigation.ts',
+        ),
+      },
+      {
+        find: '@asa-lab/portal-shell',
+        replacement: resolve(repositoryRoot, 'packages/portal-shell/src/index.ts'),
       },
       // These resolve to CommonJS bundles. `vite build` converts them — see
       // commonjsOptions below — but the dev server served them raw as ES modules,
@@ -52,7 +83,7 @@ export default defineConfig(({ command }) => ({
         ? [
             {
               find: '@asa-lab/chess',
-              replacement: resolve(repositoryRoot, 'contexts/chess/index.ts'),
+              replacement: resolve(repositoryRoot, 'modules/chess/index.ts'),
             },
             {
               find: '@asa-lab/module-sdk',
@@ -69,7 +100,7 @@ export default defineConfig(({ command }) => ({
     outDir: 'dist',
     emptyOutDir: true,
     commonjsOptions: {
-      include: [/node_modules/, /contexts\/chess\/dist/, /packages\/module-sdk\/dist/],
+      include: [/node_modules/, /modules\/chess\/dist/, /packages\/module-sdk\/dist/],
     },
   },
   server: {

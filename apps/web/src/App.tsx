@@ -1,32 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type SessionPayload } from './api';
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
-import { JoinClassPage } from './pages/JoinClassPage';
-import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { MyProjectsPage } from './pages/MyProjectsPage';
-import { ProjectsPage } from './pages/ProjectsPage';
-import { AccountPage } from './pages/AccountPage';
-import { CreatorHomePage } from './pages/CreatorHomePage';
-import { CreatorResourcePage } from './pages/CreatorResourcePage';
-import { PortalHeader } from './components/PortalHeader';
-import { AsaLabWordmark } from './brand/AsaLabBrand';
-import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import {
+  AccountPage,
+  AsaLabWordmark,
+  CreatorHomePage,
+  CreatorResourcePage,
+  DashboardPage,
+  JoinClassPage,
+  LoginPage,
+  MyProjectsPage,
+  OrganizationLoginPage,
+  PortalHeader,
+  ProjectsPage,
+  PublicEntryPage,
+  RegisterPage,
   canUseClasses,
   creatorViewFromHash,
   creatorViewToHash,
   sectionForView,
   type CreatorPortalSection,
   type CreatorPortalView,
-} from './creator-portal/navigation';
-import './brand/brand.css';
-import './electronics/portal.css';
-import './modules/project-hub.css';
-import './account.css';
-import './creator-portal/creator-portal.css';
+  type PublicIntent,
+} from '@asa-lab/portal-shell';
+import { ModuleEditorHost } from './modules/ModuleEditorHost';
 
 type SessionState =
   | { kind: 'checking' }

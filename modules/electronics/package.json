@@ -1,0 +1,28 @@
+{
+  "name": "@asa-lab/electronics",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./simulation": {
+      "types": "./dist/simulation.d.ts",
+      "default": "./dist/simulation.js"
+    },
+    "./editor": {
+      "types": "./editor.tsx",
+      "default": "./editor.tsx"
+    }
+  },
+  "dependencies": {
+    "@asa-lab/editor-host": "workspace:*",
+    "@asa-lab/module-sdk": "workspace:*",
+    "@asa-lab/ui-kit": "workspace:*",
+    "@asa-lab/web-api-client": "workspace:*",
+    "react": "18.3.1"
+  }
+}

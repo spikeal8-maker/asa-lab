@@ -1,0 +1,21 @@
+{
+  "name": "@asa-lab/portal-shell",
+  "version": "0.0.0",
+  "private": true,
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./navigation": {
+      "types": "./src/creator-portal/navigation.ts",
+      "default": "./src/creator-portal/navigation.ts"
+    }
+  },
+  "dependencies": {
+    "@asa-lab/ui-kit": "workspace:*",
+    "@asa-lab/web-api-client": "workspace:*",
+    "react": "18.3.1"
+  }
+}

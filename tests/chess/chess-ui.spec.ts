@@ -5,7 +5,7 @@ import {
   formatChessClock,
   resultLabel,
   squareAccessibleLabel,
-} from '../../apps/web/src/chess/chess-ui';
+} from '../../modules/chess/editor/chess-ui';
 
 describe('ASA Chess UI helpers', () => {
   it('provides a complete two-color Unicode piece map', () => {

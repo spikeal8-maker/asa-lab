@@ -1,0 +1,22 @@
+{
+  "name": "@asa-lab/chess",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./editor": {
+      "types": "./editor.ts",
+      "default": "./editor.ts"
+    }
+  },
+  "dependencies": {
+    "@asa-lab/module-sdk": "workspace:*",
+    "@asa-lab/web-api-client": "workspace:*",
+    "react": "18.3.1"
+  }
+}

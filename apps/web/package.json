@@ -5,6 +5,9 @@
   "dependencies": {
     "@asa-lab/chess": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
+    "@asa-lab/portal-shell": "workspace:*",
+    "@asa-lab/ui-kit": "workspace:*",
+    "@asa-lab/web-api-client": "workspace:*",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   }

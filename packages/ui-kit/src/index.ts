@@ -9,3 +9,5 @@ export interface PackageInfo {
 export function packageInfo(): PackageInfo {
   return { name: PACKAGE_NAME, stable: false };
 }
+
+export * from './icons.js';

@@ -1,0 +1,18 @@
+{
+  "name": "portal-shell",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/portal-shell/src",
+  "tags": ["type:lib", "scope:platform-ui", "platform:web"],
+  "targets": {
+    "build": {
+      "command": "tsc -p packages/portal-shell/tsconfig.json --noEmit"
+    },
+    "typecheck": {
+      "command": "tsc -p packages/portal-shell/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint packages/portal-shell/src"
+    }
+  }
+}
