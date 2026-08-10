@@ -91,6 +91,20 @@ describe('Electronics owner SVG foundation', () => {
         (potentiometer?.terminals.wiper?.xMm ?? 0),
     ).toBeCloseTo(2.54, 4);
 
+    const transistor = catalog.find((item) => item.key === 'transistor-npn');
+    expect(transistor?.assetFit).toBe('meet');
+    expect(transistor?.viewBox).toEqual({ x: 0, y: 0, width: 437, height: 492 });
+    expect(transistor?.terminals).toMatchObject({
+      base: { xMm: 4.1932, yMm: 9.8739 },
+      collector: { xMm: 2.3114, yMm: 9.8977 },
+      emitter: { xMm: 6.0751, yMm: 9.8977 },
+    });
+    expect(transistor?.footprint?.pinOffsetsMm).toEqual([
+      [0, 0],
+      [-2.54, 0],
+      [2.54, 0],
+    ]);
+
     const batteryOne = catalog.find((item) => item.key === 'battery-holder-aa-1');
     expect(batteryOne?.physicalSizeMm).toEqual({ width: 20, height: 60.2 });
     for (const item of catalog.filter((candidate) => candidate.familyId === 'battery-holder-aa')) {
@@ -122,8 +136,13 @@ describe('Electronics owner SVG foundation', () => {
         // wire met the very tip of the metal — where the rounded corner is
         // already curving away — and read as not quite touching the contact.
         const ownerY = 10 + Number(ownerFreeEnd[3]) / 2;
+        const ownerScale = Math.min(
+          item.physicalSizeMm.width / item.viewBox.width,
+          item.physicalSizeMm.height / item.viewBox.height,
+        );
+        const verticalInset = (item.physicalSizeMm.height - item.viewBox.height * ownerScale) / 2;
         expect(pin?.yMm, `${item.key}:${pinId}:wire-y`).toBeCloseTo(
-          ownerY * (item.physicalSizeMm.height / item.viewBox.height),
+          verticalInset + ownerY * ownerScale,
           3,
         );
       }

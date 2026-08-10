@@ -118,6 +118,10 @@ describe('live Electronics simulation', () => {
 
     const red220 = calculateLiveSimulation(seriesLed('red', 220), null, true);
     const red1000 = calculateLiveSimulation(seriesLed('red', 1000), null, true);
+    const red100 = calculateLiveSimulation(seriesLed('red', 100), null, true);
+    const red50 = calculateLiveSimulation(seriesLed('red', 50), null, true);
+    const red30 = calculateLiveSimulation(seriesLed('red', 30), null, true);
+    const red1 = calculateLiveSimulation(seriesLed('red', 1), null, true);
     const blue220 = calculateLiveSimulation(seriesLed('blue', 220), null, true);
     const blue1000 = calculateLiveSimulation(seriesLed('blue', 1000), null, true);
     const resultForLed = (result: SolveResult | null) =>
@@ -133,5 +137,21 @@ describe('live Electronics simulation', () => {
     expect(resultForLed(blue1000)?.brightness).toBeLessThan(
       resultForLed(blue220)?.brightness ?? 100,
     );
+
+    // Editing resistance while modelling must immediately move through the
+    // physical operating regions. At 3 V, 1 Ω is not a valid "bright LED"
+    // circuit: it exceeds the 30 mA destructive limit and must be reported as
+    // burned rather than intermittently appearing dark.
+    expect(resultForLed(red100)).toMatchObject({ lit: true, stressState: 'normal' });
+    expect(resultForLed(red50)).toMatchObject({ lit: true, stressState: 'warning' });
+    expect(resultForLed(red30)).toMatchObject({ lit: true, stressState: 'overcurrent' });
+    expect(resultForLed(red1)).toMatchObject({ lit: true, stressState: 'burned' });
+    expect(resultForLed(red100)?.current ?? 0).toBeLessThan(resultForLed(red50)?.current ?? 0);
+    expect(resultForLed(red50)?.current ?? 0).toBeLessThan(resultForLed(red30)?.current ?? 0);
+    expect(resultForLed(red30)?.current ?? 0).toBeLessThan(resultForLed(red1)?.current ?? 0);
+    expect(red50?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_near_limit');
+    expect(red30?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_overcurrent');
+    expect(red30?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('led_burnout');
+    expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_burnout');
   });
 });

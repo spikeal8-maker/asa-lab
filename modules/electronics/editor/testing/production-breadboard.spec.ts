@@ -112,6 +112,11 @@ describe('breadboard fit and internal connectivity contracts', () => {
       [0, 0],
       [2.54, 0],
     ]);
+    expect(footprint('transistor-npn')).toEqual([
+      [0, 0],
+      [-2.54, 0],
+      [2.54, 0],
+    ]);
     expect(footprint('seven-segment-display')).toHaveLength(10);
   });
 });

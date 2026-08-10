@@ -28386,14 +28386,14 @@
         {
           "id": "BAT-",
           "xMm": 8.7279,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 11.2721,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28461,14 +28461,14 @@
         {
           "id": "BAT-",
           "xMm": 15.8657,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 18.4099,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28536,14 +28536,14 @@
         {
           "id": "BAT-",
           "xMm": 23.0035,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 25.5477,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28611,14 +28611,14 @@
         {
           "id": "BAT-",
           "xMm": 30.1413,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 32.6855,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28735,14 +28735,14 @@
         {
           "id": "BAT-",
           "xMm": 44.417,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 46.9611,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28810,14 +28810,14 @@
         {
           "id": "BAT-",
           "xMm": 58.6926,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 61.2367,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -29698,31 +29698,38 @@
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 8.267,
       "physicalHeightMm": 13.333,
-      "viewBox": [0, 0, 8.267, 13.333],
+      "viewBox": [0, 0, 437, 492],
       "pins": [
         {
           "id": "base",
           "xMm": 4.1932,
-          "yMm": 11.2611,
+          "yMm": 9.8739,
           "electricalRole": "base",
           "toleranceMm": 0.0
         },
         {
           "id": "collector",
           "xMm": 2.3114,
-          "yMm": 11.2952,
+          "yMm": 9.8977,
           "electricalRole": "collector",
           "toleranceMm": 0.0
         },
         {
           "id": "emitter",
           "xMm": 6.0751,
-          "yMm": 11.2952,
+          "yMm": 9.8977,
           "electricalRole": "emitter",
           "toleranceMm": 0.0
         }
       ],
-      "footprint": null,
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [-2.54, 0],
+          [2.54, 0]
+        ]
+      },
       "states": [],
       "stateAssets": [],
       "animations": [

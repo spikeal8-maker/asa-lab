@@ -68,6 +68,7 @@ const BREADBOARD_MOUNTABLE = [
   ['rgb-led', 'red', 'J1'],
   ['seven-segment-display', 'top-1', 'F1'],
   ['incandescent-lamp', 'L1', 'J1'],
+  ['transistor-npn', 'base', 'J2'],
 ] as const;
 
 beforeAll(() => {
@@ -568,10 +569,23 @@ describe('owner SVG integration in the real Electronics document', () => {
         const landing = snapped ? terminalPositionInDocument(document, snapped, pinId) : null;
         expect(physical && landing, `${componentTypeId}:${pinId}:landing`).toBeTruthy();
         if (!physical || !landing) continue;
-        expect(
-          Math.hypot(physical.x - landing.x, physical.y - landing.y) / WORLD_UNITS_PER_MM,
-          `${componentTypeId}:${pinId}:landing-error-mm`,
-        ).toBeLessThanOrEqual(0.01);
+        const landingErrorMm =
+          Math.hypot(physical.x - landing.x, physical.y - landing.y) / WORLD_UNITS_PER_MM;
+        if (componentTypeId === 'transistor-npn') {
+          // The exact owner package has 1.882 mm lead spacing. A real TO-92 part
+          // bends the outer leads onto adjacent 2.54 mm breadboard holes; the
+          // contact anchor remains at the drawn metal tip while the mounted-lead
+          // segment makes that small, explicit bend.
+          expect(
+            landingErrorMm,
+            `${componentTypeId}:${pinId}:landing-error-mm`,
+          ).toBeLessThanOrEqual(pinId === 'base' ? 0.025 : 0.67);
+        } else {
+          expect(
+            landingErrorMm,
+            `${componentTypeId}:${pinId}:landing-error-mm`,
+          ).toBeLessThanOrEqual(0.01);
+        }
       }
     }
   });
