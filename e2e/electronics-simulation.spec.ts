@@ -433,7 +433,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'off',
   );
   await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
-  await switchComponent.locator('.workbench-part').click();
+  await switchComponent.getByTestId('spdt-actuator').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);

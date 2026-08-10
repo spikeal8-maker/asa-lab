@@ -469,7 +469,7 @@ export function ProductionComponentVisual({
               />
             </g>
           ) : null}
-          <g transform="translate(0 -10)">
+          <g data-testid="spdt-actuator" transform="translate(0 -10)">
             <rect x="-14" y="-5" width="28" height="10" rx="1" fill="#565656" />
             <rect x="-9.5" y="-3.75" width="19" height="7.5" fill="#222222" />
             <g transform={visualState === 'on' ? undefined : 'translate(-10 0)'} stroke="#afafaf">
