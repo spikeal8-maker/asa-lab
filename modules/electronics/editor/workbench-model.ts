@@ -65,7 +65,7 @@ export interface CatalogPlacement {
 export interface ActuatorPress {
   componentId: string;
   pointerId: number;
-  kind: 'button' | 'switch';
+  kind: 'button';
 }
 
 export interface PotentiometerDrag {

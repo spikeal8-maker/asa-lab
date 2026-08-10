@@ -709,17 +709,22 @@ export function useElectronicsWorkbench(projectId: string) {
       event.stopPropagation();
       return;
     }
-    if (simulationRunning && (component.kind === 'button' || component.kind === 'switch')) {
+    if (simulationRunning && component.kind === 'button') {
       actuatorPressRef.current = {
         componentId: component.id,
         pointerId: event.pointerId,
-        kind: component.kind,
+        kind: 'button',
       };
       stageRef.current?.setPointerCapture(event.pointerId);
       setSelection({ kind: 'component', id: component.id, ids: [component.id] });
-      if (component.kind === 'button') {
-        setComponentState(component.id, true, 'Кнопка нажата.');
-      }
+      setComponentState(component.id, true, 'Кнопка нажата.');
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
+    if (simulationRunning && component.kind === 'switch') {
+      setSelection({ kind: 'component', id: component.id, ids: [component.id] });
+      toggleComponentState(component.id);
       event.stopPropagation();
       event.preventDefault();
       return;
@@ -1002,11 +1007,7 @@ export function useElectronicsWorkbench(projectId: string) {
     const actuatorPress = actuatorPressRef.current;
     if (actuatorPress?.pointerId === event.pointerId) {
       actuatorPressRef.current = null;
-      if (actuatorPress.kind === 'button') {
-        setComponentState(actuatorPress.componentId, false, 'Кнопка отпущена.');
-      } else {
-        toggleComponentState(actuatorPress.componentId);
-      }
+      setComponentState(actuatorPress.componentId, false, 'Кнопка отпущена.');
     }
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId) {
