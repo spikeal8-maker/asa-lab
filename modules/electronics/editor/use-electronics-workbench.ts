@@ -724,7 +724,6 @@ export function useElectronicsWorkbench(projectId: string) {
     }
     if (simulationRunning && component.kind === 'switch') {
       setSelection({ kind: 'component', id: component.id, ids: [component.id] });
-      toggleComponentState(component.id);
       event.stopPropagation();
       event.preventDefault();
       return;

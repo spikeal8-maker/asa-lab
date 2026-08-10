@@ -340,6 +340,11 @@ export function WorkbenchStage({
                     selected={selected}
                     selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
+                    onSwitchActuate={
+                      c.simulationRunning && component.kind === 'switch'
+                        ? () => c.toggleComponentState(component.id)
+                        : undefined
+                    }
                   />
                   {c.simulationRunning && primaryDiagnostic ? (
                     <g
