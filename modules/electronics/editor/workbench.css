@@ -412,6 +412,10 @@
   filter: drop-shadow(0 0 2.5px var(--workbench-led-glow))
     drop-shadow(0 0 7px var(--workbench-led-glow));
 }
+.workbench-rgb-led-visual.is-lit .workbench-rgb-led-mixture {
+  filter: drop-shadow(0 0 2.5px var(--workbench-rgb-led-glow))
+    drop-shadow(0 0 7px var(--workbench-rgb-led-glow));
+}
 @keyframes wb-wire-flow {
   to {
     stroke-dashoffset: -34;

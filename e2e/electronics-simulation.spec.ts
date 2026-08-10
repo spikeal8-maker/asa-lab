@@ -290,6 +290,105 @@ function directLedWithLoosePartsDocument(): SchematicDocument {
   };
 }
 
+function rgbLedDocument(commonMode: 'common-cathode' | 'common-anode'): SchematicDocument {
+  const commonCathode = commonMode === 'common-cathode';
+  const channels = ['red', 'green', 'blue'] as const;
+  return {
+    schemaVersion: 3,
+    components: [
+      {
+        id: 'source',
+        kind: 'source',
+        componentTypeId: 'battery-holder-aa-4',
+        variantId: 'battery-holder-aa-4',
+        name: 'Источник 6 В',
+        position: { x: 100, y: 260 },
+        rotation: 0,
+        value: 6,
+        pinIds: ['BAT-', 'BAT+'],
+        stateProperties: { cells: 4 },
+      },
+      ...channels.map((channel, index) => ({
+        id: `resistor-${channel}`,
+        kind: 'resistor' as const,
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        name: `R ${channel.toUpperCase()}`,
+        position: { x: 430 + index * 120, y: 390 },
+        rotation: 0,
+        value: 220,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'Ом' },
+      })),
+      {
+        id: 'rgb',
+        kind: 'rgb-led',
+        componentTypeId: 'rgb-led',
+        variantId: 'rgb-led',
+        name: 'RGB LED',
+        position: { x: 560, y: 160 },
+        rotation: 0,
+        value: 0,
+        pinIds: ['red', 'common', 'green', 'blue'],
+        stateProperties: { commonMode },
+      },
+    ],
+    connections: commonCathode
+      ? [
+          ...channels.flatMap((channel) => [
+            {
+              id: `positive-${channel}`,
+              from: { componentId: 'source', terminal: 'BAT+' },
+              to: { componentId: `resistor-${channel}`, terminal: 'lead-1' },
+              color: '#e3212b',
+              vertices: [],
+            },
+            {
+              id: `channel-${channel}`,
+              from: { componentId: `resistor-${channel}`, terminal: 'lead-2' },
+              to: { componentId: 'rgb', terminal: channel },
+              color: channel === 'red' ? '#e3212b' : channel === 'green' ? '#149447' : '#2868d7',
+              vertices: [],
+            },
+          ]),
+          {
+            id: 'common-return',
+            from: { componentId: 'rgb', terminal: 'common' },
+            to: { componentId: 'source', terminal: 'BAT-' },
+            color: '#2a3035',
+            vertices: [],
+          },
+        ]
+      : [
+          {
+            id: 'common-positive',
+            from: { componentId: 'source', terminal: 'BAT+' },
+            to: { componentId: 'rgb', terminal: 'common' },
+            color: '#e3212b',
+            vertices: [],
+          },
+          ...channels.flatMap((channel) => [
+            {
+              id: `channel-${channel}`,
+              from: { componentId: 'rgb', terminal: channel },
+              to: { componentId: `resistor-${channel}`, terminal: 'lead-1' },
+              color: channel === 'red' ? '#e3212b' : channel === 'green' ? '#149447' : '#2868d7',
+              vertices: [],
+            },
+            {
+              id: `return-${channel}`,
+              from: { componentId: `resistor-${channel}`, terminal: 'lead-2' },
+              to: { componentId: 'source', terminal: 'BAT-' },
+              color: '#2a3035',
+              vertices: [],
+            },
+          ]),
+        ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -683,5 +782,49 @@ test('a direct 3 V / 166 ohm LED branch stays lit beside loose editor parts', as
     /led_red_i000\.svg$/,
   );
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-direct-led-166.png`, fullPage: true });
+  failures.assertEmpty();
+});
+
+test('RGB LED mixes three calculated channels for both common modes', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  for (const commonMode of ['common-cathode', 'common-anode'] as const) {
+    const projectId = await createProject(page, `R4-M1 RGB LED ${commonMode}`);
+    await saveDocument(page, projectId, rgbLedDocument(commonMode));
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+    const rgb = component(page, 'rgb-led');
+    const visual = rgb.locator('.workbench-production-visual');
+    await expect(visual).toHaveAttribute('data-rgb-runtime-state', 'lit');
+    for (const channel of ['red', 'green', 'blue'] as const) {
+      await expect
+        .poll(async () => Number((await visual.getAttribute(`data-rgb-${channel}`)) ?? '0'))
+        .toBeGreaterThan(0);
+    }
+    await expect(visual).not.toHaveAttribute('data-rgb-colour', 'rgb(0, 0, 0)');
+    await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
+    await rgb.locator('.workbench-part').click();
+    const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    await expect(inspector.getByText('RGB-светодиод', { exact: true }).last()).toBeVisible();
+    const channelMeasurements = inspector.locator(
+      'fieldset.workbench-state-controls .workbench-calculated-property output',
+    );
+    await expect(channelMeasurements).toHaveCount(3);
+    for (let index = 0; index < 3; index += 1) {
+      await expect(channelMeasurements.nth(index)).not.toHaveText('0%');
+    }
+
+    if (commonMode === 'common-cathode') {
+      await page.screenshot({
+        path: `${ARTIFACT_DIR}/electronics-rgb-mixed-common-cathode.png`,
+        fullPage: true,
+      });
+    }
+  }
   failures.assertEmpty();
 });

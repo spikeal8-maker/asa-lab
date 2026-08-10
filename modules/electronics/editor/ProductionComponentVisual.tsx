@@ -97,6 +97,30 @@ export function ProductionComponentVisual({
           : visualState === 'off'
             ? 'off'
             : 'fault';
+  const rgbRed =
+    entry.key === 'rgb-led' && simulationRunning
+      ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['red'] ?? 0)))
+      : 0;
+  const rgbGreen =
+    entry.key === 'rgb-led' && simulationRunning
+      ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['green'] ?? 0)))
+      : 0;
+  const rgbBlue =
+    entry.key === 'rgb-led' && simulationRunning
+      ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['blue'] ?? 0)))
+      : 0;
+  const rgbBrightness = Math.max(rgbRed, rgbGreen, rgbBlue);
+  const rgbColour = rgbLedColour(
+    rgbLedState(
+      rgbRed,
+      rgbGreen,
+      rgbBlue,
+      String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
+    ),
+  );
+  const rgbIsLit = entry.key === 'rgb-led' && simulationRunning && rgbBrightness > 0;
+  const rgbRuntimeState =
+    entry.key !== 'rgb-led' ? undefined : !simulationRunning ? 'stopped' : rgbIsLit ? 'lit' : 'off';
   const visualComponent: SchematicComponent =
     entry.key === 'led-5mm' && effectiveBrightness !== undefined
       ? {
@@ -141,7 +165,7 @@ export function ProductionComponentVisual({
     <svg
       className={`workbench-production-visual${
         entry.key === 'led-5mm' ? ` workbench-led-visual${ledIsLit ? ' is-lit' : ''}` : ''
-      }`}
+      }${entry.key === 'rgb-led' ? ` workbench-rgb-led-visual${rgbIsLit ? ' is-lit' : ''}` : ''}`}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -149,6 +173,11 @@ export function ProductionComponentVisual({
       data-led-colour={entry.key === 'led-5mm' ? ledColour : undefined}
       data-led-brightness={entry.key === 'led-5mm' ? ledBrightness : undefined}
       data-led-runtime-state={ledRuntimeState}
+      data-rgb-red={entry.key === 'rgb-led' ? Math.round(rgbRed) : undefined}
+      data-rgb-green={entry.key === 'rgb-led' ? Math.round(rgbGreen) : undefined}
+      data-rgb-blue={entry.key === 'rgb-led' ? Math.round(rgbBlue) : undefined}
+      data-rgb-colour={entry.key === 'rgb-led' ? rgbColour : undefined}
+      data-rgb-runtime-state={rgbRuntimeState}
       style={
         ledIsLit
           ? ({
@@ -157,7 +186,9 @@ export function ProductionComponentVisual({
                 (ledBrightness / 100) * 0.62
               ).toFixed(3)})`,
             } as CSSProperties)
-          : undefined
+          : rgbIsLit
+            ? ({ '--workbench-rgb-led-glow': rgbColour } as CSSProperties)
+            : undefined
       }
       aria-hidden="true"
     >
@@ -506,27 +537,13 @@ export function ProductionComponentVisual({
       {entry.key === 'rgb-led' ? (
         <ellipse
           data-testid="rgb-led-mixture"
+          className="workbench-rgb-led-mixture"
           cx={width * 0.5}
           cy={height * 0.36}
           rx={width * 0.24}
           ry={height * 0.27}
-          fill={rgbLedColour(
-            rgbLedState(
-              simulationRunning ? Number(result?.branchBrightness?.['red'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['green'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['blue'] ?? 0) : 0,
-              String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
-            ),
-          )}
-          opacity={
-            (Math.max(
-              simulationRunning ? Number(result?.branchBrightness?.['red'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['green'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['blue'] ?? 0) : 0,
-            ) /
-              100) *
-            0.72
-          }
+          fill={rgbColour}
+          opacity={rgbIsLit ? 0.18 + (rgbBrightness / 100) * 0.82 : 0}
           style={{ mixBlendMode: 'screen' }}
         />
       ) : null}

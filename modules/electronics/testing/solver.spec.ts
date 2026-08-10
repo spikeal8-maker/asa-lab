@@ -845,6 +845,57 @@ describe('deterministic DC solver', () => {
     expect(rgb?.branchBrightness?.blue).toBe(0);
   });
 
+  it('mixes all RGB channels for common-cathode and common-anode wiring', () => {
+    for (const commonMode of ['common-cathode', 'common-anode'] as const) {
+      const components = [
+        component('source', 'source', 5),
+        component('r-red', 'resistor', 220),
+        component('r-green', 'resistor', 220),
+        component('r-blue', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode },
+        }),
+      ];
+      const connections =
+        commonMode === 'common-cathode'
+          ? [
+              connect('positive-red', 'source', 'a', 'r-red', 'a'),
+              connect('red-channel', 'r-red', 'b', 'rgb', 'red'),
+              connect('positive-green', 'source', 'a', 'r-green', 'a'),
+              connect('green-channel', 'r-green', 'b', 'rgb', 'green'),
+              connect('positive-blue', 'source', 'a', 'r-blue', 'a'),
+              connect('blue-channel', 'r-blue', 'b', 'rgb', 'blue'),
+              connect('common-return', 'rgb', 'common', 'source', 'b'),
+            ]
+          : [
+              connect('common-positive', 'source', 'a', 'rgb', 'common'),
+              connect('red-channel', 'rgb', 'red', 'r-red', 'a'),
+              connect('red-return', 'r-red', 'b', 'source', 'b'),
+              connect('green-channel', 'rgb', 'green', 'r-green', 'a'),
+              connect('green-return', 'r-green', 'b', 'source', 'b'),
+              connect('blue-channel', 'rgb', 'blue', 'r-blue', 'a'),
+              connect('blue-return', 'r-blue', 'b', 'source', 'b'),
+            ];
+
+      const rgb = resultFor(doc(components, connections), 'rgb');
+      expect(rgb?.lit, commonMode).toBe(true);
+      expect(rgb?.branchCurrents?.red, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchCurrents?.green, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchCurrents?.blue, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchCurrents?.red, commonMode).toBeGreaterThan(
+        rgb?.branchCurrents?.green ?? Number.POSITIVE_INFINITY,
+      );
+      expect(rgb?.branchCurrents?.green, commonMode).toBeGreaterThan(
+        rgb?.branchCurrents?.blue ?? Number.POSITIVE_INFINITY,
+      );
+      expect(rgb?.branchBrightness?.red, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchBrightness?.green, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchBrightness?.blue, commonMode).toBeGreaterThan(0);
+    }
+  });
+
   it('drives each seven-segment cell from its real pin and never invents a glyph', () => {
     const display = component('display', 'seven-segment', 0, {
       componentTypeId: 'seven-segment-display',
