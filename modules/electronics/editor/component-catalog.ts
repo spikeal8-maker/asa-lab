@@ -84,6 +84,37 @@ export const CATEGORY_LABELS: Readonly<Record<ComponentCategory, string>> = Obje
   CATEGORY_OPTIONS.map((category) => [category.id, category.label]),
 ) as Readonly<Record<ComponentCategory, string>>;
 
+// Tinkercad's Basic drawer is the visual reference for discoverability. The
+// catalog data and assets still come only from the owner manifest; this list
+// controls presentation order and deliberately omits micro:bit by owner choice.
+const TINKERCAD_BASIC_FAMILY_ORDER = [
+  'resistor',
+  'led',
+  'button',
+  'potentiometer',
+  'capacitor',
+  'spdt-switch',
+  'battery-holder-aa',
+  'breadboard',
+  'arduino-uno',
+  'vibration-motor',
+  'dc-motor',
+  'servo',
+  'transistor-npn',
+  'rgb-led',
+  'diode',
+  'photoresistor',
+  'piezo',
+  'multimeter',
+  'seven-segment',
+  'lamp',
+  'regulated-power-supply',
+  'battery',
+] as const;
+const TINKERCAD_BASIC_FAMILY_INDEX = new Map<string, number>(
+  TINKERCAD_BASIC_FAMILY_ORDER.map((familyId, index) => [familyId, index]),
+);
+
 export function workbenchCatalog(): readonly ComponentFamily[] {
   const ownerItems = ownerCatalogItems();
   const familiesWithOwnerArt = new Set(
@@ -138,11 +169,20 @@ export function workbenchCatalog(): readonly ComponentFamily[] {
         blockReason: enabled ? null : blockReasons.join('; '),
       };
     })
-    .sort(
-      (left, right) =>
+    .sort((left, right) => {
+      const leftReferenceOrder = TINKERCAD_BASIC_FAMILY_INDEX.get(left.familyId);
+      const rightReferenceOrder = TINKERCAD_BASIC_FAMILY_INDEX.get(right.familyId);
+      if (leftReferenceOrder !== undefined || rightReferenceOrder !== undefined) {
+        return (
+          (leftReferenceOrder ?? Number.MAX_SAFE_INTEGER) -
+          (rightReferenceOrder ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+      return (
         left.catalogOrder - right.catalogOrder ||
-        left.familyLabel.localeCompare(right.familyLabel, 'ru'),
-    );
+        left.familyLabel.localeCompare(right.familyLabel, 'ru')
+      );
+    });
 }
 
 export function familyById(familyId: string): ComponentFamily | null {

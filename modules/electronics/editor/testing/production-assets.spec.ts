@@ -38,7 +38,9 @@ describe('Electronics owner SVG foundation', () => {
     const itemsWithOwnerArt = ownerCatalogItems().filter((item) => item.asset);
     expect(itemsWithOwnerArt.length).toBeGreaterThan(20);
     for (const item of itemsWithOwnerArt) {
-      expect(item.asset, item.key).toMatch(/^\/assets\/electronics\/owner-audit\/.*\.svg$/);
+      expect(item.asset, item.key).toMatch(
+        /^\/assets\/electronics\/(owner-audit|owner-approved)\/.*\.svg$/,
+      );
       expect(item.asset, item.key).not.toContain('/production/');
       expect(item.asset, item.key).not.toContain('/source-reference/');
       const path = runtimePath(item.asset);
@@ -193,15 +195,10 @@ describe('Electronics owner SVG foundation', () => {
   });
 
   it('keeps known missing components missing instead of substituting a traced PNG', () => {
-    for (const componentId of [
-      'battery-1.5v',
-      'battery-3v',
-      'battery-6v',
-      'microbit',
-      'vibration-motor',
-    ]) {
+    for (const componentId of ['battery-1.5v', 'battery-3v', 'battery-6v', 'vibration-motor']) {
       expect(ownerCatalogItems().find((item) => item.key === componentId)?.asset).toBe('');
     }
+    expect(ownerCatalogItems().some((item) => item.key === 'microbit')).toBe(false);
   });
 
   it('removes the two scripts that generated and replaced runtime artwork', () => {

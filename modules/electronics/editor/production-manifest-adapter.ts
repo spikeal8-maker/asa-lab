@@ -195,7 +195,6 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'spdt-switch': 'Переключает общий контакт между левым и правым выводами.',
   battery: 'Источник постоянного напряжения для питания схемы.',
   breadboard: 'Макетная плата для сборки цепей без пайки. Отверстия соединены группами.',
-  microbit: 'Учебная микроконтроллерная плата micro:bit.',
   'arduino-uno': 'Микроконтроллерная плата Arduino Uno.',
   'vibration-motor': 'Миниатюрный двигатель, создающий вибрацию.',
   'dc-motor': 'Двигатель постоянного тока с управлением скоростью и направлением.',
@@ -243,7 +242,6 @@ function preview(componentId: string, kind: Exclude<ComponentKind, 'wire'>): Pre
   if (componentId === 'servo-motor') return 'servo';
   if (componentId === 'dc-motor') return 'motor';
   if (componentId === 'vibration-motor') return 'vibration-motor';
-  if (componentId === 'microbit') return 'microbit';
   if (componentId === 'transistor-npn') return 'transistor';
   if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId === 'rgb-led') return 'rgb-led';
@@ -321,6 +319,39 @@ function pinLabel(componentId: string, pinId: string): string {
     green: 'G',
     blue: 'B',
   };
+  const arduinoLabels: Readonly<Record<string, string>> = {
+    a0: 'A0',
+    a1: 'A1',
+    a2: 'A2',
+    a3: 'A3',
+    a4: 'A4',
+    a5: 'A5',
+    aref: 'AREF',
+    d0: 'D0 / RX',
+    d1: 'D1 / TX',
+    d2: 'D2',
+    d3: 'D3 ~',
+    d4: 'D4',
+    d5: 'D5 ~',
+    d6: 'D6 ~',
+    d7: 'D7',
+    d8: 'D8',
+    d9: 'D9 ~',
+    d10: 'D10 ~',
+    d11: 'D11 ~',
+    d12: 'D12',
+    d13: 'D13',
+    'gnd-top': 'GND',
+    ioref: 'IOREF',
+    'power-3v3': '3.3V',
+    'power-5v': '5V',
+    'power-gnd-1': 'GND',
+    'power-gnd-2': 'GND',
+    reset: 'RESET',
+    scl: 'SCL',
+    sda: 'SDA',
+    vin: 'VIN',
+  };
   const sevenSegmentLabels: Readonly<Record<string, string>> = {
     // Standard 10-pin single-digit display viewed from the front.
     'top-1': 'G',
@@ -335,6 +366,7 @@ function pinLabel(componentId: string, pinId: string): string {
     'bottom-5': 'DP',
   };
   if (componentId.startsWith('breadboard-')) return pinId;
+  if (componentId === 'arduino-uno') return arduinoLabels[pinId] ?? pinId;
   if (componentId === 'seven-segment-display') return sevenSegmentLabels[pinId] ?? pinId;
   return labels[pinId] ?? pinId;
 }
@@ -346,10 +378,14 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
     }
     return;
   }
+  const runtimePrefix =
+    item.provenance === 'owner_supplied'
+      ? '/assets/electronics/owner-approved/'
+      : '/assets/electronics/owner-audit/';
   if (
-    item.provenance !== 'exact_owner_svg' ||
+    !['exact_owner_svg', 'owner_supplied'].includes(item.provenance) ||
     !item.sourceOwnerPath ||
-    !item.runtimePath?.startsWith('/assets/electronics/owner-audit/') ||
+    !item.runtimePath?.startsWith(runtimePrefix) ||
     !item.runtimePath.endsWith('.svg') ||
     item.sourceSha256 === null ||
     item.runtimeSha256 !== item.sourceSha256

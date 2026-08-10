@@ -53,6 +53,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'rgb-led': [8.75, 10.125],
   'seven-segment-display': [12.7, 19.05],
   'incandescent-lamp': [20, 30],
+  'arduino-uno': [78.74, 58.816875],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -134,6 +135,58 @@ describe('owner SVG integration in the real Electronics document', () => {
       'bottom-4': { label: 'C' },
       'bottom-5': { label: 'DP' },
     });
+    expect(entries.get('arduino-uno')?.terminals).toMatchObject({
+      scl: { label: 'SCL' },
+      sda: { label: 'SDA' },
+      aref: { label: 'AREF' },
+      'gnd-top': { label: 'GND' },
+      d0: { label: 'D0 / RX' },
+      d1: { label: 'D1 / TX' },
+      d13: { label: 'D13' },
+      ioref: { label: 'IOREF' },
+      'power-3v3': { label: '3.3V' },
+      'power-5v': { label: '5V' },
+      vin: { label: 'VIN' },
+      a0: { label: 'A0' },
+      a5: { label: 'A5' },
+    });
+  });
+
+  it('anchors all Arduino contacts to the real 2.54 mm header centres', () => {
+    const arduino = productionCatalog().find((entry) => entry.key === 'arduino-uno');
+    expect(arduino).toBeDefined();
+    expect(arduino?.runtimePath).toBe('/assets/electronics/owner-approved/arduino-uno.svg');
+    expect(arduino?.runtimeSha256).toBe(
+      'c4bba011bb122735bf8e1d23d266e2c545e2575c5f17c650294ad0015117027d',
+    );
+    expect(Object.keys(arduino?.terminals ?? {})).toHaveLength(31);
+
+    const expectedPixels: Readonly<Record<string, readonly [number, number]>> = {
+      scl: [337, 64],
+      sda: [369, 64],
+      aref: [401, 64],
+      'gnd-top': [433, 64],
+      d13: [465, 64],
+      d8: [625, 64],
+      d7: [675, 64],
+      d0: [899, 64],
+      ioref: [484, 671],
+      reset: [516, 671],
+      'power-3v3': [548, 671],
+      'power-5v': [580, 671],
+      'power-gnd-1': [612, 671],
+      'power-gnd-2': [644, 671],
+      vin: [676, 671],
+      a0: [739, 671],
+      a5: [899, 671],
+    };
+    for (const [pinId, [xPixel, yPixel]] of Object.entries(expectedPixels)) {
+      const pin = arduino?.terminals[pinId];
+      expect(pin, pinId).toBeDefined();
+      expect(pin?.xMm, `${pinId}:x`).toBeCloseTo((xPixel * 2.54) / 32, 3);
+      expect(pin?.yMm, `${pinId}:y`).toBeCloseTo((yPixel * 2.54) / 32, 3);
+      expect(pin?.toleranceMm, pinId).toBeLessThanOrEqual(0.25);
+    }
   });
 
   it('groups owner assets into deterministic families and safe tiers', () => {
@@ -152,10 +205,31 @@ describe('owner SVG integration in the real Electronics document', () => {
         'diode',
         'rgb-led',
         'seven-segment',
-        'microbit',
+        'arduino-uno',
         'vibration-motor',
       ]),
     );
+    expect(basicFamilies.map((family) => family.familyId).slice(0, 18)).toEqual([
+      'resistor',
+      'led',
+      'button',
+      'potentiometer',
+      'capacitor',
+      'spdt-switch',
+      'battery-holder-aa',
+      'breadboard',
+      'arduino-uno',
+      'vibration-motor',
+      'dc-motor',
+      'servo',
+      'transistor-npn',
+      'rgb-led',
+      'diode',
+      'photoresistor',
+      'piezo',
+      'multimeter',
+    ]);
+    expect(basicFamilies.some((family) => family.familyId === 'microbit')).toBe(false);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
@@ -203,12 +277,12 @@ describe('owner SVG integration in the real Electronics document', () => {
         const entry = variant.entry;
         if (entry.asset) {
           expect(entry.asset, variant.variantId).toMatch(
-            /^\/assets\/electronics\/(owner-supplied|owner-audit\/components)\/.*\.svg$/,
+            /^\/assets\/electronics\/(owner-supplied|owner-approved|owner-audit\/components)\/.*\.svg$/,
           );
           expect(entry.asset, variant.variantId).not.toContain('/production/');
           expect(entry.asset, variant.variantId).not.toContain('/source-reference/');
         } else {
-          expect(['microbit', 'vibration-motor']).toContain(entry.preview);
+          expect(['vibration-motor']).toContain(entry.preview);
           expect(family.enabled).toBe(false);
         }
         expect(renderedSize(entry)).toEqual({

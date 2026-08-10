@@ -63,12 +63,20 @@ def digest(path: Path) -> str:
 
 
 def runtime_file(url: str) -> Path:
-    prefix = "/assets/electronics/owner-audit/"
-    if not url.startswith(prefix) or not url.endswith(".svg"):
-        fail(f"runtime asset is not an owner-audit SVG: {url}")
-    path = ASSETS / "owner-audit" / url.removeprefix(prefix)
+    roots = {
+        "/assets/electronics/owner-audit/": ASSETS / "owner-audit",
+        "/assets/electronics/owner-approved/": ASSETS / "owner-approved",
+    }
+    match = next(
+        ((prefix, root) for prefix, root in roots.items() if url.startswith(prefix)),
+        None,
+    )
+    if match is None or not url.endswith(".svg"):
+        fail(f"runtime asset is not an approved owner SVG: {url}")
+    prefix, root = match
+    path = root / url.removeprefix(prefix)
     try:
-        path.resolve().relative_to((ASSETS / "owner-audit").resolve())
+        path.resolve().relative_to(root.resolve())
     except ValueError:
         fail(f"runtime asset escapes owner-audit: {url}")
     if not path.is_file():
@@ -102,7 +110,7 @@ def load_manifest() -> dict[str, Any]:
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 
-def accepted_owner_assets() -> dict[str, dict[str, Any]]:
+def accepted_owner_assets(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
     if not AUDIT_MANIFEST.is_file():
         fail("immutable owner-audit/manifest.json is missing")
     audit = json.loads(AUDIT_MANIFEST.read_text(encoding="utf-8"))
@@ -125,6 +133,16 @@ def accepted_owner_assets() -> dict[str, dict[str, Any]]:
             )
         ):
             accepted[path] = item
+    for item in manifest.get("ownerApprovedReferenceAssets", []):
+        component_id = item.get("componentId")
+        if (
+            isinstance(component_id, str)
+            and item.get("ownerDecision") == "approved_exact_owner_svg_for_runtime"
+            and item.get("sourceArchive")
+            and item.get("sourceFile")
+            and item.get("sha256")
+        ):
+            accepted[f"owner-approved/{component_id}.svg"] = item
     if not accepted:
         fail("owner audit contains no accepted owner SVG records")
     return accepted
@@ -137,7 +155,10 @@ def assert_owner_audit_match(
     source_sha: str,
     accepted: dict[str, dict[str, Any]],
 ) -> None:
-    imported_file = runtime_url.removeprefix("/assets/electronics/owner-audit/")
+    if runtime_url.startswith("/assets/electronics/owner-audit/"):
+        imported_file = runtime_url.removeprefix("/assets/electronics/owner-audit/")
+    else:
+        imported_file = runtime_url.removeprefix("/assets/electronics/")
     evidence = accepted.get(imported_file)
     if evidence is None:
         fail(f"unknown or unaccepted SVG entered runtime: {runtime_url}")
@@ -207,8 +228,8 @@ def validate_catalog(
         if has_owner_art:
             if runtime_eligible:
                 enabled += 1
-            if item.get("provenance") != "exact_owner_svg":
-                fail(f"runtime component lacks exact_owner_svg provenance: {item.get('componentId')}")
+            if item.get("provenance") not in {"exact_owner_svg", "owner_supplied"}:
+                fail(f"runtime component lacks accepted owner provenance: {item.get('componentId')}")
             if not source_sha or source_sha != runtime_sha:
                 fail(f"source/runtime SHA mismatch: {item.get('componentId')}")
             assert_owner_audit_match(
@@ -247,7 +268,10 @@ def validate_catalog(
     if state_count != EXPECTED_EXACT_FILES:
         fail(f"exact owner SVG state inventory changed: {state_count} != {EXPECTED_EXACT_FILES}")
 
-    for component_id in ("microbit", "vibration-motor"):
+    if any(item.get("componentId") == "microbit" for item in components):
+        fail("microbit must be absent from the runtime catalog by owner decision")
+
+    for component_id in ("vibration-motor",):
         item = next((entry for entry in components if entry.get("componentId") == component_id), None)
         if (
             not item
@@ -301,7 +325,8 @@ def validate_repository() -> None:
 
 def main() -> int:
     try:
-        summary = validate_catalog(load_manifest(), accepted_owner_assets())
+        manifest = load_manifest()
+        summary = validate_catalog(manifest, accepted_owner_assets(manifest))
         validate_repository()
     except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
