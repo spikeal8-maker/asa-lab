@@ -231,21 +231,17 @@ function component(page: Page, componentTypeId: string) {
   );
 }
 
-function calculatedBrightness(page: Page) {
-  return page
-    .locator('.workbench-calculated-property')
-    .filter({ hasText: 'Расчётная яркость' })
-    .locator('output');
-}
-
 async function brightnessValue(page: Page): Promise<number> {
-  const text = (await calculatedBrightness(page).textContent()) ?? '';
-  return Number(text.replace(/[^0-9.-]/g, ''));
+  const value = await component(page, 'led-5mm')
+    .locator('.workbench-production-visual')
+    .getAttribute('data-led-brightness');
+  return Number(value ?? '0');
 }
 
 async function selectLed(page: Page): Promise<void> {
   await component(page, 'led-5mm').locator('.workbench-part').click();
-  await expect(calculatedBrightness(page)).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Параметры выделения' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Состояние LED' })).toBeVisible();
 }
 
 async function holeCenter(page: Page, holeId: string): Promise<{ x: number; y: number }> {
@@ -431,19 +427,21 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   );
 
   await selectLed(page);
-  await expect(calculatedBrightness(page)).toHaveText('0%');
-  await expect(
-    page.locator('.workbench-measurements div').filter({ hasText: 'Состояние' }).locator('dd'),
-  ).toHaveText('Не горит');
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+  await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
+    'data-led-runtime-state',
+    'off',
+  );
   await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
   await switchComponent.locator('.workbench-part').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
   const brightAt220Ohms = await brightnessValue(page);
-  await expect(
-    page.locator('.workbench-measurements div').filter({ hasText: 'Состояние' }).locator('dd'),
-  ).toHaveText('Горит');
+  await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
+    'data-led-runtime-state',
+    'lit',
+  );
   await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
     'href',
     /led_red_i000\.svg$/,
@@ -497,7 +495,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await selectLed(page);
-  await expect(calculatedBrightness(page)).toHaveText('0%');
+  await expect.poll(() => brightnessValue(page)).toBe(0);
   await expect(led).toHaveAttribute('data-diagnostics', /reverse_polarity/);
   await expect(led.locator('image:not([filter])')).toHaveAttribute(
     'href',
@@ -524,18 +522,24 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'href',
     /special\/led_red_burned\.svg$/,
   );
-  await expect(page.locator('.workbench-inspector')).toContainText('Светодиод перегорел');
-  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
-  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
+  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
+  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toBeVisible();
+  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveAttribute(
+    'aria-label',
+    /перегорел/i,
+  );
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await saveDocument(page, projectId, shortCircuitDocument());
   await page.reload();
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
-  await expect(page.getByTestId('simulation-result-status')).toHaveText('Проверьте схему');
-  await expect(page.getByTestId('diagnostics')).toContainText('короткое замыкание');
-  await expect(page.locator('.workbench-toast')).not.toContainText('Моделирование не запущено');
+  await expect(page.getByText(/Время моделирования:/)).toBeVisible();
+  const source = page.locator('[data-testid="schematic-component"][data-kind="source"]');
+  await expect(source).toHaveAttribute('data-diagnostics', /short_circuit/);
+  await expect(source.locator('[data-testid="component-diagnostic-indicator"]')).toBeVisible();
+  await expect(page.locator('.workbench-results')).toHaveCount(0);
+  await expect(page.locator('.workbench-toast')).toHaveCount(0);
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,
     pageErrors: 0,

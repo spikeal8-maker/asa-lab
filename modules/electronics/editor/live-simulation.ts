@@ -18,20 +18,9 @@ export function calculateSimulationPreflight(document: SchematicDocument): Solve
   return analyseCircuit(document);
 }
 
-export function simulationRunNotice(result: SolveResult): string {
-  if (result.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
-    return 'Моделирование запущено. Схема требует внимания — подробности отмечены в диагностике.';
-  }
-  if (result.diagnostics.some((diagnostic) => diagnostic.severity === 'warning')) {
-    return 'Моделирование запущено. На схеме отмечены предупреждения.';
-  }
-  return 'Моделирование запущено. Изменения пересчитываются сразу.';
-}
-
 export function prepareLiveSimulationStart(document: SchematicDocument): {
   readonly document: SchematicDocument;
   readonly result: SolveResult;
-  readonly notice: string;
 } {
   const runningDocument: SchematicDocument = {
     ...document,
@@ -41,6 +30,5 @@ export function prepareLiveSimulationStart(document: SchematicDocument): {
   return {
     document: runningDocument,
     result,
-    notice: simulationRunNotice(result),
   };
 }

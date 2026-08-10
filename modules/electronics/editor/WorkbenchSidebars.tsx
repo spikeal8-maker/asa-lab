@@ -83,19 +83,6 @@ export function WorkbenchSidebars({
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
-  const selectedDiagnostics = c.selectedComponent
-    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
-    : [];
-  const ledStateDiagnostic = [
-    'led_burnout',
-    'led_overcurrent',
-    'led_near_limit',
-    'reverse_polarity',
-    'open_circuit',
-    'dangling_terminal',
-  ]
-    .map((code) => selectedDiagnostics.find((diagnostic) => diagnostic.code === code))
-    .find((diagnostic) => diagnostic !== undefined);
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -499,11 +486,6 @@ export function WorkbenchSidebars({
                       ))}
                     </select>
                   </label>
-                  <div className="workbench-calculated-property">
-                    <span>Расчётная яркость</span>
-                    <output>{c.componentLedBrightness(c.selectedComponent)}%</output>
-                    <small>Определяется током, напряжением и сопротивлением цепи.</small>
-                  </div>
                 </fieldset>
               ) : null}
 
@@ -572,66 +554,30 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              <dl className="workbench-terminal-list" aria-label="Подключение выводов">
-                {Object.entries(c.selectedEntry.terminals)
-                  .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
-                  .map(([terminal, spec]) => {
-                    const connected =
-                      c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0;
-                    const voltage = measurement?.terminalVoltages[terminal];
-                    return (
-                      <div key={terminal}>
-                        <dt>{spec?.label ?? terminal}</dt>
-                        <dd
-                          className={`workbench-terminal-status${connected ? ' connected' : ''}`}
-                          title={c.terminalConnectionLabel(c.selectedComponent!.id, terminal)}
-                        >
-                          {connected ? 'Подключён' : 'Свободен'}
-                          {c.simulationRunning && voltage !== undefined
-                            ? ` · ${voltage.toFixed(3)} В`
-                            : ''}
-                        </dd>
-                      </div>
-                    );
-                  })}
-              </dl>
-
-              {c.selectedEntry.key === 'led-5mm' ? (
-                <div
-                  className={`workbench-led-electrical-state${
-                    c.simulationRunning && (measurement?.brightness ?? 0) > 0 ? ' lit' : ''
-                  }${measurement?.stressState ? ` ${measurement.stressState}` : ''}`}
-                  data-testid="led-electrical-state"
-                >
-                  <strong>
-                    {c.simulationRunning
-                      ? measurement?.stressState === 'burned'
-                        ? 'Светодиод перегорел'
-                        : measurement?.stressState === 'overcurrent'
-                          ? 'Опасная перегрузка по току'
-                          : measurement?.stressState === 'warning'
-                            ? 'Ток близок к пределу'
-                            : (measurement?.brightness ?? 0) > 0
-                              ? `Светится: ${measurement?.brightness?.toFixed(0) ?? '0'}%`
-                              : 'Не светится'
-                      : 'Моделирование остановлено'}
-                  </strong>
-                  {c.simulationRunning && measurement?.currentUtilizationPercent !== undefined ? (
-                    <output>
-                      Нагрузка относительно номинального тока:{' '}
-                      {measurement.currentUtilizationPercent.toFixed(0)}%
-                    </output>
-                  ) : null}
-                  <small>
-                    {ledStateDiagnostic
-                      ? `${ledStateDiagnostic.message} ${ledStateDiagnostic.suggestedAction ?? ''}`
-                      : !c.simulationRunning
-                        ? 'До запуска LED не излучает свет. Выбранный цвет сохраняется как цвет корпуса.'
-                        : (measurement?.brightness ?? 0) > 0
-                          ? 'Яркость рассчитана по току, напряжению и сопротивлению этой цепи.'
-                          : 'Ток ниже порога свечения выбранного цвета. Проверьте напряжение, сопротивление и замкнутость цепи.'}
-                  </small>
-                </div>
+              {c.selectedEntry.key !== 'led-5mm' ? (
+                <dl className="workbench-terminal-list" aria-label="Подключение выводов">
+                  {Object.entries(c.selectedEntry.terminals)
+                    .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
+                    .map(([terminal, spec]) => {
+                      const connected =
+                        c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0;
+                      const voltage = measurement?.terminalVoltages[terminal];
+                      return (
+                        <div key={terminal}>
+                          <dt>{spec?.label ?? terminal}</dt>
+                          <dd
+                            className={`workbench-terminal-status${connected ? ' connected' : ''}`}
+                            title={c.terminalConnectionLabel(c.selectedComponent!.id, terminal)}
+                          >
+                            {connected ? 'Подключён' : 'Свободен'}
+                            {c.simulationRunning && voltage !== undefined
+                              ? ` · ${voltage.toFixed(3)} В`
+                              : ''}
+                          </dd>
+                        </div>
+                      );
+                    })}
+                </dl>
               ) : null}
 
               {Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
@@ -647,7 +593,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {c.simulationRunning && measurement ? (
+              {c.simulationRunning && measurement && c.selectedEntry.key !== 'led-5mm' ? (
                 <dl className="workbench-measurements">
                   {c.selectedComponent.kind === 'transistor' ? (
                     <>

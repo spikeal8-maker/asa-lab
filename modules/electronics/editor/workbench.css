@@ -129,47 +129,6 @@
   color: #16734a;
 }
 
-.workbench-led-electrical-state {
-  display: grid;
-  gap: 2px;
-  margin-top: 5px;
-  padding: 6px 7px;
-  border-left: 3px solid #d59622;
-  background: #fff7df;
-  color: #735519;
-  font-size: 10px;
-  line-height: 1.35;
-}
-
-.workbench-led-electrical-state.lit {
-  border-left-color: #159447;
-  background: #eaf7f0;
-  color: #12613d;
-}
-.workbench-led-electrical-state.warning {
-  border-left-color: #d59622;
-  background: #fff7df;
-  color: #735519;
-}
-.workbench-led-electrical-state.overcurrent {
-  border-left-color: #e06d16;
-  background: #fff0df;
-  color: #7d3b0c;
-}
-.workbench-led-electrical-state.burned {
-  border-left-color: #cf342b;
-  background: #fde9e7;
-  color: #7b211d;
-}
-.workbench-led-electrical-state output {
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.workbench-led-electrical-state small {
-  font-size: 9px;
-}
-
 .workbench-toggle-property {
   display: flex !important;
   flex-direction: row !important;
@@ -182,11 +141,6 @@
   grid-template-columns: 1fr;
 }
 
-.workbench-results-card li small {
-  display: block;
-  margin-top: 3px;
-  color: #596d7a;
-}
 .workbench-toolbar-divider {
   align-self: center;
   width: 1px;
@@ -543,19 +497,6 @@
   border-radius: 50%;
   background: #28a063;
   box-shadow: 0 0 0 4px rgba(40, 160, 99, 0.15);
-}
-.workbench-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  max-width: 680px;
-  padding: 9px 15px;
-  border-radius: 5px;
-  background: rgba(35, 50, 60, 0.91);
-  color: #fff;
-  font-size: 13px;
-  box-shadow: 0 8px 22px rgba(20, 32, 40, 0.2);
 }
 .workbench-library {
   position: absolute;
@@ -1059,63 +1000,6 @@
 }
 .workbench-wire-swatches button.active {
   box-shadow: 0 0 0 2px #168fc6;
-}
-.workbench-results {
-  position: absolute;
-  z-index: 12;
-  left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.workbench-results-toggle {
-  display: none;
-}
-.workbench-results-card {
-  min-width: 300px;
-  max-width: 520px;
-  padding: 8px 12px;
-  border: 1px solid #d6dde2;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 4px 13px rgba(28, 43, 54, 0.08);
-  pointer-events: auto;
-}
-.workbench-results-card > strong {
-  margin-right: 7px;
-  font-size: 12px;
-}
-.workbench-results-card > span {
-  color: #1679a5;
-  font-size: 13px;
-  font-weight: 800;
-}
-.workbench-results-card ul {
-  list-style: none;
-  display: inline;
-  padding: 0;
-  margin: 0 0 0 10px;
-}
-.workbench-results-card li {
-  display: inline;
-  color: #526672;
-  font-size: 11px;
-}
-.workbench-results-card li + li::before {
-  content: ' · ';
-}
-.workbench-results-card li.error {
-  color: #b3362f;
-}
-.workbench-results-card li.warning {
-  color: #966204;
-}
-.workbench-results-card li.info {
-  color: #26724c;
-}
-.workbench-results-card small {
-  margin-left: 10px;
-  color: #788791;
 }
 @media (max-width: 1180px) {
   .workbench-shell {
@@ -1657,6 +1541,16 @@
 .workbench-toolbar-gap.rotate {
   width: 7px;
 }
+.workbench-simulation-time {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 10px;
+  color: #8b9aa5;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .workbench-wire-color {
   box-sizing: border-box;
   flex: 0 0 62px;
@@ -1856,7 +1750,7 @@
 .workbench-inspector {
   right: calc(var(--wb-library-width) + 8px);
   top: 8px;
-  width: 300px;
+  width: 260px;
   max-height: calc(100% - 16px);
   overflow: auto;
   border: 2px solid #0696d7;
@@ -1898,7 +1792,7 @@
 .workbench-inspector-body > label,
 .workbench-state-controls label {
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 0;
   min-height: 32px;
   margin: 0;
@@ -2121,28 +2015,70 @@
 .workbench-component-actuator-active .workbench-part {
   filter: drop-shadow(0 0 7px rgba(25, 151, 205, 0.82));
 }
-.workbench-led-diagnostic-badge circle {
+.workbench-component-diagnostic-indicator circle {
   fill: #f4a51c;
   stroke: #fff;
   stroke-width: 2.4;
   filter: drop-shadow(0 2px 3px rgba(34, 43, 49, 0.55));
 }
-.workbench-led-diagnostic-badge.error circle {
+.workbench-component-diagnostic-indicator.error circle {
   fill: #e43b32;
 }
-.workbench-led-diagnostic-badge text {
+.workbench-component-diagnostic-indicator > text {
   fill: #fff;
   font-weight: 900;
   text-anchor: middle;
   pointer-events: none;
 }
-.workbench-led-diagnostic-badge {
+.workbench-component-diagnostic-indicator {
   cursor: help;
   outline: none;
 }
-.workbench-led-diagnostic-badge:focus circle {
+.workbench-component-diagnostic-indicator:focus circle {
   stroke: #17232b;
   stroke-width: 3.4;
+}
+.workbench-led-explosion-outer {
+  fill: #ffd21d;
+  stroke: #ef9b00;
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 3px rgba(78, 61, 13, 0.38));
+}
+.workbench-led-explosion-inner {
+  fill: #f22f24;
+  stroke: #ff7a00;
+  stroke-width: 1.5;
+}
+.workbench-component-diagnostic-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  overflow: visible;
+  transition: opacity 100ms ease-out;
+}
+.workbench-component-diagnostic-tooltip > div {
+  box-sizing: border-box;
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  max-height: 100%;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: #40576d;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(25, 40, 52, 0.32);
+  line-height: 1.25;
+  text-align: center;
+}
+.workbench-component-diagnostic-tooltip strong,
+.workbench-component-diagnostic-tooltip small {
+  display: block;
+  color: inherit;
+  font-size: inherit;
+}
+.workbench-component-diagnostic-indicator:hover .workbench-component-diagnostic-tooltip,
+.workbench-component-diagnostic-indicator:focus .workbench-component-diagnostic-tooltip {
+  visibility: visible;
+  opacity: 1;
 }
 .workbench-potentiometer-hit {
   fill: rgba(255, 255, 255, 0.001);

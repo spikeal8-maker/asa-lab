@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PublicUser } from '@asa-lab/web-api-client';
 import { ProjectEditorHeader, type EditorHeaderTab } from '@asa-lab/editor-host';
 import {
@@ -60,6 +60,13 @@ function ToolButton({
   );
 }
 
+function formatSimulationTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
 export function WorkbenchHeader({
   controller: c,
   onBack,
@@ -85,6 +92,20 @@ export function WorkbenchHeader({
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
   const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
+  const [simulationElapsedSeconds, setSimulationElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!c.simulationRunning) {
+      setSimulationElapsedSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const update = () => setSimulationElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    update();
+    const timer = window.setInterval(update, 250);
+    return () => window.clearInterval(timer);
+  }, [c.simulationRunning]);
+
   return (
     <>
       <ProjectEditorHeader
@@ -238,6 +259,11 @@ export function WorkbenchHeader({
             </button>
           </div>
         )}
+        {c.simulationRunning ? (
+          <span className="workbench-simulation-time" aria-label="Время моделирования">
+            Время моделирования: {formatSimulationTime(simulationElapsedSeconds)}
+          </span>
+        ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
           <button

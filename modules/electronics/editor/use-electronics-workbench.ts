@@ -1322,12 +1322,26 @@ export function useElectronicsWorkbench(projectId: string) {
   const diagnosticsByComponent = useMemo(() => {
     const map = new Map<string, Diagnostic[]>();
     for (const diagnostic of result?.diagnostics ?? []) {
-      for (const componentId of diagnostic.componentIds ?? []) {
+      const explicitComponentIds = diagnostic.componentIds ?? [];
+      // A numerical/topology diagnostic can describe the whole powered circuit
+      // and therefore arrive without a component id. Circuits does not open a
+      // global result window for that case: it anchors the visible warning to
+      // the power source. Keep the calculation fail-closed, but put its message
+      // where the learner can act on it.
+      const componentIds =
+        explicitComponentIds.length > 0
+          ? explicitComponentIds
+          : diagnostic.severity === 'info'
+            ? []
+            : (document?.components
+                .filter((component) => component.kind === 'source')
+                .map((component) => component.id) ?? []);
+      for (const componentId of componentIds) {
         map.set(componentId, [...(map.get(componentId) ?? []), diagnostic]);
       }
     }
     return map;
-  }, [result]);
+  }, [document, result]);
   const diagnosticCodesByComponent = useMemo(
     () =>
       new Map(
@@ -1340,12 +1354,13 @@ export function useElectronicsWorkbench(projectId: string) {
   );
   const errorDiagnosticComponentIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const diagnostic of result?.diagnostics ?? []) {
-      if (diagnostic.severity !== 'error') continue;
-      for (const componentId of diagnostic.componentIds ?? []) ids.add(componentId);
+    for (const [componentId, diagnostics] of diagnosticsByComponent) {
+      if (diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+        ids.add(componentId);
+      }
     }
     return ids;
-  }, [result]);
+  }, [diagnosticsByComponent]);
 
   function componentVisualState(component: SchematicComponent): ComponentVisualState {
     if (component.kind === 'switch') return component.state ? 'on' : 'default';

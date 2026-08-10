@@ -65,9 +65,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('data-led-brightness');
     expect(productionVisualSource).toContain('workbench-led-visual');
     expect(workbenchCss).toContain('.workbench-led-visual.is-lit .workbench-led-asset');
-    expect(sidebarSource).toContain('До запуска LED не излучает свет');
-    expect(sidebarSource).toContain('Ток ниже порога свечения выбранного цвета');
-    expect(sidebarSource).toContain('Яркость рассчитана по току, напряжению и сопротивлению');
+    expect(sidebarSource).not.toContain('Расчётная яркость');
+    expect(sidebarSource).not.toContain('workbench-led-electrical-state');
   });
 
   it('uses one three-column shelf and a meaningful detailed list', () => {
@@ -119,7 +118,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(editorHostSource).toContain('src="/asa-lab-mark.svg"');
     expect(editorHostSource).toContain('ASA Lab');
     expect(editorHostSource).not.toContain('workbench-brand-grid');
-    expect(headerSource).not.toContain('Время моделирования:');
+    expect(headerSource).toContain('Время моделирования:');
+    expect(headerSource).toContain('formatSimulationTime(simulationElapsedSeconds)');
     expect(headerSource).toContain(
       "c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'",
     );
@@ -144,26 +144,25 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(/\.workbench-canvas\.wiring[^}]*cursor:\s*default;/s);
   });
 
-  it('keeps selected-error emphasis and adds a zoom-stable LED diagnostic badge', () => {
+  it('keeps diagnostics on components and reproduces the LED burnout effect', () => {
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
-    expect(stageSource).toContain('data-testid="led-diagnostic-badge"');
-    expect(stageSource).toContain('c.simulationRunning && diagnostics.length > 0');
+    expect(stageSource).toContain("'led-diagnostic-badge'");
+    expect(stageSource).toContain("'component-diagnostic-indicator'");
+    expect(stageSource).toContain('c.simulationRunning && primaryDiagnostic');
     expect(stageSource).toContain('r={18 / c.viewport.zoom}');
     expect(stageSource).toContain('fontSize={20 / c.viewport.zoom}');
     expect(stageSource).toContain('diagnostic.suggestedAction');
     expect(stageSource).toContain('pointerEvents="all"');
-    expect(stageSource).not.toContain('data-testid="led-burnout-explosion"');
-    expect(stageSource).not.toContain('workbench-led-burnout-explosion');
-    expect(workbenchCss).toContain('.workbench-led-diagnostic-badge circle');
-    expect(workbenchCss).toContain('.workbench-led-diagnostic-badge.error circle');
-    expect(workbenchCss).not.toContain('workbench-led-explosion-flash');
-    expect(workbenchCss).not.toContain('workbench-led-explosion-ring');
-    expect(workbenchCss).not.toContain('workbench-led-explosion-ray');
-    expect(workbenchCss).not.toContain('workbench-led-explosion-spark');
-    expect(sidebarSource).toContain('Нагрузка относительно номинального тока');
-    expect(sidebarSource).toContain('Светодиод перегорел');
-    expect(workbenchCss).not.toContain('drop-shadow(0 0 7px rgba(211, 74, 48');
+    expect(stageSource).toContain("'led-burnout-explosion'");
+    expect(stageSource).toContain('workbench-led-burnout-explosion');
+    expect(stageSource).toContain('workbench-component-diagnostic-tooltip');
+    expect(workbenchCss).toContain('.workbench-component-diagnostic-indicator circle');
+    expect(workbenchCss).toContain('.workbench-led-explosion-outer');
+    expect(workbenchCss).toContain('.workbench-led-explosion-inner');
+    expect(workbenchCss).toContain('.workbench-component-diagnostic-tooltip');
+    expect(stageSource).not.toContain('workbench-results-card');
+    expect(stageSource).not.toContain('workbench-toast');
   });
 
   it('keeps the measured Circuits toolbar order and functional viewport controls', () => {
@@ -237,13 +236,13 @@ describe('owner-reference Electronics presentation contract', () => {
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
-    expect(workbenchCss).toMatch(/\.workbench-inspector\s*\{[^}]*width:\s*300px;/s);
+    expect(workbenchCss).toMatch(/\.workbench-inspector\s*\{[^}]*width:\s*260px;/s);
     expect(workbenchCss).toMatch(/\.workbench-inspector-body\s*\{[^}]*padding:\s*2px;/s);
     expect(sidebarSource).toContain('RESISTANCE_UNITS');
     expect(sidebarSource).toContain('workbench-inspector-help-popover');
     expect(sidebarSource).toContain('aria-label="Подключение выводов"');
     expect(sidebarSource).toContain('workbench-terminal-status');
-    expect(sidebarSource).toContain('workbench-led-electrical-state');
+    expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');
     expect(editorSource).toContain('<th>Имя</th>');

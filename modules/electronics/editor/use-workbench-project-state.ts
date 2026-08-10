@@ -321,7 +321,7 @@ export function useWorkbenchProjectState(projectId: string) {
       setSimulationRunning(false);
       setSimulationStatus('stopped');
       setResult(null);
-      setNotice('Моделирование остановлено.');
+      setNotice(null);
       return;
     }
     setSimulationStatus('validating');
@@ -332,7 +332,9 @@ export function useWorkbenchProjectState(projectId: string) {
     pushHistory(start.document);
     setSimulationRunning(true);
     setSimulationStatus('running');
-    setNotice(start.notice);
+    // Circuits starts immediately and keeps the stage quiet. Electrical
+    // problems belong to the affected part, not to a global toast.
+    setNotice(null);
     // Persistence validates the same document independently, but an honest
     // invalid/unsupported/nonconvergent result is diagnostic evidence, not a
     // reason to switch the visible simulation mode back off. The browser keeps
@@ -351,7 +353,7 @@ export function useWorkbenchProjectState(projectId: string) {
     setSimulationRunning(false);
     setSimulationStatus('stopped');
     setResult(null);
-    setNotice('Моделирование сброшено. Схема и соединения сохранены.');
+    setNotice(null);
   }
 
   async function checkpoint(): Promise<void> {

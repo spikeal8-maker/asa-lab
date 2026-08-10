@@ -8,7 +8,7 @@ import {
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedWirePath, wirePoints } from './workbench-geometry';
-import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from '@asa-lab/ui-kit';
+import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from '@asa-lab/ui-kit';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
@@ -229,7 +229,11 @@ export function WorkbenchStage({
             const visualState = c.componentVisualState(component);
             const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
             const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
-            const diagnosticText = componentDiagnostics
+            const actionableDiagnostics = componentDiagnostics.filter(
+              (diagnostic) => diagnostic.severity !== 'info',
+            );
+            const primaryDiagnostic = actionableDiagnostics[0];
+            const diagnosticText = actionableDiagnostics
               .map(
                 (diagnostic) =>
                   `${diagnostic.message}${
@@ -237,6 +241,7 @@ export function WorkbenchStage({
                   }`,
               )
               .join(' ');
+            const ledBurned = entry.key === 'led-5mm' && diagnostics.includes('led_burnout');
             return (
               <g
                 key={component.id}
@@ -326,16 +331,22 @@ export function WorkbenchStage({
                     selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
                   />
-                  {entry.key === 'led-5mm' && c.simulationRunning && diagnostics.length > 0 ? (
+                  {c.simulationRunning && primaryDiagnostic ? (
                     <g
-                      className={`workbench-led-diagnostic-badge${
-                        c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''
-                      }`}
-                      data-testid="led-diagnostic-badge"
-                      data-diagnostic-count={diagnostics.length}
-                      transform={`translate(${baseSize.width - 8 / c.viewport.zoom} ${
-                        8 / c.viewport.zoom
-                      })`}
+                      className={`workbench-component-diagnostic-indicator${
+                        ledBurned ? ' workbench-led-burnout-explosion' : ''
+                      }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
+                      data-testid={
+                        ledBurned
+                          ? 'led-burnout-explosion'
+                          : entry.key === 'led-5mm'
+                            ? 'led-diagnostic-badge'
+                            : 'component-diagnostic-indicator'
+                      }
+                      data-diagnostic-count={actionableDiagnostics.length}
+                      transform={`translate(${
+                        ledBurned ? baseSize.width * 0.5 : baseSize.width - 8 / c.viewport.zoom
+                      } ${ledBurned ? baseSize.height * 0.24 : 8 / c.viewport.zoom})`}
                       pointerEvents="all"
                       role="img"
                       tabIndex={0}
@@ -343,10 +354,40 @@ export function WorkbenchStage({
                       onPointerDown={(event) => event.stopPropagation()}
                     >
                       <title>{diagnosticText}</title>
-                      <circle r={18 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
-                      <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
-                        !
-                      </text>
+                      {ledBurned ? (
+                        <g transform={`scale(${1 / c.viewport.zoom})`} aria-hidden="true">
+                          <path
+                            className="workbench-led-explosion-outer"
+                            d="M0-30 7-17 20-24 18-9 33-8 22 3 34 13 18 14 19 30 6 21 0 35-7 21-20 29-18 14-34 13-22 3-33-8-18-9-20-24-7-17Z"
+                          />
+                          <path
+                            className="workbench-led-explosion-inner"
+                            d="M0-22 5-11 16-16 13-5 24 0 13 5 16 16 5 11 0 23-5 11-16 16-13 5-24 0-13-5-16-16-5-11Z"
+                          />
+                        </g>
+                      ) : (
+                        <>
+                          <circle r={18 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
+                          <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
+                            !
+                          </text>
+                        </>
+                      )}
+                      <foreignObject
+                        className="workbench-component-diagnostic-tooltip"
+                        x={-150 / c.viewport.zoom}
+                        y={34 / c.viewport.zoom}
+                        width={300 / c.viewport.zoom}
+                        height={104 / c.viewport.zoom}
+                        pointerEvents="none"
+                      >
+                        <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
+                          <strong>{primaryDiagnostic.message}</strong>
+                          {primaryDiagnostic.suggestedAction ? (
+                            <small>{primaryDiagnostic.suggestedAction}</small>
+                          ) : null}
+                        </div>
+                      </foreignObject>
                     </g>
                   ) : null}
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
@@ -675,50 +716,6 @@ export function WorkbenchStage({
           {Math.round(c.viewport.zoom * 100)}%
         </span>
       </div>
-      {c.notice ? (
-        <div className="workbench-toast" role="status" aria-live="polite">
-          {c.notice}
-        </div>
-      ) : null}
-      {c.simulationRunning ? (
-        <aside className="workbench-results" aria-label="Результаты моделирования">
-          <button type="button" className="workbench-results-toggle" title="Результаты">
-            <MoreIcon />
-          </button>
-          <div
-            className="workbench-results-card"
-            data-simulation-result-status={c.result?.status ?? 'calculating'}
-          >
-            <strong data-testid="simulation-result-status">
-              {c.result?.status === 'nonconvergent'
-                ? 'Расчёт требует внимания'
-                : c.result?.status === 'unsupported'
-                  ? 'Компонент пока не поддерживается'
-                  : c.result?.status === 'invalid'
-                    ? 'Проверьте схему'
-                    : c.result?.solved && Math.abs(c.result.current) > 1e-8
-                      ? 'Цепь проводит ток'
-                      : 'Ток не течёт'}
-            </strong>
-            <span data-testid="current-reading">
-              {c.simulationRunning && c.result?.solved
-                ? `${(c.result.current * 1000).toFixed(1)} мА`
-                : '—'}
-            </span>
-            <ul data-testid="diagnostics">
-              {(c.result?.diagnostics ?? []).slice(0, 3).map((d, i) => (
-                <li key={`${d.code}-${i}`} className={d.severity}>
-                  <span>{d.message}</span>
-                  {d.suggestedAction ? <small>{d.suggestedAction}</small> : null}
-                </li>
-              ))}
-            </ul>
-            {c.versions.length > 0 ? (
-              <small>Последняя версия: №{c.versions[0]?.versionNo}</small>
-            ) : null}
-          </div>
-        </aside>
-      ) : null}
     </section>
   );
 }

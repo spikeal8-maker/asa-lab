@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SchematicDocument, SolveResult } from '../../index.js';
-import {
-  calculateLiveSimulation,
-  prepareLiveSimulationStart,
-  simulationRunNotice,
-} from '../live-simulation';
+import { calculateLiveSimulation, prepareLiveSimulationStart } from '../live-simulation';
 
 const circuit: SchematicDocument = {
   schemaVersion: 3,
@@ -67,32 +63,11 @@ describe('live Electronics simulation', () => {
 
     expect(start.document.simulation.running).toBe(true);
     expect(start.result).toMatchObject({ solved: false, status: 'unsupported' });
-    expect(start.notice).toContain('Моделирование запущено');
-    expect(start.notice).not.toContain('не запущено');
+    expect(start).not.toHaveProperty('notice');
   });
 
-  it('presents numerical instability as an in-simulation diagnostic instead of a start blocker', () => {
-    const unstable: SolveResult = {
-      solved: false,
-      status: 'nonconvergent',
-      current: 0,
-      components: [],
-      nodes: [],
-      diagnostics: [
-        {
-          code: 'numerical_instability',
-          severity: 'error',
-          message: 'Численная невязка DC-расчёта превышает допустимый предел.',
-        },
-      ],
-      iterations: 24,
-      numericalResidual: 0.001,
-      numericalTolerance: 0.000001,
-    };
-
-    expect(simulationRunNotice(unstable)).toBe(
-      'Моделирование запущено. Схема требует внимания — подробности отмечены в диагностике.',
-    );
+  it('does not manufacture a global simulation-start notice', () => {
+    expect(prepareLiveSimulationStart(circuit)).not.toHaveProperty('notice');
   });
 
   it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {
