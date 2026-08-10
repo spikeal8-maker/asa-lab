@@ -189,10 +189,10 @@ tasks:
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
     # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
-    status: done
-    checkpoint: merged_to_main
+    status: in_progress
+    checkpoint: post_merge_physical_alignment_corrective
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
-    branch: agent/r4-electronics-m1
+    branch: agent/module-boundary-separation
     base_branch: main
     milestone: R4 Electronics M1
     track: product-roadmap
@@ -230,6 +230,9 @@ tasks:
       - seven_segment_physical_pins_segments_masks_and_brightness
       - breadboards_170_420_882_holes_rails_snap_and_netlist
       - single_world_units_per_mm_and_exact_pin_anchors
+      - owner_svg_meet_transform_pin_alignment
+      - npn_three_pin_breadboard_footprint
+      - live_led_resistance_state_sweep
       - additive_schema_and_save_reload_checkpoint
       - actual_editor_e2e_and_screenshots
     non_goals: [full repository matrix before owner review, merge, R4-M2, R5, new branch, additional permanent Compose projects, fake simulation for unsupported catalog candidates]
