@@ -346,7 +346,19 @@ export function WorkbenchStage({
                         : undefined
                     }
                   />
-                  {c.simulationRunning && primaryDiagnostic ? (
+                  {component.kind === 'potentiometer' && c.simulationRunning ? (
+                    <circle
+                      className="workbench-potentiometer-hit"
+                      cx={baseSize.width / 2}
+                      cy={baseSize.height * 0.45}
+                      r={Math.min(baseSize.width, baseSize.height) * 0.25}
+                      onPointerDown={(event) => c.startPotentiometerControl(event, component)}
+                      aria-label="Повернуть ручку потенциометра"
+                    />
+                  ) : null}
+                </g>
+                {c.simulationRunning && primaryDiagnostic ? (
+                  <g transform={componentTransform(component)}>
                     <g
                       className={`workbench-component-diagnostic-indicator${
                         ledBurned ? ' workbench-led-burnout-explosion' : ''
@@ -404,18 +416,8 @@ export function WorkbenchStage({
                         </div>
                       </foreignObject>
                     </g>
-                  ) : null}
-                  {component.kind === 'potentiometer' && c.simulationRunning ? (
-                    <circle
-                      className="workbench-potentiometer-hit"
-                      cx={baseSize.width / 2}
-                      cy={baseSize.height * 0.45}
-                      r={Math.min(baseSize.width, baseSize.height) * 0.25}
-                      onPointerDown={(event) => c.startPotentiometerControl(event, component)}
-                      aria-label="Повернуть ручку потенциометра"
-                    />
-                  ) : null}
-                </g>
+                  </g>
+                ) : null}
                 {/* Several hundred invisible hover targets, each recomputing its
                     world position from the board's. While something is being
                     dragged they have nothing to respond to, and drawing them is
