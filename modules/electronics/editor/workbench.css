@@ -415,6 +415,12 @@
   stroke-linecap: round;
   stroke-width: 2.2;
 }
+.workbench-mounted-leads .workbench-mounted-lead.positive {
+  stroke: #e3212b;
+}
+.workbench-mounted-leads .workbench-mounted-lead.negative {
+  stroke: #252b30;
+}
 .workbench-wire {
   fill: none;
   stroke-width: 3.2;
@@ -2323,8 +2329,8 @@
   top: 0;
   left: 0;
   z-index: 60;
-  margin: -6px 0 0 -6px;
   pointer-events: none;
   opacity: 0.92;
   filter: drop-shadow(0 6px 14px rgba(20, 40, 60, 0.35));
+  transform-origin: center;
 }

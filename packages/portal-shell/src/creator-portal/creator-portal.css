@@ -89,6 +89,7 @@
   background: #fff;
   color: #294250;
   text-align: left;
+  text-decoration: none;
   box-shadow: 0 4px 15px rgba(27, 55, 71, 0.045);
 }
 
@@ -149,7 +150,7 @@
   min-width: 0;
 }
 
-.creator-recent-grid li > button {
+.creator-recent-grid li > :is(button, a) {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr) auto;
   align-items: center;
@@ -162,9 +163,10 @@
   background: #fff;
   color: #2b414f;
   text-align: left;
+  text-decoration: none;
 }
 
-.creator-recent-grid li > button:hover {
+.creator-recent-grid li > :is(button, a):hover {
   border-color: var(--module-accent, #1681b8);
   box-shadow: 0 7px 20px rgba(27, 55, 71, 0.08);
 }
@@ -267,7 +269,7 @@
   line-height: 1.45;
 }
 
-.creator-discover-grid button {
+.creator-discover-grid :is(button, a) {
   min-height: 116px;
   padding: 21px;
   border: 1px solid #d8e1e7;
@@ -275,9 +277,10 @@
   background: #fff;
   color: #2c4351;
   text-align: left;
+  text-decoration: none;
 }
 
-.creator-discover-grid button:hover {
+.creator-discover-grid :is(button, a):hover {
   border-color: #91c4d9;
 }
 
@@ -389,7 +392,7 @@
     align-items: flex-start;
   }
 
-  .creator-recent-grid li > button {
+  .creator-recent-grid li > :is(button, a) {
     grid-template-columns: 50px minmax(0, 1fr);
   }
 

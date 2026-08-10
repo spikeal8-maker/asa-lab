@@ -180,7 +180,28 @@ export function WorkbenchSidebars({
                     // pointer and lands where it is put.
                     onPointerDown={(event) => {
                       if (!family.enabled || event.button !== 0) return;
-                      c.beginFamilyPlacement(family.familyId);
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      c.beginFamilyPlacement(family.familyId, {
+                        pointerId: event.pointerId,
+                        clientX: event.clientX,
+                        clientY: event.clientY,
+                      });
+                      event.preventDefault();
+                    }}
+                    onPointerMove={(event) =>
+                      c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY)
+                    }
+                    onPointerUp={(event) => {
+                      c.finishFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                    }}
+                    onPointerCancel={(event) => {
+                      c.cancelFamilyPlacement(event.pointerId);
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
                     }}
                     data-family-id={family.familyId}
                     data-catalog-tier={family.catalogTier}

@@ -2,7 +2,12 @@ import { useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
 import { UserIcon } from '@asa-lab/ui-kit';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
-import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
+import {
+  creatorSectionToHash,
+  portalNavigation,
+  type CreatorPortalSection,
+} from '../creator-portal/navigation';
+import { PortalLink } from './PortalLink';
 
 export type PortalSection = CreatorPortalSection;
 
@@ -77,23 +82,27 @@ export function PortalHeader({
   return (
     <>
       <header className="portal-header">
-        <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
+        <PortalLink
+          className="portal-brand"
+          href={creatorSectionToHash('home')}
+          onNavigate={() => onNavigate('home')}
+        >
           <AsaLabWordmark />
-        </button>
+        </PortalLink>
         <nav className="portal-nav" aria-label="Основная навигация">
           {portalNavigation(canTeach).map((item) => (
-            <button
-              type="button"
+            <PortalLink
               key={item.section}
               className={active === item.section ? 'portal-nav-item active' : 'portal-nav-item'}
               aria-current={active === item.section ? 'page' : undefined}
-              onClick={() => onNavigate(item.section)}
+              href={creatorSectionToHash(item.section)}
+              onNavigate={() => onNavigate(item.section)}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
                 {SECTION_GLYPHS[item.section]}
               </span>
               {item.label}
-            </button>
+            </PortalLink>
           ))}
         </nav>
         <details
@@ -137,16 +146,16 @@ export function PortalHeader({
                 );
               })}
             </div>
-            <button
-              type="button"
+            <PortalLink
               className="portal-account-settings"
-              onClick={() => {
+              href={creatorSectionToHash('account')}
+              onNavigate={() => {
                 accountMenu.current?.removeAttribute('open');
                 onNavigate('account');
               }}
             >
               Профиль и активные сессии
-            </button>
+            </PortalLink>
             <button
               type="button"
               className="portal-account-logout"

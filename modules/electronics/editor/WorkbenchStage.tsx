@@ -4,9 +4,7 @@ import {
   componentPointPosition,
   renderedSize,
   terminalPosition,
-  visualAsset,
 } from './component-catalog';
-import { ComponentPreview } from './component-preview';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedWirePath, wirePoints } from './workbench-geometry';
@@ -38,24 +36,56 @@ function PickedUpPart({
   // it — so keying this to the preview drew nothing at all while the cursor was
   // still over the panel, which is exactly the moment it is needed.
   const placing = c.catalogPlacement;
-  const typeId = placing?.componentTypeId;
+  const typeId = placing?.mode === 'pointer' && !placing.point ? placing.componentTypeId : null;
 
   useEffect(() => {
     if (!typeId) return;
     function follow(event: PointerEvent): void {
       const node = holder.current;
-      if (node) node.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
+      if (node) {
+        node.style.transform = `translate(${event.clientX}px, ${event.clientY}px) translate(-50%, -50%)`;
+      }
     }
     window.addEventListener('pointermove', follow);
     return () => window.removeEventListener('pointermove', follow);
   }, [typeId]);
 
-  if (!typeId) return null;
+  if (!typeId || !placing?.clientPoint) return null;
   const entry = catalogEntry(typeId);
   if (!entry) return null;
+  const size = renderedSize(entry, 0);
+  const stageRect = c.stageRef.current?.getBoundingClientRect();
+  const scale = stageRect
+    ? Math.max(stageRect.width / c.viewBox.width, stageRect.height / c.viewBox.height)
+    : 1;
   return (
-    <div className="workbench-picked-up" ref={holder} aria-hidden="true">
-      <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} entry={entry} />
+    <div
+      className="workbench-picked-up"
+      ref={holder}
+      aria-hidden="true"
+      style={{
+        width: `${size.width * scale}px`,
+        height: `${size.height * scale}px`,
+        transform: `translate(${placing.clientPoint.x}px, ${placing.clientPoint.y}px) translate(-50%, -50%)`,
+      }}
+    >
+      <svg viewBox={`0 0 ${size.width} ${size.height}`} width="100%" height="100%">
+        <ProductionComponentVisual
+          entry={entry}
+          component={{
+            id: 'catalog-pointer-preview',
+            kind: entry.kind,
+            componentTypeId: entry.key,
+            variantId: entry.variantId,
+            position: { x: 0, y: 0 },
+            value: entry.defaultValue,
+          }}
+          width={size.width}
+          height={size.height}
+          visualState="default"
+          effectiveBrightness={0}
+        />
+      </svg>
     </div>
   );
 }
@@ -248,6 +278,14 @@ export function WorkbenchStage({
                       return (
                         <line
                           key={terminal}
+                          className={`workbench-mounted-lead${
+                            component.kind === 'source' && terminal === 'BAT+'
+                              ? ' positive'
+                              : component.kind === 'source' && terminal === 'BAT-'
+                                ? ' negative'
+                                : ''
+                          }`}
+                          data-mounted-terminal={terminal}
                           x1={physicalPoint.x}
                           y1={physicalPoint.y}
                           x2={landingPoint.x}

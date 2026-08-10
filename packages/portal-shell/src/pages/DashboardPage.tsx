@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type Classroom } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
+import { PortalLink } from '../components/PortalLink';
+import { creatorViewToHash } from '../creator-portal/navigation';
 import { ClassesIcon, PlusIcon } from '@asa-lab/ui-kit';
 
 type ListState =
@@ -104,13 +106,17 @@ export function DashboardPage({
                 <h2>{classroom.title}</h2>
                 <p>Активный класс</p>
               </div>
-              <button
-                type="button"
+              <PortalLink
                 className="btn-secondary"
-                onClick={() => onOpenProjects(classroom.id, classroom.title)}
+                href={creatorViewToHash({
+                  kind: 'classroom-projects',
+                  classroomId: classroom.id,
+                  classroomTitle: classroom.title,
+                })}
+                onNavigate={() => onOpenProjects(classroom.id, classroom.title)}
               >
                 Открыть проекты класса
-              </button>
+              </PortalLink>
             </li>
           ))}
         </ul>

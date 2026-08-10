@@ -57,6 +57,9 @@ export interface ComponentDrag {
 export interface CatalogPlacement {
   componentTypeId: string;
   point: Point | null;
+  clientPoint: Point | null;
+  pointerId: number | null;
+  mode: 'pointer' | 'keyboard';
 }
 
 export interface ActuatorPress {

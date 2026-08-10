@@ -130,6 +130,19 @@ function circuitDocument(options: {
   };
 }
 
+function breadboardDocument(): SchematicDocument {
+  const seeded = circuitDocument({
+    switchClosed: false,
+    resistorOhms: 220,
+    reversedLed: false,
+  });
+  return {
+    ...seeded,
+    components: seeded.components.filter((component) => component.id === 'board'),
+    connections: [],
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -189,6 +202,37 @@ async function selectLed(page: Page): Promise<void> {
   await expect(calculatedBrightness(page)).toBeVisible();
 }
 
+async function holeCenter(page: Page, holeId: string): Promise<{ x: number; y: number }> {
+  const box = await page
+    .locator(`[data-hole-id="${holeId}"] .workbench-breadboard-hole-hit`)
+    .boundingBox();
+  if (!box) throw new Error(`breadboard hole ${holeId} is not rendered`);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+async function dragCatalogComponent(
+  page: Page,
+  name: string,
+  target: { x: number; y: number },
+): Promise<void> {
+  const card = page.getByRole('button', { name, exact: true });
+  const box = await card.boundingBox();
+  if (!box) throw new Error(`catalog card ${name} is not rendered`);
+  const before = await page.locator('[data-testid="schematic-component"]').count();
+  const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x - 4, start.y, { steps: 2 });
+  await expect(page.locator('.workbench-picked-up')).toHaveCount(1);
+  await page.mouse.move(target.x, target.y, { steps: 12 });
+  await expect(page.locator('.workbench-picked-up')).toHaveCount(0);
+  await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(1);
+  await page.mouse.up();
+  await expect(page.locator('.workbench-picked-up')).toHaveCount(0);
+  await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
+  await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(before + 1);
+}
+
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();
@@ -197,6 +241,74 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await admin.end();
+});
+
+test('catalog placement is one hold-drag-release gesture and snaps on the first drop', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'R4-M1 catalog drag and first snap');
+  await saveDocument(page, projectId, breadboardDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+
+  const j8 = await holeCenter(page, 'J8');
+  const j9 = await holeCenter(page, 'J9');
+  const pitch = j9.x - j8.x;
+  await dragCatalogComponent(page, 'Потенциометр', {
+    x: j8.x + pitch,
+    y: j8.y - (pitch * 6.858) / 2.54,
+  });
+  const potentiometer = component(page, 'potentiometer');
+  await expect(potentiometer).toHaveAttribute('data-hole-bindings', '3');
+  await expect(potentiometer).toHaveAttribute(
+    'data-hole-ids',
+    /terminal-1:J8,terminal-2:J10,wiper:J9/,
+  );
+
+  const j20 = await holeCenter(page, 'J20');
+  await dragCatalogComponent(page, 'Батарейный отсек AA', {
+    x: j20.x + (pitch * 1.2721) / 2.54,
+    y: j20.y + (pitch * 28.9396) / 2.54,
+  });
+  const battery = component(page, 'battery-holder-aa-2');
+  await expect(battery).toHaveAttribute('data-hole-bindings', '2');
+  await expect(battery).toHaveAttribute('data-hole-ids', /BAT-:J20,BAT\+:J21/);
+  const batteryPosition = {
+    x: await battery.getAttribute('data-x'),
+    y: await battery.getAttribute('data-y'),
+  };
+  const negativeLead = page.locator('[data-mounted-terminal="BAT-"]');
+  const leadBefore = {
+    x: await negativeLead.getAttribute('x2'),
+    y: await negativeLead.getAttribute('y2'),
+  };
+
+  const boardPart = component(page, 'breadboard-medium').locator('.workbench-part');
+  const boardBox = await boardPart.boundingBox();
+  if (!boardBox) throw new Error('breadboard is not rendered');
+  await page.mouse.move(boardBox.x + boardBox.width / 2, boardBox.y + boardBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    boardBox.x + boardBox.width / 2 + 60,
+    boardBox.y + boardBox.height / 2 + 30,
+    {
+      steps: 10,
+    },
+  );
+  await page.mouse.up();
+  await expect(battery).toHaveAttribute('data-x', batteryPosition.x ?? '');
+  await expect(battery).toHaveAttribute('data-y', batteryPosition.y ?? '');
+  await expect
+    .poll(async () => ({
+      x: await negativeLead.getAttribute('x2'),
+      y: await negativeLead.getAttribute('y2'),
+    }))
+    .not.toEqual(leadBefore);
+  failures.assertEmpty();
 });
 
 test('real editor recalculates SPDT, resistor and LED without waiting for persistence', async ({

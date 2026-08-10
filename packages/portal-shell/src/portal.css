@@ -26,6 +26,7 @@
   color: #165b88;
   font-size: 19px;
   font-weight: 750;
+  text-decoration: none;
 }
 .portal-brand-mark,
 .workbench-brand-grid {
@@ -79,6 +80,7 @@
   background: transparent;
   color: #596b7a;
   font-weight: 650;
+  text-decoration: none;
   white-space: nowrap;
 }
 .portal-nav-item svg {

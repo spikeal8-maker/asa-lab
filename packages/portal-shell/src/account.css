@@ -129,12 +129,14 @@
 
 .portal-account-settings,
 .portal-account-logout {
+  display: block;
   width: 100%;
   padding: 13px 18px;
   border: 0;
   background: #fff;
   color: #385364;
   text-align: left;
+  text-decoration: none;
 }
 
 .portal-account-settings:hover,

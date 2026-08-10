@@ -8,6 +8,8 @@ import {
 } from 'react';
 import { api, type ModuleSummary, type Project } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
+import { PortalLink } from '../components/PortalLink';
+import { creatorViewToHash } from '../creator-portal/navigation';
 import { PlusIcon } from '@asa-lab/ui-kit';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
@@ -199,10 +201,14 @@ export function MyProjectsPage({
             } as CSSProperties;
             return (
               <li key={project.id} className="project-gallery-card project-hub-card" style={style}>
-                <button
-                  type="button"
+                <PortalLink
                   className="project-preview project-module-preview"
-                  onClick={() => onOpenProject(project.id)}
+                  href={creatorViewToHash({
+                    kind: 'editor',
+                    projectId: project.id,
+                    returnTo: { kind: 'my-projects' },
+                  })}
+                  onNavigate={() => onOpenProject(project.id)}
                 >
                   {module ? (
                     <ModuleGlyph module={module} size={64} />
@@ -212,7 +218,7 @@ export function MyProjectsPage({
                   <span className="project-preview-label">
                     {module?.displayName ?? project.moduleKey}
                   </span>
-                </button>
+                </PortalLink>
                 <div className="project-card-meta project-card-details">
                   {renamingId === project.id ? (
                     <form
@@ -253,13 +259,17 @@ export function MyProjectsPage({
                         <p>Создан {formatDate(project.createdAt)}</p>
                       </div>
                       <div className="project-card-actions">
-                        <button
-                          type="button"
+                        <PortalLink
                           className="btn-secondary"
-                          onClick={() => onOpenProject(project.id)}
+                          href={creatorViewToHash({
+                            kind: 'editor',
+                            projectId: project.id,
+                            returnTo: { kind: 'my-projects' },
+                          })}
+                          onNavigate={() => onOpenProject(project.id)}
                         >
                           Открыть
-                        </button>
+                        </PortalLink>
                         <button
                           type="button"
                           className="btn-ghost"

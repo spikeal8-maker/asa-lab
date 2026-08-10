@@ -1,4 +1,5 @@
-import type { CreatorPortalSection } from '../creator-portal/navigation';
+import { PortalLink } from '../components/PortalLink';
+import { creatorSectionToHash, type CreatorPortalSection } from '../creator-portal/navigation';
 
 type ResourceSection = Extract<
   CreatorPortalSection,
@@ -131,13 +132,13 @@ export function CreatorResourcePage({
           <article key={card.title} className="creator-resource-card">
             <h2>{card.title}</h2>
             <p>{card.body}</p>
-            <button
-              type="button"
+            <PortalLink
               className="creator-text-action"
-              onClick={() => onNavigate(card.target)}
+              href={creatorSectionToHash(card.target)}
+              onNavigate={() => onNavigate(card.target)}
             >
               {card.action}
-            </button>
+            </PortalLink>
           </article>
         ))}
       </div>

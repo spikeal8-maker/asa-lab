@@ -7,6 +7,7 @@ import './creator-portal/creator-portal.css';
 export * from './brand/AsaLabBrand.js';
 export * from './components/CreateClassroomModal.js';
 export * from './components/CreateProjectModal.js';
+export * from './components/PortalLink.js';
 export * from './components/PortalHeader.js';
 export * from './creator-portal/navigation.js';
 export * from './modules/ModuleGlyph.js';

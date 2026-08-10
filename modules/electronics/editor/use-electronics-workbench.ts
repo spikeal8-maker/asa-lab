@@ -147,6 +147,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [reconnectEndpoint, setReconnectEndpoint] = useState<'from' | 'to' | null>(null);
 
   const stageRef = useRef<SVGSVGElement>(null);
+  const catalogPlacementRef = useRef<CatalogPlacement | null>(null);
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
   // Where the view actually is while a pan is in flight, since React state is
@@ -167,6 +168,32 @@ export function useElectronicsWorkbench(projectId: string) {
   function visibleCenter(): Point {
     const box = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  function setCatalogPlacementState(next: CatalogPlacement | null): void {
+    catalogPlacementRef.current = next;
+    setCatalogPlacement(next);
+  }
+
+  function catalogPositionAtClient(
+    componentTypeId: string,
+    clientX: number,
+    clientY: number,
+  ): Point | null {
+    const stage = stageRef.current;
+    const entry = catalogEntry(componentTypeId);
+    if (!stage || !entry) return null;
+    const rect = stage.getBoundingClientRect();
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      return null;
+    }
+    const pointer = clientToWorld(clientX, clientY, rect, viewport, STAGE_WIDTH, STAGE_HEIGHT);
+    return pointer;
   }
 
   function applyViewport(next: Viewport): void {
@@ -246,9 +273,18 @@ export function useElectronicsWorkbench(projectId: string) {
       at ?? catalogPosition,
       nextId(entry.kind),
     );
+    const placedDocument = at
+      ? snapComponentToBreadboard(added.document, added.component.id)
+      : added.document;
+    const placedComponent = placedDocument.components.find(
+      (component) => component.id === added.component.id,
+    );
+    const mounted = Object.keys(placedComponent?.holeBindings ?? {}).length > 0;
     commitDocument(
-      added.document,
-      `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
+      placedDocument,
+      mounted
+        ? `${entry.label} установлен в отверстия макетки.`
+        : `${entry.label} добавлен. Соедините выводы проводами.`,
     );
     setSelection({ kind: 'component', id: added.component.id, ids: [added.component.id] });
   }
@@ -282,25 +318,71 @@ export function useElectronicsWorkbench(projectId: string) {
     addComponent(selectedFamilyVariant(family, libraryVariants[familyId]).componentTypeId, at);
   }
 
-  function beginFamilyPlacement(familyId: string): void {
+  function beginFamilyPlacement(
+    familyId: string,
+    pointer?: { readonly pointerId: number; readonly clientX: number; readonly clientY: number },
+  ): void {
     const family = familyById(familyId);
     if (!family?.enabled) return;
     const variant = selectedFamilyVariant(family, libraryVariants[familyId]);
-    setCatalogPlacement({ componentTypeId: variant.componentTypeId, point: null });
+    const next: CatalogPlacement = {
+      componentTypeId: variant.componentTypeId,
+      point: pointer
+        ? catalogPositionAtClient(variant.componentTypeId, pointer.clientX, pointer.clientY)
+        : null,
+      clientPoint: pointer ? { x: pointer.clientX, y: pointer.clientY } : null,
+      pointerId: pointer?.pointerId ?? null,
+      mode: pointer ? 'pointer' : 'keyboard',
+    };
+    setCatalogPlacementState(next);
     setLibraryVariantPopover(null);
     setSelection(null);
     setPendingTerminal(null);
     setWirePreviewEnd(null);
-    setNotice(`${family.familyLabel} прикреплён к указателю. Щёлкните на рабочем поле.`);
+    setNotice(
+      pointer
+        ? `${family.familyLabel}: удерживайте кнопку, перенесите и отпустите на рабочем поле.`
+        : `${family.familyLabel} прикреплён к указателю. Выберите место на рабочем поле.`,
+    );
+  }
+
+  function moveFamilyPlacement(pointerId: number, clientX: number, clientY: number): void {
+    const current = catalogPlacementRef.current;
+    if (current?.mode !== 'pointer' || current.pointerId !== pointerId) return;
+    setCatalogPlacementState({
+      ...current,
+      point: catalogPositionAtClient(current.componentTypeId, clientX, clientY),
+      clientPoint: { x: clientX, y: clientY },
+    });
+  }
+
+  function finishFamilyPlacement(pointerId: number, clientX: number, clientY: number): void {
+    const current = catalogPlacementRef.current;
+    if (current?.mode !== 'pointer' || current.pointerId !== pointerId) return;
+    const point = catalogPositionAtClient(current.componentTypeId, clientX, clientY);
+    setCatalogPlacementState(null);
+    if (!point) {
+      setNotice('Размещение отменено: отпустите компонент над рабочим полем.');
+      return;
+    }
+    addComponent(current.componentTypeId, point);
+  }
+
+  function cancelFamilyPlacement(pointerId?: number): void {
+    const current = catalogPlacementRef.current;
+    if (!current || (pointerId !== undefined && current.pointerId !== pointerId)) return;
+    setCatalogPlacementState(null);
+    setNotice('Размещение отменено.');
   }
 
   function placeCatalogComponent(event: PointerEvent<SVGSVGElement>): void {
-    if (!catalogPlacement || event.button !== 0) return;
+    if (!catalogPlacement || catalogPlacement.mode !== 'keyboard' || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     const { componentTypeId } = catalogPlacement;
-    setCatalogPlacement(null);
-    addComponent(componentTypeId, toWorld(event));
+    setCatalogPlacementState(null);
+    const point = catalogPositionAtClient(componentTypeId, event.clientX, event.clientY);
+    if (point) addComponent(componentTypeId, point);
   }
 
   function duplicateSelected(): void {
@@ -794,8 +876,17 @@ export function useElectronicsWorkbench(projectId: string) {
       updatePotentiometerFromPointer(potentiometerDrag.componentId, world);
       return;
     }
-    if (catalogPlacement) {
-      setCatalogPlacement((current) => (current ? { ...current, point: world } : current));
+    if (catalogPlacement?.mode === 'keyboard') {
+      const point = catalogPositionAtClient(
+        catalogPlacement.componentTypeId,
+        event.clientX,
+        event.clientY,
+      );
+      setCatalogPlacementState({
+        ...catalogPlacement,
+        point,
+        clientPoint: { x: event.clientX, y: event.clientY },
+      });
       return;
     }
     const vertexDrag = vertexDragRef.current;
@@ -1116,7 +1207,7 @@ export function useElectronicsWorkbench(projectId: string) {
         event.preventDefault();
         rotateSelected();
       } else if (event.key === 'Escape') {
-        setCatalogPlacement(null);
+        setCatalogPlacementState(null);
         setPendingTerminal(null);
         setWireDraftVertices([]);
         setWirePreviewEnd(null);
@@ -1390,6 +1481,9 @@ export function useElectronicsWorkbench(projectId: string) {
     addComponent,
     addFamily,
     beginFamilyPlacement,
+    moveFamilyPlacement,
+    finishFamilyPlacement,
+    cancelFamilyPlacement,
   };
 }
 

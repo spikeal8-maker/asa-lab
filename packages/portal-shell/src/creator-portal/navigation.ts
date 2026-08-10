@@ -55,6 +55,12 @@ export function portalNavigation(canTeach: boolean): readonly PortalNavigationIt
   ];
 }
 
+export function creatorSectionToHash(section: CreatorPortalSection): string {
+  if (section === 'projects') return creatorViewToHash({ kind: 'my-projects' });
+  if (section === 'classes') return creatorViewToHash({ kind: 'classrooms' });
+  return creatorViewToHash({ kind: section });
+}
+
 export function canUseClasses(
   navigation: { readonly classes: boolean },
   activeWorkspaceKind: string,

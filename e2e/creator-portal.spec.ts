@@ -80,7 +80,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page).toHaveURL(/#\/home$/);
   await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Классы', exact: true })).toHaveCount(0);
   await expect(page.getByText('Здесь появятся ваши проекты')).toBeVisible();
 
   const electronicsProjectId = await createProjectThroughApi(page, {
@@ -103,7 +103,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
 
   await page
     .getByTestId('creator-recent-projects')
-    .getByRole('button', { name: /Личная схема/ })
+    .getByRole('link', { name: /Личная схема/ })
     .click();
   await expect(page).toHaveURL(new RegExp(`#\\/home\\/${electronicsProjectId}$`));
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
@@ -112,41 +112,51 @@ test('creator uses Home, honest resources, routing and the integrated account sh
 
   await page
     .getByTestId('creator-recent-projects')
-    .getByRole('button', { name: /Шахматный разбор/ })
+    .getByRole('link', { name: /Шахматный разбор/ })
     .click();
   await expect(page).toHaveURL(new RegExp(`#\\/home\\/${chessProjectId}$`));
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
+  const projectsLink = page
+    .locator('.portal-nav')
+    .getByRole('link', { name: 'Мои проекты', exact: true });
+  await expect(projectsLink).toHaveAttribute('href', '#/projects');
+  const newTabPromise = page.context().waitForEvent('page');
+  await projectsLink.click({ button: 'middle' });
+  const projectsTab = await newTabPromise;
+  await projectsTab.waitForLoadState('domcontentloaded');
+  await expect(projectsTab).toHaveURL(/#\/projects$/);
+  await projectsTab.close();
+  await projectsLink.click();
   await expect(page).toHaveURL(/#\/projects$/);
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
   await expect(page.getByText('Личная схема')).toBeVisible();
   await expect(page.getByText('Шахматный разбор')).toBeVisible();
   await page.screenshot({ path: `${EVIDENCE_DIR}/02-projects-desktop.png`, fullPage: true });
 
-  await page.getByRole('button', { name: 'Обучение', exact: true }).click();
+  await page.getByRole('link', { name: 'Обучение', exact: true }).click();
   await expect(page).toHaveURL(/#\/learning$/);
   await expect(page.getByRole('heading', { name: 'Обучение', exact: true })).toBeVisible();
   await page.screenshot({ path: `${EVIDENCE_DIR}/03-learning-desktop.png`, fullPage: true });
 
-  await page.getByRole('button', { name: 'Коллекции', exact: true }).click();
+  await page.getByRole('link', { name: 'Коллекции', exact: true }).click();
   await expect(page.getByText('Сохранённых коллекций пока нет')).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Обучение', exact: true })).toBeVisible();
   await page.goForward();
   await expect(page.getByRole('heading', { name: 'Коллекции', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Испытания', exact: true }).click();
+  await page.getByRole('link', { name: 'Испытания', exact: true }).click();
   await expect(page.getByText('Назначенных испытаний сейчас нет')).toBeVisible();
-  await page.getByRole('button', { name: 'Помощь', exact: true }).click();
+  await page.getByRole('link', { name: 'Помощь', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Помощь', exact: true })).toBeVisible();
 
   await page.locator('.portal-account > summary').click();
   await expect(page.locator('.portal-account-menu')).toBeVisible();
   await page.screenshot({ path: `${EVIDENCE_DIR}/04-account-menu-desktop.png`, fullPage: true });
-  await page.getByRole('button', { name: 'Профиль и активные сессии' }).click();
+  await page.getByRole('link', { name: 'Профиль и активные сессии' }).click();
   await expect(page.getByRole('heading', { name: 'Аккаунт и рабочие пространства' })).toBeVisible();
   await expect(page.getByText('Создание проектов')).toBeVisible();
   await expect(page.getByText('Account C1')).toHaveCount(0);
@@ -196,7 +206,7 @@ test('educator navigation follows server capability and active workspace scope',
   await page.getByLabel('Пароль').fill(`Safe-${unique}-Password`);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/#\/home$/);
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Классы', exact: true })).toHaveCount(0);
 
   const sessionResponse = await page.context().request.get('/api/auth/me');
   expect(sessionResponse.status()).toBe(200);
@@ -217,10 +227,10 @@ test('educator navigation follows server capability and active workspace scope',
   );
 
   await page.locator('.portal-account > summary').click();
-  await page.getByRole('button', { name: 'Профиль и активные сессии' }).click();
+  await page.getByRole('link', { name: 'Профиль и активные сессии' }).click();
   await page.getByRole('button', { name: 'Подтвердить статус педагога' }).click();
   await expect(page.getByText('Режим педагога включён.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Классы', exact: true })).toHaveCount(0);
 
   const tenant = await admin.query(
     `INSERT INTO tenants (title, workspace_slug)
@@ -245,7 +255,7 @@ test('educator navigation follows server capability and active workspace scope',
     .locator('.account-workspace-list li')
     .filter({ hasText: 'R2 Creator School' });
   await organizationRow.getByRole('button', { name: 'Переключить' }).click();
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Классы', exact: true })).toBeVisible();
 
   const refreshedSession = await page.context().request.get('/api/auth/me');
   expect(refreshedSession.status()).toBe(200);
@@ -259,7 +269,7 @@ test('educator navigation follows server capability and active workspace scope',
     classroomManagement: false,
   });
 
-  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await page.getByRole('link', { name: 'Главная', exact: true }).click();
   await expect(page).toHaveURL(/#\/home$/);
   await expect(page.getByText('Только личное пространство')).toHaveCount(0);
   await createProjectThroughApi(page, {
@@ -297,21 +307,21 @@ test('educator navigation follows server capability and active workspace scope',
     .filter({ hasText: 'R2 Creator School' })
     .click();
   await expect(page).toHaveURL(/#\/home$/);
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Классы', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Классы подключены' })).toBeVisible();
 
   await page.locator('.portal-account > summary').click();
   await page.getByRole('button', { name: 'Выйти' }).click();
   await loginWithOrganization(page, teacher);
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Классы', exact: true })).toBeVisible();
   const authorizedSession = await page.context().request.get('/api/auth/me');
   expect(authorizedSession.status()).toBe(200);
   expect(
     ((await authorizedSession.json()) as { navigation: { classes: boolean } }).navigation.classes,
   ).toBe(true);
 
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({

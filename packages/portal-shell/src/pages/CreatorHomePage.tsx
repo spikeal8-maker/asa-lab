@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { api, type ModuleSummary, type Project, type SessionPayload } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
+import { PortalLink } from '../components/PortalLink';
 import { PlusIcon } from '@asa-lab/ui-kit';
-import { creatorHomeState, recentProjects } from '../creator-portal/navigation';
+import {
+  creatorHomeState,
+  creatorSectionToHash,
+  creatorViewToHash,
+  recentProjects,
+} from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
 function firstName(displayName: string): string {
@@ -107,35 +113,35 @@ export function CreatorHomePage({
             <strong>Новый проект</strong>
             <small>Электроника, шахматы и другие доступные среды</small>
           </button>
-          <button
-            type="button"
+          <PortalLink
             className="creator-action-card"
-            onClick={() => onNavigate('learning')}
+            href={creatorSectionToHash('learning')}
+            onNavigate={() => onNavigate('learning')}
           >
             <span aria-hidden="true">▤</span>
             <strong>Продолжить обучение</strong>
             <small>Ориентиры по работе с проектами</small>
-          </button>
+          </PortalLink>
           {canTeach ? (
-            <button
-              type="button"
+            <PortalLink
               className="creator-action-card"
-              onClick={() => onNavigate('classes')}
+              href={creatorSectionToHash('classes')}
+              onNavigate={() => onNavigate('classes')}
             >
               <span aria-hidden="true">◎</span>
               <strong>Открыть классы</strong>
               <small>Ученики, задания и проекты класса</small>
-            </button>
+            </PortalLink>
           ) : (
-            <button
-              type="button"
+            <PortalLink
               className="creator-action-card"
-              onClick={() => onNavigate('collections')}
+              href={creatorSectionToHash('collections')}
+              onNavigate={() => onNavigate('collections')}
             >
               <span aria-hidden="true">◇</span>
               <strong>Открыть коллекции</strong>
               <small>Место для сохранённых материалов</small>
-            </button>
+            </PortalLink>
           )}
         </div>
       </section>
@@ -146,13 +152,13 @@ export function CreatorHomePage({
             <p className="creator-section-kicker">Недавняя работа</p>
             <h2 id="recent-projects-title">Мои проекты</h2>
           </div>
-          <button
-            type="button"
+          <PortalLink
             className="creator-text-action"
-            onClick={() => onNavigate('projects')}
+            href={creatorSectionToHash('projects')}
+            onNavigate={() => onNavigate('projects')}
           >
             Все проекты
-          </button>
+          </PortalLink>
         </div>
 
         {visibleState === 'error' ? (
@@ -193,7 +199,14 @@ export function CreatorHomePage({
               } as CSSProperties;
               return (
                 <li key={project.id} style={style}>
-                  <button type="button" onClick={() => onOpenProject(project.id)}>
+                  <PortalLink
+                    href={creatorViewToHash({
+                      kind: 'editor',
+                      projectId: project.id,
+                      returnTo: { kind: 'home' },
+                    })}
+                    onNavigate={() => onOpenProject(project.id)}
+                  >
                     <span className="creator-project-glyph">
                       {module ? <ModuleGlyph module={module} size={42} /> : '?'}
                     </span>
@@ -205,7 +218,7 @@ export function CreatorHomePage({
                       </small>
                     </span>
                     <span className="creator-project-open">Открыть</span>
-                  </button>
+                  </PortalLink>
                 </li>
               );
             })}
@@ -229,9 +242,13 @@ export function CreatorHomePage({
               доступно серверное событие.
             </p>
           </div>
-          <button type="button" className="creator-text-action" onClick={() => onNavigate('help')}>
+          <PortalLink
+            className="creator-text-action"
+            href={creatorSectionToHash('help')}
+            onNavigate={() => onNavigate('help')}
+          >
             Как работает кабинет
-          </button>
+          </PortalLink>
         </div>
       </section>
 
@@ -243,18 +260,24 @@ export function CreatorHomePage({
           </div>
         </div>
         <div className="creator-discover-grid">
-          <button type="button" onClick={() => onNavigate('learning')}>
+          <PortalLink
+            href={creatorSectionToHash('learning')}
+            onNavigate={() => onNavigate('learning')}
+          >
             <strong>Обучение</strong>
             <span>Начните с понятного маршрута по средам ASA Lab.</span>
-          </button>
-          <button type="button" onClick={() => onNavigate('challenges')}>
+          </PortalLink>
+          <PortalLink
+            href={creatorSectionToHash('challenges')}
+            onNavigate={() => onNavigate('challenges')}
+          >
             <strong>Испытания</strong>
             <span>Практические идеи без неподтверждённых достижений.</span>
-          </button>
-          <button type="button" onClick={() => onNavigate('help')}>
+          </PortalLink>
+          <PortalLink href={creatorSectionToHash('help')} onNavigate={() => onNavigate('help')}>
             <strong>Помощь</strong>
             <span>Ответы о проектах, сохранении и рабочих пространствах.</span>
-          </button>
+          </PortalLink>
         </div>
       </section>
 
