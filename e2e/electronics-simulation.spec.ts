@@ -165,6 +165,30 @@ function breadboardDocument(): SchematicDocument {
   };
 }
 
+function shortCircuitDocument(): SchematicDocument {
+  const source = circuitDocument({
+    switchClosed: true,
+    resistorOhms: 220,
+    reversedLed: false,
+  }).components.find((component) => component.id === 'source');
+  if (!source) throw new Error('source fixture is missing');
+  return {
+    schemaVersion: 3,
+    components: [source],
+    connections: [
+      {
+        id: 'wire-direct-short',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#e3212b',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -503,6 +527,15 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.locator('.workbench-inspector')).toContainText('Светодиод перегорел');
   await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
   await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await saveDocument(page, projectId, shortCircuitDocument());
+  await page.reload();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await expect(page.getByTestId('simulation-result-status')).toHaveText('Проверьте схему');
+  await expect(page.getByTestId('diagnostics')).toContainText('короткое замыкание');
+  await expect(page.locator('.workbench-toast')).not.toContainText('Моделирование не запущено');
   expect(failures.counts).toMatchObject({
     consoleErrors: 0,
     pageErrors: 0,

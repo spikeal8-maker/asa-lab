@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { SchematicDocument, SolveResult } from '../../index.js';
-import { calculateLiveSimulation, canStartSimulation } from '../live-simulation';
+import {
+  calculateLiveSimulation,
+  prepareLiveSimulationStart,
+  simulationRunNotice,
+} from '../live-simulation';
 
 const circuit: SchematicDocument = {
   schemaVersion: 3,
@@ -43,10 +47,9 @@ describe('live Electronics simulation', () => {
       numericalTolerance: 0,
     };
     expect(calculateLiveSimulation(circuit, persisted, false)).toBe(persisted);
-    expect(canStartSimulation(persisted)).toBe(false);
   });
 
-  it('refuses to start when any placed component has no electrical model', () => {
+  it('starts the visible simulation mode while an unsupported circuit stays fail-closed', () => {
     const unsupported: SchematicDocument = {
       ...circuit,
       components: [
@@ -60,9 +63,36 @@ describe('live Electronics simulation', () => {
         },
       ],
     };
-    const result = calculateLiveSimulation(unsupported, null, true);
-    expect(result?.status).toBe('unsupported');
-    expect(result && canStartSimulation(result)).toBe(false);
+    const start = prepareLiveSimulationStart(unsupported);
+
+    expect(start.document.simulation.running).toBe(true);
+    expect(start.result).toMatchObject({ solved: false, status: 'unsupported' });
+    expect(start.notice).toContain('Моделирование запущено');
+    expect(start.notice).not.toContain('не запущено');
+  });
+
+  it('presents numerical instability as an in-simulation diagnostic instead of a start blocker', () => {
+    const unstable: SolveResult = {
+      solved: false,
+      status: 'nonconvergent',
+      current: 0,
+      components: [],
+      nodes: [],
+      diagnostics: [
+        {
+          code: 'numerical_instability',
+          severity: 'error',
+          message: 'Численная невязка DC-расчёта превышает допустимый предел.',
+        },
+      ],
+      iterations: 24,
+      numericalResidual: 0.001,
+      numericalTolerance: 0.000001,
+    };
+
+    expect(simulationRunNotice(unstable)).toBe(
+      'Моделирование запущено. Схема требует внимания — подробности отмечены в диагностике.',
+    );
   });
 
   it('recalculates LED colour and resistor effects in a complete owner-pin circuit', () => {

@@ -685,11 +685,20 @@ export function WorkbenchStage({
           <button type="button" className="workbench-results-toggle" title="Результаты">
             <MoreIcon />
           </button>
-          <div className="workbench-results-card">
-            <strong>
-              {c.result?.solved && Math.abs(c.result.current) > 1e-8
-                ? 'Цепь проводит ток'
-                : 'Ток не течёт'}
+          <div
+            className="workbench-results-card"
+            data-simulation-result-status={c.result?.status ?? 'calculating'}
+          >
+            <strong data-testid="simulation-result-status">
+              {c.result?.status === 'nonconvergent'
+                ? 'Расчёт требует внимания'
+                : c.result?.status === 'unsupported'
+                  ? 'Компонент пока не поддерживается'
+                  : c.result?.status === 'invalid'
+                    ? 'Проверьте схему'
+                    : c.result?.solved && Math.abs(c.result.current) > 1e-8
+                      ? 'Цепь проводит ток'
+                      : 'Ток не течёт'}
             </strong>
             <span data-testid="current-reading">
               {c.simulationRunning && c.result?.solved
