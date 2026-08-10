@@ -466,27 +466,25 @@ export function WorkbenchSidebars({
               ) : null}
 
               {c.selectedEntry.key === 'led-5mm' ? (
-                <fieldset className="workbench-state-controls">
-                  <legend>Состояние LED</legend>
-                  <label>
-                    <span>Цвет</span>
-                    <select
-                      value={String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')}
-                      onChange={(event) =>
-                        c.setSelectedProperties(
-                          { ledColour: event.target.value },
-                          'Цвет LED изменён.',
-                        )
-                      }
-                    >
-                      {LED_COLOUR_OPTIONS.map((colour) => (
-                        <option key={colour.value} value={colour.value}>
-                          {colour.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </fieldset>
+                <label>
+                  <span>Цвет</span>
+                  <select
+                    aria-label="Цвет светодиода"
+                    value={String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')}
+                    onChange={(event) =>
+                      c.setSelectedProperties(
+                        { ledColour: event.target.value },
+                        'Цвет LED изменён.',
+                      )
+                    }
+                  >
+                    {LED_COLOUR_OPTIONS.map((colour) => (
+                      <option key={colour.value} value={colour.value}>
+                        {colour.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               ) : null}
 
               {c.selectedEntry.key === 'rgb-led' ? (
@@ -580,7 +578,8 @@ export function WorkbenchSidebars({
                 </dl>
               ) : null}
 
-              {Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
+              {c.selectedEntry.key !== 'led-5mm' &&
+              Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">
                   <strong>Отверстия макетки</strong>
                   {Object.entries(c.selectedComponent.holeBindings ?? {}).map(

@@ -241,7 +241,7 @@ async function brightnessValue(page: Page): Promise<number> {
 async function selectLed(page: Page): Promise<void> {
   await component(page, 'led-5mm').locator('.workbench-part').click();
   await expect(page.getByRole('complementary', { name: 'Параметры выделения' })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Состояние LED' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Цвет светодиода' })).toBeVisible();
 }
 
 async function holeCenter(page: Page, holeId: string): Promise<{ x: number; y: number }> {
