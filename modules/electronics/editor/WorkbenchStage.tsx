@@ -374,7 +374,7 @@ export function WorkbenchStage({
                       transform={`translate(${
                         ledBurned ? baseSize.width * 0.5 : baseSize.width + 12 / c.viewport.zoom
                       } ${ledBurned ? baseSize.height * 0.24 : -12 / c.viewport.zoom})`}
-                      pointerEvents="all"
+                      pointerEvents={ledBurned ? 'none' : 'all'}
                       role="img"
                       tabIndex={0}
                       aria-label={diagnosticText}
