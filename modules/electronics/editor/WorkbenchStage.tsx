@@ -325,7 +325,8 @@ export function WorkbenchStage({
                     y="0"
                     width={baseSize.width}
                     height={baseSize.height}
-                    fill="transparent"
+                    fill="#ffffff"
+                    fillOpacity={0.001}
                     pointerEvents="all"
                   />
                   <ProductionComponentVisual

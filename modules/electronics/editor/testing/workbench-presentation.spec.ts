@@ -146,6 +146,7 @@ describe('owner-reference Electronics presentation contract', () => {
 
   it('keeps diagnostics on components and reproduces the LED burnout effect', () => {
     expect(stageSource).toContain('className="workbench-component-body-hit"');
+    expect(stageSource).toContain('fillOpacity={0.001}');
     expect(stageSource).toContain('pointerEvents="all"');
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
