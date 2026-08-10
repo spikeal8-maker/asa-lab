@@ -11,25 +11,23 @@ Rendered from the control plane; `pnpm control-plane:check` fails if these
 values drift from [`current.yaml`](../execution/current.yaml).
 
 ```text
-TASK-ELECTRONICS-M1-001  done
+TASK-ELECTRONICS-M1-001  in_progress
 current_focus             TASK-ELECTRONICS-M1-001
-branch                    agent/r4-electronics-m1
+branch                    agent/module-boundary-separation
 Issue                     #63
-checkpoint                merged_to_main
-execution_lease           unassigned
+checkpoint                post_merge_physical_alignment_corrective
+execution_lease           assistant-stabilisation
 ```
 
 ## Gate results on the branch head
 
 ```text
-focused   Electronics R4-M1 Focused             PASS
-general   ASA Lab Governance and Code Gates     FAIL
+focused   Electronics R4-M1 Focused             NOT_RUN
+general   ASA Lab Governance and Code Gates     NOT_RUN
 ```
 
-The general gate fails on a stale LED expectation in
-`tests/portal/projects-api.spec.ts`; a fix is prepared on
-`chore/control-plane-recovery`. Until it passes, no release-candidate claim is
-valid regardless of the focused result.
+The corrective exact SHA does not exist yet. Results are recorded only after
+the focused implementation and GitHub publication complete on one revision.
 
 ## Governance IDs
 
@@ -43,16 +41,16 @@ TST-DEVELOPMENT-PROGRAM-001
 ## Focused owner-activated IDs
 
 ```text
-TST-R3A-MODULE-GATEWAY-001              PASS
-TST-ELECTRONICS-ASSET-MANIFEST-001      PASS
-TST-ELECTRONICS-TRANSPARENCY-001        PASS
-TST-ELECTRONICS-PHYSICAL-SCALE-001      PASS
-TST-ELECTRONICS-PIN-ANCHOR-001          PASS
-TST-ELECTRONICS-STATE-FAMILIES-001      PASS
-TST-ELECTRONICS-BREADBOARD-001          PASS
-TST-ELECTRONICS-RESISTOR-VISUAL-001     PASS
-TST-ELECTRONICS-COMPONENT-LIBRARY-001   PASS
-TST-ELECTRONICS-M1-E2E-001              PASS
+TST-R3A-MODULE-GATEWAY-001              NOT_RUN
+TST-ELECTRONICS-ASSET-MANIFEST-001      NOT_RUN
+TST-ELECTRONICS-TRANSPARENCY-001        NOT_RUN
+TST-ELECTRONICS-PHYSICAL-SCALE-001      NOT_RUN
+TST-ELECTRONICS-PIN-ANCHOR-001          NOT_RUN
+TST-ELECTRONICS-STATE-FAMILIES-001      NOT_RUN
+TST-ELECTRONICS-BREADBOARD-001          NOT_RUN
+TST-ELECTRONICS-RESISTOR-VISUAL-001     NOT_RUN
+TST-ELECTRONICS-COMPONENT-LIBRARY-001   NOT_RUN
+TST-ELECTRONICS-M1-E2E-001              NOT_RUN
 ```
 
 The canonical owner-catalog validator and focused

@@ -13,15 +13,15 @@ Rendered from the control plane. Do not edit these values here — change
 ```text
 TASK-ELECTRONICS-M1-001
 Issue #63
-branch agent/r4-electronics-m1
-status done
-checkpoint merged_to_main
-execution lease unassigned
+branch agent/module-boundary-separation
+status in_progress
+checkpoint post_merge_physical_alignment_corrective
+execution lease assistant-stabilisation
 ```
 
-Returned from `in_review` on 2026-08-05: the general repository gate fails on the
-branch head, so no release-candidate claim is currently defensible. See
-`blocking` in the control plane.
+The owner activated a post-merge corrective pass on the existing module-boundary
+branch. It aligns owner SVG pin anchors and breadboard footprints and verifies
+the live LED operating-state sweep without activating R4-M2.
 
 ```mermaid
 flowchart LR
