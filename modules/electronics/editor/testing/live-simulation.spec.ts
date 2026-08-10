@@ -159,4 +159,151 @@ describe('live Electronics simulation', () => {
     expect(red30?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('led_burnout');
     expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_burnout');
   });
+
+  it('keeps a 3 V / 166 ohm LED branch working beside unrelated editor components', () => {
+    const document: SchematicDocument = {
+      schemaVersion: 3,
+      components: [
+        {
+          id: 'board',
+          kind: 'breadboard',
+          componentTypeId: 'breadboard-medium',
+          pinIds: ['J1'],
+          position: { x: 0, y: 0 },
+          value: 0,
+        },
+        {
+          id: 'open-battery',
+          kind: 'source',
+          componentTypeId: 'battery-holder-aa-2',
+          pinIds: ['BAT-', 'BAT+'],
+          position: { x: 0, y: 0 },
+          value: 3,
+        },
+        {
+          id: 'battery',
+          kind: 'source',
+          componentTypeId: 'battery-holder-aa-2',
+          pinIds: ['BAT-', 'BAT+'],
+          position: { x: 0, y: 0 },
+          value: 3,
+        },
+        {
+          id: 'resistor',
+          kind: 'resistor',
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          position: { x: 20, y: 0 },
+          value: 166,
+        },
+        {
+          id: 'led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          pinIds: ['cathode', 'anode'],
+          position: { x: 40, y: 0 },
+          value: 2,
+          stateProperties: { ledColour: 'red' },
+        },
+        {
+          id: 'unused-led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          pinIds: ['cathode', 'anode'],
+          position: { x: 60, y: 0 },
+          value: 2,
+          stateProperties: { ledColour: 'red' },
+        },
+        {
+          id: 'unused-potentiometer',
+          kind: 'potentiometer',
+          componentTypeId: 'potentiometer',
+          pinIds: ['terminal-1', 'terminal-2', 'wiper'],
+          position: { x: 80, y: 0 },
+          value: 1_000,
+        },
+        {
+          id: 'unused-transistor',
+          kind: 'transistor',
+          componentTypeId: 'transistor-npn',
+          pinIds: ['base', 'collector', 'emitter'],
+          position: { x: 100, y: 0 },
+          value: 100,
+        },
+        {
+          id: 'unused-rgb-led',
+          kind: 'rgb-led',
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          position: { x: 120, y: 0 },
+          value: 0,
+          stateProperties: { commonMode: 'common-cathode' },
+        },
+      ],
+      connections: [
+        {
+          id: 'unused-positive',
+          from: { componentId: 'board', terminal: 'J1' },
+          to: { componentId: 'open-battery', terminal: 'BAT+' },
+        },
+        {
+          id: 'negative',
+          from: { componentId: 'led', terminal: 'cathode' },
+          to: { componentId: 'battery', terminal: 'BAT-' },
+        },
+        {
+          id: 'limited',
+          from: { componentId: 'led', terminal: 'anode' },
+          to: { componentId: 'resistor', terminal: 'lead-1' },
+        },
+        {
+          id: 'positive',
+          from: { componentId: 'resistor', terminal: 'lead-2' },
+          to: { componentId: 'battery', terminal: 'BAT+' },
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: true, maxIterations: 24 },
+    };
+
+    const solveAt = (resistance: number) =>
+      calculateLiveSimulation(
+        {
+          ...document,
+          components: document.components.map((component) =>
+            component.id === 'resistor' ? { ...component, value: resistance } : component,
+          ),
+        },
+        null,
+        true,
+      );
+    const resistanceSweep = [1, 10, 30, 50, 100, 166, 220, 330, 1_000, 10_000, 100_000];
+    const sweepResults = resistanceSweep.map((resistance) => ({
+      resistance,
+      result: solveAt(resistance),
+    }));
+    const result = solveAt(166);
+    const led = result?.components.find((component) => component.componentId === 'led');
+
+    for (const sample of sweepResults) {
+      expect(sample.result, `${sample.resistance} Ω`).toMatchObject({
+        solved: true,
+        status: 'solved',
+      });
+    }
+    const sweepCurrents = sweepResults.map(
+      (sample) =>
+        sample.result?.components.find((component) => component.componentId === 'led')?.current ??
+        0,
+    );
+    for (let index = 1; index < sweepCurrents.length; index += 1) {
+      expect(sweepCurrents[index - 1]).toBeGreaterThanOrEqual(sweepCurrents[index] ?? 0);
+    }
+    expect(result?.numericalResidual).toBeLessThanOrEqual(result?.numericalTolerance ?? 0);
+    expect(result?.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')).toEqual([]);
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(led?.current).toBeGreaterThan(0.006);
+    expect(led?.lit).toBe(true);
+    expect(led?.brightness).toBeGreaterThan(40);
+  });
 });

@@ -472,9 +472,6 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     return empty('invalid');
   }
 
-  const referenceNode = netlist.nodeOf.get(
-    terminalKey(sources[0]!.id, logicalTerminal(sources[0]!, 'b')),
-  ) as number;
   for (const source of sources) {
     const a = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
     const b = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'b')));
@@ -527,9 +524,55 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     return empty(sameVoltage ? 'unsupported' : 'invalid');
   }
 
+  // Every disconnected electrical island needs its own voltage reference.
+  // Using one global reference forces unrelated loose parts and open sources
+  // through tiny GMIN paths. That makes an otherwise ordinary circuit badly
+  // conditioned: placing a second, unused battery beside a working LED branch
+  // used to be enough for harmless floating-point residue to reject the whole
+  // simulation. Wires and breadboard groups are already collapsed by the
+  // netlist; component terminals join those nets into independent islands.
+  const islandParent = Array.from({ length: netlist.nodeCount }, (_, node) => node);
+  const findIsland = (node: number): number => {
+    let root = node;
+    while (islandParent[root] !== root) root = islandParent[root] as number;
+    let current = node;
+    while (islandParent[current] !== current) {
+      const next = islandParent[current] as number;
+      islandParent[current] = root;
+      current = next;
+    }
+    return root;
+  };
+  const joinIsland = (left: number, right: number): void => {
+    const leftRoot = findIsland(left);
+    const rightRoot = findIsland(right);
+    if (leftRoot !== rightRoot) islandParent[rightRoot] = leftRoot;
+  };
+  for (const component of document.components.filter(isSimulated)) {
+    const nodes = terminalsForComponent(component)
+      .map((terminal) => netlist.nodeOf.get(terminalKey(component.id, terminal)))
+      .filter((node): node is number => node !== undefined);
+    const first = nodes[0];
+    if (first === undefined) continue;
+    for (const node of nodes.slice(1)) joinIsland(first, node);
+  }
+  const referenceByIsland = new Map<number, number>();
+  for (const source of sources) {
+    const negative = netlist.nodeOf.get(
+      terminalKey(source.id, logicalTerminal(source, 'b')),
+    ) as number;
+    const island = findIsland(negative);
+    if (!referenceByIsland.has(island)) referenceByIsland.set(island, negative);
+  }
+  for (let node = 0; node < netlist.nodeCount; node += 1) {
+    const island = findIsland(node);
+    if (!referenceByIsland.has(island)) referenceByIsland.set(island, node);
+  }
+  const referenceNodes = new Set(referenceByIsland.values());
+
   const nodeVariables = new Map<number, number>();
   for (let node = 0; node < netlist.nodeCount; node += 1) {
-    if (node !== referenceNode) nodeVariables.set(node, nodeVariables.size);
+    if (!referenceNodes.has(node)) nodeVariables.set(node, nodeVariables.size);
   }
   const nodeVariableCount = nodeVariables.size;
   const size = nodeVariableCount + sources.length;
@@ -559,7 +602,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const physicalNodeIndex = (component: SchematicComponent, terminal: Terminal): number =>
     netlist.nodeOf.get(terminalKey(component.id, terminal)) as number;
   const voltageFrom = (values: number[], node: number): number =>
-    node === referenceNode ? 0 : (values[nodeVariables.get(node) as number] as number);
+    referenceNodes.has(node) ? 0 : (values[nodeVariables.get(node) as number] as number);
 
   for (; iterations <= maxIterations; iterations += 1) {
     const matrix = Array.from({ length: size }, () => Array<number>(size).fill(0));

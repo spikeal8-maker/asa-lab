@@ -189,6 +189,107 @@ function shortCircuitDocument(): SchematicDocument {
   };
 }
 
+function directLedWithLoosePartsDocument(): SchematicDocument {
+  const seeded = circuitDocument({
+    switchClosed: true,
+    resistorOhms: 166,
+    reversedLed: false,
+  });
+  const source = seeded.components.find((component) => component.id === 'source');
+  const board = seeded.components.find((component) => component.id === 'board');
+  const resistor = seeded.components.find((component) => component.id === 'resistor');
+  const led = seeded.components.find((component) => component.id === 'led');
+  if (!source || !board || !resistor || !led) throw new Error('direct LED fixture is incomplete');
+
+  return {
+    ...seeded,
+    components: [
+      board,
+      {
+        ...source,
+        id: 'open-source',
+        name: 'Неподключённый источник',
+        position: { x: 80, y: 500 },
+      },
+      source,
+      resistor,
+      led,
+      { ...led, id: 'unused-led', name: 'Свободный LED', position: { x: 980, y: 360 } },
+      {
+        id: 'unused-potentiometer',
+        kind: 'potentiometer',
+        componentTypeId: 'potentiometer',
+        variantId: 'potentiometer',
+        name: 'Свободный потенциометр',
+        position: { x: 1_050, y: 480 },
+        rotation: 0,
+        value: 1_000,
+        pinIds: ['terminal-1', 'terminal-2', 'wiper'],
+        stateProperties: {},
+      },
+      {
+        id: 'unused-transistor',
+        kind: 'transistor',
+        componentTypeId: 'transistor-npn',
+        variantId: 'transistor-npn',
+        name: 'Свободный NPN',
+        position: { x: 1_150, y: 480 },
+        rotation: 0,
+        value: 100,
+        pinIds: ['base', 'collector', 'emitter'],
+        stateProperties: {
+          currentGain: 100,
+          saturationVoltage: 0.2,
+          baseEmitterVoltage: 0.7,
+          maxCollectorCurrent: 0.2,
+        },
+      },
+      {
+        id: 'unused-rgb-led',
+        kind: 'rgb-led',
+        componentTypeId: 'rgb-led',
+        variantId: 'rgb-led',
+        name: 'Свободный RGB LED',
+        position: { x: 1_250, y: 480 },
+        rotation: 0,
+        value: 0,
+        pinIds: ['red', 'common', 'green', 'blue'],
+        stateProperties: { commonMode: 'common-cathode' },
+      },
+    ],
+    connections: [
+      {
+        id: 'wire-open-source',
+        from: { componentId: 'board', terminal: 'J1' },
+        to: { componentId: 'open-source', terminal: 'BAT+' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'wire-positive',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'resistor', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'wire-limited',
+        from: { componentId: 'resistor', terminal: 'lead-2' },
+        to: { componentId: 'led', terminal: 'anode' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'wire-negative',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'source', terminal: 'BAT-' },
+        color: '#149447',
+        vertices: [],
+      },
+    ],
+  };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -546,5 +647,41 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     failedRequests: 0,
     httpServerErrors: 0,
   });
+  failures.assertEmpty();
+});
+
+test('a direct 3 V / 166 ohm LED branch stays lit beside loose editor parts', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'R4-M1 direct 166 ohm LED regression');
+  await saveDocument(page, projectId, directLedWithLoosePartsDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+
+  const workingLed = component(page, 'led-5mm').first();
+  await expect(workingLed.locator('.workbench-production-visual')).toHaveAttribute(
+    'data-led-runtime-state',
+    'lit',
+  );
+  await expect
+    .poll(async () =>
+      Number(
+        (await workingLed
+          .locator('.workbench-production-visual')
+          .getAttribute('data-led-brightness')) ?? '0',
+      ),
+    )
+    .toBeGreaterThan(40);
+  await expect(workingLed).not.toHaveAttribute('data-diagnostics', /numerical_instability/);
+  await expect(workingLed.locator('image:not([filter])')).not.toHaveAttribute(
+    'href',
+    /led_red_i000\.svg$/,
+  );
+  await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-direct-led-166.png`, fullPage: true });
   failures.assertEmpty();
 });
