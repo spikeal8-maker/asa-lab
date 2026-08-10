@@ -479,13 +479,6 @@ export function ProductionComponentVisual({
                 ? (event) => {
                     event.stopPropagation();
                     event.preventDefault();
-                  }
-                : undefined
-            }
-            onClick={
-              onSwitchActuate
-                ? (event) => {
-                    event.stopPropagation();
                     onSwitchActuate();
                   }
                 : undefined
