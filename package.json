@@ -61,7 +61,7 @@
     "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm security:dependencies && pnpm build",
     "gate:data": "pnpm db:migrate:check && pnpm test && pnpm test:rls",
     "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",
-    "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run modules/electronics/editor/testing && pnpm typecheck && pnpm build",
+    "gate:electronics-m1": "pnpm test:electronics && pnpm nx run-many -t build --projects=module-sdk,web-api-client && pnpm vitest run modules/electronics/editor/testing && pnpm typecheck && pnpm build",
     "gate:electronics-m1:browser": "pnpm e2e:electronics-simulation",
     "assets:check": "python tools/validate_electronics_assets.py",
     "assets:test": "python tools/test_validate_electronics_assets.py"
