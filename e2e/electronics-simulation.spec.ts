@@ -1,4 +1,5 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
@@ -10,6 +11,25 @@ const ARTIFACT_DIR = 'e2e/artifacts/electronics-simulation';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
+
+interface OwnerCatalogFixture {
+  readonly components: ReadonlyArray<{
+    readonly componentId: string;
+    readonly pins: ReadonlyArray<{ readonly id: string }>;
+  }>;
+}
+
+const ownerCatalog = JSON.parse(
+  readFileSync(
+    resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog/manifest.json'),
+    'utf8',
+  ),
+) as OwnerCatalogFixture;
+const breadboardPinIds = ownerCatalog.components
+  .find((component) => component.componentId === 'breadboard-medium')
+  ?.pins.map((pin) => pin.id);
+
+if (!breadboardPinIds) throw new Error('breadboard-medium owner manifest entry is missing');
 
 function circuitDocument(options: {
   readonly switchClosed: boolean;
@@ -138,7 +158,9 @@ function breadboardDocument(): SchematicDocument {
   });
   return {
     ...seeded,
-    components: seeded.components.filter((component) => component.id === 'board'),
+    components: seeded.components
+      .filter((component) => component.id === 'board')
+      .map((component) => ({ ...component, pinIds: breadboardPinIds })),
     connections: [],
   };
 }
@@ -233,6 +255,32 @@ async function dragCatalogComponent(
   await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(before + 1);
 }
 
+async function unobstructedComponentPoint(
+  page: Page,
+  componentTypeId: string,
+): Promise<{ x: number; y: number }> {
+  return page
+    .locator(
+      `[data-testid="schematic-component"][data-component-type="${componentTypeId}"] .workbench-part`,
+    )
+    .evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      for (let y = rect.top + 8; y < rect.bottom - 8; y += 12) {
+        for (let x = rect.left + 8; x < rect.right - 8; x += 12) {
+          const hit = document.elementFromPoint(x, y);
+          if (
+            hit &&
+            element.contains(hit) &&
+            !hit.closest('.workbench-terminal-hit, .workbench-breadboard-hole-hit')
+          ) {
+            return { x, y };
+          }
+        }
+      }
+      throw new Error(`no unobstructed point found for ${componentTypeId}`);
+    });
+}
+
 test.beforeAll(async () => {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   admin = e2eAdminPool();
@@ -287,19 +335,17 @@ test('catalog placement is one hold-drag-release gesture and snaps on the first 
     y: await negativeLead.getAttribute('y2'),
   };
 
-  const boardPart = component(page, 'breadboard-medium').locator('.workbench-part');
-  const boardBox = await boardPart.boundingBox();
-  if (!boardBox) throw new Error('breadboard is not rendered');
-  await page.mouse.move(boardBox.x + boardBox.width / 2, boardBox.y + boardBox.height / 2);
+  const board = component(page, 'breadboard-medium');
+  const boardPosition = {
+    x: await board.getAttribute('data-x'),
+    y: await board.getAttribute('data-y'),
+  };
+  const boardGrab = await unobstructedComponentPoint(page, 'breadboard-medium');
+  await page.mouse.move(boardGrab.x, boardGrab.y);
   await page.mouse.down();
-  await page.mouse.move(
-    boardBox.x + boardBox.width / 2 + 60,
-    boardBox.y + boardBox.height / 2 + 30,
-    {
-      steps: 10,
-    },
-  );
+  await page.mouse.move(boardGrab.x + 60, boardGrab.y + 30, { steps: 10 });
   await page.mouse.up();
+  await expect(board).not.toHaveAttribute('data-x', boardPosition.x ?? '');
   await expect(battery).toHaveAttribute('data-x', batteryPosition.x ?? '');
   await expect(battery).toHaveAttribute('data-y', batteryPosition.y ?? '');
   await expect
@@ -396,7 +442,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     fullPage: true,
   });
 
-  await expect(page.locator('.workbench-save-state')).toContainText('Все изменения сохранены', {
+  await expect(page.locator('.editor-host-save-state')).toContainText('Все изменения сохранены', {
     timeout: 15_000,
   });
   const checkpoint = await page.context().request.post(`/api/projects/${projectId}/checkpoints`, {
@@ -408,6 +454,8 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     version: { versionNo: 1 },
   });
   await page.reload();
+  await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
