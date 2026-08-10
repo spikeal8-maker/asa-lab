@@ -53,6 +53,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'rgb-led': [8.75, 10.125],
   'seven-segment-display': [12.7, 19.05],
   'incandescent-lamp': [20, 30],
+  'transistor-npn': [8.267, 13.333],
   'arduino-uno': [78.74, 58.816875],
 } as const;
 
@@ -116,6 +117,11 @@ describe('owner SVG integration in the real Electronics document', () => {
       green: { label: 'G' },
       blue: { label: 'B' },
       common: { label: 'Общий' },
+    });
+    expect(entries.get('transistor-npn')?.terminals).toMatchObject({
+      collector: { label: 'C' },
+      base: { label: 'B' },
+      emitter: { label: 'E' },
     });
     expect(entries.get('button-tactile-6mm')?.terminals).toMatchObject({
       'SW-A1': { label: '1a' },
@@ -359,6 +365,35 @@ describe('owner SVG integration in the real Electronics document', () => {
         6,
       );
     }
+  });
+
+  it('persists the owner NPN pin map and electrical properties after reload', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'transistor-npn',
+      { x: 300, y: 240 },
+      'q1',
+    ).document;
+    document = updateSelectionProperties(
+      document,
+      { kind: 'component', id: 'q1', ids: ['q1'] },
+      { currentGain: 180 },
+    ) as SchematicDocument;
+
+    const restored = JSON.parse(JSON.stringify(document)) as SchematicDocument;
+    expect(restored.components[0]).toMatchObject({
+      kind: 'transistor',
+      componentTypeId: 'transistor-npn',
+      variantId: 'transistor-npn',
+      value: 100,
+      pinIds: ['base', 'collector', 'emitter'],
+      stateProperties: {
+        currentGain: 180,
+        baseEmitterVoltage: 0.7,
+        saturationVoltage: 0.2,
+        maxCollectorCurrent: 0.2,
+      },
+    });
   });
 
   it('snaps a real four-pin footprint to stable 2.54mm holes and joins board nets', () => {

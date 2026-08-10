@@ -29692,7 +29692,7 @@
       "category": "semiconductors",
       "subcategoryId": "transistors",
       "catalogOrder": 27,
-      "appearsInBasic": false,
+      "appearsInBasic": true,
       "searchAliases": ["transistor-npn", "NPN-транзистор", "NPN transistor"],
       "displayNameEn": "NPN transistor",
       "provenance": "exact_owner_svg",
@@ -29736,9 +29736,9 @@
         "type": "static",
         "state": "static"
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "npn_piecewise_linear_dc",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
@@ -29750,7 +29750,7 @@
       "sourceSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
       "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/transistor-npn.svg",
       "runtimeSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
-      "status": "disabled_missing_model",
+      "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
     {

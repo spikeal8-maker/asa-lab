@@ -181,6 +181,7 @@ const SIMULATED_TYPES = new Set([
   'potentiometer',
   'diode-do35',
   'diode-do41',
+  'transistor-npn',
   'incandescent-lamp',
   'rgb-led',
   'seven-segment-display',
@@ -221,6 +222,7 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (componentId === 'switch-spdt') return 'switch';
   if (componentId === 'potentiometer') return 'potentiometer';
   if (componentId.startsWith('diode-')) return 'diode';
+  if (componentId === 'transistor-npn') return 'transistor';
   if (componentId === 'incandescent-lamp') return 'lamp';
   if (componentId.startsWith('breadboard-')) return 'breadboard';
   return 'visual';
@@ -288,6 +290,17 @@ function defaults(componentId: string): {
   if (componentId === 'potentiometer')
     return { value: 1_000, unit: 'Ом', wiperPosition: 0.5, properties: {} };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
+  if (componentId === 'transistor-npn')
+    return {
+      value: 100,
+      unit: 'hFE',
+      properties: {
+        currentGain: 100,
+        baseEmitterVoltage: 0.7,
+        saturationVoltage: 0.2,
+        maxCollectorCurrent: 0.2,
+      },
+    };
   if (componentId === 'incandescent-lamp')
     return { value: 24, unit: 'Ом', properties: { lampLevel: 'off' } };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
@@ -318,6 +331,9 @@ function pinLabel(componentId: string, pinId: string): string {
     red: 'R',
     green: 'G',
     blue: 'B',
+    base: 'B',
+    collector: 'C',
+    emitter: 'E',
   };
   const arduinoLabels: Readonly<Record<string, string>> = {
     a0: 'A0',

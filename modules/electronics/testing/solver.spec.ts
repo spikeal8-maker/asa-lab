@@ -210,6 +210,19 @@ describe('electrical model registry', () => {
       support: 'infrastructure',
       topology: 'connectivity-only',
     });
+    expect(
+      electricalModelFor(
+        component('q1', 'transistor', 100, {
+          componentTypeId: 'transistor-npn',
+          pinIds: ['collector', 'base', 'emitter'],
+        }),
+      ),
+    ).toMatchObject({
+      id: 'npn-transistor',
+      support: 'supported',
+      topology: 'three-terminal',
+      requiredTerminals: ['base', 'collector', 'emitter'],
+    });
   });
 });
 
@@ -467,6 +480,111 @@ describe('deterministic DC solver', () => {
     expect(reverse.diagnostics.find((item) => item.code === 'reverse_polarity')).toMatchObject({
       suggestedAction: 'Подключите BAT+ к аноду, BAT− к катоду.',
     });
+  });
+
+  it('solves NPN cutoff, active and saturation regions with real B/C/E currents', () => {
+    const transistor = component('q1', 'transistor', 100, {
+      componentTypeId: 'transistor-npn',
+      pinIds: ['collector', 'base', 'emitter'],
+      stateProperties: {
+        currentGain: 100,
+        baseEmitterVoltage: 0.7,
+        saturationVoltage: 0.2,
+        maxCollectorCurrent: 0.2,
+      },
+    });
+    const circuit = (baseResistance: number, collectorResistance = 470) =>
+      doc(
+        [
+          component('source', 'source', 5),
+          component('rb', 'resistor', baseResistance),
+          component('rc', 'resistor', collectorResistance),
+          transistor,
+        ],
+        [
+          connect('s-rc', 'source', 'a', 'rc', 'a'),
+          connect('rc-c', 'rc', 'b', 'q1', 'collector'),
+          connect('s-rb', 'source', 'a', 'rb', 'a'),
+          connect('rb-b', 'rb', 'b', 'q1', 'base'),
+          connect('e-s', 'q1', 'emitter', 'source', 'b'),
+        ],
+      );
+    const cutoffDocument = doc(
+      [
+        component('source', 'source', 5),
+        component('rb', 'resistor', 10_000),
+        component('rc', 'resistor', 470),
+        transistor,
+      ],
+      [
+        connect('s-rc', 'source', 'a', 'rc', 'a'),
+        connect('rc-c', 'rc', 'b', 'q1', 'collector'),
+        connect('b-rb', 'q1', 'base', 'rb', 'a'),
+        connect('rb-gnd', 'rb', 'b', 'source', 'b'),
+        connect('e-s', 'q1', 'emitter', 'source', 'b'),
+      ],
+    );
+
+    const cutoff = resultFor(cutoffDocument, 'q1');
+    const active = resultFor(circuit(100_000), 'q1');
+    const saturation = resultFor(circuit(1_000, 220), 'q1');
+
+    expect(cutoff).toMatchObject({
+      operatingRegion: 'cutoff',
+      baseCurrent: 0,
+      collectorCurrent: 0,
+      emitterCurrent: 0,
+    });
+    expect(active?.operatingRegion).toBe('active');
+    expect(active?.baseCurrent ?? 0).toBeGreaterThan(0.00004);
+    expect(active?.collectorCurrent).toBeCloseTo((active?.baseCurrent ?? 0) * 100, 5);
+    expect(active?.emitterCurrent).toBeCloseTo(
+      (active?.baseCurrent ?? 0) + (active?.collectorCurrent ?? 0),
+      6,
+    );
+    expect(active?.terminalVoltages).toMatchObject({ emitter: 0 });
+    expect(saturation?.operatingRegion).toBe('saturation');
+    expect(saturation?.voltageDrop ?? 1).toBeGreaterThanOrEqual(0.2);
+    expect(saturation?.voltageDrop ?? 1).toBeLessThan(0.25);
+    expect(saturation?.collectorCurrent ?? 0).toBeGreaterThan(0.02);
+  });
+
+  it('diagnoses unsafe reverse base bias and collector overcurrent', () => {
+    const transistor = component('q1', 'transistor', 100, {
+      componentTypeId: 'transistor-npn',
+      pinIds: ['collector', 'base', 'emitter'],
+      stateProperties: { currentGain: 100, maxCollectorCurrent: 0.2 },
+    });
+    const reverse = solveCircuit(
+      doc(
+        [component('source', 'source', 9), component('r', 'resistor', 1_000), transistor],
+        [
+          connect('e-plus', 'source', 'a', 'q1', 'emitter'),
+          connect('b-minus', 'q1', 'base', 'source', 'b'),
+          connect('c-r', 'q1', 'collector', 'r', 'a'),
+          connect('r-minus', 'r', 'b', 'source', 'b'),
+        ],
+      ),
+    );
+    const overloaded = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 5),
+          component('rb', 'resistor', 100),
+          component('rc', 'resistor', 10),
+          transistor,
+        ],
+        [
+          connect('s-rc', 'source', 'a', 'rc', 'a'),
+          connect('rc-c', 'rc', 'b', 'q1', 'collector'),
+          connect('s-rb', 'source', 'a', 'rb', 'a'),
+          connect('rb-b', 'rb', 'b', 'q1', 'base'),
+          connect('e-s', 'q1', 'emitter', 'source', 'b'),
+        ],
+      ),
+    );
+    expect(reverse.diagnostics.map((item) => item.code)).toContain('transistor_reverse_bias');
+    expect(overloaded.diagnostics.map((item) => item.code)).toContain('transistor_overcurrent');
   });
 
   it('lights an LED at normal current and diagnoses overcurrent', () => {

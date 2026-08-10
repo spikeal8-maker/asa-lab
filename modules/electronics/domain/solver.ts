@@ -23,6 +23,8 @@ export type DiagnosticCode =
   | 'led_near_limit'
   | 'led_overcurrent'
   | 'led_burnout'
+  | 'transistor_reverse_bias'
+  | 'transistor_overcurrent'
   | 'unsupported_component'
   | 'unsupported_topology'
   | 'numerical_instability'
@@ -59,6 +61,11 @@ export interface ComponentResult {
   readonly energized?: boolean;
   readonly currentUtilizationPercent?: number;
   readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  readonly operatingRegion?: 'cutoff' | 'active' | 'saturation';
+  readonly baseCurrent?: number;
+  readonly collectorCurrent?: number;
+  readonly emitterCurrent?: number;
+  readonly currentGain?: number;
 }
 
 export interface NodeResult {
@@ -95,6 +102,12 @@ const LED_WARNING_RATIO = 0.8;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
+const NPN_DEFAULT_CURRENT_GAIN = 100;
+const NPN_DEFAULT_BASE_EMITTER_VOLTAGE = 0.7;
+const NPN_DEFAULT_SATURATION_VOLTAGE = 0.2;
+const NPN_BASE_EMITTER_RESISTANCE = 10;
+const NPN_SATURATION_RESISTANCE = 0.5;
+const NPN_DEFAULT_MAX_COLLECTOR_CURRENT_A = 0.2;
 
 const LED_KNEE_VOLTAGE: Readonly<Record<string, number>> = {
   red: 1.65,
@@ -131,6 +144,62 @@ interface DiodeBranch {
   readonly resistance: number;
   readonly nominalCurrent: number;
   readonly maxCurrent: number;
+}
+
+type TransistorOperatingRegion = 'cutoff' | 'active' | 'saturation';
+
+interface NpnTransistorModel {
+  readonly component: SchematicComponent;
+  readonly base: Terminal;
+  readonly collector: Terminal;
+  readonly emitter: Terminal;
+  readonly currentGain: number;
+  readonly baseEmitterVoltage: number;
+  readonly saturationVoltage: number;
+  readonly maxCollectorCurrent: number;
+}
+
+function boundedProperty(
+  component: SchematicComponent,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const value = Number(component.stateProperties?.[key] ?? fallback);
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function npnModel(component: SchematicComponent): NpnTransistorModel | null {
+  if (component.kind !== 'transistor') return null;
+  return {
+    component,
+    base: 'base',
+    collector: 'collector',
+    emitter: 'emitter',
+    currentGain: boundedProperty(component, 'currentGain', NPN_DEFAULT_CURRENT_GAIN, 1, 1_000),
+    baseEmitterVoltage: boundedProperty(
+      component,
+      'baseEmitterVoltage',
+      NPN_DEFAULT_BASE_EMITTER_VOLTAGE,
+      0.4,
+      1.2,
+    ),
+    saturationVoltage: boundedProperty(
+      component,
+      'saturationVoltage',
+      NPN_DEFAULT_SATURATION_VOLTAGE,
+      0.05,
+      0.6,
+    ),
+    maxCollectorCurrent: boundedProperty(
+      component,
+      'maxCollectorCurrent',
+      NPN_DEFAULT_MAX_COLLECTOR_CURRENT_A,
+      0.001,
+      20,
+    ),
+  };
 }
 
 function diodeBranchKey(branch: DiodeBranch): string {
@@ -287,6 +356,34 @@ function propertyError(component: SchematicComponent): string | null {
   }
   if ((component.kind === 'led' || component.kind === 'diode') && component.value <= 0)
     return 'Прямое падение напряжения должно быть больше нуля.';
+  if (component.kind === 'transistor') {
+    const currentGain = Number(component.stateProperties?.['currentGain'] ?? component.value);
+    const baseEmitterVoltage = Number(
+      component.stateProperties?.['baseEmitterVoltage'] ?? NPN_DEFAULT_BASE_EMITTER_VOLTAGE,
+    );
+    const saturationVoltage = Number(
+      component.stateProperties?.['saturationVoltage'] ?? NPN_DEFAULT_SATURATION_VOLTAGE,
+    );
+    const maxCollectorCurrent = Number(
+      component.stateProperties?.['maxCollectorCurrent'] ?? NPN_DEFAULT_MAX_COLLECTOR_CURRENT_A,
+    );
+    if (!Number.isFinite(currentGain) || currentGain < 1 || currentGain > 1_000)
+      return 'Коэффициент усиления hFE должен быть от 1 до 1000.';
+    if (
+      !Number.isFinite(baseEmitterVoltage) ||
+      baseEmitterVoltage < 0.4 ||
+      baseEmitterVoltage > 1.2
+    )
+      return 'Напряжение база–эмиттер должно быть от 0,4 до 1,2 В.';
+    if (!Number.isFinite(saturationVoltage) || saturationVoltage < 0.05 || saturationVoltage > 0.6)
+      return 'Напряжение насыщения должно быть от 0,05 до 0,6 В.';
+    if (
+      !Number.isFinite(maxCollectorCurrent) ||
+      maxCollectorCurrent < 0.001 ||
+      maxCollectorCurrent > 20
+    )
+      return 'Допустимый ток коллектора должен быть от 1 мА до 20 А.';
+  }
   if (component.kind === 'potentiometer' && (component.wiperPosition ?? 0.5) < 0)
     return 'Положение движка должно быть от 0 до 1.';
   if (component.kind === 'potentiometer' && (component.wiperPosition ?? 0.5) > 1)
@@ -438,10 +535,18 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const size = nodeVariableCount + sources.length;
   const diodeBranches = document.components.flatMap(componentDiodeBranches);
   const diodeStates = new Map<string, boolean>();
+  const npnTransistors = document.components.flatMap((component) => {
+    const model = npnModel(component);
+    return model ? [model] : [];
+  });
+  const transistorRegions = new Map<string, TransistorOperatingRegion>();
   // Start nonlinear junctions open. A real forward voltage discovered by the
   // first linear solve turns them on; an isolated LED must not create its own
   // artificial voltage across otherwise floating terminals.
   for (const branch of diodeBranches) diodeStates.set(diodeBranchKey(branch), false);
+  for (const transistor of npnTransistors) {
+    transistorRegions.set(transistor.component.id, 'cutoff');
+  }
 
   let solution: number[] | null = null;
   let converged = false;
@@ -475,11 +580,28 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       if (li !== undefined) rhs[li] += current;
       if (ri !== undefined) rhs[ri] -= current;
     };
+    const stampVccs = (
+      outputPositive: number,
+      outputNegative: number,
+      controlPositive: number,
+      controlNegative: number,
+      transconductance: number,
+    ): void => {
+      const op = nodeVariables.get(outputPositive);
+      const on = nodeVariables.get(outputNegative);
+      const cp = nodeVariables.get(controlPositive);
+      const cn = nodeVariables.get(controlNegative);
+      if (op !== undefined && cp !== undefined) matrix[op]![cp] += transconductance;
+      if (op !== undefined && cn !== undefined) matrix[op]![cn] -= transconductance;
+      if (on !== undefined && cp !== undefined) matrix[on]![cp] -= transconductance;
+      if (on !== undefined && cn !== undefined) matrix[on]![cn] += transconductance;
+    };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
     for (const component of document.components) {
       if (!isSimulated(component) || component.kind === 'source') continue;
-      if (['led', 'diode', 'rgb-led', 'seven-segment'].includes(component.kind)) continue;
+      if (['led', 'diode', 'rgb-led', 'seven-segment', 'transistor'].includes(component.kind))
+        continue;
       const a = nodeIndex(component, 'a');
       const b = nodeIndex(component, 'b');
       if (component.kind === 'resistor' || component.kind === 'lamp') {
@@ -515,6 +637,31 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       }
     }
 
+    for (const transistor of npnTransistors) {
+      const base = physicalNodeIndex(transistor.component, transistor.base);
+      const collector = physicalNodeIndex(transistor.component, transistor.collector);
+      const emitter = physicalNodeIndex(transistor.component, transistor.emitter);
+      const region = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      if (region === 'cutoff') {
+        stampConductance(base, emitter, GMIN);
+        stampConductance(collector, emitter, GMIN);
+        continue;
+      }
+
+      const baseEmitterConductance = 1 / NPN_BASE_EMITTER_RESISTANCE;
+      stampConductance(base, emitter, baseEmitterConductance);
+      stampOffset(base, emitter, baseEmitterConductance * transistor.baseEmitterVoltage);
+      if (region === 'active') {
+        const transconductance = transistor.currentGain * baseEmitterConductance;
+        stampVccs(collector, emitter, base, emitter, transconductance);
+        stampOffset(collector, emitter, transconductance * transistor.baseEmitterVoltage);
+      } else {
+        const saturationConductance = 1 / NPN_SATURATION_RESISTANCE;
+        stampConductance(collector, emitter, saturationConductance);
+        stampOffset(collector, emitter, saturationConductance * transistor.saturationVoltage);
+      }
+    }
+
     for (const [sourcePosition, source] of sources.entries()) {
       const a = nodeIndex(source, 'a');
       const b = nodeIndex(source, 'b');
@@ -545,6 +692,34 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       const key = diodeBranchKey(branch);
       if (next !== diodeStates.get(key)) {
         diodeStates.set(key, next);
+        changed = true;
+      }
+    }
+    for (const transistor of npnTransistors) {
+      const baseVoltage = voltageFrom(
+        solution,
+        physicalNodeIndex(transistor.component, transistor.base),
+      );
+      const collectorVoltage = voltageFrom(
+        solution,
+        physicalNodeIndex(transistor.component, transistor.collector),
+      );
+      const emitterVoltage = voltageFrom(
+        solution,
+        physicalNodeIndex(transistor.component, transistor.emitter),
+      );
+      const baseEmitterDrop = baseVoltage - emitterVoltage;
+      const collectorEmitterDrop = collectorVoltage - emitterVoltage;
+      const currentRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      const nextRegion: TransistorOperatingRegion =
+        baseEmitterDrop < transistor.baseEmitterVoltage - 0.02
+          ? 'cutoff'
+          : currentRegion === 'saturation' ||
+              collectorEmitterDrop <= transistor.saturationVoltage + 0.05
+            ? 'saturation'
+            : 'active';
+      if (nextRegion !== currentRegion) {
+        transistorRegions.set(transistor.component.id, nextRegion);
         changed = true;
       }
     }
@@ -615,6 +790,45 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       brightness: ledBrightness(current, branch.nominalCurrent),
     };
   };
+  const transistorResultById = new Map(
+    npnTransistors.map((transistor) => {
+      const operatingRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      const baseVoltage = physicalVoltageAt(transistor.component, transistor.base);
+      const collectorVoltage = physicalVoltageAt(transistor.component, transistor.collector);
+      const emitterVoltage = physicalVoltageAt(transistor.component, transistor.emitter);
+      const baseEmitterDrop = baseVoltage - emitterVoltage;
+      const collectorEmitterDrop = collectorVoltage - emitterVoltage;
+      const baseCurrent =
+        operatingRegion === 'cutoff'
+          ? 0
+          : Math.max(
+              0,
+              (baseEmitterDrop - transistor.baseEmitterVoltage) / NPN_BASE_EMITTER_RESISTANCE,
+            );
+      const collectorCurrent =
+        operatingRegion === 'cutoff'
+          ? 0
+          : operatingRegion === 'active'
+            ? Math.max(0, transistor.currentGain * baseCurrent)
+            : Math.max(
+                0,
+                (collectorEmitterDrop - transistor.saturationVoltage) / NPN_SATURATION_RESISTANCE,
+              );
+      return [
+        transistor.component.id,
+        {
+          operatingRegion,
+          baseEmitterDrop,
+          collectorEmitterDrop,
+          baseCurrent,
+          collectorCurrent,
+          emitterCurrent: baseCurrent + collectorCurrent,
+          currentGain: transistor.currentGain,
+          maxCollectorCurrent: transistor.maxCollectorCurrent,
+        },
+      ] as const;
+    }),
+  );
 
   const components: ComponentResult[] = document.components
     .filter((component) => component.kind !== 'wire')
@@ -625,7 +839,9 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       }
       const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
       const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));
+      const transistorResult = transistorResultById.get(component.id);
       const voltageDrop =
+        transistorResult?.collectorEmitterDrop ??
         branchResults[0]?.voltageDrop ??
         (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
       let current = 0;
@@ -645,21 +861,31 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         current =
           (voltageAt(component, 'a') - voltageAt(component, 'wiper')) /
           Math.max(CLOSED_RESISTANCE, component.value * position);
-      } else if (branches.length > 0)
+      } else if (transistorResult) current = transistorResult.collectorCurrent;
+      else if (branches.length > 0)
         current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
       const power = Math.abs(
-        component.kind === 'lamp'
-          ? current * voltageDrop
-          : branchResults.length > 0
-            ? branchResults.reduce((sum, branch) => sum + branch.current * branch.voltageDrop, 0)
-            : current * voltageDrop,
+        transistorResult
+          ? transistorResult.collectorCurrent * transistorResult.collectorEmitterDrop +
+              transistorResult.baseCurrent * transistorResult.baseEmitterDrop
+          : component.kind === 'lamp'
+            ? current * voltageDrop
+            : branchResults.length > 0
+              ? branchResults.reduce((sum, branch) => sum + branch.current * branch.voltageDrop, 0)
+              : current * voltageDrop,
       );
-      const branchCurrents = Object.fromEntries(
-        branchResults.map(({ branch, current: branchCurrent }) => [
-          branch.id,
-          round(branchCurrent),
-        ]),
-      );
+      const branchCurrents = transistorResult
+        ? {
+            base: round(transistorResult.baseCurrent),
+            collector: round(transistorResult.collectorCurrent),
+            emitter: round(transistorResult.emitterCurrent),
+          }
+        : Object.fromEntries(
+            branchResults.map(({ branch, current: branchCurrent }) => [
+              branch.id,
+              round(branchCurrent),
+            ]),
+          );
       const branchBrightness = Object.fromEntries(
         branchResults.map(({ branch, brightness }) => [branch.id, round(brightness, 2)]),
       );
@@ -701,7 +927,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         terminalVoltages,
         power: round(power),
         brightness: round(brightness, 2),
-        ...(branches.length > 0 ? { branchCurrents, branchBrightness } : {}),
+        ...(branches.length > 0 || transistorResult
+          ? {
+              branchCurrents,
+              ...(branches.length > 0 ? { branchBrightness } : {}),
+            }
+          : {}),
         ...(currentUtilizationPercent === undefined || stressState === undefined
           ? {}
           : {
@@ -717,6 +948,15 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
           ? {
               lit: Math.abs(current * voltageDrop) >= LAMP_MIN_POWER_W,
               energized: Math.abs(current) > 1e-6,
+            }
+          : {}),
+        ...(transistorResult
+          ? {
+              operatingRegion: transistorResult.operatingRegion,
+              baseCurrent: round(transistorResult.baseCurrent),
+              collectorCurrent: round(transistorResult.collectorCurrent),
+              emitterCurrent: round(transistorResult.emitterCurrent),
+              currentGain: round(transistorResult.currentGain, 2),
             }
           : {}),
       };
@@ -737,7 +977,10 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   }
   for (const component of document.components.filter(isSimulated)) {
     if (component.kind === 'rgb-led' || component.kind === 'seven-segment') continue;
-    const logical = [logicalTerminal(component, 'a'), logicalTerminal(component, 'b')];
+    const logical: Terminal[] =
+      component.kind === 'transistor'
+        ? ['base', 'collector', 'emitter']
+        : [logicalTerminal(component, 'a'), logicalTerminal(component, 'b')];
     if (component.kind === 'potentiometer') logical.push(logicalTerminal(component, 'wiper'));
     const dangling = logical.filter(
       (terminal) => !connectionCount.get(terminalKey(component.id, terminal)),
@@ -819,6 +1062,29 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         componentIds: [component.id],
         suggestedAction:
           'Остановите моделирование, уменьшите напряжение или добавьте сопротивление.',
+      });
+    }
+  }
+
+  for (const transistor of npnTransistors) {
+    const result = transistorResultById.get(transistor.component.id);
+    if (!result) continue;
+    if (result.baseEmitterDrop < -5) {
+      diagnostics.push({
+        code: 'transistor_reverse_bias',
+        severity: 'error',
+        message: `${transistor.component.name ?? transistor.component.id}: обратное напряжение база–эмиттер ${Math.abs(result.baseEmitterDrop).toFixed(2)} В превышает безопасный предел.`,
+        componentIds: [transistor.component.id],
+        suggestedAction: 'Проверьте распиновку B, C, E и полярность питания.',
+      });
+    }
+    if (result.collectorCurrent > result.maxCollectorCurrent) {
+      diagnostics.push({
+        code: 'transistor_overcurrent',
+        severity: 'error',
+        message: `${transistor.component.name ?? transistor.component.id}: ток коллектора ${(result.collectorCurrent * 1000).toFixed(1)} мА превышает допустимые ${(result.maxCollectorCurrent * 1000).toFixed(1)} мА.`,
+        componentIds: [transistor.component.id],
+        suggestedAction: 'Увеличьте сопротивление нагрузки или уменьшите ток базы.',
       });
     }
   }

@@ -38,6 +38,8 @@ function componentHelp(kind: string): string {
     switch: 'SPDT соединяет общий вывод с одной из двух клемм.',
     potentiometer: 'Положение движка делит полное сопротивление на два плеча.',
     diode: 'Диод проводит ток от анода к катоду после достижения прямого падения напряжения.',
+    transistor:
+      'NPN-транзистор управляет током коллектора током базы. Модель различает отсечку, активный режим и насыщение.',
     lamp: 'Яркость лампы рассчитывается по электрической мощности на нити.',
     breadboard: 'Отверстия макетной платы соединены внутренними группами с шагом 2,54 мм.',
   };
@@ -440,6 +442,42 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
+              {c.selectedComponent.kind === 'transistor' ? (
+                <fieldset className="workbench-state-controls">
+                  <legend>NPN-транзистор</legend>
+                  <label>
+                    <span>Коэффициент усиления hFE</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      value={Number(
+                        c.selectedComponent.stateProperties?.['currentGain'] ??
+                          c.selectedComponent.value,
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { currentGain: Number(event.target.value) },
+                          'Коэффициент усиления транзистора изменён.',
+                        )
+                      }
+                    />
+                  </label>
+                  <div className="workbench-calculated-property">
+                    <span>Рабочая область</span>
+                    <output>
+                      {measurement?.operatingRegion === 'saturation'
+                        ? 'Насыщение'
+                        : measurement?.operatingRegion === 'active'
+                          ? 'Активный режим'
+                          : 'Отсечка'}
+                    </output>
+                    <small>VBE 0,7 В · VCE(sat) 0,2 В</small>
+                  </div>
+                </fieldset>
+              ) : null}
+
               {c.selectedEntry.key === 'led-5mm' ? (
                 <fieldset className="workbench-state-controls">
                   <legend>Состояние LED</legend>
@@ -611,12 +649,30 @@ export function WorkbenchSidebars({
 
               {c.simulationRunning && measurement ? (
                 <dl className="workbench-measurements">
+                  {c.selectedComponent.kind === 'transistor' ? (
+                    <>
+                      <div>
+                        <dt>Ток базы</dt>
+                        <dd>{formatCurrent(measurement.baseCurrent ?? 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Ток коллектора</dt>
+                        <dd>{formatCurrent(measurement.collectorCurrent ?? 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Ток эмиттера</dt>
+                        <dd>{formatCurrent(measurement.emitterCurrent ?? 0)}</dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {c.selectedComponent.kind !== 'transistor' ? (
+                    <div>
+                      <dt>Ток</dt>
+                      <dd>{formatCurrent(measurement.current)}</dd>
+                    </div>
+                  ) : null}
                   <div>
-                    <dt>Ток</dt>
-                    <dd>{formatCurrent(measurement.current)}</dd>
-                  </div>
-                  <div>
-                    <dt>Падение</dt>
+                    <dt>{c.selectedComponent.kind === 'transistor' ? 'VCE' : 'Падение'}</dt>
                     <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
                   </div>
                   {measurement.power !== undefined ? (

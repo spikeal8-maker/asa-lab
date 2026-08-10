@@ -124,6 +124,10 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.current,
       component.power ?? 0,
       component.brightness ?? 0,
+      component.baseCurrent ?? 0,
+      component.collectorCurrent ?? 0,
+      component.emitterCurrent ?? 0,
+      component.currentGain ?? 0,
       ...Object.values(component.terminalVoltages).filter(
         (value): value is number => value !== undefined,
       ),
@@ -221,6 +225,23 @@ function verifyQuality(
         logicalTerminal(component, 'a'),
         logicalTerminal(component, 'b'),
         resultForComponent.branchCurrents?.[branchId] ?? resultForComponent.current,
+      );
+      continue;
+    }
+    if (component.kind === 'transistor') {
+      addBranch(
+        component,
+        'base',
+        'emitter',
+        resultForComponent.baseCurrent ?? resultForComponent.branchCurrents?.['base'] ?? 0,
+      );
+      addBranch(
+        component,
+        'collector',
+        'emitter',
+        resultForComponent.collectorCurrent ??
+          resultForComponent.branchCurrents?.['collector'] ??
+          0,
       );
       continue;
     }
