@@ -360,8 +360,8 @@ export function WorkbenchStage({
                       }
                       data-diagnostic-count={actionableDiagnostics.length}
                       transform={`translate(${
-                        ledBurned ? baseSize.width * 0.5 : baseSize.width - 8 / c.viewport.zoom
-                      } ${ledBurned ? baseSize.height * 0.24 : 8 / c.viewport.zoom})`}
+                        ledBurned ? baseSize.width * 0.5 : baseSize.width + 12 / c.viewport.zoom
+                      } ${ledBurned ? baseSize.height * 0.24 : -12 / c.viewport.zoom})`}
                       pointerEvents="all"
                       role="img"
                       tabIndex={0}
