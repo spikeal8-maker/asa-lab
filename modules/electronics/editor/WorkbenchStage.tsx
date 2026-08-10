@@ -319,6 +319,15 @@ export function WorkbenchStage({
                     }
                   }}
                 >
+                  <rect
+                    className="workbench-component-body-hit"
+                    x="0"
+                    y="0"
+                    width={baseSize.width}
+                    height={baseSize.height}
+                    fill="transparent"
+                    pointerEvents="all"
+                  />
                   <ProductionComponentVisual
                     entry={entry}
                     component={component}
