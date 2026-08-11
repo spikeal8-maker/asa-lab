@@ -6,7 +6,9 @@ import {
   ordinaryLedState,
   potentiometerKnobAngle,
   rgbLedColour,
+  rgbLedDisplayColour,
   rgbLedState,
+  rgbLedVisualOpacity,
   resistorBandState,
   sevenSegmentState,
   servoAngle,
@@ -35,6 +37,11 @@ describe('typed Electronics state and animation contracts', () => {
   it('mixes independent RGB channels for either four-pin common mode', () => {
     expect(rgbLedColour(rgbLedState(100, 50, 0, 'common-anode'))).toBe('rgb(255, 128, 0)');
     expect(rgbLedColour(rgbLedState(0, 100, 100, 'common-cathode'))).toBe('rgb(0, 255, 255)');
+    expect(rgbLedDisplayColour(rgbLedState(40, 0, 0, 'common-cathode'))).toBe('rgb(255, 0, 0)');
+    expect(rgbLedDisplayColour(rgbLedState(40, 20, 0, 'common-cathode'))).toBe('rgb(255, 128, 0)');
+    expect(rgbLedVisualOpacity(rgbLedState(0, 0, 0, 'common-cathode'))).toBe(0);
+    expect(rgbLedVisualOpacity(rgbLedState(40, 0, 0, 'common-cathode'))).toBe(0.618);
+    expect(rgbLedVisualOpacity(rgbLedState(100, 0, 0, 'common-cathode'))).toBe(0.93);
   });
 
   it('drives real seven-segment groups and decimal point masks', () => {

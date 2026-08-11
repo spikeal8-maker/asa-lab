@@ -7,7 +7,9 @@ import {
   RESISTOR_BAND_CSS,
   resistorBandState,
   rgbLedColour,
+  rgbLedDisplayColour,
   rgbLedState,
+  rgbLedVisualOpacity,
   WORLD_UNITS_PER_MM,
   type RgbCommonMode,
   type ResistorTolerancePercent,
@@ -113,14 +115,15 @@ export function ProductionComponentVisual({
       ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['blue'] ?? 0)))
       : 0;
   const rgbBrightness = Math.max(rgbRed, rgbGreen, rgbBlue);
-  const rgbColour = rgbLedColour(
-    rgbLedState(
-      rgbRed,
-      rgbGreen,
-      rgbBlue,
-      String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
-    ),
+  const rgbState = rgbLedState(
+    rgbRed,
+    rgbGreen,
+    rgbBlue,
+    String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
   );
+  const rgbColour = rgbLedColour(rgbState);
+  const rgbDisplayColour = rgbLedDisplayColour(rgbState);
+  const rgbDisplayOpacity = rgbLedVisualOpacity(rgbState);
   const rgbFaultState = entry.key === 'rgb-led' && visualState === 'burned' ? 'burned' : undefined;
   const rgbIsLit =
     entry.key === 'rgb-led' && simulationRunning && rgbBrightness > 0 && rgbFaultState !== 'burned';
@@ -196,7 +199,7 @@ export function ProductionComponentVisual({
               ).toFixed(3)})`,
             } as CSSProperties)
           : rgbIsLit
-            ? ({ '--workbench-rgb-led-glow': rgbColour } as CSSProperties)
+            ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties)
             : undefined
       }
       aria-hidden="true"
@@ -551,8 +554,8 @@ export function ProductionComponentVisual({
           cy={height * 0.36}
           rx={width * 0.24}
           ry={height * 0.27}
-          fill={rgbColour}
-          opacity={rgbIsLit ? 0.18 + (rgbBrightness / 100) * 0.82 : 0}
+          fill={rgbDisplayColour}
+          opacity={rgbIsLit ? rgbDisplayOpacity : 0}
           style={{ mixBlendMode: 'screen' }}
         />
       ) : null}

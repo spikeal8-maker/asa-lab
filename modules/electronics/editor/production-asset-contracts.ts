@@ -164,6 +164,19 @@ export function rgbLedColour(state: RgbLedState): string {
   return `rgb(${channel(state.red)}, ${channel(state.green)}, ${channel(state.blue)})`;
 }
 
+export function rgbLedDisplayColour(state: RgbLedState): string {
+  const maximum = Math.max(state.red, state.green, state.blue);
+  if (maximum <= 0) return 'rgb(0, 0, 0)';
+  const channel = (value: number) => Math.round((clampPercent(value) / maximum) * 255);
+  return `rgb(${channel(state.red)}, ${channel(state.green)}, ${channel(state.blue)})`;
+}
+
+export function rgbLedVisualOpacity(state: RgbLedState): number {
+  const brightness = Math.max(state.red, state.green, state.blue);
+  if (brightness <= 0) return 0;
+  return Number((0.08 + Math.sqrt(brightness / 100) * 0.85).toFixed(3));
+}
+
 const SEVEN_SEGMENT_GLYPHS: Readonly<Record<string, readonly SevenSegmentId[]>> = {
   '0': ['a', 'b', 'c', 'd', 'e', 'f'],
   '1': ['b', 'c'],
