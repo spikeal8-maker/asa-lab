@@ -5,6 +5,7 @@ import { SceneRuntime, type TransformMode } from './SceneRuntime';
 export interface ThreeViewportHandle {
   readonly setView: (view: 'home' | 'top' | 'front' | 'right') => void;
   readonly zoom: (direction: 1 | -1) => void;
+  readonly fit: () => void;
 }
 
 interface ThreeViewportProps {
@@ -66,6 +67,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       () => ({
         setView: (view) => runtimeRef.current?.setView(view),
         zoom: (direction) => runtimeRef.current?.zoom(direction),
+        fit: () => runtimeRef.current?.fitToScene(),
       }),
       [],
     );

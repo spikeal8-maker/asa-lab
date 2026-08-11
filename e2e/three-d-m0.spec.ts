@@ -28,10 +28,23 @@ test.afterAll(async () => {
 });
 
 test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(page, teacher);
   await createThreeDProject(page, 'Корпус датчика');
+
+  await page.getByRole('button', { name: 'Параметры', exact: true }).click();
+  await expect(page.getByLabel('Параметры рабочей плоскости')).toContainText('Миллиметры (мм)');
+  await expect(page.getByLabel('Ширина, мм')).toHaveValue('200');
+  await expect(page.getByLabel('Глубина, мм')).toHaveValue('200');
+  await page.getByRole('button', { name: 'Закрыть параметры' }).click();
+
+  await page.getByRole('button', { name: 'Поиск форм' }).click();
+  await page.getByLabel('Название формы').fill('сф');
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(1);
+  await expect(page.locator('.asa3d-shape-card')).toContainText('Сфера');
+  await page.getByRole('button', { name: 'Поиск форм' }).click();
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(7);
 
   await page.getByRole('button', { name: 'Параллелепипед' }).click();
   await expect(page.getByLabel('Параметры выбранной формы')).toBeVisible();
@@ -40,10 +53,15 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.getByLabel('Высота, мм').fill('12');
   await page.getByLabel('Положение X, мм').fill('16');
   await page.getByLabel('Поворот Z, градусов').fill('15');
-  await expect(page.getByText('1 объектов', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Копировать (Ctrl+C)' }).click();
+  await page.getByRole('button', { name: 'Вставить (Ctrl+V)' }).click();
+  await expect(page.getByText('2 объекта', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
+  await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
   await expect(page.getByText('Все изменения сохранены', { exact: true })).toBeVisible({
-    timeout: 10_000,
+    timeout: 30_000,
   });
+  await page.locator('.asa3d-toast').click();
 
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -51,7 +69,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
 
   await page.reload();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible();
-  await expect(page.getByText('1 объектов', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /Версия/ }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
 

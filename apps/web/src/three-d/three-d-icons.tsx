@@ -1,0 +1,73 @@
+import type { SVGProps } from 'react';
+
+type IconProps = SVGProps<SVGSVGElement>;
+
+function IconBase({ children, ...props }: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      {children}
+    </svg>
+  );
+}
+
+export function CubeIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="m12 2.8 8 4.5v9.4l-8 4.5-8-4.5V7.3z" />
+      <path d="m4.3 7.4 7.7 4.4 7.7-4.4M12 11.8v9.1" />
+    </IconBase>
+  );
+}
+
+export function MoveIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M12 2v20M2 12h20" />
+      <path d="m8 6 4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4" />
+    </IconBase>
+  );
+}
+
+export function ScaleIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+      <path d="m4 4 6 6M20 4l-6 6M20 20l-6-6M4 20l6-6" />
+    </IconBase>
+  );
+}
+
+export function GridIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18" />
+    </IconBase>
+  );
+}
+
+export function RulerIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M4 3v17h17" />
+      <path d="M4 7h4M4 11h3M4 15h4M9 20v-4M13 20v-3M17 20v-4" />
+    </IconBase>
+  );
+}
+
+export function HomeIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="m3 11 9-8 9 8" />
+      <path d="M5.5 9.5V21h13V9.5M9.5 21v-7h5v7" />
+    </IconBase>
+  );
+}

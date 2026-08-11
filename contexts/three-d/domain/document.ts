@@ -72,7 +72,7 @@ export interface DocumentParseFailure {
 export type DocumentParseResult = DocumentParseSuccess | DocumentParseFailure;
 
 const DEFAULT_CAMERA: ThreeDCameraState = {
-  position: { x: 270, y: 245, z: 270 },
+  position: { x: 0, y: 165, z: 205 },
   target: { x: 0, y: 0, z: 0 },
   projection: 'perspective',
 };

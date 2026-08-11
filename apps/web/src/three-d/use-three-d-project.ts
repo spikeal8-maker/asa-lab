@@ -28,9 +28,14 @@ export interface ThreeDProjectController {
   readonly saveState: SaveState;
   readonly notice: string | null;
   readonly versions: readonly ProjectVersion[];
+  readonly hasClipboard: boolean;
+  readonly setTitle: (title: string) => void;
+  readonly renameProject: () => Promise<void>;
   readonly setSelectedId: (nodeId: string | null) => void;
   readonly execute: (command: ThreeDCommand) => void;
   readonly addPrimitive: (primitive: PrimitiveKind, position?: { x: number; z: number }) => void;
+  readonly copySelected: () => void;
+  readonly pasteCopied: () => void;
   readonly duplicateSelected: () => void;
   readonly removeSelected: () => void;
   readonly commitTransform: (nodeId: string, transform: ThreeDTransform) => void;
@@ -61,7 +66,9 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [notice, setNotice] = useState<string | null>(null);
   const [versions, setVersions] = useState<readonly ProjectVersion[]>([]);
+  const [clipboard, setClipboard] = useState<ThreeDNode | null>(null);
   const lastSavedRef = useRef('');
+  const savedTitleRef = useRef('Новый 3D-проект');
 
   const replaceHistory = useCallback((next: HistoryState): void => {
     historyRef.current = next;
@@ -89,8 +96,10 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       historyRef.current = next;
       setHistory(next);
       setSelectedId(null);
+      setClipboard(null);
       lastSavedRef.current = JSON.stringify(parsed.value);
       setTitle(response.data.project.title);
+      savedTitleRef.current = response.data.project.title;
       setVersions(response.data.versions);
       setSaveState('saved');
       setLoading(false);
@@ -150,12 +159,39 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         : node;
       execute({ type: 'add', node: positioned });
       setSelectedId(positioned.id);
-      setNotice(`${positioned.name} добавлен на рабочую плоскость.`);
+      setNotice(`Форма «${positioned.name}» добавлена на рабочую плоскость.`);
     },
     [execute],
   );
 
   const selectedNode = history?.present.nodes.find((node) => node.id === selectedId) ?? null;
+
+  const copySelected = useCallback((): void => {
+    const current = historyRef.current?.present.nodes.find((node) => node.id === selectedId);
+    if (!current) return;
+    setClipboard(structuredClone(current));
+    setNotice(`Объект «${current.name}» скопирован.`);
+  }, [selectedId]);
+
+  const pasteCopied = useCallback((): void => {
+    if (!clipboard) return;
+    const copy: ThreeDNode = {
+      ...structuredClone(clipboard),
+      id: makeId(clipboard.primitive),
+      name: `${clipboard.name} — копия`,
+      transform: {
+        ...structuredClone(clipboard.transform),
+        position: {
+          ...clipboard.transform.position,
+          x: clipboard.transform.position.x + 5,
+          z: clipboard.transform.position.z + 5,
+        },
+      },
+    };
+    execute({ type: 'add', node: copy });
+    setSelectedId(copy.id);
+    setNotice(`Копия «${copy.name}» вставлена.`);
+  }, [clipboard, execute]);
 
   const duplicateSelected = useCallback((): void => {
     const current = historyRef.current?.present.nodes.find((node) => node.id === selectedId);
@@ -226,6 +262,27 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     setNotice(`Создана неизменяемая версия №${response.data.version.versionNo}.`);
   }, [projectId]);
 
+  const renameProject = useCallback(async (): Promise<void> => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(savedTitleRef.current);
+      return;
+    }
+    if (trimmed === savedTitleRef.current) {
+      setTitle(trimmed);
+      return;
+    }
+    const response = await api.renameProject(projectId, trimmed);
+    if (!response.ok) {
+      setTitle(savedTitleRef.current);
+      setNotice(`Название не изменено: ${response.error.message}`);
+      return;
+    }
+    savedTitleRef.current = response.data.project.title;
+    setTitle(response.data.project.title);
+    setNotice('Название проекта изменено.');
+  }, [projectId, title]);
+
   const importDocument = useCallback(
     (value: unknown): boolean => {
       const parsed = parseThreeDDocument(value);
@@ -258,9 +315,14 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     saveState,
     notice,
     versions,
+    hasClipboard: clipboard !== null,
+    setTitle,
+    renameProject,
     setSelectedId,
     execute,
     addPrimitive,
+    copySelected,
+    pasteCopied,
     duplicateSelected,
     removeSelected,
     commitTransform,

@@ -21,8 +21,64 @@ function snap(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
-const HOME_CAMERA_POSITION = new THREE.Vector3(270, 245, 270);
+const HOME_CAMERA_POSITION = new THREE.Vector3(0, 165, 205);
 const ORTHOGONAL_CAMERA_DISTANCE = 360;
+
+function createGridLines(
+  width: number,
+  depth: number,
+  step: number,
+  color: string,
+  opacity: number,
+  height: number,
+): THREE.LineSegments {
+  const points: THREE.Vector3[] = [];
+  const halfWidth = width / 2;
+  const halfDepth = depth / 2;
+  const horizontalCount = Math.max(1, Math.floor(width / step));
+  const verticalCount = Math.max(1, Math.floor(depth / step));
+  for (let index = 0; index <= horizontalCount; index += 1) {
+    const x = -halfWidth + Math.min(width, index * step);
+    points.push(new THREE.Vector3(x, height, -halfDepth), new THREE.Vector3(x, height, halfDepth));
+  }
+  for (let index = 0; index <= verticalCount; index += 1) {
+    const z = -halfDepth + Math.min(depth, index * step);
+    points.push(new THREE.Vector3(-halfWidth, height, z), new THREE.Vector3(halfWidth, height, z));
+  }
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  return new THREE.LineSegments(geometry, material);
+}
+
+function createWorkplaneLabel(text: string, width: number, depth: number): THREE.Mesh {
+  const canvas = globalThis.document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 160;
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#67c4d7';
+    context.font = '700 92px Arial, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(text, canvas.width / 2, canvas.height / 2 + 5, canvas.width - 32);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+  label.rotation.x = -Math.PI / 2;
+  label.renderOrder = 4;
+  return label;
+}
 
 export class SceneRuntime {
   private readonly scene = new THREE.Scene();
@@ -46,9 +102,9 @@ export class SceneRuntime {
     private readonly container: HTMLElement,
     private readonly callbacks: SceneRuntimeCallbacks,
   ) {
-    this.scene.background = new THREE.Color('#f5f7f8');
-    this.scene.fog = new THREE.Fog('#f5f7f8', 560, 980);
-    this.camera = new THREE.PerspectiveCamera(35, 1, 0.5, 2400);
+    this.scene.background = new THREE.Color('#f7f8fa');
+    this.scene.fog = new THREE.Fog('#f7f8fa', 560, 980);
+    this.camera = new THREE.PerspectiveCamera(43, 1, 0.5, 2400);
     this.camera.position.copy(HOME_CAMERA_POSITION);
 
     try {
@@ -63,7 +119,7 @@ export class SceneRuntime {
     }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.04;
@@ -189,28 +245,13 @@ export class SceneRuntime {
   private syncGrid(document: ThreeDDocument): void {
     this.clearGrid();
     if (!document.grid.visible) return;
-    const gridSize = Math.max(document.grid.width, document.grid.depth);
-    const divisions = Math.min(400, Math.max(2, Math.round(gridSize / document.grid.snap)));
-    const fineGrid = new THREE.GridHelper(gridSize, divisions, '#4bb4ce', '#a9dbe5');
-    fineGrid.material.transparent = true;
-    fineGrid.material.opacity = 0.32;
-    fineGrid.position.y = 0.008;
-    this.gridRoot.add(fineGrid);
-
-    const majorDivisions = Math.max(2, Math.round(gridSize / 10));
-    const majorGrid = new THREE.GridHelper(gridSize, majorDivisions, '#27a7c4', '#69bfd2');
-    majorGrid.material.transparent = true;
-    majorGrid.material.opacity = 0.5;
-    majorGrid.position.y = 0.014;
-    this.gridRoot.add(majorGrid);
-
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(document.grid.width, document.grid.depth),
       new THREE.MeshStandardMaterial({
-        color: '#effbfd',
+        color: '#f1fbfd',
         roughness: 1,
         transparent: true,
-        opacity: 0.68,
+        opacity: 0.78,
         depthWrite: false,
       }),
     );
@@ -218,6 +259,22 @@ export class SceneRuntime {
     plane.position.y = -0.025;
     plane.receiveShadow = true;
     this.gridRoot.add(plane);
+
+    const maximumDimension = Math.max(document.grid.width, document.grid.depth);
+    const fineStep = Math.max(document.grid.snap, maximumDimension / 400);
+    this.gridRoot.add(
+      createGridLines(document.grid.width, document.grid.depth, fineStep, '#9bd8e4', 0.34, 0.008),
+    );
+    this.gridRoot.add(
+      createGridLines(
+        document.grid.width,
+        document.grid.depth,
+        Math.max(10, document.grid.snap * 10),
+        '#4db7ce',
+        0.54,
+        0.014,
+      ),
+    );
 
     const halfWidth = document.grid.width / 2;
     const halfDepth = document.grid.depth / 2;
@@ -234,6 +291,38 @@ export class SceneRuntime {
         new THREE.LineBasicMaterial({ color: '#35b8d5', transparent: true, opacity: 0.9 }),
       ),
     );
+
+    const axesGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-halfWidth, 0.021, 0),
+      new THREE.Vector3(halfWidth, 0.021, 0),
+      new THREE.Vector3(0, 0.021, -halfDepth),
+      new THREE.Vector3(0, 0.021, halfDepth),
+    ]);
+    this.gridRoot.add(
+      new THREE.LineSegments(
+        axesGeometry,
+        new THREE.LineBasicMaterial({ color: '#2eaac5', transparent: true, opacity: 0.72 }),
+      ),
+    );
+
+    const labelDepth = Math.min(12, Math.max(6, document.grid.depth * 0.07));
+    const titleWidth = Math.min(82, document.grid.width * 0.48);
+    const titleLabel = createWorkplaneLabel(
+      'Рабоч. плоск-ть',
+      titleWidth,
+      Math.max(8, document.grid.depth * 0.065),
+    );
+    titleLabel.position.set(-halfWidth + titleWidth / 2 + 8, 0.03, halfDepth - labelDepth);
+    this.gridRoot.add(titleLabel);
+
+    const unitsWidth = Math.min(50, document.grid.width * 0.3);
+    const unitsLabel = createWorkplaneLabel(
+      'Миллиметры',
+      unitsWidth,
+      Math.max(7, document.grid.depth * 0.055),
+    );
+    unitsLabel.position.set(halfWidth - unitsWidth / 2 - 7, 0.03, halfDepth - labelDepth);
+    this.gridRoot.add(unitsLabel);
   }
 
   private clearGrid(): void {
@@ -243,9 +332,12 @@ export class SceneRuntime {
         material?: THREE.Material | THREE.Material[];
       };
       disposable.geometry?.dispose();
-      if (Array.isArray(disposable.material))
-        disposable.material.forEach((material) => material.dispose());
-      else disposable.material?.dispose();
+      const disposeMaterial = (material: THREE.Material): void => {
+        if (material instanceof THREE.MeshBasicMaterial && material.map) material.map.dispose();
+        material.dispose();
+      };
+      if (Array.isArray(disposable.material)) disposable.material.forEach(disposeMaterial);
+      else if (disposable.material) disposeMaterial(disposable.material);
     });
     this.gridRoot.clear();
   }
@@ -323,6 +415,24 @@ export class SceneRuntime {
     const offset = this.camera.position.clone().sub(this.orbit.target);
     offset.multiplyScalar(direction === 1 ? 0.82 : 1.22);
     this.camera.position.copy(this.orbit.target.clone().add(offset));
+    this.orbit.update();
+  }
+
+  fitToScene(): void {
+    const box = new THREE.Box3();
+    for (const entry of this.entries.values()) {
+      if (entry.object.visible) box.expandByObject(entry.object);
+    }
+    if (box.isEmpty()) {
+      this.setView('home');
+      return;
+    }
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const direction = this.camera.position.clone().sub(this.orbit.target).normalize();
+    const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const distance = Math.max(55, (sphere.radius / Math.sin(halfFov)) * 1.35);
+    this.orbit.target.copy(sphere.center);
+    this.camera.position.copy(sphere.center).add(direction.multiplyScalar(distance));
     this.orbit.update();
   }
 

@@ -1,217 +1,295 @@
 :root {
-  --asa3d-blue: #087eb8;
-  --asa3d-cyan: #2bb4cf;
-  --asa3d-ink: #263746;
-  --asa3d-line: #d6dde2;
+  --asa3d-blue: #1494c9;
+  --asa3d-cyan: #17a5c6;
+  --asa3d-ink: #34495e;
+  --asa3d-line: #d9dee3;
   --asa3d-panel: #ffffff;
 }
 
 .asa3d-shell {
+  --asa3d-header-height: 48px;
+  --asa3d-toolbar-height: 48px;
+  --asa3d-library-width: 276px;
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-rows: 96px minmax(0, 1fr);
+  grid-template-rows: var(--asa3d-header-height) var(--asa3d-toolbar-height) minmax(0, 1fr);
   overflow: hidden;
-  background: #eef2f4;
+  background: #f5f7f8;
   color: var(--asa3d-ink);
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: Arial, Roboto, 'Segoe UI', sans-serif;
 }
 
-.asa3d-topbar {
-  z-index: 20;
+.asa3d-header {
+  position: relative;
+  z-index: 30;
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto minmax(410px, 1fr);
-  grid-template-rows: 50px 46px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-width: 0;
-  background: rgba(255, 255, 255, 0.98);
-  border-bottom: 1px solid var(--asa3d-line);
-  box-shadow: 0 1px 6px rgba(26, 50, 66, 0.09);
+  height: var(--asa3d-header-height);
+  background: #fff;
+  border-bottom: 1px solid #d4d9df;
+  box-shadow: 0 1px 2px rgba(33, 48, 60, 0.08);
 }
 
-.asa3d-identity {
-  grid-column: 1 / 3;
+.asa3d-brand-zone {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding-left: 10px;
+  height: 100%;
 }
 
-.asa3d-back {
+.asa3d-brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  height: 100%;
+  padding: 0 14px 0 10px;
+  color: #0b3558;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  background: #fff;
+  border: 0;
+  border-right: 1px solid #e0e4e8;
+  cursor: pointer;
+}
+
+.asa3d-brand:hover {
+  background: #f5f8fa;
+}
+
+.asa3d-brand-mark {
+  display: block;
   width: 30px;
   height: 30px;
-  padding: 0;
-  color: #61717d;
-  font-size: 27px;
-  line-height: 1;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
 }
 
-.asa3d-back:hover {
-  background: #eef5f7;
-}
-
-.asa3d-mark {
-  display: flex;
-  align-items: stretch;
+.asa3d-title-input {
+  box-sizing: border-box;
+  width: 250px;
+  min-width: 140px;
   height: 34px;
-  overflow: hidden;
-  color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 7px rgba(0, 105, 157, 0.2);
-}
-
-.asa3d-mark span,
-.asa3d-mark strong {
-  display: grid;
-  place-items: center;
-  padding: 0 9px;
-  letter-spacing: 0.06em;
-}
-
-.asa3d-mark span {
-  background: var(--asa3d-blue);
-  font-size: 12px;
-  font-weight: 800;
-}
-.asa3d-mark strong {
-  background: var(--asa3d-cyan);
+  margin: 0;
+  padding: 6px 16px;
+  color: #405565;
+  font: inherit;
   font-size: 16px;
+  font-weight: 500;
+  background: #fff;
+  border: 1px solid #d9dee3;
+  border-radius: 20px;
 }
 
-.asa3d-project-name {
+.asa3d-title-input:hover,
+.asa3d-title-input:focus {
+  border-color: #aebbc5;
+  outline: none;
+}
+
+.asa3d-save-state {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-width: 0;
-}
-
-.asa3d-project-name strong {
+  padding: 0 16px;
   overflow: hidden;
-  font-size: 15px;
+  color: #7a8791;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.asa3d-project-name small {
-  color: #768692;
-  font-size: 10px;
+.asa3d-save-state svg {
+  width: 14px;
+  height: 14px;
+  color: #29965c;
 }
-.asa3d-project-name .save-error {
-  color: #be2c3b;
+
+.asa3d-save-state.save-error {
+  color: #b93830;
 }
-.asa3d-project-name .save-saving {
+
+.asa3d-save-state.save-saving,
+.asa3d-save-state.save-dirty {
+  color: #1681ab;
+}
+
+.asa3d-mode-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding-right: 8px;
+}
+
+.asa3d-mode-buttons > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  color: #385267;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #fff;
+  border: 1.5px solid transparent;
+  border-radius: 19px;
+  cursor: pointer;
+}
+
+.asa3d-mode-buttons > button.active {
   color: var(--asa3d-blue);
+  border-color: var(--asa3d-blue);
+}
+
+.asa3d-mode-buttons svg {
+  width: 24px;
+  height: 24px;
+}
+
+.asa3d-user {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #26465b, #5e8ba4);
+  border-radius: 50%;
 }
 
 .asa3d-toolbar {
-  grid-row: 2;
-  grid-column: 1 / 4;
+  position: relative;
+  z-index: 25;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-  padding: 0 12px;
-  border-top: 1px solid #eef1f3;
+  align-items: stretch;
+  min-width: 0;
+  height: var(--asa3d-toolbar-height);
+  overflow-x: auto;
+  overflow-y: visible;
+  background: #fff;
+  border-bottom: 1px solid #d9dde1;
 }
 
-.asa3d-toolbar button,
-.asa3d-actions button,
-.asa3d-library button,
-.asa3d-view-tools button,
-.asa3d-view-cube button,
-.asa3d-inspector button {
+.asa3d-toolbar-group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+}
+
+.asa3d-transform-tools {
+  margin-left: auto;
+}
+
+.asa3d-tool {
+  display: grid;
+  flex: 0 0 48px;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  color: #526875;
+  background: #fff;
+  border: 0;
+  border-right: 1px solid #eef0f2;
+  cursor: pointer;
+}
+
+.asa3d-tool svg {
+  width: 24px;
+  height: 24px;
+}
+
+.asa3d-tool:hover:not(:disabled),
+.asa3d-tool.active {
+  color: #067ea9;
+  background: #edf8fb;
+}
+
+.asa3d-tool.active {
+  box-shadow: inset 0 -3px 0 var(--asa3d-cyan);
+}
+
+.asa3d-tool:disabled {
+  color: #c8d0d5;
+  cursor: default;
+}
+
+.asa3d-toolbar-divider {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 48px;
+  background: #dfe3e8;
+}
+
+.asa3d-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 48px;
+  margin-left: 22px;
+  padding: 0 10px 0 0;
+  border-left: 1px solid #e2e6e9;
+}
+
+.asa3d-actions button {
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
 
-.asa3d-toolbar button {
-  width: 38px;
-  height: 34px;
-  padding: 0;
-  color: #586b78;
-  font-size: 20px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 7px;
-}
-
-.asa3d-toolbar button:hover:not(:disabled),
-.asa3d-toolbar button.active {
-  color: #006ba6;
-  background: #e8f6fa;
-  border-color: #bde3ed;
-}
-
-.asa3d-toolbar button:disabled {
-  opacity: 0.28;
-  cursor: default;
-}
-.asa3d-toolbar-divider {
-  width: 1px;
-  height: 24px;
-  margin: 0 5px;
-  background: #dce2e6;
-}
-
-.asa3d-actions {
-  grid-row: 1;
-  grid-column: 3;
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding-right: 12px;
-}
-
-.asa3d-actions > button,
-.asa3d-export-wrap > button {
+.asa3d-text-action,
+.asa3d-version-button {
   height: 32px;
-  padding: 0 13px;
+  padding: 0 14px;
   color: #536571;
   font-size: 12px;
-  background: white;
+  background: #fff;
   border: 1px solid #d7dee3;
-  border-radius: 6px;
+  border-radius: 3px;
 }
 
-.asa3d-actions button:hover {
+.asa3d-text-action:hover,
+.asa3d-version-button:hover {
   background: #f3f8fa;
   border-color: #9dcbd8;
 }
-.asa3d-actions .asa3d-version-button {
-  color: white;
-  background: var(--asa3d-blue);
-  border-color: var(--asa3d-blue);
+
+.asa3d-version-button {
+  color: #fff;
+  background: #087fac;
+  border-color: #087fac;
 }
-.asa3d-actions .asa3d-version-button:hover {
-  background: #006da5;
+
+.asa3d-version-button:hover {
+  color: #fff;
+  background: #087296;
 }
 
 .asa3d-export-wrap {
   position: relative;
 }
+
 .asa3d-export-menu {
   position: absolute;
   top: calc(100% + 7px);
   right: 0;
   z-index: 60;
   display: grid;
-  width: 190px;
+  width: 200px;
   padding: 6px;
-  background: white;
+  background: #fff;
   border: 1px solid var(--asa3d-line);
-  border-radius: 9px;
+  border-radius: 7px;
   box-shadow: 0 12px 30px rgba(25, 48, 65, 0.18);
 }
 
@@ -220,26 +298,17 @@
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
 }
 
-.asa3d-user {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  color: white;
-  font-weight: 800;
-  background: linear-gradient(145deg, #263746, #087eb8);
-  border: 2px solid white;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px #cbd5db;
+.asa3d-export-menu button:hover {
+  background: #eef6f8;
 }
 
 .asa3d-workspace {
-  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 286px;
+  grid-template-columns: minmax(0, 1fr) var(--asa3d-library-width);
+  min-height: 0;
 }
 
 .asa3d-stage {
@@ -247,12 +316,15 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: #f7f8fa;
 }
+
 .asa3d-viewport {
   position: absolute;
   inset: 0;
   touch-action: none;
 }
+
 .asa3d-canvas {
   display: block;
   width: 100%;
@@ -297,53 +369,125 @@
 .asa3d-library {
   z-index: 8;
   min-width: 0;
-  overflow: auto;
-  background: #f8f9fa;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #f7f8fa;
   border-left: 1px solid var(--asa3d-line);
-  box-shadow: -2px 0 7px rgba(37, 58, 71, 0.06);
+  box-shadow: -2px 0 7px rgba(37, 58, 71, 0.05);
+}
+
+.asa3d-library button {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .asa3d-library-tools {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  padding: 13px 14px 10px;
+  height: 72px;
+  padding: 8px 10px;
 }
 
 .asa3d-library-tools button {
-  height: 50px;
+  display: grid;
+  place-items: center;
+  height: 56px;
+  padding: 0;
   color: #0793bc;
-  font-size: 28px;
-  background: white;
+  background: #fff;
   border: 1px solid #e4e8eb;
-  border-radius: 7px;
+  border-radius: 4px;
+}
+
+.asa3d-library-tools button:hover,
+.asa3d-library-tools button.active {
+  color: #02779e;
+  background: #effafd;
+  border-color: #9ed7e5;
+}
+
+.asa3d-library-tools svg {
+  width: 34px;
+  height: 34px;
 }
 
 .asa3d-library-title {
   display: grid;
-  grid-template-columns: 1fr 42px;
+  grid-template-columns: 1fr 48px;
   align-items: center;
-  height: 47px;
-  margin: 0 12px 8px;
+  height: 48px;
+  margin: 0 10px 8px;
   padding-left: 12px;
-  background: white;
-  border: 1px solid #dce2e5;
-  border-radius: 6px;
+  color: #526672;
   font-size: 13px;
+  background: #fff;
+  border: 1px solid #dce2e5;
+  border-radius: 3px;
 }
 
 .asa3d-library-title button {
+  display: grid;
+  place-items: center;
   height: 100%;
-  font-size: 24px;
+  padding: 0;
   background: transparent;
   border: 0;
   border-left: 1px solid #e4e8eb;
 }
+
+.asa3d-library-title svg {
+  width: 25px;
+  height: 25px;
+}
+
+.asa3d-library-search {
+  display: grid;
+  grid-template-columns: 24px 1fr 26px;
+  align-items: center;
+  gap: 5px;
+  height: 40px;
+  margin: 0 10px 8px;
+  padding: 0 7px;
+  background: #fff;
+  border: 1px solid #b9dbe3;
+  border-radius: 3px;
+}
+
+.asa3d-library-search svg {
+  width: 20px;
+  height: 20px;
+  color: #82929b;
+}
+
+.asa3d-library-search input {
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  color: #405565;
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.asa3d-library-search button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: #71818b;
+  font-size: 20px;
+  background: transparent;
+  border: 0;
+}
+
 .asa3d-shape-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-  padding: 0 10px 12px;
+  gap: 6px;
+  padding: 0 9px 12px;
 }
 
 .asa3d-shape-card {
@@ -352,12 +496,12 @@
   align-items: center;
   justify-items: center;
   min-width: 0;
-  min-height: 96px;
-  padding: 5px 3px 7px;
-  background: white;
-  border: 1px solid #edf0f2;
-  border-radius: 7px;
+  min-height: 98px;
+  padding: 5px 2px 7px;
   overflow: hidden;
+  background: #fff;
+  border: 1px solid #edf0f2;
+  border-radius: 3px;
 }
 
 .asa3d-shape-card:hover {
@@ -365,25 +509,36 @@
   border-color: #a8d9e4;
   box-shadow: 0 4px 10px rgba(42, 91, 111, 0.1);
 }
+
 .asa3d-shape-card small {
   width: 100%;
   overflow: hidden;
   color: #60717c;
   font-size: 9px;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .asa3d-shape-thumbnail {
   display: block;
-  width: 92px;
+  width: 86px;
   max-width: 100%;
   height: 70px;
   pointer-events: none;
   object-fit: contain;
 }
+
+.asa3d-library-empty {
+  grid-column: 1 / -1;
+  padding: 24px 8px;
+  color: #7c8b94;
+  font-size: 12px;
+  text-align: center;
+}
+
 .asa3d-library-hint {
-  margin: 0 15px 20px;
+  margin: 0 14px 20px;
   color: #81909a;
   font-size: 10px;
   line-height: 1.4;
@@ -391,10 +546,10 @@
 
 .asa3d-view-cube {
   position: absolute;
-  top: 24px;
-  left: 25px;
+  top: 25px;
+  left: 30px;
   z-index: 5;
-  width: 92px;
+  width: 72px;
   filter: drop-shadow(0 3px 3px rgba(28, 53, 69, 0.13));
 }
 
@@ -405,44 +560,62 @@
   font-weight: 700;
   background: linear-gradient(#fff, #e4e8ea);
   border: 1px solid #c8d0d4;
+  cursor: pointer;
 }
 
 .asa3d-view-cube > button {
-  width: 92px;
-  height: 30px;
+  width: 72px;
+  height: 28px;
   clip-path: polygon(11% 0, 89% 0, 100% 100%, 0 100%);
 }
+
 .asa3d-view-cube div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
 }
+
 .asa3d-view-cube div button {
-  height: 36px;
+  height: 34px;
+}
+
+.asa3d-view-cube div button:last-child {
+  color: #87939a;
+  font-size: 16px;
+  background: linear-gradient(90deg, #eef1f2, #dfe4e6);
 }
 
 .asa3d-view-tools {
   position: absolute;
-  top: 122px;
-  left: 17px;
+  top: 124px;
+  left: 9px;
   z-index: 6;
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
 .asa3d-view-tools button {
-  width: 46px;
-  height: 46px;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
   color: #314c5c;
-  font-size: 25px;
-  background: rgba(255, 255, 255, 0.96);
+  font-size: 29px;
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid #d2d9dd;
   border-radius: 50%;
   box-shadow: 0 2px 5px rgba(33, 57, 70, 0.1);
+  cursor: pointer;
 }
 
 .asa3d-view-tools button:hover {
   color: var(--asa3d-blue);
   border-color: #8fcad8;
+}
+
+.asa3d-view-tools svg {
+  width: 25px;
+  height: 25px;
 }
 
 .asa3d-inspector {
@@ -456,8 +629,14 @@
   padding: 12px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #d3dce1;
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 0 12px 34px rgba(28, 53, 69, 0.16);
+}
+
+.asa3d-inspector button {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .asa3d-inspector > header {
@@ -465,6 +644,7 @@
   grid-template-columns: 1fr 28px;
   gap: 6px;
 }
+
 .asa3d-inspector > header input {
   min-width: 0;
   height: 32px;
@@ -473,10 +653,12 @@
   border: 1px solid transparent;
   border-radius: 5px;
 }
+
 .asa3d-inspector > header input:focus {
-  outline: none;
   border-color: #91cedb;
+  outline: none;
 }
+
 .asa3d-inspector > header button {
   padding: 0;
   font-size: 22px;
@@ -488,6 +670,7 @@
   padding: 9px 0;
   border-top: 1px solid #edf0f2;
 }
+
 .asa3d-inspector h3 {
   margin: 0 0 7px;
   color: #657681;
@@ -496,11 +679,13 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
+
 .asa3d-color-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
+
 .asa3d-color-grid > button,
 .asa3d-custom-color {
   position: relative;
@@ -508,19 +693,22 @@
   height: 25px;
   padding: 0;
   overflow: hidden;
-  border: 2px solid white;
+  border: 2px solid #fff;
   border-radius: 50%;
   box-shadow: 0 0 0 1px #ccd5da;
 }
+
 .asa3d-color-grid > button.selected {
   box-shadow: 0 0 0 2px #087eb8;
 }
+
 .asa3d-custom-color {
   display: grid;
   place-items: center;
   cursor: pointer;
   background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
 }
+
 .asa3d-custom-color span {
   z-index: 1;
   display: grid;
@@ -528,9 +716,10 @@
   width: 15px;
   height: 15px;
   color: #344953;
-  background: white;
+  background: #fff;
   border-radius: 50%;
 }
+
 .asa3d-custom-color input {
   position: absolute;
   inset: 0;
@@ -542,10 +731,12 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
+
 .asa3d-field-grid label {
   position: relative;
   display: grid;
 }
+
 .asa3d-field-grid label span {
   position: absolute;
   top: 8px;
@@ -556,7 +747,9 @@
   font-weight: 700;
   pointer-events: none;
 }
+
 .asa3d-field-grid input {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   height: 30px;
@@ -567,27 +760,32 @@
   border: 1px solid #dbe2e6;
   border-radius: 5px;
 }
+
 .asa3d-field-grid input:focus {
-  outline: 2px solid #bfe9f0;
   border-color: #72bdce;
+  outline: 2px solid #bfe9f0;
 }
+
 .asa3d-range-row {
   display: grid;
   grid-template-columns: 1fr 28px;
   align-items: center;
   gap: 7px;
 }
+
 .asa3d-range-row output {
   color: #60727d;
   font-size: 11px;
   text-align: right;
 }
+
 .asa3d-inspector footer {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding-top: 8px;
 }
+
 .asa3d-inspector footer button {
   min-height: 30px;
   padding: 4px;
@@ -597,35 +795,154 @@
   border: 1px solid #d9e0e4;
   border-radius: 5px;
 }
-.asa3d-statusbar {
+
+.asa3d-grid-panel {
   position: absolute;
-  right: 14px;
-  bottom: 10px;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 6px 9px;
-  color: #6e7d86;
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(208, 219, 224, 0.8);
-  border-radius: 6px;
-  backdrop-filter: blur(8px);
+  right: 12px;
+  bottom: 68px;
+  z-index: 12;
+  display: grid;
+  gap: 12px;
+  width: 286px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #d3dce1;
+  border-radius: 5px;
+  box-shadow: 0 10px 28px rgba(28, 53, 69, 0.16);
 }
 
-.asa3d-statusbar label {
+.asa3d-grid-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e7ebee;
+}
+
+.asa3d-grid-panel > header strong {
+  font-size: 13px;
+}
+
+.asa3d-grid-panel > header button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: #667782;
+  font-size: 20px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.asa3d-grid-unit {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  color: #637681;
+  font-size: 11px;
+}
+
+.asa3d-grid-unit output {
+  color: #294b5c;
+  font-weight: 600;
+}
+
+.asa3d-grid-size-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.asa3d-grid-size-fields label {
+  display: grid;
+  gap: 4px;
+  color: #637681;
+  font-size: 10px;
+}
+
+.asa3d-grid-size-fields input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 31px;
+  padding: 0 8px;
+  color: #314652;
+  background: #f8fafb;
+  border: 1px solid #d5dde2;
+  border-radius: 3px;
+}
+
+.asa3d-grid-visible {
   display: flex;
   align-items: center;
   gap: 7px;
+  color: #506570;
+  font-size: 11px;
 }
-.asa3d-statusbar select {
+
+.asa3d-grid-panel > small {
+  color: #829099;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.asa3d-object-count {
+  position: absolute;
+  bottom: 9px;
+  left: 74px;
+  z-index: 6;
+  color: #84929a;
+  font-size: 9px;
+}
+
+.asa3d-grid-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  z-index: 7;
+  display: grid;
+  width: 270px;
+  color: #6e7d86;
+  font-size: 10px;
+}
+
+.asa3d-grid-parameters {
+  justify-self: end;
+  width: 122px;
+  height: 22px;
+  padding: 0;
+  color: #75848d;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #dbe2e6;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.asa3d-grid-controls label {
+  display: grid;
+  grid-template-columns: 1fr 104px;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+}
+
+.asa3d-grid-controls label > span {
+  font-size: 10px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.asa3d-grid-controls select {
+  box-sizing: border-box;
+  width: 104px;
   height: 25px;
+  padding: 0 7px;
   color: #53656f;
   font-size: 10px;
-  background: white;
+  background: #fff;
   border: 1px solid #d3dde2;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .asa3d-toast {
@@ -635,7 +952,7 @@
   z-index: 90;
   max-width: min(520px, calc(100vw - 30px));
   padding: 11px 16px;
-  color: white;
+  color: #fff;
   background: #263b47;
   border: 0;
   border-radius: 8px;
@@ -644,23 +961,28 @@
   cursor: pointer;
 }
 
-@media (max-width: 1050px) {
-  .asa3d-topbar {
-    grid-template-columns: minmax(220px, 1fr) auto;
+@media (max-width: 1180px) {
+  .asa3d-shell {
+    --asa3d-library-width: 246px;
   }
-  .asa3d-identity {
-    grid-column: 1;
+
+  .asa3d-title-input {
+    width: 205px;
   }
+
+  .asa3d-save-state {
+    justify-content: flex-start;
+  }
+
   .asa3d-actions {
-    grid-column: 2;
-    min-width: 0;
+    margin-left: 8px;
   }
-  .asa3d-actions > button:first-of-type {
-    display: none;
+
+  .asa3d-text-action,
+  .asa3d-version-button {
+    padding: 0 10px;
   }
-  .asa3d-workspace {
-    grid-template-columns: minmax(0, 1fr) 240px;
-  }
+
   .asa3d-shape-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -668,41 +990,85 @@
 
 @media (max-width: 760px) {
   .asa3d-shell {
-    grid-template-rows: 92px minmax(0, 1fr);
+    --asa3d-header-height: 48px;
+    --asa3d-toolbar-height: 44px;
+    grid-template-rows: var(--asa3d-header-height) var(--asa3d-toolbar-height) minmax(0, 1fr);
   }
-  .asa3d-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: 48px 44px;
+
+  .asa3d-brand {
+    width: 48px;
+    padding: 0 9px;
   }
-  .asa3d-mark span {
+
+  .asa3d-brand > span {
     display: none;
   }
-  .asa3d-project-name strong {
-    max-width: 130px;
+
+  .asa3d-brand-zone {
+    gap: 7px;
   }
-  .asa3d-actions {
-    gap: 4px;
-    padding-right: 7px;
+
+  .asa3d-title-input {
+    width: min(180px, 38vw);
+    min-width: 105px;
+    padding: 5px 11px;
+    font-size: 13px;
   }
-  .asa3d-actions > button,
-  .asa3d-export-wrap > button {
-    padding: 0 7px;
-    font-size: 10px;
+
+  .asa3d-save-state {
+    display: none;
   }
+
+  .asa3d-mode-buttons {
+    padding-right: 4px;
+  }
+
+  .asa3d-mode-buttons > button {
+    width: 42px;
+    padding: 0 8px;
+  }
+
+  .asa3d-mode-buttons > button span,
   .asa3d-user {
     display: none;
   }
+
   .asa3d-toolbar {
-    overflow-x: auto;
-    padding: 0 7px;
+    height: 44px;
   }
-  .asa3d-toolbar button {
-    flex: 0 0 36px;
+
+  .asa3d-tool {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
   }
+
+  .asa3d-toolbar-divider {
+    height: 44px;
+  }
+
+  .asa3d-transform-tools {
+    margin-left: 0;
+  }
+
+  .asa3d-actions {
+    height: 44px;
+    margin-left: 0;
+    padding-right: 5px;
+  }
+
+  .asa3d-text-action,
+  .asa3d-version-button {
+    height: 30px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+
   .asa3d-workspace {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) 132px;
   }
+
   .asa3d-library {
     grid-row: 2;
     overflow-x: auto;
@@ -710,57 +1076,90 @@
     border-top: 1px solid var(--asa3d-line);
     border-left: 0;
   }
+
   .asa3d-library-tools,
   .asa3d-library-title,
+  .asa3d-library-search,
   .asa3d-library-hint {
     display: none;
   }
+
   .asa3d-shape-grid {
     display: flex;
     gap: 7px;
     height: 100%;
     padding: 8px 10px;
   }
+
   .asa3d-shape-card {
     flex: 0 0 92px;
     grid-template-rows: 78px auto;
   }
+
   .asa3d-view-cube {
     top: 12px;
     left: 12px;
     transform: scale(0.8);
     transform-origin: top left;
   }
+
   .asa3d-view-tools {
-    top: 96px;
-    left: 9px;
+    top: 90px;
+    left: 8px;
   }
+
   .asa3d-view-tools button {
     width: 40px;
     height: 40px;
-    font-size: 22px;
+    font-size: 23px;
   }
+
+  .asa3d-view-tools svg {
+    width: 21px;
+    height: 21px;
+  }
+
   .asa3d-inspector {
     top: auto;
     right: 8px;
-    bottom: 48px;
+    bottom: 52px;
     width: min(280px, calc(100% - 70px));
     max-height: 58%;
   }
-  .asa3d-statusbar {
-    right: 8px;
-    bottom: 6px;
+
+  .asa3d-grid-panel {
+    right: 6px;
+    bottom: 62px;
+    box-sizing: border-box;
+    width: min(286px, calc(100% - 62px));
   }
-  .asa3d-statusbar > span {
-    display: none;
+
+  .asa3d-object-count {
+    bottom: 7px;
+    left: 6px;
+  }
+
+  .asa3d-grid-controls {
+    right: 5px;
+    width: 214px;
+  }
+
+  .asa3d-grid-controls label {
+    grid-template-columns: 1fr 84px;
+    gap: 4px;
+  }
+
+  .asa3d-grid-controls select {
+    width: 84px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .asa3d-loader {
-    animation-duration: 1.8s;
+    animation: none;
   }
-  .asa3d-shape-card {
-    transition: none;
+
+  .asa3d-shape-card:hover {
+    transform: none;
   }
 }
