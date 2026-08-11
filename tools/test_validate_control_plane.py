@@ -214,6 +214,39 @@ def pr_merged_while_done(_):
     return state_error("done", "MERGED")
 
 
+def gate_result_case(status: str) -> list[str]:
+    saved_run = cp.run
+    try:
+        cp.run = lambda _command: (1, "workflow not registered")
+        errors: list[str] = []
+        notes: list[str] = []
+        cp.check_gate_results(
+            {
+                "id": "TASK-CHESS-R1-001",
+                "branch": "agent/chess-r1-foundation",
+                "status": status,
+                "_gates": {"focused": {"workflow": "Chess R1 Focused"}},
+            },
+            "a" * 40,
+            errors,
+            notes,
+            require=True,
+        )
+        return errors
+    finally:
+        cp.run = saved_run
+
+
+@case("an in-progress lane need not have a workflow conclusion yet", expect="")
+def gate_result_in_progress(_):
+    return gate_result_case("in_progress")
+
+
+@case("an in-review lane must have a workflow conclusion", expect="cannot read runs")
+def gate_result_in_review(_):
+    return gate_result_case("in_review")
+
+
 @case("a task id that does not match the scheme", expect="task.id invalid")
 def task_bad_id(_):
     errors: list[str] = []
@@ -226,6 +259,146 @@ def task_healthy(_):
     errors: list[str] = []
     cp.check_current(task_document(), errors)
     return errors
+
+
+# ── schema 1.1 lanes: identity and portable disjoint scopes ─────────────────
+
+
+def chess_task(**overrides) -> dict:
+    task = {
+        "id": "TASK-CHESS-R1-001",
+        "issue": 97,
+        "branch": "agent/chess-r1-foundation",
+        "base_branch": "main",
+        "pr": 103,
+        "status": "in_progress",
+        "checkpoint": "engine_contract",
+    }
+    task.update(overrides)
+    return task
+
+
+def multilane_document(**overrides) -> dict:
+    document = task_document()
+    document.update(
+        {
+            "schema_version": "1.1.0",
+            "primary_lane": {
+                "id": "electronics",
+                "worktree_id": "electronics-m1",
+                "owned_paths": ["contexts/electronics/**"],
+            },
+            "parallel_lanes": [
+                {
+                    "id": "chess",
+                    "worktree_id": "chess-r1",
+                    "owned_paths": ["contexts/chess/**"],
+                    "task": chess_task(),
+                    "revisions": {
+                        "convergence_baseline_sha": "a" * 40,
+                        "head_sha": "a" * 40,
+                    },
+                    "execution_lease": lease(
+                        executor_id="assistant-chess", holder="assistant-chess"
+                    ),
+                    "gates": gates(),
+                }
+            ],
+            "integration": {
+                "owner_lane": "electronics",
+                "shared_paths": ["package.json", "docs/execution/current.yaml"],
+            },
+        }
+    )
+    document.update(overrides)
+    return document
+
+
+def collect_errors(document: dict) -> list[str]:
+    errors: list[str] = []
+    primary = cp.check_current(document, errors)
+    cp.collect_lanes(document, primary, errors)
+    return errors
+
+
+@case("schema 1.0 remains a valid single-lane document", expect="")
+def lane_schema_1_0(_):
+    return collect_errors(task_document())
+
+
+@case("schema 1.1 accepts two disjoint leased lanes", expect="")
+def lane_schema_1_1(_):
+    return collect_errors(multilane_document())
+
+
+@case("a parallel lane reusing the primary branch", expect="unique branch")
+def lane_duplicate_branch(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["task"]["branch"] = document["task"]["branch"]
+    return collect_errors(document)
+
+
+@case("a parallel lane reusing the primary executor", expect="unique executor_id")
+def lane_duplicate_executor(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["execution_lease"] = lease()
+    return collect_errors(document)
+
+
+@case("an integration owner that is not a lane", expect="must name a declared lane")
+def lane_unknown_integration_owner(_):
+    document = multilane_document()
+    document["integration"]["owner_lane"] = "ghost"
+    return collect_errors(document)
+
+
+@case("an absolute scope is rejected", expect="not a portable repository-relative path")
+def lane_absolute_scope(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["owned_paths"] = ["/contexts/chess/**"]
+    return collect_errors(document)
+
+
+@case("a Windows scope is rejected", expect="not a portable repository-relative path")
+def lane_windows_scope(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["owned_paths"] = ["contexts\\chess\\**"]
+    return collect_errors(document)
+
+
+@case("a traversal scope is rejected", expect="traversal segment")
+def lane_traversal_scope(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["owned_paths"] = ["contexts/../chess/**"]
+    return collect_errors(document)
+
+
+@case("a partial glob scope is rejected", expect="unsupported glob")
+def lane_partial_glob(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["owned_paths"] = ["apps/api/chess*.ts"]
+    return collect_errors(document)
+
+
+@case("two lanes cannot own overlapping prefixes", expect="lane scopes overlap")
+def lane_owned_overlap(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["owned_paths"] = ["contexts/electronics/solver/**"]
+    return collect_errors(document)
+
+
+@case("a lane cannot relabel a shared path as owned", expect="overlaps shared scope")
+def lane_shared_overlap(_):
+    document = multilane_document()
+    document["parallel_lanes"][0]["owned_paths"] = ["docs/**"]
+    return collect_errors(document)
+
+
+@case("similarly named sibling scopes do not overlap", expect="")
+def lane_sibling_prefixes(_):
+    document = multilane_document()
+    document["primary_lane"]["owned_paths"] = ["contexts/chess-live/**"]
+    return collect_errors(document)
 
 
 # ── the state file, against a real repository ────────────────────────────────
@@ -318,6 +491,197 @@ def state_behind(_):
     errors, notes = state_file_case(BASE_STATE, None, advance_main=BASE_STATE + "  pr: 72\n")
     assert any("behind origin/main" in n for n in notes), notes
     return errors
+
+
+@case("the state file is protected on every product lane", expect="modifies docs/execution/current.yaml")
+def state_parallel_lane_edited(_):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw) / "repo"
+        build_repo(root, main_state=BASE_STATE, branch_state=BASE_STATE + "  pr: 72\n")
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            notes: list[str] = []
+            cp.check_state_file_is_canonical(
+                [
+                    {"branch": "agent/some-other-product"},
+                    {"branch": "agent/r4-electronics-m1"},
+                ],
+                errors,
+                notes,
+            )
+            return errors
+        finally:
+            cp.bind_root(saved)
+
+
+# ── branch scope: committed, staged, unstaged and untracked ──────────────────
+
+
+def build_scope_repo(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "docs/execution").mkdir(parents=True, exist_ok=True)
+    (root / "contexts/chess").mkdir(parents=True, exist_ok=True)
+    (root / "docs/execution/current.yaml").write_text("schema_version: 1.1.0\n", encoding="utf-8")
+    (root / "contexts/chess/base.ts").write_text("export const base = 1;\n", encoding="utf-8")
+    (root / "README.md").write_text("base\n", encoding="utf-8")
+    git("init", "-q", "-b", "main", cwd=root)
+    git("config", "user.email", "test@example.invalid", cwd=root)
+    git("config", "user.name", "test", cwd=root)
+    git("add", "-A", cwd=root)
+    git("commit", "-q", "-m", "main", cwd=root)
+    git("checkout", "-q", "-b", "agent/chess-r1-foundation", cwd=root)
+    git("remote", "add", "origin", str(root), cwd=root)
+    git("fetch", "-q", "origin", cwd=root)
+
+
+def scope_lane(*, integration_owner: bool = False) -> dict:
+    return {
+        "id": "chess",
+        "owned_paths": ["contexts/chess/**"],
+        "shared_paths": ["package.json", "docs/execution/current.yaml"],
+        "integration_owner": integration_owner,
+        "scoped": True,
+        "task": chess_task(),
+    }
+
+
+def branch_scope_case(change, *, integration_owner: bool = False):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw) / "repo"
+        build_scope_repo(root)
+        change(root)
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            notes: list[str] = []
+            cp.check_lane_branch_scopes(
+                [scope_lane(integration_owner=integration_owner)], errors, notes
+            )
+            return errors
+        finally:
+            cp.bind_root(saved)
+
+
+def commit_path(root: Path, relative: str, content: str = "changed\n") -> None:
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    git("add", relative, cwd=root)
+    git("commit", "-q", "-m", f"change {relative}", cwd=root)
+
+
+@case("a committed owned path is accepted", expect="")
+def scope_committed_owned(_):
+    return branch_scope_case(
+        lambda root: commit_path(root, "contexts/chess/move.ts")
+    )
+
+
+@case("scope validation refreshes a stale remote-tracking ref", expect="")
+def scope_refreshes_remote_ref(_):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw) / "repo"
+        build_scope_repo(root)
+        commit_path(root, "contexts/chess/move.ts")
+        product_head = git("rev-parse", "HEAD", cwd=root).strip()
+        git("checkout", "-q", "main", cwd=root)
+        git("checkout", "-q", "-b", "governance", cwd=root)
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            notes: list[str] = []
+            cp.check_lane_branch_scopes(
+                [scope_lane()], errors, notes, require_remote=True
+            )
+            tracked = git(
+                "rev-parse", "origin/agent/chess-r1-foundation", cwd=root
+            ).strip()
+            assert tracked == product_head, (tracked, product_head)
+            assert any("refreshed" in note for note in notes), notes
+            return errors
+        finally:
+            cp.bind_root(saved)
+
+
+@case("a committed foreign path is rejected", expect="out-of-scope path README.md")
+def scope_committed_foreign(_):
+    return branch_scope_case(lambda root: commit_path(root, "README.md"))
+
+
+@case("a committed foreign deletion is rejected", expect="out-of-scope path README.md")
+def scope_deleted_foreign(_):
+    def change(root: Path) -> None:
+        (root / "README.md").unlink()
+        git("add", "-A", cwd=root)
+        git("commit", "-q", "-m", "delete foreign path", cwd=root)
+
+    return branch_scope_case(change)
+
+
+@case("a rename cannot move an owned file outside its lane", expect="out-of-scope path moved.ts")
+def scope_rename_out(_):
+    def change(root: Path) -> None:
+        (root / "contexts/chess/base.ts").rename(root / "moved.ts")
+        git("add", "-A", cwd=root)
+
+    return branch_scope_case(change)
+
+
+@case("a staged foreign path is rejected", expect="out-of-scope path staged.txt")
+def scope_staged_foreign(_):
+    def change(root: Path) -> None:
+        (root / "staged.txt").write_text("staged\n", encoding="utf-8")
+        git("add", "staged.txt", cwd=root)
+
+    return branch_scope_case(change)
+
+
+@case("an unstaged foreign path is rejected", expect="out-of-scope path README.md")
+def scope_unstaged_foreign(_):
+    def change(root: Path) -> None:
+        (root / "README.md").write_text("unstaged\n", encoding="utf-8")
+
+    return branch_scope_case(change)
+
+
+@case("an untracked foreign path is rejected", expect="out-of-scope path untracked.txt")
+def scope_untracked_foreign(_):
+    def change(root: Path) -> None:
+        (root / "untracked.txt").write_text("untracked\n", encoding="utf-8")
+
+    return branch_scope_case(change)
+
+
+@case("a non-owner cannot stage a shared path", expect="only integration owner")
+def scope_shared_non_owner(_):
+    def change(root: Path) -> None:
+        (root / "package.json").write_text("{}\n", encoding="utf-8")
+        git("add", "package.json", cwd=root)
+
+    return branch_scope_case(change)
+
+
+@case("the integration owner may stage a shared path", expect="")
+def scope_shared_owner(_):
+    def change(root: Path) -> None:
+        (root / "package.json").write_text("{}\n", encoding="utf-8")
+        git("add", "package.json", cwd=root)
+
+    return branch_scope_case(change, integration_owner=True)
+
+
+@case("even the integration owner cannot edit state on a product branch", expect="protected docs/execution/current.yaml")
+def scope_state_always_protected(_):
+    def change(root: Path) -> None:
+        (root / "docs/execution/current.yaml").write_text(
+            "schema_version: 1.1.0\nchanged: true\n", encoding="utf-8"
+        )
+
+    return branch_scope_case(change, integration_owner=True)
 
 
 def main() -> int:
