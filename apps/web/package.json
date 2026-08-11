@@ -5,7 +5,12 @@
   "dependencies": {
     "@asa-lab/chess": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
+    "@asa-lab/three-d": "workspace:*",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.185.4"
   }
 }

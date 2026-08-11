@@ -1,0 +1,805 @@
+:root {
+  --asa3d-blue: #087eb8;
+  --asa3d-cyan: #2bb4cf;
+  --asa3d-ink: #263746;
+  --asa3d-line: #d6dde2;
+  --asa3d-panel: #ffffff;
+}
+
+.asa3d-shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 96px minmax(0, 1fr);
+  overflow: hidden;
+  background: #eef2f4;
+  color: var(--asa3d-ink);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+.asa3d-topbar {
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(410px, 1fr);
+  grid-template-rows: 50px 46px;
+  align-items: center;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.98);
+  border-bottom: 1px solid var(--asa3d-line);
+  box-shadow: 0 1px 6px rgba(26, 50, 66, 0.09);
+}
+
+.asa3d-identity {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-left: 10px;
+}
+
+.asa3d-back {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #61717d;
+  font-size: 27px;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+}
+
+.asa3d-back:hover {
+  background: #eef5f7;
+}
+
+.asa3d-mark {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  overflow: hidden;
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 7px rgba(0, 105, 157, 0.2);
+}
+
+.asa3d-mark span,
+.asa3d-mark strong {
+  display: grid;
+  place-items: center;
+  padding: 0 9px;
+  letter-spacing: 0.06em;
+}
+
+.asa3d-mark span {
+  background: var(--asa3d-blue);
+  font-size: 12px;
+  font-weight: 800;
+}
+.asa3d-mark strong {
+  background: var(--asa3d-cyan);
+  font-size: 16px;
+}
+
+.asa3d-project-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.asa3d-project-name strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa3d-project-name small {
+  color: #768692;
+  font-size: 10px;
+}
+.asa3d-project-name .save-error {
+  color: #be2c3b;
+}
+.asa3d-project-name .save-saving {
+  color: var(--asa3d-blue);
+}
+
+.asa3d-toolbar {
+  grid-row: 2;
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  padding: 0 12px;
+  border-top: 1px solid #eef1f3;
+}
+
+.asa3d-toolbar button,
+.asa3d-actions button,
+.asa3d-library button,
+.asa3d-view-tools button,
+.asa3d-view-cube button,
+.asa3d-inspector button {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.asa3d-toolbar button {
+  width: 38px;
+  height: 34px;
+  padding: 0;
+  color: #586b78;
+  font-size: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+
+.asa3d-toolbar button:hover:not(:disabled),
+.asa3d-toolbar button.active {
+  color: #006ba6;
+  background: #e8f6fa;
+  border-color: #bde3ed;
+}
+
+.asa3d-toolbar button:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+.asa3d-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 5px;
+  background: #dce2e6;
+}
+
+.asa3d-actions {
+  grid-row: 1;
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: 12px;
+}
+
+.asa3d-actions > button,
+.asa3d-export-wrap > button {
+  height: 32px;
+  padding: 0 13px;
+  color: #536571;
+  font-size: 12px;
+  background: white;
+  border: 1px solid #d7dee3;
+  border-radius: 6px;
+}
+
+.asa3d-actions button:hover {
+  background: #f3f8fa;
+  border-color: #9dcbd8;
+}
+.asa3d-actions .asa3d-version-button {
+  color: white;
+  background: var(--asa3d-blue);
+  border-color: var(--asa3d-blue);
+}
+.asa3d-actions .asa3d-version-button:hover {
+  background: #006da5;
+}
+
+.asa3d-export-wrap {
+  position: relative;
+}
+.asa3d-export-menu {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  width: 190px;
+  padding: 6px;
+  background: white;
+  border: 1px solid var(--asa3d-line);
+  border-radius: 9px;
+  box-shadow: 0 12px 30px rgba(25, 48, 65, 0.18);
+}
+
+.asa3d-export-menu button {
+  padding: 9px 10px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+
+.asa3d-user {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: white;
+  font-weight: 800;
+  background: linear-gradient(145deg, #263746, #087eb8);
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #cbd5db;
+}
+
+.asa3d-workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 286px;
+}
+
+.asa3d-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.asa3d-viewport {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.asa3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.asa3d-webgl-error,
+.asa3d-loading {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 100vh;
+  padding: 32px;
+  text-align: center;
+  background: #eef6f8;
+}
+
+.asa3d-webgl-error {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  align-content: center;
+  min-height: 0;
+}
+
+.asa3d-loader {
+  width: 38px;
+  height: 38px;
+  border: 4px solid #c5e7ee;
+  border-top-color: var(--asa3d-blue);
+  border-radius: 50%;
+  animation: asa3d-spin 0.8s linear infinite;
+}
+
+@keyframes asa3d-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.asa3d-library {
+  z-index: 8;
+  min-width: 0;
+  overflow: auto;
+  background: #f8f9fa;
+  border-left: 1px solid var(--asa3d-line);
+  box-shadow: -2px 0 7px rgba(37, 58, 71, 0.06);
+}
+
+.asa3d-library-tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 13px 14px 10px;
+}
+
+.asa3d-library-tools button {
+  height: 50px;
+  color: #0793bc;
+  font-size: 28px;
+  background: white;
+  border: 1px solid #e4e8eb;
+  border-radius: 7px;
+}
+
+.asa3d-library-title {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  align-items: center;
+  height: 47px;
+  margin: 0 12px 8px;
+  padding-left: 12px;
+  background: white;
+  border: 1px solid #dce2e5;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.asa3d-library-title button {
+  height: 100%;
+  font-size: 24px;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #e4e8eb;
+}
+.asa3d-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  padding: 0 10px 12px;
+}
+
+.asa3d-shape-card {
+  display: grid;
+  grid-template-rows: 62px auto;
+  align-items: center;
+  justify-items: center;
+  min-width: 0;
+  padding: 7px 3px 6px;
+  background: white;
+  border: 1px solid #edf0f2;
+  border-radius: 7px;
+}
+
+.asa3d-shape-card:hover {
+  transform: translateY(-1px);
+  border-color: #a8d9e4;
+  box-shadow: 0 4px 10px rgba(42, 91, 111, 0.1);
+}
+.asa3d-shape-card small {
+  width: 100%;
+  overflow: hidden;
+  color: #60717c;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa3d-shape-preview {
+  display: block;
+  width: 43px;
+  height: 43px;
+  background: #ef3340;
+  border-radius: 3px;
+  box-shadow:
+    inset -8px -7px 0 rgba(72, 22, 22, 0.16),
+    0 5px 8px rgba(42, 55, 65, 0.16);
+  transform: rotateX(57deg) rotateZ(36deg);
+}
+
+.shape-cylinder .asa3d-shape-preview {
+  background: #f68b1f;
+  border-radius: 50% / 15%;
+}
+.shape-sphere .asa3d-shape-preview {
+  background: radial-gradient(circle at 30% 25%, #7bdcff, #149aca 55%, #05638f);
+  border-radius: 50%;
+  transform: none;
+}
+.shape-cone .asa3d-shape-preview {
+  width: 0;
+  height: 0;
+  background: transparent;
+  border-right: 24px solid transparent;
+  border-bottom: 46px solid #8a4bb8;
+  border-left: 24px solid transparent;
+  border-radius: 35%;
+  box-shadow: none;
+  transform: none;
+}
+.shape-torus .asa3d-shape-preview {
+  background: #13a9ca;
+  border: 11px solid #087f9d;
+  border-radius: 50%;
+  box-shadow: 0 5px 8px rgba(42, 55, 65, 0.18);
+  transform: rotateX(58deg);
+}
+.shape-wedge .asa3d-shape-preview {
+  background: #2f7de1;
+  clip-path: polygon(0 100%, 100% 100%, 100% 0);
+  transform: none;
+}
+.shape-roof .asa3d-shape-preview {
+  background: #5fbf5f;
+  clip-path: polygon(50% 0, 100% 45%, 100% 100%, 0 100%, 0 45%);
+  transform: rotateY(-22deg);
+}
+.asa3d-library-hint {
+  margin: 0 15px 20px;
+  color: #81909a;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.asa3d-view-cube {
+  position: absolute;
+  top: 24px;
+  left: 25px;
+  z-index: 5;
+  width: 92px;
+  filter: drop-shadow(0 3px 3px rgba(28, 53, 69, 0.13));
+}
+
+.asa3d-view-cube button {
+  padding: 0;
+  color: #6b7880;
+  font-size: 8px;
+  font-weight: 700;
+  background: linear-gradient(#fff, #e4e8ea);
+  border: 1px solid #c8d0d4;
+}
+
+.asa3d-view-cube > button {
+  width: 92px;
+  height: 30px;
+  clip-path: polygon(11% 0, 89% 0, 100% 100%, 0 100%);
+}
+.asa3d-view-cube div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.asa3d-view-cube div button {
+  height: 36px;
+}
+
+.asa3d-view-tools {
+  position: absolute;
+  top: 122px;
+  left: 17px;
+  z-index: 6;
+  display: grid;
+  gap: 7px;
+}
+
+.asa3d-view-tools button {
+  width: 46px;
+  height: 46px;
+  color: #314c5c;
+  font-size: 25px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d2d9dd;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(33, 57, 70, 0.1);
+}
+
+.asa3d-view-tools button:hover {
+  color: var(--asa3d-blue);
+  border-color: #8fcad8;
+}
+
+.asa3d-inspector {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 10;
+  width: min(268px, calc(100% - 150px));
+  max-height: calc(100% - 90px);
+  overflow: auto;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #d3dce1;
+  border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(28, 53, 69, 0.16);
+}
+
+.asa3d-inspector > header {
+  display: grid;
+  grid-template-columns: 1fr 28px;
+  gap: 6px;
+}
+.asa3d-inspector > header input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+.asa3d-inspector > header input:focus {
+  outline: none;
+  border-color: #91cedb;
+}
+.asa3d-inspector > header button {
+  padding: 0;
+  font-size: 22px;
+  background: transparent;
+  border: 0;
+}
+
+.asa3d-inspector section {
+  padding: 9px 0;
+  border-top: 1px solid #edf0f2;
+}
+.asa3d-inspector h3 {
+  margin: 0 0 7px;
+  color: #657681;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.asa3d-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.asa3d-color-grid > button,
+.asa3d-custom-color {
+  position: relative;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #ccd5da;
+}
+.asa3d-color-grid > button.selected {
+  box-shadow: 0 0 0 2px #087eb8;
+}
+.asa3d-custom-color {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+}
+.asa3d-custom-color span {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  color: #344953;
+  background: white;
+  border-radius: 50%;
+}
+.asa3d-custom-color input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.asa3d-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.asa3d-field-grid label {
+  position: relative;
+  display: grid;
+}
+.asa3d-field-grid label span {
+  position: absolute;
+  top: 8px;
+  left: 6px;
+  z-index: 1;
+  color: #7a8992;
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.asa3d-field-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 4px 0 20px;
+  color: #314652;
+  font-size: 11px;
+  background: #f7f9fa;
+  border: 1px solid #dbe2e6;
+  border-radius: 5px;
+}
+.asa3d-field-grid input:focus {
+  outline: 2px solid #bfe9f0;
+  border-color: #72bdce;
+}
+.asa3d-range-row {
+  display: grid;
+  grid-template-columns: 1fr 28px;
+  align-items: center;
+  gap: 7px;
+}
+.asa3d-range-row output {
+  color: #60727d;
+  font-size: 11px;
+  text-align: right;
+}
+.asa3d-inspector footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding-top: 8px;
+}
+.asa3d-inspector footer button {
+  min-height: 30px;
+  padding: 4px;
+  color: #536773;
+  font-size: 10px;
+  background: #f4f7f8;
+  border: 1px solid #d9e0e4;
+  border-radius: 5px;
+}
+.asa3d-statusbar {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 9px;
+  color: #6e7d86;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(208, 219, 224, 0.8);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+}
+
+.asa3d-statusbar label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.asa3d-statusbar select {
+  height: 25px;
+  color: #53656f;
+  font-size: 10px;
+  background: white;
+  border: 1px solid #d3dde2;
+  border-radius: 4px;
+}
+
+.asa3d-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 90;
+  max-width: min(520px, calc(100vw - 30px));
+  padding: 11px 16px;
+  color: white;
+  background: #263b47;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 8px 25px rgba(25, 43, 54, 0.25);
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+@media (max-width: 1050px) {
+  .asa3d-topbar {
+    grid-template-columns: minmax(220px, 1fr) auto;
+  }
+  .asa3d-identity {
+    grid-column: 1;
+  }
+  .asa3d-actions {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .asa3d-actions > button:first-of-type {
+    display: none;
+  }
+  .asa3d-workspace {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+  .asa3d-shape-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .asa3d-shell {
+    grid-template-rows: 92px minmax(0, 1fr);
+  }
+  .asa3d-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 48px 44px;
+  }
+  .asa3d-mark span {
+    display: none;
+  }
+  .asa3d-project-name strong {
+    max-width: 130px;
+  }
+  .asa3d-actions {
+    gap: 4px;
+    padding-right: 7px;
+  }
+  .asa3d-actions > button,
+  .asa3d-export-wrap > button {
+    padding: 0 7px;
+    font-size: 10px;
+  }
+  .asa3d-user {
+    display: none;
+  }
+  .asa3d-toolbar {
+    overflow-x: auto;
+    padding: 0 7px;
+  }
+  .asa3d-toolbar button {
+    flex: 0 0 36px;
+  }
+  .asa3d-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 132px;
+  }
+  .asa3d-library {
+    grid-row: 2;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 1px solid var(--asa3d-line);
+    border-left: 0;
+  }
+  .asa3d-library-tools,
+  .asa3d-library-title,
+  .asa3d-library-hint {
+    display: none;
+  }
+  .asa3d-shape-grid {
+    display: flex;
+    gap: 7px;
+    height: 100%;
+    padding: 8px 10px;
+  }
+  .asa3d-shape-card {
+    flex: 0 0 92px;
+    grid-template-rows: 78px auto;
+  }
+  .asa3d-view-cube {
+    top: 12px;
+    left: 12px;
+    transform: scale(0.8);
+    transform-origin: top left;
+  }
+  .asa3d-view-tools {
+    top: 96px;
+    left: 9px;
+  }
+  .asa3d-view-tools button {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+  .asa3d-inspector {
+    top: auto;
+    right: 8px;
+    bottom: 48px;
+    width: min(280px, calc(100% - 70px));
+    max-height: 58%;
+  }
+  .asa3d-statusbar {
+    right: 8px;
+    bottom: 6px;
+  }
+  .asa3d-statusbar > span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asa3d-loader {
+    animation-duration: 1.8s;
+  }
+  .asa3d-shape-card {
+    transition: none;
+  }
+}

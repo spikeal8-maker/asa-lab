@@ -1,0 +1,98 @@
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { PrimitiveKind, ThreeDDocument, ThreeDTransform } from '@asa-lab/three-d';
+import { SceneRuntime, type TransformMode } from './SceneRuntime';
+
+export interface ThreeViewportHandle {
+  readonly setView: (view: 'home' | 'top' | 'front' | 'right') => void;
+  readonly zoom: (direction: 1 | -1) => void;
+}
+
+interface ThreeViewportProps {
+  readonly document: ThreeDDocument;
+  readonly selectedId: string | null;
+  readonly transformMode: TransformMode;
+  readonly onSelect: (nodeId: string | null) => void;
+  readonly onTransformCommit: (nodeId: string, transform: ThreeDTransform) => void;
+  readonly onDropPrimitive: (primitive: PrimitiveKind, position: { x: number; z: number }) => void;
+}
+
+const PRIMITIVES = new Set<PrimitiveKind>([
+  'box',
+  'cylinder',
+  'sphere',
+  'cone',
+  'torus',
+  'wedge',
+  'roof',
+]);
+
+export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>(
+  function ThreeViewport(props, ref): JSX.Element {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const runtimeRef = useRef<SceneRuntime | null>(null);
+    const [webGlError, setWebGlError] = useState<string | null>(null);
+    const propsRef = useRef(props);
+    propsRef.current = props;
+
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      try {
+        runtimeRef.current = new SceneRuntime(container, {
+          onSelect: (nodeId) => propsRef.current.onSelect(nodeId),
+          onTransformCommit: (nodeId, transform) =>
+            propsRef.current.onTransformCommit(nodeId, transform),
+          onWebGlError: setWebGlError,
+        });
+      } catch {
+        runtimeRef.current = null;
+      }
+      return () => {
+        runtimeRef.current?.dispose();
+        runtimeRef.current = null;
+      };
+    }, []);
+
+    useEffect(() => {
+      runtimeRef.current?.setDocument(props.document, props.selectedId);
+    }, [props.document, props.selectedId]);
+
+    useEffect(() => {
+      runtimeRef.current?.setTransformMode(props.transformMode);
+    }, [props.transformMode]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        setView: (view) => runtimeRef.current?.setView(view),
+        zoom: (direction) => runtimeRef.current?.zoom(direction),
+      }),
+      [],
+    );
+
+    const handleDrop = (event: React.DragEvent<HTMLDivElement>): void => {
+      event.preventDefault();
+      const primitive = event.dataTransfer.getData('application/x-asa-3d-primitive');
+      if (!PRIMITIVES.has(primitive as PrimitiveKind)) return;
+      const point = runtimeRef.current?.workplanePoint(event.clientX, event.clientY);
+      if (point) props.onDropPrimitive(primitive as PrimitiveKind, point);
+    };
+
+    return (
+      <div
+        ref={containerRef}
+        className="asa3d-viewport"
+        data-testid="asa3d-viewport"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+      >
+        {webGlError && (
+          <div className="asa3d-webgl-error" role="alert">
+            <strong>3D-ускорение не запустилось</strong>
+            <span>{webGlError}</span>
+          </div>
+        )}
+      </div>
+    );
+  },
+);

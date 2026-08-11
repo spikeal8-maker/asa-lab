@@ -42,6 +42,10 @@ export default defineConfig(({ command }) => ({
         find: '@asa-lab/electronics',
         replacement: resolve(repositoryRoot, 'contexts/electronics/index.ts'),
       },
+      {
+        find: '@asa-lab/three-d',
+        replacement: resolve(repositoryRoot, 'contexts/three-d/index.ts'),
+      },
       // These resolve to CommonJS bundles. `vite build` converts them — see
       // commonjsOptions below — but the dev server served them raw as ES modules,
       // so the first named import threw and the whole application failed to
@@ -68,6 +72,16 @@ export default defineConfig(({ command }) => ({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/.pnpm/three@') || id.includes('/node_modules/three/')) {
+            return 'three-vendor';
+          }
+          return undefined;
+        },
+      },
+    },
     commonjsOptions: {
       include: [/node_modules/, /contexts\/chess\/dist/, /packages\/module-sdk\/dist/],
     },

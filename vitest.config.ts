@@ -14,6 +14,10 @@ export default defineConfig({
         find: '@asa-lab/electronics',
         replacement: fileURLToPath(new URL('./contexts/electronics/index.ts', import.meta.url)),
       },
+      {
+        find: '@asa-lab/three-d',
+        replacement: fileURLToPath(new URL('./contexts/three-d/index.ts', import.meta.url)),
+      },
     ],
   },
   test: {
