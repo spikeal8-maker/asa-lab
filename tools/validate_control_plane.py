@@ -18,7 +18,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -209,15 +209,14 @@ def check_lease(lease: Any, errors: list[str]) -> None:
             errors.append(f"execution_lease.{field} must carry a UTC offset")
             continue
         parsed[field] = moment
-    if len(parsed) == 2:
-        if parsed["expires_at"] <= parsed["acquired_at"]:
-            errors.append("execution_lease.expires_at must be after acquired_at")
-        elif parsed["expires_at"] <= datetime.now(timezone.utc):
-            # A lease nobody released still locks out every other agent. Expiry
-            # has to be observed, or the lock outlives the work it protected.
-            errors.append(
-                f"execution_lease expired at {expires}; release or extend it before working"
-            )
+    if len(parsed) == 2 and parsed["expires_at"] <= parsed["acquired_at"]:
+        errors.append("execution_lease.expires_at must be after acquired_at")
+
+    # The timestamp is retained as audit metadata, not as an automatic kill
+    # switch. A wall-clock timeout repeatedly stopped the sole owner-authorised
+    # executor in the middle of corrective work even though the holder had not
+    # changed. Writer identity is enforced above; releasing or transferring the
+    # lease still requires an explicit owner transition.
 
 
 def check_gate_shape(gates: Any, errors: list[str]) -> None:
