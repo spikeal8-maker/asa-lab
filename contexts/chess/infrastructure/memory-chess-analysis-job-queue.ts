@@ -1,16 +1,62 @@
 import type {
   ChessAnalysisJobAuthorizationPort,
   ChessAnalysisJobQueueDispatch,
+  ChessAnalysisJobQueueEnqueueResult,
   ChessAnalysisJobQueueItem,
   ChessAnalysisJobQueuePort,
+  ChessAnalysisJobWorkerClaim,
+  ChessAnalysisJobWorkerClaimPort,
+  ChessAnalysisJobWorkerClaimResult,
 } from '../application/chess-analysis-job-ports.js';
 
-function itemKey(item: ChessAnalysisJobQueueDispatch): string {
+interface StoredQueueItem extends ChessAnalysisJobQueueDispatch {
+  readonly claimedBy: string | null;
+  readonly claimToken: string | null;
+  readonly leaseId: string | null;
+  readonly leaseExpiresAtMs: number | null;
+}
+
+function itemKey(
+  item: Pick<ChessAnalysisJobQueueDispatch, 'tenantPartition' | 'jobId' | 'attempt'>,
+) {
   return `${item.tenantPartition}\u0000${item.jobId}\u0000${item.attempt}`;
 }
 
-function immutableItem(item: ChessAnalysisJobQueueItem): ChessAnalysisJobQueueItem {
-  return Object.freeze(structuredClone(item));
+function immutable<T>(value: T): T {
+  return Object.freeze(structuredClone(value)) as T;
+}
+
+function monitor(item: StoredQueueItem): ChessAnalysisJobQueueItem {
+  return immutable({
+    tenantPartition: item.tenantPartition,
+    jobId: item.jobId,
+    attempt: item.attempt,
+    jobVersion: item.jobVersion,
+    claimedBy: item.claimedBy,
+    leaseId: item.leaseId,
+    leaseExpiresAtMs: item.leaseExpiresAtMs,
+  });
+}
+
+function claimFrom(item: StoredQueueItem): ChessAnalysisJobWorkerClaim | null {
+  if (
+    item.claimedBy === null ||
+    item.claimToken === null ||
+    item.leaseId === null ||
+    item.leaseExpiresAtMs === null
+  ) {
+    return null;
+  }
+  return immutable({
+    tenantPartition: item.tenantPartition,
+    jobId: item.jobId,
+    attempt: item.attempt,
+    jobVersion: item.jobVersion,
+    workerId: item.claimedBy,
+    claimToken: item.claimToken,
+    leaseId: item.leaseId,
+    leaseExpiresAtMs: item.leaseExpiresAtMs,
+  });
 }
 
 function compareText(left: string, right: string): number {
@@ -18,13 +64,18 @@ function compareText(left: string, right: string): number {
 }
 
 export class MemoryChessAnalysisJobQueue
-  implements ChessAnalysisJobQueuePort, ChessAnalysisJobAuthorizationPort
+  implements
+    ChessAnalysisJobQueuePort,
+    ChessAnalysisJobWorkerClaimPort,
+    ChessAnalysisJobAuthorizationPort
 {
-  private readonly items = new Map<string, ChessAnalysisJobQueueItem>();
+  private readonly items = new Map<string, StoredQueueItem>();
   private nextEnqueueFailure: Error | null = null;
   private nextCancelFailure: Error | null = null;
   private claimSequence = 0;
   calls = 0;
+
+  constructor(private readonly nowMs: () => number = Date.now) {}
 
   failNextEnqueue(message = 'Injected queue failure.'): void {
     this.nextEnqueueFailure = new Error(message);
@@ -34,7 +85,9 @@ export class MemoryChessAnalysisJobQueue
     this.nextCancelFailure = new Error(message);
   }
 
-  async enqueue(dispatch: ChessAnalysisJobQueueDispatch): Promise<void> {
+  async enqueue(
+    dispatch: ChessAnalysisJobQueueDispatch,
+  ): Promise<ChessAnalysisJobQueueEnqueueResult> {
     this.calls += 1;
     if (this.nextEnqueueFailure) {
       const failure = this.nextEnqueueFailure;
@@ -44,16 +97,60 @@ export class MemoryChessAnalysisJobQueue
     const key = itemKey(dispatch);
     const existing = this.items.get(key);
     if (existing) {
-      if (existing.jobVersion !== dispatch.jobVersion) {
-        throw new Error('Queue dispatch conflicts with an existing attempt.');
-      }
-      return;
+      return existing.jobVersion === dispatch.jobVersion
+        ? { kind: 'existing_same' }
+        : { kind: 'conflict' };
     }
-    this.claimSequence += 1;
     this.items.set(
       key,
-      immutableItem({ ...dispatch, claimToken: `analysis-claim-${this.claimSequence}` }),
+      immutable({
+        ...dispatch,
+        claimedBy: null,
+        claimToken: null,
+        leaseId: null,
+        leaseExpiresAtMs: null,
+      }),
     );
+    return { kind: 'created' };
+  }
+
+  async claim(
+    input: Parameters<ChessAnalysisJobWorkerClaimPort['claim']>[0],
+  ): Promise<ChessAnalysisJobWorkerClaimResult> {
+    this.calls += 1;
+    if (
+      !Number.isSafeInteger(input.leaseDurationMs) ||
+      input.leaseDurationMs <= 0 ||
+      input.workerId.length === 0
+    ) {
+      return { kind: 'conflict' };
+    }
+    const key = itemKey(input);
+    const item = this.items.get(key);
+    if (!item) return { kind: 'not_found' };
+    const now = this.nowMs();
+    const activeClaim = claimFrom(item);
+    if (activeClaim && activeClaim.leaseExpiresAtMs > now) {
+      return activeClaim.workerId === input.workerId
+        ? { kind: 'existing_same', claim: activeClaim }
+        : { kind: 'leased' };
+    }
+    const leaseExpiresAtMs = now + input.leaseDurationMs;
+    if (!Number.isSafeInteger(now) || !Number.isSafeInteger(leaseExpiresAtMs)) {
+      return { kind: 'conflict' };
+    }
+    this.claimSequence += 1;
+    const claimed = immutable({
+      ...item,
+      claimedBy: input.workerId,
+      claimToken: `analysis-claim-${this.claimSequence}`,
+      leaseId: `analysis-lease-${this.claimSequence}`,
+      leaseExpiresAtMs,
+    });
+    this.items.set(key, claimed);
+    const claim = claimFrom(claimed);
+    if (!claim) return { kind: 'conflict' };
+    return { kind: 'claimed', claim };
   }
 
   async cancel(tenantPartition: string, jobId: string, attempt?: number): Promise<void> {
@@ -77,32 +174,21 @@ export class MemoryChessAnalysisJobQueue
   async authorize(
     input: Parameters<ChessAnalysisJobAuthorizationPort['authorize']>[0],
   ): Promise<boolean> {
-    if (input.principal.kind === 'requester') {
-      return (
-        input.principal.actorId === input.job.requestedBy &&
-        (input.action === 'cancel' || input.action === 'retry')
-      );
-    }
-    if (
-      input.action !== 'start' &&
-      input.action !== 'progress' &&
-      input.action !== 'complete' &&
-      input.action !== 'fail'
-    ) {
-      return false;
-    }
     const item = this.items.get(
       itemKey({
         tenantPartition: input.job.tenantPartition,
         jobId: input.job.id,
         attempt: input.job.attempt,
-        jobVersion: input.job.version,
       }),
     );
     return (
-      item?.claimToken === input.principal.claimToken &&
+      item?.claimedBy === input.principal.workerId &&
+      item.claimToken === input.principal.claimToken &&
+      item.leaseId === input.principal.leaseId &&
+      item.leaseExpiresAtMs !== null &&
+      item.leaseExpiresAtMs > this.nowMs() &&
       item.jobVersion <= input.job.version &&
-      input.principal.workerId.length > 0
+      input.principal.tenantPartition === item.tenantPartition
     );
   }
 
@@ -115,6 +201,6 @@ export class MemoryChessAnalysisJobQueue
           compareText(left.jobId, right.jobId) ||
           left.attempt - right.attempt,
       )
-      .map(immutableItem);
+      .map(monitor);
   }
 }

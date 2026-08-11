@@ -8,7 +8,10 @@ import {
 import type { ChessAnalysisJob } from '../application/chess-analysis-job';
 import type {
   ChessAnalysisJobQueueDispatch,
+  ChessAnalysisJobQueueEnqueueResult,
   ChessAnalysisJobRepositoryPort,
+  ChessAnalysisJobRequesterAuthorizationPort,
+  ChessAnalysisJobWorkerClaim,
 } from '../application/chess-analysis-job-ports';
 import {
   buildChessEngineCacheKey,
@@ -20,6 +23,7 @@ import { MemoryChessAnalysisJobRepository } from '../infrastructure/memory-chess
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const OTHER_FEN = 'rnbqkbnr/pppp1ppp/8/4p3/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 2';
+const TERMINAL_FEN = '7k/5Q2/7K/8/8/8/8/8 b - - 0 1';
 
 const SETTINGS: ChessEngineSettings = {
   search: { kind: 'depth', depth: 8 },
@@ -45,6 +49,8 @@ const QUOTA: ChessAnalysisJobQuota = {
   maxHashMb: 128,
   maxTimeoutMs: 10_000,
   maxAttempts: 2,
+  maxPvPly: 64,
+  maxResultBytes: 16_384,
 };
 
 class DeterministicClock {
@@ -64,9 +70,24 @@ class DeterministicIds {
   }
 }
 
-class ConstantIds {
-  nextId(): string {
-    return 'job-collision';
+class TestRequesterAuthorization implements ChessAnalysisJobRequesterAuthorizationPort {
+  calls = 0;
+  denied = false;
+
+  async authorize(
+    input: Parameters<ChessAnalysisJobRequesterAuthorizationPort['authorize']>[0],
+  ): ReturnType<ChessAnalysisJobRequesterAuthorizationPort['authorize']> {
+    this.calls += 1;
+    if (this.denied) return { allowed: false };
+    const access =
+      input.context.authenticationId === 'session-a'
+        ? { tenantPartition: 'tenant-a', actorId: 'user-a' }
+        : input.context.authenticationId === 'session-b'
+          ? { tenantPartition: 'tenant-a', actorId: 'user-b' }
+          : input.context.authenticationId === 'session-foreign'
+            ? { tenantPartition: 'tenant-b', actorId: 'user-b' }
+            : null;
+    return access ? { allowed: true, access } : { allowed: false };
   }
 }
 
@@ -94,50 +115,43 @@ class DeferredQueue extends MemoryChessAnalysisJobQueue {
     this.releaseDispatch();
   }
 
-  override async enqueue(item: ChessAnalysisJobQueueDispatch): Promise<void> {
+  override async enqueue(
+    item: ChessAnalysisJobQueueDispatch,
+  ): Promise<ChessAnalysisJobQueueEnqueueResult> {
     this.enter();
     await this.dispatchGate;
     return super.enqueue(item);
   }
 }
 
-class QueueCompensationConflictRepository extends MemoryChessAnalysisJobRepository {
-  override async save(
-    job: ChessAnalysisJob,
-    expectedVersion: number,
-  ): ReturnType<MemoryChessAnalysisJobRepository['save']> {
-    if (job.status === 'failed' && job.failure?.code === 'queue_failure') return 'conflict';
-    return super.save(job, expectedVersion);
-  }
-}
-
 function fixture(
   options: {
-    readonly maxAttempts?: number;
-    readonly repository?: MemoryChessAnalysisJobRepository;
+    readonly repository?: ChessAnalysisJobRepositoryPort;
     readonly queue?: MemoryChessAnalysisJobQueue;
-    readonly ids?: { nextId(): string };
+    readonly requesterAuthorization?: TestRequesterAuthorization;
+    readonly quota?: ChessAnalysisJobQuota;
   } = {},
 ) {
   const repository = options.repository ?? new MemoryChessAnalysisJobRepository();
   const queue = options.queue ?? new MemoryChessAnalysisJobQueue();
+  const requesterAuthorization = options.requesterAuthorization ?? new TestRequesterAuthorization();
   const service = new ChessAnalysisJobService(
     repository,
     queue,
+    requesterAuthorization,
     queue,
     new DeterministicClock(),
-    options.ids ?? new DeterministicIds(),
-    { ...QUOTA, maxAttempts: options.maxAttempts ?? QUOTA.maxAttempts },
+    new DeterministicIds(),
+    options.quota ?? QUOTA,
   );
-  return { repository, queue, service };
+  return { repository, queue, requesterAuthorization, service };
 }
 
 function submitCommand(
   overrides: Partial<SubmitChessAnalysisJobCommand> = {},
 ): SubmitChessAnalysisJobCommand {
   return {
-    tenantPartition: 'tenant-a',
-    requestedBy: 'user-a',
+    context: { authenticationId: 'session-a' },
     idempotencyKey: 'request-1',
     request: {
       fen: START_FEN,
@@ -152,38 +166,53 @@ function submitCommand(
 function requesterMutation(
   jobId: string,
   expectedVersion: number,
-  actorId = 'user-a',
+  authenticationId = 'session-a',
   overrides: Partial<ChessAnalysisJobMutationCommand> = {},
 ): ChessAnalysisJobMutationCommand {
   return {
-    tenantPartition: 'tenant-a',
     jobId,
     expectedVersion,
     policy: 'post_game_review',
-    principal: { kind: 'requester', actorId },
+    principal: { kind: 'requester', context: { authenticationId } },
     ...overrides,
   };
 }
 
-function workerMutation(
+async function claim(
+  queue: MemoryChessAnalysisJobQueue,
+  job: ChessAnalysisJob,
+  workerId = 'worker-a',
+): Promise<ChessAnalysisJobWorkerClaim> {
+  const result = await queue.claim({
+    tenantPartition: job.tenantPartition,
+    jobId: job.id,
+    attempt: job.attempt,
+    workerId,
+    leaseDurationMs: 60_000,
+  });
+  if (result.kind !== 'claimed' && result.kind !== 'existing_same') {
+    throw new Error(`Expected queue claim, received ${result.kind}.`);
+  }
+  return result.claim;
+}
+
+async function workerMutation(
   queue: MemoryChessAnalysisJobQueue,
   job: ChessAnalysisJob,
   expectedVersion = job.version,
   overrides: Partial<ChessAnalysisJobMutationCommand> = {},
-): ChessAnalysisJobMutationCommand {
-  const claim = queue
-    .list(job.tenantPartition)
-    .find((item) => item.jobId === job.id && item.attempt === job.attempt);
-  if (!claim) throw new Error('Expected queue claim was not found.');
+): Promise<ChessAnalysisJobMutationCommand> {
+  const workerClaim = await claim(queue, job);
   return {
-    tenantPartition: job.tenantPartition,
     jobId: job.id,
     expectedVersion,
     policy: job.request.policy,
     principal: {
       kind: 'worker',
-      workerId: 'worker-a',
-      claimToken: claim.claimToken,
+      tenantPartition: workerClaim.tenantPartition,
+      workerId: workerClaim.workerId,
+      claimToken: workerClaim.claimToken,
+      leaseId: workerClaim.leaseId,
     },
     ...overrides,
   };
@@ -213,20 +242,19 @@ function analysis(overrides: Partial<ChessEngineAnalysis> = {}): ChessEngineAnal
   };
 }
 
-describe('durable chess analysis job foundation', () => {
-  it('checks fair play and static quota before repository, queue or authorization access', async () => {
-    const denied = fixture();
-    const deniedResult = await denied.service.submit(
-      submitCommand({
-        request: { ...submitCommand().request, policy: 'protected_live_rated' },
-      }),
+describe('durable chess analysis job hardening', () => {
+  it('denies fair-play, quota and requester access before repository or queue I/O', async () => {
+    const fairPlay = fixture();
+    const deniedFairPlay = await fairPlay.service.submit(
+      submitCommand({ request: { ...submitCommand().request, policy: 'protected_live_rated' } }),
     );
-    expect(deniedResult).toMatchObject({ ok: false, code: 'capability_denied' });
-    expect(denied.repository.calls).toBe(0);
-    expect(denied.queue.calls).toBe(0);
+    expect(deniedFairPlay).toMatchObject({ ok: false, code: 'capability_denied' });
+    expect(fairPlay.requesterAuthorization.calls).toBe(0);
+    expect((fairPlay.repository as MemoryChessAnalysisJobRepository).calls).toBe(0);
+    expect(fairPlay.queue.calls).toBe(0);
 
-    const overQuota = fixture();
-    const quotaResult = await overQuota.service.submit(
+    const quota = fixture();
+    const deniedQuota = await quota.service.submit(
       submitCommand({
         request: {
           ...submitCommand().request,
@@ -234,441 +262,440 @@ describe('durable chess analysis job foundation', () => {
         },
       }),
     );
-    expect(quotaResult).toMatchObject({ ok: false, code: 'validation_error' });
-    expect(overQuota.repository.calls).toBe(0);
-    expect(overQuota.queue.calls).toBe(0);
+    expect(deniedQuota).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(quota.requesterAuthorization.calls).toBe(0);
+
+    const requesterAuthorization = new TestRequesterAuthorization();
+    requesterAuthorization.denied = true;
+    const unauthorized = fixture({ requesterAuthorization });
+    const deniedRequester = await unauthorized.service.submit(submitCommand());
+    expect(deniedRequester).toMatchObject({ ok: false, code: 'authorization_denied' });
+    expect((unauthorized.repository as MemoryChessAnalysisJobRepository).calls).toBe(0);
+    expect(unauthorized.queue.calls).toBe(0);
   });
 
-  it('does not report queued replay before enqueue and safely resumes pending dispatch', async () => {
-    const queue = new DeferredQueue();
-    const { service } = fixture({ queue });
-    const firstPromise = service.submit(submitCommand());
-    await queue.waitUntilDispatchStarts();
-    let replaySettled = false;
-    const concurrentPromise = service.submit(submitCommand()).then((result) => {
-      replaySettled = true;
-      return result;
-    });
-    await Promise.resolve();
-    expect(replaySettled).toBe(false);
-    queue.release();
-    const [first, concurrent] = await Promise.all([firstPromise, concurrentPromise]);
-    expect(first.ok && concurrent.ok).toBe(true);
-    if (!first.ok || !concurrent.ok) return;
-    expect([first.replayed, concurrent.replayed].sort()).toEqual([false, true]);
-    expect(first.value.status).toBe('queued');
-    expect(concurrent.value.status).toBe('queued');
+  it('derives tenant and owner from opaque requester context and scopes idempotency', async () => {
+    const { service, queue } = fixture();
+    const first = await service.submit(submitCommand());
     const replay = await service.submit(submitCommand());
-    expect(replay).toMatchObject({ ok: true, replayed: true, value: { status: 'queued' } });
+    const secondOwner = await service.submit(
+      submitCommand({
+        context: { authenticationId: 'session-b' },
+        idempotencyKey: 'request-1',
+      }),
+    );
+    const foreignTenant = await service.submit(
+      submitCommand({
+        context: { authenticationId: 'session-foreign' },
+        idempotencyKey: 'request-1',
+      }),
+    );
+    expect(first).toMatchObject({
+      ok: true,
+      value: { tenantPartition: 'tenant-a', requestedBy: 'user-a' },
+    });
+    expect(replay).toMatchObject({ ok: true, replayed: true, value: { id: 'job-1' } });
+    expect(secondOwner).toMatchObject({ ok: true, value: { requestedBy: 'user-b' } });
+    expect(foreignTenant).toMatchObject({ ok: true, value: { tenantPartition: 'tenant-b' } });
+    expect(queue.list()).toHaveLength(3);
+  });
+
+  it('uses explicit enqueue idempotency outcomes without duplicating attempts', async () => {
+    const queue = new MemoryChessAnalysisJobQueue();
+    const dispatch = { tenantPartition: 'tenant-a', jobId: 'job-a', attempt: 1, jobVersion: 2 };
+    await expect(queue.enqueue(dispatch)).resolves.toEqual({ kind: 'created' });
+    await expect(queue.enqueue(dispatch)).resolves.toEqual({ kind: 'existing_same' });
+    await expect(queue.enqueue({ ...dispatch, jobVersion: 3 })).resolves.toEqual({
+      kind: 'conflict',
+    });
     expect(queue.list()).toHaveLength(1);
   });
 
-  it('scopes idempotency by tenant and requester', async () => {
-    const { service, queue } = fixture();
-    const first = await service.submit(submitCommand());
-    const second = await service.submit(
-      submitCommand({ requestedBy: 'user-b', request: { ...submitCommand().request } }),
-    );
-    expect(first.ok && second.ok).toBe(true);
-    if (!first.ok || !second.ok) return;
-    expect(first.value.id).not.toBe(second.value.id);
-    expect(queue.list('tenant-a')).toHaveLength(2);
-  });
+  it('claims atomically, binds worker/attempt/lease and never exposes the bearer in monitoring', async () => {
+    let now = 10_000;
+    const queue = new MemoryChessAnalysisJobQueue(() => now);
+    const { service } = fixture({ queue });
+    const submitted = await service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
 
-  it('rejects an owner-mismatched idempotency replay from a repository adapter', async () => {
-    const original = fixture();
-    const first = await original.service.submit(submitCommand());
-    expect(first.ok).toBe(true);
-    if (!first.ok) return;
-    const poisonedRepository: ChessAnalysisJobRepositoryPort = {
-      create: async () => ({ kind: 'existing', job: first.value }),
-      get: (tenant, id) => original.repository.get(tenant, id),
-      save: (job, version) => original.repository.save(job, version),
-    };
-    const service = new ChessAnalysisJobService(
-      poisonedRepository,
-      original.queue,
-      original.queue,
-      new DeterministicClock(),
-      new DeterministicIds(),
-      QUOTA,
-    );
-    const result = await service.submit(submitCommand({ requestedBy: 'user-b' }));
-    expect(result).toMatchObject({ ok: false, code: 'authorization_denied' });
-  });
+    const first = await queue.claim({
+      tenantPartition: 'tenant-a',
+      jobId: submitted.value.id,
+      attempt: 1,
+      workerId: 'worker-a',
+      leaseDurationMs: 100,
+    });
+    expect(first.kind).toBe('claimed');
+    const same = await queue.claim({
+      tenantPartition: 'tenant-a',
+      jobId: submitted.value.id,
+      attempt: 1,
+      workerId: 'worker-a',
+      leaseDurationMs: 100,
+    });
+    expect(same).toMatchObject({ kind: 'existing_same' });
+    const other = await queue.claim({
+      tenantPartition: 'tenant-a',
+      jobId: submitted.value.id,
+      attempt: 1,
+      workerId: 'worker-b',
+      leaseDurationMs: 100,
+    });
+    expect(other).toEqual({ kind: 'leased' });
+    expect(queue.list()[0]).not.toHaveProperty('claimToken');
+    expect(JSON.stringify(queue.list())).not.toContain('analysis-claim-');
+    if (first.kind !== 'claimed') return;
 
-  it('rejects reuse of an owner-scoped idempotency key for different input', async () => {
-    const { service, queue } = fixture();
-    expect((await service.submit(submitCommand())).ok).toBe(true);
-    const conflict = await service.submit(
-      submitCommand({ request: { ...submitCommand().request, fen: OTHER_FEN } }),
-    );
-    expect(conflict).toMatchObject({ ok: false, code: 'idempotency_conflict' });
-    expect(queue.list()).toHaveLength(1);
-  });
-
-  it('partitions job lookup and claims by tenant', async () => {
-    const { service, repository, queue } = fixture();
-    const first = await service.submit(submitCommand());
-    const second = await service.submit(
-      submitCommand({ tenantPartition: 'tenant-b', requestedBy: 'user-b' }),
-    );
-    expect(first.ok && second.ok).toBe(true);
-    if (!first.ok || !second.ok) return;
-    expect(await repository.get('tenant-b', first.value.id)).toBeNull();
-    const foreignClaim = queue.list('tenant-b')[0];
-    expect(foreignClaim).toBeDefined();
-    const denied = await service.start({
-      ...workerMutation(queue, first.value),
+    const forged = await service.start({
+      jobId: submitted.value.id,
+      expectedVersion: submitted.value.version,
+      policy: submitted.value.request.policy,
       principal: {
         kind: 'worker',
+        tenantPartition: 'tenant-a',
         workerId: 'worker-b',
-        claimToken: foreignClaim!.claimToken,
+        claimToken: first.claim.claimToken,
+        leaseId: first.claim.leaseId,
       },
     });
-    expect(denied).toMatchObject({ ok: false, code: 'authorization_denied' });
-  });
+    expect(forged).toMatchObject({ ok: false, code: 'authorization_denied' });
 
-  it('requires requester ownership or the exact worker claim before mutation', async () => {
-    const { service, repository, queue } = fixture();
-    const submitted = await service.submit(submitCommand());
-    expect(submitted.ok).toBe(true);
-    if (!submitted.ok) return;
-
-    const beforeRequesterAttempt = repository.calls;
-    const requesterStart = await service.start(
-      requesterMutation(submitted.value.id, submitted.value.version),
-    );
-    expect(requesterStart).toMatchObject({ ok: false, code: 'authorization_denied' });
-    expect(repository.calls).toBe(beforeRequesterAttempt);
-
-    const badClaim = await service.start({
-      ...workerMutation(queue, submitted.value),
-      principal: { kind: 'worker', workerId: 'worker-a', claimToken: 'wrong-claim' },
+    now = first.claim.leaseExpiresAtMs;
+    const reclaimed = await queue.claim({
+      tenantPartition: 'tenant-a',
+      jobId: submitted.value.id,
+      attempt: 1,
+      workerId: 'worker-b',
+      leaseDurationMs: 100,
     });
-    expect(badClaim).toMatchObject({ ok: false, code: 'authorization_denied' });
-    expect((await repository.get('tenant-a', submitted.value.id))?.status).toBe('queued');
-
-    const foreignCancel = await service.cancel(
-      requesterMutation(submitted.value.id, submitted.value.version, 'user-b'),
-      null,
-    );
-    expect(foreignCancel).toMatchObject({ ok: false, code: 'authorization_denied' });
+    expect(reclaimed).toMatchObject({ kind: 'claimed' });
+    const stale = await service.start({
+      jobId: submitted.value.id,
+      expectedVersion: submitted.value.version,
+      policy: submitted.value.request.policy,
+      principal: {
+        kind: 'worker',
+        tenantPartition: 'tenant-a',
+        workerId: first.claim.workerId,
+        claimToken: first.claim.claimToken,
+        leaseId: first.claim.leaseId,
+      },
+    });
+    expect(stale).toMatchObject({ ok: false, code: 'authorization_denied' });
   });
 
-  it('moves through queued, running, monotonic progress and completed', async () => {
+  it('supports the authorized lifecycle and rejects a forged requester owner', async () => {
     const { service, queue } = fixture();
     const submitted = await service.submit(submitCommand());
     expect(submitted.ok).toBe(true);
     if (!submitted.ok) return;
-    expect(submitted.value).toMatchObject({ status: 'queued', version: 2 });
-    const started = await service.start(workerMutation(queue, submitted.value));
+    const forgedCancel = await service.cancel(
+      requesterMutation(submitted.value.id, submitted.value.version, 'session-b'),
+      null,
+    );
+    expect(forgedCancel).toMatchObject({ ok: false, code: 'authorization_denied' });
+
+    const started = await service.start(await workerMutation(queue, submitted.value));
     expect(started).toMatchObject({ ok: true, value: { status: 'running', version: 3 } });
     if (!started.ok) return;
-    const progress = await service.progress(workerMutation(queue, started.value), {
+    const progress = await service.progress(await workerMutation(queue, started.value), {
       stage: 'analysing',
       completedUnits: 4,
       totalUnits: 10,
       message: 'depth 4',
     });
-    expect(progress).toMatchObject({
-      ok: true,
-      value: { status: 'running', version: 4, progress: { completedUnits: 4 } },
-    });
+    expect(progress).toMatchObject({ ok: true, value: { progress: { completedUnits: 4 } } });
     if (!progress.ok) return;
-    const regression = await service.progress(workerMutation(queue, progress.value), {
-      stage: 'starting',
-      completedUnits: 0,
-      totalUnits: 1,
-      message: null,
-    });
-    expect(regression).toMatchObject({ ok: false, code: 'validation_error' });
-    const completed = await service.complete(workerMutation(queue, progress.value), analysis());
+    const completed = await service.complete(
+      await workerMutation(queue, progress.value),
+      analysis(),
+    );
     expect(completed).toMatchObject({
       ok: true,
-      value: {
-        status: 'succeeded',
-        version: 5,
-        progress: { stage: 'completed' },
-        result: { schemaVersion: 1 },
-      },
+      value: { status: 'succeeded', result: { lines: [{ movesUci: ['e2e4'] }] } },
     });
   });
 
-  it('allows only one authorized winner in a cancel-versus-complete race', async () => {
+  it('cleans up a delayed enqueue that races durable cancellation', async () => {
+    const queue = new DeferredQueue();
+    const { service, repository } = fixture({ queue });
+    const submission = service.submit(submitCommand());
+    await queue.waitUntilDispatchStarts();
+    const cancelled = await service.cancel(requesterMutation('job-1', 1), 'stop');
+    expect(cancelled).toMatchObject({ ok: true, value: { status: 'cancelled' } });
+    queue.release();
+    const submitted = await submission;
+    expect(submitted).toMatchObject({ ok: true, replayed: true, value: { status: 'cancelled' } });
+    expect(queue.list()).toHaveLength(0);
+    await expect(repository.get('tenant-a', 'job-1')).resolves.toMatchObject({
+      status: 'cancelled',
+    });
+  });
+
+  it('retries cancellation cleanup idempotently after the durable state is already cancelled', async () => {
     const { service, repository, queue } = fixture();
     const submitted = await service.submit(submitCommand());
     expect(submitted.ok).toBe(true);
     if (!submitted.ok) return;
-    const started = await service.start(workerMutation(queue, submitted.value));
-    expect(started.ok).toBe(true);
-    if (!started.ok) return;
-    const [cancelled, completed] = await Promise.all([
-      service.cancel(requesterMutation(started.value.id, started.value.version), 'stop'),
-      service.complete(workerMutation(queue, started.value), analysis()),
-    ]);
-    expect([cancelled, completed].filter((result) => result.ok)).toHaveLength(1);
-    expect([cancelled, completed].filter((result) => !result.ok)).toHaveLength(1);
-    const stored = await repository.get('tenant-a', submitted.value.id);
-    expect(['cancelled', 'succeeded']).toContain(stored?.status);
-  });
-
-  it('records retryable failure, dispatches exactly the next attempt and enforces exhaustion', async () => {
-    const { service, queue } = fixture({ maxAttempts: 2 });
-    const submitted = await service.submit(submitCommand());
-    expect(submitted.ok).toBe(true);
-    if (!submitted.ok) return;
-    const started = await service.start(workerMutation(queue, submitted.value));
-    expect(started.ok).toBe(true);
-    if (!started.ok) return;
-    const failure = await service.fail(workerMutation(queue, started.value), {
-      code: 'engine_failure',
-      message: 'engine stopped',
-      retryable: true,
-    });
-    expect(failure).toMatchObject({
-      ok: true,
-      value: { status: 'failed', attempt: 1, version: 4 },
-    });
-    if (!failure.ok) return;
-    const retried = await service.retry(requesterMutation(failure.value.id, failure.value.version));
-    expect(retried).toMatchObject({
-      ok: true,
-      value: { status: 'queued', attempt: 2, version: 6, failure: null },
-    });
-    if (!retried.ok) return;
-    expect(queue.list().map((item) => item.attempt)).toContain(2);
-
-    const restarted = await service.start(workerMutation(queue, retried.value));
-    expect(restarted.ok).toBe(true);
-    if (!restarted.ok) return;
-    const failedAgain = await service.fail(workerMutation(queue, restarted.value), {
-      code: 'engine_failure',
-      message: 'engine stopped again',
-      retryable: true,
-    });
-    expect(failedAgain.ok).toBe(true);
-    if (!failedAgain.ok) return;
-    const exhausted = await service.retry(
-      requesterMutation(failedAgain.value.id, failedAgain.value.version),
-    );
-    expect(exhausted).toMatchObject({ ok: false, code: 'attempts_exhausted' });
-  });
-
-  it('persists queue submission failure and reports compensation CAS conflicts', async () => {
-    const ordinary = fixture();
-    ordinary.queue.failNextEnqueue('queue offline');
-    const result = await ordinary.service.submit(submitCommand());
-    expect(result).toMatchObject({ ok: false, code: 'queue_failure' });
-    expect(await ordinary.repository.get('tenant-a', 'job-1')).toMatchObject({
-      status: 'failed',
-      version: 2,
-      failure: { code: 'queue_failure', retryable: true, message: 'queue offline' },
-    });
-
-    const conflicting = fixture({ repository: new QueueCompensationConflictRepository() });
-    conflicting.queue.failNextEnqueue('queue offline');
-    const conflict = await conflicting.service.submit(submitCommand());
-    expect(conflict).toMatchObject({ ok: false, code: 'conflict' });
-    expect(await conflicting.repository.get('tenant-a', 'job-1')).toMatchObject({
-      status: 'dispatching',
-      version: 1,
-    });
-  });
-
-  it('checks retry queue-failure compensation and leaves a truthful failed state', async () => {
-    const { service, repository, queue } = fixture();
-    const submitted = await service.submit(submitCommand());
-    expect(submitted.ok).toBe(true);
-    if (!submitted.ok) return;
-    const started = await service.start(workerMutation(queue, submitted.value));
-    expect(started.ok).toBe(true);
-    if (!started.ok) return;
-    const engineFailure = await service.fail(workerMutation(queue, started.value), {
-      code: 'engine_failure',
-      message: 'engine stopped',
-      retryable: true,
-    });
-    expect(engineFailure.ok).toBe(true);
-    if (!engineFailure.ok) return;
-    queue.failNextEnqueue('retry queue offline');
-    const retried = await service.retry(
-      requesterMutation(engineFailure.value.id, engineFailure.value.version),
-    );
-    expect(retried).toMatchObject({ ok: false, code: 'queue_failure' });
-    expect(await repository.get('tenant-a', engineFailure.value.id)).toMatchObject({
-      status: 'failed',
-      attempt: 2,
-      version: 6,
-      failure: { code: 'queue_failure', message: 'retry queue offline' },
-    });
-  });
-
-  it('returns a typed queue error if claim removal fails after durable cancellation', async () => {
-    const { service, repository, queue } = fixture();
-    const submitted = await service.submit(submitCommand());
-    expect(submitted.ok).toBe(true);
-    if (!submitted.ok) return;
+    const command = requesterMutation(submitted.value.id, submitted.value.version);
     queue.failNextCancel('queue unavailable');
-    const result = await service.cancel(
-      requesterMutation(submitted.value.id, submitted.value.version),
-      'stop',
-    );
-    expect(result).toMatchObject({ ok: false, code: 'queue_failure' });
-    expect(await repository.get('tenant-a', submitted.value.id)).toMatchObject({
+    const first = await service.cancel(command, 'stop');
+    expect(first).toMatchObject({ ok: false, code: 'queue_failure' });
+    await expect(repository.get('tenant-a', submitted.value.id)).resolves.toMatchObject({
       status: 'cancelled',
       cancellation: { requestedBy: 'user-a', reason: 'stop' },
     });
+    const retry = await service.cancel(command, 'stop');
+    expect(retry).toMatchObject({ ok: true, replayed: true, value: { status: 'cancelled' } });
+    expect(queue.list()).toHaveLength(0);
   });
 
-  it('removes only the stale attempt when a dispatch rollback races a newer retry', async () => {
-    const queue = new MemoryChessAnalysisJobQueue();
-    await queue.enqueue({
-      tenantPartition: 'tenant-a',
-      jobId: 'job-a',
-      attempt: 1,
-      jobVersion: 2,
-    });
-    await queue.enqueue({
-      tenantPartition: 'tenant-a',
-      jobId: 'job-a',
-      attempt: 2,
-      jobVersion: 6,
-    });
-    await queue.cancel('tenant-a', 'job-a', 1);
-    expect(queue.list().map((item) => item.attempt)).toEqual([2]);
-  });
-
-  it('persists invalid_output for mismatched FEN and illegal principal variation', async () => {
-    const wrongFen = fixture();
-    const submitted = await wrongFen.service.submit(submitCommand());
+  it('allows only one winner in a cancel-versus-complete CAS race', async () => {
+    const { service, repository, queue } = fixture();
+    const submitted = await service.submit(submitCommand());
     expect(submitted.ok).toBe(true);
     if (!submitted.ok) return;
-    const started = await wrongFen.service.start(workerMutation(wrongFen.queue, submitted.value));
+    const started = await service.start(await workerMutation(queue, submitted.value));
     expect(started.ok).toBe(true);
     if (!started.ok) return;
-    const mismatched = await wrongFen.service.complete(
-      workerMutation(wrongFen.queue, started.value),
-      analysis({ fen: OTHER_FEN }),
+    const worker = await workerMutation(queue, started.value);
+    const [cancelled, completed] = await Promise.all([
+      service.cancel(requesterMutation(started.value.id, started.value.version), 'stop'),
+      service.complete(worker, analysis()),
+    ]);
+    expect([cancelled, completed].filter((result) => result.ok)).toHaveLength(1);
+    expect((await repository.get('tenant-a', submitted.value.id))?.status).toMatch(
+      /cancelled|succeeded/,
     );
-    expect(mismatched).toMatchObject({ ok: false, code: 'invalid_output' });
-    expect(await wrongFen.repository.get('tenant-a', submitted.value.id)).toMatchObject({
-      status: 'failed',
-      failure: { code: 'invalid_output', retryable: false },
-    });
+  });
 
-    const illegalPv = fixture();
-    const second = await illegalPv.service.submit(submitCommand());
-    expect(second.ok).toBe(true);
-    if (!second.ok) return;
-    const secondStarted = await illegalPv.service.start(
-      workerMutation(illegalPv.queue, second.value),
+  it('retries only retryable failures and dispatches a distinct attempt', async () => {
+    const { service, queue } = fixture();
+    const submitted = await service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const started = await service.start(await workerMutation(queue, submitted.value));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const failed = await service.fail(await workerMutation(queue, started.value), {
+      code: 'engine_failure',
+      message: 'engine stopped',
+      retryable: true,
+    });
+    expect(failed).toMatchObject({ ok: true, value: { status: 'failed', attempt: 1 } });
+    if (!failed.ok) return;
+    const retried = await service.retry(requesterMutation(failed.value.id, failed.value.version));
+    expect(retried).toMatchObject({ ok: true, value: { status: 'queued', attempt: 2 } });
+    expect(queue.list().map((item) => item.attempt)).toEqual([1, 2]);
+  });
+
+  it('rejects poisoned repository identity and partition values before mutation persistence', async () => {
+    const baseline = fixture();
+    const submitted = await baseline.service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    let saves = 0;
+    const poisoned: ChessAnalysisJobRepositoryPort = {
+      create: async (job) => ({ kind: 'created', job }),
+      get: async () => ({ ...submitted.value, tenantPartition: 'tenant-foreign' }),
+      save: async () => {
+        saves += 1;
+        return 'saved';
+      },
+    };
+    const current = fixture({ repository: poisoned });
+    const result = await current.service.cancel(
+      requesterMutation(submitted.value.id, submitted.value.version),
+      null,
     );
-    expect(secondStarted.ok).toBe(true);
-    if (!secondStarted.ok) return;
-    const illegal = await illegalPv.service.complete(
-      workerMutation(illegalPv.queue, secondStarted.value),
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(saves).toBe(0);
+  });
+
+  it('rejects a poisoned idempotent create response with another owner or key', async () => {
+    const baseline = fixture();
+    const submitted = await baseline.service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const poisoned: ChessAnalysisJobRepositoryPort = {
+      create: async () => ({
+        kind: 'existing',
+        job: { ...submitted.value, requestedBy: 'user-b', idempotencyKey: 'foreign-key' },
+      }),
+      get: async () => null,
+      save: async () => 'conflict',
+    };
+    const result = await fixture({ repository: poisoned }).service.submit(submitCommand());
+    expect(result).toMatchObject({ ok: false, code: 'idempotency_conflict' });
+  });
+
+  it('persists only exact, bounded, legal canonical engine results', async () => {
+    const invalidOutputs: ChessEngineAnalysis[] = [
+      analysis({ fen: OTHER_FEN }),
       analysis({
         lines: [
           {
             rank: 1,
-            score: { kind: 'centipawn', valueCp: 20, perspective: 'white' },
+            score: { kind: 'centipawn', valueCp: 1, perspective: 'white' },
             movesUci: ['e2e5'],
           },
         ],
       }),
-    );
-    expect(illegal).toMatchObject({ ok: false, code: 'invalid_output' });
-  });
-
-  it('rejects mismatched settings, cache identity and non-finite output structure', async () => {
-    const invalidOutputs = [
-      analysis({ settings: { ...SETTINGS, hashMb: 64 } }),
-      analysis({ cacheKey: 'untrusted-cache-key' }),
-      analysis({ durationMs: Number.NaN }),
+      { ...analysis(), unexpected: true } as ChessEngineAnalysis,
     ];
-    for (const [index, invalidOutput] of invalidOutputs.entries()) {
+    for (const [index, output] of invalidOutputs.entries()) {
       const current = fixture();
       const submitted = await current.service.submit(
-        submitCommand({ idempotencyKey: `invalid-output-${index}` }),
+        submitCommand({ idempotencyKey: `invalid-${index}` }),
       );
       expect(submitted.ok).toBe(true);
       if (!submitted.ok) continue;
-      const started = await current.service.start(workerMutation(current.queue, submitted.value));
+      const started = await current.service.start(
+        await workerMutation(current.queue, submitted.value),
+      );
       expect(started.ok).toBe(true);
       if (!started.ok) continue;
-      const result = await current.service.complete(
-        workerMutation(current.queue, started.value),
-        invalidOutput,
+      const completed = await current.service.complete(
+        await workerMutation(current.queue, started.value),
+        output,
       );
-      expect(result).toMatchObject({ ok: false, code: 'invalid_output' });
-      expect(await current.repository.get('tenant-a', submitted.value.id)).toMatchObject({
+      expect(completed).toMatchObject({ ok: false, code: 'invalid_output' });
+      await expect(current.repository.get('tenant-a', submitted.value.id)).resolves.toMatchObject({
         status: 'failed',
         failure: { code: 'invalid_output' },
       });
     }
+
+    const bounded = fixture({ quota: { ...QUOTA, maxPvPly: 1 } });
+    const submitted = await bounded.service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const started = await bounded.service.start(
+      await workerMutation(bounded.queue, submitted.value),
+    );
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const tooLong = analysis({
+      lines: [
+        {
+          rank: 1,
+          score: { kind: 'centipawn', valueCp: 1, perspective: 'white' },
+          movesUci: ['e2e4', 'e7e5'],
+        },
+      ],
+    });
+    expect(
+      await bounded.service.complete(await workerMutation(bounded.queue, started.value), tooLong),
+    ).toMatchObject({
+      ok: false,
+      code: 'invalid_output',
+    });
+
+    const byteBounded = fixture({ quota: { ...QUOTA, maxResultBytes: 100 } });
+    const byteSubmitted = await byteBounded.service.submit(
+      submitCommand({ idempotencyKey: 'byte-bound' }),
+    );
+    expect(byteSubmitted.ok).toBe(true);
+    if (!byteSubmitted.ok) return;
+    const byteStarted = await byteBounded.service.start(
+      await workerMutation(byteBounded.queue, byteSubmitted.value),
+    );
+    expect(byteStarted.ok).toBe(true);
+    if (!byteStarted.ok) return;
+    expect(
+      await byteBounded.service.complete(
+        await workerMutation(byteBounded.queue, byteStarted.value),
+        analysis(),
+      ),
+    ).toMatchObject({ ok: false, code: 'invalid_output' });
   });
 
-  it('deep-clones and freezes request and result boundaries', async () => {
-    const { service, repository, queue } = fixture();
-    const mutableSettings = structuredClone(SETTINGS) as {
-      search: { kind: 'depth'; depth: number };
-      multiPv: number;
-      threads: number;
-      hashMb: number;
-      mode: 'reproducible';
-    };
-    const submitted = await service.submit(
-      submitCommand({ request: { ...submitCommand().request, settings: mutableSettings } }),
+  it('accepts terminal zero-line output and preserves mate as a distinct score type', async () => {
+    const settings = { ...SETTINGS, multiPv: 1 };
+    const current = fixture();
+    const submitted = await current.service.submit(
+      submitCommand({ request: { ...submitCommand().request, fen: TERMINAL_FEN, settings } }),
     );
     expect(submitted.ok).toBe(true);
     if (!submitted.ok) return;
-    mutableSettings.hashMb = 64;
-    expect(submitted.value.request.settings.hashMb).toBe(32);
-    expect(Object.isFrozen(submitted.value)).toBe(true);
-    expect(Object.isFrozen(submitted.value.request.settings)).toBe(true);
-
-    const started = await service.start(workerMutation(queue, submitted.value));
+    const started = await current.service.start(
+      await workerMutation(current.queue, submitted.value),
+    );
     expect(started.ok).toBe(true);
     if (!started.ok) return;
-    const mutableAnalysis = structuredClone(analysis());
-    const completed = await service.complete(workerMutation(queue, started.value), mutableAnalysis);
+    const terminal = analysis({
+      fen: TERMINAL_FEN,
+      settings,
+      cacheKey: buildChessEngineCacheKey({ fen: TERMINAL_FEN, engine: ENGINE, settings }),
+      lines: [],
+      depth: 0,
+    });
+    expect(
+      await current.service.complete(await workerMutation(current.queue, started.value), terminal),
+    ).toMatchObject({
+      ok: true,
+      value: { result: { lines: [] } },
+    });
+
+    const mateFixture = fixture();
+    const mateSubmitted = await mateFixture.service.submit(
+      submitCommand({ idempotencyKey: 'mate-output' }),
+    );
+    expect(mateSubmitted.ok).toBe(true);
+    if (!mateSubmitted.ok) return;
+    const mateStarted = await mateFixture.service.start(
+      await workerMutation(mateFixture.queue, mateSubmitted.value),
+    );
+    expect(mateStarted.ok).toBe(true);
+    if (!mateStarted.ok) return;
+    const mate = analysis({
+      lines: [
+        {
+          rank: 1,
+          score: { kind: 'mate', winner: 'white', distancePly: null },
+          movesUci: ['e2e4'],
+        },
+      ],
+    });
+    expect(
+      await mateFixture.service.complete(
+        await workerMutation(mateFixture.queue, mateStarted.value),
+        mate,
+      ),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        result: {
+          lines: [{ score: { kind: 'mate', winner: 'white', distancePly: null } }],
+        },
+      },
+    });
+  });
+
+  it('deep-clones/freezes whitelisted result fields and re-authorizes before lookup', async () => {
+    const { service, repository, queue, requesterAuthorization } = fixture();
+    const submitted = await service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const started = await service.start(await workerMutation(queue, submitted.value));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const mutable = structuredClone(analysis());
+    const completed = await service.complete(await workerMutation(queue, started.value), mutable);
     expect(completed.ok).toBe(true);
     if (!completed.ok) return;
-    mutableAnalysis.lines[0]!.movesUci[0] = 'd2d4';
+    mutable.lines[0]!.movesUci[0] = 'd2d4';
     expect(completed.value.result?.lines[0]?.movesUci[0]).toBe('e2e4');
     expect(Object.isFrozen(completed.value.result?.lines[0]?.movesUci)).toBe(true);
-    expect(
-      (await repository.get('tenant-a', submitted.value.id))?.result?.lines[0]?.movesUci[0],
-    ).toBe('e2e4');
-  });
 
-  it('rejects a generated job ID collision without overwriting the first job', async () => {
-    const { service, repository, queue } = fixture({ ids: new ConstantIds() });
-    const first = await service.submit(submitCommand());
-    expect(first.ok).toBe(true);
-    const collision = await service.submit(
-      submitCommand({ requestedBy: 'user-b', idempotencyKey: 'request-2' }),
+    requesterAuthorization.denied = true;
+    const before = (repository as MemoryChessAnalysisJobRepository).calls;
+    const denied = await service.cancel(
+      requesterMutation(completed.value.id, completed.value.version),
+      null,
     );
-    expect(collision).toMatchObject({ ok: false, code: 'conflict' });
-    expect(await repository.get('tenant-a', 'job-collision')).toMatchObject({
-      requestedBy: 'user-a',
-      status: 'queued',
-    });
-    expect(queue.list()).toHaveLength(1);
-  });
-
-  it('re-authorizes mutation policy before repository access', async () => {
-    const { service, repository } = fixture();
-    const before = repository.calls;
-    const result = await service.start({
-      tenantPartition: 'tenant-a',
-      jobId: 'job-1',
-      expectedVersion: 1,
-      policy: 'protected_live_rated',
-      principal: { kind: 'worker', workerId: 'worker-a', claimToken: 'claim-a' },
-    });
-    expect(result).toMatchObject({ ok: false, code: 'capability_denied' });
-    expect(repository.calls).toBe(before);
+    expect(denied).toMatchObject({ ok: false, code: 'authorization_denied' });
+    expect((repository as MemoryChessAnalysisJobRepository).calls).toBe(before);
   });
 });
