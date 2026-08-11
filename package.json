@@ -56,6 +56,8 @@
     "test:creator-portal": "node tools/run-creator-portal-tests.mjs",
     "e2e:creator-portal": "playwright test e2e/creator-portal.spec.ts",
     "e2e:electronics-simulation": "playwright test e2e/electronics-simulation.spec.ts",
+    "test:three-d": "vitest run contexts/three-d/testing apps/web/src/three-d/testing apps/api/src/three-d.controller.spec.ts",
+    "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "control-plane:check": "python tools/validate_control_plane.py",
     "gate:governance": "bash tools/gate-governance.sh",
     "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm security:dependencies && pnpm build",
@@ -63,6 +65,8 @@
     "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",
     "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run apps/web/src/electronics/testing && pnpm typecheck && pnpm build",
     "gate:electronics-m1:browser": "pnpm e2e:electronics-simulation",
+    "gate:three-d-m0": "pnpm test:three-d && pnpm typecheck && pnpm build",
+    "gate:three-d-m0:browser": "pnpm e2e:three-d",
     "assets:check": "python tools/validate_electronics_assets.py",
     "assets:test": "python tools/test_validate_electronics_assets.py"
   },
