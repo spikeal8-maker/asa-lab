@@ -31,8 +31,7 @@ function componentHelp(kind: string): string {
     resistor:
       'Сопротивление ограничивает ток. Значение можно вводить в Ω, kΩ или другой выбранной единице; полосы на корпусе обновляются автоматически.',
     led: 'Цвет выбирается до запуска. Яркость, ток и перегрузка рассчитываются электрической схемой.',
-    'rgb-led':
-      'Каналы R, G и B рассчитываются отдельно относительно общего анода или общего катода.',
+    'rgb-led': 'Каналы R, G и B рассчитываются отдельно относительно общего катода.',
     'seven-segment': 'Сегменты A–G и DP светятся только от тока через реальные выводы индикатора.',
     button: 'Четырёхконтактная кнопка замыкает пары клемм только пока она удерживается.',
     switch: 'SPDT соединяет общий вывод с одной из двух клемм.',
@@ -488,32 +487,23 @@ export function WorkbenchSidebars({
               ) : null}
 
               {c.selectedEntry.key === 'rgb-led' ? (
-                <fieldset className="workbench-state-controls">
-                  <legend>RGB-светодиод</legend>
-                  <label>
-                    <span>Общий вывод</span>
-                    <select
-                      value={String(
-                        c.selectedComponent.stateProperties?.['commonMode'] ?? 'common-cathode',
-                      )}
-                      onChange={(event) =>
-                        c.setSelectedProperties({ commonMode: event.target.value })
-                      }
-                    >
-                      <option value="common-cathode">Общий катод</option>
-                      <option value="common-anode">Общий анод</option>
-                    </select>
-                  </label>
-                  {(['red', 'green', 'blue'] as const).map((channel) => (
-                    <div className="workbench-calculated-property" key={channel}>
-                      <span>{channel.toUpperCase()}</span>
-                      <output>
-                        {measurement?.branchBrightness?.[channel]?.toFixed(0) ?? '0'}%
-                      </output>
-                      <small>{formatCurrent(measurement?.branchCurrents?.[channel] ?? 0)}</small>
-                    </div>
-                  ))}
-                </fieldset>
+                <label>
+                  <span>Разводка выводов</span>
+                  <select
+                    aria-label="Разводка выводов RGB-светодиода"
+                    value={String(c.selectedComponent.stateProperties?.['pinLayout'] ?? 'RCBG')}
+                    onChange={(event) =>
+                      c.setSelectedProperties({
+                        pinLayout: event.target.value,
+                        commonMode: 'common-cathode',
+                      })
+                    }
+                  >
+                    <option value="RCBG">RCBG</option>
+                    <option value="RCGB">RCGB</option>
+                    <option value="BRCG">BRCG</option>
+                  </select>
+                </label>
               ) : null}
 
               {c.selectedEntry.key === 'seven-segment-display' ? (
@@ -552,7 +542,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {c.selectedEntry.key !== 'led-5mm' ? (
+              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) ? (
                 <dl className="workbench-terminal-list" aria-label="Подключение выводов">
                   {Object.entries(c.selectedEntry.terminals)
                     .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
@@ -578,7 +568,7 @@ export function WorkbenchSidebars({
                 </dl>
               ) : null}
 
-              {c.selectedEntry.key !== 'led-5mm' &&
+              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
               Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">
                   <strong>Отверстия макетки</strong>
@@ -592,7 +582,9 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {c.simulationRunning && measurement && c.selectedEntry.key !== 'led-5mm' ? (
+              {c.simulationRunning &&
+              measurement &&
+              !['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) ? (
                 <dl className="workbench-measurements">
                   {c.selectedComponent.kind === 'transistor' ? (
                     <>

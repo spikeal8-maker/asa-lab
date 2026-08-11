@@ -35,6 +35,12 @@ export type CatalogEntry = ProductionCatalogItem;
 export type ComponentVisualState =
   'default' | 'off' | 'lit' | 'reverse' | 'overcurrent' | 'burned' | 'pressed' | 'on';
 
+const RGB_PIN_LAYOUTS: Readonly<Record<string, readonly string[]>> = {
+  RCBG: ['red', 'common', 'blue', 'green'],
+  RCGB: ['red', 'common', 'green', 'blue'],
+  BRCG: ['blue', 'red', 'common', 'green'],
+};
+
 export interface CatalogVariant {
   readonly variantId: string;
   readonly variantLabel: string;
@@ -356,7 +362,25 @@ export function terminalPosition(
     : component
       ? (aliases[component.kind]?.[terminal] ?? terminal)
       : terminal;
-  const spec = entry?.terminals[resolved];
+  let spec = entry?.terminals[resolved];
+  if (entry && component?.kind === 'rgb-led') {
+    const layout = RGB_PIN_LAYOUTS[String(component.stateProperties?.['pinLayout'] ?? 'RCBG')];
+    const slot = layout?.indexOf(resolved) ?? -1;
+    const physicalPins = Object.values(entry.terminals)
+      .filter((pin) => ['red', 'common', 'green', 'blue'].includes(pin.id))
+      .sort((left, right) => left.xMm - right.xMm);
+    if (slot >= 0 && physicalPins[slot]) spec = physicalPins[slot];
+  }
   if (!entry || !spec) return null;
   return componentPointPosition(componentOrType, origin, spec, rotation);
+}
+
+export function physicalTerminalOrder(component: SchematicComponent): readonly string[] {
+  const entry = catalogEntry(component);
+  if (!entry) return component.pinIds ?? [];
+  if (component.kind !== 'rgb-led') return component.pinIds ?? Object.keys(entry.terminals);
+  return (
+    RGB_PIN_LAYOUTS[String(component.stateProperties?.['pinLayout'] ?? 'RCBG')] ??
+    RGB_PIN_LAYOUTS['RCBG']!
+  ).filter((terminal) => entry.terminals[terminal]);
 }

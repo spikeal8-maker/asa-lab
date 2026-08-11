@@ -241,8 +241,10 @@ export function WorkbenchStage({
                   }`,
               )
               .join(' ');
-            const isLedIndicator = entry.key === 'led-5mm' || entry.key === 'rgb-led';
-            const ledBurned = isLedIndicator && diagnostics.includes('led_burnout');
+            const isLedIndicator = entry.key === 'led-5mm';
+            const isRgbLed = entry.key === 'rgb-led';
+            const ledBurned = (isLedIndicator || isRgbLed) && diagnostics.includes('led_burnout');
+            const showDiagnosticIndicator = !isRgbLed || ledBurned;
             return (
               <g
                 key={component.id}
@@ -358,7 +360,7 @@ export function WorkbenchStage({
                     />
                   ) : null}
                 </g>
-                {c.simulationRunning && primaryDiagnostic ? (
+                {c.simulationRunning && primaryDiagnostic && showDiagnosticIndicator ? (
                   <g transform={componentTransform(component)}>
                     <g
                       className={`workbench-component-diagnostic-indicator${
@@ -403,21 +405,23 @@ export function WorkbenchStage({
                           </text>
                         </>
                       )}
-                      <foreignObject
-                        className="workbench-component-diagnostic-tooltip"
-                        x={-150 / c.viewport.zoom}
-                        y={34 / c.viewport.zoom}
-                        width={300 / c.viewport.zoom}
-                        height={104 / c.viewport.zoom}
-                        pointerEvents="none"
-                      >
-                        <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
-                          <strong>{primaryDiagnostic.message}</strong>
-                          {primaryDiagnostic.suggestedAction ? (
-                            <small>{primaryDiagnostic.suggestedAction}</small>
-                          ) : null}
-                        </div>
-                      </foreignObject>
+                      {!ledBurned ? (
+                        <foreignObject
+                          className="workbench-component-diagnostic-tooltip"
+                          x={-150 / c.viewport.zoom}
+                          y={34 / c.viewport.zoom}
+                          width={300 / c.viewport.zoom}
+                          height={104 / c.viewport.zoom}
+                          pointerEvents="none"
+                        >
+                          <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
+                            <strong>{primaryDiagnostic.message}</strong>
+                            {primaryDiagnostic.suggestedAction ? (
+                              <small>{primaryDiagnostic.suggestedAction}</small>
+                            ) : null}
+                          </div>
+                        </foreignObject>
+                      ) : null}
                     </g>
                   </g>
                 ) : null}

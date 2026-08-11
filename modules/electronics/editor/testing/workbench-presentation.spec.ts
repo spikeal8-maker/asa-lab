@@ -152,6 +152,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
     expect(stageSource).toContain("'led-diagnostic-badge'");
+    expect(stageSource).toContain('const showDiagnosticIndicator = !isRgbLed || ledBurned');
+    expect(stageSource).toContain("'rgb-led-burnout-explosion'");
     expect(stageSource).toContain("'component-diagnostic-indicator'");
     expect(stageSource).toContain('c.simulationRunning && primaryDiagnostic');
     expect(stageSource).toContain('r={18 / c.viewport.zoom}');

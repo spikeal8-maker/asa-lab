@@ -873,14 +873,9 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
     await rgb.locator('.workbench-part').click();
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
-    await expect(inspector.getByText('RGB-светодиод', { exact: true }).last()).toBeVisible();
-    const channelMeasurements = inspector.locator(
-      'fieldset.workbench-state-controls .workbench-calculated-property output',
-    );
-    await expect(channelMeasurements).toHaveCount(3);
-    for (let index = 0; index < 3; index += 1) {
-      await expect(channelMeasurements.nth(index)).not.toHaveText('0%');
-    }
+    await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
+    await expect(inspector.locator('.workbench-calculated-property')).toHaveCount(0);
+    await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);
 
     if (commonMode === 'common-cathode') {
       await page.screenshot({
@@ -916,7 +911,7 @@ test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', as
         wiringMode: 'common-anode',
         resistorOhms: null,
       }),
-      runtimeState: 'reverse',
+      runtimeState: 'off',
       diagnostic: 'reverse_polarity',
     },
     {
@@ -952,8 +947,8 @@ test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', as
       await expect(rgb).toHaveAttribute('data-diagnostics', new RegExp(scenario.diagnostic ?? ''));
       await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', '0');
     }
-    if (scenario.runtimeState === 'reverse') {
-      await expect(rgb.getByTestId('led-diagnostic-badge')).toBeVisible();
+    if (scenario.diagnostic === 'reverse_polarity') {
+      await expect(rgb.getByTestId('led-diagnostic-badge')).toHaveCount(0);
       await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveCount(0);
     }
     if (scenario.runtimeState === 'burned') {

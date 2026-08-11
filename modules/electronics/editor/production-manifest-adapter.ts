@@ -275,7 +275,13 @@ function defaults(componentId: string): {
     return {
       value: 0,
       unit: '',
-      properties: { red: 0, green: 0, blue: 0, commonMode: 'common-cathode' },
+      properties: {
+        red: 0,
+        green: 0,
+        blue: 0,
+        commonMode: 'common-cathode',
+        pinLayout: 'RCBG',
+      },
     };
   if (componentId === 'seven-segment-display')
     return {
@@ -307,6 +313,15 @@ function defaults(componentId: string): {
 }
 
 function pinLabel(componentId: string, pinId: string): string {
+  if (componentId === 'rgb-led') {
+    const rgbLabels: Readonly<Record<string, string>> = {
+      red: 'Красный',
+      common: 'Катод',
+      blue: 'Синий',
+      green: 'Зеленый',
+    };
+    return rgbLabels[pinId] ?? pinId;
+  }
   const labels: Readonly<Record<string, string>> = {
     'BAT+': 'Положительный',
     'BAT-': 'Отрицательный',

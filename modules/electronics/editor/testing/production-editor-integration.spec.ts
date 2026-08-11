@@ -114,10 +114,10 @@ describe('owner SVG integration in the real Electronics document', () => {
       'lead-2': { label: 'Вывод 2' },
     });
     expect(entries.get('rgb-led')?.terminals).toMatchObject({
-      red: { label: 'R' },
-      green: { label: 'G' },
-      blue: { label: 'B' },
-      common: { label: 'Общий' },
+      red: { label: 'Красный' },
+      green: { label: 'Зеленый' },
+      blue: { label: 'Синий' },
+      common: { label: 'Катод' },
     });
     expect(entries.get('transistor-npn')?.terminals).toMatchObject({
       collector: { label: 'C' },
@@ -338,24 +338,34 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(afterPositive?.y).toBeCloseTo(beforePositive?.y ?? 0, 3);
   });
 
-  it('persists component type, variant, typed state and owner manifest pins in schema v3', () => {
+  it('persists the Tinkercad RGB pin layout and maps terminal names onto physical legs', () => {
     let document = addComponentToDocument(EMPTY, 'rgb-led', { x: 300, y: 240 }, 'rgb').document;
+    expect(document.components[0]?.stateProperties).toMatchObject({
+      commonMode: 'common-cathode',
+      pinLayout: 'RCBG',
+    });
     document = updateSelectionProperties(
       document,
       { kind: 'component', id: 'rgb', ids: ['rgb'] },
-      { red: 20, green: 80, blue: 55, commonMode: 'common-anode' },
+      { red: 20, green: 80, blue: 55, pinLayout: 'BRCG' },
     ) as SchematicDocument;
-    expect(document.components[0]).toMatchObject({
+    const restored = JSON.parse(JSON.stringify(document)) as SchematicDocument;
+    expect(restored.components[0]).toMatchObject({
       componentTypeId: 'rgb-led',
       variantId: 'rgb-led',
-      stateProperties: { red: 20, green: 80, blue: 55, commonMode: 'common-anode' },
+      stateProperties: {
+        red: 20,
+        green: 80,
+        blue: 55,
+        commonMode: 'common-cathode',
+        pinLayout: 'BRCG',
+      },
       pinIds: ['red', 'common', 'green', 'blue'],
     });
-    const rgb = document.components[0];
+    const rgb = restored.components[0];
+    const physicalOrder = ['blue', 'red', 'common', 'green'];
     const pins = rgb
-      ? ['red', 'common', 'green', 'blue'].map((pinId) =>
-          terminalPosition(rgb, rgb.position, pinId, rgb.rotation ?? 0),
-        )
+      ? physicalOrder.map((pinId) => terminalPosition(rgb, rgb.position, pinId, rgb.rotation ?? 0))
       : [];
     expect(pins.every(Boolean)).toBe(true);
     expect(pins[0]?.y).toBeCloseTo((rgb?.position.y ?? 0) + 9.3 * WORLD_UNITS_PER_MM, 6);

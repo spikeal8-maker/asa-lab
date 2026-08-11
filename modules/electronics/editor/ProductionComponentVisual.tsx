@@ -118,16 +118,9 @@ export function ProductionComponentVisual({
       String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
     ),
   );
-  const rgbFaultState =
-    entry.key === 'rgb-led' && ['reverse', 'overcurrent', 'burned'].includes(visualState)
-      ? visualState
-      : undefined;
+  const rgbFaultState = entry.key === 'rgb-led' && visualState === 'burned' ? 'burned' : undefined;
   const rgbIsLit =
-    entry.key === 'rgb-led' &&
-    simulationRunning &&
-    rgbBrightness > 0 &&
-    rgbFaultState !== 'reverse' &&
-    rgbFaultState !== 'burned';
+    entry.key === 'rgb-led' && simulationRunning && rgbBrightness > 0 && rgbFaultState !== 'burned';
   const rgbRuntimeState =
     entry.key !== 'rgb-led'
       ? undefined

@@ -8,6 +8,7 @@ import type {
 import {
   catalogEntry,
   componentPointPosition,
+  physicalTerminalOrder,
   renderedSize,
   terminalPosition,
 } from './component-catalog';
@@ -574,7 +575,7 @@ export function snapComponentToBreadboard(
     return snapFlexibleLeadsToBreadboard(document, component);
   }
   const offsets = entry?.footprint?.pinOffsetsMm;
-  const pinIds = component?.pinIds ?? [];
+  const pinIds = component ? physicalTerminalOrder(component) : [];
   if (
     !component ||
     !entry ||
