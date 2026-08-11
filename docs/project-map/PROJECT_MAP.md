@@ -12,52 +12,51 @@ Rendered from the control plane. Do not edit these values here independently;
 `pnpm control-plane:check` fails when they drift.
 
 ```text
-TASK-3D-M0-001
-Issue #94
-branch agent/three-d-m0
+TASK-CHECKERS-M1-001
+Issue #98
+branch agent/checkers-education-m1
 status in_progress
-checkpoint foundation_vertical_slice
-execution lease codex-three-d-m0
+checkpoint market_and_product_contract
+execution lease codex-checkers-m1
 ```
 
-The owner activated a narrow ASA-native 3D foundation. Existing Electronics
-PR #92 remains open and Draft, but its corrective task is paused rather than
-reported complete. The 3D task depends on the completed module-neutral R3A
-gateway, not on unfinished Electronics-specific behaviour.
+The owner activated an independent educational Russian-draughts system. 3D PR
+#95 and Electronics PR #92 remain open and Draft/paused; neither is merged or
+reported complete. Chess remains a separate subject module and is not modified.
 
 ```mermaid
 flowchart LR
   ACCOUNT["Account C1 done"] --> PORTAL["Creator Portal done"]
   PORTAL --> GATE["R3A module gateway done"]
-  GATE --> M0["3D M0 in progress"]
+  GATE --> CHECKERS["Checkers M1 in progress"]
+  GATE --> THREED["3D M0 paused"]
   GATE --> ELECTRONICS["Electronics corrective paused"]
-  M0 -. owner transition .-> NEXT3D["Boolean/import/export blocked"]
+  CLASSROOM["Existing classes and authorization"] --> CHECKERS
+  CHECKERS --> STUDENT["Student learning and play"]
+  CHECKERS --> TEACHER["Teacher assignments and evidence"]
 ```
 
-M0 is deliberately one vertical slice:
+The active product loop is:
 
 ```text
-create 3D project
-→ shared Editor Host
-→ lazy WebGL 2 workplane
-→ add and transform one box
-→ undo/redo
-→ save through Project Core
-→ reload the identical validated scene
+student enters Checkers
+→ continue learning or assigned work
+→ solve a position or play a legal Russian-draughts game
+→ receive evidence-based review and progress
+→ teacher sees exact attempt/game/move evidence
+→ authorised classmates may play with predefined reactions only
 ```
 
-The document is pure versioned JSON in millimetres. Three.js runtime objects,
-meshes, WASM objects and binary files do not enter Project Core JSON. Three.js
-is loaded only for the 3D editor. The worker protocol is established for a
-later Manifold boolean milestone, but OCCT, STEP, physics, AR, collaboration,
-Codeblocks, WebGPU and any parity claim remain out of scope.
+The module owns its rule, learning, bot and safe-interaction data. Project Core
+remains subject-neutral. Child-to-child free-form chat, direct messages, public
+profiles and unrestricted public matchmaking are prohibited.
 
 ## Quality gate
 
 See [`QUALITY_MAP.md`](QUALITY_MAP.md) and
-[`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml).
-The focused gate covers the domain contract, Project Core integration, bundle
-isolation and the desktop/tablet/mobile save-reload journey.
+[`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml). The
+focused gate covers official rules, project lifecycle, curriculum/assignments,
+bot calibration, class safety and desktop/tablet/mobile journeys.
 
 ## Ports
 

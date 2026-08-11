@@ -1,88 +1,86 @@
 # ASA Lab — Development Program
 
-Machine contract: [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml)  
-Current state: [`../project-map/project-map.yaml`](../project-map/project-map.yaml)  
-Stable tests: [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)  
+Machine contract: [`EXECUTION_MANIFEST.yaml`](EXECUTION_MANIFEST.yaml)
+
+Current state: [`../execution/current.yaml`](../execution/current.yaml)
+
+Project map: [`../project-map/project-map.yaml`](../project-map/project-map.yaml)
+
+Stable tests: [`../testing/test-catalog.yaml`](../testing/test-catalog.yaml)
+
 Active tests: [`../testing/active-task-tests.yaml`](../testing/active-task-tests.yaml)
 
 ## Current executable queue
 
 ```text
-TASK-PRODUCT-DOC-001      done
-→ TASK-PORTAL-001         done
-→ TASK-ACCOUNT-C1-001     done
-→ TASK-CREATOR-PORTAL-001 ready
+TASK-PRODUCT-DOC-001              done
+→ TASK-PORTAL-001                 done
+→ TASK-ACCOUNT-C1-001             done
+→ TASK-CREATOR-PORTAL-001         done
+→ TASK-R3A-ELECTRONICS-GATEWAY-001 done
+→ TASK-ELECTRONICS-M1-001         blocked / owner-paused
+→ TASK-3D-M0-001                  blocked / owner-paused
+→ TASK-CHECKERS-M1-001            in_progress
 → owner review / stop
 ```
 
-Current branch: `agent/r2-creator-portal`. Issue: №62.
+Active branch: `agent/checkers-education-m1`. Issue: #98. Draft PR: #99.
 
-## R2 user result
+## R11-M1 user result
 
 ```text
-Account login
-→ Creator Home
-→ recent projects
-→ Projects / Learning / Collections / Challenges
-→ capability-aware Classes
-→ Help
-→ Account and workspace switcher
+Student opens Checkers
+→ sees current learning, assignments, games, bot ladder and review queue
+→ completes self-learning or teacher work
+→ plays a legal Russian-draughts game
+→ receives review and concept mastery update
+→ teacher sees activity and exact move-level evidence
+→ class play uses predefined reactions without free-form chat
 ```
 
-R2 turns the current technical Alpha UI into a coherent, useful cabinet. It does not claim final product completeness.
+## Product boundary
 
-## Required scope
+The task builds one independent first-party Checkers module. It may reuse stable
+ASA contracts and visual patterns, including the Electronics project-header
+pattern, but it does not import Chess subject logic or modify Chess,
+Electronics or 3D behaviour.
 
-- useful Creator Home as default route;
-- recent projects and next actions;
-- loading, empty, error and restricted states;
-- capability-aware navigation from server state;
-- workspace switcher that changes scope only;
-- Classes visible only to educator capability;
-- honest Learning/Collections/Challenges/Help surfaces;
-- integrated Account/Profile/Sessions;
-- desktop, tablet and mobile;
-- route/context persistence through refresh and history navigation;
-- preservation of all existing data and flows.
+The first ruleset is official Russian draughts-64 on an 8×8 board. Additional
+regional variants remain future work.
 
-## Frozen foundation
+## Delivery checkpoints
 
-Do not recreate or replace:
+1. market and product contract;
+2. rules and Project Core vertical slice;
+3. curriculum, assignments and progress;
+4. bots and post-game review;
+5. safe class play;
+6. hardening and owner acceptance.
 
-- Account/Profile/Principal/Personal Workspace;
-- sessions_v2 and Account C1 APIs;
-- Teacher Portal;
-- Project Hub;
-- Electronics, Chess and Chess Online;
-- PostgreSQL/RLS/Docker/recovery.
+## Safety boundary
 
-## Scope freeze
-
-Not part of R2:
-
-- R3 Module Registry or shared Editor Host rewrite;
-- R4 Electronics parity;
-- StudentSeat provisioning;
-- publication/community backend;
-- assignments/review/grades;
-- administration/billing;
-- audit or closure of old PRs.
+- no child-authored chat, messages, links, images, voice or video;
+- no global child directory or unrestricted public matchmaking;
+- class-scoped challenges only;
+- server-defined reactions with rate limits, mute and audit;
+- teacher feedback is an authorised assignment record, not a chat channel.
 
 ## Gate
 
 ```bash
-python tools/validate_infrastructure_focus.py
-python tools/validate_project_map.py
-python tools/validate_test_catalog.py
-python tools/validate_delivery_program.py
-python tools/run_task_tests.py --task TASK-CREATOR-PORTAL-001
+pnpm gate:governance
+pnpm gate:checkers-m1
+pnpm gate:checkers-m1:browser
+pnpm gate:repository
 ```
 
-The coding agent implements real `test:creator-portal` and `e2e:creator-portal` commands. PASS requires real exit `0` on one final SHA.
+The focused commands become PASS only when real executable tests and browser
+journeys pass on one exact SHA. The repository gate still requires PostgreSQL.
 
 ## Browser evidence
 
-Creator and educator, desktop/tablet/mobile, live API/PostgreSQL, existing Electronics/Chess projects, workspace switching and route persistence.
+Student and educator, desktop/tablet/mobile, live API/PostgreSQL, project
+persistence, assignment evidence, bot progression and a safe class game.
 
 ```text
 console errors = 0
@@ -91,16 +89,8 @@ unexpected requestfailed = 0
 unexpected HTTP 5xx = 0
 ```
 
-## Roadmap after R2
-
-```text
-R3 Issue №37  blocked
-R4 Issue №63  blocked
-School Pilot  blocked
-```
-
-R3 becomes executable only through a separate owner transition after R2 acceptance.
-
 ## Stop
 
-Open a Draft PR from `agent/r2-creator-portal` to `main`, publish the exact SHA, tests and screenshots, then stop. No merge or release tag is included.
+PR #99 remains Draft until focused and general gates, evidence and owner review
+are complete. Merge, tag and activation of another task require a separate owner
+decision.

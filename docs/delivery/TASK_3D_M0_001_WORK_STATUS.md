@@ -13,17 +13,19 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 ```text
 task: TASK-3D-M0-001
 branch: agent/three-d-m0
-status: in_progress
-checkpoint: foundation_vertical_slice
-execution_lease: codex-three-d-m0
+status: blocked
+checkpoint: paused_by_owner_for_checkers_m1
+execution_lease: released_by_owner_transition
 convergence baseline: e3707e9147ab51a10173bec4471f2b8b1d67d84f
 ```
 
 ## Owner decision
 
-The owner prioritised the ASA-native 3D foundation. Electronics PR #92 remains
-open and untouched; its corrective task is paused and no completion is claimed.
-This transition activates only the M0 vertical slice, not the entire R10 scope.
+The owner paused this task on 2026-08-11 in order to activate the independent
+Checkers M1 task. PR #95 remains open and Draft; no merge, completion or owner
+acceptance is claimed. The execution lease recorded above is historical and is
+no longer the active lease; current state lives only in
+`docs/execution/current.yaml`.
 
 ## Required result
 
