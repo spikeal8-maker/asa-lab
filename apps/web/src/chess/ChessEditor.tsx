@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
+import { ChessEditorHeader, type ChessEditorPanel } from './ChessEditorHeader';
 import { PIECE_SYMBOL, evaluationLabel, formatChessClock, resultLabel } from './chess-ui';
 import { useChessProject } from './use-chess-project';
 import './chess.css';
@@ -20,7 +21,6 @@ interface ChessEditorProps {
   user: PublicUser;
 }
 
-type PanelTab = 'game' | 'analysis' | 'versions';
 type ImportKind = 'pgn' | 'fen';
 
 interface TimePreset {
@@ -35,13 +35,6 @@ const TIME_PRESETS: readonly TimePreset[] = [
   { label: '10+5', initialMs: 10 * 60 * 1000, incrementMs: 5 * 1000 },
   { label: '15+10', initialMs: 15 * 60 * 1000, incrementMs: 10 * 1000 },
 ] as const;
-
-const SAVE_COPY = {
-  saved: 'Сохранено',
-  dirty: 'Есть изменения',
-  saving: 'Сохранение…',
-  error: 'Ошибка сохранения',
-} as const;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -333,7 +326,7 @@ function ImportDialog({
 
 export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.Element {
   const controller = useChessProject(projectId);
-  const [panelTab, setPanelTab] = useState<PanelTab>('game');
+  const [panelTab, setPanelTab] = useState<ChessEditorPanel>('game');
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
 
@@ -375,52 +368,26 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
 
   return (
     <main className="asa-chess-shell">
-      <header className="asa-chess-header">
-        <button type="button" className="asa-chess-back" onClick={onBack}>
-          <span aria-hidden="true">←</span> Проекты
-        </button>
-        <div className="asa-chess-brand" aria-label="ASA Chess">
-          <span className="asa-chess-brand-mark" aria-hidden="true">
-            ♞
-          </span>
-          <span>
-            <strong>ASA Chess</strong>
-            <small>{modeLabel(document.mode)}</small>
-          </span>
-        </div>
-        <label className="asa-chess-title-field">
-          <span className="sr-only">Название проекта</span>
-          <input
-            value={controller.projectTitle}
-            maxLength={160}
-            onChange={(event) => controller.setProjectTitle(event.target.value)}
-            onBlur={() => void controller.renameProject()}
-          />
-        </label>
-        <span className={`asa-chess-save-state ${controller.saveStatus}`} role="status">
-          {SAVE_COPY[controller.saveStatus]}
-        </span>
-        <div className="asa-chess-header-actions">
-          <button type="button" onClick={() => setNewGameOpen(true)}>
-            Новая
-          </button>
-          <button
-            type="button"
-            disabled={controller.busy}
-            onClick={() => void controller.checkpoint()}
-          >
-            Версия
-          </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={controller.busy}
-            onClick={() => void controller.saveNow()}
-          >
-            Сохранить
-          </button>
-        </div>
-      </header>
+      <ChessEditorHeader
+        projectTitle={controller.projectTitle}
+        persistedProjectTitle={controller.project.title}
+        onProjectTitleChange={controller.setProjectTitle}
+        onProjectTitleCommit={controller.renameProject}
+        saveStatus={controller.saveStatus}
+        statusDetail={
+          controller.saveStatus === 'error'
+            ? 'Изменения не удалось записать на сервер.'
+            : modeLabel(document.mode)
+        }
+        busy={controller.busy}
+        activePanel={panelTab}
+        onPanelChange={setPanelTab}
+        onBack={onBack}
+        onNewGame={() => setNewGameOpen(true)}
+        onCheckpoint={() => void controller.checkpoint()}
+        onSave={() => void controller.saveNow()}
+        userDisplayName={user.displayName}
+      />
 
       <div className="asa-chess-workspace">
         <section className="asa-chess-board-column" aria-label="Партия">

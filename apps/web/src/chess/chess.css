@@ -21,7 +21,12 @@
     linear-gradient(145deg, #edf2f5, #dce5ea);
   color: #172431;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 48px 1fr;
+}
+
+.asa-chess-shell > .editor-header {
+  position: relative;
+  z-index: 10;
 }
 
 .asa-chess-header {
