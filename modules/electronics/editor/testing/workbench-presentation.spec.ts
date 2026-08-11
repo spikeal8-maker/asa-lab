@@ -65,6 +65,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('data-led-brightness');
     expect(productionVisualSource).toContain('workbench-led-visual');
     expect(workbenchCss).toContain('.workbench-led-visual.is-lit .workbench-led-asset');
+    expect(productionVisualSource).toContain('fill={rgbDisplayColour}');
+    expect(productionVisualSource).toContain('opacity={rgbIsLit ? rgbDisplayOpacity : 0}');
+    expect(productionVisualSource).not.toContain("mixBlendMode: 'screen'");
     expect(sidebarSource).not.toContain('Расчётная яркость');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
   });

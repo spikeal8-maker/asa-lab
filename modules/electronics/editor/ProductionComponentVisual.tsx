@@ -556,7 +556,6 @@ export function ProductionComponentVisual({
           ry={height * 0.27}
           fill={rgbDisplayColour}
           opacity={rgbIsLit ? rgbDisplayOpacity : 0}
-          style={{ mixBlendMode: 'screen' }}
         />
       ) : null}
 
