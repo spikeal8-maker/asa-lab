@@ -14,8 +14,6 @@ describe('Chess editor header adapter', () => {
         saveStatus: 'saving',
         statusDetail: 'Игра с ASA Bot',
         busy: false,
-        activePanel: 'analysis',
-        onPanelChange: vi.fn(),
         onBack: vi.fn(),
         onNewGame: vi.fn(),
         onCheckpoint: vi.fn(),
@@ -25,8 +23,7 @@ describe('Chess editor header adapter', () => {
     );
 
     expect(html).toContain('data-module-id="chess"');
-    expect(html).toContain('aria-label="Панель шахматного проекта"');
-    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span>Анализ<\/span>/);
+    expect(html).not.toContain('Панель шахматного проекта');
     expect(html).toContain('>Новая</span>');
     expect(html).toContain('>Версия</span>');
     expect(html).toContain('>Сохранить</span>');
@@ -45,8 +42,6 @@ describe('Chess editor header adapter', () => {
         saveStatus: 'saved',
         statusDetail: 'Анализ',
         busy: true,
-        activePanel: 'game',
-        onPanelChange: vi.fn(),
         onBack: vi.fn(),
         onNewGame: vi.fn(),
         onCheckpoint: vi.fn(),

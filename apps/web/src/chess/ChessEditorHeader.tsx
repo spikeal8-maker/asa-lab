@@ -4,8 +4,6 @@ import {
   type EditorSaveKind,
 } from '../components/editor-chrome/EditorHeader';
 
-export type ChessEditorPanel = 'game' | 'analysis' | 'versions';
-
 const SAVE_COPY: Readonly<Record<EditorSaveKind, string>> = {
   saved: 'Сохранено',
   dirty: 'Есть изменения',
@@ -30,8 +28,6 @@ export function ChessEditorHeader({
   saveStatus,
   statusDetail,
   busy,
-  activePanel,
-  onPanelChange,
   onBack,
   onNewGame,
   onCheckpoint,
@@ -45,34 +41,12 @@ export function ChessEditorHeader({
   readonly saveStatus: EditorSaveKind;
   readonly statusDetail: string;
   readonly busy: boolean;
-  readonly activePanel: ChessEditorPanel;
-  readonly onPanelChange: (panel: ChessEditorPanel) => void;
   readonly onBack: () => void;
   readonly onNewGame: () => void;
   readonly onCheckpoint: () => void;
   readonly onSave: () => void;
   readonly userDisplayName: string;
 }): JSX.Element {
-  const navigationItems: readonly EditorHeaderItem[] = [
-    {
-      id: 'game',
-      label: 'Партия',
-      selected: activePanel === 'game',
-      onActivate: () => onPanelChange('game'),
-    },
-    {
-      id: 'analysis',
-      label: 'Анализ',
-      selected: activePanel === 'analysis',
-      onActivate: () => onPanelChange('analysis'),
-    },
-    {
-      id: 'versions',
-      label: 'Версии',
-      selected: activePanel === 'versions',
-      onActivate: () => onPanelChange('versions'),
-    },
-  ];
   const actions: readonly EditorHeaderItem[] = [
     {
       id: 'new-game',
@@ -111,10 +85,6 @@ export function ChessEditorHeader({
         onCancel: () => onProjectTitleChange(persistedProjectTitle),
       }}
       status={{ kind: saveStatus, label: SAVE_COPY[saveStatus], detail: statusDetail }}
-      navigation={{
-        ariaLabel: 'Панель шахматного проекта',
-        items: navigationItems,
-      }}
       actions={actions}
       avatar={{
         label: `Пользователь ${userDisplayName}`,

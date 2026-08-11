@@ -10,7 +10,7 @@ import {
 import { useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
-import { ChessEditorHeader, type ChessEditorPanel } from './ChessEditorHeader';
+import { ChessEditorHeader } from './ChessEditorHeader';
 import { PIECE_SYMBOL, evaluationLabel, formatChessClock, resultLabel } from './chess-ui';
 import { useChessProject } from './use-chess-project';
 import './chess.css';
@@ -21,6 +21,7 @@ interface ChessEditorProps {
   user: PublicUser;
 }
 
+type PanelTab = 'game' | 'analysis' | 'versions';
 type ImportKind = 'pgn' | 'fen';
 
 interface TimePreset {
@@ -326,7 +327,7 @@ function ImportDialog({
 
 export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.Element {
   const controller = useChessProject(projectId);
-  const [panelTab, setPanelTab] = useState<ChessEditorPanel>('game');
+  const [panelTab, setPanelTab] = useState<PanelTab>('game');
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
 
@@ -380,8 +381,6 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
             : modeLabel(document.mode)
         }
         busy={controller.busy}
-        activePanel={panelTab}
-        onPanelChange={setPanelTab}
         onBack={onBack}
         onNewGame={() => setNewGameOpen(true)}
         onCheckpoint={() => void controller.checkpoint()}
