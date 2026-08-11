@@ -239,6 +239,10 @@ describe('CH-102 engine platform foundation', () => {
     const corrupt = await analyse({ cache, engine });
     expect(corrupt).toMatchObject({ ok: false, code: 'invalid_engine_output' });
 
+    cache.value = {} as ChessEngineAnalysis;
+    const malformed = await analyse({ cache, engine });
+    expect(malformed).toMatchObject({ ok: false, code: 'invalid_engine_output' });
+
     const illegalEngine = new RecordingEngine(async () =>
       raw([
         {

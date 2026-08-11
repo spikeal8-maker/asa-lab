@@ -168,6 +168,7 @@ function settingsProblem(
 }
 
 function scoreProblem(line: ChessEngineLine): string | null {
+  if (typeof line.score !== 'object' || line.score === null) return 'Engine score is missing.';
   if (line.score.kind === 'centipawn') {
     return Number.isSafeInteger(line.score.valueCp) && line.score.perspective === 'white'
       ? null
@@ -188,6 +189,8 @@ function outputProblem(
   settings: ChessEngineSettings,
 ): string | null {
   if (
+    typeof output !== 'object' ||
+    output === null ||
     !Array.isArray(output.lines) ||
     !isNonNegativeInteger(output.depth) ||
     !isNonNegativeInteger(output.nodes) ||
@@ -209,6 +212,7 @@ function outputProblem(
   }
   const roots = new Set<string>();
   for (const [index, line] of output.lines.entries()) {
+    if (typeof line !== 'object' || line === null) return 'Engine line has an invalid shape.';
     if (line.rank !== index + 1) return 'MultiPV ranks must be contiguous and one-based.';
     const score = scoreProblem(line);
     if (score) return score;
@@ -238,11 +242,19 @@ function cachedAnalysisProblem(
     readonly position: ChessPosition;
   },
 ): string | null {
-  const analysisKey = buildChessEngineCacheKey({
-    fen: analysis.fen,
-    engine: analysis.engine,
-    settings: analysis.settings,
-  });
+  if (typeof analysis !== 'object' || analysis === null) {
+    return 'Cached analysis has an invalid shape.';
+  }
+  let analysisKey: string;
+  try {
+    analysisKey = buildChessEngineCacheKey({
+      fen: analysis.fen,
+      engine: analysis.engine,
+      settings: analysis.settings,
+    });
+  } catch {
+    return 'Cached analysis has an invalid shape.';
+  }
   if (
     analysis.schemaVersion !== CHESS_ENGINE_ANALYSIS_SCHEMA_VERSION ||
     analysis.fen !== expected.fen ||
