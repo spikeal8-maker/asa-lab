@@ -1,0 +1,122 @@
+name: Chess R1 Focused
+
+on:
+  pull_request:
+    paths:
+      - 'contexts/chess/**'
+      - 'contexts/chess-live/**'
+      - 'apps/api/src/chess-live.controller.ts'
+      - 'apps/api/src/chess-live.controller.spec.ts'
+      - 'apps/web/src/chess/**'
+      - 'apps/web/src/components/editor-chrome/**'
+      - 'e2e/chess-module.spec.ts'
+      - 'e2e/chess-live.spec.ts'
+      - 'tests/chess/**'
+      - 'tests/chess-live/**'
+      - 'docs/product/ASA_CHESS_*.md'
+      - 'docs/product/ASA_EDITOR_HEADER_CONTRACT.md'
+      - 'docs/architecture/SUBJECT_MODULE_ISOLATION_PLAN.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/chess-r1-focused.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chess-r1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: Rules, live contracts, tests and types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Focused Chess R1 gate
+        run: pnpm gate:chess-r1
+
+  browser:
+    name: Local and live Chess journeys
+    needs: focused
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_IMAGE_TAG: ${{ github.sha }}
+      COMPOSE_PROJECT_NAME: asa-lab-chess-${{ github.run_id }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare writable evidence directories
+        run: |
+          mkdir -p e2e/artifacts/chess reports
+          chmod -R 0777 e2e/artifacts reports
+
+      - name: Build isolated Chess browser stack
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          build migration api web test-runner
+
+      - name: Start isolated PostgreSQL, migrations, API and web
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          up -d --wait --wait-timeout 240 postgres api web
+
+      - name: Chess R1 browser gate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          run --rm --no-deps test-runner
+          pnpm gate:chess-r1:browser
+
+      - name: Show isolated stack state
+        if: always()
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test ps -a
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-r1-browser-${{ github.run_id }}
+          path: |
+            e2e/artifacts/chess
+            reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove isolated test stack
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          down -v --remove-orphans

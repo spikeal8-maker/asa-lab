@@ -54,6 +54,10 @@ FORBIDDEN_MANIFEST_KEYS = (
 REQUIRED_TASK_FIELDS = ("id", "issue", "branch", "base_branch", "pr", "status", "checkpoint")
 ALLOWED_STATUSES = {"ready", "in_progress", "in_review", "blocked", "done"}
 ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
+FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+LANE_ID = re.compile(r"^[a-z][a-z0-9-]*$")
+PORTABLE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0"}
 
 # Engineering invariants AGENTS.md states as already in force. A policy claim
 # that nothing checks is how the documents drifted apart in the first place, so
@@ -144,21 +148,38 @@ def check_no_duplicate_keys(errors: list[str]) -> None:
             errors.append(f"{relative}: {detail}")
 
 
+def check_task_record(task: Any, errors: list[str], label: str = "current.yaml task") -> dict[str, Any]:
+    if not isinstance(task, dict):
+        errors.append(f"{label} must be a mapping")
+        return {}
+    for field in REQUIRED_TASK_FIELDS:
+        if task.get(field) in (None, ""):
+            errors.append(f"{label}.{field} must be set")
+    if task.get("status") not in ALLOWED_STATUSES:
+        errors.append(f"{label}.status invalid: {task.get('status')!r}")
+    if not TASK_ID_PATTERN.fullmatch(str(task.get("id", ""))):
+        errors.append(f"{label}.id invalid: {task.get('id')!r}")
+    for field in ("issue", "pr"):
+        value = task.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            errors.append(f"{label}.{field} must be a positive integer")
+    branch = task.get("branch")
+    if not isinstance(branch, str) or not BRANCH_PATTERN.fullmatch(branch):
+        errors.append(f"{label}.branch invalid: {branch!r}")
+    base_branch = task.get("base_branch")
+    if not isinstance(base_branch, str) or not PORTABLE_SEGMENT.fullmatch(base_branch):
+        errors.append(f"{label}.base_branch invalid: {base_branch!r}")
+    return task
+
+
 def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
     if not isinstance(current, dict):
         errors.append("current.yaml must be a mapping")
         return {}
-    task = current.get("task")
-    if not isinstance(task, dict):
-        errors.append("current.yaml must contain a task mapping")
-        return {}
-    for field in REQUIRED_TASK_FIELDS:
-        if task.get(field) in (None, ""):
-            errors.append(f"current.yaml task.{field} must be set")
-    if task.get("status") not in ALLOWED_STATUSES:
-        errors.append(f"current.yaml task.status invalid: {task.get('status')!r}")
-    if not TASK_ID_PATTERN.fullmatch(str(task.get("id", ""))):
-        errors.append(f"current.yaml task.id invalid: {task.get('id')!r}")
+    version = str(current.get("schema_version") or "1.0.0")
+    if version not in SUPPORTED_SCHEMA_VERSIONS:
+        errors.append(f"current.yaml schema_version unsupported: {version!r}")
+    task = check_task_record(current.get("task"), errors)
     check_lease(current.get("execution_lease"), errors)
     check_gate_shape(current.get("gates"), errors)
     return task
@@ -240,6 +261,230 @@ def check_gate_shape(gates: Any, errors: list[str]) -> None:
                 )
         if not isinstance(gate.get("workflow"), str):
             errors.append(f"current.yaml gates.{name}.workflow must name a GitHub workflow")
+
+
+def canonical_scope(value: Any, errors: list[str], label: str) -> str | None:
+    """Return a portable exact path or terminal /** subtree pattern.
+
+    Scope strings cross Windows, Linux and GitHub runners. Backslashes, drive
+    prefixes, traversal, empty segments and partial globs would not identify the
+    same files everywhere, so schema 1.1 deliberately permits only one small
+    grammar: `segment/segment` or `segment/segment/**`.
+    """
+    if not isinstance(value, str) or not value:
+        errors.append(f"{label} must be a non-empty portable path")
+        return None
+    if "\\" in value or value.startswith("/") or value.endswith("/") or "//" in value:
+        errors.append(f"{label} is not a portable repository-relative path: {value!r}")
+        return None
+    subtree = value.endswith("/**")
+    plain = value[:-3] if subtree else value
+    if "*" in plain or "?" in plain or "[" in plain or "]" in plain or ":" in plain:
+        errors.append(f"{label} uses an unsupported glob or platform prefix: {value!r}")
+        return None
+    segments = plain.split("/")
+    if any(segment in {"", ".", ".."} for segment in segments):
+        errors.append(f"{label} contains an empty or traversal segment: {value!r}")
+        return None
+    if any(not PORTABLE_SEGMENT.fullmatch(segment) for segment in segments):
+        errors.append(f"{label} contains a non-portable segment: {value!r}")
+        return None
+    return value
+
+
+def scope_root(pattern: str) -> tuple[tuple[str, ...], bool]:
+    subtree = pattern.endswith("/**")
+    plain = pattern[:-3] if subtree else pattern
+    return tuple(plain.split("/")), subtree
+
+
+def scopes_overlap(left: str, right: str) -> bool:
+    left_parts, left_tree = scope_root(left)
+    right_parts, right_tree = scope_root(right)
+    if left_parts == right_parts:
+        return True
+    if left_tree and right_parts[: len(left_parts)] == left_parts:
+        return True
+    if right_tree and left_parts[: len(right_parts)] == right_parts:
+        return True
+    return False
+
+
+def path_in_scope(path: str, pattern: str) -> bool:
+    path_parts = tuple(path.split("/"))
+    pattern_parts, subtree = scope_root(pattern)
+    return path_parts == pattern_parts or (
+        subtree and path_parts[: len(pattern_parts)] == pattern_parts
+    )
+
+
+def collect_lanes(
+    current: dict[str, Any], primary_task: dict[str, Any], errors: list[str]
+) -> list[dict[str, Any]]:
+    """Collect schema 1.0 as one unscoped lane and schema 1.1 as scoped lanes."""
+    version = str(current.get("schema_version") or "1.0.0")
+    primary_meta = current.get("primary_lane")
+    parallel = current.get("parallel_lanes")
+    integration = current.get("integration")
+
+    if version == "1.0.0":
+        if any(value is not None for value in (primary_meta, parallel, integration)):
+            errors.append("schema 1.0.0 must not declare schema 1.1 lane fields")
+        return [
+            {
+                "id": "primary",
+                "worktree_id": "primary",
+                "owned_paths": [],
+                "task": primary_task,
+                "execution_lease": current.get("execution_lease"),
+                "gates": current.get("gates"),
+                "revisions": current.get("revisions") or {},
+                "scoped": False,
+            }
+        ]
+
+    if not isinstance(primary_meta, dict):
+        errors.append("schema 1.1.0 requires a primary_lane mapping")
+        primary_meta = {}
+    if not isinstance(parallel, list) or not parallel:
+        errors.append("schema 1.1.0 requires a non-empty parallel_lanes list")
+        parallel = []
+    if not isinstance(integration, dict):
+        errors.append("schema 1.1.0 requires an integration mapping")
+        integration = {}
+
+    lanes: list[dict[str, Any]] = []
+    lane_inputs: list[tuple[str, dict[str, Any], bool]] = [
+        ("primary_lane", primary_meta, True)
+    ]
+    lane_inputs.extend(
+        (f"parallel_lanes[{index}]", lane, False)
+        for index, lane in enumerate(parallel)
+        if isinstance(lane, dict)
+    )
+    for index, lane in enumerate(parallel):
+        if not isinstance(lane, dict):
+            errors.append(f"current.yaml parallel_lanes[{index}] must be a mapping")
+
+    for label, source, is_primary in lane_inputs:
+        lane_id = source.get("id")
+        worktree_id = source.get("worktree_id")
+        if not isinstance(lane_id, str) or not LANE_ID.fullmatch(lane_id):
+            errors.append(f"current.yaml {label}.id invalid: {lane_id!r}")
+        if not isinstance(worktree_id, str) or not LANE_ID.fullmatch(worktree_id):
+            errors.append(f"current.yaml {label}.worktree_id invalid: {worktree_id!r}")
+        raw_paths = source.get("owned_paths")
+        if not isinstance(raw_paths, list) or not raw_paths:
+            errors.append(f"current.yaml {label}.owned_paths must be a non-empty list")
+            raw_paths = []
+        paths = [
+            valid
+            for path_index, raw in enumerate(raw_paths)
+            if (
+                valid := canonical_scope(
+                    raw, errors, f"current.yaml {label}.owned_paths[{path_index}]"
+                )
+            )
+            is not None
+        ]
+        if len(paths) != len(set(paths)):
+            errors.append(f"current.yaml {label}.owned_paths contains duplicates")
+
+        if is_primary:
+            task = primary_task
+            lease = current.get("execution_lease")
+            gates = current.get("gates")
+            revisions = current.get("revisions") or {}
+        else:
+            task = check_task_record(
+                source.get("task"), errors, f"current.yaml {label}.task"
+            )
+            lease = source.get("execution_lease")
+            gates = source.get("gates")
+            revisions = source.get("revisions") or {}
+            check_lease(lease, errors)
+            check_gate_shape(gates, errors)
+        if not isinstance(revisions, dict):
+            errors.append(f"current.yaml {label}.revisions must be a mapping")
+            revisions = {}
+        required_sha_fields = ("convergence_baseline_sha", "head_sha") if not is_primary else ()
+        for sha_field in ("convergence_baseline_sha", "head_sha"):
+            value = revisions.get(sha_field)
+            if sha_field in required_sha_fields and value is None:
+                errors.append(f"current.yaml {label}.revisions.{sha_field} must be a full SHA")
+            elif value is not None and (
+                not isinstance(value, str) or not FULL_SHA.fullmatch(value)
+            ):
+                errors.append(f"current.yaml {label}.revisions.{sha_field} must be a full SHA")
+        lanes.append(
+            {
+                "id": lane_id,
+                "worktree_id": worktree_id,
+                "owned_paths": paths,
+                "task": task,
+                "execution_lease": lease,
+                "gates": gates,
+                "revisions": revisions,
+                "scoped": True,
+            }
+        )
+
+    shared_raw = integration.get("shared_paths")
+    if not isinstance(shared_raw, list) or not shared_raw:
+        errors.append("current.yaml integration.shared_paths must be a non-empty list")
+        shared_raw = []
+    shared_paths = [
+        valid
+        for index, raw in enumerate(shared_raw)
+        if (valid := canonical_scope(raw, errors, f"current.yaml integration.shared_paths[{index}]"))
+        is not None
+    ]
+    if len(shared_paths) != len(set(shared_paths)):
+        errors.append("current.yaml integration.shared_paths contains duplicates")
+
+    for field, values in (
+        ("lane id", [lane.get("id") for lane in lanes]),
+        ("worktree_id", [lane.get("worktree_id") for lane in lanes]),
+        ("task id", [lane.get("task", {}).get("id") for lane in lanes]),
+        ("branch", [lane.get("task", {}).get("branch") for lane in lanes]),
+        ("issue", [lane.get("task", {}).get("issue") for lane in lanes]),
+        ("PR", [lane.get("task", {}).get("pr") for lane in lanes]),
+        (
+            "executor_id",
+            [lane.get("execution_lease", {}).get("executor_id") for lane in lanes],
+        ),
+    ):
+        populated = [value for value in values if value not in (None, "")]
+        if len(populated) != len(set(populated)):
+            errors.append(f"schema 1.1 lanes must have unique {field} values")
+
+    owner_lane = integration.get("owner_lane")
+    lane_ids = {lane.get("id") for lane in lanes}
+    if owner_lane not in lane_ids:
+        errors.append(
+            f"current.yaml integration.owner_lane {owner_lane!r} must name a declared lane"
+        )
+
+    for left_index, left in enumerate(lanes):
+        for right in lanes[left_index + 1 :]:
+            for left_path in left["owned_paths"]:
+                for right_path in right["owned_paths"]:
+                    if scopes_overlap(left_path, right_path):
+                        errors.append(
+                            f"lane scopes overlap: {left['id']}:{left_path} and "
+                            f"{right['id']}:{right_path}"
+                        )
+        for owned in left["owned_paths"]:
+            for shared in shared_paths:
+                if scopes_overlap(owned, shared):
+                    errors.append(
+                        f"lane {left['id']} owned scope {owned} overlaps shared scope {shared}"
+                    )
+
+    for lane in lanes:
+        lane["integration_owner"] = lane.get("id") == owner_lane
+        lane["shared_paths"] = shared_paths
+    return lanes
 
 
 def check_source_invariants(errors: list[str]) -> None:
@@ -382,33 +627,163 @@ def check_catalog_validator(errors: list[str]) -> None:
         )
 
 
-def check_gate_scripts(current: dict[str, Any], errors: list[str]) -> None:
+def check_gate_scripts(
+    current: dict[str, Any], errors: list[str], lanes: list[dict[str, Any]] | None = None
+) -> None:
     try:
         scripts = json.loads(PACKAGE_JSON_PATH.read_text(encoding="utf-8")).get("scripts", {})
     except Exception as exc:  # noqa: BLE001
         errors.append(f"Cannot read package.json: {exc}")
         return
-    gates = current.get("gates")
-    if not isinstance(gates, dict):
-        errors.append("current.yaml must declare gates")
-        return
-    for name, gate in gates.items():
-        if not isinstance(gate, dict):
-            errors.append(f"current.yaml gates.{name} must be a mapping")
+    gate_sets = (
+        [("gates", current.get("gates"))]
+        if lanes is None
+        else [(f"lane {lane.get('id')} gates", lane.get("gates")) for lane in lanes]
+    )
+    for gate_label, gates in gate_sets:
+        if not isinstance(gates, dict):
+            errors.append(f"current.yaml {gate_label} must be a mapping")
             continue
-        commands = gate.get("commands")
-        if not isinstance(commands, list) or not commands:
-            errors.append(f"current.yaml gates.{name}.commands must be a non-empty list")
-            continue
-        for command in commands:
-            script = str(command).removeprefix("pnpm ").strip()
-            if not script or script not in scripts:
+        for name, gate in gates.items():
+            if not isinstance(gate, dict):
+                errors.append(f"current.yaml {gate_label}.{name} must be a mapping")
+                continue
+            commands = gate.get("commands")
+            if not isinstance(commands, list) or not commands:
                 errors.append(
-                    f"current.yaml gates.{name} references {command!r}, "
-                    "which is not a package.json script"
+                    f"current.yaml {gate_label}.{name}.commands must be a non-empty list"
                 )
+                continue
+            for command in commands:
+                script = str(command).removeprefix("pnpm ").strip()
+                if not script or script not in scripts:
+                    errors.append(
+                        f"current.yaml {gate_label}.{name} references {command!r}, "
+                        "which is not a package.json script"
+                    )
     if "control-plane:check" not in scripts:
         errors.append("package.json must expose the control-plane:check script")
+
+
+def changed_paths(ref: str, base_branch: str) -> tuple[list[str], str | None]:
+    code, base = run(["git", "merge-base", ref, f"origin/{base_branch}"])
+    if code != 0 or not base:
+        return [], f"cannot find merge base for {ref} and origin/{base_branch}"
+    code, payload = run(["git", "diff", "--name-only", "--no-renames", f"{base}...{ref}"])
+    if code != 0:
+        return [], f"cannot inspect committed diff for {ref}: {payload}"
+    return [line for line in payload.splitlines() if line], None
+
+
+def current_worktree_paths() -> tuple[list[str], list[str]]:
+    paths: list[str] = []
+    problems: list[str] = []
+    for command, label in (
+        (["git", "diff", "--cached", "--name-only", "--no-renames"], "staged"),
+        (["git", "diff", "--name-only", "--no-renames"], "unstaged"),
+        (["git", "ls-files", "--others", "--exclude-standard"], "untracked"),
+    ):
+        code, payload = run(command)
+        if code != 0:
+            problems.append(f"cannot inspect {label} paths: {payload}")
+        else:
+            paths.extend(line for line in payload.splitlines() if line)
+    return paths, problems
+
+
+def refresh_product_ref(
+    branch: str, errors: list[str], notes: list[str], require_remote: bool
+) -> str | None:
+    """Return a remote-tracking ref that is not silently stale."""
+    ref = f"refs/remotes/origin/{branch}"
+    local_code, local_oid = run(["git", "rev-parse", "--verify", ref])
+    remote_code, remote_payload = run(
+        ["git", "ls-remote", "--exit-code", "--heads", "origin", branch]
+    )
+    if remote_code != 0:
+        message = f"cannot verify current remote head of product branch {branch}"
+        (errors if require_remote else notes).append(message)
+        return ref if local_code == 0 else None
+    remote_oid = remote_payload.split()[0] if remote_payload.split() else ""
+    if not FULL_SHA.fullmatch(remote_oid):
+        errors.append(f"remote returned an invalid head for product branch {branch}")
+        return None
+    if local_code != 0 or local_oid != remote_oid:
+        fetch_code, fetch_output = run(
+            [
+                "git",
+                "fetch",
+                "--no-tags",
+                "origin",
+                f"+refs/heads/{branch}:{ref}",
+            ]
+        )
+        if fetch_code != 0:
+            message = f"cannot fetch current head of product branch {branch}: {fetch_output}"
+            (errors if require_remote else notes).append(message)
+            return ref if local_code == 0 else None
+        notes.append(f"refreshed origin/{branch} to {remote_oid[:7]} for scope validation")
+    return ref
+
+
+def check_lane_branch_scopes(
+    lanes: list[dict[str, Any]],
+    errors: list[str],
+    notes: list[str],
+    require_remote: bool = False,
+) -> None:
+    """Validate published branch diffs and every local, not-yet-committed path."""
+    code, current_branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    if code != 0:
+        errors.append(f"cannot determine current branch for scope validation: {current_branch}")
+        return
+    for lane in lanes:
+        if not lane.get("scoped"):
+            continue
+        task = lane.get("task") or {}
+        branch = str(task.get("branch"))
+        if current_branch == branch:
+            ref = "HEAD"
+        else:
+            ref = refresh_product_ref(branch, errors, notes, require_remote)
+            if ref is None:
+                errors.append(
+                    f"cannot validate scope of lane {lane.get('id')}: origin/{branch} is unavailable"
+                )
+                continue
+        paths, problem = changed_paths(ref, str(task.get("base_branch")))
+        if problem:
+            errors.append(f"lane {lane.get('id')}: {problem}")
+            continue
+        if current_branch == branch:
+            worktree_paths, worktree_problems = current_worktree_paths()
+            paths.extend(worktree_paths)
+            errors.extend(f"lane {lane.get('id')}: {item}" for item in worktree_problems)
+        unique_paths = sorted(set(paths))
+        for path in unique_paths:
+            if path == "docs/execution/current.yaml":
+                errors.append(
+                    f"product branch {branch} modifies protected docs/execution/current.yaml"
+                )
+                continue
+            owned = any(path_in_scope(path, pattern) for pattern in lane["owned_paths"])
+            shared = any(path_in_scope(path, pattern) for pattern in lane["shared_paths"])
+            if owned:
+                continue
+            if shared and lane.get("integration_owner"):
+                continue
+            if shared:
+                errors.append(
+                    f"lane {lane.get('id')} changes shared path {path}; only integration owner "
+                    "may change shared paths"
+                )
+            else:
+                errors.append(
+                    f"lane {lane.get('id')} changes out-of-scope path {path}"
+                )
+        notes.append(
+            f"lane {lane.get('id')} scope: {len(unique_paths)} changed path(s) checked"
+        )
 
 
 def check_git(task: dict[str, Any], errors: list[str], notes: list[str]) -> str | None:
@@ -503,6 +878,18 @@ def check_github(task: dict[str, Any], errors: list[str], notes: list[str], requ
             f"task.pr_draft={expected_draft}"
         )
     head_oid = str(data.get("headRefOid", ""))
+    expected_head = (task.get("_revisions") or {}).get("head_sha")
+    if expected_head is not None and head_oid != expected_head:
+        code, detail = run(["git", "merge-base", "--is-ancestor", expected_head, head_oid])
+        if code != 0:
+            errors.append(
+                f"PR #{pr} head {head_oid or '<missing>'} does not descend from the "
+                f"activated revisions.head_sha {expected_head}: {detail}"
+            )
+        else:
+            notes.append(
+                f"PR #{pr} advanced from activated head {expected_head[:7]} to {head_oid[:7]}"
+            )
     body = str(data.get("body") or "")
     # A body that never mentions the current head is describing a different
     notes.append(f"PR #{pr}: draft={data.get('isDraft')} state={data.get('state')} head={head_oid[:7]}")
@@ -562,6 +949,7 @@ def check_gate_results(
     """
     gates = task.get("_gates") or {}
     all_green = bool(gates)
+    result_is_required = require and str(task.get("status")) == "in_review"
     for name, gate in gates.items():
         workflow = gate.get("workflow")
         code, payload = run(
@@ -573,7 +961,11 @@ def check_gate_results(
                 "--json", "headSha,status,conclusion",
             ]
         )
-        sink = errors if require else notes
+        # Draft/in-progress work is allowed to have no run yet (including a
+        # newly introduced workflow or an externally blocked Actions account).
+        # Remote PR identity and head are still checked above. Gate conclusions
+        # become mandatory only when the lane claims in_review readiness.
+        sink = errors if result_is_required else notes
         if code != 0:
             sink.append(f"gate {name}: cannot read runs of workflow {workflow!r}")
             all_green = False
@@ -614,7 +1006,7 @@ def check_gate_results(
 
 
 def check_state_file_is_canonical(
-    task: dict[str, Any], errors: list[str], notes: list[str]
+    task: dict[str, Any] | list[dict[str, Any]], errors: list[str], notes: list[str]
 ) -> None:
     """The branch doing the work inherits programme state; it does not author it.
 
@@ -637,8 +1029,15 @@ def check_state_file_is_canonical(
     if code != 0:
         notes.append("cannot determine the current branch; canonical-copy check skipped")
         return
-    if branch != str(task.get("branch")):
-        notes.append(f"on {branch}: not the task branch, so it may propose state changes")
+    tasks = task if isinstance(task, list) else [task]
+    product_task = next(
+        (candidate for candidate in tasks if branch == str(candidate.get("branch"))), None
+    )
+    if product_task is None:
+        product_branches = ", ".join(str(candidate.get("branch")) for candidate in tasks)
+        notes.append(
+            f"on {branch}: not a product branch ({product_branches}), so it may propose state changes"
+        )
         return
 
     code, base = run(["git", "merge-base", "HEAD", "origin/main"])
@@ -738,18 +1137,30 @@ def main() -> int:
     check_no_duplicate_keys(errors)
     task = check_current(current, errors)
     if task:
+        lanes = collect_lanes(current, task, errors)
         # Revisions listed in current.yaml are legitimate historical references.
-        task = {**task, "_revisions": current.get("revisions") or {}, "_gates": current.get("gates") or {}}
+        lane_tasks = [
+            {
+                **(lane.get("task") or {}),
+                "_revisions": lane.get("revisions") or {},
+                "_gates": lane.get("gates") or {},
+                "_lane_id": lane.get("id"),
+            }
+            for lane in lanes
+        ]
+        task = lane_tasks[0]
         check_stateless_documents(errors)
         check_source_invariants(errors)
-        check_state_file_is_canonical(task, errors, notes)
+        check_state_file_is_canonical(lane_tasks, errors, notes)
         check_manifest(task, errors)
         check_project_map(task, errors)
         check_active_tests(task, errors)
         check_catalog_validator(errors)
-        check_gate_scripts(current, errors)
-        check_git(task, errors, notes)
-        check_github(task, errors, notes, args.require_github)
+        check_gate_scripts(current, errors, lanes)
+        check_lane_branch_scopes(lanes, errors, notes, args.require_github)
+        for lane_task in lane_tasks:
+            check_git(lane_task, errors, notes)
+            check_github(lane_task, errors, notes, args.require_github)
 
     if errors:
         print("ASA Lab control plane validation: FAIL", file=sys.stderr)
@@ -763,6 +1174,9 @@ def main() -> int:
     print(f"pr={task.get('pr')}")
     print(f"status={task.get('status')}")
     print(f"leaseHolder={(current.get('execution_lease') or {}).get('holder')}")
+    if len(lane_tasks) > 1:
+        print(f"lanes={','.join(str(lane.get('id')) for lane in lanes)}")
+        print(f"integrationOwner={(current.get('integration') or {}).get('owner_lane')}")
     blocking = current.get("blocking") or []
     print(f"blocking={len(blocking)}")
     for note in notes:
