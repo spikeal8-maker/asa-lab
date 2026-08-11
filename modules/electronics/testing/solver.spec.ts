@@ -923,6 +923,33 @@ describe('deterministic DC solver', () => {
     expect(rgb?.branchBrightness?.blue).toBe(0);
   });
 
+  it('matches the Tinkercad 3 V direct-red RGB burnout current', () => {
+    const circuit = doc(
+      [
+        component('source', 'source', 3),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode' },
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'rgb', 'red'),
+        connect('common', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(circuit);
+    const rgb = resultFor(circuit, 'rgb');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(rgb?.branchCurrents?.red).toBeCloseTo(1.07, 2);
+    expect(rgb?.branchBrightness?.red).toBe(100);
+    expect(rgb?.branchBrightness?.green).toBe(0);
+    expect(rgb?.branchBrightness?.blue).toBe(0);
+    expect(rgb?.stressState).toBe('burned');
+    expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
+  });
+
   it.each(['red', 'green', 'blue'] as const)(
     'changes only the %s RGB channel monotonically across the resistor sweep',
     (channel) => {

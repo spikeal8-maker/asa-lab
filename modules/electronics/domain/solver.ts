@@ -97,7 +97,13 @@ const DIODE_ON_RESISTANCE = 2;
 // emitting light as resistance falls, shows an over-current warning at 1 ohm,
 // and reaches the destructive state only at the exact 0-ohm boundary.
 const LED_DYNAMIC_RESISTANCE = 44.5;
-const INDICATOR_ON_RESISTANCE = 8;
+// Tinkercad reports about 1.07 A when the red junction of its common-cathode
+// RGB LED is connected directly to a 3 V source.  Keep the RGB junction model
+// separate from the seven-segment cell model: using the display resistance for
+// both made an unprotected RGB LED look almost eight times less severe than the
+// reference while resistor-limited circuits still appeared plausible.
+const RGB_LED_ON_RESISTANCE = 1.03;
+const SEVEN_SEGMENT_ON_RESISTANCE = 8;
 const LED_MIN_CURRENT_A = 0.0001;
 const LED_NOMINAL_CURRENT_A = 0.02;
 const DEFAULT_LED_MAX_CURRENT_A = 0.03;
@@ -253,7 +259,7 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
       anode: commonAnode ? common : channel,
       cathode: commonAnode ? channel : common,
       forwardVoltage: RGB_FORWARD_VOLTAGE[channel] ?? 2,
-      resistance: INDICATOR_ON_RESISTANCE,
+      resistance: RGB_LED_ON_RESISTANCE,
       nominalCurrent: LED_NOMINAL_CURRENT_A,
       maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
     }));
@@ -267,7 +273,7 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
       anode: commonAnode ? common : terminal,
       cathode: commonAnode ? terminal : common,
       forwardVoltage: 1.9,
-      resistance: INDICATOR_ON_RESISTANCE,
+      resistance: SEVEN_SEGMENT_ON_RESISTANCE,
       nominalCurrent: 0.01,
       maxCurrent: 0.02,
     }));
@@ -349,10 +355,7 @@ function propertyError(component: SchematicComponent): string | null {
     return 'Значение должно быть неотрицательным числом.';
   if (component.kind === 'source' && component.value <= 0)
     return 'Напряжение источника должно быть больше нуля.';
-  if (
-    (component.kind === 'lamp' || component.kind === 'potentiometer') &&
-    component.value <= 0
-  ) {
+  if ((component.kind === 'lamp' || component.kind === 'potentiometer') && component.value <= 0) {
     return 'Сопротивление должно быть больше нуля.';
   }
   if ((component.kind === 'led' || component.kind === 'diode') && component.value <= 0)
