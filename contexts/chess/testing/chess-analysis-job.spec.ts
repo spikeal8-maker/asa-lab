@@ -347,6 +347,21 @@ describe('durable chess analysis job hardening', () => {
     expect(JSON.stringify(queue.list())).not.toContain('analysis-claim-');
     if (first.kind !== 'claimed') return;
 
+    const projection = queue.list()[0]!;
+    const guessedFromLease = await service.start({
+      jobId: submitted.value.id,
+      expectedVersion: submitted.value.version,
+      policy: submitted.value.request.policy,
+      principal: {
+        kind: 'worker',
+        tenantPartition: 'tenant-a',
+        workerId: first.claim.workerId,
+        claimToken: projection.leaseId!.replace('lease', 'claim'),
+        leaseId: first.claim.leaseId,
+      },
+    });
+    expect(guessedFromLease).toMatchObject({ ok: false, code: 'authorization_denied' });
+
     const forged = await service.start({
       jobId: submitted.value.id,
       expectedVersion: submitted.value.version,
@@ -513,6 +528,31 @@ describe('durable chess analysis job hardening', () => {
     expect(saves).toBe(0);
   });
 
+  it('rejects repository jobs whose lifecycle stage contradicts their status', async () => {
+    const baseline = fixture();
+    const submitted = await baseline.service.submit(submitCommand());
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    let saves = 0;
+    const poisoned: ChessAnalysisJobRepositoryPort = {
+      create: async (job) => ({ kind: 'created', job }),
+      get: async () => ({
+        ...submitted.value,
+        progress: { ...submitted.value.progress, stage: 'analysing' },
+      }),
+      save: async () => {
+        saves += 1;
+        return 'saved';
+      },
+    };
+    const result = await fixture({ repository: poisoned }).service.cancel(
+      requesterMutation(submitted.value.id, submitted.value.version),
+      null,
+    );
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(saves).toBe(0);
+  });
+
   it('rejects a poisoned idempotent create response with another owner or key', async () => {
     const baseline = fixture();
     const submitted = await baseline.service.submit(submitCommand());
@@ -528,6 +568,25 @@ describe('durable chess analysis job hardening', () => {
     };
     const result = await fixture({ repository: poisoned }).service.submit(submitCommand());
     expect(result).toMatchObject({ ok: false, code: 'idempotency_conflict' });
+  });
+
+  it('rejects identity drift returned during dispatch CAS reconciliation', async () => {
+    let created: ChessAnalysisJob | null = null;
+    const poisoned: ChessAnalysisJobRepositoryPort = {
+      create: async (job) => {
+        created = job;
+        return { kind: 'created', job };
+      },
+      get: async () =>
+        created === null
+          ? null
+          : { ...created, requestedBy: 'user-b', idempotencyKey: 'foreign-key' },
+      save: async () => 'conflict',
+    };
+    const current = fixture({ repository: poisoned });
+    const result = await current.service.submit(submitCommand());
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(current.queue.list()).toHaveLength(0);
   });
 
   it('persists only exact, bounded, legal canonical engine results', async () => {

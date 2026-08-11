@@ -614,23 +614,23 @@ function validateRepositoryJob(
       ((job.status === 'failed' || job.status === 'cancelled') &&
         job.progress.stage !== 'completed');
     const stateIsValid =
-      (progressMatchesState &&
-        job.status === 'succeeded' &&
+      progressMatchesState &&
+      ((job.status === 'succeeded' &&
         result !== null &&
         job.failure === null &&
         job.cancellation === null) ||
-      (job.status === 'failed' &&
-        result === null &&
-        job.failure !== null &&
-        job.cancellation === null) ||
-      (job.status === 'cancelled' &&
-        result === null &&
-        job.failure === null &&
-        job.cancellation !== null) ||
-      ((job.status === 'dispatching' || job.status === 'queued' || job.status === 'running') &&
-        result === null &&
-        job.failure === null &&
-        job.cancellation === null);
+        (job.status === 'failed' &&
+          result === null &&
+          job.failure !== null &&
+          job.cancellation === null) ||
+        (job.status === 'cancelled' &&
+          result === null &&
+          job.failure === null &&
+          job.cancellation !== null) ||
+        ((job.status === 'dispatching' || job.status === 'queued' || job.status === 'running') &&
+          result === null &&
+          job.failure === null &&
+          job.cancellation === null));
     if (!stateIsValid)
       return { ok: false, message: 'Repository job state fields are inconsistent.' };
 
@@ -757,6 +757,9 @@ export class ChessAnalysisJobService {
         ? validateRepositoryJob(rawCurrent, this.quota, {
             tenantPartition: job.tenantPartition,
             jobId: job.id,
+            requestedBy: job.requestedBy,
+            idempotencyKey: job.idempotencyKey,
+            requestFingerprint: job.requestFingerprint,
           })
         : null;
       if (checkedCurrent && !checkedCurrent.ok) {

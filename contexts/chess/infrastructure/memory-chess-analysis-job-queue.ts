@@ -63,6 +63,12 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+function secureClaimToken(): string {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  return `analysis-claim-${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export class MemoryChessAnalysisJobQueue
   implements
     ChessAnalysisJobQueuePort,
@@ -75,7 +81,10 @@ export class MemoryChessAnalysisJobQueue
   private claimSequence = 0;
   calls = 0;
 
-  constructor(private readonly nowMs: () => number = Date.now) {}
+  constructor(
+    private readonly nowMs: () => number = Date.now,
+    private readonly claimTokenFactory: () => string = secureClaimToken,
+  ) {}
 
   failNextEnqueue(message = 'Injected queue failure.'): void {
     this.nextEnqueueFailure = new Error(message);
@@ -140,10 +149,14 @@ export class MemoryChessAnalysisJobQueue
       return { kind: 'conflict' };
     }
     this.claimSequence += 1;
+    const claimToken = this.claimTokenFactory();
+    if (typeof claimToken !== 'string' || claimToken.length < 32 || claimToken.length > 512) {
+      return { kind: 'conflict' };
+    }
     const claimed = immutable({
       ...item,
       claimedBy: input.workerId,
-      claimToken: `analysis-claim-${this.claimSequence}`,
+      claimToken,
       leaseId: `analysis-lease-${this.claimSequence}`,
       leaseExpiresAtMs,
     });

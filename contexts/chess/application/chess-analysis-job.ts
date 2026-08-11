@@ -142,15 +142,6 @@ export function createDispatchingChessAnalysisJob(
   return createInitialChessAnalysisJob(input, 'dispatching');
 }
 
-/**
- * @deprecated Compatibility tombstone for the current package index. The unsafe queued
- * constructor is intentionally unavailable; the package-level export can be removed separately.
- */
-export function createQueuedChessAnalysisJob(_input: CreateChessAnalysisJobInput): never {
-  void _input;
-  throw new Error('Queued analysis jobs can only be created through ChessAnalysisJobService.');
-}
-
 export function queueChessAnalysisJob(
   job: ChessAnalysisJob,
   atMs: number,

@@ -160,13 +160,17 @@ worker/server adapter is not yet present and is not claimed; it remains gated on
 pinned GPL artifact manifest and corresponding source evidence.
 
 A transport-neutral job foundation now models dispatching, queued, running, succeeded,
-failed and cancelled analysis. It enforces owner-scoped idempotency, requester/worker
-authorization before repository access, bearer queue claims, optimistic concurrency,
-monotonic progress, bounded retry and recoverable dispatch. Results are checked against
-the canonical request, engine settings and legal PV before completion; invalid output is
-stored as a typed failure. Its repository, queue and authorization adapters remain
-deterministic in-memory evidence only. Process-durable storage, production dequeue
-leasing, heartbeat/recovery and actual engine execution in a worker remain open.
+failed and cancelled analysis. It derives tenant/owner identity from an opaque
+authenticated requester context before repository access, uses explicit idempotent
+enqueue outcomes and binds expiring worker claims to worker, attempt and lease. Optimistic
+concurrency, monotonic progress, bounded retry, recoverable dispatch and cancellation
+cleanup are tested under races. Every repository result is rebound to the requested
+tenant/job/key. Engine results use exact keys and bounded bytes/PV length, are checked
+against the canonical request, settings and legal PV, and are rebuilt from whitelisted
+fields before persistence. Invalid output is stored as a typed failure. Its repository,
+queue and authorization adapters remain deterministic in-memory evidence only. Process-
+durable storage, production dequeue leasing, heartbeat/recovery and actual engine
+execution in a worker remain open.
 
 ### CH-103 — Game Review v2
 
