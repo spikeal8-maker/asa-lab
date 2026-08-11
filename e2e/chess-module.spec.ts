@@ -96,6 +96,41 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   failures.assertEmpty();
 });
 
+test('review selects exact plies and accepts only the verified retry move', async ({ page }) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await login(page);
+  await createChessProject(page, 'Разбор ошибки и повторение');
+
+  await clickMove(page, 'e2', 'e4');
+  await clickMove(page, 'c7', 'c6');
+  await clickMove(page, 'f1', 'b5');
+  await clickMove(page, 'e7', 'e5');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Открыть разбор шахматной партии' }).click();
+  await expect(page.getByRole('heading', { name: 'Разбор ошибки и повторение' })).toBeVisible();
+  await expect(page.getByLabel('График оценки по полуходам')).toBeVisible();
+  await expect(page.locator('[data-review-timeline-point]')).toHaveCount(4);
+  await page.locator('[data-review-timeline-point="3"]').click();
+  await expect(page.locator('[data-square="b5"]')).toHaveAttribute('data-piece', 'white-bishop');
+
+  await page.getByRole('button', { name: 'Повторить момент' }).click();
+  await expect(page.getByLabel('Повторение момента')).toBeVisible();
+  await clickMove(page, 'e7', 'e5');
+  await expect(
+    page.getByText('Ход легален, но это не лучший ответ из разбора. Попробуйте ещё раз.'),
+  ).toBeVisible();
+  await expect(page.getByLabel('Повторение момента').locator('dl dd')).toHaveText(['1', '1', '0']);
+
+  await page.getByRole('button', { name: 'Подсказка 1/3' }).click();
+  await expect(page.getByText('Найдите возможность для фигуры на поле c6.')).toBeVisible();
+  await clickMove(page, 'c6', 'b5');
+  await expect(page.getByText('Момент пройден', { exact: true })).toBeVisible();
+  await expect(page.getByText('Верно. Вы нашли лучший ход из разбора.')).toBeVisible();
+  failures.assertEmpty();
+});
+
 test('learner opens the original ASA puzzle trainer and solves a mate in one', async ({ page }) => {
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);

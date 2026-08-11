@@ -48,6 +48,21 @@ export {
   type ChessBotChoice,
 } from './domain/bot.js';
 export {
+  ASA_BOT_PROFILES,
+  chooseAsaBotCandidateIndex,
+  chooseMappedAsaBotMove,
+  computeAsaBotMoveTimeMs,
+  decideAsaBotMistake,
+  validateAsaBotProfileCatalog,
+  type AsaBotMappedChoice,
+  type AsaBotMistakeDecision,
+  type AsaBotMoveTimeInput,
+  type AsaBotProfile,
+  type AsaBotSeedContext,
+  type AsaBotStyleSignal,
+  type AsaBotTier,
+} from './domain/bot-profiles.js';
+export {
   agreeDrawChessDocument,
   chessDocumentPositionKeys,
   createEmptyChessDocument,
@@ -86,6 +101,32 @@ export {
   type ChessFairPlayPolicy,
   type ChessSessionPolicy,
 } from './domain/fair-play.js';
+export {
+  CHESS_ENGINE_ANALYSIS_SCHEMA_VERSION,
+  buildChessEngineCacheKey,
+  type AnalyseChessPositionCommand,
+  type ChessEngineAdapterInput,
+  type ChessEngineAnalysis,
+  type ChessEngineAnalysisErrorCode,
+  type ChessEngineAnalysisResult,
+  type ChessEngineCachePort,
+  type ChessEngineCapabilities,
+  type ChessEngineIdentity,
+  type ChessEngineLine,
+  type ChessEnginePort,
+  type ChessEngineQuota,
+  type ChessEngineRawAnalysis,
+  type ChessEngineScore,
+  type ChessEngineSearch,
+  type ChessEngineSettings,
+} from './application/engine-contract.js';
+export { analyseChessPosition } from './application/analyse-position.js';
+export {
+  ASA_LITE_FIXED_HASH_MB,
+  ASA_LITE_FIXED_THREADS,
+  AsaLiteEngineAdapter,
+} from './infrastructure/asa-lite-engine-adapter.js';
+export { MemoryChessEngineCache } from './infrastructure/memory-engine-cache.js';
 export {
   createChessPuzzleSession,
   playChessPuzzleMove,

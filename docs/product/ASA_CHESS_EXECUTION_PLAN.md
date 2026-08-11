@@ -153,9 +153,11 @@ product files remain unchanged.
 Implemented foundation: typed engine/settings/result contracts, fair-play capability
 authorization before cache or adapter access, canonical FEN and versioned cache keys,
 partitioned cache, quotas, cancellation/timeout and legal PV/Multi-PV validation are
-covered by tests. A production Stockfish worker/server adapter is not yet present and
-is not claimed; it remains gated on a pinned GPL artifact manifest and corresponding
-source evidence.
+covered by tests. The public Chess API now includes an honest ASA Lite adapter for
+deterministic depth 1-3, one principal root move and a single variation. It keeps mate
+separate from centipawns without inventing a mate distance. A production Stockfish
+worker/server adapter is not yet present and is not claimed; it remains gated on a
+pinned GPL artifact manifest and corresponding source evidence.
 
 ### CH-103 — Game Review v2
 
@@ -168,6 +170,13 @@ source evidence.
 
 An LLM may improve wording but cannot create evaluations, legal moves or tactical facts.
 
+Implemented foundation: every reviewed ply now records canonical positions before and
+after the move plus a verified legal best root move. The Review UI has one evaluation
+point per ply, selects the exact board position from the move list or timeline, and can
+retry a mistake from the exact pre-error position. Only the verified best root is
+accepted; three progressive hints and reset are available. Deep engine lines, time
+graph, persisted review jobs and verified motif explanations remain open.
+
 ### CH-104 — Bot Profiles v1
 
 Start with 12 original calibrated profiles rather than a large low-quality catalogue.
@@ -177,6 +186,13 @@ model, assistance policy and original dialogue. Real-person likeness requires pe
 Acceptance uses automated reference matches plus blind human review. Bot quantity alone
 is not a release criterion.
 
+Implemented foundation: 12 original, immutable profiles are defined as four beginner,
+four intermediate, three advanced and one adaptive profile. Each profile has explicit
+style signals, repertoire, mistake and move-time models, assistance policy and original
+dialogue, with deterministic seeded helpers and strict schema tests. Strength bands are
+explicitly marked not calibrated; reference matches and blind human validation remain
+required before release claims.
+
 ### CH-105 — mistakes-to-training
 
 - create a private training item from an exact reviewed position;
@@ -184,6 +200,11 @@ is not a release criterion.
 - preserve a link to the source game/version;
 - record attempts without mutating the original game;
 - recommend a lesson through explicit motif-to-content mapping.
+
+Implemented foundation: Review can create a private in-memory training item linked to
+the source project and ply, preserving the exact pre-error FEN, played move and verified
+best root. Retry attempts never mutate the source game. Persistence, a project-version
+identifier, automatic defence, motif evidence and lesson mapping remain open.
 
 ### R1 release gate
 

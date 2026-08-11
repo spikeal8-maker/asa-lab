@@ -53,9 +53,9 @@ and separate 48 px toolbar without product-file changes in this slice.
 | ID | User outcome | Priority | Acceptance | Source | Status |
 | --- | --- | --- | --- | --- | --- |
 | BOT-01 | Choose bot, White/Black/Random and timed/untimed play | MUST R1 | Every combination starts a legal unrated game and persists settings | Bots | foundation |
-| BOT-02 | Twelve original profiles | MUST R1 | 4 beginner, 4 intermediate, 3 advanced, 1 adaptive; profile records style, repertoire, error and time model | Bots | not_started |
+| BOT-02 | Twelve original profiles | MUST R1 | 4 beginner, 4 intermediate, 3 advanced, 1 adaptive; profile records style, repertoire, error and time model | Bots | foundation |
 | BOT-03 | Calibrated strength | MUST R1 | At least 1,000 reference games/profile; 95% CI inside declared band; median target error ≤75 Elo | ASA | not_started |
-| BOT-04 | Distinguishable style | MUST R1 | Two measurable style signals/profile; blind expert identification ≥70% | ASA | not_started |
+| BOT-04 | Distinguishable style | MUST R1 | Two measurable style signals/profile; blind expert identification ≥70% | ASA | foundation |
 | BOT-05 | Assisted and challenge policies | MUST R1 | Evaluation, arrows, hint, feedback and undo follow policy; used assistance is stored | Bots | foundation |
 | BOT-06 | Save game and open exact Review | MUST R1 | Refresh preserves result, assistance, clocks and moves; Review reads exact version | Bots/Review | foundation |
 | BOT-07 | Crowns, 100+ profiles and seasonal/celebrity bots | DEFER | R1 never claims catalogue parity | Bots | not_started |
@@ -65,11 +65,11 @@ and separate 48 px toolbar without product-file changes in this slice.
 | ID | User outcome | Priority | Acceptance | Source | Status |
 | --- | --- | --- | --- | --- | --- |
 | REV-01 | Open Review after game or from archive | MUST R1 | Both routes return one versioned review; reopening does not re-run silently | Game Review | foundation |
-| REV-02 | Evaluation/time graphs and factual summary | MUST R1 | One point per ply; selecting a point selects the same position | Game Review | not_started |
+| REV-02 | Evaluation/time graphs and factual summary | MUST R1 | One point per ply; selecting a point selects the same position | Game Review | foundation |
 | REV-03 | ASA Quality 0–100 | MUST R1 | Original formula documented and versioned; golden corpus; never named CAPS/Accuracy | Accuracy | foundation |
 | REV-04 | Move classifications | MUST R1 | Original deterministic ASA labels cover book, error, missed chance and strong move; every line legal | Classification | foundation |
 | REV-05 | Navigate all moves and key moments | MUST R1 | Mouse, touch and keyboard select identical positions; Next skips no marked moment | Game Review | foundation |
-| REV-06 | Show line, best move, Retry and Hint | MUST R1 | Retry uses exact pre-error FEN; incorrect move never passes | Game Review | not_started |
+| REV-06 | Show line, best move, Retry and Hint | MUST R1 | Retry uses exact pre-error FEN; incorrect move never passes | Game Review | foundation |
 | REV-07 | Understand the mistake | MUST R1 | Explanation cites verified engine line and formal motif; zero unsupported claims in corpus and 100 manual samples | Game Review | not_started |
 | REV-08 | Review White, Black or Both and persist settings | MUST R1 | Settings affect presentation without mutating stored analysis | Game Review | not_started |
 | REV-09 | Self Analysis and continue against bot | MUST R1 | Exact FEN/turn/castling/en-passant transferred; original game immutable | Analysis | not_started |
@@ -80,7 +80,7 @@ and separate 48 px toolbar without product-file changes in this slice.
 
 | ID | User outcome | Priority | Acceptance | Source | Status |
 | --- | --- | --- | --- | --- | --- |
-| TRN-01 | Train this mistake | MUST R1, ASA | Private drill uses exact pre-error FEN and links game/version/move | ASA differentiator | not_started |
+| TRN-01 | Train this mistake | MUST R1, ASA | Private drill uses exact pre-error FEN and links game/version/move | ASA differentiator | foundation |
 | TRN-02 | Solve against automatic defence | MUST R1 | Same engine version validates accepted tree; equivalent solutions accepted | Puzzles | foundation |
 | TRN-03 | Progressive hints | MUST R1 | Motif → candidate piece/square → move; attempts and hints recorded | Puzzles | foundation |
 | TRN-04 | Relevant starter lesson | MUST R1 | Every supported motif maps to a published original ASA lesson | Lessons | not_started |
