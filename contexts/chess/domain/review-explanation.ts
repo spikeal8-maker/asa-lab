@@ -10,7 +10,13 @@ import {
   type PieceType,
   type PromotionPiece,
 } from './chess.js';
-import type { AsaMoveReview } from './review.js';
+import { chooseChessBotMove, evaluateChessPosition } from './bot.js';
+import {
+  asaMoveQuality,
+  type AsaGameReview,
+  type AsaMoveClassification,
+  type AsaMoveReview,
+} from './review.js';
 
 export type AsaReviewExplanationFact =
   | {
@@ -77,6 +83,8 @@ const PROMOTION_NAME: Readonly<Record<PromotionPiece, string>> = {
   knight: 'коня',
 };
 
+const MATE_SENTINEL_THRESHOLD = 99_000;
+
 function capturedPieceType(move: ChessMove, position: ChessPosition): PieceType | null {
   if (move.isEnPassant) return 'pawn';
   return pieceAt(position, move.to)?.type ?? null;
@@ -90,12 +98,48 @@ function validateFiniteLoss(move: AsaMoveReview): boolean {
   );
 }
 
+function moverLoss(color: AsaMoveReview['color'], best: number, played: number): number {
+  const raw = color === 'white' ? best - played : played - best;
+  return Math.max(0, Math.round(raw));
+}
+
+function classifyMove(
+  playedUci: string,
+  bestUci: string,
+  centipawnLoss: number,
+): AsaMoveClassification {
+  if (playedUci === bestUci) return 'best';
+  if (centipawnLoss <= 20) return 'excellent';
+  if (centipawnLoss <= 60) return 'good';
+  if (centipawnLoss <= 120) return 'inaccuracy';
+  if (centipawnLoss <= 250) return 'mistake';
+  return 'blunder';
+}
+
 /**
  * Builds wording only from a canonical reviewed root and immediately verifiable
  * move properties. Strategic motifs are intentionally excluded until a separate
  * detector can attach equally strict evidence.
  */
-export function explainAsaMoveReview(move: AsaMoveReview): AsaReviewExplanationResult {
+export function explainAsaMoveReview(
+  review: AsaGameReview,
+  ply: number,
+): AsaReviewExplanationResult {
+  if (
+    typeof review !== 'object' ||
+    review === null ||
+    review.algorithm !== 'asa-review-v1' ||
+    (review.depth !== 1 && review.depth !== 2 && review.depth !== 3) ||
+    !Array.isArray(review.moves) ||
+    !Number.isSafeInteger(ply) ||
+    ply < 1
+  ) {
+    return { ok: false, message: 'Review explanation requires a canonical ASA Review and ply.' };
+  }
+  const move = review.moves[ply - 1];
+  if (!move || move.ply !== ply) {
+    return { ok: false, message: 'Review explanation ply does not match the ASA Review.' };
+  }
   if (!validateFiniteLoss(move)) {
     return { ok: false, message: 'Review explanation requires a finite integer cp loss.' };
   }
@@ -114,22 +158,48 @@ export function explainAsaMoveReview(move: AsaMoveReview): AsaReviewExplanationR
     return { ok: false, message: 'Played and best moves must both be legal at the review root.' };
   }
 
-  const playedFenAfter = toFen(applyMoveUnchecked(root.value, played));
+  const playedPosition = applyMoveUnchecked(root.value, played);
+  const playedFenAfter = toFen(playedPosition);
   const bestPosition = applyMoveUnchecked(root.value, best);
   const bestFenAfter = toFen(bestPosition);
   if (playedFenAfter !== move.fenAfter || bestFenAfter !== move.bestRoot.fenAfter) {
     return { ok: false, message: 'Review explanation evidence is not canonical.' };
   }
 
-  const facts: AsaReviewExplanationFact[] = [
-    {
+  const recalculatedBest = chooseChessBotMove(root.value, review.depth);
+  const evaluationBeforeCp = evaluateChessPosition(root.value);
+  const evaluationAfterCp = evaluateChessPosition(playedPosition);
+  const bestEvaluationAfterCp = evaluateChessPosition(bestPosition);
+  const centipawnLoss = moverLoss(root.value.turn, bestEvaluationAfterCp, evaluationAfterCp);
+  const classification = classifyMove(move.playedUci, move.bestUci, centipawnLoss);
+  if (
+    !Number.isSafeInteger(move.ply) ||
+    move.ply < 1 ||
+    move.color !== root.value.turn ||
+    recalculatedBest?.uci !== move.bestUci ||
+    move.evaluationBeforeCp !== evaluationBeforeCp ||
+    move.evaluationAfterCp !== evaluationAfterCp ||
+    move.bestEvaluationAfterCp !== bestEvaluationAfterCp ||
+    move.centipawnLoss !== centipawnLoss ||
+    move.classification !== classification ||
+    move.asaQuality !== asaMoveQuality(centipawnLoss)
+  ) {
+    return { ok: false, message: 'Review explanation does not match recalculated ASA Review.' };
+  }
+
+  const facts: AsaReviewExplanationFact[] = [];
+  const hasMateSentinel =
+    Math.abs(evaluationAfterCp) >= MATE_SENTINEL_THRESHOLD ||
+    Math.abs(bestEvaluationAfterCp) >= MATE_SENTINEL_THRESHOLD;
+  if (!hasMateSentinel) {
+    facts.push({
       kind: 'evaluation_loss',
       playedUci: move.playedUci,
       bestUci: move.bestUci,
-      centipawnLoss: move.centipawnLoss,
-      text: `Сыграно ${move.playedUci} вместо ${move.bestUci}; потеря по ASA Review v1 — ${move.centipawnLoss} cp.`,
-    },
-  ];
+      centipawnLoss,
+      text: `Сыграно ${move.playedUci} вместо ${move.bestUci}; потеря по ASA Review v1 — ${centipawnLoss} cp.`,
+    });
+  }
 
   const captured = capturedPieceType(best, root.value);
   if (captured) {

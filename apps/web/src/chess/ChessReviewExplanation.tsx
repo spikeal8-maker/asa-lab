@@ -1,12 +1,16 @@
-import { explainAsaMoveReview, type AsaMoveReview } from '@asa-lab/chess';
+import { explainAsaMoveReview, type AsaGameReview } from '@asa-lab/chess';
 
 export function ChessReviewExplanation({
-  move,
+  review,
+  ply,
 }: {
-  readonly move: AsaMoveReview;
+  readonly review: AsaGameReview;
+  readonly ply: number;
 }): JSX.Element | null {
+  const move = review.moves.find((candidate) => candidate.ply === ply);
+  if (!move) return null;
   if (!move.bestUci || move.bestUci === move.playedUci) return null;
-  const explanation = explainAsaMoveReview(move);
+  const explanation = explainAsaMoveReview(review, ply);
   if (!explanation.ok) return null;
 
   return (

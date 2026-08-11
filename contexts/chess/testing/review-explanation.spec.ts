@@ -1,63 +1,29 @@
 import { describe, expect, it } from 'vitest';
+import { applyMoveUnchecked, findLegalMoveByUci, parseFen, toFen } from '../domain/chess';
 import {
-  START_FEN,
-  applyMoveUnchecked,
-  findLegalMoveByUci,
-  parseFen,
-  toFen,
-} from '../domain/chess';
-import { createEmptyChessDocument, playChessDocumentMove } from '../domain/document';
+  createEmptyChessDocument,
+  playChessDocumentMove,
+  type ChessDocument,
+} from '../domain/document';
 import { explainAsaMoveReview } from '../domain/review-explanation';
-import { reviewChessDocument, type AsaMoveReview } from '../domain/review';
+import { reviewChessDocument, type AsaGameReview } from '../domain/review';
 
-function reviewedBlunder(): AsaMoveReview {
-  let document = createEmptyChessDocument();
-  for (const uci of ['e2e4', 'c7c6', 'f1b5', 'e7e5']) {
-    const played = playChessDocumentMove(document, uci);
-    if (!played.ok) throw new Error(played.message);
-    document = played.value;
-  }
-  const move = reviewChessDocument(document, 1).moves.at(-1);
-  if (!move) throw new Error('expected one reviewed move');
-  return move;
+function play(document: ChessDocument, uci: string): ChessDocument {
+  const result = playChessDocumentMove(document, uci);
+  if (!result.ok) throw new Error(result.message);
+  return result.value;
 }
 
-function reviewFromRoot(input: {
-  fen: string;
-  playedUci: string;
-  bestUci: string;
-  centipawnLoss?: number;
-}): AsaMoveReview {
-  const root = parseFen(input.fen);
-  if (!root.ok) throw new Error(root.message);
-  const played = findLegalMoveByUci(root.value, input.playedUci);
-  const best = findLegalMoveByUci(root.value, input.bestUci);
-  if (!played || !best) throw new Error('test moves must be legal');
-  const fenBefore = toFen(root.value);
-  const fenAfter = toFen(applyMoveUnchecked(root.value, played));
-  const bestFenAfter = toFen(applyMoveUnchecked(root.value, best));
-  return {
-    ply: 1,
-    color: root.value.turn,
-    playedUci: input.playedUci,
-    playedSan: input.playedUci,
-    fenBefore,
-    fenAfter,
-    bestUci: input.bestUci,
-    bestRoot: { fenBefore, moveUci: input.bestUci, fenAfter: bestFenAfter },
-    evaluationBeforeCp: 0,
-    evaluationAfterCp: -180,
-    bestEvaluationAfterCp: 40,
-    centipawnLoss: input.centipawnLoss ?? 220,
-    classification: 'mistake',
-    asaQuality: 29,
-  };
+function reviewedBlunder(): AsaGameReview {
+  let document = createEmptyChessDocument();
+  for (const uci of ['e2e4', 'c7c6', 'f1b5', 'e7e5']) document = play(document, uci);
+  return reviewChessDocument(document, 1);
 }
 
 describe('fact-only ASA review explanations', () => {
   it('explains a real reviewed blunder with canonical evaluation and capture facts', () => {
-    const move = reviewedBlunder();
-    const explanation = explainAsaMoveReview(move);
+    const review = reviewedBlunder();
+    const explanation = explainAsaMoveReview(review, 4);
 
     expect(explanation).toMatchObject({
       ok: true,
@@ -81,64 +47,72 @@ describe('fact-only ASA review explanations', () => {
     expect(explanation.value.summary).not.toMatch(/вилка|связк|стратег|план/i);
   });
 
-  it('reports an immediately verified checking best move without adding a motif', () => {
-    const move = reviewFromRoot({
-      fen: '7k/8/8/8/8/8/6R1/K7 w - - 0 1',
-      playedUci: 'g2g3',
-      bestUci: 'g2g8',
-    });
-    const explanation = explainAsaMoveReview(move);
+  it('describes a verified mate without presenting the private mate sentinel as cp', () => {
+    const initialFen = '7k/5Q2/6K1/8/8/8/8/8 w - - 0 1';
+    const document = play(
+      { ...createEmptyChessDocument(), initialFen, currentFen: initialFen },
+      'f7f1',
+    );
+    const review = reviewChessDocument(document, 1);
+    const explanation = explainAsaMoveReview(review, 1);
 
     expect(explanation).toMatchObject({
       ok: true,
-      value: { facts: [{ kind: 'evaluation_loss' }, { kind: 'best_check', checkmate: false }] },
+      value: { facts: [{ kind: 'best_check', checkmate: true }] },
     });
+    if (!explanation.ok) return;
+    expect(explanation.value.summary).toContain('ставил мат');
+    expect(explanation.value.summary).not.toMatch(/cp|99048|100000/i);
+    expect(explanation.value.facts.some((fact) => fact.kind === 'evaluation_loss')).toBe(false);
   });
 
-  it('reports castling and promotion only when encoded by the legal best root', () => {
-    const castle = explainAsaMoveReview(
-      reviewFromRoot({
-        fen: 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1',
-        playedUci: 'a1a2',
-        bestUci: 'e1g1',
-      }),
-    );
-    const promotion = explainAsaMoveReview(
-      reviewFromRoot({
-        fen: '7k/P7/8/8/8/8/8/K7 w - - 0 1',
-        playedUci: 'a7a8r',
-        bestUci: 'a7a8q',
-      }),
-    );
+  it('rejects a legal but forged best root that was not selected by ASA Review', () => {
+    const review = reviewedBlunder();
+    const reviewedMove = review.moves[3];
+    if (!reviewedMove) throw new Error('expected ply four');
+    const root = parseFen(reviewedMove.fenBefore);
+    if (!root.ok) throw new Error(root.message);
+    const forgedBest = findLegalMoveByUci(root.value, 'd7d5');
+    if (!forgedBest) throw new Error('expected a legal alternative');
+    const forgedBestFen = toFen(applyMoveUnchecked(root.value, forgedBest));
+    const forgedReview: AsaGameReview = {
+      ...review,
+      moves: review.moves.map((move) =>
+        move.ply === 4
+          ? {
+              ...move,
+              bestUci: 'd7d5',
+              bestRoot: {
+                fenBefore: move.fenBefore,
+                moveUci: 'd7d5',
+                fenAfter: forgedBestFen,
+              },
+            }
+          : move,
+      ),
+    };
 
-    expect(castle).toMatchObject({
-      ok: true,
-      value: { facts: [{ kind: 'evaluation_loss' }, { kind: 'best_castle', side: 'king' }] },
-    });
-    expect(promotion).toMatchObject({
-      ok: true,
-      value: {
-        facts: [
-          { kind: 'evaluation_loss' },
-          { kind: 'best_check', checkmate: false },
-          { kind: 'best_promotion', promotion: 'queen' },
-        ],
-      },
-    });
-  });
-
-  it('rejects non-canonical or malformed evidence instead of generating wording', () => {
-    const move = reviewFromRoot({ fen: START_FEN, playedUci: 'e2e4', bestUci: 'd2d4' });
-
-    expect(explainAsaMoveReview({ ...move, centipawnLoss: Number.NaN })).toMatchObject({
+    expect(explainAsaMoveReview(forgedReview, 4)).toEqual({
       ok: false,
+      message: 'Review explanation does not match recalculated ASA Review.',
     });
-    expect(
-      explainAsaMoveReview({
-        ...move,
-        bestRoot: move.bestRoot ? { ...move.bestRoot, fenAfter: move.fenAfter } : null,
-      }),
-    ).toEqual({ ok: false, message: 'Review explanation evidence is not canonical.' });
-    expect(move.fenBefore).toBe(START_FEN);
+  });
+
+  it('rejects mismatched ply and altered evaluation evidence', () => {
+    const review = reviewedBlunder();
+    const reviewedMove = review.moves[3];
+    if (!reviewedMove) throw new Error('expected ply four');
+    const alteredReview: AsaGameReview = {
+      ...review,
+      moves: review.moves.map((move) =>
+        move.ply === 4 ? { ...move, centipawnLoss: move.centipawnLoss + 1 } : move,
+      ),
+    };
+
+    expect(explainAsaMoveReview(review, 99)).toEqual({
+      ok: false,
+      message: 'Review explanation ply does not match the ASA Review.',
+    });
+    expect(explainAsaMoveReview(alteredReview, 4)).toMatchObject({ ok: false });
   });
 });

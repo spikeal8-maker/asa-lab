@@ -330,7 +330,7 @@ export function ChessReviewPage({ projectId, onBackToProject }: ChessReviewPageP
             onSelect={selectMove}
           />
 
-          {selectedMove ? <ChessReviewExplanation move={selectedMove} /> : null}
+          {selectedMove ? <ChessReviewExplanation review={review} ply={selectedMove.ply} /> : null}
 
           {review.moves.length === 0 ? (
             <div className="asa-chess-empty-list">

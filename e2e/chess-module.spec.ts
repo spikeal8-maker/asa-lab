@@ -121,6 +121,11 @@ test('review selects exact plies and accepts only the verified retry move', asyn
   await expect(page.locator('[data-review-timeline-point]')).toHaveCount(4);
   await page.locator('[data-review-timeline-point="3"]').click();
   await expect(page.locator('[data-square="b5"]')).toHaveAttribute('data-piece', 'white-bishop');
+  await expect(page.getByLabel('Проверенные факты разбора')).toContainText('f1b5');
+  await expect(page.getByLabel('Проверенные факты разбора')).toContainText('d2d4');
+  await expect(page.getByLabel('Проверенные факты разбора')).not.toContainText(
+    'немедленно забирал слона',
+  );
 
   await page.getByRole('button', { name: 'Повторить момент' }).click();
   await expect(page.getByLabel('Повторение момента')).toBeVisible();
