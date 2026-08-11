@@ -1,7 +1,7 @@
 import {
   agreeDrawChessDocument,
   chessDocumentPositionKeys,
-  chooseChessBotMove,
+  chooseMappedAsaBotMove,
   createChessGameDocument,
   evaluateChessPosition,
   exportChessPgn,
@@ -28,6 +28,7 @@ import {
 } from '@asa-lab/chess';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Project, type ProjectVersion } from '../api';
+import { applyAsaBotProfile, resolveAsaBotProfile } from './chess-ui';
 
 export type ChessSaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -36,6 +37,10 @@ export interface PromotionRequest {
   readonly to: Square;
   readonly moves: readonly ChessMove[];
 }
+
+export type ProfiledChessGameOptions = NewChessGameOptions & {
+  readonly botProfileId?: string;
+};
 
 function parsePosition(fen: string): ChessPosition | null {
   const parsed = parseFen(fen);
@@ -186,7 +191,9 @@ export function useChessProject(projectId: string) {
     setBotThinking(true);
     const timer = window.setTimeout(() => {
       if (botTaskRef.current !== taskId) return;
-      const choice = chooseChessBotMove(position, document.bot?.level ?? 2);
+      const profile = resolveAsaBotProfile(document.bot?.profileId, document.bot?.level ?? 2);
+      const botDisplayName = document.bot?.profileId ? profile.displayName : 'ASA Bot';
+      const choice = chooseMappedAsaBotMove(position, profile);
       if (!choice) {
         setBotThinking(false);
         return;
@@ -194,9 +201,9 @@ export function useChessProject(projectId: string) {
       const next = playChessDocumentMove(document, choice.uci, 0);
       setBotThinking(false);
       if (next.ok) {
-        commit(next.value, `ASA Bot: ${next.value.moves.at(-1)?.san ?? choice.uci}`);
+        commit(next.value, `${botDisplayName}: ${next.value.moves.at(-1)?.san ?? choice.uci}`);
       } else {
-        setNotice(`ASA Bot не смог сделать ход: ${next.message}`);
+        setNotice(`${botDisplayName} не смог сделать ход: ${next.message}`);
       }
     }, 300);
 
@@ -265,8 +272,12 @@ export function useChessProject(projectId: string) {
     executeMove(move);
   }
 
-  function startGame(options: NewChessGameOptions): void {
-    const next = createChessGameDocument(options);
+  function startGame(options: ProfiledChessGameOptions): void {
+    let next = createChessGameDocument(options);
+    if (next.mode === 'computer' && next.bot) {
+      const profile = resolveAsaBotProfile(options.botProfileId, next.bot.level);
+      next = applyAsaBotProfile(next, profile);
+    }
     commit(
       next,
       options.mode === 'analysis'

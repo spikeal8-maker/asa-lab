@@ -11,6 +11,7 @@ import {
   type Color,
   type Square,
 } from './chess.js';
+import { ASA_BOT_PROFILES } from './bot-profiles.js';
 
 export type ChessMode = 'analysis' | 'local' | 'computer';
 export type BoardOrientation = 'white' | 'black';
@@ -44,6 +45,13 @@ export interface ChessMoveRecord {
     readonly whiteMs: number;
     readonly blackMs: number;
   };
+}
+
+export interface ChessBotConfiguration {
+  readonly color: Color;
+  readonly level: BotLevel;
+  /** Optional only for documents created before the ASA profile catalog. */
+  readonly profileId?: string;
 }
 
 export interface ChessArrowAnnotation {
@@ -81,7 +89,7 @@ export interface ChessDocument {
   readonly orientation: BoardOrientation;
   readonly moves: readonly ChessMoveRecord[];
   readonly clock: ChessClockState | null;
-  readonly bot: { readonly color: Color; readonly level: BotLevel } | null;
+  readonly bot: ChessBotConfiguration | null;
   readonly annotations: readonly ChessAnnotation[];
   readonly result: ChessResult;
   readonly termination: ChessTermination;
@@ -108,7 +116,7 @@ const TOP_LEVEL_KEYS = new Set([
 ]);
 const MOVE_KEYS = new Set(['ply', 'uci', 'san', 'fenBefore', 'fenAfter', 'clockAfter']);
 const CLOCK_KEYS = new Set(['initialMs', 'incrementMs', 'whiteMs', 'blackMs']);
-const BOT_KEYS = new Set(['color', 'level']);
+const BOT_KEYS = new Set(['color', 'level', 'profileId']);
 const ANNOTATION_COLORS = new Set(['green', 'red', 'blue', 'yellow']);
 const HEADER_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/;
@@ -117,6 +125,8 @@ const MAX_MOVES = 1000;
 const MAX_ANNOTATIONS = 2000;
 const MAX_COMMENT_LENGTH = 4000;
 const MAX_CLOCK_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_BOT_PROFILE =
+  ASA_BOT_PROFILES.find((profile) => profile.id === 'asa-bot-compass') ?? ASA_BOT_PROFILES[0]!;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -167,7 +177,14 @@ export function createEmptyChessDocument(mode: ChessMode = 'analysis'): ChessDoc
     orientation: 'white',
     moves: [],
     clock: defaultClock(mode),
-    bot: mode === 'computer' ? { color: 'black', level: 2 } : null,
+    bot:
+      mode === 'computer'
+        ? {
+            color: 'black',
+            level: DEFAULT_BOT_PROFILE.engine.level,
+            profileId: DEFAULT_BOT_PROFILE.id,
+          }
+        : null,
     annotations: [],
     result: '*',
     termination: 'ongoing',
@@ -641,7 +658,24 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
     ) {
       return { ok: false, message: 'Invalid bot color or level.' };
     }
-    bot = { color: value['bot']['color'], level: value['bot']['level'] as BotLevel };
+    const profileId = value['bot']['profileId'];
+    if (profileId !== undefined) {
+      if (typeof profileId !== 'string') {
+        return { ok: false, message: 'bot.profileId must be a stable ASA profile id.' };
+      }
+      const profile = ASA_BOT_PROFILES.find((candidate) => candidate.id === profileId);
+      if (!profile) {
+        return { ok: false, message: 'bot.profileId does not name an ASA bot profile.' };
+      }
+      if (profile.engine.level !== value['bot']['level']) {
+        return { ok: false, message: 'bot level must match the selected ASA bot profile.' };
+      }
+    }
+    bot = {
+      color: value['bot']['color'],
+      level: value['bot']['level'] as BotLevel,
+      ...(profileId === undefined ? {} : { profileId }),
+    };
   }
   if ((value['mode'] === 'computer') !== (bot !== null)) {
     return { ok: false, message: 'Computer mode requires exactly one bot configuration.' };

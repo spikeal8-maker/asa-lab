@@ -592,6 +592,62 @@
   line-height: 1.45;
 }
 
+.asa-chess-active-bot,
+.asa-chess-bot-profile-detail {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #bdd6dd;
+  border-radius: 10px;
+  background: #f1fafc;
+}
+
+.asa-chess-active-bot > div,
+.asa-chess-bot-profile-detail > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.asa-chess-active-bot span,
+.asa-chess-bot-profile-detail span {
+  color: #52717b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.asa-chess-active-bot dl,
+.asa-chess-bot-profile-detail dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.asa-chess-active-bot dl div,
+.asa-chess-bot-profile-detail dl div {
+  display: grid;
+  gap: 2px;
+}
+
+.asa-chess-active-bot dt,
+.asa-chess-bot-profile-detail dt {
+  color: #607781;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.asa-chess-active-bot dd,
+.asa-chess-bot-profile-detail dd,
+.asa-chess-active-bot p,
+.asa-chess-bot-profile-detail p {
+  margin: 0;
+  color: #294653;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .asa-chess-analysis-card {
   grid-template-columns: 1fr auto;
   align-items: end;
@@ -748,7 +804,8 @@
 
 .asa-chess-choice-grid legend,
 .asa-chess-time-options legend,
-.asa-chess-setup-columns legend {
+.asa-chess-setup-columns legend,
+.asa-chess-bot-setup legend {
   grid-column: 1 / -1;
   margin-bottom: 6px;
   color: #536974;
@@ -783,7 +840,8 @@
 }
 
 .asa-chess-time-options,
-.asa-chess-setup-columns fieldset {
+.asa-chess-setup-columns fieldset,
+.asa-chess-bot-setup fieldset {
   border: 0;
   margin: 0;
   padding: 0;
@@ -806,6 +864,60 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+.asa-chess-bot-setup {
+  display: grid;
+  gap: 14px;
+}
+
+.asa-chess-bot-profile-grid {
+  max-height: 230px;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 2px;
+}
+
+.asa-chess-bot-profile-grid label {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #bfccd3;
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.asa-chess-bot-profile-grid label.selected {
+  border-color: var(--chess-cyan);
+  background: #edf9fc;
+  box-shadow: inset 0 0 0 1px var(--chess-cyan);
+}
+
+.asa-chess-bot-profile-grid label:focus-within {
+  outline: 3px solid rgba(0, 161, 193, 0.28);
+  outline-offset: 2px;
+}
+
+.asa-chess-bot-profile-grid input {
+  position: absolute;
+  opacity: 0;
+}
+
+.asa-chess-bot-profile-grid strong,
+.asa-chess-bot-profile-grid small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa-chess-bot-profile-grid small {
+  color: #657984;
+  font-size: 11px;
 }
 
 .asa-chess-segmented {
@@ -1049,6 +1161,10 @@
 
   .asa-chess-setup-columns {
     grid-template-columns: 1fr;
+  }
+
+  .asa-chess-bot-profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .asa-chess-promotion > div {
