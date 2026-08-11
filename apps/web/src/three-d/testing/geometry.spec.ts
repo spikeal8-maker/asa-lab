@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { createThreeDNode } from '@asa-lab/three-d';
-import { createNodeObject, disposeObject } from '../viewport/geometry';
+import { createThreeDNode, type PrimitiveKind } from '@asa-lab/three-d';
+import {
+  createNodeObject,
+  createPrimitiveGeometryForKind,
+  disposeObject,
+} from '../viewport/geometry';
 
 describe('ASA 3D primitive geometry', () => {
   it('keeps exact millimetre dimensions in the mesh transform', () => {
@@ -23,5 +27,27 @@ describe('ASA 3D primitive geometry', () => {
     expect(mesh.material.transparent).toBe(true);
     expect(mesh.material.depthWrite).toBe(false);
     disposeObject(object);
+  });
+
+  it('normalises every catalog primitive to exact width, height and depth', () => {
+    const primitives: PrimitiveKind[] = [
+      'box',
+      'cylinder',
+      'sphere',
+      'cone',
+      'torus',
+      'wedge',
+      'roof',
+    ];
+    for (const primitive of primitives) {
+      const geometry = createPrimitiveGeometryForKind(primitive, 48);
+      geometry.computeBoundingBox();
+      const size = geometry.boundingBox?.getSize(new THREE.Vector3());
+      expect(size, primitive).toBeDefined();
+      expect(size?.x, primitive).toBeCloseTo(1, 5);
+      expect(size?.y, primitive).toBeCloseTo(1, 5);
+      expect(size?.z, primitive).toBeCloseTo(1, 5);
+      geometry.dispose();
+    }
   });
 });

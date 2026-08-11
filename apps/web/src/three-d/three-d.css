@@ -348,14 +348,16 @@
 
 .asa3d-shape-card {
   display: grid;
-  grid-template-rows: 62px auto;
+  grid-template-rows: 70px auto;
   align-items: center;
   justify-items: center;
   min-width: 0;
-  padding: 7px 3px 6px;
+  min-height: 96px;
+  padding: 5px 3px 7px;
   background: white;
   border: 1px solid #edf0f2;
   border-radius: 7px;
+  overflow: hidden;
 }
 
 .asa3d-shape-card:hover {
@@ -372,54 +374,13 @@
   white-space: nowrap;
 }
 
-.asa3d-shape-preview {
+.asa3d-shape-thumbnail {
   display: block;
-  width: 43px;
-  height: 43px;
-  background: #ef3340;
-  border-radius: 3px;
-  box-shadow:
-    inset -8px -7px 0 rgba(72, 22, 22, 0.16),
-    0 5px 8px rgba(42, 55, 65, 0.16);
-  transform: rotateX(57deg) rotateZ(36deg);
-}
-
-.shape-cylinder .asa3d-shape-preview {
-  background: #f68b1f;
-  border-radius: 50% / 15%;
-}
-.shape-sphere .asa3d-shape-preview {
-  background: radial-gradient(circle at 30% 25%, #7bdcff, #149aca 55%, #05638f);
-  border-radius: 50%;
-  transform: none;
-}
-.shape-cone .asa3d-shape-preview {
-  width: 0;
-  height: 0;
-  background: transparent;
-  border-right: 24px solid transparent;
-  border-bottom: 46px solid #8a4bb8;
-  border-left: 24px solid transparent;
-  border-radius: 35%;
-  box-shadow: none;
-  transform: none;
-}
-.shape-torus .asa3d-shape-preview {
-  background: #13a9ca;
-  border: 11px solid #087f9d;
-  border-radius: 50%;
-  box-shadow: 0 5px 8px rgba(42, 55, 65, 0.18);
-  transform: rotateX(58deg);
-}
-.shape-wedge .asa3d-shape-preview {
-  background: #2f7de1;
-  clip-path: polygon(0 100%, 100% 100%, 100% 0);
-  transform: none;
-}
-.shape-roof .asa3d-shape-preview {
-  background: #5fbf5f;
-  clip-path: polygon(50% 0, 100% 45%, 100% 100%, 0 100%, 0 45%);
-  transform: rotateY(-22deg);
+  width: 92px;
+  max-width: 100%;
+  height: 70px;
+  pointer-events: none;
+  object-fit: contain;
 }
 .asa3d-library-hint {
   margin: 0 15px 20px;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ThreeDNode } from '@asa-lab/three-d';
+import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
 
 function wedgeGeometry(): THREE.BufferGeometry {
   const vertices = new Float32Array([
@@ -26,28 +26,58 @@ function roofGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
-export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry {
-  switch (node.primitive) {
+function normaliseToUnitBox(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds) return geometry;
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  geometry.translate(-center.x, -center.y, -center.z);
+  geometry.scale(
+    1 / Math.max(size.x, 0.0001),
+    1 / Math.max(size.y, 0.0001),
+    1 / Math.max(size.z, 0.0001),
+  );
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+export function createPrimitiveGeometryForKind(
+  primitive: PrimitiveKind,
+  sides = 48,
+): THREE.BufferGeometry {
+  let geometry: THREE.BufferGeometry;
+  switch (primitive) {
     case 'box':
-      return new THREE.BoxGeometry(1, 1, 1);
+      geometry = new THREE.BoxGeometry(1, 1, 1);
+      break;
     case 'cylinder':
-      return new THREE.CylinderGeometry(0.5, 0.5, 1, node.sides);
+      geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, sides);
+      break;
     case 'sphere':
-      return new THREE.SphereGeometry(0.5, node.sides, Math.max(8, Math.floor(node.sides / 2)));
+      geometry = new THREE.SphereGeometry(0.5, sides, Math.max(12, Math.floor(sides / 2)));
+      break;
     case 'cone':
-      return new THREE.CylinderGeometry(0, 0.5, 1, node.sides);
+      geometry = new THREE.CylinderGeometry(0, 0.5, 1, sides);
+      break;
     case 'torus':
-      return new THREE.TorusGeometry(
-        0.36,
-        0.14,
-        Math.max(8, Math.floor(node.sides / 2)),
-        node.sides,
-      );
+      geometry = new THREE.TorusGeometry(0.36, 0.14, Math.max(12, Math.floor(sides / 2)), sides);
+      geometry.rotateX(Math.PI / 2);
+      break;
     case 'wedge':
-      return wedgeGeometry();
+      geometry = wedgeGeometry();
+      break;
     case 'roof':
-      return roofGeometry();
+      geometry = roofGeometry();
+      break;
   }
+  return normaliseToUnitBox(geometry);
+}
+
+export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry {
+  return createPrimitiveGeometryForKind(node.primitive, node.sides);
 }
 
 export function createNodeObject(node: ThreeDNode): THREE.Group {
@@ -56,8 +86,8 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   group.userData['nodeId'] = node.id;
   const material = new THREE.MeshStandardMaterial({
     color: node.operation === 'hole' ? '#b9c4cc' : node.color,
-    roughness: 0.55,
-    metalness: 0.02,
+    roughness: 0.48,
+    metalness: 0.015,
     transparent: node.operation === 'hole',
     opacity: node.operation === 'hole' ? 0.36 : 1,
     depthWrite: node.operation !== 'hole',

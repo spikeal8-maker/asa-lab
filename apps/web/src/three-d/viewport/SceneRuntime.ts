@@ -21,6 +21,9 @@ function snap(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
+const HOME_CAMERA_POSITION = new THREE.Vector3(270, 245, 270);
+const ORTHOGONAL_CAMERA_DISTANCE = 360;
+
 export class SceneRuntime {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
@@ -44,9 +47,9 @@ export class SceneRuntime {
     private readonly callbacks: SceneRuntimeCallbacks,
   ) {
     this.scene.background = new THREE.Color('#f5f7f8');
-    this.scene.fog = new THREE.Fog('#f5f7f8', 360, 760);
-    this.camera = new THREE.PerspectiveCamera(36, 1, 0.1, 2000);
-    this.camera.position.set(145, 115, 145);
+    this.scene.fog = new THREE.Fog('#f5f7f8', 560, 980);
+    this.camera = new THREE.PerspectiveCamera(35, 1, 0.5, 2400);
+    this.camera.position.copy(HOME_CAMERA_POSITION);
 
     try {
       this.renderer = new THREE.WebGLRenderer({
@@ -60,8 +63,10 @@ export class SceneRuntime {
     }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.04;
     this.renderer.domElement.className = 'asa3d-canvas';
     this.renderer.domElement.setAttribute('aria-label', 'Рабочая область 3D-моделирования');
     this.container.append(this.renderer.domElement);
@@ -72,13 +77,14 @@ export class SceneRuntime {
     this.orbit.dampingFactor = 0.08;
     this.orbit.screenSpacePanning = true;
     this.orbit.maxPolarAngle = Math.PI * 0.495;
-    this.orbit.minDistance = 24;
-    this.orbit.maxDistance = 900;
+    this.orbit.minDistance = 35;
+    this.orbit.maxDistance = 1200;
 
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
     this.transform.setTranslationSnap(1);
     this.transform.setRotationSnap(THREE.MathUtils.degToRad(15));
     this.transform.setScaleSnap(0.1);
+    this.transform.setSize(0.78);
     this.transform.addEventListener('dragging-changed', (event) => {
       const dragging = Boolean(event.value);
       this.transformDragging = dragging;
@@ -87,15 +93,19 @@ export class SceneRuntime {
     this.transform.addEventListener('mouseUp', () => this.commitSelectedTransform());
     this.scene.add(this.transform.getHelper());
 
-    const hemisphere = new THREE.HemisphereLight('#ffffff', '#9aa8b2', 2.2);
+    const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 2.05);
     this.scene.add(hemisphere);
-    const key = new THREE.DirectionalLight('#ffffff', 2.8);
-    key.position.set(90, 170, 120);
+    const key = new THREE.DirectionalLight('#ffffff', 3.15);
+    key.position.set(-110, 210, 155);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.left = -170;
+    key.shadow.camera.right = 170;
+    key.shadow.camera.top = 170;
+    key.shadow.camera.bottom = -170;
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight('#bce9ff', 0.75);
-    fill.position.set(-120, 80, -70);
+    const fill = new THREE.DirectionalLight('#bcecff', 0.9);
+    fill.position.set(155, 105, -120);
     this.scene.add(fill);
     this.scene.add(this.gridRoot);
 
@@ -177,29 +187,67 @@ export class SceneRuntime {
   }
 
   private syncGrid(document: ThreeDDocument): void {
-    this.gridRoot.clear();
+    this.clearGrid();
     if (!document.grid.visible) return;
-    const divisions = Math.min(
-      400,
-      Math.max(2, Math.round(document.grid.width / document.grid.snap)),
-    );
-    const grid = new THREE.GridHelper(document.grid.width, divisions, '#4bb4ce', '#c5dce2');
-    grid.material.transparent = true;
-    grid.material.opacity = 0.72;
-    this.gridRoot.add(grid);
+    const gridSize = Math.max(document.grid.width, document.grid.depth);
+    const divisions = Math.min(400, Math.max(2, Math.round(gridSize / document.grid.snap)));
+    const fineGrid = new THREE.GridHelper(gridSize, divisions, '#4bb4ce', '#a9dbe5');
+    fineGrid.material.transparent = true;
+    fineGrid.material.opacity = 0.32;
+    fineGrid.position.y = 0.008;
+    this.gridRoot.add(fineGrid);
+
+    const majorDivisions = Math.max(2, Math.round(gridSize / 10));
+    const majorGrid = new THREE.GridHelper(gridSize, majorDivisions, '#27a7c4', '#69bfd2');
+    majorGrid.material.transparent = true;
+    majorGrid.material.opacity = 0.5;
+    majorGrid.position.y = 0.014;
+    this.gridRoot.add(majorGrid);
+
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(document.grid.width, document.grid.depth),
       new THREE.MeshStandardMaterial({
-        color: '#eaf8fb',
+        color: '#effbfd',
         roughness: 1,
         transparent: true,
-        opacity: 0.48,
+        opacity: 0.68,
+        depthWrite: false,
       }),
     );
     plane.rotation.x = -Math.PI / 2;
     plane.position.y = -0.025;
     plane.receiveShadow = true;
     this.gridRoot.add(plane);
+
+    const halfWidth = document.grid.width / 2;
+    const halfDepth = document.grid.depth / 2;
+    const borderGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-halfWidth, 0.022, -halfDepth),
+      new THREE.Vector3(halfWidth, 0.022, -halfDepth),
+      new THREE.Vector3(halfWidth, 0.022, halfDepth),
+      new THREE.Vector3(-halfWidth, 0.022, halfDepth),
+      new THREE.Vector3(-halfWidth, 0.022, -halfDepth),
+    ]);
+    this.gridRoot.add(
+      new THREE.Line(
+        borderGeometry,
+        new THREE.LineBasicMaterial({ color: '#35b8d5', transparent: true, opacity: 0.9 }),
+      ),
+    );
+  }
+
+  private clearGrid(): void {
+    this.gridRoot.traverse((child) => {
+      const disposable = child as THREE.Object3D & {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      disposable.geometry?.dispose();
+      if (Array.isArray(disposable.material))
+        disposable.material.forEach((material) => material.dispose());
+      else disposable.material?.dispose();
+    });
+    this.gridRoot.clear();
   }
 
   setSelection(nodeId: string | null): void {
@@ -260,12 +308,11 @@ export class SceneRuntime {
   }
 
   setView(view: 'home' | 'top' | 'front' | 'right'): void {
-    const distance = view === 'home' ? 205 : 230;
     const position = {
-      home: new THREE.Vector3(145, 115, 145),
-      top: new THREE.Vector3(0, distance, 0.001),
-      front: new THREE.Vector3(0, 70, distance),
-      right: new THREE.Vector3(distance, 70, 0),
+      home: HOME_CAMERA_POSITION,
+      top: new THREE.Vector3(0, ORTHOGONAL_CAMERA_DISTANCE, 0.001),
+      front: new THREE.Vector3(0, 95, ORTHOGONAL_CAMERA_DISTANCE),
+      right: new THREE.Vector3(ORTHOGONAL_CAMERA_DISTANCE, 95, 0),
     }[view];
     this.camera.position.copy(position);
     this.orbit.target.set(0, 0, 0);
@@ -291,6 +338,7 @@ export class SceneRuntime {
     this.selectionHelper = null;
     for (const entry of this.entries.values()) disposeObject(entry.object);
     this.entries.clear();
+    this.clearGrid();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
