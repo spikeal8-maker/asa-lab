@@ -39,6 +39,7 @@ describe('Checkers game application service', () => {
       version: 1,
       createdAt: '2026-08-11T10:00:00.000Z',
     });
+    expect(created.value.drawTracker.positionOccurrences).toHaveLength(1);
     expect((await games.getSession('session-1')).ok).toBe(true);
     expect(await games.createSession(createCommand)).toEqual({
       ok: false,

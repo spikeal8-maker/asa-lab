@@ -12,6 +12,12 @@ import {
   type CheckersSide,
   type CheckersSquare,
 } from '../domain/document.js';
+import {
+  advanceCheckersDrawTracker,
+  createCheckersDrawTracker,
+  getCheckersAutomaticDrawReason,
+  type CheckersDrawTracker,
+} from '../domain/draw.js';
 import { applyCheckersMove } from '../domain/rules.js';
 
 export type CheckersSessionMode = 'bot' | 'class' | 'local' | 'lesson';
@@ -36,6 +42,7 @@ export interface CheckersGameSession {
   readonly mode: CheckersSessionMode;
   readonly players: readonly CheckersSessionPlayer[];
   readonly document: CheckersDocument;
+  readonly drawTracker: CheckersDrawTracker;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -125,9 +132,13 @@ function nextSession(
   document: CheckersDocument,
   occurredAt: string,
 ): CheckersGameSession {
+  const drawTracker = advanceCheckersDrawTracker(session.drawTracker, session.document, document);
+  const drawReason =
+    document.result === '*' ? getCheckersAutomaticDrawReason(drawTracker, document) : null;
   return {
     ...session,
-    document,
+    document: drawReason ? { ...document, result: '1/2-1/2' } : document,
+    drawTracker,
     version: session.version + 1,
     updatedAt: occurredAt,
   };
@@ -167,6 +178,7 @@ export class CheckersGameService {
       mode: command.mode,
       players: command.players,
       document: document.value,
+      drawTracker: createCheckersDrawTracker(document.value),
       version: 1,
       createdAt: command.occurredAt,
       updatedAt: command.occurredAt,

@@ -91,3 +91,12 @@ export {
   type CheckersPuzzleHintOutcome,
   type CheckersPuzzleMoveOutcome,
 } from './domain/puzzle.js';
+export {
+  advanceCheckersDrawTracker,
+  checkersPositionKey,
+  createCheckersDrawTracker,
+  getCheckersAutomaticDrawReason,
+  type CheckersAutomaticDrawReason,
+  type CheckersDrawTracker,
+  type CheckersPositionOccurrence,
+} from './domain/draw.js';
