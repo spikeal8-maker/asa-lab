@@ -150,6 +150,49 @@ function circuitDocument(options: {
   };
 }
 
+function buttonCircuitDocument(resistorOhms: number): SchematicDocument {
+  const seeded = circuitDocument({
+    switchClosed: false,
+    resistorOhms,
+    reversedLed: false,
+  });
+  return {
+    ...seeded,
+    components: seeded.components.map((item) =>
+      item.id === 'switch'
+        ? {
+            ...item,
+            id: 'button',
+            kind: 'button' as const,
+            componentTypeId: 'button-tactile-6mm',
+            variantId: 'button-tactile-6mm',
+            name: 'S1',
+            state: false,
+            pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+            internalConnections: [
+              ['SW-A1', 'SW-A2'],
+              ['SW-B1', 'SW-B2'],
+            ],
+            stateProperties: {},
+          }
+        : item,
+    ),
+    connections: seeded.connections.map((wire) =>
+      wire.id === 'wire-board-switch'
+        ? {
+            ...wire,
+            to: { componentId: 'button', terminal: 'SW-A2' },
+          }
+        : wire.id === 'wire-switch-resistor'
+          ? {
+              ...wire,
+              from: { componentId: 'button', terminal: 'SW-B2' },
+            }
+          : wire,
+    ),
+  };
+}
+
 function breadboardDocument(): SchematicDocument {
   const seeded = circuitDocument({
     switchClosed: false,
@@ -522,7 +565,7 @@ async function saveDocument(
 
 async function openProject(page: Page, projectId: string): Promise<void> {
   await page.goto(`/#/home/${projectId}`);
-  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel('Название проекта')).toHaveValue('R4-M1 live simulation');
 }
 
@@ -542,7 +585,7 @@ async function brightnessValue(page: Page): Promise<number> {
 async function selectLed(page: Page): Promise<void> {
   await component(page, 'led-5mm').locator('.workbench-part').click();
   await expect(page.getByRole('complementary', { name: 'Параметры выделения' })).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Цвет светодиода' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ })).toBeVisible();
 }
 
 async function holeCenter(page: Page, holeId: string): Promise<{ x: number; y: number }> {
@@ -736,8 +779,26 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
   await switchComponent.getByTestId('spdt-actuator').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
-  await selectLed(page);
-  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+  const colourBrightness: number[] = [];
+  for (const colour of ['red', 'orange', 'yellow', 'green', 'blue', 'white']) {
+    await selectLed(page);
+    await page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ }).selectOption(colour);
+    await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
+      'data-led-colour',
+      colour,
+    );
+    await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+    await expect(led.locator('image:not([filter])')).toHaveAttribute(
+      'href',
+      new RegExp(`led_${colour}_i(?!000)\\d{3}\\.svg$`),
+    );
+    colourBrightness.push(await brightnessValue(page));
+  }
+  for (let index = 1; index < colourBrightness.length; index += 1) {
+    expect(colourBrightness[index]).toBeLessThan(colourBrightness[index - 1] ?? 0);
+  }
+  await page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ }).selectOption('red');
+  await expect.poll(() => brightnessValue(page)).toBe(colourBrightness[0]);
   const brightAt220Ohms = await brightnessValue(page);
   await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
     'data-led-runtime-state',
@@ -749,17 +810,30 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   );
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-running.png`, fullPage: true });
 
+  let previousBrightness = brightAt220Ohms;
+  let persistedArbitraryBrightness = brightAt220Ohms;
+  for (const resistance of [317.25, 683.7, 1_000, 2_475.25]) {
+    await resistor.locator('.workbench-part').click();
+    const resistanceInput = page
+      .locator('.workbench-inspector label')
+      .filter({ hasText: 'Сопротивление' })
+      .locator('input[type="number"]');
+    await resistanceInput.fill(String(resistance));
+    await selectLed(page);
+    await expect.poll(() => brightnessValue(page)).toBeLessThan(previousBrightness);
+    await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+    persistedArbitraryBrightness = await brightnessValue(page);
+    previousBrightness = persistedArbitraryBrightness;
+  }
   await resistor.locator('.workbench-part').click();
-  const resistanceInput = page
-    .locator('.workbench-inspector label')
-    .filter({ hasText: 'Сопротивление' })
-    .locator('input[type="number"]');
-  await resistanceInput.fill('1000');
+  await expect(page.getByRole('combobox', { name: 'Единица сопротивления' })).toHaveValue('Ω');
+  await expect(
+    page
+      .locator('.workbench-inspector label')
+      .filter({ hasText: 'Сопротивление' })
+      .locator('input[type="number"]'),
+  ).toHaveValue('2475.25');
   await selectLed(page);
-  await expect.poll(() => brightnessValue(page)).toBeLessThan(brightAt220Ohms);
-  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
-  const brightAt1000Ohms = await brightnessValue(page);
-  expect(brightAt1000Ohms).toBeLessThan(brightAt220Ohms);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-resistance-changed.png`,
     fullPage: true,
@@ -782,7 +856,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   await selectLed(page);
-  await expect.poll(() => brightnessValue(page)).toBe(brightAt1000Ohms);
+  await expect.poll(() => brightnessValue(page)).toBe(persistedArbitraryBrightness);
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-reload.png`, fullPage: true });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
@@ -813,7 +887,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await saveDocument(
     page,
     projectId,
-    circuitDocument({ switchClosed: true, resistorOhms: 20, reversedLed: false }),
+    circuitDocument({ switchClosed: true, resistorOhms: 0, reversedLed: false }),
   );
   await page.reload();
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
@@ -847,6 +921,39 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     failedRequests: 0,
     httpServerErrors: 0,
   });
+  failures.assertEmpty();
+});
+
+test('four-pin button is a momentary bridge for an arbitrary decimal LED load', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'R4-M1 momentary button arbitrary resistance');
+  await saveDocument(page, projectId, buttonCircuitDocument(683.7));
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const button = component(page, 'button-tactile-6mm');
+  const buttonBody = button.locator('.workbench-part');
+  await selectLed(page);
+  await expect.poll(() => brightnessValue(page)).toBe(0);
+
+  const buttonBox = await buttonBody.boundingBox();
+  if (!buttonBox) throw new Error('button actuator has no visual bounding box');
+  await page.mouse.move(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2);
+  await page.mouse.down();
+  await expect(button).toHaveClass(/workbench-component-actuator-active/);
+  await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
+
+  await page.mouse.up();
+  await expect(button).not.toHaveClass(/workbench-component-actuator-active/);
+  await selectLed(page);
+  await expect.poll(() => brightnessValue(page)).toBe(0);
   failures.assertEmpty();
 });
 
@@ -896,7 +1003,7 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     const projectId = await createProject(page, `R4-M1 RGB LED ${commonMode}`);
     await saveDocument(page, projectId, rgbLedDocument(commonMode));
     await page.goto(`/#/home/${projectId}`);
-    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
     const rgb = component(page, 'rgb-led');

@@ -457,6 +457,14 @@ export function useElectronicsWorkbench(projectId: string) {
     if (next) commitDocument(next);
   }
 
+  function updateSelectedResistanceValue(valueOhms: number, unit: string): void {
+    if (!document || !Number.isFinite(valueOhms) || valueOhms < 0) return;
+    const withValue = updateSelectionValue(document, selection, valueOhms);
+    if (!withValue) return;
+    const withUnit = updateSelectionProperties(withValue, selection, { resistanceUnit: unit });
+    commitDocument(withUnit ?? withValue);
+  }
+
   function updateSelectedName(name: string): void {
     if (!document) return;
     const next = updateSelectionName(document, selection, name);
@@ -1448,6 +1456,7 @@ export function useElectronicsWorkbench(projectId: string) {
     rotateSelected,
     mirrorSelected,
     updateSelectedValue,
+    updateSelectedResistanceValue,
     updateSelectedName,
     setSelectedState,
     toggleComponentState,

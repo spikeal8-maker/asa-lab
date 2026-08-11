@@ -9,6 +9,12 @@ import {
   unsupportedElectricalComponents,
   validateElectricalTerminalContract,
 } from './model-registry.js';
+import {
+  ledBrightnessPercent,
+  ordinaryLedProfile,
+  rgbLedProfile,
+  type LedJunctionProfile,
+} from './led-model.js';
 
 export type DiagnosticCode =
   | 'circuit_ok'
@@ -89,24 +95,8 @@ export interface SolveResult {
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const DIODE_ON_RESISTANCE = 2;
-// The catalogue voltage is a nominal forward drop measured at useful current,
-// not an ideal switch threshold. Use a lower colour-specific knee plus the
-// package's dynamic resistance so a 3 V AA holder can drive a blue LED dimly
-// through a resistor instead of making the LED jump from fully dark to on.
-// Calibrated against the Tinkercad 2xAA reference sweep. The package keeps
-// emitting light as resistance falls, shows an over-current warning at 1 ohm,
-// and reaches the destructive state only at the exact 0-ohm boundary.
-const LED_DYNAMIC_RESISTANCE = 44.5;
-// Tinkercad reports about 1.07 A when the red junction of its common-cathode
-// RGB LED is connected directly to a 3 V source.  Keep the RGB junction model
-// separate from the seven-segment cell model: using the display resistance for
-// both made an unprotected RGB LED look almost eight times less severe than the
-// reference while resistor-limited circuits still appeared plausible.
-const RGB_LED_ON_RESISTANCE = 1.03;
 const SEVEN_SEGMENT_ON_RESISTANCE = 8;
-const LED_MIN_CURRENT_A = 0.0001;
 const LED_NOMINAL_CURRENT_A = 0.02;
-const DEFAULT_LED_MAX_CURRENT_A = 0.03;
 const LED_WARNING_RATIO = 0.8;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
@@ -117,25 +107,6 @@ const NPN_DEFAULT_SATURATION_VOLTAGE = 0.2;
 const NPN_BASE_EMITTER_RESISTANCE = 10;
 const NPN_SATURATION_RESISTANCE = 0.5;
 const NPN_DEFAULT_MAX_COLLECTOR_CURRENT_A = 0.2;
-
-const LED_KNEE_VOLTAGE: Readonly<Record<string, number>> = {
-  red: 1.65,
-  orange: 1.72,
-  yellow: 1.78,
-  green: 1.85,
-  blue: 2.55,
-  white: 2.65,
-};
-
-const RGB_FORWARD_VOLTAGE: Readonly<Record<string, number>> = {
-  red: 1.9,
-  green: 2.2,
-  // Keep a finite conduction margin at the 3 V Tinkercad AA-holder operating
-  // point. Using exactly 3.00 V made the nonlinear branch switch on while its
-  // calculated current stayed at zero, so a connected blue channel could
-  // never participate in an otherwise valid red/blue mixture.
-  blue: 2.98,
-};
 
 const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
   a: 'top-4',
@@ -157,6 +128,7 @@ interface DiodeBranch {
   readonly resistance: number;
   readonly nominalCurrent: number;
   readonly maxCurrent: number;
+  readonly brightnessExponent: number;
 }
 
 type TransistorOperatingRegion = 'cutoff' | 'active' | 'saturation';
@@ -219,24 +191,28 @@ function diodeBranchKey(branch: DiodeBranch): string {
   return `${branch.component.id}:${branch.id}`;
 }
 
-function ledBrightness(current: number, nominalCurrent = LED_NOMINAL_CURRENT_A): number {
-  if (current < LED_MIN_CURRENT_A) return 0;
-  return Math.min(100, Math.pow(current / nominalCurrent, 0.65) * 100);
+function ledBrightness(
+  current: number,
+  profile: Pick<LedJunctionProfile, 'nominalCurrentAmp' | 'brightnessExponent'>,
+): number {
+  return ledBrightnessPercent(current, profile);
 }
 
 function componentDiodeBranches(component: SchematicComponent): readonly DiodeBranch[] {
   if (component.kind === 'led') {
     const colour = String(component.stateProperties?.['ledColour'] ?? 'red');
+    const profile = ordinaryLedProfile(colour);
     return [
       {
         component,
         id: 'led',
         anode: logicalTerminal(component, 'a'),
         cathode: logicalTerminal(component, 'b'),
-        forwardVoltage: LED_KNEE_VOLTAGE[colour] ?? component.value,
-        resistance: LED_DYNAMIC_RESISTANCE,
-        nominalCurrent: LED_NOMINAL_CURRENT_A,
-        maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
+        forwardVoltage: profile.kneeVoltage,
+        resistance: profile.dynamicResistanceOhm,
+        nominalCurrent: profile.nominalCurrentAmp,
+        maxCurrent: profile.maxContinuousCurrentAmp,
+        brightnessExponent: profile.brightnessExponent,
       },
     ];
   }
@@ -251,22 +227,27 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
         resistance: DIODE_ON_RESISTANCE,
         nominalCurrent: LED_NOMINAL_CURRENT_A,
         maxCurrent: Number.POSITIVE_INFINITY,
+        brightnessExponent: 0.65,
       },
     ];
   }
   if (component.kind === 'rgb-led') {
     const common = 'common';
     const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
-    return ['red', 'green', 'blue'].map((channel) => ({
-      component,
-      id: channel,
-      anode: commonAnode ? common : channel,
-      cathode: commonAnode ? channel : common,
-      forwardVoltage: RGB_FORWARD_VOLTAGE[channel] ?? 2,
-      resistance: RGB_LED_ON_RESISTANCE,
-      nominalCurrent: LED_NOMINAL_CURRENT_A,
-      maxCurrent: DEFAULT_LED_MAX_CURRENT_A,
-    }));
+    return ['red', 'green', 'blue'].map((channel) => {
+      const profile = rgbLedProfile(channel);
+      return {
+        component,
+        id: channel,
+        anode: commonAnode ? common : channel,
+        cathode: commonAnode ? channel : common,
+        forwardVoltage: profile.kneeVoltage,
+        resistance: profile.dynamicResistanceOhm,
+        nominalCurrent: profile.nominalCurrentAmp,
+        maxCurrent: profile.maxContinuousCurrentAmp,
+        brightnessExponent: profile.brightnessExponent,
+      };
+    });
   }
   if (component.kind === 'seven-segment') {
     const common = 'bottom-3';
@@ -280,6 +261,7 @@ function componentDiodeBranches(component: SchematicComponent): readonly DiodeBr
       resistance: SEVEN_SEGMENT_ON_RESISTANCE,
       nominalCurrent: 0.01,
       maxCurrent: 0.02,
+      brightnessExponent: 0.65,
     }));
   }
   return [];
@@ -840,7 +822,10 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     return {
       voltageDrop,
       current,
-      brightness: ledBrightness(current, branch.nominalCurrent),
+      brightness: ledBrightness(current, {
+        nominalCurrentAmp: branch.nominalCurrent,
+        brightnessExponent: branch.brightnessExponent,
+      }),
     };
   };
   const transistorResultById = new Map(

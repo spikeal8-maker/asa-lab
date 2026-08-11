@@ -333,13 +333,18 @@ export function WorkbenchSidebars({
                           ? resistanceDisplayValue(c.selectedComponent.value, resistanceUnit)
                           : c.selectedComponent.value
                       }
-                      onChange={(event) =>
-                        c.updateSelectedValue(
-                          resistanceComponent
-                            ? resistanceValueInOhms(Number(event.target.value), resistanceUnit)
-                            : Number(event.target.value),
-                        )
-                      }
+                      onChange={(event) => {
+                        const displayValue = event.target.valueAsNumber;
+                        if (!Number.isFinite(displayValue)) return;
+                        if (resistanceComponent) {
+                          c.updateSelectedResistanceValue(
+                            resistanceValueInOhms(displayValue, resistanceUnit),
+                            resistanceUnit,
+                          );
+                        } else {
+                          c.updateSelectedValue(displayValue);
+                        }
+                      }}
                     />
                     {resistanceComponent ? (
                       <select

@@ -264,7 +264,11 @@ function defaults(componentId: string): {
     return { value: cells * 1.5, unit: 'В', properties: { cells } };
   }
   if (componentId === 'resistor-axial')
-    return { value: 220, unit: 'Ом', properties: { tolerancePercent: 5 } };
+    return {
+      value: 220,
+      unit: 'Ом',
+      properties: { tolerancePercent: 5, resistanceUnit: 'Ω' },
+    };
   if (componentId === 'led-5mm')
     return {
       value: 2,
@@ -294,7 +298,12 @@ function defaults(componentId: string): {
   if (componentId === 'switch-spdt')
     return { value: 0, unit: '', state: false, properties: { selectedThrow: 'left' } };
   if (componentId === 'potentiometer')
-    return { value: 1_000, unit: 'Ом', wiperPosition: 0.5, properties: {} };
+    return {
+      value: 1_000,
+      unit: 'Ом',
+      wiperPosition: 0.5,
+      properties: { resistanceUnit: 'kΩ' },
+    };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
   if (componentId === 'transistor-npn')
     return {
@@ -308,7 +317,11 @@ function defaults(componentId: string): {
       },
     };
   if (componentId === 'incandescent-lamp')
-    return { value: 24, unit: 'Ом', properties: { lampLevel: 'off' } };
+    return {
+      value: 24,
+      unit: 'Ом',
+      properties: { lampLevel: 'off', resistanceUnit: 'Ω' },
+    };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
 
