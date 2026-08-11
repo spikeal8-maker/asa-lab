@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-map_version: 2026.07.31-4
+map_version: 2026.08.11-1
 project:
   id: asa-lab
   name: ASA Lab
@@ -7,8 +7,8 @@ project:
   # current_focus and active_checkpoint mirror docs/execution/current.yaml, which
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
-  current_focus: TASK-ELECTRONICS-M1-001
-  active_checkpoint: post_merge_physical_alignment_corrective
+  current_focus: TASK-3D-M0-001
+  active_checkpoint: foundation_vertical_slice
   canonical_branch: main
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
@@ -38,12 +38,12 @@ relation_definitions:
   next: Next roadmap stage.
 
 nodes:
-  - {id: ASA, label: ASA Lab, kind: platform, layer: root, status: in_progress, summary: "Working Alpha platform; Electronics M1 is active.", path: README.md}
+  - {id: ASA, label: ASA Lab, kind: platform, layer: root, status: in_progress, summary: "Working Alpha platform; the ASA-native 3D M0 foundation is active.", path: README.md}
   - {id: ACT-CREATOR, label: Creator, kind: actor, layer: actors, status: in_progress, summary: "Uses Creator Home and personal projects."}
   - {id: ACT-EDUCATOR, label: Educator, kind: actor, layer: actors, status: in_progress, summary: "Uses capability-aware Classes and creator surfaces."}
   - {id: ACT-STUDENT, label: Student, kind: actor, layer: actors, status: blocked, summary: "StudentSeat remains future work."}
   - {id: ACT-ADMIN, label: School Admin, kind: actor, layer: actors, status: planned, summary: "Future organization administration."}
-  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Owner-authorised corrective execution lease is active; see docs/execution/current.yaml."}
+  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Owner-authorised 3D M0 execution lease is active; see docs/execution/current.yaml."}
 
   - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: in_progress, summary: "Public entry, Creator Portal, Account and editors."}
   - {id: PLANE-CONTROL, label: Control Plane, kind: plane, layer: architecture, status: in_progress, summary: "Modular monolith API and bounded contexts."}
@@ -76,28 +76,29 @@ nodes:
   - {id: MOD-ELECTRONICS, label: Electronics M1, kind: subject_module, layer: modules, status: in_progress, summary: "The real project editor groups owner production assets into deterministic categories, families and persisted physical variants; unsupported candidates are isolated and disabled. Draft saves are ordered and the saved indicator reports only the document the server actually holds. main carries the canonical owner runtime assets and the audit material that records their provenance, 697 files in all, each verified byte-exact against the hash one of the two owner manifests records for it.", path: contexts/electronics}
   - {id: MOD-CHESS, label: ASA Chess, kind: subject_module, layer: modules, status: in_progress, summary: "Existing Chess and Chess Online must remain reachable.", path: contexts/chess}
   - {id: MOD-BLOCKS, label: Block Coding, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
-  - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
+  - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: in_progress, summary: "ASA-native M0 foundation: validated scene document, lazy WebGL 2 editor and Project Core persistence."}
   - {id: MOD-ROBOTICS, label: Robotics, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
 
   - {id: DOC-AGENTS, label: AGENTS.md, kind: document, layer: governance, status: done, summary: "Coding-agent contract.", path: AGENTS.md}
   - {id: DOC-README, label: README, kind: document, layer: governance, status: done, summary: "Repository state.", path: README.md}
-  - {id: DOC-MANIFEST, label: Execution Manifest, kind: document, layer: governance, status: done, summary: "Executable queue and active Electronics M1.", path: docs/delivery/EXECUTION_MANIFEST.yaml}
+  - {id: DOC-MANIFEST, label: Execution Manifest, kind: document, layer: governance, status: done, summary: "Executable queue and active 3D M0 foundation.", path: docs/delivery/EXECUTION_MANIFEST.yaml}
   - {id: DOC-PROGRAM, label: Development Program, kind: document, layer: governance, status: done, summary: "Human-readable delivery program.", path: docs/delivery/DEVELOPMENT_PROGRAM_V1.md}
   - {id: DOC-MAP, label: Project Map, kind: document, layer: governance, status: done, summary: "Machine-readable current state.", path: docs/project-map/project-map.yaml}
-  - {id: DOC-QUALITY, label: Quality Map, kind: document, layer: governance, status: done, summary: "Electronics M1 focused gate.", path: docs/project-map/QUALITY_MAP.md}
+  - {id: DOC-QUALITY, label: Quality Map, kind: document, layer: governance, status: done, summary: "3D M0 focused gate.", path: docs/project-map/QUALITY_MAP.md}
   - {id: DOC-TESTS, label: Test Catalog, kind: document, layer: governance, status: done, summary: "Stable test IDs.", path: docs/testing/test-catalog.yaml}
   - {id: DOC-PORTS, label: Port Policy, kind: document, layer: governance, status: done, summary: "Ports 4610/4611/4612.", path: docs/delivery/LOCAL_PORT_POLICY.md}
-  - {id: QG-LOCAL, label: Local Gate, kind: quality_gate, layer: governance, status: in_progress, summary: "Only focused Electronics M1 tests run before owner visual acceptance."}
+  - {id: QG-LOCAL, label: Local Gate, kind: quality_gate, layer: governance, status: in_progress, summary: "Focused 3D domain, integration, lazy-bundle and browser tests run before owner acceptance."}
   - {id: QG-HOSTED, label: Hosted Actions, kind: quality_gate, layer: governance, status: blocked, summary: "External runner/settings blocker."}
 
-  - {id: PROGRAM-ALPHA-001, label: Product Alpha, kind: program, layer: delivery, status: in_progress, summary: "Electronics M1 is active after accepted Portal shell and R3A gateway."}
+  - {id: PROGRAM-ALPHA-001, label: Product Alpha, kind: program, layer: delivery, status: in_progress, summary: "The owner prioritised the 3D M0 foundation after the accepted Portal shell and R3A gateway."}
   - {id: TRACK-TECH-ALPHA, label: Technical Alpha, kind: delivery_track, layer: delivery, status: done, summary: "Foundation, Portal and Account C1 merged."}
-  - {id: TRACK-ROADMAP, label: Product Roadmap, kind: delivery_track, layer: delivery, status: in_progress, summary: "Portal and R3A done; Electronics M1 active; R3B and R4-M2 blocked."}
+  - {id: TRACK-ROADMAP, label: Product Roadmap, kind: delivery_track, layer: delivery, status: in_progress, summary: "Portal and R3A are done; Electronics corrective work is paused; 3D M0 is active by owner transition."}
   - {id: PHASE-0, label: Foundation, kind: roadmap_phase, layer: roadmap, status: done, summary: "Foundation complete."}
   - {id: PHASE-1, label: Account C1, kind: roadmap_phase, layer: roadmap, status: done, summary: "Identity/security slice complete."}
   - {id: PHASE-R2, label: R2 Creator Portal, kind: roadmap_phase, layer: roadmap, status: done, summary: "Portal shell accepted and merged by PR #71."}
   - {id: PHASE-R3, label: R3 Project Lifecycle, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "R3A gateway done; R3B remains blocked and deferred."}
   - {id: PHASE-R4, label: R4 Electronics Parity, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Post-merge M1 corrective work aligns physical pins, breadboard footprints and live LED evidence; M2 remains blocked."}
+  - {id: PHASE-R10, label: R10 3D Foundation, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "A narrow ASA-native 3D vertical slice is active; later R10 capabilities remain blocked."}
   - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and learning cycle."}
 
   - {id: TASK-BOOT-001, label: Bootstrap, kind: task, layer: delivery, status: done, summary: "Monorepo foundation.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
@@ -106,7 +107,8 @@ nodes:
   - {id: TASK-ACCOUNT-C1-001, label: Account C1, kind: task, layer: delivery, status: done, summary: "Issue 48 completed and merged.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/48}
   - {id: TASK-CREATOR-PORTAL-001, label: R2 Creator Portal, kind: task, layer: delivery, status: done, summary: "Creator Home and capability-aware Portal shell merged by PR #71.", phase: PHASE-R2, issue: https://github.com/spikeal8-maker/asa-lab/issues/62}
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
-  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: in_progress, summary: "Owner-authorised corrective pass aligns owner pin anchors and breadboard footprints and verifies live LED operating states on the existing branch.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
+  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: blocked, summary: "Owner paused the open corrective PR #92 while the independent 3D M0 foundation runs; no completion is claimed.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
+  - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: in_progress, summary: "Build the first-party scene document, lazy WebGL 2 editor and save/reload vertical slice from Issue #94.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
@@ -174,7 +176,7 @@ edges:
   - {from: DOC-TESTS, to: QG-LOCAL, type: governs}
   - {from: DOC-QUALITY, to: QG-LOCAL, type: governs}
   - {from: DOC-PORTS, to: APP-WEB, type: governs}
-  - {from: QG-LOCAL, to: TASK-ELECTRONICS-M1-001, type: implements}
+  - {from: QG-LOCAL, to: TASK-3D-M0-001, type: implements}
   - {from: QG-HOSTED, to: DOC-MANIFEST, type: observes}
   - {from: PROGRAM-ALPHA-001, to: TRACK-TECH-ALPHA, type: contains}
   - {from: PROGRAM-ALPHA-001, to: TRACK-ROADMAP, type: contains}
@@ -184,6 +186,7 @@ edges:
   - {from: TRACK-ROADMAP, to: TASK-CREATOR-PORTAL-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-ELECTRONICS-M1-001, type: contains}
+  - {from: TRACK-ROADMAP, to: TASK-3D-M0-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R3, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R4, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-SEAT, type: contains}
@@ -193,6 +196,7 @@ edges:
   - {from: TASK-CREATOR-PORTAL-001, to: TASK-ACCOUNT-C1-001, type: depends_on}
   - {from: TASK-R3A-ELECTRONICS-GATEWAY-001, to: TASK-CREATOR-PORTAL-001, type: depends_on}
   - {from: TASK-ELECTRONICS-M1-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
+  - {from: TASK-3D-M0-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
   - {from: TASK-R3, to: TASK-CREATOR-PORTAL-001, type: depends_on}
   - {from: TASK-R4, to: TASK-R3, type: depends_on}
   - {from: TASK-SEAT, to: TASK-R4, type: depends_on}
@@ -203,6 +207,7 @@ edges:
   - {from: TASK-CREATOR-PORTAL-001, to: PHASE-R2, type: implements}
   - {from: TASK-R3A-ELECTRONICS-GATEWAY-001, to: PHASE-R3, type: implements}
   - {from: TASK-ELECTRONICS-M1-001, to: PHASE-R4, type: implements}
+  - {from: TASK-3D-M0-001, to: PHASE-R10, type: implements}
   - {from: TASK-R3, to: PHASE-R3, type: implements}
   - {from: TASK-R4, to: PHASE-R4, type: implements}
   - {from: TASK-SEAT, to: PHASE-PILOT, type: implements}
@@ -219,3 +224,4 @@ execution_queue:
   - {position: 4, task_id: TASK-CREATOR-PORTAL-001, instruction: "Implement only R2 Creator Home and capability-aware Portal shell on agent/r2-creator-portal.", gate: "focused tests, full regression, live browser evidence and owner review"}
   - {position: 5, task_id: TASK-R3A-ELECTRONICS-GATEWAY-001, instruction: "Verify the existing Registry, Editor Host and module-neutral lifecycle without an architecture rewrite.", gate: "focused module and project tests"}
   - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Verify the preserved Electronics M1 foundation with corrected ordinary-LED states and zoom-stable wire/terminal presentation.", gate: "focused CI, one actual-editor journey and owner review"}
+  - {position: 7, task_id: TASK-3D-M0-001, instruction: "Build only the ASA-native 3D foundation from Issue #94; keep later CAD, boolean and parity scope blocked.", gate: "focused domain/integration/lazy-bundle checks, one save-reload browser journey and owner review"}

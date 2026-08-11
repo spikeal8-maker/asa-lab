@@ -21,8 +21,6 @@ ACTIVE_CATALOG_PATH = ROOT / "docs/testing/active-task-tests.yaml"
 AGENTS_PATH = ROOT / "AGENTS.md"
 PROJECT_MAP_RENDERED_PATH = ROOT / "docs/project-map/PROJECT_MAP.md"
 QUALITY_MAP_PATH = ROOT / "docs/project-map/QUALITY_MAP.md"
-WORK_STATUS_PATH = ROOT / "docs/delivery/TASK_ELECTRONICS_M1_001_WORK_STATUS.md"
-
 EXPECTED_TASKS = [
     "TASK-PRODUCT-DOC-001",
     "TASK-PORTAL-001",
@@ -30,6 +28,7 @@ EXPECTED_TASKS = [
     "TASK-CREATOR-PORTAL-001",
     "TASK-R3A-ELECTRONICS-GATEWAY-001",
     "TASK-ELECTRONICS-M1-001",
+    "TASK-3D-M0-001",
 ]
 CURRENT_PATH = ROOT / "docs/execution/current.yaml"
 
@@ -44,6 +43,7 @@ _CURRENT_TASK = _control_plane()
 ACTIVE_TASK = str(_CURRENT_TASK["id"])
 ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
 ACTIVE_ISSUE = f"https://github.com/spikeal8-maker/asa-lab/issues/{_CURRENT_TASK['issue']}"
+WORK_STATUS_PATH = ROOT / f"docs/delivery/{ACTIVE_TASK.replace('-', '_')}_WORK_STATUS.md"
 ACTIVE_STATUSES = {"ready", "in_progress", "in_review"}
 # A task the control plane records as finished is expected to read "done"
 # everywhere, exactly like the ones before it. Insisting the named task always be
@@ -52,6 +52,7 @@ ACTIVE_TASK_IS_DONE = str(_CURRENT_TASK.get("status")) == "done"
 EXPECTED_ROADMAP = {
     "R3B": "https://github.com/spikeal8-maker/asa-lab/issues/37",
     "R4-M2": "https://github.com/spikeal8-maker/asa-lab/issues/63",
+    "R10-M1": "https://github.com/spikeal8-maker/asa-lab/issues/42",
 }
 CANONICAL_PORTS = {"web": 4610, "api": 4611, "e2e": 4612}
 FORBIDDEN_PORTS = {3000, 3100, 5173}
@@ -212,11 +213,12 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
 
     for index, task in enumerate(tasks):
         task_id = str(task.get("task_id"))
-        expected_statuses = (
-            ACTIVE_STATUSES
-            if task_id == ACTIVE_TASK and not ACTIVE_TASK_IS_DONE
-            else {"done"}
-        )
+        if task_id == ACTIVE_TASK and not ACTIVE_TASK_IS_DONE:
+            expected_statuses = ACTIVE_STATUSES
+        elif task.get("activation") == "paused_by_owner":
+            expected_statuses = {"blocked"}
+        else:
+            expected_statuses = {"done"}
         if task.get("status") not in expected_statuses:
             errors.append(f"Task {task_id} has invalid status {task.get('status')!r}")
         for field in ("issue", "branch", "milestone", "track", "delivery_stage", "architecture_horizon", "visible_result"):
@@ -227,8 +229,15 @@ def validate_manifest(manifest: dict[str, Any], catalog: dict[str, Any], errors:
         if task.get("next_task") != expected_next:
             errors.append(f"Task {task_id} next_task must be {expected_next!r}")
         dependencies = string_list(task.get("depends_on"), f"{task_id}.depends_on", errors)
-        if task_id == ACTIVE_TASK and dependencies != ["TASK-R3A-ELECTRONICS-GATEWAY-001"]:
-            errors.append("Electronics M1 must depend only on the completed R3A gateway")
+        if task_id == ACTIVE_TASK:
+            earlier = {str(item.get("task_id")): item for item in tasks[:index]}
+            for dependency in dependencies:
+                if dependency not in earlier:
+                    errors.append(
+                        f"Task {task_id} dependency {dependency} must be an earlier executable task"
+                    )
+                elif earlier[dependency].get("status") != "done":
+                    errors.append(f"Task {task_id} dependency {dependency} is not done")
         map_nodes = string_list(task.get("map_nodes"), f"{task_id}.map_nodes", errors)
         if "PROGRAM-ALPHA-001" not in map_nodes or task.get("architecture_horizon") not in map_nodes:
             errors.append(f"Task {task_id} map_nodes must include program and architecture horizon")
@@ -304,9 +313,9 @@ def validate_active_status_documents(
         ),
         "QUALITY_MAP.md": (
             QUALITY_MAP_PATH,
-            rf"(?m)^TASK-ELECTRONICS-M1-001\s+{re.escape(status)}\s*$",
+            rf"(?m)^{re.escape(ACTIVE_TASK)}\s+{re.escape(status)}\s*$",
         ),
-        "TASK_ELECTRONICS_M1_001_WORK_STATUS.md": (
+        WORK_STATUS_PATH.name: (
             WORK_STATUS_PATH,
             rf"(?m)^status:\s+{re.escape(status)}\s*$",
         ),
@@ -337,7 +346,7 @@ def main() -> int:
     print(f"- executable tasks: {len(tasks)}")
     print(f"- current focus: {ACTIVE_TASK} ({active['status']})")
     print(f"- branch: {ACTIVE_BRANCH}")
-    print("- deferred roadmap: R3B and R4-M2 (blocked)")
+    print("- deferred roadmap remains explicit in the manifest")
     print("- automatic future activation: forbidden")
     return 0
 

@@ -89,7 +89,6 @@ _CURRENT_TASK = _control_plane_task()
 ACTIVE_TASK = str(_CURRENT_TASK["id"])
 ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
 ACTIVE_CODE_PRESENT = _checkout_contains_task_branch(ACTIVE_BRANCH)
-ACTIVE_CHAIN_TASKS = {"TASK-R3A-ELECTRONICS-GATEWAY-001", ACTIVE_TASK}
 EXTERNAL_GOVERNANCE_TASKS = {"TASK-GOV-001"}
 HISTORICAL_TASK_IDS = {
     "TASK-CI-001", "TASK-ARCH-001", "TASK-ENV-001", "TASK-TEN-001",
@@ -277,8 +276,8 @@ def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], activ
     for active_id in active_ids:
         test = next((item for item in tests if item.get("id") == active_id), {})
         required_for = test.get("required_for")
-        if not isinstance(required_for, list) or len(required_for) != 1 or required_for[0] not in ACTIVE_CHAIN_TASKS:
-            errors.append(f"{active_id}: active tests must belong to the owner-activated R3A/M1 chain")
+        if not isinstance(required_for, list) or required_for != [ACTIVE_TASK]:
+            errors.append(f"{active_id}: active tests must belong only to {ACTIVE_TASK}")
     tasks_requiring_coverage = {
         task_id for task_id, node in task_nodes.items()
         if task_id != "TASK-CI-001" and node.get("status") in COVERAGE_REQUIRED_STATUSES

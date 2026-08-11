@@ -42,7 +42,12 @@ roadmap_after_current:
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     name: Electronics follow-up beyond accepted M1
     status: blocked
-    activation: separate_owner_transition_after_M1
+    activation: paused_by_owner_while_3d_m0_runs
+  - release: R10-M1
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/42
+    name: 3D Design roadmap after the M0 foundation slice
+    status: blocked
+    activation: separate_owner_transition_after_3d_m0
 
 ports:
   bind: 127.0.0.1
@@ -188,9 +193,9 @@ tasks:
 
   - position: 6
     task_id: TASK-ELECTRONICS-M1-001
-    # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
-    status: in_progress
-    checkpoint: post_merge_physical_alignment_corrective
+    status: blocked
+    checkpoint: paused_by_owner_for_three_d_m0
+    activation: paused_by_owner
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     branch: agent/module-boundary-separation
     base_branch: main
@@ -199,7 +204,7 @@ tasks:
     delivery_stage: STAGE-4-ELECTRONICS-M1
     architecture_horizon: PHASE-R4
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
-    next_task: null
+    next_task: TASK-3D-M0-001
     capabilities: [CAP-PROJECTS]
     visible_result: The real Electronics project editor runs a deterministic fail-closed R4-M1 DC simulation with live component states, measured values and anchored diagnostics.
     user_flow: Open real Electronics project -> build a supported DC circuit directly or through a breadboard -> start simulation -> interact with button, SPDT and potentiometer -> inspect voltage/current/power -> receive honest diagnostics -> save and reload the same circuit.
@@ -241,3 +246,43 @@ tasks:
     task_tests: [TST-ELECTRONICS-ASSET-MANIFEST-001, TST-ELECTRONICS-TRANSPARENCY-001, TST-ELECTRONICS-PHYSICAL-SCALE-001, TST-ELECTRONICS-PIN-ANCHOR-001, TST-ELECTRONICS-STATE-FAMILIES-001, TST-ELECTRONICS-BREADBOARD-001, TST-ELECTRONICS-RESISTOR-VISUAL-001, TST-ELECTRONICS-COMPONENT-LIBRARY-001, TST-ELECTRONICS-M1-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R4, APP-WEB, CTX-PROJECTS, MOD-ELECTRONICS]
     artifacts: [production-manifest-adapter, component-family-map, parametric-resistor-visual, breadboard-connectivity-map, editor-idle-clean.png, library-basic-three-columns.png, library-basic-exact-order.png, component-hover-terminal.png, wiring-mode-terminals.png, component-selected.png, breadboard-placement-clean.png, library-disabled-components.png, owner-reference-vs-current.png, focused-test-report]
+
+  - position: 7
+    task_id: TASK-3D-M0-001
+    # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
+    status: in_progress
+    checkpoint: foundation_vertical_slice
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/94
+    branch: agent/three-d-m0
+    base_branch: main
+    milestone: R10-M1 3D Foundation
+    track: product-roadmap
+    delivery_stage: STAGE-10-3D-M0
+    architecture_horizon: PHASE-R10
+    # The module-neutral Project lifecycle and Editor Host are the actual
+    # prerequisite. The paused Electronics corrective PR is not a dependency.
+    depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
+    next_task: null
+    capabilities: [CAP-PROJECTS]
+    visible_result: A creator opens a first-party 3D project, adds and transforms a box, saves it through Project Core and reloads the same validated scene.
+    user_flow: Create 3D project -> open shared Editor Host -> add box -> select and transform -> undo/redo -> save -> reload identical scene.
+    required_scope:
+      - first_party_three_d_module_provider
+      - versioned_json_scene_document_in_millimetres
+      - deterministic_validation_and_commands
+      - direct_three_js_webgl2_runtime
+      - route_level_lazy_loading
+      - workplane_grid_camera_orbit_pan_zoom
+      - box_primitive_selection_transform_exact_dimensions
+      - undo_redo
+      - project_core_save_reload_checkpoint
+      - worker_protocol_boundary_for_future_manifold
+      - unsupported_webgl_and_save_failure_states
+      - desktop_tablet_mobile_smoke_evidence
+      - dependency_and_license_inventory
+    non_goals: [SketchForge fork, Autodesk or Tinkercad code branding or assets, OCCT, STEP, fillet, chamfer, physics, AR, collaboration, Codeblocks, Service Worker, WebGPU, Module Federation, object storage, server geometry, tenant or RLS redesign, parity claim]
+    read: [AGENTS.md, docs/product/PRODUCT_BLUEPRINT.md, docs/product/ASA_PRODUCT_SURFACE_CATALOG.yaml, https://github.com/spikeal8-maker/asa-lab/issues/94]
+    test_profiles: []
+    task_tests: [TST-3D-M0-DOMAIN-001, TST-3D-M0-INTEGRATION-001, TST-3D-M0-LAZY-001, TST-3D-M0-E2E-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R10, APP-WEB, CTX-PROJECTS, SDK-MODULE, MOD-3D]
+    artifacts: [three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, focused-test-report, dependency-license-inventory]
