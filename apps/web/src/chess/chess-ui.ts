@@ -84,11 +84,12 @@ export interface BotProfileUiSummary {
 }
 
 export function botProfileUiSummary(profile: AsaBotProfile): BotProfileUiSummary {
+  const styleSignals = profile.style.signals.map((signal) => BOT_STYLE_LABEL[signal]).join(' · ');
   return {
     levelLabel: `Уровень локального движка ${profile.engine.level} из 3`,
-    styleLabel: profile.style.signals.map((signal) => BOT_STYLE_LABEL[signal]).join(' · '),
-    assistanceLabel: `${HINT_MODE_LABEL[profile.policy.assistance.hintMode]}; ${TAKEBACK_LABEL[profile.policy.assistance.takebacks]}`,
-    challengeLabel: CHALLENGE_LABEL[profile.policy.challenge.mode],
+    styleLabel: `Проектные сигналы, пока не влияющие на выбор хода: ${styleSignals}`,
+    assistanceLabel: `Проектная политика, пока не управляющая контролами: ${HINT_MODE_LABEL[profile.policy.assistance.hintMode]}; ${TAKEBACK_LABEL[profile.policy.assistance.takebacks]}`,
+    challengeLabel: `Проектная политика, пока не управляющая сложностью: ${CHALLENGE_LABEL[profile.policy.challenge.mode]}`,
     calibrationNote: `Проектный Elo-ориентир ${profile.targetEloBand.min}–${profile.targetEloBand.max}. Профиль не откалиброван по серии партий.`,
   };
 }

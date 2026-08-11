@@ -201,7 +201,12 @@ four intermediate, three advanced and one adaptive profile. Each profile has exp
 style signals, repertoire, mistake and move-time models, assistance policy and original
 dialogue, with deterministic seeded helpers and strict schema tests. Strength bands are
 explicitly marked not calibrated; reference matches and blind human validation remain
-required before release claims.
+required before release claims. All 12 profiles are now selectable in the new-game UI;
+the stable profile id and matching engine level persist in the Chess document, survive
+reload, and drive the current legal move mapping. Legacy documents retain a truthful
+generic bot label with a deterministic level-matched fallback. Assistance, takeback,
+mistake and move-time policies are still descriptive metadata rather than enforced game
+behaviour.
 
 ### CH-105 — mistakes-to-training
 

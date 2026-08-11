@@ -192,7 +192,7 @@ export function createEmptyChessDocument(mode: ChessMode = 'analysis'): ChessDoc
       Event: 'ASA Chess project',
       Site: 'ASA Lab',
       White: 'White',
-      Black: mode === 'computer' ? 'ASA Bot' : 'Black',
+      Black: mode === 'computer' ? DEFAULT_BOT_PROFILE.displayName : 'Black',
     },
   };
 }

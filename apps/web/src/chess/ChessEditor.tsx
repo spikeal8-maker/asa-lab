@@ -256,15 +256,15 @@ export function NewGameDialog({
                   <dd>{profileSummary.levelLabel}</dd>
                 </div>
                 <div>
-                  <dt>Стиль</dt>
+                  <dt>Стиль (проект)</dt>
                   <dd>{profileSummary.styleLabel}</dd>
                 </div>
                 <div>
-                  <dt>Помощь</dt>
+                  <dt>Помощь (не включена)</dt>
                   <dd>{profileSummary.assistanceLabel}</dd>
                 </div>
                 <div>
-                  <dt>Вызов</dt>
+                  <dt>Вызов (не включён)</dt>
                   <dd>{profileSummary.challengeLabel}</dd>
                 </div>
               </dl>
@@ -551,13 +551,13 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
                   </div>
                   <dl>
                     <div>
-                      <dt>Уровень и стиль</dt>
+                      <dt>Уровень; стиль — проектный сигнал</dt>
                       <dd>
                         {botSummary.levelLabel}; {botSummary.styleLabel}
                       </dd>
                     </div>
                     <div>
-                      <dt>Политика партии</dt>
+                      <dt>Будущая политика партии</dt>
                       <dd>
                         {botSummary.assistanceLabel}; {botSummary.challengeLabel}
                       </dd>

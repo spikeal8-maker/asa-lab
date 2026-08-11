@@ -53,7 +53,7 @@ and separate 48 px toolbar without product-file changes in this slice.
 | ID | User outcome | Priority | Acceptance | Source | Status |
 | --- | --- | --- | --- | --- | --- |
 | BOT-01 | Choose bot, White/Black/Random and timed/untimed play | MUST R1 | Every combination starts a legal unrated game and persists settings | Bots | foundation |
-| BOT-02 | Twelve original profiles | MUST R1 | 4 beginner, 4 intermediate, 3 advanced, 1 adaptive; profile records style, repertoire, error and time model | Bots | foundation |
+| BOT-02 | Twelve original profiles | MUST R1 | 4 beginner, 4 intermediate, 3 advanced, 1 adaptive; profile records style, repertoire, error and time model | Bots | functional |
 | BOT-03 | Calibrated strength | MUST R1 | At least 1,000 reference games/profile; 95% CI inside declared band; median target error ≤75 Elo | ASA | not_started |
 | BOT-04 | Distinguishable style | MUST R1 | Two measurable style signals/profile; blind expert identification ≥70% | ASA | foundation |
 | BOT-05 | Assisted and challenge policies | MUST R1 | Evaluation, arrows, hint, feedback and undo follow policy; used assistance is stored | Bots | foundation |

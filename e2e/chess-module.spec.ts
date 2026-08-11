@@ -84,15 +84,19 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   await createChessProject(page, 'Партия против ASA Bot');
   await page.getByRole('button', { name: 'Новая', exact: true }).click();
   await page.getByText('Против ASA Bot', { exact: true }).click();
+  await page.getByText('Росток ASA', { exact: true }).click();
+  await expect(page.getByText('Профиль не откалиброван по серии партий.')).toBeVisible();
   await page.getByRole('button', { name: 'Начать партию' }).click();
+  await expect(page.getByLabel('Профиль соперника')).toContainText('Росток ASA');
   await clickMove(page, 'e2', 'e4');
-  await expect(page.getByText(/ASA Bot:/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Росток ASA:/)).toBeVisible({ timeout: 15_000 });
   await expect.poll(async () => page.locator('.asa-chess-moves li').count()).toBeGreaterThan(0);
   await expect(page.locator('.asa-chess-moves li').first()).not.toHaveText(/^1\.\s*e4\s*$/);
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.locator('.asa-chess-moves li').first()).toContainText('e4');
+  await expect(page.getByLabel('Профиль соперника')).toContainText('Росток ASA');
   failures.assertEmpty();
 });
 
