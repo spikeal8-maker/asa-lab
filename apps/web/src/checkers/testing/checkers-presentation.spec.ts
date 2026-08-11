@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CheckersBoard, type CheckersBoardPiece } from '../CheckersBoard';
 import { CheckersStudentHome } from '../CheckersStudentHome';
+import { CheckersTeacherDashboard } from '../CheckersTeacherDashboard';
 import { CheckersWorkspace } from '../CheckersWorkspace';
 
 const pieces: readonly CheckersBoardPiece[] = [
@@ -96,5 +97,67 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('Свободного чата здесь нет');
     expect(markup).not.toContain('<textarea');
     expect(markup).not.toContain('contenteditable');
+  });
+
+  it('renders teacher assignments, concept evidence and observable signals', () => {
+    const markup = renderToStaticMarkup(
+      createElement(CheckersTeacherDashboard, {
+        model: {
+          classroomTitle: '5Б · Логика',
+          studentCount: 2,
+          activeThisWeek: 1,
+          assignmentCompletionPercent: 50,
+          needsAttention: 1,
+          assignments: [
+            {
+              id: 'assignment-1',
+              title: 'Серии взятий',
+              kindLabel: 'Набор задач',
+              dueLabel: 'до 15 августа',
+              completed: 1,
+              assigned: 2,
+              status: 'active',
+            },
+          ],
+          students: [
+            {
+              id: 'student-1',
+              displayName: 'Маша И.',
+              masteryPercent: 72,
+              activityLabel: 'сегодня',
+              assignmentProgress: '1 из 1',
+              signal: 'ok',
+              signalLabel: 'Идёт по плану',
+              lastEvidence: 'c3:e5, без подсказки',
+            },
+            {
+              id: 'student-2',
+              displayName: 'Илья К.',
+              masteryPercent: 38,
+              activityLabel: '6 дней назад',
+              assignmentProgress: '0 из 1',
+              signal: 'repeated-error',
+              signalLabel: 'Пропускает взятие назад',
+              lastEvidence: 'e5-c3, 3 попытки',
+            },
+          ],
+          concepts: [{ id: 'capture', shortLabel: 'Взятие', fullLabel: 'Обязательное взятие' }],
+          masteryByStudent: {
+            'student-1': { capture: 82 },
+            'student-2': { capture: 34 },
+          },
+        },
+        onBack: () => undefined,
+        onCreateAssignment: () => undefined,
+        onOpenAssignment: () => undefined,
+        onOpenStudent: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain('ASA Шашки · педагог');
+    expect(markup).toContain('Освоение понятий');
+    expect(markup).toContain('До конкретного хода');
+    expect(markup).toContain('Пропускает взятие назад');
+    expect(markup).toContain('c3:e5, без подсказки');
   });
 });

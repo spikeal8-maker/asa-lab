@@ -1,5 +1,6 @@
 .checkers-workspace,
-.checkers-home {
+.checkers-home,
+.checkers-teacher {
   --checkers-ink: #17324a;
   --checkers-muted: #647689;
   --checkers-blue: #1687b8;
@@ -8,6 +9,231 @@
   --checkers-sand: #f5efe4;
   color: var(--checkers-ink);
   font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+}
+
+.checkers-teacher {
+  width: min(1260px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 34px 0 70px;
+}
+
+.checkers-teacher-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.checkers-teacher-heading .checkers-link-button {
+  display: block;
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.checkers-teacher-heading h1 {
+  margin: 7px 0;
+  font-size: clamp(30px, 4vw, 46px);
+}
+
+.checkers-teacher-heading p,
+.checkers-teacher-section .checkers-section-heading p {
+  margin: 0;
+  color: var(--checkers-muted);
+}
+
+.checkers-primary-action {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--checkers-blue-dark);
+  color: #fff;
+  font-weight: 750;
+}
+
+.checkers-teacher-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.checkers-teacher-stats article {
+  display: grid;
+  gap: 5px;
+  padding: 20px;
+  border: 1px solid #dce5e8;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(32 64 80 / 6%);
+}
+
+.checkers-teacher-stats article.attention {
+  border-color: #efc58d;
+  background: #fffaf1;
+}
+
+.checkers-teacher-stats span,
+.checkers-teacher-stats small {
+  color: var(--checkers-muted);
+}
+
+.checkers-teacher-stats strong {
+  font-size: 27px;
+}
+
+.checkers-teacher-section {
+  margin-top: 34px;
+}
+
+.checkers-assignment-table-wrap,
+.checkers-mastery-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #dce5e8;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(32 64 80 / 5%);
+}
+
+.checkers-teacher-table,
+.checkers-mastery-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.checkers-teacher-table th,
+.checkers-teacher-table td,
+.checkers-mastery-table th,
+.checkers-mastery-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e7ecef;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.checkers-teacher-table thead th,
+.checkers-mastery-table thead th {
+  background: #f4f7f8;
+  color: #607484;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.checkers-teacher-table tbody tr:last-child td,
+.checkers-mastery-table tbody tr:last-child td,
+.checkers-mastery-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.checkers-teacher-table td > button,
+.checkers-mastery-table th > button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--checkers-blue-dark);
+  font-weight: 750;
+  text-align: left;
+}
+
+.checkers-table-progress {
+  width: 110px;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e4eaed;
+}
+
+.checkers-table-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--checkers-mint);
+}
+
+.checkers-teacher-table td small {
+  display: block;
+  margin-top: 4px;
+  color: var(--checkers-muted);
+}
+
+.checkers-assignment-status,
+.checkers-student-signal {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: #edf2f4;
+  color: #526876;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.checkers-assignment-status.active,
+.checkers-student-signal.ok {
+  background: #e7f5ef;
+  color: #237353;
+}
+
+.checkers-assignment-status.draft {
+  background: #fff4dc;
+  color: #87611a;
+}
+
+.checkers-student-signal.inactive,
+.checkers-student-signal.repeated-error {
+  background: #fff1dd;
+  color: #925c13;
+}
+
+.checkers-mastery-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 180px;
+  background: #fff;
+}
+
+.checkers-mastery-table thead th:first-child {
+  z-index: 2;
+  background: #f4f7f8;
+}
+
+.checkers-mastery-table td {
+  padding: 9px;
+  text-align: center;
+}
+
+.checkers-mastery-cell {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 30px;
+  margin: auto;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.checkers-mastery-cell.low {
+  background: #f7dddd;
+  color: #9a3e3e;
+}
+
+.checkers-mastery-cell.developing {
+  background: #fff0cc;
+  color: #886016;
+}
+
+.checkers-mastery-cell.secure {
+  background: #dceff5;
+  color: #24677d;
+}
+
+.checkers-mastery-cell.mastered {
+  background: #dff3e9;
+  color: #227553;
 }
 
 .checkers-workspace {
@@ -647,6 +873,10 @@
   .checkers-home-grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .checkers-teacher-stats {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 680px) {
@@ -718,6 +948,20 @@
   .checkers-class-card > button {
     width: 100%;
     min-width: 0;
+  }
+
+  .checkers-teacher {
+    width: min(100% - 24px, 1260px);
+    padding-top: 24px;
+  }
+
+  .checkers-teacher-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .checkers-teacher-stats {
+    grid-template-columns: 1fr;
   }
 }
 

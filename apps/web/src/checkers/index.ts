@@ -10,3 +10,10 @@ export {
   type CheckersWorkspaceMove,
   type CheckersWorkspaceViewModel,
 } from './CheckersWorkspace';
+export {
+  CheckersTeacherDashboard,
+  type CheckersConceptColumn,
+  type CheckersTeacherAssignmentRow,
+  type CheckersTeacherDashboardViewModel,
+  type CheckersTeacherStudentRow,
+} from './CheckersTeacherDashboard';
