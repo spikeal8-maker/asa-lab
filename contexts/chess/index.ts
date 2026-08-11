@@ -107,4 +107,18 @@ export {
   type AsaMoveClassification,
   type AsaMoveReview,
 } from './domain/review.js';
+export {
+  canCreateReviewRetry,
+  createChessReviewRetrySession,
+  createPrivateReviewTrainingItem,
+  playChessReviewRetryMove,
+  requestChessReviewRetryHint,
+  resetChessReviewRetrySession,
+  type ChessReviewRetryHint,
+  type ChessReviewRetryMoveResult,
+  type ChessReviewRetryResult,
+  type ChessReviewRetrySession,
+  type ChessReviewRetryStatus,
+  type PrivateChessReviewTrainingItem,
+} from './domain/review-retry.js';
 export { CHESS_MODULE, type ChessAnalysisSummary } from './module.js';

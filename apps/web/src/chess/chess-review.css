@@ -154,6 +154,79 @@
   font-size: 11px;
 }
 
+.asa-review-timeline {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px 16px;
+  border: 1px solid #c6d3da;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.asa-review-timeline > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #385267;
+}
+
+.asa-review-timeline > header small {
+  color: #6b7d87;
+}
+
+.asa-review-timeline-track {
+  position: relative;
+  height: 88px;
+  margin: 0 8px;
+}
+
+.asa-review-timeline-track svg,
+.asa-review-timeline-midline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.asa-review-timeline-midline {
+  top: 50%;
+  height: 1px;
+  border-top: 1px dashed #c6d3da;
+}
+
+.asa-review-timeline-track polyline {
+  fill: none;
+  stroke: #0a91b6;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.asa-review-timeline-point {
+  position: absolute;
+  z-index: 2;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #0a91b6;
+  box-shadow: 0 0 0 1px #08718f;
+  cursor: pointer;
+  transform: translate(-50%, 50%);
+}
+
+.asa-review-timeline-point[aria-pressed='true'] {
+  width: 17px;
+  height: 17px;
+  background: #f2a93b;
+  box-shadow: 0 0 0 2px #8f5a09;
+}
+
+.asa-review-timeline-point:focus-visible {
+  outline: 3px solid rgba(10, 145, 182, 0.35);
+  outline-offset: 3px;
+}
+
 .asa-review-moves {
   list-style: none;
   margin: 0;
@@ -164,14 +237,19 @@
 
 .asa-review-moves li {
   display: grid;
-  grid-template-columns: 38px minmax(90px, 1fr) minmax(105px, auto) minmax(170px, 1.5fr);
-  gap: 9px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
   align-items: center;
-  padding: 10px;
+  padding: 7px;
   border: 1px solid #c9d4da;
   border-radius: 10px;
   background: #fff;
   border-left: 6px solid #9eabb3;
+}
+
+.asa-review-moves li.is-selected {
+  border-color: #1595bd;
+  box-shadow: 0 0 0 2px rgba(10, 145, 182, 0.14);
 }
 
 .asa-review-moves li[data-classification='best'] {
@@ -210,7 +288,35 @@
   font-variant-numeric: tabular-nums;
 }
 
-.asa-review-moves li > div {
+.asa-review-move-select {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(90px, 1fr) minmax(105px, auto) minmax(170px, 1.5fr);
+  gap: 9px;
+  align-items: center;
+  padding: 3px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.asa-review-move-select:hover {
+  background: #f3f8fa;
+}
+
+.asa-review-move-select:focus-visible,
+.asa-review-retry-start:focus-visible,
+.asa-review-retry button:focus-visible {
+  outline: 3px solid rgba(10, 145, 182, 0.35);
+  outline-offset: 2px;
+}
+
+.asa-review-move-copy,
+.asa-review-evaluation {
   display: grid;
   gap: 2px;
 }
@@ -237,6 +343,133 @@
 .asa-review-evaluation strong {
   color: #0b3558;
   font-size: 20px;
+}
+
+.asa-review-retry-start {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #d66c2b;
+  border-radius: 8px;
+  background: #fff5ea;
+  color: #9a4817;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.asa-review-retry-start:hover {
+  background: #ffe8d3;
+}
+
+.asa-review-retry {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #d66c2b;
+  border-radius: 11px;
+  background: #fff8ef;
+}
+
+.asa-review-retry.is-solved {
+  border-color: #279263;
+  background: #eefaf4;
+}
+
+.asa-review-retry > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.asa-review-retry > header div {
+  display: grid;
+  gap: 2px;
+}
+
+.asa-review-retry > header span {
+  color: #9a4817;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.asa-review-retry > header button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d4bda8;
+  border-radius: 8px;
+  background: #fff;
+  color: #604b3b;
+  cursor: pointer;
+}
+
+.asa-review-retry-feedback {
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.asa-review-retry-feedback p {
+  margin: 4px 0 0;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.asa-review-retry-hint {
+  color: #086f8d;
+  font-weight: 700;
+}
+
+.asa-review-retry dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+}
+
+.asa-review-retry dl div {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.asa-review-retry dt,
+.asa-review-retry > small {
+  color: #6b7d87;
+  font-size: 10px;
+}
+
+.asa-review-retry dd {
+  margin: 0;
+  color: #0b3558;
+  font-weight: 850;
+}
+
+.asa-review-retry-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.asa-review-retry-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #b8c6ce;
+  border-radius: 8px;
+  background: #fff;
+  color: #27485a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.asa-review-retry-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .asa-review-note {
@@ -306,11 +539,23 @@
   }
 
   .asa-review-moves li {
+    grid-template-columns: 1fr;
+  }
+
+  .asa-review-move-select {
     grid-template-columns: 32px 1fr auto;
   }
 
   .asa-review-evaluation {
     grid-column: 2 / -1;
     text-align: left;
+  }
+
+  .asa-review-retry-start {
+    justify-self: stretch;
+  }
+
+  .asa-review-timeline > header {
+    display: grid;
   }
 }

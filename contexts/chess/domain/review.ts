@@ -2,6 +2,7 @@ import {
   applyMoveUnchecked,
   findLegalMoveByUci,
   parseFen,
+  toFen,
   type ChessPosition,
   type Color,
 } from './chess.js';
@@ -16,7 +17,14 @@ export interface AsaMoveReview {
   readonly color: Color;
   readonly playedUci: string;
   readonly playedSan: string;
+  readonly fenBefore: string;
+  readonly fenAfter: string;
   readonly bestUci: string | null;
+  readonly bestRoot: {
+    readonly fenBefore: string;
+    readonly moveUci: string;
+    readonly fenAfter: string;
+  } | null;
   readonly evaluationBeforeCp: number;
   readonly evaluationAfterCp: number;
   readonly bestEvaluationAfterCp: number;
@@ -102,9 +110,12 @@ export function reviewChessDocument(document: ChessDocument, depth: 1 | 2 | 3 = 
     const evaluationBeforeCp = evaluateChessPosition(position);
     const best = chooseChessBotMove(position, depth);
     const playedPosition = applyMoveUnchecked(position, played);
+    const fenBefore = toFen(position);
+    const fenAfter = toFen(playedPosition);
     const evaluationAfterCp = evaluateChessPosition(playedPosition);
-    const bestEvaluationAfterCp = best
-      ? evaluateChessPosition(applyMoveUnchecked(position, best.move))
+    const bestPosition = best ? applyMoveUnchecked(position, best.move) : null;
+    const bestEvaluationAfterCp = bestPosition
+      ? evaluateChessPosition(bestPosition)
       : evaluationAfterCp;
     const centipawnLoss = moverLoss(color, bestEvaluationAfterCp, evaluationAfterCp);
     moves.push({
@@ -112,7 +123,13 @@ export function reviewChessDocument(document: ChessDocument, depth: 1 | 2 | 3 = 
       color,
       playedUci: record.uci,
       playedSan: record.san,
+      fenBefore,
+      fenAfter,
       bestUci: best?.uci ?? null,
+      bestRoot:
+        best && bestPosition
+          ? { fenBefore, moveUci: best.uci, fenAfter: toFen(bestPosition) }
+          : null,
       evaluationBeforeCp,
       evaluationAfterCp,
       bestEvaluationAfterCp,
