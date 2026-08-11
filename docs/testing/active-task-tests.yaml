@@ -1,117 +1,48 @@
 schema_version: 1.0.0
-active_task: TASK-ELECTRONICS-M1-001
+active_task: TASK-3D-M0-001
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
-  - id: TST-R3A-MODULE-GATEWAY-001
-    title: Existing Module Registry and module-neutral Project lifecycle gateway
+  - id: TST-3D-M0-DOMAIN-001
+    title: Versioned 3D document, finite-value validation and deterministic commands
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm test:three-d
+    timeout_seconds: 900
+    owner: three-d
+    artifacts: [vitest-report, document-schema-report]
+
+  - id: TST-3D-M0-INTEGRATION-001
+    title: Module Registry, Project Core save/reload and subject-neutral boundaries
     suite: integration
-    level: repository
-    phase_available: PHASE-3
-    required_for: [TASK-R3A-ELECTRONICS-GATEWAY-001]
-    command: pnpm vitest run packages/module-sdk/src/registry.spec.ts apps/api/src/modules.controller.spec.ts contexts/projects/testing/projects.spec.ts
-    timeout_seconds: 900
-    owner: experience-platform
-    artifacts: [console-report, gateway-source-audit]
+    level: system
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm test:three-d
+    timeout_seconds: 1200
+    owner: three-d
+    artifacts: [vitest-report, persistence-report, boundary-report]
 
-  - id: TST-ELECTRONICS-ASSET-MANIFEST-001
-    title: Immutable owner archive reference and complete production manifest
-    suite: contracts
-    level: repository
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts apps/web/src/electronics/testing/production-assets.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [owner-asset-manifest, reference-manifest, production-manifest, vitest-report]
+  - id: TST-3D-M0-LAZY-001
+    title: 3D runtime is route-lazy and absent from the initial Portal bundle
+    suite: static
+    level: application
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm gate:three-d-m0
+    timeout_seconds: 1200
+    owner: three-d
+    artifacts: [build-report, bundle-inventory]
 
-  - id: TST-ELECTRONICS-TRANSPARENCY-001
-    title: Production SVG transparency, raster and active-content audit
-    suite: security
-    level: repository
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [production-manifest, transparency-audit, vitest-report]
-
-  - id: TST-ELECTRONICS-PHYSICAL-SCALE-001
-    title: Single-scale production physical-dimensions contract
-    suite: contracts
-    level: bounded-context
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [production-manifest, physical-scale-page, vitest-report]
-
-  - id: TST-ELECTRONICS-PIN-ANCHOR-001
-    title: Production pin anchors and terminal provenance within 0.25 mm
-    suite: contracts
-    level: bounded-context
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [production-manifest, pin-map, vitest-report]
-
-  - id: TST-ELECTRONICS-STATE-FAMILIES-001
-    title: Typed LED, RGB, display and motion state contracts
-    suite: contracts
-    level: bounded-context
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-state-contracts.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [state-animation-contracts, led-rgb-state-lab, display-and-motion-state-lab, vitest-report]
-
-  - id: TST-ELECTRONICS-BREADBOARD-001
-    title: Production breadboard snap, placement and internal connectivity
-    suite: contracts
-    level: bounded-context
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-breadboard.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [breadboard-connectivity-map, breadboard-fit-page, vitest-report]
-
-  - id: TST-ELECTRONICS-RESISTOR-VISUAL-001
-    title: Transparent parametric resistor body, semantic bands and tolerance states
-    suite: contracts
-    level: bounded-context
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/resistor-visual.spec.ts apps/web/src/electronics/testing/production-state-contracts.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [parametric-resistor-visual, resistor-band-contract, vitest-report]
-
-  - id: TST-ELECTRONICS-COMPONENT-LIBRARY-001
-    title: Owner-reference shelf geometry, exact order, contextual terminals and persisted variants
-    suite: integration
-    level: bounded-context
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-editor-integration.spec.ts apps/web/src/electronics/testing/workbench-presentation.spec.ts apps/web/src/electronics/testing/workbench-document.spec.ts
-    timeout_seconds: 900
-    owner: electronics
-    artifacts: [component-family-map, presentation-contract, focused-test-report]
-
-  - id: TST-ELECTRONICS-M1-E2E-001
-    title: Real-editor owner-reference presentation and wiring interaction states
+  - id: TST-3D-M0-E2E-001
+    title: Add, transform, save and reload a box on desktop, tablet and mobile
     suite: e2e
     level: system
-    phase_available: PHASE-4
-    required_for: [TASK-ELECTRONICS-M1-001]
-    # The same command the focused workflow runs. This registry previously named
-    # pnpm e2e:electronics (the older slice spec) while CI ran the simulation
-    # journey, so the local gate and CI verified different things.
-    command: pnpm e2e:electronics-simulation
-    timeout_seconds: 1500
-    owner: electronics
-    artifacts: [playwright-report, eight-real-editor-screenshots, owner-reference-side-by-side, browser-failure-report]
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm gate:three-d-m0:browser
+    timeout_seconds: 1800
+    owner: three-d
+    artifacts: [playwright-report, three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, browser-failure-report]
