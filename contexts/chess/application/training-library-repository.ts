@@ -5,8 +5,19 @@ export interface ChessTrainingPartition {
   readonly ownerId: string;
 }
 
-export type ChessTrainingCreateResult = 'created' | 'exists';
-export type ChessTrainingAppendResult = 'saved' | 'not_found' | 'conflict' | 'invalid';
+export type ChessTrainingCreateResult =
+  | {
+      readonly status: 'created' | 'existing';
+      readonly record: PrivateChessTrainingRecord;
+    }
+  | { readonly status: 'id_collision' };
+
+export type ChessTrainingAppendResult =
+  | { readonly status: 'saved'; readonly record: PrivateChessTrainingRecord }
+  | { readonly status: 'existing'; readonly record: PrivateChessTrainingRecord }
+  | { readonly status: 'not_found' }
+  | { readonly status: 'conflict' }
+  | { readonly status: 'invalid' };
 
 export interface ChessTrainingLibraryRepositoryPort {
   create(record: PrivateChessTrainingRecord): Promise<ChessTrainingCreateResult>;

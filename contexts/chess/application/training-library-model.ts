@@ -32,16 +32,18 @@ export interface ChessTrainingAttemptHint {
 export interface ChessTrainingAttempt {
   readonly id: string;
   readonly trainingItemId: string;
+  readonly operationId: string;
   readonly sequence: number;
   readonly occurredAt: string;
   readonly moveUci: string;
   readonly outcome: ChessTrainingAttemptOutcome;
-  readonly resultFen: string;
+  readonly positionAfterMoveFen: string;
+  readonly resetFen: string | null;
   readonly hints: readonly ChessTrainingAttemptHint[];
 }
 
 export interface PrivateChessTrainingRecord {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly kind: 'review-mistake-training';
   readonly visibility: 'private';
   readonly id: string;
@@ -84,11 +86,13 @@ const SOURCE_KEYS = new Set([
 const ATTEMPT_KEYS = new Set([
   'id',
   'trainingItemId',
+  'operationId',
   'sequence',
   'occurredAt',
   'moveUci',
   'outcome',
-  'resultFen',
+  'positionAfterMoveFen',
+  'resetFen',
   'hints',
 ]);
 const HINT_KEYS = new Set(['level']);
@@ -113,13 +117,92 @@ export function isCanonicalTrainingTimestamp(value: string): boolean {
   return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value;
 }
 
-function fnv1a32(value: string, seed: number): string {
-  let hash = seed >>> 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
+const SHA256_CONSTANTS = Object.freeze([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+function rotateRight(value: number, shift: number): number {
+  return (value >>> shift) | (value << (32 - shift));
+}
+
+function sha256Hex(value: string): string {
+  const input = new TextEncoder().encode(value);
+  const paddedLength = Math.ceil((input.length + 9) / 64) * 64;
+  const message = new Uint8Array(paddedLength);
+  message.set(input);
+  message[input.length] = 0x80;
+  const bitLength = input.length * 8;
+  const view = new DataView(message.buffer);
+  view.setUint32(paddedLength - 8, Math.floor(bitLength / 0x100000000), false);
+  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
+
+  let h0 = 0x6a09e667;
+  let h1 = 0xbb67ae85;
+  let h2 = 0x3c6ef372;
+  let h3 = 0xa54ff53a;
+  let h4 = 0x510e527f;
+  let h5 = 0x9b05688c;
+  let h6 = 0x1f83d9ab;
+  let h7 = 0x5be0cd19;
+  const words = new Uint32Array(64);
+
+  for (let offset = 0; offset < message.length; offset += 64) {
+    for (let index = 0; index < 16; index += 1) {
+      words[index] = view.getUint32(offset + index * 4, false);
+    }
+    for (let index = 16; index < 64; index += 1) {
+      const before15 = words[index - 15]!;
+      const before2 = words[index - 2]!;
+      const sigma0 = rotateRight(before15, 7) ^ rotateRight(before15, 18) ^ (before15 >>> 3);
+      const sigma1 = rotateRight(before2, 17) ^ rotateRight(before2, 19) ^ (before2 >>> 10);
+      words[index] = (words[index - 16]! + sigma0 + words[index - 7]! + sigma1) >>> 0;
+    }
+
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    let f = h5;
+    let g = h6;
+    let h = h7;
+    for (let index = 0; index < 64; index += 1) {
+      const sum1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      const choice = (e & f) ^ (~e & g);
+      const temporary1 = (h + sum1 + choice + SHA256_CONSTANTS[index]! + words[index]!) >>> 0;
+      const sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      const majority = (a & b) ^ (a & c) ^ (b & c);
+      const temporary2 = (sum0 + majority) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + temporary1) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (temporary1 + temporary2) >>> 0;
+    }
+
+    h0 = (h0 + a) >>> 0;
+    h1 = (h1 + b) >>> 0;
+    h2 = (h2 + c) >>> 0;
+    h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0;
+    h5 = (h5 + f) >>> 0;
+    h6 = (h6 + g) >>> 0;
+    h7 = (h7 + h) >>> 0;
   }
-  return hash.toString(16).padStart(8, '0');
+
+  return [h0, h1, h2, h3, h4, h5, h6, h7]
+    .map((part) => part.toString(16).padStart(8, '0'))
+    .join('');
 }
 
 export function deterministicChessTrainingId(input: {
@@ -128,6 +211,7 @@ export function deterministicChessTrainingId(input: {
   readonly source: ChessTrainingSource;
 }): string {
   const canonical = JSON.stringify([
+    'chess-training-id-v2',
     input.tenantId,
     input.ownerId,
     input.source.projectId,
@@ -142,7 +226,7 @@ export function deterministicChessTrainingId(input: {
     input.source.bestUci,
     input.source.bestFenAfter,
   ]);
-  return `chess-training_${fnv1a32(canonical, 0x811c9dc5)}${fnv1a32(canonical, 0x9e3779b9)}`;
+  return `chess-training_${sha256Hex(canonical)}`;
 }
 
 export function deterministicChessTrainingAttemptId(recordId: string, sequence: number): string {
@@ -215,6 +299,7 @@ function validateAttempts(
   value: unknown,
   recordId: string,
   source: ChessTrainingSource,
+  createdAt: string,
 ): ChessTrainingValidationResult<readonly ChessTrainingAttempt[]> {
   if (!Array.isArray(value) || value.length > 1000) {
     return { ok: false, message: 'Training attempts must be a bounded array.' };
@@ -222,6 +307,8 @@ function validateAttempts(
   const root = parseFen(source.fenBefore);
   if (!root.ok) return root;
   const attempts: ChessTrainingAttempt[] = [];
+  const operationIds = new Set<string>();
+  let previousTimestamp = Date.parse(createdAt);
   let solved = false;
   for (const [index, raw] of value.entries()) {
     if (!isObject(raw) || !hasExactKeys(raw, ATTEMPT_KEYS)) {
@@ -235,8 +322,19 @@ function validateAttempts(
     ) {
       return { ok: false, message: `Training attempt ${sequence} identity is invalid.` };
     }
+    if (
+      typeof raw['operationId'] !== 'string' ||
+      !SAFE_ID.test(raw['operationId']) ||
+      operationIds.has(raw['operationId'])
+    ) {
+      return { ok: false, message: `Training attempt ${sequence} operationId is invalid.` };
+    }
     if (typeof raw['occurredAt'] !== 'string' || !isCanonicalTrainingTimestamp(raw['occurredAt'])) {
       return { ok: false, message: `Training attempt ${sequence} timestamp is invalid.` };
+    }
+    const currentTimestamp = Date.parse(raw['occurredAt']);
+    if (currentTimestamp < previousTimestamp) {
+      return { ok: false, message: `Training attempt ${sequence} timestamp is out of order.` };
     }
     if (typeof raw['moveUci'] !== 'string' || !UCI.test(raw['moveUci'])) {
       return { ok: false, message: `Training attempt ${sequence} move is invalid.` };
@@ -248,9 +346,16 @@ function validateAttempts(
     if (solved || raw['outcome'] !== expectedOutcome) {
       return { ok: false, message: `Training attempt ${sequence} outcome is invalid.` };
     }
-    const expectedFen = expectedOutcome === 'solved' ? source.bestFenAfter : source.fenBefore;
-    if (raw['resultFen'] !== expectedFen) {
-      return { ok: false, message: `Training attempt ${sequence} resultFen is invalid.` };
+    const expectedPositionAfterMoveFen = toFen(applyMoveUnchecked(root.value, move));
+    if (raw['positionAfterMoveFen'] !== expectedPositionAfterMoveFen) {
+      return {
+        ok: false,
+        message: `Training attempt ${sequence} positionAfterMoveFen is invalid.`,
+      };
+    }
+    const expectedResetFen = expectedOutcome === 'incorrect' ? source.fenBefore : null;
+    if (raw['resetFen'] !== expectedResetFen) {
+      return { ok: false, message: `Training attempt ${sequence} resetFen is invalid.` };
     }
     if (!Array.isArray(raw['hints']) || raw['hints'].length > 3) {
       return { ok: false, message: `Training attempt ${sequence} hints are invalid.` };
@@ -261,6 +366,8 @@ function validateAttempts(
       }
     }
     attempts.push(raw as unknown as ChessTrainingAttempt);
+    operationIds.add(raw['operationId']);
+    previousTimestamp = currentTimestamp;
     solved = expectedOutcome === 'solved';
   }
   return { ok: true, value: attempts };
@@ -286,7 +393,7 @@ export function validatePrivateChessTrainingRecord(
     return { ok: false, message: 'Training record must contain only the supported fields.' };
   }
   if (
-    value['schemaVersion'] !== 1 ||
+    value['schemaVersion'] !== 2 ||
     value['kind'] !== 'review-mistake-training' ||
     value['visibility'] !== 'private'
   ) {
@@ -310,12 +417,17 @@ export function validatePrivateChessTrainingRecord(
   if (value['id'] !== expectedId) {
     return { ok: false, message: 'Training record id is not deterministic for its provenance.' };
   }
-  const attempts = validateAttempts(value['attempts'], expectedId, source.value);
+  const attempts = validateAttempts(
+    value['attempts'],
+    expectedId,
+    source.value,
+    value['createdAt'] as string,
+  );
   if (!attempts.ok) return attempts;
   return {
     ok: true,
     value: immutableRecord({
-      schemaVersion: 1,
+      schemaVersion: 2,
       kind: 'review-mistake-training',
       visibility: 'private',
       id: expectedId,

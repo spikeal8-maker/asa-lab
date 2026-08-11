@@ -21,6 +21,47 @@ function parseStored(value: string): PrivateChessTrainingRecord {
   return parsed.value;
 }
 
+function hasSameTrainingIdentity(
+  left: PrivateChessTrainingRecord,
+  right: PrivateChessTrainingRecord,
+): boolean {
+  return (
+    left.id === right.id &&
+    left.tenantId === right.tenantId &&
+    left.ownerId === right.ownerId &&
+    left.source.projectId === right.source.projectId &&
+    left.source.projectVersionId === right.source.projectVersionId &&
+    left.source.reviewAlgorithm === right.source.reviewAlgorithm &&
+    left.source.ply === right.source.ply &&
+    left.source.color === right.source.color &&
+    left.source.classification === right.source.classification &&
+    left.source.fenBefore === right.source.fenBefore &&
+    left.source.fenAfter === right.source.fenAfter &&
+    left.source.playedUci === right.source.playedUci &&
+    left.source.bestUci === right.source.bestUci &&
+    left.source.bestFenAfter === right.source.bestFenAfter
+  );
+}
+
+function isSameAttempt(
+  left: PrivateChessTrainingRecord['attempts'][number],
+  right: PrivateChessTrainingRecord['attempts'][number],
+): boolean {
+  return (
+    left.id === right.id &&
+    left.trainingItemId === right.trainingItemId &&
+    left.operationId === right.operationId &&
+    left.sequence === right.sequence &&
+    left.occurredAt === right.occurredAt &&
+    left.moveUci === right.moveUci &&
+    left.outcome === right.outcome &&
+    left.positionAfterMoveFen === right.positionAfterMoveFen &&
+    left.resetFen === right.resetFen &&
+    left.hints.length === right.hints.length &&
+    left.hints.every((hint, index) => hint.level === right.hints[index]?.level)
+  );
+}
+
 export class MemoryChessTrainingLibraryRepository implements ChessTrainingLibraryRepositoryPort {
   private readonly partitions = new Map<string, Map<string, string>>();
 
@@ -29,12 +70,18 @@ export class MemoryChessTrainingLibraryRepository implements ChessTrainingLibrar
     if (!validated.ok) throw new Error(validated.message);
     const key = partitionKey(record);
     const partition = this.partitions.get(key) ?? new Map<string, string>();
-    if (partition.has(record.id)) return 'exists';
+    const stored = partition.get(record.id);
+    if (stored) {
+      const existing = parseStored(stored);
+      return hasSameTrainingIdentity(existing, validated.value)
+        ? { status: 'existing', record: existing }
+        : { status: 'id_collision' };
+    }
     const serialized = serializePrivateChessTrainingRecord(validated.value);
     if (!serialized.ok) throw new Error(serialized.message);
     partition.set(record.id, serialized.value);
     this.partitions.set(key, partition);
-    return 'created';
+    return { status: 'created', record: parseStored(serialized.value) };
   }
 
   async list(partition: ChessTrainingPartition): Promise<readonly PrivateChessTrainingRecord[]> {
@@ -56,22 +103,30 @@ export class MemoryChessTrainingLibraryRepository implements ChessTrainingLibrar
   ): Promise<ChessTrainingAppendResult> {
     const partition = this.partitions.get(partitionKey(input.partition));
     const stored = partition?.get(input.trainingItemId);
-    if (!partition || !stored) return 'not_found';
+    if (!partition || !stored) return { status: 'not_found' };
     const record = parseStored(stored);
-    if (record.attempts.length !== input.expectedAttemptCount) return 'conflict';
+    const existingAttempt = record.attempts.find(
+      (attempt) => attempt.operationId === input.attempt.operationId,
+    );
+    if (existingAttempt) {
+      return isSameAttempt(existingAttempt, input.attempt)
+        ? { status: 'existing', record }
+        : { status: 'conflict' };
+    }
+    if (record.attempts.length !== input.expectedAttemptCount) return { status: 'conflict' };
     if (
       input.attempt.trainingItemId !== record.id ||
       input.attempt.sequence !== record.attempts.length + 1
     ) {
-      return 'invalid';
+      return { status: 'invalid' };
     }
     const next: PrivateChessTrainingRecord = {
       ...record,
       attempts: [...record.attempts, input.attempt],
     };
     const serialized = serializePrivateChessTrainingRecord(next);
-    if (!serialized.ok) return 'invalid';
+    if (!serialized.ok) return { status: 'invalid' };
     partition.set(record.id, serialized.value);
-    return 'saved';
+    return { status: 'saved', record: parseStored(serialized.value) };
   }
 }
