@@ -1,7 +1,7 @@
 # ASA Chess R1 — dated functional-parity ledger
 
-**Reference cut:** 2026-08-11  
-**Programme:** [Issue #65](https://github.com/spikeal8-maker/asa-lab/issues/65)  
+**Reference cut:** 2026-08-11
+**Programme:** [Issue #65](https://github.com/spikeal8-maker/asa-lab/issues/65)
 **Activation package:** [Issue #97](https://github.com/spikeal8-maker/asa-lab/issues/97)
 
 Parity in this ledger means an independently implemented equivalent user outcome. It

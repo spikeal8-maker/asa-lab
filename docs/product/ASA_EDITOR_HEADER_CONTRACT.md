@@ -1,7 +1,7 @@
 # ASA editor-family header contract
 
-**Status:** planned characterization and extraction contract  
-**Reference implementation:** Electronics `WorkbenchHeader`  
+**Status:** planned characterization and extraction contract
+**Reference implementation:** Electronics `WorkbenchHeader`
 **First new consumer:** ASA Chess
 
 ## 1. Decision

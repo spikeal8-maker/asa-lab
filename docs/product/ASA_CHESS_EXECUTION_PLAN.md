@@ -1,7 +1,7 @@
 # ASA Chess — executable delivery plan
 
-**Programme Issue:** [#65](https://github.com/spikeal8-maker/asa-lab/issues/65)  
-**P0 Issue:** [#97](https://github.com/spikeal8-maker/asa-lab/issues/97)  
+**Programme Issue:** [#65](https://github.com/spikeal8-maker/asa-lab/issues/65)
+**P0 Issue:** [#97](https://github.com/spikeal8-maker/asa-lab/issues/97)
 **Status:** plan-only candidate; product execution remains blocked until an explicit owner transition from the active task.
 
 ## 1. Product outcome

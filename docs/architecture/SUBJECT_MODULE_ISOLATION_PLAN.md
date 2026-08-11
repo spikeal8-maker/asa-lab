@@ -1,6 +1,6 @@
 # ASA Lab subject-module isolation plan
 
-**Status:** plan-only P0 contract  
+**Status:** plan-only P0 contract
 **Scope:** Chess, future Checkers, Electronics, 3D and shared composition roots
 
 ## 1. Findings
