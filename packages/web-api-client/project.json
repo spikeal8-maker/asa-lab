@@ -1,0 +1,18 @@
+{
+  "name": "web-api-client",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/web-api-client/src",
+  "tags": ["type:lib", "scope:shared", "platform:web"],
+  "targets": {
+    "build": {
+      "command": "tsc -p packages/web-api-client/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p packages/web-api-client/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint packages/web-api-client/src"
+    }
+  }
+}

@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  creatorSectionToHash,
   creatorViewFromHash,
   creatorViewToHash,
   type CreatorPortalView,
-} from '../../apps/web/src/creator-portal/navigation';
+} from '@asa-lab/portal-shell/navigation';
 
 describe('Creator Portal routing', () => {
+  it.each([
+    ['home', '#/home'],
+    ['projects', '#/projects'],
+    ['classes', '#/classrooms'],
+    ['account', '#/account'],
+  ] as const)('exposes a browser-native destination for %s', (section, expected) => {
+    expect(creatorSectionToHash(section)).toBe(expected);
+  });
+
   it.each([
     ['#/home', { kind: 'home' }],
     ['#/projects', { kind: 'my-projects' }],

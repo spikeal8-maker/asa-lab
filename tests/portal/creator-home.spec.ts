@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Project } from '../../apps/web/src/api';
-import { creatorHomeState, recentProjects } from '../../apps/web/src/creator-portal/navigation';
+import type { Project } from '@asa-lab/web-api-client';
+import { creatorHomeState, recentProjects } from '@asa-lab/portal-shell/navigation';
 
 function project(id: string, title: string, createdAt: string, updatedAt = createdAt): Project {
   return {

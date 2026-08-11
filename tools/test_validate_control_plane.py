@@ -90,8 +90,8 @@ def lease_released_but_dated(_):
     return errors
 
 
-@case("a lease whose window has passed", expect="expired at")
-def lease_expired(_):
+@case("an old lease timestamp does not stop its unchanged declared executor", expect="")
+def lease_old_timestamp_is_audit_only(_):
     errors: list[str] = []
     cp.check_lease(lease(acquired_at=stamp(-9), expires_at=stamp(-1)), errors)
     return errors

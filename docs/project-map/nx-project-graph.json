@@ -1,6 +1,86 @@
 {
   "graph": {
     "nodes": {
+      "web-api-client": {
+        "name": "web-api-client",
+        "type": "lib",
+        "data": {
+          "root": "packages/web-api-client",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/web-api-client/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/web-api-client/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/web-api-client/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "web-api-client",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/web-api-client/src",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:shared",
+            "platform:web"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/web-api-client",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "implicitDependencies": []
+        }
+      },
       "domain-kernel": {
         "name": "domain-kernel",
         "type": "lib",
@@ -223,6 +303,85 @@
           "implicitDependencies": []
         }
       },
+      "portal-shell": {
+        "name": "portal-shell",
+        "type": "lib",
+        "data": {
+          "root": "packages/portal-shell",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/portal-shell/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p packages/portal-shell/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint packages/portal-shell/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "portal-shell",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/portal-shell/src",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:platform-ui",
+            "platform:web"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/portal-shell",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./src/index.ts",
+                  "default": "./src/index.ts"
+                }
+              },
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "implicitDependencies": []
+        }
+      },
       "realtime-gateway": {
         "name": "realtime-gateway",
         "type": "app",
@@ -286,11 +445,11 @@
           "implicitDependencies": []
         }
       },
-      "electronics": {
-        "name": "electronics",
+      "editor-host": {
+        "name": "editor-host",
         "type": "lib",
         "data": {
-          "root": "contexts/electronics",
+          "root": "packages/editor-host",
           "targets": {
             "build": {
               "dependsOn": [
@@ -303,7 +462,7 @@
               "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "tsc -p contexts/electronics/tsconfig.json"
+                "command": "tsc -p packages/editor-host/tsconfig.json --noEmit"
               },
               "configurations": {},
               "parallelism": true
@@ -319,7 +478,7 @@
               "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "tsc -p contexts/electronics/tsconfig.json --noEmit"
+                "command": "tsc -p packages/editor-host/tsconfig.json --noEmit"
               },
               "configurations": {},
               "parallelism": true
@@ -332,7 +491,86 @@
               "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "eslint contexts/electronics"
+                "command": "eslint packages/editor-host/src"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "editor-host",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/editor-host/src",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:shared",
+            "platform:web"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/editor-host",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./src/index.ts",
+                  "default": "./src/index.ts"
+                }
+              },
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "implicitDependencies": []
+        }
+      },
+      "electronics": {
+        "name": "electronics",
+        "type": "lib",
+        "data": {
+          "root": "modules/electronics",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p modules/electronics/tsconfig.build.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p modules/electronics/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint modules/electronics"
               },
               "configurations": {},
               "parallelism": true
@@ -341,11 +579,11 @@
           "name": "electronics",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
-          "sourceRoot": "contexts/electronics",
+          "sourceRoot": "modules/electronics",
           "tags": [
             "npm:private",
             "type:lib",
-            "scope:core",
+            "scope:module",
             "context:electronics"
           ],
           "metadata": {
@@ -357,86 +595,14 @@
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
-                }
-              },
-              "packageMain": "dist/index.js",
-              "isInPackageManagerWorkspaces": true
-            }
-          },
-          "implicitDependencies": []
-        }
-      },
-      "chess-live": {
-        "name": "chess-live",
-        "type": "lib",
-        "data": {
-          "root": "contexts/chess-live",
-          "targets": {
-            "build": {
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "production",
-                "^production"
-              ],
-              "cache": true,
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/chess-live/tsconfig.json"
-              },
-              "configurations": {},
-              "parallelism": true
-            },
-            "typecheck": {
-              "dependsOn": [
-                "^build"
-              ],
-              "inputs": [
-                "default",
-                "^default"
-              ],
-              "cache": true,
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "tsc -p contexts/chess-live/tsconfig.json --noEmit"
-              },
-              "configurations": {},
-              "parallelism": true
-            },
-            "lint": {
-              "inputs": [
-                "default",
-                "{workspaceRoot}/eslint.config.mjs"
-              ],
-              "cache": true,
-              "executor": "nx:run-commands",
-              "options": {
-                "command": "eslint contexts/chess-live"
-              },
-              "configurations": {},
-              "parallelism": true
-            }
-          },
-          "name": "chess-live",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/chess-live",
-          "tags": [
-            "npm:private",
-            "type:lib",
-            "scope:core",
-            "context:chess-live"
-          ],
-          "metadata": {
-            "targetGroups": {},
-            "js": {
-              "packageName": "@asa-lab/chess-live",
-              "packageVersion": "0.0.0",
-              "packageExports": {
-                ".": {
-                  "types": "./dist/index.d.ts",
-                  "default": "./dist/index.js"
+                },
+                "./simulation": {
+                  "types": "./dist/simulation.d.ts",
+                  "default": "./dist/simulation.js"
+                },
+                "./editor": {
+                  "types": "./editor.tsx",
+                  "default": "./editor.tsx"
                 }
               },
               "packageMain": "dist/index.js",
@@ -648,6 +814,86 @@
             "type:app",
             "scope:app"
           ],
+          "implicitDependencies": []
+        }
+      },
+      "chess-live": {
+        "name": "chess-live",
+        "type": "lib",
+        "data": {
+          "root": "modules/chess-live",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p modules/chess-live/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p modules/chess-live/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint modules/chess-live"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "chess-live",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "modules/chess-live",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:module",
+            "context:chess-live"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/chess-live",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
           "implicitDependencies": []
         }
       },
@@ -1216,9 +1462,25 @@
           "projectType": "library",
           "sourceRoot": "packages/ui-kit/src",
           "tags": [
+            "npm:private",
             "type:lib",
             "scope:shared"
           ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/ui-kit",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
           "implicitDependencies": []
         }
       },
@@ -1289,7 +1551,7 @@
         "name": "chess",
         "type": "lib",
         "data": {
-          "root": "contexts/chess",
+          "root": "modules/chess",
           "targets": {
             "build": {
               "dependsOn": [
@@ -1302,7 +1564,7 @@
               "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "tsc -p contexts/chess/tsconfig.json"
+                "command": "tsc -p modules/chess/tsconfig.build.json"
               },
               "configurations": {},
               "parallelism": true
@@ -1318,7 +1580,7 @@
               "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "tsc -p contexts/chess/tsconfig.json --noEmit"
+                "command": "tsc -p modules/chess/tsconfig.json --noEmit"
               },
               "configurations": {},
               "parallelism": true
@@ -1331,7 +1593,7 @@
               "cache": true,
               "executor": "nx:run-commands",
               "options": {
-                "command": "eslint contexts/chess"
+                "command": "eslint modules/chess"
               },
               "configurations": {},
               "parallelism": true
@@ -1340,11 +1602,11 @@
           "name": "chess",
           "$schema": "../../node_modules/nx/schemas/project-schema.json",
           "projectType": "library",
-          "sourceRoot": "contexts/chess",
+          "sourceRoot": "modules/chess",
           "tags": [
             "npm:private",
             "type:lib",
-            "scope:core",
+            "scope:module",
             "context:chess"
           ],
           "metadata": {
@@ -1356,6 +1618,10 @@
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
+                },
+                "./editor": {
+                  "types": "./editor.ts",
+                  "default": "./editor.ts"
                 }
               },
               "packageMain": "dist/index.js",
@@ -1596,6 +1862,7 @@
       }
     },
     "dependencies": {
+      "web-api-client": [],
       "domain-kernel": [],
       "observability": [],
       "organization": [
@@ -1605,14 +1872,51 @@
           "type": "static"
         }
       ],
+      "portal-shell": [
+        {
+          "source": "portal-shell",
+          "target": "ui-kit",
+          "type": "static"
+        },
+        {
+          "source": "portal-shell",
+          "target": "web-api-client",
+          "type": "static"
+        }
+      ],
       "realtime-gateway": [],
+      "editor-host": [
+        {
+          "source": "editor-host",
+          "target": "ui-kit",
+          "type": "static"
+        }
+      ],
       "electronics": [
+        {
+          "source": "electronics",
+          "target": "web-api-client",
+          "type": "static"
+        },
+        {
+          "source": "electronics",
+          "target": "ui-kit",
+          "type": "static"
+        },
+        {
+          "source": "electronics",
+          "target": "editor-host",
+          "type": "static"
+        },
         {
           "source": "electronics",
           "target": "module-sdk",
           "type": "static"
         }
       ],
+      "job-dispatcher": [],
+      "module-sdk": [],
+      "worker-runtime": [],
       "chess-live": [
         {
           "source": "chess-live",
@@ -1625,9 +1929,6 @@
           "type": "static"
         }
       ],
-      "job-dispatcher": [],
-      "module-sdk": [],
-      "worker-runtime": [],
       "classroom": [
         {
           "source": "classroom",
@@ -1650,6 +1951,11 @@
       "ui-kit": [],
       "authz": [],
       "chess": [
+        {
+          "source": "chess",
+          "target": "web-api-client",
+          "type": "static"
+        },
         {
           "source": "chess",
           "target": "module-sdk",
@@ -1713,6 +2019,36 @@
         {
           "source": "web",
           "target": "chess",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "chess",
+          "type": "dynamic"
+        },
+        {
+          "source": "web",
+          "target": "electronics",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "electronics",
+          "type": "dynamic"
+        },
+        {
+          "source": "web",
+          "target": "portal-shell",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "ui-kit",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "web-api-client",
           "type": "static"
         }
       ]

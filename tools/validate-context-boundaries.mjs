@@ -15,15 +15,16 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import ts from 'typescript';
 
 const ROOT = resolve(process.cwd());
-const CONTEXT_RULES = {
-  identity: [],
-  organization: [],
-  classroom: [],
-  chess: [],
-  'chess-live': ['chess'],
+const BOUNDED_AREAS = {
+  identity: { root: 'contexts/identity', allowed: [] },
+  organization: { root: 'contexts/organization', allowed: [] },
+  classroom: { root: 'contexts/classroom', allowed: [] },
+  projects: { root: 'contexts/projects', allowed: [] },
+  electronics: { root: 'modules/electronics', allowed: [] },
+  chess: { root: 'modules/chess', allowed: [] },
+  'chess-live': { root: 'modules/chess-live', allowed: ['chess'] },
 };
-const CONTEXTS = Object.keys(CONTEXT_RULES);
-const CONTEXT_ROOT = join(ROOT, 'contexts');
+const CONTEXTS = Object.keys(BOUNDED_AREAS);
 const REPORT_DIR = join(ROOT, 'reports');
 const REPORT_FILE = join(REPORT_DIR, 'context-boundaries.json');
 
@@ -86,9 +87,11 @@ function importsOf(file, source) {
 }
 
 function contextOfResolvedPath(path) {
-  const rel = relative(CONTEXT_ROOT, path);
-  if (rel.startsWith('..') || rel === '') return null;
-  return rel.split(sep)[0] ?? null;
+  for (const [name, area] of Object.entries(BOUNDED_AREAS)) {
+    const rel = relative(join(ROOT, area.root), path);
+    if (!rel.startsWith('..') && rel !== '') return name;
+  }
+  return null;
 }
 
 function asRepoPath(path) {
@@ -109,7 +112,8 @@ const checkedFiles = [];
 const contextSummary = {};
 
 for (const context of CONTEXTS) {
-  const root = join(CONTEXT_ROOT, context);
+  const area = BOUNDED_AREAS[context];
+  const root = join(ROOT, area.root);
   const projectFile = join(root, 'project.json');
   const project = JSON.parse(readFileSync(projectFile, 'utf8'));
   const expectedTag = `context:${context}`;
@@ -117,7 +121,7 @@ for (const context of CONTEXTS) {
     errors.push(`${asRepoPath(projectFile)} must include tag ${expectedTag}`);
   }
 
-  const allowedContexts = new Set([context, ...CONTEXT_RULES[context]]);
+  const allowedContexts = new Set([context, ...area.allowed]);
   const files = walk(root);
   contextSummary[context] = {
     files: files.length,
@@ -161,6 +165,63 @@ for (const context of CONTEXTS) {
   }
 }
 
+// The Web application is the composition root, but only the editor host may
+// know which first-party subject editors exist. Portal, authentication and the
+// application bootstrap must remain usable when a subject editor cannot load.
+const webRoot = join(ROOT, 'apps', 'web', 'src');
+const editorHostFile = join(webRoot, 'modules', 'ModuleEditorHost.tsx');
+const portalRoot = join(ROOT, 'packages', 'portal-shell', 'src');
+const sharedEditorRoot = join(ROOT, 'packages', 'editor-host', 'src');
+for (const file of [...walk(webRoot), ...walk(portalRoot), ...walk(sharedEditorRoot)]) {
+  const source = readFileSync(file, 'utf8');
+  for (const specifier of importsOf(file, source)) {
+    const subjectImport =
+      specifier === '@asa-lab/electronics' ||
+      specifier.startsWith('@asa-lab/electronics/') ||
+      specifier === '@asa-lab/chess' ||
+      specifier.startsWith('@asa-lab/chess/');
+    if (subjectImport && file !== editorHostFile) {
+      errors.push(
+        `${asRepoPath(file)} imports subject module ${specifier}; only the editor host composes subject UI`,
+      );
+    }
+  }
+}
+
+const apiClientSource = readFileSync(
+  join(ROOT, 'packages', 'web-api-client', 'src', 'index.ts'),
+  'utf8',
+);
+for (const subjectType of [
+  'SchematicDocument',
+  'SchematicComponent',
+  'ComponentKind',
+  'SolveResult',
+]) {
+  if (apiClientSource.includes(subjectType)) {
+    errors.push(`packages/web-api-client must not define subject type ${subjectType}`);
+  }
+}
+
+const mainSource = readFileSync(join(webRoot, 'main.tsx'), 'utf8');
+for (const forbidden of ['loadProductionLibrary', '@asa-lab/electronics', '@asa-lab/chess']) {
+  if (mainSource.includes(forbidden)) {
+    errors.push(`apps/web/src/main.tsx must not bootstrap subject module marker ${forbidden}`);
+  }
+}
+
+const editorHostSource = readFileSync(editorHostFile, 'utf8');
+for (const required of [
+  "import('@asa-lab/electronics/editor')",
+  "import('@asa-lab/chess/editor')",
+  'ModuleFailureBoundary',
+  '<Suspense',
+]) {
+  if (!editorHostSource.includes(required)) {
+    errors.push(`apps/web/src/modules/ModuleEditorHost.tsx misses isolation marker ${required}`);
+  }
+}
+
 const graphFile = join(ROOT, 'docs', 'project-map', 'nx-project-graph.json');
 try {
   const graph = JSON.parse(readFileSync(graphFile, 'utf8'));
@@ -197,6 +258,11 @@ const report = {
   contexts: contextSummary,
   filesChecked: checkedFiles.length,
   dependencyPolicy: {
+    identity: [],
+    organization: [],
+    classroom: [],
+    projects: [],
+    electronics: [],
     chess: [],
     'chess-live': ['chess'],
   },

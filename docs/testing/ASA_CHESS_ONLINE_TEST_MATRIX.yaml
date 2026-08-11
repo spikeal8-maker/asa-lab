@@ -15,22 +15,22 @@ result_states:
 
 required_tests:
   - id: TST-CHESS-LIVE-CHALLENGE-001
-    command: pnpm vitest run contexts/chess-live/testing/challenge.spec.ts
+    command: pnpm vitest run modules/chess-live/testing/challenge.spec.ts
     proves: create, expiry, owner cancellation, self-accept denial and exactly-once acceptance rules
   - id: TST-CHESS-LIVE-GAME-001
-    command: pnpm vitest run contexts/chess-live/testing/game.spec.ts
+    command: pnpm vitest run modules/chess-live/testing/game.spec.ts
     proves: legal moves, server clocks, increment, timeout, draw, resignation and automatic checkmate
   - id: TST-CHESS-LIVE-SERVICE-001
-    command: pnpm vitest run contexts/chess-live/testing/service.spec.ts
+    command: pnpm vitest run modules/chess-live/testing/service.spec.ts
     proves: tenant isolation, idempotency, optimistic version, reconnect, spectator delay, pairing and one-time rating
   - id: TST-CHESS-LIVE-MATCHMAKING-001
-    command: pnpm vitest run contexts/chess-live/testing/matchmaking.spec.ts
+    command: pnpm vitest run modules/chess-live/testing/matchmaking.spec.ts
     proves: pool/time/rated/color/rating compatibility and deterministic pairing
   - id: TST-CHESS-LIVE-RATING-001
-    command: pnpm vitest run contexts/chess-live/testing/rating.spec.ts
+    command: pnpm vitest run modules/chess-live/testing/rating.spec.ts
     proves: ASA Elo v1 pools, expected score, K factors, updates and ledger
   - id: TST-CHESS-LIVE-PROTOCOL-001
-    command: pnpm vitest run contexts/chess-live/testing/protocol.spec.ts
+    command: pnpm vitest run modules/chess-live/testing/protocol.spec.ts
     proves: strict hello, command, ping and malformed transport messages
   - id: TST-CHESS-LIVE-API-001
     command: pnpm vitest run apps/api/src/chess-live.controller.spec.ts

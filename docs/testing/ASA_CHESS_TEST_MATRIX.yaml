@@ -15,31 +15,31 @@ result_states:
 foundation:
   required_tests:
     - id: TST-CHESS-RULES-001
-      command: pnpm vitest run contexts/chess/testing/chess.spec.ts
+      command: pnpm vitest run modules/chess/testing/chess.spec.ts
       proves: legal standard moves, castling, en passant, promotion, checks and draws
     - id: TST-CHESS-PERFT-001
-      command: pnpm vitest run contexts/chess/testing/chess.spec.ts
+      command: pnpm vitest run modules/chess/testing/chess.spec.ts
       proves: initial perft 1/20/400/8902
     - id: TST-CHESS-FEN-SAN-PGN-001
-      command: pnpm vitest run contexts/chess/testing/chess.spec.ts contexts/chess/testing/document.spec.ts contexts/chess/testing/pgn.spec.ts
+      command: pnpm vitest run modules/chess/testing/chess.spec.ts modules/chess/testing/document.spec.ts modules/chess/testing/pgn.spec.ts
       proves: notation and import/export round trips including comments
     - id: TST-CHESS-DOCUMENT-001
-      command: pnpm vitest run contexts/chess/testing/document.spec.ts
+      command: pnpm vitest run modules/chess/testing/document.spec.ts
       proves: strict replay validation, clocks, results and over-posting rejection
     - id: TST-CHESS-BOT-001
-      command: pnpm vitest run contexts/chess/testing/bot.spec.ts
+      command: pnpm vitest run modules/chess/testing/bot.spec.ts
       proves: deterministic legal ASA Bot levels
     - id: TST-CHESS-REVIEW-001
-      command: pnpm vitest run contexts/chess/testing/review.spec.ts
+      command: pnpm vitest run modules/chess/testing/review.spec.ts
       proves: transparent ASA Quality and move classification
     - id: TST-CHESS-PUZZLE-001
-      command: pnpm vitest run contexts/chess/testing/puzzle.spec.ts
+      command: pnpm vitest run modules/chess/testing/puzzle.spec.ts
       proves: legal solution, mistakes, automatic replies, hints and solve
     - id: TST-CHESS-FAIR-PLAY-001
-      command: pnpm vitest run contexts/chess/testing/fair-play.spec.ts
+      command: pnpm vitest run modules/chess/testing/fair-play.spec.ts
       proves: protected live policy denies analysis, hints, explorer and undo
     - id: TST-CHESS-MODULE-001
-      command: pnpm vitest run contexts/chess/testing/module.spec.ts apps/api/src/modules.controller.spec.ts
+      command: pnpm vitest run modules/chess/testing/module.spec.ts apps/api/src/modules.controller.spec.ts
       proves: registry, create/validate/preview/analyse and creatable API summary
     - id: TST-CHESS-UI-001
       command: pnpm vitest run tests/chess/chess-ui.spec.ts

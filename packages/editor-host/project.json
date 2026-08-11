@@ -1,0 +1,18 @@
+{
+  "name": "editor-host",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "packages/editor-host/src",
+  "tags": ["type:lib", "scope:shared", "platform:web"],
+  "targets": {
+    "build": {
+      "command": "tsc -p packages/editor-host/tsconfig.json --noEmit"
+    },
+    "typecheck": {
+      "command": "tsc -p packages/editor-host/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint packages/editor-host/src"
+    }
+  }
+}

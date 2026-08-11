@@ -5,32 +5,32 @@ import { extname, relative, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const REQUIRED_FILES = [
-  'contexts/chess-live/package.json',
-  'contexts/chess-live/project.json',
-  'contexts/chess-live/tsconfig.json',
-  'contexts/chess-live/index.ts',
-  'contexts/chess-live/domain/model.ts',
-  'contexts/chess-live/domain/challenge.ts',
-  'contexts/chess-live/domain/game.ts',
-  'contexts/chess-live/domain/matchmaking.ts',
-  'contexts/chess-live/domain/rating.ts',
-  'contexts/chess-live/domain/protocol.ts',
-  'contexts/chess-live/application/ports.ts',
-  'contexts/chess-live/application/service.ts',
-  'contexts/chess-live/infrastructure/memory-repository.ts',
-  'contexts/chess-live/infrastructure/pg-repository.ts',
-  'contexts/chess-live/infrastructure/runtime.ts',
-  'contexts/chess-live/testing/challenge.spec.ts',
-  'contexts/chess-live/testing/game.spec.ts',
-  'contexts/chess-live/testing/matchmaking.spec.ts',
-  'contexts/chess-live/testing/rating.spec.ts',
-  'contexts/chess-live/testing/protocol.spec.ts',
-  'contexts/chess-live/testing/service.spec.ts',
+  'modules/chess-live/package.json',
+  'modules/chess-live/project.json',
+  'modules/chess-live/tsconfig.json',
+  'modules/chess-live/index.ts',
+  'modules/chess-live/domain/model.ts',
+  'modules/chess-live/domain/challenge.ts',
+  'modules/chess-live/domain/game.ts',
+  'modules/chess-live/domain/matchmaking.ts',
+  'modules/chess-live/domain/rating.ts',
+  'modules/chess-live/domain/protocol.ts',
+  'modules/chess-live/application/ports.ts',
+  'modules/chess-live/application/service.ts',
+  'modules/chess-live/infrastructure/memory-repository.ts',
+  'modules/chess-live/infrastructure/pg-repository.ts',
+  'modules/chess-live/infrastructure/runtime.ts',
+  'modules/chess-live/testing/challenge.spec.ts',
+  'modules/chess-live/testing/game.spec.ts',
+  'modules/chess-live/testing/matchmaking.spec.ts',
+  'modules/chess-live/testing/rating.spec.ts',
+  'modules/chess-live/testing/protocol.spec.ts',
+  'modules/chess-live/testing/service.spec.ts',
   'apps/api/src/chess-live.controller.ts',
   'apps/api/src/chess-live.controller.spec.ts',
-  'apps/web/src/chess/chess-live-api.ts',
-  'apps/web/src/chess/ChessOnlineLobby.tsx',
-  'apps/web/src/chess/chess-online.css',
+  'modules/chess/editor/chess-live-api.ts',
+  'modules/chess/editor/ChessOnlineLobby.tsx',
+  'modules/chess/editor/chess-online.css',
   'tests/chess-live/pg-repository.spec.ts',
   'e2e/chess-live.spec.ts',
   'migrations/0006_chess_live.sql',
@@ -101,7 +101,7 @@ for (const file of REQUIRED_FILES) {
   if (!existsSync(resolve(ROOT, file))) fail(`missing required file: ${file}`);
 }
 
-const packageJson = json('contexts/chess-live/package.json');
+const packageJson = json('modules/chess-live/package.json');
 if (packageJson) {
   if (packageJson.name !== '@asa-lab/chess-live') {
     fail('chess-live package name must be @asa-lab/chess-live');
@@ -114,11 +114,11 @@ if (packageJson) {
   }
 }
 
-const projectJson = json('contexts/chess-live/project.json');
+const projectJson = json('modules/chess-live/project.json');
 if (projectJson) {
   if (projectJson.name !== 'chess-live') fail('Nx project name must be chess-live');
   const tags = new Set(projectJson.tags ?? []);
-  for (const tag of ['type:lib', 'scope:core', 'context:chess-live']) {
+  for (const tag of ['type:lib', 'scope:module', 'context:chess-live']) {
     if (!tags.has(tag)) fail(`chess-live project misses tag ${tag}`);
   }
   for (const target of ['build', 'typecheck', 'lint']) {
@@ -131,7 +131,7 @@ if (apiPackage?.dependencies?.['@asa-lab/chess-live'] !== 'workspace:*') {
   fail('apps/api must depend on @asa-lab/chess-live via workspace:*');
 }
 
-requireMarkers('contexts/chess-live/domain/game.ts', [
+requireMarkers('modules/chess-live/domain/game.ts', [
   'applyLegalMove',
   'settleClock',
   'positionKeys',
@@ -140,13 +140,13 @@ requireMarkers('contexts/chess-live/domain/game.ts', [
   'resignation',
   'timeout',
 ]);
-requireMarkers('contexts/chess-live/domain/challenge.ts', [
+requireMarkers('modules/chess-live/domain/challenge.ts', [
   'challenge creator cannot accept own challenge',
   'only the creator can cancel the challenge',
   'challenge has expired',
   'validateLiveTimeControl',
 ]);
-requireMarkers('contexts/chess-live/application/service.ts', [
+requireMarkers('modules/chess-live/application/service.ts', [
   'checkReplay',
   'expectedVersion',
   'spectatorEvents',
@@ -154,24 +154,24 @@ requireMarkers('contexts/chess-live/application/service.ts', [
   'joinMatchmaking',
   'applyRatingUpdate',
 ]);
-requireMarkers('contexts/chess-live/domain/matchmaking.ts', [
+requireMarkers('modules/chess-live/domain/matchmaking.ts', [
   'matchmakingRatingWindow',
   'areMatchmakingTicketsCompatible',
   'findMatchmakingPair',
 ]);
-requireMarkers('contexts/chess-live/domain/rating.ts', [
+requireMarkers('modules/chess-live/domain/rating.ts', [
   "algorithm: 'asa-elo-v1'",
   'ASA_INITIAL_CHESS_RATING = 1200',
   'ASA_PROVISIONAL_GAMES = 10',
   'calculateChessRatingUpdate',
 ]);
-requireMarkers('contexts/chess-live/domain/protocol.ts', [
+requireMarkers('modules/chess-live/domain/protocol.ts', [
   "CHESS_LIVE_PROTOCOL_VERSION = 'asa-chess-live-v1'",
   "type: 'client.hello'",
   "type: 'game.snapshot'",
   "type: 'game.command_ack'",
 ]);
-requireMarkers('contexts/chess-live/infrastructure/pg-repository.ts', [
+requireMarkers('modules/chess-live/infrastructure/pg-repository.ts', [
   "import { withTenantContext } from '@asa-lab/database'",
   'WHERE id = $1 AND version = $11',
   'INSERT INTO chess_live_events',
@@ -208,14 +208,14 @@ requireMarkers('apps/api/src/app.module.ts', [
   'new MemoryChessLiveRepository()',
   'TOKENS.chessLiveService',
 ]);
-requireMarkers('apps/web/src/chess/ChessOnlineLobby.tsx', [
+requireMarkers('modules/chess/editor/ChessOnlineLobby.tsx', [
   'Вызовы и поиск соперника',
   'Создать код вызова',
   'Найти соперника',
   'Ходы, версия позиции, результат и часы определяются сервером',
   '<ChessBoard',
 ]);
-requireMarkers('apps/web/src/chess/ChessModuleExperience.tsx', [
+requireMarkers('modules/chess/editor/ChessModuleExperience.tsx', [
   "type ChessSurface = 'project' | 'training' | 'review' | 'online'",
   '<ChessOnlineLobby',
   'Открыть онлайн-шахматы',
@@ -264,15 +264,15 @@ if (root) {
 }
 
 const lock = text('pnpm-lock.yaml');
-for (const marker of ['contexts/chess-live:', "'@asa-lab/chess-live':", "'@asa-lab/database':"]) {
+for (const marker of ['modules/chess-live:', "'@asa-lab/chess-live':", "'@asa-lab/database':"]) {
   if (!lock.includes(marker)) {
     fail(`pnpm-lock.yaml is not synchronized; missing marker ${marker}`);
   }
 }
 
 for (const path of [
-  ...walk('contexts/chess-live'),
-  ...walk('apps/web/src/chess'),
+  ...walk('modules/chess-live'),
+  ...walk('modules/chess/editor'),
   'apps/api/src/chess-live.controller.ts',
   'tests/chess-live/pg-repository.spec.ts',
   'e2e/chess-live.spec.ts',

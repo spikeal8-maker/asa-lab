@@ -20,7 +20,7 @@ tests:
     level: repository
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/owner-asset-manifest.spec.ts apps/web/src/electronics/testing/production-assets.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/owner-asset-manifest.spec.ts modules/electronics/editor/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [owner-asset-manifest, reference-manifest, production-manifest, vitest-report]
@@ -31,7 +31,7 @@ tests:
     level: repository
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [production-manifest, transparency-audit, vitest-report]
@@ -42,7 +42,7 @@ tests:
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [production-manifest, physical-scale-page, vitest-report]
@@ -53,7 +53,7 @@ tests:
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-assets.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/production-assets.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [production-manifest, pin-map, vitest-report]
@@ -64,7 +64,7 @@ tests:
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-state-contracts.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/production-state-contracts.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [state-animation-contracts, led-rgb-state-lab, display-and-motion-state-lab, vitest-report]
@@ -75,7 +75,7 @@ tests:
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-breadboard.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/production-breadboard.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [breadboard-connectivity-map, breadboard-fit-page, vitest-report]
@@ -86,7 +86,7 @@ tests:
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/resistor-visual.spec.ts apps/web/src/electronics/testing/production-state-contracts.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/resistor-visual.spec.ts modules/electronics/editor/testing/production-state-contracts.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [parametric-resistor-visual, resistor-band-contract, vitest-report]
@@ -97,7 +97,7 @@ tests:
     level: bounded-context
     phase_available: PHASE-4
     required_for: [TASK-ELECTRONICS-M1-001]
-    command: pnpm vitest run apps/web/src/electronics/testing/production-editor-integration.spec.ts apps/web/src/electronics/testing/workbench-presentation.spec.ts apps/web/src/electronics/testing/workbench-document.spec.ts
+    command: pnpm vitest run modules/electronics/editor/testing/production-editor-integration.spec.ts modules/electronics/editor/testing/workbench-presentation.spec.ts modules/electronics/editor/testing/workbench-document.spec.ts
     timeout_seconds: 900
     owner: electronics
     artifacts: [component-family-map, presentation-contract, focused-test-report]

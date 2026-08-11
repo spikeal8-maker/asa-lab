@@ -135,10 +135,10 @@ importers:
     dependencies:
       '@asa-lab/chess':
         specifier: workspace:*
-        version: link:../../contexts/chess
+        version: link:../../modules/chess
       '@asa-lab/chess-live':
         specifier: workspace:*
-        version: link:../../contexts/chess-live
+        version: link:../../modules/chess-live
       '@asa-lab/classroom':
         specifier: workspace:*
         version: link:../../contexts/classroom
@@ -147,7 +147,7 @@ importers:
         version: link:../../packages/database
       '@asa-lab/electronics':
         specifier: workspace:*
-        version: link:../../contexts/electronics
+        version: link:../../modules/electronics
       '@asa-lab/identity':
         specifier: workspace:*
         version: link:../../contexts/identity
@@ -195,10 +195,19 @@ importers:
     dependencies:
       '@asa-lab/chess':
         specifier: workspace:*
-        version: link:../../contexts/chess
+        version: link:../../modules/chess
       '@asa-lab/electronics':
         specifier: workspace:*
-        version: link:../../contexts/electronics
+        version: link:../../modules/electronics
+      '@asa-lab/portal-shell':
+        specifier: workspace:*
+        version: link:../../packages/portal-shell
+      '@asa-lab/ui-kit':
+        specifier: workspace:*
+        version: link:../../packages/ui-kit
+      '@asa-lab/web-api-client':
+        specifier: workspace:*
+        version: link:../../packages/web-api-client
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -206,32 +215,11 @@ importers:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
 
-  contexts/chess:
-    dependencies:
-      '@asa-lab/module-sdk':
-        specifier: workspace:*
-        version: link:../../packages/module-sdk
-
-  contexts/chess-live:
-    dependencies:
-      '@asa-lab/chess':
-        specifier: workspace:*
-        version: link:../chess
-      '@asa-lab/database':
-        specifier: workspace:*
-        version: link:../../packages/database
-
   contexts/classroom:
     dependencies:
       '@asa-lab/database':
         specifier: workspace:*
         version: link:../../packages/database
-
-  contexts/electronics:
-    dependencies:
-      '@asa-lab/module-sdk':
-        specifier: workspace:*
-        version: link:../../packages/module-sdk
 
   contexts/identity: {}
 
@@ -247,7 +235,55 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
 
+  modules/chess:
+    dependencies:
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
+      '@asa-lab/web-api-client':
+        specifier: workspace:*
+        version: link:../../packages/web-api-client
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+
+  modules/chess-live:
+    dependencies:
+      '@asa-lab/chess':
+        specifier: workspace:*
+        version: link:../chess
+      '@asa-lab/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+
+  modules/electronics:
+    dependencies:
+      '@asa-lab/editor-host':
+        specifier: workspace:*
+        version: link:../../packages/editor-host
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
+      '@asa-lab/ui-kit':
+        specifier: workspace:*
+        version: link:../../packages/ui-kit
+      '@asa-lab/web-api-client':
+        specifier: workspace:*
+        version: link:../../packages/web-api-client
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+
   packages/database: {}
+
+  packages/editor-host:
+    dependencies:
+      '@asa-lab/ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
 
   packages/module-sdk: {}
 
@@ -262,6 +298,26 @@ importers:
       '@opentelemetry/sdk-node':
         specifier: 0.220.0
         version: 0.220.0(@opentelemetry/api@1.9.1)
+
+  packages/portal-shell:
+    dependencies:
+      '@asa-lab/ui-kit':
+        specifier: workspace:*
+        version: link:../ui-kit
+      '@asa-lab/web-api-client':
+        specifier: workspace:*
+        version: link:../web-api-client
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+
+  packages/ui-kit:
+    dependencies:
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+
+  packages/web-api-client: {}
 
 packages:
 

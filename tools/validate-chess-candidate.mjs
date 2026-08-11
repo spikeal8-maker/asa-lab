@@ -5,38 +5,38 @@ import { resolve, relative, extname } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const REQUIRED_FILES = [
-  'contexts/chess/package.json',
-  'contexts/chess/project.json',
-  'contexts/chess/tsconfig.json',
-  'contexts/chess/index.ts',
-  'contexts/chess/module.ts',
-  'contexts/chess/domain/chess.ts',
-  'contexts/chess/domain/document.ts',
-  'contexts/chess/domain/game-control.ts',
-  'contexts/chess/domain/bot.ts',
-  'contexts/chess/domain/fair-play.ts',
-  'contexts/chess/domain/pgn.ts',
-  'contexts/chess/domain/puzzle.ts',
-  'contexts/chess/domain/review.ts',
-  'contexts/chess/domain/symbols.ts',
-  'contexts/chess/testing/chess.spec.ts',
-  'contexts/chess/testing/document.spec.ts',
-  'contexts/chess/testing/game-control.spec.ts',
-  'contexts/chess/testing/bot.spec.ts',
-  'contexts/chess/testing/fair-play.spec.ts',
-  'contexts/chess/testing/module.spec.ts',
-  'contexts/chess/testing/pgn.spec.ts',
-  'contexts/chess/testing/puzzle.spec.ts',
-  'contexts/chess/testing/review.spec.ts',
-  'apps/web/src/chess/ChessBoard.tsx',
-  'apps/web/src/chess/ChessEditor.tsx',
-  'apps/web/src/chess/ChessModuleExperience.tsx',
-  'apps/web/src/chess/ChessPuzzleTrainer.tsx',
-  'apps/web/src/chess/chess-puzzles.ts',
-  'apps/web/src/chess/chess-ui.ts',
-  'apps/web/src/chess/use-chess-project.ts',
-  'apps/web/src/chess/chess.css',
-  'apps/web/src/chess/chess-training.css',
+  'modules/chess/package.json',
+  'modules/chess/project.json',
+  'modules/chess/tsconfig.json',
+  'modules/chess/index.ts',
+  'modules/chess/module.ts',
+  'modules/chess/domain/chess.ts',
+  'modules/chess/domain/document.ts',
+  'modules/chess/domain/game-control.ts',
+  'modules/chess/domain/bot.ts',
+  'modules/chess/domain/fair-play.ts',
+  'modules/chess/domain/pgn.ts',
+  'modules/chess/domain/puzzle.ts',
+  'modules/chess/domain/review.ts',
+  'modules/chess/domain/symbols.ts',
+  'modules/chess/testing/chess.spec.ts',
+  'modules/chess/testing/document.spec.ts',
+  'modules/chess/testing/game-control.spec.ts',
+  'modules/chess/testing/bot.spec.ts',
+  'modules/chess/testing/fair-play.spec.ts',
+  'modules/chess/testing/module.spec.ts',
+  'modules/chess/testing/pgn.spec.ts',
+  'modules/chess/testing/puzzle.spec.ts',
+  'modules/chess/testing/review.spec.ts',
+  'modules/chess/editor/ChessBoard.tsx',
+  'modules/chess/editor/ChessEditor.tsx',
+  'modules/chess/editor/ChessModuleExperience.tsx',
+  'modules/chess/editor/ChessPuzzleTrainer.tsx',
+  'modules/chess/editor/chess-puzzles.ts',
+  'modules/chess/editor/chess-ui.ts',
+  'modules/chess/editor/use-chess-project.ts',
+  'modules/chess/editor/chess.css',
+  'modules/chess/editor/chess-training.css',
   'tests/chess/chess-ui.spec.ts',
   'e2e/chess-module.spec.ts',
   'docs/product/ASA_CHESS_PLATFORM_SPEC.md',
@@ -95,25 +95,25 @@ for (const file of REQUIRED_FILES) {
   if (!existsSync(resolve(ROOT, file))) fail(`missing required file: ${file}`);
 }
 
-const contextPackage = json('contexts/chess/package.json');
+const contextPackage = json('modules/chess/package.json');
 if (contextPackage) {
   if (contextPackage.name !== '@asa-lab/chess')
-    fail('contexts/chess package name must be @asa-lab/chess');
-  if (contextPackage.private !== true) fail('contexts/chess package must be private');
+    fail('modules/chess package name must be @asa-lab/chess');
+  if (contextPackage.private !== true) fail('modules/chess package must be private');
   if (contextPackage.dependencies?.['@asa-lab/module-sdk'] !== 'workspace:*') {
-    fail('contexts/chess must depend on @asa-lab/module-sdk via workspace:*');
+    fail('modules/chess must depend on @asa-lab/module-sdk via workspace:*');
   }
 }
 
-const contextProject = json('contexts/chess/project.json');
+const contextProject = json('modules/chess/project.json');
 if (contextProject) {
   if (contextProject.name !== 'chess') fail('Nx chess project name must be chess');
   const tags = new Set(contextProject.tags ?? []);
-  for (const tag of ['type:lib', 'scope:core', 'context:chess']) {
-    if (!tags.has(tag)) fail(`contexts/chess project misses tag ${tag}`);
+  for (const tag of ['type:lib', 'scope:module', 'context:chess']) {
+    if (!tags.has(tag)) fail(`modules/chess project misses tag ${tag}`);
   }
   for (const target of ['build', 'typecheck', 'lint']) {
-    if (!contextProject.targets?.[target]) fail(`contexts/chess project misses ${target} target`);
+    if (!contextProject.targets?.[target]) fail(`modules/chess project misses ${target} target`);
   }
 }
 
@@ -126,7 +126,7 @@ if (webPackage?.dependencies?.['@asa-lab/chess'] !== 'workspace:*') {
   fail('apps/web must depend on @asa-lab/chess via workspace:*');
 }
 
-requireMarkers('contexts/chess/module.ts', [
+requireMarkers('modules/chess/module.ts', [
   "moduleKey: 'chess'",
   "projectType: 'chess-game'",
   "availability: 'active'",
@@ -135,7 +135,7 @@ requireMarkers('contexts/chess/module.ts', [
   'createPreview',
   'analyse:',
 ]);
-requireMarkers('contexts/chess/domain/chess.ts', [
+requireMarkers('modules/chess/domain/chess.ts', [
   'export const START_FEN',
   'generateLegalMoves',
   'isSquareAttacked',
@@ -149,7 +149,7 @@ requireMarkers('contexts/chess/domain/chess.ts', [
   'draw_threefold',
   'draw_insufficient_material',
 ]);
-requireMarkers('contexts/chess/domain/document.ts', [
+requireMarkers('modules/chess/domain/document.ts', [
   "export type ChessMode = 'analysis' | 'local' | 'computer'",
   'ChessMoveRecord',
   'ChessClockState',
@@ -157,11 +157,11 @@ requireMarkers('contexts/chess/domain/document.ts', [
   'validateChessDocument',
   'Chess document contains unsupported field',
 ]);
-requireMarkers('contexts/chess/domain/pgn.ts', [
+requireMarkers('modules/chess/domain/pgn.ts', [
   'stripPgnLineComments',
   'importChessPgnBase(stripPgnLineComments(pgn))',
 ]);
-requireMarkers('contexts/chess/domain/fair-play.ts', [
+requireMarkers('modules/chess/domain/fair-play.ts', [
   "'protected_live_rated'",
   "'engine_analysis'",
   "'move_hints'",
@@ -169,13 +169,13 @@ requireMarkers('contexts/chess/domain/fair-play.ts', [
   'serverAuthoritativeClock: true',
   'spectatorDelayMs: 15_000',
 ]);
-requireMarkers('contexts/chess/domain/review.ts', [
+requireMarkers('modules/chess/domain/review.ts', [
   "algorithm: 'asa-review-v1'",
   'centipawnLoss',
   'asaMoveQuality',
   'not Chess.com Accuracy/CAPS',
 ]);
-requireMarkers('contexts/chess/domain/puzzle.ts', [
+requireMarkers('modules/chess/domain/puzzle.ts', [
   'validateChessPuzzle',
   'createChessPuzzleSession',
   'playChessPuzzleMove',
@@ -189,32 +189,32 @@ requireMarkers('apps/web/src/modules/ModuleEditorHost.tsx', [
   "import { ChessModuleExperience } from '../chess/ChessModuleExperience'",
   'chess: ChessModuleExperience',
 ]);
-requireMarkers('apps/web/src/chess/ChessModuleExperience.tsx', [
+requireMarkers('modules/chess/editor/ChessModuleExperience.tsx', [
   '<ChessEditor',
   '<ChessPuzzleTrainer',
   'Открыть шахматные задачи',
 ]);
-requireMarkers('apps/web/src/chess/ChessEditor.tsx', [
+requireMarkers('modules/chess/editor/ChessEditor.tsx', [
   'ASA Chess',
   '<ChessBoard',
   'Новая партия или позиция',
   'PGN партии',
   'fair play',
 ]);
-requireMarkers('apps/web/src/chess/ChessPuzzleTrainer.tsx', [
+requireMarkers('modules/chess/editor/ChessPuzzleTrainer.tsx', [
   'ASA Chess · Тренировка',
   'playChessPuzzleMove',
   'requestChessPuzzleHint',
   'Следующая задача',
   'не является копией базы задач Chess.com',
 ]);
-requireMarkers('apps/web/src/chess/chess-puzzles.ts', [
+requireMarkers('modules/chess/editor/chess-puzzles.ts', [
   'asa-mate-one-001',
   'asa-back-rank-001',
   'asa-development-001',
   'не скопирован',
 ]);
-requireMarkers('apps/web/src/chess/ChessBoard.tsx', [
+requireMarkers('modules/chess/editor/ChessBoard.tsx', [
   'role="grid"',
   'data-testid="asa-chess-board"',
   'draggable={canDrag}',
@@ -252,15 +252,15 @@ if (rootPackage) {
 }
 
 const lock = text('pnpm-lock.yaml');
-for (const marker of ['contexts/chess:', "'@asa-lab/module-sdk':", "'@asa-lab/chess':"]) {
+for (const marker of ['modules/chess:', "'@asa-lab/module-sdk':", "'@asa-lab/chess':"]) {
   if (!lock.includes(marker)) {
     fail(`pnpm-lock.yaml is not synchronized; missing marker ${marker}`);
   }
 }
 
 const candidateFiles = [
-  ...walk('contexts/chess'),
-  ...walk('apps/web/src/chess'),
+  ...walk('modules/chess'),
+  ...walk('modules/chess/editor'),
   'apps/api/src/module-registry.ts',
   'apps/web/src/modules/ModuleEditorHost.tsx',
   'apps/web/src/modules/ModuleGlyph.tsx',

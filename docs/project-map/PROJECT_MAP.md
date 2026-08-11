@@ -36,6 +36,11 @@ R3A verified the existing server-side Module Registry, manifest/provider
 registration, shared Editor Host and module-neutral personal Project lifecycle.
 It does not declare full R3 completion; R3B remains blocked/deferred.
 
+The isolated subject implementation roots are `modules/electronics`,
+`modules/chess` and `modules/chess-live`. Portal and project lifecycle remain in
+their own shared packages and contexts; the former `contexts/electronics` and
+`contexts/chess` paths are no longer canonical module locations.
+
 Electronics M1 is converging without new features: one fail-closed owner
 catalog, one exact runtime SHA, one Compose project and one real-editor owner
 flow. The current corrective checkpoint covers ordinary-LED runtime states and

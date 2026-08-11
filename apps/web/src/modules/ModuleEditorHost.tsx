@@ -1,7 +1,14 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import {
+  Component,
+  Suspense,
+  lazy,
+  useEffect,
+  useState,
+  type ComponentType,
+  type ErrorInfo,
+  type ReactNode,
+} from 'react';
 import { api, type PublicUser } from '../api';
-import { ChessModuleExperience } from '../chess/ChessModuleExperience';
-import { SchematicEditor } from '../pages/SchematicEditor';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -10,9 +17,45 @@ interface ModuleEditorProps {
 }
 
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
-  electronics: SchematicEditor,
-  chess: ChessModuleExperience,
+  electronics: lazy(async () => {
+    const module = await import('@asa-lab/electronics/editor');
+    return { default: module.ElectronicsEditor };
+  }),
+  chess: lazy(async () => {
+    const module = await import('@asa-lab/chess/editor');
+    return { default: module.ChessEditor };
+  }),
 };
+
+class ModuleFailureBoundary extends Component<
+  { readonly children: ReactNode; readonly onBack: () => void },
+  { readonly failed: boolean }
+> {
+  override state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('subject editor failed to render', error, info.componentStack);
+  }
+
+  override render(): ReactNode {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <main className="page-center">
+        <section className="login-card" role="alert">
+          <h1>Редактор временно недоступен</h1>
+          <p>Основной кабинет продолжает работать. Вернитесь к проектам и повторите открытие.</p>
+          <button type="button" className="btn-secondary" onClick={this.props.onBack}>
+            К проектам
+          </button>
+        </section>
+      </main>
+    );
+  }
+}
 
 type HostState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; moduleKey: string };
@@ -77,5 +120,17 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
     );
   }
 
-  return <Editor {...props} />;
+  return (
+    <ModuleFailureBoundary key={`${state.moduleKey}:${props.projectId}`} onBack={props.onBack}>
+      <Suspense
+        fallback={
+          <main className="page-center" role="status" aria-live="polite">
+            Загружаем редактор проекта…
+          </main>
+        }
+      >
+        <Editor {...props} />
+      </Suspense>
+    </ModuleFailureBoundary>
+  );
 }

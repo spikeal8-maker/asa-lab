@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { withTenantContext } from '../../packages/database/dist/index.js';
-import { ChessLiveService } from '../../contexts/chess-live/application/service';
-import type { LiveIdPort } from '../../contexts/chess-live/application/ports';
-import { PgChessLiveRepository } from '../../contexts/chess-live/infrastructure/pg-repository';
-import { MutableLiveClock } from '../../contexts/chess-live/testing/test-kit';
+import { ChessLiveService } from '../../modules/chess-live/application/service';
+import type { LiveIdPort } from '../../modules/chess-live/application/ports';
+import { PgChessLiveRepository } from '../../modules/chess-live/infrastructure/pg-repository';
+import { MutableLiveClock } from '../../modules/chess-live/testing/test-kit';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 class UuidTestIds implements LiveIdPort {

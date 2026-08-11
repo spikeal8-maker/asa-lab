@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { chessLiveApi } from '../../apps/web/src/chess/chess-live-api';
+import { chessLiveApi } from '../../modules/chess/editor/chess-live-api';
 
 afterEach(() => {
   vi.unstubAllGlobals();

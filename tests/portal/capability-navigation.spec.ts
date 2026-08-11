@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canUseClasses, portalNavigation } from '../../apps/web/src/creator-portal/navigation';
+import { canUseClasses, portalNavigation } from '@asa-lab/portal-shell/navigation';
 
 describe('capability-aware Portal navigation', () => {
   it('keeps Classes hidden for a creator and for an educator in personal scope', () => {

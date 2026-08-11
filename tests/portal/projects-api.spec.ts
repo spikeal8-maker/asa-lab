@@ -265,7 +265,7 @@ describe('workbench draft and immutable versions', () => {
     expect(saved.statusCode).toBe(200);
     // Persistence, not physics. This test asserts that what was saved comes back
     // unchanged; what the numbers ought to be belongs to
-    // contexts/electronics/testing/solver.spec.ts. Asserting the LED model here
+    // modules/electronics/testing/solver.spec.ts. Asserting the LED model here
     // stopped the general gate twice in one week through a test that does not
     // exist to check the model.
     //

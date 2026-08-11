@@ -214,11 +214,15 @@ label {
 
 .btn-secondary,
 .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.55rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);
+  text-decoration: none;
 }
 
 .btn-ghost {

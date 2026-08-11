@@ -222,7 +222,7 @@ Implemented files:
 ```text
 migrations/0006_chess_live.sql
 migrations/0007_chess_live_privilege_tightening.sql
-contexts/chess-live/infrastructure/pg-repository.ts
+modules/chess-live/infrastructure/pg-repository.ts
 ```
 
 Tables:
