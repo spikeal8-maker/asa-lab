@@ -118,9 +118,22 @@ export function ProductionComponentVisual({
       String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
     ),
   );
-  const rgbIsLit = entry.key === 'rgb-led' && simulationRunning && rgbBrightness > 0;
+  const rgbFaultState =
+    entry.key === 'rgb-led' && ['reverse', 'overcurrent', 'burned'].includes(visualState)
+      ? visualState
+      : undefined;
+  const rgbIsLit =
+    entry.key === 'rgb-led' &&
+    simulationRunning &&
+    rgbBrightness > 0 &&
+    rgbFaultState !== 'reverse' &&
+    rgbFaultState !== 'burned';
   const rgbRuntimeState =
-    entry.key !== 'rgb-led' ? undefined : !simulationRunning ? 'stopped' : rgbIsLit ? 'lit' : 'off';
+    entry.key !== 'rgb-led'
+      ? undefined
+      : !simulationRunning
+        ? 'stopped'
+        : (rgbFaultState ?? (rgbIsLit ? 'lit' : 'off'));
   const visualComponent: SchematicComponent =
     entry.key === 'led-5mm' && effectiveBrightness !== undefined
       ? {

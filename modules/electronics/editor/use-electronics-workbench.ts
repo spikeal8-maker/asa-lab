@@ -1368,7 +1368,8 @@ export function useElectronicsWorkbench(projectId: string) {
     if (component.kind === 'lamp' && simulationRunning) {
       return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    if (component.kind !== 'led' || !simulationRunning) return 'default';
+    if ((component.kind !== 'led' && component.kind !== 'rgb-led') || !simulationRunning)
+      return 'default';
     const codes = diagnosticCodesByComponent.get(component.id);
     if (codes?.has('reverse_polarity')) return 'reverse';
     if (codes?.has('led_burnout') || codes?.has('short_circuit')) return 'burned';

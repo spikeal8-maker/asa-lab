@@ -241,7 +241,8 @@ export function WorkbenchStage({
                   }`,
               )
               .join(' ');
-            const ledBurned = entry.key === 'led-5mm' && diagnostics.includes('led_burnout');
+            const isLedIndicator = entry.key === 'led-5mm' || entry.key === 'rgb-led';
+            const ledBurned = isLedIndicator && diagnostics.includes('led_burnout');
             return (
               <g
                 key={component.id}
@@ -365,8 +366,10 @@ export function WorkbenchStage({
                       }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
                       data-testid={
                         ledBurned
-                          ? 'led-burnout-explosion'
-                          : entry.key === 'led-5mm'
+                          ? entry.key === 'rgb-led'
+                            ? 'rgb-led-burnout-explosion'
+                            : 'led-burnout-explosion'
+                          : isLedIndicator
                             ? 'led-diagnostic-badge'
                             : 'component-diagnostic-indicator'
                       }

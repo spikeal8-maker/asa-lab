@@ -389,6 +389,69 @@ function rgbLedDocument(commonMode: 'common-cathode' | 'common-anode'): Schemati
   };
 }
 
+function singleChannelRgbLedDocument(options: {
+  readonly componentMode: 'common-cathode' | 'common-anode';
+  readonly wiringMode: 'common-cathode' | 'common-anode';
+  readonly resistorOhms: number | null;
+}): SchematicDocument {
+  const seeded = rgbLedDocument(options.wiringMode);
+  const components = seeded.components
+    .filter((item) => ['source', 'resistor-green', 'rgb'].includes(item.id))
+    .filter((item) => options.resistorOhms !== null || item.id !== 'resistor-green')
+    .map((item) =>
+      item.id === 'source'
+        ? {
+            ...item,
+            componentTypeId: 'battery-holder-aa-2',
+            variantId: 'battery-holder-aa-2',
+            name: 'Источник 3 В',
+            value: 3,
+            stateProperties: { cells: 2 },
+          }
+        : item.id === 'resistor-green'
+          ? { ...item, value: options.resistorOhms ?? 0 }
+          : item.id === 'rgb'
+            ? { ...item, stateProperties: { commonMode: options.componentMode } }
+            : item,
+    );
+  const direct = options.resistorOhms === null;
+  const connections =
+    options.wiringMode === 'common-cathode'
+      ? [
+          ...(direct
+            ? [
+                {
+                  id: 'direct-green',
+                  from: { componentId: 'source', terminal: 'BAT+' },
+                  to: { componentId: 'rgb', terminal: 'green' },
+                  color: '#149447',
+                  vertices: [],
+                },
+              ]
+            : seeded.connections.filter((wire) =>
+                ['positive-green', 'channel-green'].includes(wire.id),
+              )),
+          ...seeded.connections.filter((wire) => wire.id === 'common-return'),
+        ]
+      : [
+          ...seeded.connections.filter((wire) => wire.id === 'common-positive'),
+          ...(direct
+            ? [
+                {
+                  id: 'direct-green-return',
+                  from: { componentId: 'rgb', terminal: 'green' },
+                  to: { componentId: 'source', terminal: 'BAT-' },
+                  color: '#149447',
+                  vertices: [],
+                },
+              ]
+            : seeded.connections.filter((wire) =>
+                ['channel-green', 'return-green'].includes(wire.id),
+              )),
+        ];
+  return { ...seeded, components, connections };
+}
+
 async function createProject(page: Page, title: string): Promise<string> {
   const response = await page.context().request.post('/api/projects', {
     headers: {
@@ -824,6 +887,81 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
         path: `${ARTIFACT_DIR}/electronics-rgb-mixed-common-cathode.png`,
         fullPage: true,
       });
+    }
+  }
+  failures.assertEmpty();
+});
+
+test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const scenarios = [
+    {
+      name: 'single-green',
+      document: singleChannelRgbLedDocument({
+        componentMode: 'common-cathode',
+        wiringMode: 'common-cathode',
+        resistorOhms: 220,
+      }),
+      runtimeState: 'lit',
+      diagnostic: null,
+    },
+    {
+      name: 'owner-reversed-common',
+      document: singleChannelRgbLedDocument({
+        componentMode: 'common-cathode',
+        wiringMode: 'common-anode',
+        resistorOhms: null,
+      }),
+      runtimeState: 'reverse',
+      diagnostic: 'reverse_polarity',
+    },
+    {
+      name: 'direct-overload',
+      document: singleChannelRgbLedDocument({
+        componentMode: 'common-anode',
+        wiringMode: 'common-anode',
+        resistorOhms: null,
+      }),
+      runtimeState: 'burned',
+      diagnostic: 'led_burnout',
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    const projectId = await createProject(page, `R4-M1 RGB ${scenario.name}`);
+    await saveDocument(page, projectId, scenario.document);
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+    const rgb = component(page, 'rgb-led');
+    const visual = rgb.locator('.workbench-production-visual');
+    await expect(visual).toHaveAttribute('data-rgb-runtime-state', scenario.runtimeState);
+    if (scenario.runtimeState === 'lit') {
+      await expect(visual).toHaveAttribute('data-rgb-red', '0');
+      await expect
+        .poll(async () => Number((await visual.getAttribute('data-rgb-green')) ?? '0'))
+        .toBeGreaterThan(0);
+      await expect(visual).toHaveAttribute('data-rgb-blue', '0');
+      await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
+    } else {
+      await expect(rgb).toHaveAttribute('data-diagnostics', new RegExp(scenario.diagnostic ?? ''));
+      await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', '0');
+    }
+    if (scenario.runtimeState === 'reverse') {
+      await expect(rgb.getByTestId('led-diagnostic-badge')).toBeVisible();
+      await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveCount(0);
+    }
+    if (scenario.runtimeState === 'burned') {
+      await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toBeVisible();
+      await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveAttribute(
+        'aria-label',
+        /перегорел/i,
+      );
     }
   }
   failures.assertEmpty();
