@@ -24,7 +24,7 @@ TASK-PRODUCT-DOC-001              done
 → owner review / stop
 ```
 
-Active branch: `agent/checkers-education-m1`. Issue: #98. Draft PR: #99.
+Active branch: `agent/checkers-education-m1`. Issue: #98. Draft PR: #101.
 
 ## R11-M1 user result
 
@@ -91,6 +91,6 @@ unexpected HTTP 5xx = 0
 
 ## Stop
 
-PR #99 remains Draft until focused and general gates, evidence and owner review
+PR #101 remains Draft until focused and general gates, evidence and owner review
 are complete. Merge, tag and activation of another task require a separate owner
 decision.
