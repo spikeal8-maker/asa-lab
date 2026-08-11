@@ -1,4 +1,4 @@
-schema_version: 1.0.0
+schema_version: 1.1.0
 
 # ─────────────────────────────────────────────────────────────────────────────
 # THE single source of execution state for ASA Lab.
@@ -70,6 +70,85 @@ gates:
     workflow: ASA Lab Governance and Code Gates
     commands:
       - pnpm gate:repository
+
+# Schema 1.1 keeps the root task, lease and gates as the canonical primary lane
+# so every existing consumer remains valid. Lane metadata adds disjoint writable
+# scopes for independently leased product work.
+primary_lane:
+  id: checkers
+  worktree_id: checkers-education-m1
+  owned_paths:
+    - contexts/checkers/**
+    - apps/web/src/checkers/**
+
+parallel_lanes:
+  - id: chess
+    worktree_id: chess-r1
+    owned_paths:
+      - contexts/chess/**
+      - contexts/chess-live/**
+      - apps/api/src/chess-live.controller.ts
+      - apps/api/src/chess-live.controller.spec.ts
+      - apps/web/src/chess/**
+      - apps/web/src/components/editor-chrome/**
+      - e2e/chess-module.spec.ts
+      - e2e/chess-live.spec.ts
+      - tests/chess/**
+      - tests/chess-live/**
+      - docs/product/ASA_CHESS_PLATFORM_SPEC.md
+      - docs/product/ASA_CHESS_EXECUTION_PLAN.md
+      - docs/product/ASA_CHESS_R1_PARITY_LEDGER.md
+      - docs/product/ASA_EDITOR_HEADER_CONTRACT.md
+      - docs/architecture/SUBJECT_MODULE_ISOLATION_PLAN.md
+    task:
+      id: TASK-CHESS-R1-001
+      issue: 97
+      branch: agent/chess-r1-foundation
+      base_branch: main
+      pr: 103
+      pr_draft: true
+      status: in_progress
+      checkpoint: published_plan_and_engine_contract
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 3473ec9f87cdc6b7f1f6c94195e4ed2a9b2bb6ea
+      # Head at lane activation. Later PR heads must descend from it; product
+      # progress does not require a governance rewrite after every push.
+      head_sha: 3473ec9f87cdc6b7f1f6c94195e4ed2a9b2bb6ea
+    execution_lease:
+      executor_id: codex-chess-r1
+      holder: codex-chess-r1
+      acquired_at: "2026-08-11T19:20:01Z"
+      expires_at: "2026-08-12T19:20:01Z"
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Chess R1 Focused
+        commands:
+          - pnpm gate:chess-r1
+      browser:
+        workflow: Chess R1 Focused
+        commands:
+          - pnpm gate:chess-r1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
+integration:
+  owner_lane: checkers
+  shared_paths:
+    - docs/execution/current.yaml
+    - AGENTS.md
+    - START_HERE_FOR_AI.md
+    - package.json
+    - pnpm-lock.yaml
+    - tools/validate_control_plane.py
+    - tools/test_validate_control_plane.py
+    - .github/workflows/**
+    - docs/delivery/**
+    - docs/project-map/**
+    - docs/testing/**
 
 blocking: []
 
