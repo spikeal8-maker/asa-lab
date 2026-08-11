@@ -122,11 +122,79 @@ export {
 } from './application/engine-contract.js';
 export { analyseChessPosition } from './application/analyse-position.js';
 export {
+  buildChessAnalysisJobFingerprint,
+  cancelChessAnalysisJob,
+  completeChessAnalysisJob,
+  createQueuedChessAnalysisJob,
+  failChessAnalysisJob,
+  progressChessAnalysisJob,
+  retryChessAnalysisJob,
+  startChessAnalysisJob,
+  type ChessAnalysisJob,
+  type ChessAnalysisJobCancellation,
+  type ChessAnalysisJobFailure,
+  type ChessAnalysisJobProgress,
+  type ChessAnalysisJobRequest,
+  type ChessAnalysisJobStatus,
+  type ChessAnalysisJobTransitionResult,
+} from './application/chess-analysis-job.js';
+export {
+  type ChessAnalysisJobClockPort,
+  type ChessAnalysisJobCreateResult,
+  type ChessAnalysisJobIdPort,
+  type ChessAnalysisJobQueueItem,
+  type ChessAnalysisJobQueuePort,
+  type ChessAnalysisJobRepositoryPort,
+  type ChessAnalysisJobSaveResult,
+} from './application/chess-analysis-job-ports.js';
+export {
+  ChessAnalysisJobService,
+  type ChessAnalysisJobMutationCommand,
+  type ChessAnalysisJobQuota,
+  type ChessAnalysisJobServiceErrorCode,
+  type ChessAnalysisJobServiceResult,
+  type SubmitChessAnalysisJobCommand,
+} from './application/chess-analysis-job-service.js';
+export {
   ASA_LITE_FIXED_HASH_MB,
   ASA_LITE_FIXED_THREADS,
   AsaLiteEngineAdapter,
 } from './infrastructure/asa-lite-engine-adapter.js';
+export { MemoryChessAnalysisJobQueue } from './infrastructure/memory-chess-analysis-job-queue.js';
+export { MemoryChessAnalysisJobRepository } from './infrastructure/memory-chess-analysis-job-repository.js';
 export { MemoryChessEngineCache } from './infrastructure/memory-engine-cache.js';
+export {
+  deserializePrivateChessTrainingRecord,
+  deterministicChessTrainingAttemptId,
+  deterministicChessTrainingId,
+  isCanonicalTrainingTimestamp,
+  isSafeTrainingPartitionId,
+  serializePrivateChessTrainingRecord,
+  validatePrivateChessTrainingRecord,
+  type ChessTrainingAttempt,
+  type ChessTrainingAttemptHint,
+  type ChessTrainingAttemptOutcome,
+  type ChessTrainingErrorClassification,
+  type ChessTrainingHintLevel,
+  type ChessTrainingReviewAlgorithm,
+  type ChessTrainingSource,
+  type ChessTrainingValidationResult,
+  type PrivateChessTrainingRecord,
+} from './application/training-library-model.js';
+export {
+  type ChessTrainingAppendResult,
+  type ChessTrainingCreateResult,
+  type ChessTrainingLibraryRepositoryPort,
+  type ChessTrainingPartition,
+} from './application/training-library-repository.js';
+export {
+  ChessTrainingLibraryService,
+  type ChessTrainingLibraryErrorCode,
+  type ChessTrainingLibraryResult,
+  type CreateChessTrainingInput,
+  type RecordChessTrainingAttemptInput,
+} from './application/training-library-service.js';
+export { MemoryChessTrainingLibraryRepository } from './infrastructure/memory-training-library-repository.js';
 export {
   createChessPuzzleSession,
   playChessPuzzleMove,

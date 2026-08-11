@@ -159,6 +159,13 @@ separate from centipawns without inventing a mate distance. A production Stockfi
 worker/server adapter is not yet present and is not claimed; it remains gated on a
 pinned GPL artifact manifest and corresponding source evidence.
 
+A transport-neutral job foundation now models queued, running, succeeded, failed and
+cancelled analysis, including progress, optimistic concurrency, atomic tenant-scoped
+idempotency, cancellation, bounded retry and re-authorization before repository access.
+Its repository and queue adapters are deterministic in-memory evidence only. Process-
+durable storage, dequeue leasing, heartbeat/recovery and actual engine execution in a
+worker remain open.
+
 ### CH-103 — Game Review v2
 
 - quick post-game summary and deeper review;
@@ -206,8 +213,11 @@ required before release claims.
 
 Implemented foundation: Review can create a private in-memory training item linked to
 the source project and ply, preserving the exact pre-error FEN, played move and verified
-best root. Retry attempts never mutate the source game. Persistence, a project-version
-identifier, automatic defence, motif evidence and lesson mapping remain open.
+best root. A separate strict library model requires tenant, owner and project-version
+provenance and stores an append-only, immutable history of legal attempts and hints.
+Retry attempts never mutate the source game. The current repository is intentionally
+in-memory; database/API wiring, project-version authorization, automatic defence, motif
+evidence and lesson mapping remain open.
 
 ### R1 release gate
 
