@@ -69,3 +69,15 @@ export {
   type CheckersReactionId,
   type CheckersReactionRequest,
 } from './domain/reactions.js';
+export {
+  CheckersGameService,
+  type CheckersBotTurn,
+  type CheckersGameRepository,
+  type CheckersGameSession,
+  type CheckersSessionMode,
+  type CheckersSessionPlayer,
+  type CreateCheckersSessionCommand,
+  type PlayCheckersBotMoveCommand,
+  type PlayCheckersMoveCommand,
+} from './application/game-service.js';
+export { InMemoryCheckersGameRepository } from './infrastructure/in-memory-game-repository.js';
