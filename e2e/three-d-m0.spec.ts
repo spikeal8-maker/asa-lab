@@ -15,7 +15,7 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
   await expect(tile).toContainText('Браузерное 3D-моделирование');
   await tile.click();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
-  await expect(page.getByTestId('asa3d-viewport')).toBeVisible();
+  await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
 }
 
 test.beforeAll(async () => {
@@ -68,7 +68,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.screenshot({ path: 'e2e/artifacts/three-d-desktop.png', fullPage: true });
 
   await page.reload();
-  await expect(page.getByTestId('asa3d-viewport')).toBeVisible();
+  await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /Версия/ }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();

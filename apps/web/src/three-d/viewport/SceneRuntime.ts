@@ -21,7 +21,10 @@ function snap(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
-const HOME_CAMERA_POSITION = new THREE.Vector3(0, 165, 205);
+// Matches the default 200 x 200 mm workplane framing of the owner reference:
+// a 45-degree elevation with the far and near edges fully visible.
+const HOME_CAMERA_POSITION = new THREE.Vector3(0, 181, 181);
+const HOME_CAMERA_FOV = 44.6;
 const ORTHOGONAL_CAMERA_DISTANCE = 360;
 
 function createGridLines(
@@ -46,22 +49,34 @@ function createGridLines(
     points.push(new THREE.Vector3(-halfWidth, height, z), new THREE.Vector3(halfWidth, height, z));
   }
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const material = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    toneMapped: false,
+  });
   return new THREE.LineSegments(geometry, material);
 }
 
-function createWorkplaneLabel(text: string, width: number, depth: number): THREE.Mesh {
+function createWorkplaneLabel(
+  text: string,
+  width: number,
+  depth: number,
+  fontSize: number,
+  italic = false,
+): THREE.Mesh {
   const canvas = globalThis.document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 160;
+  canvas.width = 1536;
+  canvas.height = 256;
   const context = canvas.getContext('2d');
   if (context) {
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = '#67c4d7';
-    context.font = '700 92px Arial, sans-serif';
+    context.fillStyle = '#68c1d7';
+    context.font = `${italic ? 'italic ' : ''}700 ${fontSize}px Arial, sans-serif`;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(text, canvas.width / 2, canvas.height / 2 + 5, canvas.width - 32);
+    context.fillText(text, canvas.width / 2, canvas.height / 2 + 7, canvas.width - 48);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -69,7 +84,7 @@ function createWorkplaneLabel(text: string, width: number, depth: number): THREE
   const material = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
-    opacity: 0.52,
+    opacity: 0.46,
     depthWrite: false,
     toneMapped: false,
     side: THREE.DoubleSide,
@@ -102,9 +117,9 @@ export class SceneRuntime {
     private readonly container: HTMLElement,
     private readonly callbacks: SceneRuntimeCallbacks,
   ) {
-    this.scene.background = new THREE.Color('#f7f8fa');
-    this.scene.fog = new THREE.Fog('#f7f8fa', 560, 980);
-    this.camera = new THREE.PerspectiveCamera(43, 1, 0.5, 2400);
+    this.scene.background = new THREE.Color('#fafafa');
+    this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
+    this.camera = new THREE.PerspectiveCamera(HOME_CAMERA_FOV, 1, 0.5, 2400);
     this.camera.position.copy(HOME_CAMERA_POSITION);
 
     try {
@@ -247,37 +262,73 @@ export class SceneRuntime {
     if (!document.grid.visible) return;
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(document.grid.width, document.grid.depth),
-      new THREE.MeshStandardMaterial({
-        color: '#f1fbfd',
-        roughness: 1,
+      new THREE.MeshBasicMaterial({
+        color: '#f4fafc',
         transparent: true,
         opacity: 0.78,
         depthWrite: false,
+        toneMapped: false,
+        side: THREE.DoubleSide,
       }),
     );
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -0.025;
-    plane.receiveShadow = true;
+    plane.position.y = -0.03;
     this.gridRoot.add(plane);
+
+    const shadowCatcher = new THREE.Mesh(
+      new THREE.PlaneGeometry(document.grid.width, document.grid.depth),
+      new THREE.ShadowMaterial({
+        color: '#71838b',
+        transparent: true,
+        opacity: 0.13,
+        depthWrite: false,
+      }),
+    );
+    shadowCatcher.rotation.x = -Math.PI / 2;
+    shadowCatcher.position.y = -0.018;
+    shadowCatcher.receiveShadow = true;
+    this.gridRoot.add(shadowCatcher);
 
     const maximumDimension = Math.max(document.grid.width, document.grid.depth);
     const fineStep = Math.max(document.grid.snap, maximumDimension / 400);
     this.gridRoot.add(
-      createGridLines(document.grid.width, document.grid.depth, fineStep, '#9bd8e4', 0.34, 0.008),
+      createGridLines(document.grid.width, document.grid.depth, fineStep, '#a9cbd1', 0.17, 0.008),
     );
     this.gridRoot.add(
       createGridLines(
         document.grid.width,
         document.grid.depth,
         Math.max(10, document.grid.snap * 10),
-        '#4db7ce',
-        0.54,
+        '#91b8c0',
+        0.24,
         0.014,
       ),
     );
 
     const halfWidth = document.grid.width / 2;
     const halfDepth = document.grid.depth / 2;
+    const edgeBand = Math.max(1.2, Math.min(document.grid.width, document.grid.depth) * 0.012);
+    const edgeMaterial = (): THREE.MeshBasicMaterial =>
+      new THREE.MeshBasicMaterial({
+        color: '#75cadb',
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+      });
+    const addEdgeBand = (width: number, depth: number, x: number, z: number): void => {
+      const band = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), edgeMaterial());
+      band.rotation.x = -Math.PI / 2;
+      band.position.set(x, 0.017, z);
+      band.renderOrder = 2;
+      this.gridRoot.add(band);
+    };
+    addEdgeBand(document.grid.width, edgeBand, 0, -halfDepth + edgeBand / 2);
+    addEdgeBand(document.grid.width, edgeBand, 0, halfDepth - edgeBand / 2);
+    addEdgeBand(edgeBand, document.grid.depth - edgeBand * 2, -halfWidth + edgeBand / 2, 0);
+    addEdgeBand(edgeBand, document.grid.depth - edgeBand * 2, halfWidth - edgeBand / 2, 0);
+
     const borderGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-halfWidth, 0.022, -halfDepth),
       new THREE.Vector3(halfWidth, 0.022, -halfDepth),
@@ -288,40 +339,69 @@ export class SceneRuntime {
     this.gridRoot.add(
       new THREE.Line(
         borderGeometry,
-        new THREE.LineBasicMaterial({ color: '#35b8d5', transparent: true, opacity: 0.9 }),
+        new THREE.LineBasicMaterial({
+          color: '#41b8cf',
+          transparent: true,
+          opacity: 0.72,
+          depthWrite: false,
+          toneMapped: false,
+        }),
       ),
     );
 
-    const axesGeometry = new THREE.BufferGeometry().setFromPoints([
+    const horizontalAxisGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-halfWidth, 0.021, 0),
       new THREE.Vector3(halfWidth, 0.021, 0),
+    ]);
+    const depthAxisGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0.021, -halfDepth),
       new THREE.Vector3(0, 0.021, halfDepth),
     ]);
     this.gridRoot.add(
-      new THREE.LineSegments(
-        axesGeometry,
-        new THREE.LineBasicMaterial({ color: '#2eaac5', transparent: true, opacity: 0.72 }),
+      new THREE.Line(
+        horizontalAxisGeometry,
+        new THREE.LineBasicMaterial({
+          color: '#829da3',
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      ),
+    );
+    this.gridRoot.add(
+      new THREE.Line(
+        depthAxisGeometry,
+        new THREE.LineBasicMaterial({
+          color: '#619895',
+          transparent: true,
+          opacity: 0.95,
+          depthWrite: false,
+          toneMapped: false,
+        }),
       ),
     );
 
-    const labelDepth = Math.min(12, Math.max(6, document.grid.depth * 0.07));
-    const titleWidth = Math.min(82, document.grid.width * 0.48);
+    const labelDepth = Math.min(10, Math.max(6, document.grid.depth * 0.06));
+    const titleWidth = Math.min(108, document.grid.width * 0.56);
     const titleLabel = createWorkplaneLabel(
       'Рабоч. плоск-ть',
       titleWidth,
-      Math.max(8, document.grid.depth * 0.065),
+      Math.max(12, document.grid.depth * 0.082),
+      168,
+      true,
     );
-    titleLabel.position.set(-halfWidth + titleWidth / 2 + 8, 0.03, halfDepth - labelDepth);
+    titleLabel.position.set(-halfWidth + titleWidth / 2 + 2, 0.03, halfDepth - labelDepth);
     this.gridRoot.add(titleLabel);
 
-    const unitsWidth = Math.min(50, document.grid.width * 0.3);
+    const unitsWidth = Math.min(48, document.grid.width * 0.27);
     const unitsLabel = createWorkplaneLabel(
       'Миллиметры',
       unitsWidth,
-      Math.max(7, document.grid.depth * 0.055),
+      Math.max(8, document.grid.depth * 0.06),
+      150,
     );
-    unitsLabel.position.set(halfWidth - unitsWidth / 2 - 7, 0.03, halfDepth - labelDepth);
+    unitsLabel.position.set(halfWidth - unitsWidth / 2 + 2.5, 0.03, halfDepth - labelDepth);
     this.gridRoot.add(unitsLabel);
   }
 

@@ -15,6 +15,11 @@ describe('ASA 3D document', () => {
     expect(parseThreeDDocument(document)).toEqual({ ok: true, value: document });
     expect(document.units).toBe('mm');
     expect(document.schemaVersion).toBe(1);
+    expect(document.camera).toEqual({
+      position: { x: 0, y: 181, z: 181 },
+      target: { x: 0, y: 0, z: 0 },
+      projection: 'perspective',
+    });
   });
 
   it('rejects duplicate node identifiers', () => {
