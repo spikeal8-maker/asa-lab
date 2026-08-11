@@ -17,7 +17,7 @@ TASK-CHECKERS-M1-001  in_progress
 current_focus          TASK-CHECKERS-M1-001
 branch                 agent/checkers-education-m1
 Issue                  #98
-checkpoint             market_and_product_contract
+checkpoint             project_document_foundation
 execution_lease        codex-checkers-m1
 ```
 
@@ -28,9 +28,10 @@ focused   Checkers M1 Focused                     NOT_RUN
 general   ASA Lab Governance and Code Gates       NOT_RUN
 ```
 
-The branch contains the market/product contract and activation transition.
-Results remain `NOT_RUN` until the executable module and focused tests exist on
-one exact SHA. The focused gate must not report PASS for placeholder tests.
+The branch now contains an executable independent Checkers package and 6 green
+foundation tests at baseline `db1038c`. The formal workflow results remain
+`NOT_RUN` until GitHub Actions can start jobs on that exact SHA; local passing
+results do not replace the repository's CI evidence.
 
 ## Governance IDs
 

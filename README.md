@@ -9,9 +9,9 @@ canonical branch:        main
 active task:             TASK-CHECKERS-M1-001
 active issue:            #98
 active branch:           agent/checkers-education-m1
-active Draft PR:         #99
+active Draft PR:         #101
 status:                  in_progress
-checkpoint:              market_and_product_contract
+checkpoint:              project_document_foundation
 execution lease:         codex-checkers-m1
 ```
 

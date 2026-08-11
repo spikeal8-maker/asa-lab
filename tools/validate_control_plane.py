@@ -652,7 +652,12 @@ def check_state_file_is_canonical(
         try:
             shown = subprocess.run(
                 ["git", "show", f"{ref}:docs/execution/current.yaml"],
-                cwd=ROOT, capture_output=True, text=True, timeout=90, check=False,
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=90,
+                check=False,
             )
         except (OSError, subprocess.SubprocessError):
             return None

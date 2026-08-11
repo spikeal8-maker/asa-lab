@@ -264,6 +264,7 @@ def build_repo(root: Path, *, main_state: str, branch_state: str | None) -> None
 
 
 BASE_STATE = "task:\n  id: TASK-ELECTRONICS-M1-001\n  branch: agent/r4-electronics-m1\n"
+UNICODE_STATE = BASE_STATE + "# ── Каноническое состояние ──\n"
 
 
 def state_file_case(main_state: str, branch_state: str | None, advance_main: str | None = None):
@@ -301,6 +302,13 @@ def state_edited(_):
 @case("the task branch leaves the state file alone", expect="")
 def state_untouched(_):
     errors, notes = state_file_case(BASE_STATE, None)
+    assert any("byte for byte" in n for n in notes), notes
+    return errors
+
+
+@case("the canonical copy preserves UTF-8 on every platform", expect="")
+def state_unicode_untouched(_):
+    errors, notes = state_file_case(UNICODE_STATE, None)
     assert any("byte for byte" in n for n in notes), notes
     return errors
 

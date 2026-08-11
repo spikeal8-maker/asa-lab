@@ -20,13 +20,13 @@ task:
   issue: 98
   branch: agent/checkers-education-m1
   base_branch: main
-  pr: 99
+  pr: 101
   pr_draft: true
   # Owner-authorised independent Checkers system. The prior 3D M0 task is
   # paused without a merge or completion claim. Chess and Electronics remain
   # outside this task's writable product scope.
   status: in_progress
-  checkpoint: market_and_product_contract
+  checkpoint: project_document_foundation
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -37,7 +37,7 @@ revisions:
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
   # Owner-visible convergence baseline for the current task.
-  convergence_baseline_sha: 49e00590d48b7ca1bf7463e7325897d859ff8d96
+  convergence_baseline_sha: db1038c66630c80bf121e7c794a44f119a028753
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 

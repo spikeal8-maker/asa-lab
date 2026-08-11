@@ -6,7 +6,7 @@ Programme source: `docs/delivery/EXECUTION_MANIFEST.yaml`
 
 Owner scope: Issue #98
 
-Current PR: #99
+Current PR: #101
 
 Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 
@@ -14,9 +14,9 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 task: TASK-CHECKERS-M1-001
 branch: agent/checkers-education-m1
 status: in_progress
-checkpoint: market_and_product_contract
+checkpoint: project_document_foundation
 execution_lease: codex-checkers-m1
-convergence baseline: 49e00590d48b7ca1bf7463e7325897d859ff8d96
+convergence baseline: db1038c66630c80bf121e7c794a44f119a028753
 ```
 
 ## Owner decision
@@ -40,6 +40,12 @@ Child-to-child free-form chat, direct messages and public matchmaking are not
 part of the result. Only predefined, rate-limited and auditable reactions are
 allowed.
 
+## Current evidence
+
+The independent `@asa-lab/checkers` package now owns the strict Russian-64
+project document, canonical 24-piece starting position, module metadata,
+validation, preview and analysis foundation. At baseline `db1038c`, focused
+typechecking, linting and all 6 initial unit tests pass locally.
+
 See `docs/product/CHECKERS_EDUCATION_MARKET_ANALYSIS.md` and Issue #98 for the
 complete product and acceptance scope.
-
