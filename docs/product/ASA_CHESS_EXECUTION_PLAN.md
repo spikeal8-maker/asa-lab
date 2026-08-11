@@ -159,12 +159,14 @@ separate from centipawns without inventing a mate distance. A production Stockfi
 worker/server adapter is not yet present and is not claimed; it remains gated on a
 pinned GPL artifact manifest and corresponding source evidence.
 
-A transport-neutral job foundation now models queued, running, succeeded, failed and
-cancelled analysis, including progress, optimistic concurrency, atomic tenant-scoped
-idempotency, cancellation, bounded retry and re-authorization before repository access.
-Its repository and queue adapters are deterministic in-memory evidence only. Process-
-durable storage, dequeue leasing, heartbeat/recovery and actual engine execution in a
-worker remain open.
+A transport-neutral job foundation now models dispatching, queued, running, succeeded,
+failed and cancelled analysis. It enforces owner-scoped idempotency, requester/worker
+authorization before repository access, bearer queue claims, optimistic concurrency,
+monotonic progress, bounded retry and recoverable dispatch. Results are checked against
+the canonical request, engine settings and legal PV before completion; invalid output is
+stored as a typed failure. Its repository, queue and authorization adapters remain
+deterministic in-memory evidence only. Process-durable storage, production dequeue
+leasing, heartbeat/recovery and actual engine execution in a worker remain open.
 
 ### CH-103 — Game Review v2
 
@@ -184,8 +186,10 @@ retry a mistake from the exact pre-error position. Only the verified best root i
 accepted; three progressive hints and reset are available. Deep engine lines, time
 graph and persisted review jobs remain open. A fact-only explanation panel now derives
 evaluation loss, immediate captures, checks, castling and promotion directly from the
-canonical reviewed root. It deliberately makes no unsupported motif or strategy claim;
-verified motif explanations remain open.
+canonical reviewed root. The selected ply, best move, evaluations, classification and
+quality are recomputed at the review depth before wording is shown; mate is kept separate
+from the engine's private centipawn sentinel. It deliberately makes no unsupported motif
+or strategy claim; verified motif explanations remain open.
 
 ### CH-104 — Bot Profiles v1
 
@@ -218,11 +222,14 @@ behaviour.
 
 Implemented foundation: Review can create a private in-memory training item linked to
 the source project and ply, preserving the exact pre-error FEN, played move and verified
-best root. A separate strict library model requires tenant, owner and project-version
-provenance and stores an append-only, immutable history of legal attempts and hints.
+best root. A separate strict library model derives its tenant/owner partition from an
+authenticated context, authorizes every operation before I/O and resolves project-
+version/review provenance through an authoritative source port. It stores an append-only,
+immutable history of legal attempts and hints; operation IDs make sequential and
+concurrent retries idempotent, while attempted and reset positions remain distinct.
 Retry attempts never mutate the source game. The current repository is intentionally
-in-memory; database/API wiring, project-version authorization, automatic defence, motif
-evidence and lesson mapping remain open.
+in-memory; production authorization/source adapters, database/API wiring, schema-v1
+migration, automatic defence, motif evidence and lesson mapping remain open.
 
 ### R1 release gate
 
@@ -253,7 +260,9 @@ owner acceptance and next allowed task
 Schema 1.1 keeps Checkers as the primary lane and shared integration owner while Chess
 runs independently as `TASK-CHESS-R1-001` on `agent/chess-r1-foundation`, Draft PR #103.
 The Chess lane owns only its contexts, UI, tests, plan documents and neutral
-`editor-chrome` directory. The first published checkpoint contains the shared-header
-adapter and Engine Platform foundation. Complete R1 learning-loop parity remains open
-and must progress through CH-103, CH-104 and CH-105 without expanding into sibling
-module paths.
+`editor-chrome` directory. Draft PR #103 now contains the shared-header adapter, engine
+and authorized analysis-job foundations, verified fact-only review explanations, exact
+mistake retry, selectable ASA bot profiles and an authorized private training-library
+foundation. Complete R1 learning-loop parity remains open: production persistence and
+workers, calibrated bot evidence, generated lesson recommendations, responsive owner
+evidence and release rollback still must close without expanding into sibling paths.

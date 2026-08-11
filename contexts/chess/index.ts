@@ -142,6 +142,10 @@ export {
   type ChessAnalysisJobClockPort,
   type ChessAnalysisJobCreateResult,
   type ChessAnalysisJobIdPort,
+  type ChessAnalysisJobAuthorizationPort,
+  type ChessAnalysisJobMutationAction,
+  type ChessAnalysisJobMutationPrincipal,
+  type ChessAnalysisJobQueueDispatch,
   type ChessAnalysisJobQueueItem,
   type ChessAnalysisJobQueuePort,
   type ChessAnalysisJobRepositoryPort,
@@ -189,8 +193,14 @@ export {
 } from './application/training-library-repository.js';
 export {
   ChessTrainingLibraryService,
+  type AuthenticatedChessTrainingContext,
+  type ChessTrainingAuthorizationDecision,
+  type ChessTrainingAuthorizationPort,
   type ChessTrainingLibraryErrorCode,
+  type ChessTrainingLibraryAction,
   type ChessTrainingLibraryResult,
+  type ChessTrainingSourceReference,
+  type ChessTrainingSourceResolverPort,
   type CreateChessTrainingInput,
   type RecordChessTrainingAttemptInput,
 } from './application/training-library-service.js';
