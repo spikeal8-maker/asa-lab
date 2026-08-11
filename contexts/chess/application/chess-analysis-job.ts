@@ -1,7 +1,8 @@
 import type { ChessEngineAnalysis, ChessEngineSettings } from './engine-contract.js';
 import type { ChessSessionPolicy } from '../domain/fair-play.js';
 
-export type ChessAnalysisJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type ChessAnalysisJobStatus =
+  'dispatching' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface ChessAnalysisJobRequest {
   readonly fen: string;
@@ -11,7 +12,7 @@ export interface ChessAnalysisJobRequest {
 }
 
 export interface ChessAnalysisJobProgress {
-  readonly stage: 'queued' | 'starting' | 'analysing' | 'persisting';
+  readonly stage: 'dispatching' | 'queued' | 'starting' | 'analysing' | 'persisting' | 'completed';
   readonly completedUnits: number;
   readonly totalUnits: number;
   readonly message: string | null;
@@ -71,6 +72,22 @@ function rejected(
   return { ok: false, code, message };
 }
 
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+  for (const child of Object.values(value)) deepFreeze(child, seen);
+  return Object.freeze(value);
+}
+
+function immutableCopy<T>(value: T): T {
+  return deepFreeze(structuredClone(value));
+}
+
+export function immutableChessAnalysisJob(job: ChessAnalysisJob): ChessAnalysisJob {
+  return immutableCopy(job);
+}
+
 function next(
   job: ChessAnalysisJob,
   atMs: number,
@@ -81,11 +98,11 @@ function next(
   }
   return {
     ok: true,
-    value: { ...job, ...values, version: job.version + 1, updatedAtMs: atMs },
+    value: immutableCopy({ ...job, ...values, version: job.version + 1, updatedAtMs: atMs }),
   };
 }
 
-export function createQueuedChessAnalysisJob(input: {
+interface CreateChessAnalysisJobInput {
   readonly id: string;
   readonly tenantPartition: string;
   readonly requestedBy: string;
@@ -94,14 +111,19 @@ export function createQueuedChessAnalysisJob(input: {
   readonly request: ChessAnalysisJobRequest;
   readonly maxAttempts: number;
   readonly createdAtMs: number;
-}): ChessAnalysisJob {
-  return {
+}
+
+function createInitialChessAnalysisJob(
+  input: CreateChessAnalysisJobInput,
+  status: 'dispatching' | 'queued',
+): ChessAnalysisJob {
+  return immutableCopy({
     ...input,
-    status: 'queued',
+    status,
     attempt: 1,
     version: 1,
     progress: {
-      stage: 'queued',
+      stage: status,
       completedUnits: 0,
       totalUnits: 1,
       message: null,
@@ -111,7 +133,37 @@ export function createQueuedChessAnalysisJob(input: {
     failure: null,
     cancellation: null,
     updatedAtMs: input.createdAtMs,
-  };
+  });
+}
+
+export function createDispatchingChessAnalysisJob(
+  input: CreateChessAnalysisJobInput,
+): ChessAnalysisJob {
+  return createInitialChessAnalysisJob(input, 'dispatching');
+}
+
+/** @deprecated Durable callers must create dispatching jobs through ChessAnalysisJobService. */
+export function createQueuedChessAnalysisJob(input: CreateChessAnalysisJobInput): ChessAnalysisJob {
+  return createInitialChessAnalysisJob(input, 'queued');
+}
+
+export function queueChessAnalysisJob(
+  job: ChessAnalysisJob,
+  atMs: number,
+): ChessAnalysisJobTransitionResult {
+  if (job.status !== 'dispatching') {
+    return rejected('invalid_transition', 'Only dispatching jobs can become queued.');
+  }
+  return next(job, atMs, {
+    status: 'queued',
+    progress: {
+      stage: 'queued',
+      completedUnits: 0,
+      totalUnits: 1,
+      message: null,
+      updatedAtMs: atMs,
+    },
+  });
 }
 
 export function startChessAnalysisJob(
@@ -148,6 +200,25 @@ export function progressChessAnalysisJob(
   ) {
     return rejected('validation_error', 'Progress units are invalid.');
   }
+  const stageOrder: Readonly<Record<ChessAnalysisJobProgress['stage'], number>> = {
+    dispatching: 0,
+    queued: 1,
+    starting: 2,
+    analysing: 3,
+    persisting: 4,
+    completed: 5,
+  };
+  if (
+    progress.stage === 'dispatching' ||
+    progress.stage === 'queued' ||
+    progress.stage === 'completed' ||
+    stageOrder[progress.stage] < stageOrder[job.progress.stage] ||
+    (progress.stage === job.progress.stage &&
+      (progress.totalUnits !== job.progress.totalUnits ||
+        progress.completedUnits < job.progress.completedUnits))
+  ) {
+    return rejected('validation_error', 'Progress cannot move backwards.');
+  }
   return next(job, atMs, { progress: { ...progress, updatedAtMs: atMs } });
 }
 
@@ -164,7 +235,7 @@ export function completeChessAnalysisJob(
     result,
     failure: null,
     progress: {
-      stage: 'persisting',
+      stage: 'completed',
       completedUnits: 1,
       totalUnits: 1,
       message: null,
@@ -178,8 +249,8 @@ export function failChessAnalysisJob(
   failure: Omit<ChessAnalysisJobFailure, 'failedAtMs'>,
   atMs: number,
 ): ChessAnalysisJobTransitionResult {
-  if (job.status !== 'queued' && job.status !== 'running') {
-    return rejected('invalid_transition', 'Only queued or running jobs can fail.');
+  if (job.status !== 'dispatching' && job.status !== 'queued' && job.status !== 'running') {
+    return rejected('invalid_transition', 'Only dispatching, queued or running jobs can fail.');
   }
   return next(job, atMs, {
     status: 'failed',
@@ -193,8 +264,8 @@ export function cancelChessAnalysisJob(
   cancellation: Omit<ChessAnalysisJobCancellation, 'cancelledAtMs'>,
   atMs: number,
 ): ChessAnalysisJobTransitionResult {
-  if (job.status !== 'queued' && job.status !== 'running') {
-    return rejected('invalid_transition', 'Only queued or running jobs can be cancelled.');
+  if (job.status !== 'dispatching' && job.status !== 'queued' && job.status !== 'running') {
+    return rejected('invalid_transition', 'Only dispatching, queued or running jobs can cancel.');
   }
   return next(job, atMs, {
     status: 'cancelled',
@@ -216,13 +287,13 @@ export function retryChessAnalysisJob(
     );
   }
   return next(job, atMs, {
-    status: 'queued',
+    status: 'dispatching',
     attempt: job.attempt + 1,
     failure: null,
     cancellation: null,
     result: null,
     progress: {
-      stage: 'queued',
+      stage: 'dispatching',
       completedUnits: 0,
       totalUnits: 1,
       message: null,
