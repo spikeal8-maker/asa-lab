@@ -24,27 +24,28 @@ owner_accepted
 
 | ID | Scenario or contract | Priority | Acceptance | Current status |
 | --- | --- | --- | --- | --- |
-| P0-01 | Dated feature ledger | MUST P0 | Every row has source, release, issue, test, evidence and status | foundation |
-| P0-02 | Parallel agent work | MUST P0, ASA | Separate worktree/branch/scope per writer; one integration lease; no overlapping file ownership | foundation |
-| P0-03 | Chess isolation | MUST P0, ASA | `moduleKey=chess`; no imports from Electronics, 3D or Checkers; shared core imports no Chess | foundation |
-| P0-04 | Future Checkers isolation | MUST P0, ASA | Future `moduleKey=checkers`; no Checkers types or mode switches in Chess documents/APIs | foundation |
-| P0-05 | Electronics-family header | MUST P0, ASA | 48 px header + optional 48 px toolbar; ASA mark, title, save state, named modes and avatar | not_started |
-| P0-06 | Electronics preservation | MUST P0, ASA | Characterization first; post-extraction DOM, keyboard flow and shell geometry remain equivalent | not_started |
+| P0-01 | Dated feature ledger | MUST P0 | Every row has source, release, issue, test, evidence and status | functional |
+| P0-02 | Parallel agent work | MUST P0, ASA | Separate worktree/branch/scope per writer; one integration lease; no overlapping file ownership | production_proven |
+| P0-03 | Chess isolation | MUST P0, ASA | `moduleKey=chess`; no imports from Electronics, 3D or Checkers; shared core imports no Chess | functional |
+| P0-04 | Checkers isolation | MUST P0, ASA | `moduleKey=checkers`; no Checkers types or mode switches in Chess documents/APIs | functional |
+| P0-05 | Electronics-family header | MUST P0, ASA | 48 px header + optional 48 px toolbar; ASA mark, title, save state, named modes and avatar | functional |
+| P0-06 | Electronics preservation | MUST P0, ASA | Characterization first; post-extraction DOM, keyboard flow and shell geometry remain equivalent | functional |
 | P0-07 | Shared-core and data safety | MUST P0, ASA | No Chess fields in shared core; cross-tenant access denied; sibling smoke journeys pass | foundation |
-| P0-08 | One R1 focused gate | MUST P0 | Same command locally, in CI and owner evidence; evidence uses `NX_SKIP_NX_CACHE=true` | not_started |
+| P0-08 | One R1 focused gate | MUST P0 | Same command locally, in CI and owner evidence; evidence uses `NX_SKIP_NX_CACHE=true` | functional |
 
-Known visual gap: the current Chess header uses its own `min-height: 64px` geometry;
-Electronics uses a 48 px primary row plus a separate 48 px toolbar.
+The former Chess `min-height: 64px` gap is closed in PR #103: Chess now uses the
+neutral 48 px ASA editor header. Electronics retains its existing 48 px primary row
+and separate 48 px toolbar without product-file changes in this slice.
 
 ## R1 engine
 
 | ID | User outcome | Priority | Acceptance | Source | Status |
 | --- | --- | --- | --- | --- | --- |
 | ENG-01 | Quick and deep post-game analysis | MUST R1 | Benchmark for 60 plies fixes quick/deep p95 budgets before coding | Game Review | not_started |
-| ENG-02 | Responsive local analysis and durable server analysis job | MUST R1 | Worker keeps UI responsive; job supports progress/cancel/retry and idempotent recovery | Engine docs | not_started |
-| ENG-03 | Evaluation and Multi-PV | MUST R1 | All moves legal; at least three Self Analysis lines; mate and centipawn scores distinct | Analysis | not_started |
-| ENG-04 | Reproducible evidence | MUST R1 | Engine/NNUE hashes and parameters recorded; deterministic mode repeats exactly | ASA | not_started |
-| ENG-05 | Version-safe cache | MUST R1 | Key includes FEN, engine, NNUE, settings and Multi-PV | ASA | not_started |
+| ENG-02 | Responsive local analysis and durable server analysis job | MUST R1 | Worker keeps UI responsive; job supports progress/cancel/retry and idempotent recovery | Engine docs | foundation |
+| ENG-03 | Evaluation and Multi-PV | MUST R1 | All moves legal; at least three Self Analysis lines; mate and centipawn scores distinct | Analysis | foundation |
+| ENG-04 | Reproducible evidence | MUST R1 | Engine/NNUE hashes and parameters recorded; deterministic mode repeats exactly | ASA | foundation |
+| ENG-05 | Version-safe cache | MUST R1 | Key includes FEN, engine, NNUE, settings and Multi-PV | ASA | functional |
 | ENG-06 | Tablebase and complete Explorer | DEFER R2 | Gap remains visible | Analysis | not_started |
 
 ## R1 bot play

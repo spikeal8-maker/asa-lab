@@ -2,7 +2,10 @@
 
 **Programme Issue:** [#65](https://github.com/spikeal8-maker/asa-lab/issues/65)
 **P0 Issue:** [#97](https://github.com/spikeal8-maker/asa-lab/issues/97)
-**Status:** plan-only candidate; product execution remains blocked until an explicit owner transition from the active task.
+**Status:** active R1 foundation in Draft PR
+[#103](https://github.com/spikeal8-maker/asa-lab/pull/103); scoped parallel execution
+was activated by merged governance PR
+[#104](https://github.com/spikeal8-maker/asa-lab/pull/104).
 
 ## 1. Product outcome
 
@@ -23,19 +26,21 @@ play a calibrated ASA bot
 
 ## 2. Parallel-work rule
 
-Chess planning and later implementation use a dedicated checkout and branch. They
-must not touch the active 3D checkout, its uncommitted files, its PR or its execution
-lease. A future Checkers module is a separate subject module and must not be hidden
-inside Chess.
+Chess planning and implementation use a dedicated checkout, branch and schema 1.1
+lane. Checkers remains the primary lane and shared integration owner. Chess must not
+touch the Checkers, Electronics or 3D product paths, their uncommitted files or their
+execution leases.
 
 Parallel work is safe only when all of the following remain true:
 
 - each writer has a distinct Git worktree and branch;
 - file ownership and required scope do not overlap;
-- `docs/execution/current.yaml` continues to name exactly one executable product task;
-- plan-only work does not claim product activation or test evidence;
+- `docs/execution/current.yaml` names every executable lane, its lease and its exact
+  non-overlapping path scope;
+- product branches cannot edit `current.yaml`, even when their lane owns shared
+  integration;
 - no task edits another module's subject document, route state, database tables or assets;
-- integration occurs through a reviewed PR after focused and repository gates.
+- integration occurs through reviewed PRs after each lane's focused gates.
 
 ## 3. Module ownership
 
@@ -104,8 +109,8 @@ P0 is governance and evidence scope. It does not change product behaviour.
 - Electronics and 3D behaviour remain unchanged;
 - the current 3D checkout remains untouched;
 - planned tests are clearly labelled `PLANNED`, not reported as executed;
-- the owner separately transitions execution state before R1 code starts;
-- `pnpm control-plane:check` passes on that future transition SHA.
+- governance PR #104 records the Chess lane without displacing Checkers;
+- `pnpm control-plane:check` passes with both PR heads and all path scopes verified.
 
 ## 6. R1 — Chess Learning Beta task graph
 
@@ -130,6 +135,11 @@ Electronics editor-family baseline. Chess keeps original controls and visual ide
 Acceptance: Electronics screenshots, keyboard behaviour, save-state behaviour and
 responsive layout remain unchanged before and after extraction.
 
+Implemented checkpoint: the neutral `EditorHeader` and Chess adapter are present in
+PR #103, the primary row is 48 px, Enter/Escape title behaviour is tested, the final
+Chess header has one navigation source rather than duplicate tabs, and Electronics
+product files remain unchanged.
+
 ### CH-102 — Engine Platform
 
 - reviewed Stockfish-compatible adapter in a Web Worker;
@@ -139,6 +149,13 @@ responsive layout remain unchanged before and after extraction.
 - cancellation, timeout and resource quotas;
 - fair-play capability check before every analysis request;
 - legal-PV and engine-version evidence.
+
+Implemented foundation: typed engine/settings/result contracts, fair-play capability
+authorization before cache or adapter access, canonical FEN and versioned cache keys,
+partitioned cache, quotas, cancellation/timeout and legal PV/Multi-PV validation are
+covered by tests. A production Stockfish worker/server adapter is not yet present and
+is not claimed; it remains gated on a pinned GPL artifact manifest and corresponding
+source evidence.
 
 ### CH-103 — Game Review v2
 
@@ -192,9 +209,12 @@ working-tree status
 owner acceptance and next allowed task
 ```
 
-## 8. Current blocker
+## 8. Current execution state
 
-At publication time the canonical execution state still names `TASK-3D-M0-001`, PR #95
-and execution lease holder `codex-three-d-m0`. R1 product code must not begin until the
-owner completes or pauses that task and records a separate transition. This plan branch
-therefore contains documentation only.
+Schema 1.1 keeps Checkers as the primary lane and shared integration owner while Chess
+runs independently as `TASK-CHESS-R1-001` on `agent/chess-r1-foundation`, Draft PR #103.
+The Chess lane owns only its contexts, UI, tests, plan documents and neutral
+`editor-chrome` directory. The first published checkpoint contains the shared-header
+adapter and Engine Platform foundation. Complete R1 learning-loop parity remains open
+and must progress through CH-103, CH-104 and CH-105 without expanding into sibling
+module paths.
