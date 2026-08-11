@@ -17,3 +17,21 @@ export {
   type CheckersSquare,
 } from './domain/document.js';
 export { CHECKERS_MODULE, type CheckersAnalysisSummary } from './module.js';
+export {
+  applyCheckersMove,
+  generateLegalCheckersMoves,
+  getCheckersGameStatus,
+  type CheckersGameStatus,
+  type CheckersLegalMove,
+  type CheckersMoveInput,
+} from './domain/rules.js';
+export {
+  CHECKERS_BOTS,
+  CHECKERS_BOT_IDS,
+  chooseCheckersBotMove,
+  type CheckersBotDecision,
+  type CheckersBotDefinition,
+  type CheckersBotExplanation,
+  type CheckersBotId,
+  type CheckersBotSearchOptions,
+} from './domain/bot.js';
