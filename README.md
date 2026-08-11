@@ -6,15 +6,18 @@
 
 ```text
 canonical branch:        main
-active task:             TASK-CREATOR-PORTAL-001
-active issue:            #62
-active branch:           agent/r2-creator-portal
-status:                  ready
-product merge SHA:       e01ac85095ddaabef19ed618964deac3aa5b2406
-verified Account SHA:    35c06c42012672b9b4cb2626b85ba1f21b973bc0
+active task:             TASK-CHECKERS-M1-001
+active issue:            #98
+active branch:           agent/checkers-education-m1
+active Draft PR:         #99
+status:                  in_progress
+checkpoint:              market_and_product_contract
+execution lease:         codex-checkers-m1
 ```
 
-Account C1 завершён и объединён через PR №70. R2 Creator Portal активирован. R3 Project Lifecycle и R4 Electronics parity остаются blocked.
+Активирована самостоятельная образовательная система русских шашек. Задачи 3D
+M0 и Electronics corrective приостановлены решением владельца без заявления о
+завершении. Точное состояние хранится в `docs/execution/current.yaml`.
 
 ## Что уже работает
 
@@ -32,26 +35,28 @@ Account C1 завершён и объединён через PR №70. R2 Creato
 ## Что строится сейчас
 
 ```text
-Account login
-→ Creator Home
-→ recent projects
-→ Projects / Learning / Collections / Challenges
-→ capability-aware Classes
-→ Help
-→ Account and workspace switcher
+Student opens Checkers
+→ current learning and teacher assignments
+→ Russian-draughts lessons, puzzles and bot ladder
+→ evidence-based review and progress
+→ safe class play with predefined reactions only
+→ teacher activity, mastery and move-level evidence
 ```
 
-Цель R2 — цельный полезный кабинет вместо разреженной технической Account-панели. Точный scope и acceptance находятся в Issue №62.
+Точный scope находится в Issue №98 и
+`docs/product/CHECKERS_EDUCATION_MARKET_ANALYSIS.md`. Шахматы остаются отдельным
+модулем; изменять их в рамках этой задачи запрещено.
 
 ## Ветка разработки
 
 ```bash
 git fetch --all --prune
-git switch agent/r2-creator-portal
-git pull --ff-only origin agent/r2-creator-portal
+git switch agent/checkers-education-m1
+git pull --ff-only origin agent/checkers-education-m1
 ```
 
-Новая параллельная product branch не создаётся. Старые PR и ветки не закрываются в рамках R2.
+Новая параллельная product branch не создаётся. PR №99 остаётся Draft до
+прохождения focused/general gates и owner review.
 
 ## Порты
 

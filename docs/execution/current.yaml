@@ -16,16 +16,17 @@ schema_version: 1.0.0
 # ─────────────────────────────────────────────────────────────────────────────
 
 task:
-  id: TASK-3D-M0-001
-  issue: 94
-  branch: agent/three-d-m0
+  id: TASK-CHECKERS-M1-001
+  issue: 98
+  branch: agent/checkers-education-m1
   base_branch: main
-  pr: 95
+  pr: 99
   pr_draft: true
-  # Owner-authorised foundation slice. Electronics PR #92 remains open and
-  # untouched; its corrective scope is paused rather than reported complete.
+  # Owner-authorised independent Checkers system. The prior 3D M0 task is
+  # paused without a merge or completion claim. Chess and Electronics remain
+  # outside this task's writable product scope.
   status: in_progress
-  checkpoint: foundation_vertical_slice
+  checkpoint: market_and_product_contract
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -36,7 +37,7 @@ revisions:
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
   # Owner-visible convergence baseline for the current task.
-  convergence_baseline_sha: e3707e9147ab51a10173bec4471f2b8b1d67d84f
+  convergence_baseline_sha: 49e00590d48b7ca1bf7463e7325897d859ff8d96
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 
@@ -46,10 +47,10 @@ revisions:
 # both timestamps are required and expires_at must be after acquired_at.
 # validate_control_plane.py enforces all of that.
 execution_lease:
-  executor_id: codex-three-d-m0
-  holder: codex-three-d-m0
-  acquired_at: "2026-08-11T11:03:10Z"
-  expires_at: "2026-08-12T11:03:10Z"
+  executor_id: codex-checkers-m1
+  holder: codex-checkers-m1
+  acquired_at: "2026-08-11T18:41:49Z"
+  expires_at: "2026-08-12T18:41:49Z"
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
@@ -61,10 +62,10 @@ execution_lease:
 # on every branch carrying this file, and would be wrong in between.
 gates:
   focused:
-    workflow: 3D M0 Focused
+    workflow: Checkers M1 Focused
     commands:
-      - pnpm gate:three-d-m0
-      - pnpm gate:three-d-m0:browser
+      - pnpm gate:checkers-m1
+      - pnpm gate:checkers-m1:browser
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:

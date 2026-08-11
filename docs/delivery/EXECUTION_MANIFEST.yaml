@@ -42,12 +42,12 @@ roadmap_after_current:
     issue: https://github.com/spikeal8-maker/asa-lab/issues/63
     name: Electronics follow-up beyond accepted M1
     status: blocked
-    activation: paused_by_owner_while_3d_m0_runs
+    activation: paused_by_owner_while_checkers_m1_runs
   - release: R10-M1
     issue: https://github.com/spikeal8-maker/asa-lab/issues/42
-    name: 3D Design roadmap after the M0 foundation slice
+    name: 3D Design roadmap including the paused M0 foundation slice
     status: blocked
-    activation: separate_owner_transition_after_3d_m0
+    activation: paused_by_owner_until_separate_transition_after_checkers_m1
 
 ports:
   bind: 127.0.0.1
@@ -249,9 +249,9 @@ tasks:
 
   - position: 7
     task_id: TASK-3D-M0-001
-    # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
-    status: in_progress
-    checkpoint: foundation_vertical_slice
+    status: blocked
+    checkpoint: paused_by_owner_for_checkers_m1
+    activation: paused_by_owner
     issue: https://github.com/spikeal8-maker/asa-lab/issues/94
     branch: agent/three-d-m0
     base_branch: main
@@ -262,7 +262,7 @@ tasks:
     # The module-neutral Project lifecycle and Editor Host are the actual
     # prerequisite. The paused Electronics corrective PR is not a dependency.
     depends_on: [TASK-R3A-ELECTRONICS-GATEWAY-001]
-    next_task: null
+    next_task: TASK-CHECKERS-M1-001
     capabilities: [CAP-PROJECTS]
     visible_result: A creator opens a first-party 3D project, adds and transforms a box, saves it through Project Core and reloads the same validated scene.
     user_flow: Create 3D project -> open shared Editor Host -> add box -> select and transform -> undo/redo -> save -> reload identical scene.
@@ -286,3 +286,45 @@ tasks:
     task_tests: [TST-3D-M0-DOMAIN-001, TST-3D-M0-INTEGRATION-001, TST-3D-M0-LAZY-001, TST-3D-M0-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R10, APP-WEB, CTX-PROJECTS, SDK-MODULE, MOD-3D]
     artifacts: [three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, focused-test-report, dependency-license-inventory]
+
+  - position: 8
+    task_id: TASK-CHECKERS-M1-001
+    # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
+    status: in_progress
+    checkpoint: market_and_product_contract
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/98
+    branch: agent/checkers-education-m1
+    base_branch: main
+    milestone: R11-M1 Educational Russian Draughts
+    track: product-roadmap
+    delivery_stage: STAGE-11-CHECKERS-M1
+    architecture_horizon: PHASE-R11
+    depends_on: [TASK-CREATOR-PORTAL-001, TASK-R3A-ELECTRONICS-GATEWAY-001]
+    next_task: null
+    capabilities: [CAP-PROJECTS, CAP-CLASSROOM, CAP-CHECKERS-LITE, CAP-CHESS]
+    visible_result: A student enters a complete Russian-draughts learning area with assignments, self-learning, bot progression, evidence-based review and safe class play; a teacher assigns work and sees move-level progress.
+    user_flow: Open Checkers -> continue learning or assigned work -> solve or play -> receive review and mastery update -> teacher sees exact evidence -> challenge an authorised classmate with predefined reactions only.
+    required_scope:
+      - independent_first_party_checkers_module
+      - official_russian_draughts_64_rules
+      - deterministic_versioned_document_and_replay
+      - module_provider_and_project_core_save_reload
+      - asa_project_header_aligned_with_electronics_pattern
+      - student_checkers_home_aggregate
+      - guided_curriculum_and_interactive_lessons
+      - themed_puzzles_hints_and_spaced_review
+      - teacher_assignments_and_move_level_evidence
+      - concept_mastery_and_activity_analytics
+      - calibrated_explainable_bot_ladder
+      - post_game_review_and_mistake_themes
+      - class_scoped_challenges_and_teacher_events
+      - predefined_reactions_only
+      - reaction_mute_rate_limits_and_audit
+      - lazy_loading_accessibility_and_responsive_layouts
+      - desktop_tablet_mobile_browser_evidence
+    non_goals: [Chess changes, Electronics changes, 3D changes, shared Chess Checkers subject engine, free-form child chat, direct messages, public child profiles, unrestricted public matchmaking, ads, loot boxes, international 10x10 rules in M1, generic Classroom rewrite, Project Core subject conditionals]
+    read: [AGENTS.md, docs/product/CHECKERS_EDUCATION_MARKET_ANALYSIS.md, docs/product/MODULE_PLATFORM_SPEC.md, docs/product/PRODUCT_BLUEPRINT.md, https://github.com/spikeal8-maker/asa-lab/issues/98]
+    test_profiles: []
+    task_tests: [TST-CHECKERS-M1-RULES-001, TST-CHECKERS-M1-PROJECT-001, TST-CHECKERS-M1-LEARNING-001, TST-CHECKERS-M1-BOTS-001, TST-CHECKERS-M1-CLASS-SAFETY-001, TST-CHECKERS-M1-E2E-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R11, APP-WEB, APP-API, CTX-CLASSROOM, CTX-PROJECTS, CTX-SAFETY, SDK-MODULE, MOD-CHECKERS]
+    artifacts: [checkers-market-analysis, official-rules-fixtures, curriculum-map, assignment-evidence-report, bot-calibration-report, reaction-allowlist-audit, checkers-student-desktop.png, checkers-student-mobile.png, checkers-teacher-desktop.png, playwright-report]

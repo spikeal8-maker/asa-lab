@@ -1,48 +1,70 @@
 schema_version: 1.0.0
-active_task: TASK-3D-M0-001
+active_task: TASK-CHECKERS-M1-001
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
-  - id: TST-3D-M0-DOMAIN-001
-    title: Versioned 3D document, finite-value validation and deterministic commands
+  - id: TST-CHECKERS-M1-RULES-001
+    title: Official Russian draughts-64 rules and deterministic replay
     suite: contracts
     level: bounded-context
-    phase_available: PHASE-10
-    required_for: [TASK-3D-M0-001]
-    command: pnpm test:three-d
-    timeout_seconds: 900
-    owner: three-d
-    artifacts: [vitest-report, document-schema-report]
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, official-rules-fixtures, replay-report]
 
-  - id: TST-3D-M0-INTEGRATION-001
-    title: Module Registry, Project Core save/reload and subject-neutral boundaries
+  - id: TST-CHECKERS-M1-PROJECT-001
+    title: Independent module provider and Project Core create save reload checkpoint
     suite: integration
     level: system
-    phase_available: PHASE-10
-    required_for: [TASK-3D-M0-001]
-    command: pnpm test:three-d
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
     timeout_seconds: 1200
-    owner: three-d
+    owner: checkers
     artifacts: [vitest-report, persistence-report, boundary-report]
 
-  - id: TST-3D-M0-LAZY-001
-    title: 3D runtime is route-lazy and absent from the initial Portal bundle
-    suite: static
-    level: application
-    phase_available: PHASE-10
-    required_for: [TASK-3D-M0-001]
-    command: pnpm gate:three-d-m0
+  - id: TST-CHECKERS-M1-LEARNING-001
+    title: Curriculum assignments attempts mastery and teacher evidence
+    suite: integration
+    level: system
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
     timeout_seconds: 1200
-    owner: three-d
-    artifacts: [build-report, bundle-inventory]
+    owner: checkers
+    artifacts: [vitest-report, assignment-report, mastery-evidence]
 
-  - id: TST-3D-M0-E2E-001
-    title: Add, transform, save and reload a box on desktop, tablet and mobile
+  - id: TST-CHECKERS-M1-BOTS-001
+    title: Bot legality calibration deterministic tie-breaking and time budgets
+    suite: simulation
+    level: bounded-context
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, bot-calibration-report, timeout-report]
+
+  - id: TST-CHECKERS-M1-CLASS-SAFETY-001
+    title: Class authorization reaction allowlist rate limits mute and audit
+    suite: authorization
+    level: system
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, authorization-matrix, reaction-audit-report]
+
+  - id: TST-CHECKERS-M1-E2E-001
+    title: Student teacher bot and safe class journeys on desktop tablet and mobile
     suite: e2e
     level: system
-    phase_available: PHASE-10
-    required_for: [TASK-3D-M0-001]
-    command: pnpm gate:three-d-m0:browser
-    timeout_seconds: 1800
-    owner: three-d
-    artifacts: [playwright-report, three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, browser-failure-report]
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm e2e:checkers
+    timeout_seconds: 2400
+    owner: checkers
+    artifacts: [playwright-report, checkers-screenshots, browser-failure-report]

@@ -641,3 +641,47 @@ tests:
     timeout_seconds: 1500
     owner: electronics
     artifacts: [playwright-report, eight-real-editor-screenshots, owner-reference-side-by-side, browser-failure-report]
+
+  - id: TST-3D-M0-DOMAIN-001
+    title: Versioned 3D document, finite-value validation and deterministic commands
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm test:three-d
+    timeout_seconds: 900
+    owner: three-d
+    artifacts: [vitest-report, document-schema-report]
+
+  - id: TST-3D-M0-INTEGRATION-001
+    title: Module Registry, Project Core save/reload and subject-neutral boundaries
+    suite: integration
+    level: system
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm test:three-d
+    timeout_seconds: 1200
+    owner: three-d
+    artifacts: [vitest-report, persistence-report, boundary-report]
+
+  - id: TST-3D-M0-LAZY-001
+    title: 3D runtime is route-lazy and absent from the initial Portal bundle
+    suite: static
+    level: application
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm gate:three-d-m0
+    timeout_seconds: 1200
+    owner: three-d
+    artifacts: [build-report, bundle-inventory]
+
+  - id: TST-3D-M0-E2E-001
+    title: Add, transform, save and reload a box on desktop, tablet and mobile
+    suite: e2e
+    level: system
+    phase_available: PHASE-10
+    required_for: [TASK-3D-M0-001]
+    command: pnpm gate:three-d-m0:browser
+    timeout_seconds: 1800
+    owner: three-d
+    artifacts: [playwright-report, three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, browser-failure-report]

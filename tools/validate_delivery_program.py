@@ -29,6 +29,7 @@ EXPECTED_TASKS = [
     "TASK-R3A-ELECTRONICS-GATEWAY-001",
     "TASK-ELECTRONICS-M1-001",
     "TASK-3D-M0-001",
+    "TASK-CHECKERS-M1-001",
 ]
 CURRENT_PATH = ROOT / "docs/execution/current.yaml"
 

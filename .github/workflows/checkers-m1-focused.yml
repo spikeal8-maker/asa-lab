@@ -1,0 +1,119 @@
+name: Checkers M1 Focused
+
+on:
+  pull_request:
+    paths:
+      - 'contexts/checkers/**'
+      - 'apps/api/src/module-registry.ts'
+      - 'apps/api/src/checkers**'
+      - 'apps/web/src/modules/**'
+      - 'apps/web/src/checkers/**'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/tsconfig.json'
+      - 'e2e/checkers-module.spec.ts'
+      - 'migrations/**checkers**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/checkers-m1-focused.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checkers-m1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: Rules, project, learning, bots, class safety and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Focused Checkers M1 gate
+        run: pnpm gate:checkers-m1
+
+  browser:
+    name: Student, teacher, bot and safe class journeys
+    needs: focused
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_IMAGE_TAG: ${{ github.sha }}
+      COMPOSE_PROJECT_NAME: asa-lab-checkers-${{ github.run_id }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare writable evidence directories
+        run: |
+          mkdir -p e2e/artifacts/checkers reports
+          chmod -R 0777 e2e/artifacts reports
+
+      - name: Build isolated Checkers browser stack
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          build migration api web test-runner
+
+      - name: Start isolated PostgreSQL, migrations, API and web
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          up -d --wait --wait-timeout 240 postgres api web
+
+      - name: Checkers M1 browser gate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          run --rm --no-deps test-runner
+          pnpm gate:checkers-m1:browser
+
+      - name: Show isolated stack state
+        if: always()
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test ps -a
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkers-m1-browser-${{ github.run_id }}
+          path: |
+            e2e/artifacts/checkers
+            reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove isolated test stack
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          down -v --remove-orphans
+
