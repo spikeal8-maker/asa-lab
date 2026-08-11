@@ -81,3 +81,13 @@ export {
   type PlayCheckersMoveCommand,
 } from './application/game-service.js';
 export { InMemoryCheckersGameRepository } from './infrastructure/in-memory-game-repository.js';
+export {
+  createCheckersPuzzleAttempt,
+  requestCheckersPuzzleHint,
+  submitCheckersPuzzleMove,
+  validateCheckersPuzzle,
+  type CheckersPuzzle,
+  type CheckersPuzzleAttempt,
+  type CheckersPuzzleHintOutcome,
+  type CheckersPuzzleMoveOutcome,
+} from './domain/puzzle.js';
