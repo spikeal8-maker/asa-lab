@@ -111,6 +111,9 @@ test('review selects exact plies and accepts only the verified retry move', asyn
   await page.getByRole('button', { name: 'Открыть разбор шахматной партии' }).click();
   await expect(page.getByRole('heading', { name: 'Разбор ошибки и повторение' })).toBeVisible();
   await expect(page.getByLabel('График оценки по полуходам')).toBeVisible();
+  await expect(page.getByLabel('Проверенные факты разбора')).toContainText(
+    'немедленно забирал слона',
+  );
   await expect(page.locator('[data-review-timeline-point]')).toHaveCount(4);
   await page.locator('[data-review-timeline-point="3"]').click();
   await expect(page.locator('[data-square="b5"]')).toHaveAttribute('data-piece', 'white-bishop');

@@ -175,7 +175,10 @@ after the move plus a verified legal best root move. The Review UI has one evalu
 point per ply, selects the exact board position from the move list or timeline, and can
 retry a mistake from the exact pre-error position. Only the verified best root is
 accepted; three progressive hints and reset are available. Deep engine lines, time
-graph, persisted review jobs and verified motif explanations remain open.
+graph and persisted review jobs remain open. A fact-only explanation panel now derives
+evaluation loss, immediate captures, checks, castling and promotion directly from the
+canonical reviewed root. It deliberately makes no unsupported motif or strategy claim;
+verified motif explanations remain open.
 
 ### CH-104 — Bot Profiles v1
 

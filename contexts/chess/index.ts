@@ -149,6 +149,12 @@ export {
   type AsaMoveReview,
 } from './domain/review.js';
 export {
+  explainAsaMoveReview,
+  type AsaReviewExplanation,
+  type AsaReviewExplanationFact,
+  type AsaReviewExplanationResult,
+} from './domain/review-explanation.js';
+export {
   canCreateReviewRetry,
   createChessReviewRetrySession,
   createPrivateReviewTrainingItem,

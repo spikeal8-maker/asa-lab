@@ -70,7 +70,7 @@ and separate 48 px toolbar without product-file changes in this slice.
 | REV-04 | Move classifications | MUST R1 | Original deterministic ASA labels cover book, error, missed chance and strong move; every line legal | Classification | foundation |
 | REV-05 | Navigate all moves and key moments | MUST R1 | Mouse, touch and keyboard select identical positions; Next skips no marked moment | Game Review | foundation |
 | REV-06 | Show line, best move, Retry and Hint | MUST R1 | Retry uses exact pre-error FEN; incorrect move never passes | Game Review | foundation |
-| REV-07 | Understand the mistake | MUST R1 | Explanation cites verified engine line and formal motif; zero unsupported claims in corpus and 100 manual samples | Game Review | not_started |
+| REV-07 | Understand the mistake | MUST R1 | Explanation cites verified engine line and formal motif; zero unsupported claims in corpus and 100 manual samples | Game Review | foundation |
 | REV-08 | Review White, Black or Both and persist settings | MUST R1 | Settings affect presentation without mutating stored analysis | Game Review | not_started |
 | REV-09 | Self Analysis and continue against bot | MUST R1 | Exact FEN/turn/castling/en-passant transferred; original game immutable | Analysis | not_started |
 | REV-10 | Save comments and variations | MUST R1 | New exact ProjectVersion created; source version immutable | Analysis | not_started |

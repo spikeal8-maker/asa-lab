@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { api, type Project } from '../api';
 import { ChessBoard } from './ChessBoard';
+import { ChessReviewExplanation } from './ChessReviewExplanation';
 import { ChessReviewTimeline } from './ChessReviewTimeline';
 import { chessReviewDisplayFen } from './chess-review-ui';
 import { evaluationLabel } from './chess-ui';
@@ -328,6 +329,8 @@ export function ChessReviewPage({ projectId, onBackToProject }: ChessReviewPageP
             selectedPly={selectedPly}
             onSelect={selectMove}
           />
+
+          {selectedMove ? <ChessReviewExplanation move={selectedMove} /> : null}
 
           {review.moves.length === 0 ? (
             <div className="asa-chess-empty-list">
