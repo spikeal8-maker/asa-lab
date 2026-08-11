@@ -127,6 +127,7 @@ describe('live Electronics simulation', () => {
     const red50 = calculateLiveSimulation(seriesLed('red', 50), null, true);
     const red30 = calculateLiveSimulation(seriesLed('red', 30), null, true);
     const red1 = calculateLiveSimulation(seriesLed('red', 1), null, true);
+    const red0 = calculateLiveSimulation(seriesLed('red', 0), null, true);
     const blue220 = calculateLiveSimulation(seriesLed('blue', 220), null, true);
     const blue1000 = calculateLiveSimulation(seriesLed('blue', 1000), null, true);
     const resultForLed = (result: SolveResult | null) =>
@@ -144,20 +145,22 @@ describe('live Electronics simulation', () => {
     );
 
     // Editing resistance while modelling must immediately move through the
-    // physical operating regions. At 3 V, 1 Ω is not a valid "bright LED"
-    // circuit: it exceeds the 30 mA destructive limit and must be reported as
-    // burned rather than intermittently appearing dark.
+    // same visible regions as the Tinkercad 2xAA reference: ordinary light,
+    // near-limit warning, over-current while still emitting, then the
+    // destructive effect at the exact zero-ohm boundary.
     expect(resultForLed(red100)).toMatchObject({ lit: true, stressState: 'normal' });
-    expect(resultForLed(red50)).toMatchObject({ lit: true, stressState: 'warning' });
-    expect(resultForLed(red30)).toMatchObject({ lit: true, stressState: 'overcurrent' });
-    expect(resultForLed(red1)).toMatchObject({ lit: true, stressState: 'burned' });
+    expect(resultForLed(red50)).toMatchObject({ lit: true, stressState: 'normal' });
+    expect(resultForLed(red30)).toMatchObject({ lit: true, stressState: 'warning' });
+    expect(resultForLed(red1)).toMatchObject({ lit: true, stressState: 'overcurrent' });
+    expect(resultForLed(red0)).toMatchObject({ lit: true, stressState: 'burned' });
     expect(resultForLed(red100)?.current ?? 0).toBeLessThan(resultForLed(red50)?.current ?? 0);
     expect(resultForLed(red50)?.current ?? 0).toBeLessThan(resultForLed(red30)?.current ?? 0);
     expect(resultForLed(red30)?.current ?? 0).toBeLessThan(resultForLed(red1)?.current ?? 0);
-    expect(red50?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_near_limit');
-    expect(red30?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_overcurrent');
-    expect(red30?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('led_burnout');
-    expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_burnout');
+    expect(resultForLed(red1)?.current ?? 0).toBeLessThan(resultForLed(red0)?.current ?? 0);
+    expect(red30?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_near_limit');
+    expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_overcurrent');
+    expect(red1?.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain('led_burnout');
+    expect(red0?.diagnostics.map((diagnostic) => diagnostic.code)).toContain('led_burnout');
   });
 
   it('keeps a 3 V / 166 ohm LED branch working beside unrelated editor components', () => {

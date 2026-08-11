@@ -86,7 +86,10 @@ export function ProductionComponentVisual({
     entry.key === 'led-5mm' && simulationRunning
       ? Math.round(Math.min(100, Math.max(0, effectiveBrightness ?? 0)))
       : 0;
-  const ledIsLit = entry.key === 'led-5mm' && visualState === 'lit' && ledBrightness > 0;
+  const ledIsLit =
+    entry.key === 'led-5mm' &&
+    (visualState === 'lit' || visualState === 'overcurrent') &&
+    ledBrightness > 0;
   const ledRuntimeState =
     entry.key !== 'led-5mm'
       ? undefined

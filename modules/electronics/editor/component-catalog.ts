@@ -281,10 +281,11 @@ export function visualAsset(
       Math.max(0, Math.round(Number(component.stateProperties?.['ledBrightness'] ?? 0))),
     );
     const explicitFault = (component.stateProperties?.['ledFault'] ?? 'none') as OrdinaryLedFault;
+    // Tinkercad keeps the selected LED colour visible while the current is
+    // above the recommended 20 mA and presents the warning separately. Do not
+    // replace the emitting bulb with the orange audit asset in that state.
     const fault: OrdinaryLedFault =
-      visualState === 'reverse' || visualState === 'overcurrent' || visualState === 'burned'
-        ? visualState
-        : explicitFault;
+      visualState === 'reverse' || visualState === 'burned' ? visualState : explicitFault;
     // A stopped or electrically-off LED must use the exact 0% owner state. The package
     // still keeps its selected body colour, but no light is emitted until the solver
     // reports current through the LED.

@@ -189,6 +189,20 @@ describe('Electronics owner SVG foundation', () => {
     expect(visualAsset(led!, component, 'reverse')).toBe(
       '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg',
     );
+    expect(
+      visualAsset(
+        led!,
+        {
+          ...component,
+          stateProperties: {
+            ...component.stateProperties,
+            ledColour: 'blue',
+            ledBrightness: 60,
+          },
+        },
+        'overcurrent',
+      ),
+    ).toBe('/assets/electronics/owner-audit/components/led/blue/led_blue_i060.svg');
     expect(visualAsset(led!, component, 'burned')).toBe(
       '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg',
     );

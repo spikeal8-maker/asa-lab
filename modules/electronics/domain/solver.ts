@@ -93,7 +93,10 @@ const DIODE_ON_RESISTANCE = 2;
 // not an ideal switch threshold. Use a lower colour-specific knee plus the
 // package's dynamic resistance so a 3 V AA holder can drive a blue LED dimly
 // through a resistor instead of making the LED jump from fully dark to on.
-const LED_DYNAMIC_RESISTANCE = 24;
+// Calibrated against the Tinkercad 2xAA reference sweep. The package keeps
+// emitting light as resistance falls, shows an over-current warning at 1 ohm,
+// and reaches the destructive state only at the exact 0-ohm boundary.
+const LED_DYNAMIC_RESISTANCE = 44.5;
 const INDICATOR_ON_RESISTANCE = 8;
 const LED_MIN_CURRENT_A = 0.0001;
 const LED_NOMINAL_CURRENT_A = 0.02;
@@ -347,9 +350,7 @@ function propertyError(component: SchematicComponent): string | null {
   if (component.kind === 'source' && component.value <= 0)
     return 'Напряжение источника должно быть больше нуля.';
   if (
-    (component.kind === 'resistor' ||
-      component.kind === 'lamp' ||
-      component.kind === 'potentiometer') &&
+    (component.kind === 'lamp' || component.kind === 'potentiometer') &&
     component.value <= 0
   ) {
     return 'Сопротивление должно быть больше нуля.';
@@ -647,7 +648,9 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         continue;
       const a = nodeIndex(component, 'a');
       const b = nodeIndex(component, 'b');
-      if (component.kind === 'resistor' || component.kind === 'lamp') {
+      if (component.kind === 'resistor') {
+        stampConductance(a, b, 1 / Math.max(CLOSED_RESISTANCE, component.value));
+      } else if (component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
       } else if (component.kind === 'switch') {
         if (component.componentTypeId || component.state === true) {
@@ -889,8 +892,9 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
       let current = 0;
       if (component.kind === 'source') current = -(sourceCurrents.get(component.id) ?? 0);
-      else if (component.kind === 'resistor' || component.kind === 'lamp')
-        current = voltageDrop / component.value;
+      else if (component.kind === 'resistor')
+        current = voltageDrop / Math.max(CLOSED_RESISTANCE, component.value);
+      else if (component.kind === 'lamp') current = voltageDrop / component.value;
       else if (component.kind === 'switch')
         current = component.componentTypeId
           ? voltageDrop / CLOSED_RESISTANCE

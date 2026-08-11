@@ -378,6 +378,16 @@ describe('deterministic DC solver', () => {
     expect(closed.current).toBeCloseTo(0.05, 4);
   });
 
+  it('models a Tinkercad-compatible zero-ohm resistor as a closed finite branch', () => {
+    const result = solveCircuit(series([component('r1', 'resistor', 0)], 5));
+    const resistor = result.components.find((item) => item.componentId === 'r1');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('invalid_property');
+    expect(resistor?.current).toBeGreaterThan(1_000);
+    expect(Number.isFinite(resistor?.current)).toBe(true);
+  });
+
   it('models a normally-open button', () => {
     const released = solveCircuit(
       series([component('b1', 'button', 0, { state: false }), component('r1', 'resistor', 200)], 5),
@@ -416,6 +426,42 @@ describe('deterministic DC solver', () => {
     expect(solveCircuit(circuit(true)).current).toBeCloseTo(0.025, 5);
   });
 
+  it('lights an LED only while the physical four-pin button is pressed', () => {
+    const circuit = (pressed: boolean) =>
+      doc(
+        [
+          component('source', 'source', 3),
+          component('button', 'button', 0, {
+            componentTypeId: 'button-tactile-6mm',
+            pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+            internalConnections: [
+              ['SW-A1', 'SW-A2'],
+              ['SW-B1', 'SW-B2'],
+            ],
+            state: pressed,
+          }),
+          component('resistor', 'resistor', 220, {
+            componentTypeId: 'resistor-axial',
+            pinIds: ['lead-1', 'lead-2'],
+          }),
+          component('led', 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+            stateProperties: { ledColour: 'red' },
+          }),
+        ],
+        [
+          connect('source-button', 'source', 'a', 'button', 'SW-A2'),
+          connect('button-resistor', 'button', 'SW-B2', 'resistor', 'lead-1'),
+          connect('resistor-led', 'resistor', 'lead-2', 'led', 'anode'),
+          connect('led-return', 'led', 'cathode', 'source', 'b'),
+        ],
+      );
+
+    expect(resultFor(circuit(false), 'led')).toMatchObject({ lit: false, current: 0 });
+    expect(resultFor(circuit(true), 'led')).toMatchObject({ lit: true });
+  });
+
   it('connects an SPDT common terminal to exactly one selected throw', () => {
     const circuit = (right: boolean) =>
       doc(
@@ -440,6 +486,38 @@ describe('deterministic DC solver', () => {
 
     expect(solveCircuit(circuit(false)).current).toBeCloseTo(0.01, 5);
     expect(solveCircuit(circuit(true)).current).toBeCloseTo(0.005, 5);
+  });
+
+  it('routes an SPDT common pin to exactly one LED branch', () => {
+    const circuit = (right: boolean) =>
+      doc(
+        [
+          component('source', 'source', 5),
+          component('switch', 'switch', 0, {
+            componentTypeId: 'switch-spdt',
+            pinIds: ['throw-left', 'common', 'throw-right'],
+            state: right,
+          }),
+          component('left-resistor', 'resistor', 330),
+          component('left-led', 'led', 2, { stateProperties: { ledColour: 'red' } }),
+          component('right-resistor', 'resistor', 330),
+          component('right-led', 'led', 2, { stateProperties: { ledColour: 'green' } }),
+        ],
+        [
+          connect('source-common', 'source', 'a', 'switch', 'common'),
+          connect('left-r', 'switch', 'throw-left', 'left-resistor', 'a'),
+          connect('left-led', 'left-resistor', 'b', 'left-led', 'a'),
+          connect('left-return', 'left-led', 'b', 'source', 'b'),
+          connect('right-r', 'switch', 'throw-right', 'right-resistor', 'a'),
+          connect('right-led', 'right-resistor', 'b', 'right-led', 'a'),
+          connect('right-return', 'right-led', 'b', 'source', 'b'),
+        ],
+      );
+
+    expect(resultFor(circuit(false), 'left-led')?.lit).toBe(true);
+    expect(resultFor(circuit(false), 'right-led')?.lit).toBe(false);
+    expect(resultFor(circuit(true), 'left-led')?.lit).toBe(false);
+    expect(resultFor(circuit(true), 'right-led')?.lit).toBe(true);
   });
 
   it.each([
@@ -605,9 +683,9 @@ describe('deterministic DC solver', () => {
         series([component('r1', 'resistor', resistance), component('led', 'led', 2)], 5),
       );
     const safe = operatingPoint(220);
-    const nearLimit = operatingPoint(180);
+    const nearLimit = operatingPoint(150);
     const overcurrent = operatingPoint(100);
-    const burned = operatingPoint(68);
+    const burned = operatingPoint(50);
     const ledResult = (result: ReturnType<typeof solveCircuit>) =>
       result.components.find((item) => item.componentId === 'led');
 
@@ -681,7 +759,7 @@ describe('deterministic DC solver', () => {
       ),
     );
     const led = red.components.find((item) => item.componentId === 'led1');
-    expect(led?.current).toBeGreaterThan(0.013);
+    expect(led?.current).toBeGreaterThan(0.012);
     expect(led?.brightness).toBeGreaterThan(70);
     expect(led?.branchBrightness?.led).toBe(led?.brightness);
   });
@@ -789,7 +867,7 @@ describe('deterministic DC solver', () => {
     );
 
     expect(result.status).toBe('solved');
-    expect(result.current).toBeGreaterThan(0.013);
+    expect(result.current).toBeGreaterThan(0.012);
     expect(
       resultFor(
         doc([board, source, resistor, led], [connect('rail-to-row', 'board', 'P2', 'board', 'I1')]),
@@ -844,6 +922,53 @@ describe('deterministic DC solver', () => {
     expect(rgb?.branchBrightness?.green).toBe(0);
     expect(rgb?.branchBrightness?.blue).toBe(0);
   });
+
+  it.each(['red', 'green', 'blue'] as const)(
+    'changes only the %s RGB channel monotonically across the resistor sweep',
+    (channel) => {
+      const sample = (resistance: number) =>
+        solveCircuit(
+          doc(
+            [
+              component('source', 'source', 5),
+              component('resistor', 'resistor', resistance),
+              component('rgb', 'rgb-led', 0, {
+                componentTypeId: 'rgb-led',
+                pinIds: ['red', 'common', 'green', 'blue'],
+                stateProperties: { commonMode: 'common-cathode' },
+              }),
+            ],
+            [
+              connect('positive', 'source', 'a', 'resistor', 'a'),
+              connect('channel', 'resistor', 'b', 'rgb', channel),
+              connect('common', 'rgb', 'common', 'source', 'b'),
+            ],
+          ),
+        );
+      const results = [10_000, 1_000, 330, 220, 100, 0].map(sample);
+      const brightness = results.map(
+        (result) =>
+          result.components.find((item) => item.componentId === 'rgb')?.branchBrightness?.[
+            channel
+          ] ?? 0,
+      );
+
+      for (const result of results) {
+        const rgb = result.components.find((item) => item.componentId === 'rgb');
+        expect(result).toMatchObject({ solved: true, status: 'solved' });
+        expect(result.diagnostics.map((item) => item.code)).not.toContain('invalid_property');
+        expect(Number.isFinite(rgb?.branchCurrents?.[channel])).toBe(true);
+        for (const other of ['red', 'green', 'blue'] as const) {
+          if (other !== channel) expect(rgb?.branchBrightness?.[other]).toBe(0);
+        }
+      }
+      for (let index = 1; index < brightness.length; index += 1) {
+        expect(brightness[index]).toBeGreaterThanOrEqual(brightness[index - 1] ?? 0);
+      }
+      expect(brightness[0]).toBeGreaterThan(0);
+      expect(brightness.at(-1)).toBe(100);
+    },
+  );
 
   it('mixes all RGB channels for common-cathode and common-anode wiring', () => {
     for (const commonMode of ['common-cathode', 'common-anode'] as const) {
@@ -959,7 +1084,7 @@ describe('deterministic DC solver', () => {
       ),
     );
     const noSource = solveCircuit(doc([component('r1', 'resistor', 100)], []));
-    const invalid = solveCircuit(series([component('r1', 'resistor', 0)], 5));
+    const invalid = solveCircuit(series([component('lamp1', 'lamp', 0)], 5));
     expect(short.diagnostics.map((item) => item.code)).toContain('short_circuit');
     expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
     expect(noSource.diagnostics.map((item) => item.code)).toContain('no_source');
