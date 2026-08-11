@@ -48,10 +48,8 @@ function isSameAttempt(
   right: PrivateChessTrainingRecord['attempts'][number],
 ): boolean {
   return (
-    left.id === right.id &&
     left.trainingItemId === right.trainingItemId &&
     left.operationId === right.operationId &&
-    left.sequence === right.sequence &&
     left.occurredAt === right.occurredAt &&
     left.moveUci === right.moveUci &&
     left.outcome === right.outcome &&

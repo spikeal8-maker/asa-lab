@@ -154,6 +154,37 @@ function attemptMatchesRequest(
   );
 }
 
+function samePersistedAttempt(left: ChessTrainingAttempt, right: ChessTrainingAttempt): boolean {
+  return (
+    left.id === right.id &&
+    left.trainingItemId === right.trainingItemId &&
+    left.operationId === right.operationId &&
+    left.sequence === right.sequence &&
+    left.occurredAt === right.occurredAt &&
+    left.moveUci === right.moveUci &&
+    left.outcome === right.outcome &&
+    left.positionAfterMoveFen === right.positionAfterMoveFen &&
+    left.resetFen === right.resetFen &&
+    left.hints.length === right.hints.length &&
+    left.hints.every((hint, index) => hint.level === right.hints[index]?.level)
+  );
+}
+
+function preservesImmutableRecordPrefix(
+  before: PrivateChessTrainingRecord,
+  after: PrivateChessTrainingRecord,
+): boolean {
+  return (
+    before.id === after.id &&
+    before.tenantId === after.tenantId &&
+    before.ownerId === after.ownerId &&
+    before.createdAt === after.createdAt &&
+    sourceIdentity(before.source) === sourceIdentity(after.source) &&
+    after.attempts.length >= before.attempts.length &&
+    before.attempts.every((attempt, index) => samePersistedAttempt(attempt, after.attempts[index]!))
+  );
+}
+
 export class ChessTrainingLibraryService {
   constructor(
     private readonly repository: ChessTrainingLibraryRepositoryPort,
@@ -351,13 +382,28 @@ export class ChessTrainingLibraryService {
       return failure('not_found', 'Private training item was not found.');
     }
     if (saved.status === 'conflict') {
-      return failure('conflict', 'Training attempt history changed.');
+      const recoveredRaw = await this.repository.load(authorized.value, input.trainingItemId);
+      if (!recoveredRaw) return failure('not_found', 'Private training item was not found.');
+      const recovered = this.validateRepositoryRecord(recoveredRaw, authorized.value);
+      if (!recovered.ok) return recovered;
+      if (!preservesImmutableRecordPrefix(loaded.value, recovered.value)) {
+        return invalid('Training repository rewrote immutable attempt history.');
+      }
+      const recoveredAttempt = recovered.value.attempts.find(
+        (candidate) => candidate.operationId === input.operationId,
+      );
+      return recoveredAttempt && attemptMatchesRequest(recoveredAttempt, input)
+        ? recovered
+        : failure('conflict', 'Training attempt history changed.');
     }
     if (saved.status === 'invalid') {
       return invalid('Training attempt was rejected by the repository.');
     }
     const stored = this.validateRepositoryRecord(saved.record, authorized.value);
     if (!stored.ok) return stored;
+    if (!preservesImmutableRecordPrefix(loaded.value, stored.value)) {
+      return invalid('Training repository rewrote immutable attempt history.');
+    }
     const persistedAttempt = stored.value.attempts.find(
       (candidate) => candidate.operationId === input.operationId,
     );

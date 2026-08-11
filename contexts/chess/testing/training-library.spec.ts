@@ -5,6 +5,7 @@ import {
   deserializePrivateChessTrainingRecord,
   deterministicChessTrainingId,
   serializePrivateChessTrainingRecord,
+  type ChessTrainingAttempt,
   type ChessTrainingSource,
   type PrivateChessTrainingRecord,
 } from '../application/training-library-model';
@@ -387,6 +388,211 @@ describe('private Chess mistake-training library', () => {
     expect(left.value.attempts).toHaveLength(1);
     const loaded = await service.load(STUDENT_CONTEXT, created.id);
     expect(loaded.ok && loaded.value.attempts).toHaveLength(1);
+  });
+
+  it('keeps an exact retry idempotent across a three-operation interleaving', async () => {
+    const base = new MemoryChessTrainingLibraryRepository();
+    let releaseFirstAppend = (): void => undefined;
+    let markFirstAppendStarted = (): void => undefined;
+    const firstAppendStarted = new Promise<void>((resolve) => {
+      markFirstAppendStarted = resolve;
+    });
+    const firstAppendRelease = new Promise<void>((resolve) => {
+      releaseFirstAppend = resolve;
+    });
+    let delayFirstAttempt = true;
+    const repository: ChessTrainingLibraryRepositoryPort = {
+      create: (record) => base.create(record),
+      list: (partition) => base.list(partition),
+      load: (partition, trainingItemId) => base.load(partition, trainingItemId),
+      appendAttempt: async (input) => {
+        if (delayFirstAttempt && input.attempt.operationId === 'operation:interleaved-retry') {
+          delayFirstAttempt = false;
+          markFirstAppendStarted();
+          await firstAppendRelease;
+        }
+        return base.appendAttempt(input);
+      },
+    };
+    const service = new ChessTrainingLibraryService(
+      repository,
+      new TestAuthorization(),
+      new TestSourceResolver([{ partition: STUDENT_PARTITION, source: source() }]),
+    );
+    const created = await createRecord(service);
+    const retryRequest = {
+      trainingItemId: created.id,
+      operationId: 'operation:interleaved-retry',
+      occurredAt: ATTEMPT_2_AT,
+      moveUci: 'b1c3',
+      hintsUsed: 1,
+    } as const;
+
+    const delayedOriginal = service.recordAttempt(STUDENT_CONTEXT, retryRequest);
+    await firstAppendStarted;
+    await expect(
+      service.recordAttempt(STUDENT_CONTEXT, {
+        trainingItemId: created.id,
+        operationId: 'operation:interleaved-other',
+        occurredAt: ATTEMPT_1_AT,
+        moveUci: 'g1f3',
+        hintsUsed: 0,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    const committedRetry = await service.recordAttempt(STUDENT_CONTEXT, retryRequest);
+    releaseFirstAppend();
+    const recoveredOriginal = await delayedOriginal;
+
+    expect(committedRetry.ok && recoveredOriginal.ok).toBe(true);
+    if (!committedRetry.ok || !recoveredOriginal.ok) return;
+    expect(recoveredOriginal.value).toEqual(committedRetry.value);
+    expect(recoveredOriginal.value.attempts.map((attempt) => attempt.operationId)).toEqual([
+      'operation:interleaved-other',
+      'operation:interleaved-retry',
+    ]);
+  });
+
+  it('recovers an exact persisted operation after an ambiguous append conflict', async () => {
+    const base = new MemoryChessTrainingLibraryRepository();
+    const repository: ChessTrainingLibraryRepositoryPort = {
+      create: (record) => base.create(record),
+      list: (partition) => base.list(partition),
+      load: (partition, trainingItemId) => base.load(partition, trainingItemId),
+      appendAttempt: async (input) => {
+        const result = await base.appendAttempt(input);
+        return result.status === 'saved' ? { status: 'conflict' } : result;
+      },
+    };
+    const service = new ChessTrainingLibraryService(
+      repository,
+      new TestAuthorization(),
+      new TestSourceResolver([{ partition: STUDENT_PARTITION, source: source() }]),
+    );
+    const created = await createRecord(service);
+
+    await expect(
+      service.recordAttempt(STUDENT_CONTEXT, {
+        trainingItemId: created.id,
+        operationId: 'operation:ambiguous-commit',
+        occurredAt: ATTEMPT_1_AT,
+        moveUci: 'g1f3',
+        hintsUsed: 0,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { attempts: [{ operationId: 'operation:ambiguous-commit' }] },
+    });
+  });
+
+  it('rejects a repository response that rewrites an earlier attempt', async () => {
+    const base = new MemoryChessTrainingLibraryRepository();
+    const repository: ChessTrainingLibraryRepositoryPort = {
+      create: (record) => base.create(record),
+      list: (partition) => base.list(partition),
+      load: (partition, trainingItemId) => base.load(partition, trainingItemId),
+      appendAttempt: async (input) => {
+        const result = await base.appendAttempt(input);
+        if (
+          (result.status === 'saved' || result.status === 'existing') &&
+          result.record.attempts.length === 2
+        ) {
+          const tampered = structuredClone(result.record);
+          const first = tampered.attempts[0] as {
+            moveUci: string;
+            positionAfterMoveFen: string;
+          };
+          first.moveUci = 'b1c3';
+          first.positionAfterMoveFen = fenAfter('b1c3');
+          return { ...result, record: tampered };
+        }
+        return result;
+      },
+    };
+    const service = new ChessTrainingLibraryService(
+      repository,
+      new TestAuthorization(),
+      new TestSourceResolver([{ partition: STUDENT_PARTITION, source: source() }]),
+    );
+    const created = await createRecord(service);
+    await service.recordAttempt(STUDENT_CONTEXT, {
+      trainingItemId: created.id,
+      operationId: 'operation:immutable-prefix-1',
+      occurredAt: ATTEMPT_1_AT,
+      moveUci: 'g1f3',
+      hintsUsed: 0,
+    });
+
+    await expect(
+      service.recordAttempt(STUDENT_CONTEXT, {
+        trainingItemId: created.id,
+        operationId: 'operation:immutable-prefix-2',
+        occurredAt: ATTEMPT_2_AT,
+        moveUci: 'a2a3',
+        hintsUsed: 0,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid',
+      message: 'Training repository rewrote immutable attempt history.',
+    });
+  });
+
+  it('accepts an unchanged attempt prefix regardless of object property order', async () => {
+    const base = new MemoryChessTrainingLibraryRepository();
+    const repository: ChessTrainingLibraryRepositoryPort = {
+      create: (record) => base.create(record),
+      list: (partition) => base.list(partition),
+      load: (partition, trainingItemId) => base.load(partition, trainingItemId),
+      appendAttempt: async (input) => {
+        const result = await base.appendAttempt(input);
+        if (
+          (result.status === 'saved' || result.status === 'existing') &&
+          result.record.attempts.length === 2
+        ) {
+          const original = result.record.attempts[0]!;
+          const reordered: ChessTrainingAttempt = {
+            hints: original.hints,
+            resetFen: original.resetFen,
+            positionAfterMoveFen: original.positionAfterMoveFen,
+            outcome: original.outcome,
+            moveUci: original.moveUci,
+            occurredAt: original.occurredAt,
+            sequence: original.sequence,
+            operationId: original.operationId,
+            trainingItemId: original.trainingItemId,
+            id: original.id,
+          };
+          return {
+            ...result,
+            record: { ...result.record, attempts: [reordered, result.record.attempts[1]!] },
+          };
+        }
+        return result;
+      },
+    };
+    const service = new ChessTrainingLibraryService(
+      repository,
+      new TestAuthorization(),
+      new TestSourceResolver([{ partition: STUDENT_PARTITION, source: source() }]),
+    );
+    const created = await createRecord(service);
+    await service.recordAttempt(STUDENT_CONTEXT, {
+      trainingItemId: created.id,
+      operationId: 'operation:order-prefix-1',
+      occurredAt: ATTEMPT_1_AT,
+      moveUci: 'g1f3',
+      hintsUsed: 0,
+    });
+
+    await expect(
+      service.recordAttempt(STUDENT_CONTEXT, {
+        trainingItemId: created.id,
+        operationId: 'operation:order-prefix-2',
+        occurredAt: ATTEMPT_2_AT,
+        moveUci: 'a2a3',
+        hintsUsed: 0,
+      }),
+    ).resolves.toMatchObject({ ok: true, value: { attempts: [{}, {}] } });
   });
 
   it('keeps immutable history and lets an exact solved-operation retry succeed', async () => {
