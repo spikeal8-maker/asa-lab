@@ -389,6 +389,44 @@ function rgbLedDocument(commonMode: 'common-cathode' | 'common-anode'): Schemati
   };
 }
 
+function ownerRedBlueRgbDocument(): SchematicDocument {
+  const seeded = rgbLedDocument('common-cathode');
+  return {
+    ...seeded,
+    components: seeded.components
+      .filter((item) => ['source', 'resistor-red', 'rgb'].includes(item.id))
+      .map((item) =>
+        item.id === 'source'
+          ? {
+              ...item,
+              componentTypeId: 'battery-holder-aa-2',
+              variantId: 'battery-holder-aa-2',
+              name: 'Источник 3 В',
+              value: 3,
+              stateProperties: { cells: 2 },
+            }
+          : item.id === 'rgb'
+            ? {
+                ...item,
+                stateProperties: { commonMode: 'common-cathode', pinLayout: 'RCBG' },
+              }
+            : item,
+      ),
+    connections: [
+      ...seeded.connections.filter((wire) =>
+        ['positive-red', 'channel-red', 'common-return'].includes(wire.id),
+      ),
+      {
+        id: 'direct-blue',
+        from: { componentId: 'source', terminal: 'BAT+' },
+        to: { componentId: 'rgb', terminal: 'blue' },
+        color: '#2868d7',
+        vertices: [],
+      },
+    ],
+  };
+}
+
 function singleChannelRgbLedDocument(options: {
   readonly componentMode: 'common-cathode' | 'common-anode';
   readonly wiringMode: 'common-cathode' | 'common-anode';
@@ -884,6 +922,37 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
       });
     }
   }
+  failures.assertEmpty();
+});
+
+test('RGB LED visibly mixes the saved 3 V red and blue owner wiring', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+
+  const projectId = await createProject(page, 'R4-M1 RGB red blue 3 V regression');
+  await saveDocument(page, projectId, ownerRedBlueRgbDocument());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  const rgb = component(page, 'rgb-led');
+  const visual = rgb.locator('.workbench-production-visual');
+  await expect(visual).toHaveAttribute('data-rgb-runtime-state', 'lit');
+  const red = Number((await visual.getAttribute('data-rgb-red')) ?? '0');
+  const green = Number((await visual.getAttribute('data-rgb-green')) ?? '0');
+  const blue = Number((await visual.getAttribute('data-rgb-blue')) ?? '0');
+  expect(red).toBeGreaterThan(0);
+  expect(green).toBe(0);
+  expect(blue).toBeGreaterThan(red);
+  await expect(visual).not.toHaveAttribute('data-rgb-colour', /^rgb\((?:0, 0, 0|255, 0, 0)\)$/);
+  await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
+  await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveCount(0);
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-rgb-red-blue-3v.png`,
+    fullPage: true,
+  });
   failures.assertEmpty();
 });
 

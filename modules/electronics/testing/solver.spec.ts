@@ -950,6 +950,38 @@ describe('deterministic DC solver', () => {
     expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
   });
 
+  it('mixes red and blue in the 3 V RCBG owner wiring', () => {
+    const circuit = doc(
+      [
+        component('source', 'source', 3),
+        component('r-red', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode', pinLayout: 'RCBG' },
+        }),
+      ],
+      [
+        connect('positive-red', 'source', 'a', 'r-red', 'a'),
+        connect('red-channel', 'r-red', 'b', 'rgb', 'red'),
+        connect('positive-blue', 'source', 'a', 'rgb', 'blue'),
+        connect('common-return', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(circuit);
+    const rgb = resultFor(circuit, 'rgb');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(rgb?.branchCurrents?.red).toBeGreaterThan(0);
+    expect(rgb?.branchCurrents?.blue).toBeGreaterThan(0);
+    expect(rgb?.branchCurrents?.green).toBe(0);
+    expect(rgb?.branchBrightness?.red).toBeGreaterThan(0);
+    expect(rgb?.branchBrightness?.blue).toBeGreaterThan(rgb?.branchBrightness?.red ?? 100);
+    expect(rgb?.stressState).toBe('warning');
+    expect(result.diagnostics.map((item) => item.code)).toContain('led_near_limit');
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('led_burnout');
+  });
+
   it.each(['red', 'green', 'blue'] as const)(
     'changes only the %s RGB channel monotonically across the resistor sweep',
     (channel) => {

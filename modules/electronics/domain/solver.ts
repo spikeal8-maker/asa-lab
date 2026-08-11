@@ -130,7 +130,11 @@ const LED_KNEE_VOLTAGE: Readonly<Record<string, number>> = {
 const RGB_FORWARD_VOLTAGE: Readonly<Record<string, number>> = {
   red: 1.9,
   green: 2.2,
-  blue: 3,
+  // Keep a finite conduction margin at the 3 V Tinkercad AA-holder operating
+  // point. Using exactly 3.00 V made the nonlinear branch switch on while its
+  // calculated current stayed at zero, so a connected blue channel could
+  // never participate in an otherwise valid red/blue mixture.
+  blue: 2.98,
 };
 
 const SEVEN_SEGMENT_TERMINALS: Readonly<Record<string, Terminal>> = {
