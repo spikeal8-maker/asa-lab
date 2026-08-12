@@ -27,6 +27,15 @@ const trademarks = read('TRADEMARKS.md');
 const assets = read('ASSETS-LICENSE.md');
 const copyright = read('COPYRIGHT');
 const contributing = read('CONTRIBUTING.md');
+const cla = read('CLA.md');
+const notice = read('NOTICE');
+const pullRequestTemplate = read('.github/pull_request_template.md');
+const brandNotice = read('apps/web/public/BRAND_NOTICE.md');
+const electronicsAssetsNotice = read('apps/web/public/assets/electronics/ASSETS_NOTICE.md');
+const interfaceEvidenceNotice = read('e2e/artifacts/ASSETS_NOTICE.md');
+const productMaterialsNotice = read('docs/product/ASSETS_NOTICE.md');
+const claWorkflow = read('.github/workflows/cla.yml');
+const claValidator = read('tools/validate-pr-cla.mjs');
 const entryPage = read('apps/web/src/pages/PublicEntryPage.tsx');
 const packageJsonSource = read('package.json');
 
@@ -64,10 +73,47 @@ for (const excludedPath of [
 }
 
 requireText('LICENSING.md', licensing, 'AGPL-3.0-only');
+requireText('LICENSING.md', licensing, 'впоследствии принимается');
+requireText('LICENSING.md', licensing, 'условиями GitHub');
+requireText('LICENSING.md', licensing, '[`CLA.md`](CLA.md)');
 requireText('TRADEMARKS.md', trademarks, 'предоставляются по лицензии AGPL-3.0-only');
 requireText('ASSETS-LICENSE.md', assets, 'All rights reserved');
+requireText('ASSETS-LICENSE.md', assets, 'предоставленных пользователям GitHub');
 requireText('COPYRIGHT', copyright, 'Copyright (C) 2026 Alex Al');
+requireText('COPYRIGHT', copyright, 'GitHub Terms of Service');
 requireText('CONTRIBUTING.md', contributing, 'AGPL-3.0-only');
+requireText('CONTRIBUTING.md', contributing, '[`CLA.md`](CLA.md)');
+requireText('CLA.md', cla, 'You retain ownership of your Contribution');
+requireText('CLA.md', cla, 'under other open-source or commercial terms');
+requireText('CLA.md', cla, 'The Pull Request URL');
+requireText('NOTICE', notice, 'ASA Lab mixed-license notice');
+requireText('NOTICE', notice, 'GitHub Terms of Service');
+requireText(
+  '.github/pull_request_template.md',
+  pullRequestTemplate,
+  'https://github.com/spikeal8-maker/asa-lab/blob/main/CLA.md',
+);
+requireText('apps/web/public/BRAND_NOTICE.md', brandNotice, 'excluded from the AGPL');
+requireText(
+  'apps/web/public/assets/electronics/ASSETS_NOTICE.md',
+  electronicsAssetsNotice,
+  'owner-supplied/',
+);
+requireText(
+  'e2e/artifacts/ASSETS_NOTICE.md',
+  interfaceEvidenceNotice,
+  'AGPL-3.0-only code license',
+);
+requireText('docs/product/ASSETS_NOTICE.md', productMaterialsNotice, 'excluded from the AGPL');
+requireText('.github/workflows/cla.yml', claWorkflow, 'pull_request_target:');
+requireText(
+  '.github/workflows/cla.yml',
+  claWorkflow,
+  'ref: ${{ github.event.repository.default_branch }}',
+);
+requireText('.github/workflows/cla.yml', claWorkflow, 'CLA acceptance');
+requireText('tools/validate-pr-cla.mjs', claValidator, 'PR_AUTHOR_ASSOCIATION');
+requireText('tools/validate-pr-cla.mjs', claValidator, '--self-test');
 requireText('apps/web/src/pages/PublicEntryPage.tsx', entryPage, 'Исходный код · AGPL-3.0');
 requireText(
   'apps/web/src/pages/PublicEntryPage.tsx',
@@ -80,4 +126,4 @@ if (failures > 0) {
   process.exit(1);
 }
 
-console.log('license:check PASS (AGPL code, protected brand/assets, network source offer)');
+console.log('license:check PASS (AGPL code, CLA, protected brand/assets, network source offer)');
