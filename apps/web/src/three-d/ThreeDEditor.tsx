@@ -7,16 +7,14 @@ import {
   DuplicateIcon,
   PasteIcon,
   RedoIcon,
-  RotateIcon,
   UndoIcon,
 } from '../electronics/workbench-icons';
 import { downloadThreeDJson, downloadThreeDStl } from './exporters';
 import { ShapeInspector } from './ShapeInspector';
 import { ShapeLibrary } from './ShapeLibrary';
-import { CubeIcon, HomeIcon, MoveIcon, ScaleIcon } from './three-d-icons';
+import { CubeIcon, HomeIcon } from './three-d-icons';
 import { useThreeDProject } from './use-three-d-project';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
-import type { TransformMode } from './viewport/SceneRuntime';
 import './three-d.css';
 
 interface ThreeDEditorProps {
@@ -81,7 +79,6 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const controller = useThreeDProject(projectId);
   const viewportRef = useRef<ThreeViewportHandle>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const [transformMode, setTransformMode] = useState<TransformMode>('translate');
   const [exportOpen, setExportOpen] = useState(false);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
 
@@ -108,12 +105,6 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         controller.removeSelected();
-      } else if (event.key.toLowerCase() === 'm') {
-        setTransformMode('translate');
-      } else if (event.key.toLowerCase() === 'r') {
-        setTransformMode('rotate');
-      } else if (event.key.toLowerCase() === 's') {
-        setTransformMode('scale');
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -238,30 +229,6 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           </ToolbarButton>
         </div>
 
-        <div className="asa3d-toolbar-group asa3d-transform-tools" aria-label="Преобразование">
-          <ToolbarButton
-            label="Перемещение (M)"
-            active={transformMode === 'translate'}
-            onClick={() => setTransformMode('translate')}
-          >
-            <MoveIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Поворот (R)"
-            active={transformMode === 'rotate'}
-            onClick={() => setTransformMode('rotate')}
-          >
-            <RotateIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Масштаб (S)"
-            active={transformMode === 'scale'}
-            onClick={() => setTransformMode('scale')}
-          >
-            <ScaleIcon />
-          </ToolbarButton>
-        </div>
-
         <div className="asa3d-actions">
           <input
             ref={importRef}
@@ -325,7 +292,6 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             ref={viewportRef}
             document={document}
             selectedId={controller.selectedId}
-            transformMode={transformMode}
             onSelect={controller.setSelectedId}
             onTransformCommit={controller.commitTransform}
             onDropPrimitive={controller.addPrimitive}

@@ -1,19 +1,27 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import type { ThreeDDocument, ThreeDTransform } from '@asa-lab/three-d';
+import type {
+  ThreeDDimensions,
+  ThreeDDocument,
+  ThreeDNode,
+  ThreeDTransform,
+} from '@asa-lab/three-d';
+import { DirectManipulator, type DirectManipulationEntry } from './DirectManipulator';
 import { createNodeObject, disposeObject } from './geometry';
-
-export type TransformMode = 'translate' | 'rotate' | 'scale';
 
 export interface SceneRuntimeCallbacks {
   readonly onSelect: (nodeId: string | null) => void;
-  readonly onTransformCommit: (nodeId: string, transform: ThreeDTransform) => void;
+  readonly onTransformCommit: (
+    nodeId: string,
+    transform: ThreeDTransform,
+    dimensions?: ThreeDDimensions,
+  ) => void;
   readonly onWebGlError: (message: string) => void;
 }
 
-interface SceneEntry {
+interface SceneEntry extends DirectManipulationEntry {
   readonly object: THREE.Group;
+  readonly node: ThreeDNode;
   readonly signature: string;
 }
 
@@ -100,22 +108,18 @@ export class SceneRuntime {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly orbit: OrbitControls;
-  private readonly transform: TransformControls;
+  private readonly manipulator: DirectManipulator;
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entries = new Map<string, SceneEntry>();
   private readonly gridRoot = new THREE.Group();
-  private selectionHelper: THREE.BoxHelper | null = null;
-  private selectedId: string | null = null;
   private gridSnap = 1;
   private animationFrame = 0;
-  private pointerStart: { x: number; y: number } | null = null;
-  private transformDragging = false;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(
     private readonly container: HTMLElement,
-    private readonly callbacks: SceneRuntimeCallbacks,
+    callbacks: SceneRuntimeCallbacks,
   ) {
     this.scene.background = new THREE.Color('#fafafa');
     this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
@@ -151,18 +155,18 @@ export class SceneRuntime {
     this.orbit.minDistance = 35;
     this.orbit.maxDistance = 1200;
 
-    this.transform = new TransformControls(this.camera, this.renderer.domElement);
-    this.transform.setTranslationSnap(1);
-    this.transform.setRotationSnap(THREE.MathUtils.degToRad(15));
-    this.transform.setScaleSnap(0.1);
-    this.transform.setSize(0.78);
-    this.transform.addEventListener('dragging-changed', (event) => {
-      const dragging = Boolean(event.value);
-      this.transformDragging = dragging;
-      this.orbit.enabled = !dragging;
-    });
-    this.transform.addEventListener('mouseUp', () => this.commitSelectedTransform());
-    this.scene.add(this.transform.getHelper());
+    this.manipulator = new DirectManipulator(
+      this.scene,
+      this.camera,
+      this.renderer.domElement,
+      this.container,
+      this.orbit,
+      () => this.entries,
+      {
+        onSelect: callbacks.onSelect,
+        onCommit: callbacks.onTransformCommit,
+      },
+    );
 
     const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 2.05);
     this.scene.add(hemisphere);
@@ -180,39 +184,11 @@ export class SceneRuntime {
     this.scene.add(fill);
     this.scene.add(this.gridRoot);
 
-    this.renderer.domElement.addEventListener('pointerdown', this.handlePointerDown);
-    this.renderer.domElement.addEventListener('pointerup', this.handlePointerUp);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
     this.animate();
   }
-
-  private readonly handlePointerDown = (event: PointerEvent): void => {
-    this.pointerStart = { x: event.clientX, y: event.clientY };
-  };
-
-  private readonly handlePointerUp = (event: PointerEvent): void => {
-    const start = this.pointerStart;
-    this.pointerStart = null;
-    if (
-      !start ||
-      this.transformDragging ||
-      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
-    )
-      return;
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.set(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const meshes = [...this.entries.values()].map((entry) => entry.object);
-    const hit = this.raycaster.intersectObjects(meshes, true)[0];
-    const nodeId =
-      typeof hit?.object.userData['nodeId'] === 'string' ? hit.object.userData['nodeId'] : null;
-    this.callbacks.onSelect(nodeId);
-  };
 
   private resize(): void {
     const width = Math.max(1, this.container.clientWidth);
@@ -225,18 +201,17 @@ export class SceneRuntime {
   private animate = (): void => {
     this.animationFrame = window.requestAnimationFrame(this.animate);
     this.orbit.update();
-    this.selectionHelper?.update();
+    this.manipulator.update();
     this.renderer.render(this.scene, this.camera);
   };
 
   setDocument(document: ThreeDDocument, selectedId: string | null): void {
     this.gridSnap = document.grid.snap;
-    this.transform.setTranslationSnap(document.grid.snap);
+    this.manipulator.setGridSnap(document.grid.snap);
     this.syncGrid(document);
     const incomingIds = new Set(document.nodes.map((node) => node.id));
     for (const [id, entry] of this.entries) {
       if (incomingIds.has(id)) continue;
-      if (this.transform.object === entry.object) this.transform.detach();
       this.scene.remove(entry.object);
       disposeObject(entry.object);
       this.entries.delete(id);
@@ -246,13 +221,12 @@ export class SceneRuntime {
       const existing = this.entries.get(node.id);
       if (existing?.signature === signature) continue;
       if (existing) {
-        if (this.transform.object === existing.object) this.transform.detach();
         this.scene.remove(existing.object);
         disposeObject(existing.object);
       }
       const object = createNodeObject(node);
       this.scene.add(object);
-      this.entries.set(node.id, { object, signature });
+      this.entries.set(node.id, { object, node, signature });
     }
     this.setSelection(selectedId);
   }
@@ -423,47 +397,7 @@ export class SceneRuntime {
   }
 
   setSelection(nodeId: string | null): void {
-    this.selectedId = nodeId;
-    this.transform.detach();
-    if (this.selectionHelper) {
-      this.scene.remove(this.selectionHelper);
-      this.selectionHelper.dispose();
-      this.selectionHelper = null;
-    }
-    if (!nodeId) return;
-    const entry = this.entries.get(nodeId);
-    if (!entry || !entry.object.visible) return;
-    this.transform.attach(entry.object);
-    this.selectionHelper = new THREE.BoxHelper(entry.object, '#006fb9');
-    this.scene.add(this.selectionHelper);
-  }
-
-  setTransformMode(mode: TransformMode): void {
-    this.transform.setMode(mode);
-  }
-
-  private commitSelectedTransform(): void {
-    if (!this.selectedId) return;
-    const object = this.entries.get(this.selectedId)?.object;
-    if (!object) return;
-    const toDegrees = 180 / Math.PI;
-    this.callbacks.onTransformCommit(this.selectedId, {
-      position: {
-        x: snap(object.position.x, this.gridSnap),
-        y: snap(object.position.y, this.gridSnap),
-        z: snap(object.position.z, this.gridSnap),
-      },
-      rotation: {
-        x: Math.round(object.rotation.x * toDegrees * 10) / 10,
-        y: Math.round(object.rotation.y * toDegrees * 10) / 10,
-        z: Math.round(object.rotation.z * toDegrees * 10) / 10,
-      },
-      scale: {
-        x: Math.max(0.05, Math.round(object.scale.x * 100) / 100),
-        y: Math.max(0.05, Math.round(object.scale.y * 100) / 100),
-        z: Math.max(0.05, Math.round(object.scale.z * 100) / 100),
-      },
-    });
+    this.manipulator.setSelection(nodeId);
   }
 
   workplanePoint(clientX: number, clientY: number): { x: number; z: number } | null {
@@ -519,13 +453,8 @@ export class SceneRuntime {
   dispose(): void {
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
-    this.renderer.domElement.removeEventListener('pointerdown', this.handlePointerDown);
-    this.renderer.domElement.removeEventListener('pointerup', this.handlePointerUp);
-    this.transform.detach();
-    this.transform.dispose();
+    this.manipulator.dispose();
     this.orbit.dispose();
-    this.selectionHelper?.dispose();
-    this.selectionHelper = null;
     for (const entry of this.entries.values()) disposeObject(entry.object);
     this.entries.clear();
     this.clearGrid();

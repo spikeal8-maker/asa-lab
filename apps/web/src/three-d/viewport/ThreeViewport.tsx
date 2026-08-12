@@ -1,6 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import type { PrimitiveKind, ThreeDDocument, ThreeDTransform } from '@asa-lab/three-d';
-import { SceneRuntime, type TransformMode } from './SceneRuntime';
+import type {
+  PrimitiveKind,
+  ThreeDDimensions,
+  ThreeDDocument,
+  ThreeDTransform,
+} from '@asa-lab/three-d';
+import { SceneRuntime } from './SceneRuntime';
 
 export interface ThreeViewportHandle {
   readonly setView: (view: 'home' | 'top' | 'front' | 'right') => void;
@@ -11,9 +16,12 @@ export interface ThreeViewportHandle {
 interface ThreeViewportProps {
   readonly document: ThreeDDocument;
   readonly selectedId: string | null;
-  readonly transformMode: TransformMode;
   readonly onSelect: (nodeId: string | null) => void;
-  readonly onTransformCommit: (nodeId: string, transform: ThreeDTransform) => void;
+  readonly onTransformCommit: (
+    nodeId: string,
+    transform: ThreeDTransform,
+    dimensions?: ThreeDDimensions,
+  ) => void;
   readonly onDropPrimitive: (primitive: PrimitiveKind, position: { x: number; z: number }) => void;
 }
 
@@ -41,8 +49,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       try {
         runtimeRef.current = new SceneRuntime(container, {
           onSelect: (nodeId) => propsRef.current.onSelect(nodeId),
-          onTransformCommit: (nodeId, transform) =>
-            propsRef.current.onTransformCommit(nodeId, transform),
+          onTransformCommit: (nodeId, transform, dimensions) =>
+            propsRef.current.onTransformCommit(nodeId, transform, dimensions),
           onWebGlError: setWebGlError,
         });
       } catch {
@@ -57,10 +65,6 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
     useEffect(() => {
       runtimeRef.current?.setDocument(props.document, props.selectedId);
     }, [props.document, props.selectedId]);
-
-    useEffect(() => {
-      runtimeRef.current?.setTransformMode(props.transformMode);
-    }, [props.transformMode]);
 
     useImperativeHandle(
       ref,

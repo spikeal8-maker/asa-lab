@@ -9,6 +9,7 @@ import {
   type HistoryState,
   type PrimitiveKind,
   type ThreeDCommand,
+  type ThreeDDimensions,
   type ThreeDDocument,
   type ThreeDNode,
   type ThreeDTransform,
@@ -38,7 +39,11 @@ export interface ThreeDProjectController {
   readonly pasteCopied: () => void;
   readonly duplicateSelected: () => void;
   readonly removeSelected: () => void;
-  readonly commitTransform: (nodeId: string, transform: ThreeDTransform) => void;
+  readonly commitTransform: (
+    nodeId: string,
+    transform: ThreeDTransform,
+    dimensions?: ThreeDDimensions,
+  ) => void;
   readonly undo: () => void;
   readonly redo: () => void;
   readonly createCheckpoint: () => Promise<void>;
@@ -220,8 +225,26 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   }, [execute, selectedId]);
 
   const commitTransform = useCallback(
-    (nodeId: string, transform: ThreeDTransform): void =>
-      execute({ type: 'replace-transform', nodeId, value: transform }),
+    (nodeId: string, transform: ThreeDTransform, dimensions?: ThreeDDimensions): void => {
+      if (!dimensions) {
+        execute({ type: 'replace-transform', nodeId, value: transform });
+        return;
+      }
+      const current = historyRef.current?.present.nodes.find((node) => node.id === nodeId);
+      if (!current) return;
+      execute({
+        type: 'replace-node',
+        node: {
+          ...current,
+          dimensions: { ...dimensions },
+          transform: {
+            position: { ...transform.position },
+            rotation: { ...transform.rotation },
+            scale: { ...transform.scale },
+          },
+        },
+      });
+    },
     [execute],
   );
 
