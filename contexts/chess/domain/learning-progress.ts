@@ -567,7 +567,8 @@ export function validateChessLearningProgress(
     value['rating']['evidence'].some(
       (entry) => !isPlainObject(entry) || extraKey(entry, RATING_EVIDENCE_KEYS),
     ) ||
-    JSON.stringify(value['rating']) !== JSON.stringify(expectedRating)
+    value['rating']['current'] !== expectedRating.current ||
+    JSON.stringify(value['rating']['evidence']) !== JSON.stringify(expectedRating.evidence)
   ) {
     return { ok: false, message: 'Learning rating does not match verified puzzle evidence.' };
   }
