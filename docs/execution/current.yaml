@@ -177,6 +177,63 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: projects
+    worktree_id: r3-project-lifecycle
+    owned_paths:
+      - contexts/projects/**
+      - apps/api/src/app.module.ts
+      - apps/api/src/projects.controller.ts
+      - apps/api/src/tokens.ts
+      - apps/web/src/api.ts
+      - apps/web/src/App.tsx
+      - apps/web/src/components/CreateProjectModal.tsx
+      - apps/web/src/components/PortalHeader.tsx
+      - apps/web/src/creator-portal/**
+      - apps/web/src/modules/project-hub.css
+      - apps/web/src/pages/CreatorHomePage.tsx
+      - apps/web/src/pages/MyProjectsPage.tsx
+      - apps/web/src/pages/ProjectsPage.tsx
+      - apps/web/src/styles.css
+      - migrations/0013_project_lifecycle.sql
+      - schemas/openapi.yaml
+      - tests/portal/**
+      - e2e/project-hub.spec.ts
+      - e2e/artifacts/project-hub/**
+      - docs/review/TASK_R3B_PROJECT_LIFECYCLE_001/**
+    task:
+      id: TASK-R3B-PROJECT-LIFECYCLE-001
+      issue: 37
+      branch: agent/r3-project-lifecycle
+      base_branch: main
+      pr: 112
+      pr_draft: true
+      status: in_progress
+      checkpoint: project_lifecycle_foundation
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+      head_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+    execution_lease:
+      executor_id: codex-r3-project-lifecycle
+      holder: codex-r3-project-lifecycle
+      acquired_at: "2026-08-12T06:59:53Z"
+      expires_at: "2026-08-13T06:59:53Z"
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:project-slice
+          - pnpm test:creator-portal
+      browser:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:creator-portal
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
 integration:
   owner_lane: checkers
   shared_paths:
