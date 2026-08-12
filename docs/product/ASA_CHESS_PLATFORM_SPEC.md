@@ -4,6 +4,16 @@
 **Issue:** №65.  
 **Правило:** не merge в `main` до принятия R0 и общей Module Registry / Editor Host baseline.
 
+Актуальная исполнимая декомпозиция и P0/R1 evidence живут отдельно:
+
+- [`ASA_CHESS_EXECUTION_PLAN.md`](ASA_CHESS_EXECUTION_PLAN.md);
+- [`ASA_CHESS_R1_PARITY_LEDGER.md`](ASA_CHESS_R1_PARITY_LEDGER.md);
+- [`ASA_EDITOR_HEADER_CONTRACT.md`](ASA_EDITOR_HEADER_CONTRACT.md);
+- [`../architecture/SUBJECT_MODULE_ISOLATION_PLAN.md`](../architecture/SUBJECT_MODULE_ISOLATION_PLAN.md).
+
+Эти документы остаются plan-only, пока владелец отдельно не переведёт execution state
+с текущей активной задачи на Chess P0 Issue №97.
+
 ## 1. Цель
 
 ASA Chess — самостоятельная шахматная образовательная среда внутри ASA Lab. Она должна обеспечивать сопоставимый класс пользовательских возможностей с ведущими шахматными платформами, включая Chess.com-подобные сценарии:

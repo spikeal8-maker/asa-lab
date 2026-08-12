@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { findLegalMoveByUci, parseFen, toFen } from '../domain/chess';
 import { createEmptyChessDocument, playChessDocumentMove } from '../domain/document';
 import { asaMoveQuality, reviewChessDocument } from '../domain/review';
 
@@ -32,7 +33,18 @@ describe('ASA post-game review', () => {
     for (const [index, move] of review.moves.entries()) {
       expect(move.ply).toBe(index + 1);
       expect(move.playedUci).toBe(document.moves[index]?.uci);
+      expect(move.fenBefore).toBe(document.moves[index]?.fenBefore);
+      expect(move.fenAfter).toBe(document.moves[index]?.fenAfter);
       expect(move.bestUci).toMatch(/^[a-h][1-8][a-h][1-8][qrbn]?$/);
+      const root = parseFen(move.fenBefore);
+      expect(root.ok).toBe(true);
+      if (!root.ok || !move.bestUci) continue;
+      expect(findLegalMoveByUci(root.value, move.bestUci)).not.toBeNull();
+      expect(move.bestRoot).toMatchObject({
+        fenBefore: toFen(root.value),
+        moveUci: move.bestUci,
+        fenAfter: expect.any(String),
+      });
       expect(move.centipawnLoss).toBeGreaterThanOrEqual(0);
       expect(move.asaQuality).toBeGreaterThanOrEqual(0);
       expect(move.asaQuality).toBeLessThanOrEqual(100);
