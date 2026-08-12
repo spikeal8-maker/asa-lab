@@ -42,6 +42,24 @@ export type ProfiledChessGameOptions = NewChessGameOptions & {
   readonly botProfileId?: string;
 };
 
+export interface ChessSaveQueue {
+  run<T>(operation: () => Promise<T>): Promise<T>;
+}
+
+export function createChessSaveQueue(): ChessSaveQueue {
+  let tail: Promise<void> = Promise.resolve();
+  return {
+    run<T>(operation: () => Promise<T>): Promise<T> {
+      const result = tail.then(operation);
+      tail = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    },
+  };
+}
+
 function parsePosition(fen: string): ChessPosition | null {
   const parsed = parseFen(fen);
   return parsed.ok ? parsed.value : null;
@@ -66,6 +84,8 @@ export function useChessProject(projectId: string) {
   const turnStartedAtRef = useRef(Date.now());
   const timeoutCommittedRef = useRef(false);
   const botTaskRef = useRef(0);
+  const saveQueueRef = useRef<ChessSaveQueue | null>(null);
+  saveQueueRef.current ??= createChessSaveQueue();
 
   const position = useMemo(
     () => (document ? parsePosition(document.currentFen) : null),
@@ -122,7 +142,9 @@ export function useChessProject(projectId: string) {
   const persist = useCallback(
     async (next: ChessDocument, quiet = false): Promise<boolean> => {
       setSaveStatus('saving');
-      const response = await api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next);
+      const response = await saveQueueRef.current!.run(() =>
+        api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next),
+      );
       if (!response.ok) {
         setSaveStatus('error');
         if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
