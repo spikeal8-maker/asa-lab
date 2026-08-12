@@ -125,6 +125,24 @@ label {
   line-height: 1.35;
 }
 
+.entry-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(11, 53, 88, 0.1);
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.entry-legal a {
+  color: var(--asa-cyan-600);
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
 .entry-back {
   margin: -0.65rem 0 0.85rem -0.75rem;
 }
