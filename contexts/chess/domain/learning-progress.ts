@@ -243,6 +243,21 @@ function ratingEvidence(
   };
 }
 
+function ratingEvidenceMatches(value: unknown, expected: ChessPuzzleRatingEvidence): boolean {
+  return (
+    isPlainObject(value) &&
+    !extraKey(value, RATING_EVIDENCE_KEYS) &&
+    value['formulaVersion'] === expected.formulaVersion &&
+    value['puzzleId'] === expected.puzzleId &&
+    value['puzzleContentVersion'] === expected.puzzleContentVersion &&
+    value['puzzleRating'] === expected.puzzleRating &&
+    value['attempts'] === expected.attempts &&
+    value['mistakes'] === expected.mistakes &&
+    value['hintsUsed'] === expected.hintsUsed &&
+    value['delta'] === expected.delta
+  );
+}
+
 function existingEvent(
   attempt: ChessPuzzleAttemptRecord,
   operationId: string,
@@ -568,7 +583,10 @@ export function validateChessLearningProgress(
       (entry) => !isPlainObject(entry) || extraKey(entry, RATING_EVIDENCE_KEYS),
     ) ||
     value['rating']['current'] !== expectedRating.current ||
-    JSON.stringify(value['rating']['evidence']) !== JSON.stringify(expectedRating.evidence)
+    value['rating']['evidence'].length !== expectedRating.evidence.length ||
+    value['rating']['evidence'].some(
+      (entry, index) => !ratingEvidenceMatches(entry, expectedRating.evidence[index]!),
+    )
   ) {
     return { ok: false, message: 'Learning rating does not match verified puzzle evidence.' };
   }
