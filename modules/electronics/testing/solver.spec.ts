@@ -1241,6 +1241,40 @@ describe('deterministic DC solver', () => {
     },
   );
 
+  it('keeps equal 220 ohm green and blue branches visibly mixed from a 3 V AA holder', () => {
+    const document = doc(
+      [
+        component('source', 'source', 3),
+        component('r-green', 'resistor', 220),
+        component('r-blue', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode', pinLayout: 'RCBG' },
+        }),
+      ],
+      [
+        connect('positive-green', 'source', 'a', 'r-green', 'a'),
+        connect('green-channel', 'r-green', 'b', 'rgb', 'green'),
+        connect('positive-blue', 'source', 'a', 'r-blue', 'a'),
+        connect('blue-channel', 'r-blue', 'b', 'rgb', 'blue'),
+        connect('common-return', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+
+    const result = solveCircuit(document);
+    const rgb = result.components.find((item) => item.componentId === 'rgb');
+    const greenBrightness = rgb?.branchBrightness?.green ?? 0;
+    const blueBrightness = rgb?.branchBrightness?.blue ?? 0;
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(rgb?.branchBrightness?.red).toBe(0);
+    expect(greenBrightness).toBeGreaterThan(0);
+    expect(blueBrightness).toBeGreaterThanOrEqual(greenBrightness * 0.45);
+    expect(blueBrightness).toBeLessThan(greenBrightness);
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['circuit_ok']);
+  });
+
   it('mixes all RGB channels for common-cathode and common-anode wiring', () => {
     for (const commonMode of ['common-cathode', 'common-anode'] as const) {
       const components = [

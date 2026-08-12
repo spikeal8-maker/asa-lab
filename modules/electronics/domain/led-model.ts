@@ -14,6 +14,7 @@ export interface LedJunctionProfile {
 
 const ORDINARY_DYNAMIC_RESISTANCE_OHM = 44.5;
 const RGB_DYNAMIC_RESISTANCE_OHM = 1.03;
+const RGB_BLUE_DYNAMIC_RESISTANCE_OHM = 23;
 const NOMINAL_CURRENT_AMP = 0.02;
 const MAX_CONTINUOUS_CURRENT_AMP = 0.03;
 const BRIGHTNESS_EXPONENT = 0.65;
@@ -89,9 +90,15 @@ export const RGB_LED_PROFILES: Readonly<Record<RgbLedChannel, LedJunctionProfile
     brightnessExponent: BRIGHTNESS_EXPONENT,
   },
   blue: {
-    // A finite margin at 3 V is required by the reproduced owner circuit.
-    kneeVoltage: 2.98,
-    dynamicResistanceOhm: RGB_DYNAMIC_RESISTANCE_OHM,
+    // Keep the higher blue junction voltage, but leave enough conduction
+    // margin for the owner's 2xAA reference: equal 220 ohm green and blue
+    // branches must produce a visibly mixed cyan output instead of a green
+    // LED with a mathematically non-zero but imperceptible blue channel.
+    kneeVoltage: 2.55,
+    // The separate slope also preserves the observed 3 V direct-blue warning
+    // point: lowering only the knee would incorrectly turn that reference
+    // circuit into an immediate burnout.
+    dynamicResistanceOhm: RGB_BLUE_DYNAMIC_RESISTANCE_OHM,
     nominalCurrentAmp: NOMINAL_CURRENT_AMP,
     maxContinuousCurrentAmp: MAX_CONTINUOUS_CURRENT_AMP,
     brightnessExponent: BRIGHTNESS_EXPONENT,
