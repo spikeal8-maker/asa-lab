@@ -50,7 +50,7 @@
     "test:chess-live:pg": "vitest run tests/chess-live/pg-repository.spec.ts",
     "typecheck:chess-live": "tsc -p contexts/chess-live/tsconfig.json --noEmit",
     "e2e:chess-live": "playwright test e2e/chess-live.spec.ts",
-    "gate:chess-r1": "pnpm nx build module-sdk && pnpm chess:contract && pnpm test:chess && pnpm typecheck:chess && pnpm nx build chess && pnpm nx build database && pnpm chess-live:contract && pnpm test:chess-live && pnpm typecheck:chess-live && pnpm nx run web:typecheck && pnpm nx run web:build",
+    "gate:chess-r1": "pnpm nx build module-sdk && pnpm nx build chess && pnpm chess:contract && pnpm test:chess && pnpm typecheck:chess && pnpm nx build database && pnpm chess-live:contract && pnpm test:chess-live && pnpm typecheck:chess-live && pnpm nx run web:typecheck && pnpm nx run web:build",
     "gate:chess-r1:browser": "pnpm e2e:chess && pnpm e2e:chess-live",
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
