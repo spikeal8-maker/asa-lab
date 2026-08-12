@@ -12,6 +12,12 @@ import {
   type Square,
 } from './chess.js';
 import { ASA_BOT_PROFILES } from './bot-profiles.js';
+import { ASA_CHESS_PUZZLES } from './learning-catalog.js';
+import {
+  createEmptyChessLearningProgress,
+  validateChessLearningProgress,
+  type ChessLearningProgress,
+} from './learning-progress.js';
 
 export type ChessMode = 'analysis' | 'local' | 'computer';
 export type BoardOrientation = 'white' | 'black';
@@ -94,6 +100,8 @@ export interface ChessDocument {
   readonly result: ChessResult;
   readonly termination: ChessTermination;
   readonly headers: Readonly<Record<string, string>>;
+  /** Project-local learning history, server-revalidated by the Chess module. */
+  readonly learning: ChessLearningProgress;
 }
 
 export type ChessDocumentResult<T> =
@@ -113,6 +121,7 @@ const TOP_LEVEL_KEYS = new Set([
   'result',
   'termination',
   'headers',
+  'learning',
 ]);
 const MOVE_KEYS = new Set(['ply', 'uci', 'san', 'fenBefore', 'fenAfter', 'clockAfter']);
 const CLOCK_KEYS = new Set(['initialMs', 'incrementMs', 'whiteMs', 'blackMs']);
@@ -194,6 +203,7 @@ export function createEmptyChessDocument(mode: ChessMode = 'analysis'): ChessDoc
       White: 'White',
       Black: mode === 'computer' ? DEFAULT_BOT_PROFILE.displayName : 'Black',
     },
+    learning: createEmptyChessLearningProgress(),
   };
 }
 
@@ -761,6 +771,11 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
   if (!annotations.ok) return annotations;
   const headers = parseHeaders(value['headers']);
   if (!headers.ok) return headers;
+  const learning =
+    value['learning'] === undefined
+      ? { ok: true as const, value: createEmptyChessLearningProgress() }
+      : validateChessLearningProgress(value['learning'], ASA_CHESS_PUZZLES);
+  if (!learning.ok) return learning;
   if (!isResult(value['result'])) return { ok: false, message: 'Invalid chess result.' };
   const terminations: readonly ChessTermination[] = [
     'ongoing',
@@ -823,6 +838,7 @@ export function validateChessDocument(value: unknown): ChessDocumentResult<Chess
       result: value['result'],
       termination,
       headers: headers.value,
+      learning: learning.value,
     },
   };
 }

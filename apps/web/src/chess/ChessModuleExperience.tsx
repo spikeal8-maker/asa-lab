@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessEditor } from './ChessEditor';
 import { ChessOnlineLobby } from './ChessOnlineLobby';
@@ -22,9 +22,23 @@ type ChessSurface = 'project' | 'training' | 'review' | 'online';
  * online uses the separate server-authoritative chess-live aggregate.
  */
 export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.Element {
-  const [surface, setSurface] = useState<ChessSurface>('project');
+  const storageKey = `asa-chess-surface:${props.projectId}`;
+  const [surface, setSurface] = useState<ChessSurface>(() => {
+    if (typeof window === 'undefined') return 'project';
+    const stored = window.sessionStorage.getItem(storageKey);
+    return stored === 'training' || stored === 'review' || stored === 'online' ? stored : 'project';
+  });
+  useEffect(() => {
+    if (surface === 'project') window.sessionStorage.removeItem(storageKey);
+    else window.sessionStorage.setItem(storageKey, surface);
+  }, [storageKey, surface]);
   if (surface === 'training') {
-    return <ChessPuzzleTrainer onBackToProject={() => setSurface('project')} />;
+    return (
+      <ChessPuzzleTrainer
+        projectId={props.projectId}
+        onBackToProject={() => setSurface('project')}
+      />
+    );
   }
   if (surface === 'review') {
     return (
