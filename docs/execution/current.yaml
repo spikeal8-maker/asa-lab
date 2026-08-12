@@ -83,7 +83,7 @@ primary_lane:
 
 parallel_lanes:
   - id: chess
-    worktree_id: chess-r1
+    worktree_id: chess-r2-puzzles-learning
     owned_paths:
       - contexts/chess/**
       - contexts/chess-live/**
@@ -101,25 +101,25 @@ parallel_lanes:
       - docs/product/ASA_EDITOR_HEADER_CONTRACT.md
       - docs/architecture/SUBJECT_MODULE_ISOLATION_PLAN.md
     task:
-      id: TASK-CHESS-R1-001
-      issue: 97
-      branch: agent/chess-r1-foundation
+      id: TASK-CHESS-R2-001
+      issue: 115
+      branch: agent/chess-r2-puzzles-learning
       base_branch: main
-      pr: 103
-      pr_draft: false
-      status: done
-      checkpoint: merged_to_main
-      owner_acceptance: accepted
+      pr: 116
+      pr_draft: true
+      status: in_progress
+      checkpoint: puzzle_learning_vertical
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 850b166fde5f1c561fc0215a543310e6ef254718
-      head_sha: 850b166fde5f1c561fc0215a543310e6ef254718
-      owner_accepted_sha: 850b166fde5f1c561fc0215a543310e6ef254718
+      convergence_baseline_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
+      head_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
+      owner_accepted_sha: null
       product_merge_sha: b00338740d7435d8a230e4f1c0182466fe10c33f
     execution_lease:
-      executor_id: codex-chess-r1
-      holder: unassigned
-      acquired_at: null
-      expires_at: null
+      executor_id: codex-chess-r2
+      holder: codex-chess-r2
+      acquired_at: "2026-08-12T07:43:19Z"
+      expires_at: "2026-08-13T07:43:19Z"
       reviewer_role_requires_lease: false
     gates:
       focused:
@@ -172,6 +172,63 @@ parallel_lanes:
         workflow: 3D M0 Focused
         commands:
           - pnpm gate:three-d-m0:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
+  - id: projects
+    worktree_id: r3-project-lifecycle
+    owned_paths:
+      - contexts/projects/**
+      - apps/api/src/app.module.ts
+      - apps/api/src/projects.controller.ts
+      - apps/api/src/tokens.ts
+      - apps/web/src/api.ts
+      - apps/web/src/App.tsx
+      - apps/web/src/components/CreateProjectModal.tsx
+      - apps/web/src/components/PortalHeader.tsx
+      - apps/web/src/creator-portal/**
+      - apps/web/src/modules/project-hub.css
+      - apps/web/src/pages/CreatorHomePage.tsx
+      - apps/web/src/pages/MyProjectsPage.tsx
+      - apps/web/src/pages/ProjectsPage.tsx
+      - apps/web/src/styles.css
+      - migrations/0013_project_lifecycle.sql
+      - schemas/openapi.yaml
+      - tests/portal/**
+      - e2e/project-hub.spec.ts
+      - e2e/artifacts/project-hub/**
+      - docs/review/TASK_R3B_PROJECT_LIFECYCLE_001/**
+    task:
+      id: TASK-R3B-PROJECT-LIFECYCLE-001
+      issue: 37
+      branch: agent/r3-project-lifecycle
+      base_branch: main
+      pr: 112
+      pr_draft: true
+      status: in_progress
+      checkpoint: project_lifecycle_foundation
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+      head_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+    execution_lease:
+      executor_id: codex-r3-project-lifecycle
+      holder: codex-r3-project-lifecycle
+      acquired_at: "2026-08-12T06:59:53Z"
+      expires_at: "2026-08-13T06:59:53Z"
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:project-slice
+          - pnpm test:creator-portal
+      browser:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:creator-portal
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
