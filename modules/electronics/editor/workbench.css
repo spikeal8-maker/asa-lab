@@ -408,10 +408,6 @@
   pointer-events: none;
 }
 
-.workbench-led-visual.is-lit .workbench-led-asset {
-  filter: drop-shadow(0 0 2.5px var(--workbench-led-glow))
-    drop-shadow(0 0 7px var(--workbench-led-glow));
-}
 .workbench-rgb-led-visual.is-lit .workbench-rgb-led-mixture {
   filter: drop-shadow(0 0 2.5px var(--workbench-rgb-led-glow))
     drop-shadow(0 0 7px var(--workbench-rgb-led-glow));
@@ -2028,6 +2024,16 @@
 .workbench-component-diagnostic-indicator.error circle {
   fill: #e43b32;
 }
+.workbench-component-diagnostic-indicator.workbench-led-warning-indicator circle,
+.workbench-component-diagnostic-indicator.workbench-led-warning-indicator.error circle {
+  fill: #fff;
+  stroke: #242424;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 1px 2px rgba(34, 43, 49, 0.35));
+}
+.workbench-component-diagnostic-indicator.workbench-led-warning-indicator > text {
+  fill: #242424;
+}
 .workbench-component-diagnostic-indicator > text {
   fill: #fff;
   font-weight: 900;
@@ -2040,7 +2046,11 @@
 }
 .workbench-component-diagnostic-indicator:focus circle {
   stroke: #17232b;
-  stroke-width: 3.4;
+  stroke-width: 2.2;
+}
+
+.workbench-led-visual.is-reverse .workbench-led-asset {
+  filter: grayscale(1) brightness(0.88) contrast(0.82);
 }
 .workbench-led-explosion-outer {
   fill: #ffd21d;

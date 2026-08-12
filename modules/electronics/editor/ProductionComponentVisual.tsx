@@ -16,15 +16,6 @@ import {
   type SevenSegmentId,
 } from './production-asset-contracts';
 
-const LED_GLOW_RGB: Readonly<Record<string, string>> = {
-  blue: '47, 132, 255',
-  green: '46, 214, 82',
-  orange: '255, 145, 28',
-  red: '255, 48, 56',
-  white: '238, 248, 255',
-  yellow: '255, 221, 48',
-};
-
 const TINKERCAD_MODEL_UNIT_MM = 0.254;
 const TINKERCAD_MODEL_TO_WORLD = TINKERCAD_MODEL_UNIT_MM * WORLD_UNITS_PER_MM;
 const TINKERCAD_RESISTOR_BODY =
@@ -176,7 +167,11 @@ export function ProductionComponentVisual({
   return (
     <svg
       className={`workbench-production-visual${
-        entry.key === 'led-5mm' ? ` workbench-led-visual${ledIsLit ? ' is-lit' : ''}` : ''
+        entry.key === 'led-5mm'
+          ? ` workbench-led-visual${ledIsLit ? ' is-lit' : ''}${
+              visualState === 'reverse' ? ' is-reverse' : ''
+            }`
+          : ''
       }${entry.key === 'rgb-led' ? ` workbench-rgb-led-visual${rgbIsLit ? ' is-lit' : ''}` : ''}`}
       width={width}
       height={height}
@@ -191,16 +186,7 @@ export function ProductionComponentVisual({
       data-rgb-colour={entry.key === 'rgb-led' ? rgbColour : undefined}
       data-rgb-runtime-state={rgbRuntimeState}
       style={
-        ledIsLit
-          ? ({
-              '--workbench-led-glow': `rgba(${LED_GLOW_RGB[ledColour] ?? LED_GLOW_RGB['red']}, ${(
-                0.28 +
-                (ledBrightness / 100) * 0.62
-              ).toFixed(3)})`,
-            } as CSSProperties)
-          : rgbIsLit
-            ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties)
-            : undefined
+        rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
       }
       aria-hidden="true"
     >

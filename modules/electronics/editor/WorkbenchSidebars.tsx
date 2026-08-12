@@ -471,7 +471,7 @@ export function WorkbenchSidebars({
 
               {c.selectedEntry.key === 'led-5mm' ? (
                 <label>
-                  <span>Цвет</span>
+                  <span>цвет</span>
                   <select
                     aria-label="Цвет светодиода"
                     value={String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')}

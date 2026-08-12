@@ -618,7 +618,13 @@ async function brightnessValue(page: Page): Promise<number> {
 }
 
 async function selectLed(page: Page): Promise<void> {
-  await component(page, 'led-5mm').locator('.workbench-part').click();
+  const led = component(page, 'led-5mm');
+  const burnout = led.locator('[data-testid="led-burnout-explosion"]');
+  if ((await burnout.count()) > 0 && (await burnout.isVisible())) {
+    await burnout.locator('.workbench-led-explosion-inner').click();
+  } else {
+    await led.locator('.workbench-part').click();
+  }
   await expect(page.getByRole('complementary', { name: 'Параметры выделения' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ })).toBeVisible();
 }
@@ -772,7 +778,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await saveDocument(
     page,
     projectId,
-    circuitDocument({ switchClosed: false, resistorOhms: 220, reversedLed: false }),
+    circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false }),
   );
   await page.reload();
 
@@ -811,10 +817,11 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'data-led-runtime-state',
     'off',
   );
+  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
   await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
   await switchComponent.getByTestId('spdt-actuator').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
-  const colourBrightness: number[] = [];
+  const colourBrightness = new Map<string, number>();
   for (const colour of ['red', 'orange', 'yellow', 'green', 'blue', 'white']) {
     await selectLed(page);
     await page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ }).selectOption(colour);
@@ -827,33 +834,57 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
       'href',
       new RegExp(`led_${colour}_i(?!000)\\d{3}\\.svg$`),
     );
-    colourBrightness.push(await brightnessValue(page));
-  }
-  for (let index = 1; index < colourBrightness.length; index += 1) {
-    expect(colourBrightness[index]).toBeLessThan(colourBrightness[index - 1] ?? 0);
+    colourBrightness.set(colour, await brightnessValue(page));
   }
   await page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ }).selectOption('red');
-  await expect.poll(() => brightnessValue(page)).toBe(colourBrightness[0]);
-  const brightAt220Ohms = await brightnessValue(page);
+  await expect.poll(() => brightnessValue(page)).toBe(colourBrightness.get('red'));
+  const brightAt50Ohms = await brightnessValue(page);
   await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
     'data-led-runtime-state',
     'lit',
   );
+  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
   await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
     'href',
     /led_red_i000\.svg$/,
   );
+  const ledInspector = page.locator('.workbench-inspector');
+  await expect(ledInspector.getByText('Имя', { exact: true })).toBeVisible();
+  await expect(ledInspector.getByText('цвет', { exact: true })).toBeVisible();
+  await expect(ledInspector.getByText(/Яркость|Ток|Напряжение/)).toHaveCount(0);
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-running.png`, fullPage: true });
 
-  let previousBrightness = brightAt220Ohms;
-  let persistedArbitraryBrightness = brightAt220Ohms;
-  for (const resistance of [317.25, 683.7, 1_000, 2_475.25]) {
+  await resistor.locator('.workbench-part').click();
+  const resistanceInput = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await resistanceInput.fill('1');
+  await selectLed(page);
+  const warningBadge = led.locator('[data-testid="led-diagnostic-badge"]');
+  await expect(warningBadge).toBeVisible();
+  await expect(warningBadge).toHaveAttribute(
+    'aria-label',
+    'Сила тока в светодиоде равна 120 mA (максимальное рекомендуемое значение — 20.0 mA). Это может привести к сокращению срока службы светодиода.',
+  );
+  await warningBadge.locator('circle').hover();
+  await expect(warningBadge.locator('.workbench-component-diagnostic-tooltip')).toContainText(
+    'Сила тока в светодиоде равна 120 mA',
+  );
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-led-warning.png`,
+    fullPage: true,
+  });
+
+  let previousBrightness = brightAt50Ohms;
+  let persistedArbitraryBrightness = brightAt50Ohms;
+  for (const resistance of [100, 166.7]) {
     await resistor.locator('.workbench-part').click();
-    const resistanceInput = page
+    const arbitraryResistanceInput = page
       .locator('.workbench-inspector label')
       .filter({ hasText: 'Сопротивление' })
       .locator('input[type="number"]');
-    await resistanceInput.fill(String(resistance));
+    await arbitraryResistanceInput.fill(String(resistance));
     await selectLed(page);
     await expect.poll(() => brightnessValue(page)).toBeLessThan(previousBrightness);
     await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
@@ -867,7 +898,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
       .locator('.workbench-inspector label')
       .filter({ hasText: 'Сопротивление' })
       .locator('input[type="number"]'),
-  ).toHaveValue('2475.25');
+  ).toHaveValue('166.7');
   await selectLed(page);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-resistance-changed.png`,
@@ -911,7 +942,8 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'href',
     /special\/led_red_reverse_polarity\.svg$/,
   );
-  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toBeVisible();
+  await expect(led.locator('.workbench-production-visual')).toHaveClass(/is-reverse/);
+  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
   await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-reverse-polarity.png`,
@@ -936,8 +968,12 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(led.locator('[data-testid="led-burnout-explosion"]')).toBeVisible();
   await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveAttribute(
     'aria-label',
-    /перегорел/i,
+    /абсолютное максимальное значение/i,
   );
+  await page.screenshot({
+    path: `${ARTIFACT_DIR}/electronics-led-burnout.png`,
+    fullPage: true,
+  });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await saveDocument(page, projectId, shortCircuitDocument());

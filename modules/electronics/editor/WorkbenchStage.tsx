@@ -232,19 +232,27 @@ export function WorkbenchStage({
             const actionableDiagnostics = componentDiagnostics.filter(
               (diagnostic) => diagnostic.severity !== 'info',
             );
-            const primaryDiagnostic = actionableDiagnostics[0];
-            const diagnosticText = actionableDiagnostics
-              .map(
-                (diagnostic) =>
-                  `${diagnostic.message}${
-                    diagnostic.suggestedAction ? ` ${diagnostic.suggestedAction}` : ''
-                  }`,
-              )
-              .join(' ');
             const isLedIndicator = entry.key === 'led-5mm';
             const isRgbLed = entry.key === 'rgb-led';
             const ledBurned = (isLedIndicator || isRgbLed) && diagnostics.includes('led_burnout');
-            const showDiagnosticIndicator = !isRgbLed || ledBurned;
+            const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
+            const primaryDiagnostic = ledBurned
+              ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')
+              : ledOvercurrent
+                ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_overcurrent')
+                : actionableDiagnostics[0];
+            const diagnosticText = primaryDiagnostic
+              ? `${primaryDiagnostic.message}${
+                  primaryDiagnostic.suggestedAction ? ` ${primaryDiagnostic.suggestedAction}` : ''
+                }`
+              : '';
+            // The ordinary Tinkercad LED keeps reverse and disconnected states
+            // visually quiet. Its on-canvas marker exists only for actual
+            // over-current, and the destructive state replaces it with the
+            // starburst. Other components retain their existing diagnostics.
+            const showDiagnosticIndicator = isLedIndicator
+              ? ledOvercurrent || ledBurned
+              : !isRgbLed || ledBurned;
             return (
               <g
                 key={component.id}
@@ -365,6 +373,8 @@ export function WorkbenchStage({
                     <g
                       className={`workbench-component-diagnostic-indicator${
                         ledBurned ? ' workbench-led-burnout-explosion' : ''
+                      }${
+                        isLedIndicator && ledOvercurrent ? ' workbench-led-warning-indicator' : ''
                       }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
                       data-testid={
                         ledBurned
@@ -377,13 +387,17 @@ export function WorkbenchStage({
                       }
                       data-diagnostic-count={actionableDiagnostics.length}
                       transform={`translate(${
-                        ledBurned ? baseSize.width * 0.5 : baseSize.width + 12 / c.viewport.zoom
-                      } ${ledBurned ? baseSize.height * 0.24 : -12 / c.viewport.zoom})`}
-                      pointerEvents={ledBurned ? 'none' : 'all'}
+                        ledBurned ? baseSize.width * 0.5 : baseSize.width * 0.83
+                      } ${ledBurned ? baseSize.height * 0.35 : baseSize.height * 0.16})`}
+                      pointerEvents="all"
                       role="img"
                       tabIndex={0}
                       aria-label={diagnosticText}
                       onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        c.selectComponent(component.id, event.shiftKey);
+                      }}
                     >
                       <title>{diagnosticText}</title>
                       {ledBurned ? (
@@ -399,19 +413,19 @@ export function WorkbenchStage({
                         </g>
                       ) : (
                         <>
-                          <circle r={18 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
-                          <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
+                          <circle r={9 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
+                          <text y={4 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
                             !
                           </text>
                         </>
                       )}
-                      {!ledBurned ? (
+                      {primaryDiagnostic ? (
                         <foreignObject
                           className="workbench-component-diagnostic-tooltip"
-                          x={-150 / c.viewport.zoom}
-                          y={34 / c.viewport.zoom}
-                          width={300 / c.viewport.zoom}
-                          height={104 / c.viewport.zoom}
+                          x={-100 / c.viewport.zoom}
+                          y={18 / c.viewport.zoom}
+                          width={200 / c.viewport.zoom}
+                          height={142 / c.viewport.zoom}
                           pointerEvents="none"
                         >
                           <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>

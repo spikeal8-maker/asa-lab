@@ -64,7 +64,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('data-led-runtime-state');
     expect(productionVisualSource).toContain('data-led-brightness');
     expect(productionVisualSource).toContain('workbench-led-visual');
-    expect(workbenchCss).toContain('.workbench-led-visual.is-lit .workbench-led-asset');
+    expect(workbenchCss).not.toContain('.workbench-led-visual.is-lit .workbench-led-asset');
+    expect(workbenchCss).toContain('.workbench-led-visual.is-reverse .workbench-led-asset');
     expect(productionVisualSource).toContain('fill={rgbDisplayColour}');
     expect(productionVisualSource).toContain('opacity={rgbIsLit ? rgbDisplayOpacity : 0}');
     expect(productionVisualSource).not.toContain("mixBlendMode: 'screen'");
@@ -155,13 +156,14 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
     expect(stageSource).toContain("'led-diagnostic-badge'");
-    expect(stageSource).toContain('const showDiagnosticIndicator = !isRgbLed || ledBurned');
+    expect(stageSource).toContain('const showDiagnosticIndicator = isLedIndicator');
+    expect(stageSource).toContain('? ledOvercurrent || ledBurned');
     expect(stageSource).toContain("'rgb-led-burnout-explosion'");
     expect(stageSource).toContain("'component-diagnostic-indicator'");
     expect(stageSource).toContain('c.simulationRunning && primaryDiagnostic');
-    expect(stageSource).toContain('r={18 / c.viewport.zoom}');
-    expect(stageSource).toContain('fontSize={20 / c.viewport.zoom}');
-    expect(stageSource).toContain('diagnostic.suggestedAction');
+    expect(stageSource).toContain('r={9 / c.viewport.zoom}');
+    expect(stageSource).toContain('fontSize={12 / c.viewport.zoom}');
+    expect(stageSource).toContain('primaryDiagnostic.message');
     expect(stageSource).toContain('pointerEvents="all"');
     expect(stageSource).toContain("'led-burnout-explosion'");
     expect(stageSource).toContain('workbench-led-burnout-explosion');
@@ -170,6 +172,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-led-explosion-outer');
     expect(workbenchCss).toContain('.workbench-led-explosion-inner');
     expect(workbenchCss).toContain('.workbench-component-diagnostic-tooltip');
+    expect(productionVisualSource).not.toContain('--workbench-led-glow');
     expect(stageSource).not.toContain('workbench-results-card');
     expect(stageSource).not.toContain('workbench-toast');
   });
