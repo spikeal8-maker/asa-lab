@@ -135,6 +135,48 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: three-d
+    worktree_id: three-d-direct-manipulation
+    owned_paths:
+      - contexts/three-d/**
+      - apps/web/src/three-d/**
+      - e2e/three-d-m0.spec.ts
+      - e2e/artifacts/three-d/**
+    task:
+      id: TASK-3D-M1-001
+      issue: 107
+      branch: agent/three-d-direct-manipulation
+      base_branch: main
+      pr: 108
+      pr_draft: true
+      status: in_progress
+      checkpoint: direct_manipulation_foundation
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 5c66766303750475885bb42a91fee78834401ad7
+      # Head at lane activation. Later PR heads must descend from it; product
+      # progress does not require a governance rewrite after every push.
+      head_sha: 5c66766303750475885bb42a91fee78834401ad7
+    execution_lease:
+      executor_id: codex-three-d-direct-manipulation
+      holder: codex-three-d-direct-manipulation
+      acquired_at: "2026-08-12T05:51:48Z"
+      expires_at: "2026-08-13T05:51:48Z"
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: 3D M0 Focused
+        commands:
+          - pnpm gate:three-d-m0
+      browser:
+        workflow: 3D M0 Focused
+        commands:
+          - pnpm gate:three-d-m0:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
 integration:
   owner_lane: checkers
   shared_paths:
