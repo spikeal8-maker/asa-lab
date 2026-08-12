@@ -52,6 +52,13 @@ export function PublicEntryPage({
           </button>
           <span className="entry-action-hint">Для ученика, которому педагог выдал код.</span>
         </div>
+
+        <footer className="entry-legal">
+          <a href="https://github.com/spikeal8-maker/asa-lab" target="_blank" rel="noreferrer">
+            Исходный код · AGPL-3.0
+          </a>
+          <span>Бренд и отдельные материалы защищены.</span>
+        </footer>
       </main>
     </div>
   );
