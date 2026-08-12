@@ -20,16 +20,16 @@ checkpoint project_document_foundation
 execution lease codex-checkers-m1
 ```
 
-The owner activated an independent educational Russian-draughts system. 3D PR
-#95 and Electronics PR #92 remain open and Draft/paused; neither is merged or
-reported complete. Chess remains a separate subject module and is not modified.
+The owner activated an independent educational Russian-draughts system. 3D M0
+is preserved in `main` after PR #95 and remains outside the Checkers writable
+scope. Electronics PR #92 stays paused; Chess remains a separate subject module.
 
 ```mermaid
 flowchart LR
   ACCOUNT["Account C1 done"] --> PORTAL["Creator Portal done"]
   PORTAL --> GATE["R3A module gateway done"]
   GATE --> CHECKERS["Checkers M1 in progress"]
-  GATE --> THREED["3D M0 paused"]
+  GATE --> THREED["3D M0 merged"]
   GATE --> ELECTRONICS["Electronics corrective paused"]
   CLASSROOM["Existing classes and authorization"] --> CHECKERS
   CHECKERS --> STUDENT["Student learning and play"]
