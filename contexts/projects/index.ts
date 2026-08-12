@@ -1,10 +1,12 @@
 export {
   isProjectScope,
+  isProjectStatus,
   isValidCheckpointLabel,
   isValidProjectTitle,
   type Project,
   type ProjectDraft,
   type ProjectScope,
+  type ProjectStatus,
   type ProjectVersion,
 } from './domain/project.js';
 export type {
@@ -20,8 +22,10 @@ export type {
   SaveDraftInput,
 } from './application/ports.js';
 export {
+  ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
   CreateProjectUseCase,
+  DuplicateProjectUseCase,
   ListProjectsUseCase,
   OpenProjectUseCase,
   RenameProjectUseCase,

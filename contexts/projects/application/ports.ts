@@ -1,4 +1,10 @@
-import type { Project, ProjectDraft, ProjectScope, ProjectVersion } from '../domain/project.js';
+import type {
+  Project,
+  ProjectDraft,
+  ProjectScope,
+  ProjectStatus,
+  ProjectVersion,
+} from '../domain/project.js';
 
 export interface ProjectActor {
   readonly principalId: string;
@@ -26,6 +32,7 @@ export type CreateProjectResult =
 export interface ProjectListFilter {
   readonly scope?: ProjectScope;
   readonly classroomId?: string;
+  readonly status?: ProjectStatus;
 }
 
 export interface SaveDraftInput {
@@ -71,6 +78,12 @@ export interface ProjectRepositoryPort {
     projectId: string,
     actor: ProjectActor,
     title: string,
+  ): Promise<Project | null>;
+  updateStatus(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+    status: ProjectStatus,
   ): Promise<Project | null>;
   saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null>;
   createCheckpoint(

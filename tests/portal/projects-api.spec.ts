@@ -35,6 +35,26 @@ async function createClassroom(token: string, title: string): Promise<string> {
   return response.json().classroom.id as string;
 }
 
+async function registerPersonalAccount(label: string): Promise<string> {
+  const unique = `${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const response = await inject(app, {
+    method: 'POST',
+    url: '/api/auth/register',
+    payload: {
+      email: `${unique}@personal.test`,
+      username: unique.replaceAll(/[^a-z0-9_]/g, '_').slice(0, 36),
+      displayName: 'Личный автор',
+      password: `Safe-${unique}-Password`,
+      birthDate: '1990-01-01',
+      country: 'RU',
+    },
+  });
+  expect(response.statusCode).toBe(201);
+  const cookie = response.cookies.find((item) => item.name === 'asa_session');
+  if (!cookie) throw new Error('personal registration did not return a session cookie');
+  return cookie.value;
+}
+
 async function createProject(
   token: string,
   options: { title: string; scope: 'personal' | 'classroom'; classroomId?: string; key?: string },
@@ -201,6 +221,126 @@ describe('personal teacher projects', () => {
     expect(repeat.body.project.id).toBe(first.body.project.id);
     expect(conflict.status).toBe(409);
   });
+
+  it('archives, trashes and restores a project without deleting its draft', async () => {
+    const teacher = await seedTeacher(admin, 'personal-lifecycle');
+    const token = await login(teacher);
+    const created = await createProject(token, { scope: 'personal', title: 'Жизненный цикл' });
+    const projectId = created.body.project.id;
+
+    const archived = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${projectId}/status`,
+      cookies: { asa_session: token },
+      payload: { status: 'archived' },
+    });
+    expect(archived.statusCode).toBe(201);
+    expect(archived.json().project.status).toBe('archived');
+
+    const activeList = await inject(app, {
+      method: 'GET',
+      url: '/api/projects?scope=personal&status=active',
+      cookies: { asa_session: token },
+    });
+    expect(activeList.json().items.map((item: { id: string }) => item.id)).not.toContain(projectId);
+
+    const archivedList = await inject(app, {
+      method: 'GET',
+      url: '/api/projects?scope=personal&status=archived',
+      cookies: { asa_session: token },
+    });
+    expect(archivedList.json().items.map((item: { id: string }) => item.id)).toContain(projectId);
+
+    const trashed = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${projectId}/status`,
+      cookies: { asa_session: token },
+      payload: { status: 'trashed' },
+    });
+    expect(trashed.statusCode).toBe(201);
+
+    const renameInTrash = await inject(app, {
+      method: 'PATCH',
+      url: `/api/projects/${projectId}`,
+      cookies: { asa_session: token },
+      payload: { title: 'Недопустимое изменение' },
+    });
+    expect(renameInTrash.statusCode).toBe(404);
+
+    const restored = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${projectId}/status`,
+      cookies: { asa_session: token },
+      payload: { status: 'active' },
+    });
+    expect(restored.statusCode).toBe(201);
+    expect(restored.json().project).toMatchObject({ id: projectId, status: 'active' });
+
+    const stored = await admin.query(
+      `SELECT p.status, d.project_id
+         FROM projects p
+         JOIN project_drafts d ON d.tenant_id = p.tenant_id AND d.project_id = p.id
+        WHERE p.tenant_id = $1 AND p.id = $2`,
+      [teacher.tenantId, projectId],
+    );
+    expect(stored.rows[0]).toMatchObject({ status: 'active', project_id: projectId });
+  });
+
+  it('restores an archived Personal Workspace project through its owner principal', async () => {
+    const token = await registerPersonalAccount('principal-lifecycle');
+    const created = await createProject(token, { scope: 'personal', title: 'Личный архив' });
+    const projectId = created.body.project.id;
+
+    const archived = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${projectId}/status`,
+      cookies: { asa_session: token },
+      payload: { status: 'archived' },
+    });
+    expect(archived.statusCode).toBe(201);
+
+    const restored = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${projectId}/status`,
+      cookies: { asa_session: token },
+      payload: { status: 'active' },
+    });
+    expect(restored.statusCode).toBe(201);
+    expect(restored.json().project).toMatchObject({ id: projectId, status: 'active' });
+  });
+
+  it('duplicates the current project document with an idempotent request', async () => {
+    const teacher = await seedTeacher(admin, 'personal-duplicate');
+    const token = await login(teacher);
+    const created = await createProject(token, { scope: 'personal', title: 'Оригинал' });
+    await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${created.body.project.id}/draft`,
+      cookies: { asa_session: token },
+      payload: { document: seriesDocument() },
+    });
+    const key = `duplicate-${crypto.randomUUID()}`;
+    const duplicate = async () =>
+      inject(app, {
+        method: 'POST',
+        url: `/api/projects/${created.body.project.id}/duplicate`,
+        cookies: { asa_session: token },
+        headers: { 'idempotency-key': key },
+        payload: { title: 'Оригинал — копия' },
+      });
+    const first = await duplicate();
+    const repeat = await duplicate();
+    expect(first.statusCode).toBe(201);
+    expect(repeat.statusCode).toBe(200);
+    expect(repeat.json().project.id).toBe(first.json().project.id);
+
+    const opened = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${first.json().project.id}`,
+      cookies: { asa_session: token },
+    });
+    expect(opened.json().draft.document).toEqual(seriesDocument());
+  });
 });
 
 describe('classroom projects', () => {
@@ -354,6 +494,8 @@ describe('authorization and validation', () => {
       ['POST', '/api/projects'],
       ['GET', '/api/projects/00000000-0000-0000-0000-000000000001'],
       ['PATCH', '/api/projects/00000000-0000-0000-0000-000000000001'],
+      ['POST', '/api/projects/00000000-0000-0000-0000-000000000001/duplicate'],
+      ['POST', '/api/projects/00000000-0000-0000-0000-000000000001/status'],
       ['PUT', '/api/projects/00000000-0000-0000-0000-000000000001/draft'],
       ['POST', '/api/projects/00000000-0000-0000-0000-000000000001/checkpoints'],
     ] as const) {
@@ -371,6 +513,7 @@ describe('authorization and validation', () => {
     for (const [method, url, payload] of [
       ['GET', `/api/projects/${created.body.project.id}`, undefined],
       ['PATCH', `/api/projects/${created.body.project.id}`, { title: 'Украдено' }],
+      ['POST', `/api/projects/${created.body.project.id}/status`, { status: 'trashed' }],
       ['PUT', `/api/projects/${created.body.project.id}/draft`, { document: seriesDocument() }],
       ['POST', `/api/projects/${created.body.project.id}/checkpoints`, {}],
     ] as const) {
@@ -382,6 +525,15 @@ describe('authorization and validation', () => {
       });
       expect(response.statusCode, `${method} ${url}`).toBe(404);
     }
+
+    const duplicate = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${created.body.project.id}/duplicate`,
+      cookies: { asa_session: tokenB },
+      headers: { 'idempotency-key': `foreign-duplicate-${crypto.randomUUID()}` },
+      payload: { title: 'Украденная копия' },
+    });
+    expect(duplicate.statusCode).toBe(404);
   });
 
   it('rejects inconsistent scope, unsupported modules and missing keys', async () => {
