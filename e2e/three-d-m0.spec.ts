@@ -48,7 +48,9 @@ async function selectObject(
     { x: bounds.x + bounds.width * 0.5, y: bounds.y + bounds.height * 0.5 },
     { x: bounds.x + bounds.width * 0.56, y: bounds.y + bounds.height * 0.47 },
     { x: bounds.x + bounds.width * 0.45, y: bounds.y + bounds.height * 0.52 },
-  ].filter((candidate): candidate is { readonly x: number; readonly y: number } => Boolean(candidate));
+  ].filter((candidate): candidate is { readonly x: number; readonly y: number } =>
+    Boolean(candidate),
+  );
 
   for (const candidate of candidates) {
     await page.mouse.click(candidate.x, candidate.y);
