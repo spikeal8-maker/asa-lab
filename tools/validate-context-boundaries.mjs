@@ -21,6 +21,7 @@ const CONTEXT_RULES = {
   classroom: [],
   chess: [],
   'chess-live': ['chess'],
+  'three-d': [],
 };
 const CONTEXTS = Object.keys(CONTEXT_RULES);
 const CONTEXT_ROOT = join(ROOT, 'contexts');

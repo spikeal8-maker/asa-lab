@@ -357,6 +357,10 @@
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
+                },
+                "./simulation": {
+                  "types": "./dist/simulation.d.ts",
+                  "default": "./dist/simulation.js"
                 }
               },
               "packageMain": "dist/index.js",
@@ -1159,6 +1163,86 @@
           "implicitDependencies": []
         }
       },
+      "three-d": {
+        "name": "three-d",
+        "type": "lib",
+        "data": {
+          "root": "contexts/three-d",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/three-d/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/three-d/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/three-d"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "three-d",
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/three-d",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:core",
+            "context:three-d"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/three-d",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "implicitDependencies": []
+        }
+      },
       "ui-kit": {
         "name": "ui-kit",
         "type": "lib",
@@ -1647,6 +1731,13 @@
         }
       ],
       "test-kit": [],
+      "three-d": [
+        {
+          "source": "three-d",
+          "target": "module-sdk",
+          "type": "static"
+        }
+      ],
       "ui-kit": [],
       "authz": [],
       "chess": [
@@ -1707,12 +1798,27 @@
           "source": "api",
           "target": "projects",
           "type": "static"
+        },
+        {
+          "source": "api",
+          "target": "three-d",
+          "type": "static"
         }
       ],
       "web": [
         {
           "source": "web",
           "target": "chess",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "electronics",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "three-d",
           "type": "static"
         }
       ]

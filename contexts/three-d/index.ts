@@ -1,0 +1,30 @@
+export {
+  THREE_D_SCHEMA_VERSION,
+  THREE_D_UNITS,
+  cloneThreeDDocument,
+  createEmptyThreeDDocument,
+  createThreeDNode,
+  parseThreeDDocument,
+  type DocumentParseResult,
+  type PrimitiveKind,
+  type ShapeOperation,
+  type ThreeDCameraState,
+  type ThreeDDimensions,
+  type ThreeDDocument,
+  type ThreeDGridSettings,
+  type ThreeDNode,
+  type ThreeDTransform,
+  type Vector3Value,
+} from './domain/document.js';
+export {
+  applyThreeDCommand,
+  commitCommand,
+  createHistory,
+  redoHistory,
+  replaceHistoryPresent,
+  undoHistory,
+  type CommandResult,
+  type HistoryState,
+  type ThreeDCommand,
+} from './domain/commands.js';
+export { THREE_D_MODULE, type ThreeDAnalysisSummary } from './module.js';

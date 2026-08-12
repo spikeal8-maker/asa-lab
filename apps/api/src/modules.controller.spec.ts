@@ -3,7 +3,7 @@ import { createApiModuleRegistry } from './module-registry';
 import { ModulesController } from './modules.controller';
 
 describe('ModulesController', () => {
-  it('returns Electronics and ASA Chess as creatable first-party modules', () => {
+  it('returns Electronics, ASA Chess and ASA 3D as creatable first-party modules', () => {
     const controller = new ModulesController(createApiModuleRegistry());
     const modules = controller.list().items;
     expect(modules.find((module) => module.moduleKey === 'electronics')).toMatchObject({
@@ -20,6 +20,13 @@ describe('ModulesController', () => {
       safeModeSupported: true,
       previewKind: 'board',
       iconKey: 'chess',
+    });
+    expect(modules.find((module) => module.moduleKey === 'three-d')).toMatchObject({
+      displayName: 'ASA 3D',
+      projectType: 'three-d-scene',
+      availability: 'active',
+      creatable: true,
+      previewKind: 'scene',
     });
   });
 

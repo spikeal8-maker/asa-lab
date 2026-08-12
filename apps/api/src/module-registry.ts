@@ -1,5 +1,6 @@
 import { CHESS_MODULE } from '@asa-lab/chess';
 import { ELECTRONICS_MODULE } from '@asa-lab/electronics';
+import { THREE_D_MODULE } from '@asa-lab/three-d';
 import {
   ModuleRegistry,
   defineFutureModule,
@@ -41,20 +42,6 @@ const FUTURE_MODULES: readonly RegisteredModule[] = [
     categories: ['logic', 'games'],
   }),
   future({
-    moduleKey: 'three-d',
-    moduleVersion: '0.1.0',
-    displayName: '3D-моделирование',
-    shortDescription: 'Формы, сцены, измерения и подготовка моделей к печати.',
-    projectType: 'three-d-scene',
-    schemaVersion: 1,
-    editorRoute: '/projects/:projectId/three-d',
-    viewerRoute: '/view/projects/:versionId/three-d',
-    safeModeSupported: true,
-    previewKind: 'scene',
-    iconKey: 'three-d',
-    categories: ['design', 'engineering'],
-  }),
-  future({
     moduleKey: 'robotics',
     moduleVersion: '0.1.0',
     displayName: 'Виртуальная робототехника',
@@ -86,5 +73,5 @@ const FUTURE_MODULES: readonly RegisteredModule[] = [
 
 /** One server-side source of truth for the create chooser and project core. */
 export function createApiModuleRegistry(): ModuleRegistry {
-  return new ModuleRegistry([ELECTRONICS_MODULE, CHESS_MODULE, ...FUTURE_MODULES]);
+  return new ModuleRegistry([ELECTRONICS_MODULE, CHESS_MODULE, THREE_D_MODULE, ...FUTURE_MODULES]);
 }
