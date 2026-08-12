@@ -48,6 +48,21 @@ export {
   type ChessBotChoice,
 } from './domain/bot.js';
 export {
+  ASA_BOT_PROFILES,
+  chooseAsaBotCandidateIndex,
+  chooseMappedAsaBotMove,
+  computeAsaBotMoveTimeMs,
+  decideAsaBotMistake,
+  validateAsaBotProfileCatalog,
+  type AsaBotMappedChoice,
+  type AsaBotMistakeDecision,
+  type AsaBotMoveTimeInput,
+  type AsaBotProfile,
+  type AsaBotSeedContext,
+  type AsaBotStyleSignal,
+  type AsaBotTier,
+} from './domain/bot-profiles.js';
+export {
   agreeDrawChessDocument,
   chessDocumentPositionKeys,
   createEmptyChessDocument,
@@ -87,6 +102,117 @@ export {
   type ChessSessionPolicy,
 } from './domain/fair-play.js';
 export {
+  CHESS_ENGINE_ANALYSIS_SCHEMA_VERSION,
+  buildChessEngineCacheKey,
+  type AnalyseChessPositionCommand,
+  type ChessEngineAdapterInput,
+  type ChessEngineAnalysis,
+  type ChessEngineAnalysisErrorCode,
+  type ChessEngineAnalysisResult,
+  type ChessEngineCachePort,
+  type ChessEngineCapabilities,
+  type ChessEngineIdentity,
+  type ChessEngineLine,
+  type ChessEnginePort,
+  type ChessEngineQuota,
+  type ChessEngineRawAnalysis,
+  type ChessEngineScore,
+  type ChessEngineSearch,
+  type ChessEngineSettings,
+} from './application/engine-contract.js';
+export { analyseChessPosition } from './application/analyse-position.js';
+export {
+  buildChessAnalysisJobFingerprint,
+  cancelChessAnalysisJob,
+  completeChessAnalysisJob,
+  failChessAnalysisJob,
+  progressChessAnalysisJob,
+  retryChessAnalysisJob,
+  startChessAnalysisJob,
+  type ChessAnalysisJob,
+  type ChessAnalysisJobCancellation,
+  type ChessAnalysisJobFailure,
+  type ChessAnalysisJobProgress,
+  type ChessAnalysisJobRequest,
+  type ChessAnalysisJobStatus,
+  type ChessAnalysisJobTransitionResult,
+} from './application/chess-analysis-job.js';
+export {
+  type ChessAnalysisJobClockPort,
+  type ChessAnalysisJobCreateResult,
+  type ChessAnalysisJobAuthorizationPort,
+  type ChessAnalysisJobIdPort,
+  type ChessAnalysisJobMutationAction,
+  type ChessAnalysisJobMutationPrincipal,
+  type ChessAnalysisJobQueueDispatch,
+  type ChessAnalysisJobQueueEnqueueResult,
+  type ChessAnalysisJobQueueItem,
+  type ChessAnalysisJobQueuePort,
+  type ChessAnalysisJobRequesterAccess,
+  type ChessAnalysisJobRequesterAuthorizationDecision,
+  type ChessAnalysisJobRequesterAuthorizationPort,
+  type ChessAnalysisJobRepositoryPort,
+  type ChessAnalysisJobSaveResult,
+  type ChessAnalysisJobWorkerClaim,
+  type ChessAnalysisJobWorkerClaimPort,
+  type ChessAnalysisJobWorkerClaimResult,
+  type AuthenticatedChessAnalysisRequesterContext,
+} from './application/chess-analysis-job-ports.js';
+export {
+  ChessAnalysisJobService,
+  type ChessAnalysisJobMutationCommand,
+  type ChessAnalysisJobQuota,
+  type ChessAnalysisJobServiceErrorCode,
+  type ChessAnalysisJobServiceResult,
+  type SubmitChessAnalysisJobCommand,
+} from './application/chess-analysis-job-service.js';
+export {
+  ASA_LITE_FIXED_HASH_MB,
+  ASA_LITE_FIXED_THREADS,
+  AsaLiteEngineAdapter,
+} from './infrastructure/asa-lite-engine-adapter.js';
+export { MemoryChessAnalysisJobQueue } from './infrastructure/memory-chess-analysis-job-queue.js';
+export { MemoryChessAnalysisJobRepository } from './infrastructure/memory-chess-analysis-job-repository.js';
+export { MemoryChessEngineCache } from './infrastructure/memory-engine-cache.js';
+export {
+  deserializePrivateChessTrainingRecord,
+  deterministicChessTrainingAttemptId,
+  deterministicChessTrainingId,
+  isCanonicalTrainingTimestamp,
+  isSafeTrainingPartitionId,
+  serializePrivateChessTrainingRecord,
+  validatePrivateChessTrainingRecord,
+  type ChessTrainingAttempt,
+  type ChessTrainingAttemptHint,
+  type ChessTrainingAttemptOutcome,
+  type ChessTrainingErrorClassification,
+  type ChessTrainingHintLevel,
+  type ChessTrainingReviewAlgorithm,
+  type ChessTrainingSource,
+  type ChessTrainingValidationResult,
+  type PrivateChessTrainingRecord,
+} from './application/training-library-model.js';
+export {
+  type ChessTrainingAppendResult,
+  type ChessTrainingCreateResult,
+  type ChessTrainingLibraryRepositoryPort,
+  type ChessTrainingPartition,
+} from './application/training-library-repository.js';
+export {
+  ChessTrainingLibraryService,
+  type AuthenticatedChessTrainingContext,
+  type ChessTrainingAuthorizationDecision,
+  type ChessTrainingAuthorizationPort,
+  type ChessTrainingLibraryErrorCode,
+  type ChessTrainingLibraryAction,
+  type ChessTrainingLibraryResult,
+  type ChessTrainingSourceReference,
+  type ChessTrainingSourceResolverPort,
+  type CreateChessTrainingInput,
+  type RecordChessTrainingAttemptInput,
+} from './application/training-library-service.js';
+export { MemoryChessTrainingLibraryRepository } from './infrastructure/memory-training-library-repository.js';
+export {
   createChessPuzzleSession,
   playChessPuzzleMove,
   requestChessPuzzleHint,
@@ -107,4 +233,24 @@ export {
   type AsaMoveClassification,
   type AsaMoveReview,
 } from './domain/review.js';
+export {
+  explainAsaMoveReview,
+  type AsaReviewExplanation,
+  type AsaReviewExplanationFact,
+  type AsaReviewExplanationResult,
+} from './domain/review-explanation.js';
+export {
+  canCreateReviewRetry,
+  createChessReviewRetrySession,
+  createPrivateReviewTrainingItem,
+  playChessReviewRetryMove,
+  requestChessReviewRetryHint,
+  resetChessReviewRetrySession,
+  type ChessReviewRetryHint,
+  type ChessReviewRetryMoveResult,
+  type ChessReviewRetryResult,
+  type ChessReviewRetrySession,
+  type ChessReviewRetryStatus,
+  type PrivateChessReviewTrainingItem,
+} from './domain/review-retry.js';
 export { CHESS_MODULE, type ChessAnalysisSummary } from './module.js';
