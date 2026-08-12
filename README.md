@@ -1,72 +1,87 @@
 # ASA Lab
 
-Модульная образовательная платформа для аккаунтов, рабочих пространств, проектов, виртуальных лабораторий и будущего учебного цикла.
+> Учиться не по инструкции, а через действие.
 
-## Текущее состояние
+ASA Lab — образовательная платформа, в которой ученик исследует идеи руками:
+собирает электронные схемы, создаёт 3D-модели, играет и разбирает партии, а
+педагог видит не формальную отметку, а реальный путь решения.
 
-```text
-canonical branch:        main
-active task:             TASK-CHECKERS-M1-001
-active issue:            #98
-active branch:           agent/checkers-education-m1
-active Draft PR:         #101
-status:                  in_progress
-checkpoint:              project_document_foundation
-execution lease:         codex-checkers-m1
-```
+Мы строим безопасную цифровую мастерскую для школы: один аккаунт, проекты с
+историей версий, предметные лаборатории, классы и доказуемый прогресс — без
+рекламы, манипулятивных механик и открытого общения детей с незнакомыми людьми.
 
-Активирована самостоятельная образовательная система русских шашек. Задачи 3D
-M0 и Electronics corrective приостановлены решением владельца без заявления о
-завершении. Точное состояние хранится в `docs/execution/current.yaml`.
+Проект находится в активной разработке. Репозиторий открыт, чтобы архитектура,
+решения и качество реализации были прозрачными.
 
-## Что уже работает
+## Что уже можно увидеть
 
-- public entry, регистрация и login по email/username;
-- Account, Profile, Principal, Personal Workspace и sessions_v2;
-- educator self-attestation, capability и AuditEvent;
-- workspace list и ActiveContext;
-- Account profile и session management;
-- Teacher Portal baseline;
-- Project Hub;
-- Electronics, Chess и Chess Online;
-- PostgreSQL, RLS, additive migrations;
-- Docker, persistence и backup/restore.
+### Виртуальная электроника
 
-## Что строится сейчас
+Редактор схем с физически осмысленной симуляцией, диагностикой, сохранением и
+повторным открытием проекта.
 
-```text
-Student opens Checkers
-→ current learning and teacher assignments
-→ Russian-draughts lessons, puzzles and bot ladder
-→ evidence-based review and progress
-→ safe class play with predefined reactions only
-→ teacher activity, mastery and move-level evidence
-```
+![Редактор виртуальной электроники ASA Lab](e2e/artifacts/docker-electronics.png)
 
-Точный scope находится в Issue №98 и
-`docs/product/CHECKERS_EDUCATION_MARKET_ANALYSIS.md`. Шахматы остаются отдельным
-модулем; изменять их в рамках этой задачи запрещено.
+### Шахматы
 
-## Ветка разработки
+Отдельный учебный модуль и серверно подтверждаемая онлайн-партия с историей
+ходов, временем и восстановлением состояния.
 
-```bash
-git fetch --all --prune
-git switch agent/checkers-education-m1
-git pull --ff-only origin agent/checkers-education-m1
-```
+![Шахматная онлайн-партия в ASA Lab](e2e/artifacts/docker-chess-online.png)
 
-Новая параллельная product branch не создаётся. PR №99 остаётся Draft до
-прохождения focused/general gates и owner review.
+### 3D-моделирование
 
-## Порты
+Первая версия предметного 3D-редактора: рабочая плоскость, базовые формы,
+преобразования и жизненный цикл проекта.
 
-```text
-Web  http://127.0.0.1:4610
-API  http://127.0.0.1:4611
-E2E  http://127.0.0.1:4612
-```
+![Редактор 3D-моделирования ASA Lab](e2e/artifacts/three-d-desktop.png)
 
-## Запуск
+Кроме предметных модулей уже существуют аккаунты и рабочие пространства,
+Project Core, базовые классы педагога, PostgreSQL/RLS, Docker-окружение,
+миграции, резервное копирование и восстановление.
+
+## Что развивается
+
+- образовательная система русских шашек: уроки, задачи, боты, задания педагога
+  и безопасная игра внутри класса;
+- более глубокий учебный цикл: назначение, попытка, evidence, разбор и повторение;
+- развитие 3D-инструментов и предметных лабораторий;
+- доступность, мобильные сценарии и эксплуатационная готовность.
+
+Точное текущее состояние не дублируется в README и всегда читается из
+[`docs/execution/current.yaml`](docs/execution/current.yaml). Продуктовая
+программа находится в
+[`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml).
+
+## Принципы ASA Lab
+
+- **Практика важнее демонстрации.** Каждый модуль должен приводить ученика к
+  самостоятельному действию и проверяемому результату.
+- **Прогресс подтверждается evidence.** Педагог видит проект, попытку, позицию,
+  ход или измерение, на которых основан вывод.
+- **Безопасность детей встроена в архитектуру.** Tenant isolation, минимизация
+  данных и отсутствие свободного публичного детского чата — продуктовые
+  требования, а не дополнения после запуска.
+- **Предметные модули независимы.** Электроника, шахматы, шашки и 3D используют
+  общую платформу, но не смешивают доменную логику.
+- **Ошибки не маскируются.** Неподдерживаемая модель, конфликт сохранения или
+  непроверенный результат завершаются честной диагностикой.
+- **Качество доказывается одинаково локально и в CI.** Контракты, границы,
+  авторизация, данные и браузерные journeys входят в проверяемую поставку.
+
+## Технологии
+
+- TypeScript, React и Vite;
+- NestJS/Fastify;
+- PostgreSQL с Row-Level Security;
+- Nx и pnpm workspace;
+- Vitest и Playwright;
+- Docker Compose;
+- Rust/WASM предусмотрены для вычислительных модулей, где это оправдано.
+
+## Локальный запуск
+
+Требуются Docker с Linux containers, Node.js и Corepack.
 
 ```bash
 cp .env.docker.example .env
@@ -74,14 +89,44 @@ cp .env.docker.example .env
 ./tools/docker-healthcheck.sh dev
 ```
 
-Backup хранится отдельно от Git.
+После запуска:
 
-## Источники истины
+```text
+Web  http://127.0.0.1:4610
+API  http://127.0.0.1:4611
+E2E  http://127.0.0.1:4612
+```
 
-1. [`AGENTS.md`](AGENTS.md)
-2. [`docs/project-map/infrastructure-focus.yaml`](docs/project-map/infrastructure-focus.yaml)
-3. [`docs/project-map/project-map.yaml`](docs/project-map/project-map.yaml)
-4. [`docs/delivery/EXECUTION_MANIFEST.yaml`](docs/delivery/EXECUTION_MANIFEST.yaml)
-5. Issue №62
-6. [`docs/testing/test-catalog.yaml`](docs/testing/test-catalog.yaml)
-7. [`docs/testing/active-task-tests.yaml`](docs/testing/active-task-tests.yaml)
+Локальный `.env`, сгенерированные credentials, данные PostgreSQL и backup-файлы
+не должны попадать в Git.
+
+## Проверки
+
+```bash
+corepack pnpm install --frozen-lockfile
+NX_SKIP_NX_CACHE=true corepack pnpm gate:repository
+```
+
+Полный repository gate требует изолированную тестовую PostgreSQL. Focused и
+браузерные команды конкретной задачи указаны в
+[`docs/execution/current.yaml`](docs/execution/current.yaml).
+
+## Участие в проекте
+
+ASA Lab развивается вертикальными пользовательскими результатами, а не
+несвязанными наборами функций. Перед изменениями прочитайте
+[`CONTRIBUTING.md`](CONTRIBUTING.md), [`AGENTS.md`](AGENTS.md) и актуальное
+состояние выполнения.
+
+Идеи и предложения можно обсуждать через
+[GitHub Issues](https://github.com/spikeal8-maker/asa-lab/issues). Сведения об
+уязвимостях нельзя публиковать в обычной Issue — используйте процесс из
+[`SECURITY.md`](SECURITY.md).
+
+## Лицензирование
+
+Публичная доступность репозитория обеспечивает прозрачность разработки, но сама
+по себе не предоставляет open-source лицензию. Пока отдельная лицензия не
+опубликована, все права сохраняются за правообладателем. Перед копированием,
+распространением или коммерческим использованием кода и графических материалов
+необходимо получить разрешение владельца репозитория.
