@@ -612,7 +612,8 @@
 .checkers-workspace {
   min-height: 100vh;
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 34% 12%, rgb(255 255 255 / 82%), transparent 30%),
     linear-gradient(180deg, #edf3f5 0%, #e8eef1 100%);
@@ -784,7 +785,7 @@
 .checkers-board-frame {
   display: grid;
   gap: 10px;
-  width: min(620px, 100%, calc(100dvh - 190px));
+  width: min(620px, 100%, calc(100dvh - 206px));
   min-width: 0;
 }
 

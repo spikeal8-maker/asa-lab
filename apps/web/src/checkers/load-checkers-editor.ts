@@ -15,8 +15,7 @@ function reloadCurrentBuildOnce(): Promise<never> {
     }
     window.sessionStorage.setItem(CHECKERS_RELOAD_MARKER, marker);
   } catch {
-    // Storage may be unavailable in a locked-down browser. Reloading once is
-    // still safer than leaving a permanently rejected React.lazy boundary.
+    return Promise.reject(new Error('Не удалось безопасно перезапустить загрузку модуля шашек.'));
   }
   window.location.reload();
   return new Promise<never>(() => undefined);
