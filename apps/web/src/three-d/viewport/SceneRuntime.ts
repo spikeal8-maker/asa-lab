@@ -290,7 +290,9 @@ export class SceneRuntime {
         rendered = createBooleanMesh(nodes, operation);
       } catch {
         const fallback = new THREE.Group();
-        nodes.filter((node) => node.visible).forEach((node) => fallback.add(createNodeObject(node)));
+        nodes
+          .filter((node) => node.visible)
+          .forEach((node) => fallback.add(createNodeObject(node)));
         rendered = fallback.children.length > 0 ? fallback : null;
       }
       if (!rendered) continue;

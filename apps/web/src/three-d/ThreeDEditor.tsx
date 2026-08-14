@@ -212,9 +212,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
               controller.selectedNodes.every((node) => node.operation === 'solid')
             }
             onClick={() => controller.setSelectionOperation('solid')}
-            disabled={
-              controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)
-            }
+            disabled={controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)}
           >
             <CubeIcon />
           </ToolbarButton>
@@ -225,9 +223,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
               controller.selectedNodes.every((node) => node.operation === 'hole')
             }
             onClick={() => controller.setSelectionOperation('hole')}
-            disabled={
-              controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)
-            }
+            disabled={controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)}
           >
             <HoleIcon />
           </ToolbarButton>

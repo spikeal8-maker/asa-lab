@@ -303,9 +303,7 @@ export function createBooleanGeometry(
 ): THREE.BufferGeometry | null {
   const visible = nodes.filter((node) => node.visible);
   const solids =
-    operation === 'difference'
-      ? visible.filter((node) => node.operation === 'solid')
-      : visible;
+    operation === 'difference' ? visible.filter((node) => node.operation === 'solid') : visible;
   const holes =
     operation === 'difference' ? visible.filter((node) => node.operation === 'hole') : [];
   if (solids.length === 0) return null;
