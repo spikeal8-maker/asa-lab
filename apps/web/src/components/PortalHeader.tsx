@@ -5,10 +5,13 @@ import { createAvatarDataUrl } from '../creator-portal/avatar-file';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 import {
   ClassesIcon,
+  ChevronIcon,
+  CloseIcon,
   CollapseIcon,
   CommentIcon,
   ExpandIcon,
   FolderIcon,
+  InspectIcon,
   ListIcon,
   PlusIcon,
   SearchIcon,
@@ -89,6 +92,42 @@ export function PortalHeader({
     };
   }, [session.user.id]);
 
+  useEffect(() => {
+    function closeAccountMenu(event: PointerEvent): void {
+      const menu = accountMenu.current;
+      if (!menu?.open || !(event.target instanceof Node) || menu.contains(event.target)) return;
+      menu.removeAttribute('open');
+    }
+
+    function closeAccountMenuWithEscape(event: KeyboardEvent): void {
+      if (event.key !== 'Escape' || !accountMenu.current?.open) return;
+      accountMenu.current.removeAttribute('open');
+      accountMenu.current.querySelector('summary')?.focus();
+    }
+
+    document.addEventListener('pointerdown', closeAccountMenu);
+    document.addEventListener('keydown', closeAccountMenuWithEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeAccountMenu);
+      document.removeEventListener('keydown', closeAccountMenuWithEscape);
+    };
+  }, []);
+
+  function closeAccountMenu(): void {
+    accountMenu.current?.removeAttribute('open');
+  }
+
+  function openAccountMenu(): void {
+    if (!accountMenu.current) return;
+    accountMenu.current.open = true;
+    window.requestAnimationFrame(() => accountMenu.current?.querySelector('summary')?.focus());
+  }
+
+  function navigateFromAccount(section: PortalSection): void {
+    closeAccountMenu();
+    onNavigate(section);
+  }
+
   async function uploadAvatar(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
@@ -134,7 +173,7 @@ export function PortalHeader({
     const result = await api.logout();
     setBusy(null);
     if (result.ok) {
-      accountMenu.current?.removeAttribute('open');
+      closeAccountMenu();
       onLoggedOut();
     } else
       setError(
@@ -155,7 +194,7 @@ export function PortalHeader({
       refreshed.data.activeWorkspace.workspaceId === workspaceId
     ) {
       onSessionChanged(refreshed.data);
-      accountMenu.current?.removeAttribute('open');
+      closeAccountMenu();
       onNavigate('home');
       return;
     }
@@ -222,66 +261,154 @@ export function PortalHeader({
               <small>{activeWorkspace?.title ?? 'Рабочее пространство'}</small>
             </span>
           </summary>
-          <div className="portal-account-menu">
-            <div className="portal-account-identity">
-              <strong>{session.user.displayName}</strong>
-              <span>{session.user.email}</span>
-            </div>
-            <div className="portal-account-avatar-actions">
+          <div className="portal-account-menu" aria-label="Центр аккаунта">
+            <div className="portal-account-profile-row">
               <button
                 type="button"
+                className="portal-account-profile-avatar"
+                aria-label={
+                  avatarDataUrl ? 'Изменить фотографию профиля' : 'Загрузить фотографию профиля'
+                }
+                title={avatarDataUrl ? 'Изменить фотографию' : 'Загрузить фотографию'}
                 disabled={busy !== null}
                 onClick={() => avatarInput.current?.click()}
               >
-                {avatarDataUrl ? 'Изменить фотографию' : 'Загрузить фотографию'}
+                <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
+                <span className="portal-account-avatar-edit" aria-hidden="true">
+                  <PlusIcon />
+                </span>
+              </button>
+              <button
+                type="button"
+                className="portal-account-identity"
+                onClick={() => navigateFromAccount('account')}
+              >
+                <strong>{session.user.displayName}</strong>
+                <span>{session.user.email}</span>
+              </button>
+            </div>
+
+            <div className="portal-account-group">
+              <button
+                type="button"
+                className="portal-account-item"
+                onClick={() => {
+                  closeAccountMenu();
+                  onCreate();
+                }}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <PlusIcon />
+                </span>
+                <span>Новый проект</span>
+              </button>
+              <button
+                type="button"
+                className="portal-account-item"
+                onClick={() => navigateFromAccount('projects')}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <GridIcon />
+                </span>
+                <span>Мои проекты</span>
+              </button>
+              <div
+                className="portal-account-item portal-account-notifications"
+                aria-label="Уведомления: новых нет"
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <CommentIcon />
+                </span>
+                <span>Уведомления</span>
+                <span className="portal-account-item-meta">Нет новых</span>
+              </div>
+              <button
+                type="button"
+                className="portal-account-item"
+                onClick={() => navigateFromAccount('account')}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <InspectIcon />
+                </span>
+                <span>Настройки</span>
+              </button>
+            </div>
+
+            {canTeach ? (
+              <div className="portal-account-group">
+                <button
+                  type="button"
+                  className="portal-account-item"
+                  onClick={() => navigateFromAccount('classes')}
+                >
+                  <span className="portal-account-item-icon" aria-hidden="true">
+                    <ClassesIcon />
+                  </span>
+                  <span>Мои классы</span>
+                </button>
+              </div>
+            ) : null}
+
+            <div className="portal-account-group">
+              <details className="portal-account-workspaces">
+                <summary className="portal-account-item">
+                  <span className="portal-account-item-icon" aria-hidden="true">
+                    <FolderIcon />
+                  </span>
+                  <span className="portal-account-workspace-copy">
+                    <strong>Рабочее пространство</strong>
+                    <small>{activeWorkspace?.title ?? 'Личное пространство'}</small>
+                  </span>
+                  <ChevronIcon className="portal-account-chevron" aria-hidden="true" />
+                </summary>
+                <div className="portal-account-workspace-list">
+                  {session.workspaces.map((workspace) => {
+                    const current = workspace.workspaceId === session.activeWorkspace.workspaceId;
+                    return (
+                      <button
+                        type="button"
+                        key={workspace.workspaceId}
+                        className={current ? 'current' : undefined}
+                        disabled={busy !== null || current}
+                        onClick={() => void switchWorkspace(workspace.workspaceId)}
+                      >
+                        <span>
+                          <strong>{workspace.title}</strong>
+                          <small>{workspace.kind === 'personal' ? 'Личное' : 'Организация'}</small>
+                        </span>
+                        <span aria-hidden="true">
+                          {busy === `workspace:${workspace.workspaceId}` ? '…' : current ? '✓' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            </div>
+
+            <div className="portal-account-group portal-account-exit-group">
+              <button
+                type="button"
+                className="portal-account-item portal-account-logout"
+                disabled={busy !== null}
+                onClick={() => void logout()}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <CloseIcon />
+                </span>
+                <span>{busy === 'logout' ? 'Выходим…' : 'Выход'}</span>
               </button>
               {avatarDataUrl ? (
-                <button type="button" disabled={busy !== null} onClick={() => void removeAvatar()}>
-                  Удалить
+                <button
+                  type="button"
+                  className="portal-account-remove-avatar"
+                  disabled={busy !== null}
+                  onClick={() => void removeAvatar()}
+                >
+                  Удалить фотографию
                 </button>
               ) : null}
             </div>
-            <div className="portal-account-workspaces">
-              <p>Рабочее пространство</p>
-              {session.workspaces.map((workspace) => {
-                const current = workspace.workspaceId === session.activeWorkspace.workspaceId;
-                return (
-                  <button
-                    type="button"
-                    key={workspace.workspaceId}
-                    className={current ? 'current' : undefined}
-                    disabled={busy !== null || current}
-                    onClick={() => void switchWorkspace(workspace.workspaceId)}
-                  >
-                    <span>
-                      <strong>{workspace.title}</strong>
-                      <small>{workspace.kind === 'personal' ? 'Личное' : 'Организация'}</small>
-                    </span>
-                    <span aria-hidden="true">
-                      {busy === `workspace:${workspace.workspaceId}` ? '…' : current ? '✓' : ''}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              className="portal-account-settings"
-              onClick={() => {
-                accountMenu.current?.removeAttribute('open');
-                onNavigate('account');
-              }}
-            >
-              Профиль и активные сессии
-            </button>
-            <button
-              type="button"
-              className="portal-account-logout"
-              disabled={busy !== null}
-              onClick={() => void logout()}
-            >
-              {busy === 'logout' ? 'Выходим…' : 'Выйти'}
-            </button>
           </div>
         </details>
       </header>
@@ -293,16 +420,14 @@ export function PortalHeader({
           <button
             type="button"
             className="portal-sidebar-avatar"
-            aria-label={
-              avatarDataUrl ? 'Изменить фотографию профиля' : 'Загрузить фотографию профиля'
-            }
-            title={avatarDataUrl ? 'Изменить фотографию' : 'Загрузить фотографию'}
+            aria-label={`Открыть меню аккаунта ${session.user.displayName}`}
+            title="Открыть меню аккаунта"
             disabled={busy !== null}
-            onClick={() => avatarInput.current?.click()}
+            onClick={openAccountMenu}
           >
             <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
             <span className="portal-avatar-upload-badge" aria-hidden="true">
-              <PlusIcon />
+              <ChevronIcon />
             </span>
           </button>
           <input

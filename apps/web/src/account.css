@@ -56,79 +56,202 @@
 
 .portal-account-menu {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 9px);
   right: 0;
   z-index: 80;
-  width: min(330px, calc(100vw - 24px));
+  width: min(336px, calc(100vw - 24px));
   overflow: hidden;
-  border: 1px solid #d7e0e7;
-  border-radius: 13px;
+  border: 1px solid #cad5dc;
+  border-radius: 8px;
   background: #fff;
-  box-shadow: 0 18px 55px rgba(23, 45, 61, 0.2);
+  box-shadow: 0 8px 26px rgba(24, 45, 58, 0.19);
+}
+
+.portal-account-profile-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 82px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #e5eaee;
+}
+
+.portal-account-profile-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  overflow: visible;
+  border: 2px solid #d9e5eb;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #148fc3, #0d587b);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.portal-account-profile-avatar > img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.portal-account-avatar-edit {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #0879b7;
+  color: #fff;
+}
+
+.portal-account-avatar-edit svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2.6;
 }
 
 .portal-account-identity {
   display: grid;
-  gap: 2px;
-  padding: 18px;
-  border-bottom: 1px solid #e5eaee;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #293d49;
+  text-align: left;
+}
+
+.portal-account-identity strong,
+.portal-account-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-account-identity strong {
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .portal-account-identity span {
   overflow: hidden;
   color: #6b7b87;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.45;
   text-overflow: ellipsis;
 }
 
-.portal-account-avatar-actions {
-  display: flex;
-  gap: 8px;
-  padding: 10px 12px;
+.portal-account-group {
+  padding: 8px 0;
   border-bottom: 1px solid #e5eaee;
 }
 
-.portal-account-avatar-actions button {
-  min-height: 34px;
-  padding: 0 11px;
-  border: 1px solid #cbd9e1;
-  border-radius: 18px;
+.portal-account-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 20px;
+  border: 0;
   background: #fff;
-  color: #176f9f;
-  font-size: 12px;
+  color: #2f404a;
+  font-size: 14px;
+  font-weight: 760;
+  text-align: left;
+}
+
+.portal-account-item:hover:not(:disabled),
+button.portal-account-identity:hover:not(:disabled) {
+  background: #f1f7fa;
+}
+
+.portal-account-item-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #687986;
+}
+
+.portal-account-item-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.8;
+}
+
+.portal-account-item-meta {
+  justify-self: end;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: #edf4f7;
+  color: #657783;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.portal-account-avatar-actions button:hover:not(:disabled) {
-  border-color: #148fc3;
-  background: #eef8fc;
+.portal-account-notifications {
+  cursor: default;
 }
 
-.portal-account-avatar-actions button:last-child:not(:first-child) {
-  color: #9b4038;
+.portal-account-workspaces > summary {
+  list-style: none;
+  cursor: pointer;
 }
 
-.portal-account-workspaces {
-  padding: 12px 10px;
-  border-bottom: 1px solid #e5eaee;
+.portal-account-workspaces > summary::-webkit-details-marker {
+  display: none;
 }
 
-.portal-account-workspaces p {
-  margin: 0;
-  padding: 0 8px 7px;
-  color: #7b8993;
+.portal-account-workspace-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.portal-account-workspace-copy strong,
+.portal-account-workspace-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-account-workspace-copy small {
+  color: #71818d;
   font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 550;
 }
 
-.portal-account-workspaces button {
+.portal-account-chevron {
+  width: 18px;
+  height: 18px;
+  color: #758590;
+  transition: transform 160ms ease;
+}
+
+.portal-account-workspaces[open] .portal-account-chevron {
+  transform: rotate(180deg);
+}
+
+.portal-account-workspace-list {
+  padding: 0 12px 6px 64px;
+}
+
+.portal-account-workspace-list button {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  padding: 10px 9px;
+  padding: 9px 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -136,42 +259,46 @@
   text-align: left;
 }
 
-.portal-account-workspaces button:hover:not(:disabled) {
+.portal-account-workspace-list button:hover:not(:disabled) {
   background: #eef7fb;
 }
 
-.portal-account-workspaces button.current {
+.portal-account-workspace-list button.current {
   color: #0f739e;
   background: #edf7fb;
 }
 
-.portal-account-workspaces button > span:first-child {
+.portal-account-workspace-list button > span:first-child {
   display: grid;
   gap: 2px;
 }
 
-.portal-account-workspaces button small {
+.portal-account-workspace-list button small {
   color: #71818d;
 }
 
-.portal-account-settings,
+.portal-account-exit-group {
+  border-bottom: 0;
+}
+
 .portal-account-logout {
+  color: #334751;
+}
+
+.portal-account-remove-avatar {
   width: 100%;
-  padding: 13px 18px;
+  padding: 4px 20px 8px 64px;
   border: 0;
   background: #fff;
-  color: #385364;
+  color: #9b4038;
+  font-size: 11px;
+  font-weight: 650;
   text-align: left;
 }
 
-.portal-account-settings:hover,
-.portal-account-logout:hover:not(:disabled) {
-  background: #f3f7f9;
-}
-
-.portal-account-logout {
-  border-top: 1px solid #e5eaee;
-  color: #a43d35;
+.portal-account-remove-avatar:hover:not(:disabled) {
+  color: #752b26;
+  text-decoration: underline;
 }
 
 .account-page {
