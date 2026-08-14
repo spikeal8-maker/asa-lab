@@ -84,24 +84,42 @@ Project Core, базовые классы педагога, PostgreSQL/RLS, Dock
 
 ## Локальный запуск
 
-Требуются Docker с Linux containers, Node.js и Corepack.
+Для обычного запуска нужны только Git и Docker Desktop/Engine с Compose.
+Секреты и согласованные адреса баз данных создаются автоматически в локальном
+игнорируемом файле `.env`.
 
-```bash
-cp .env.docker.example .env
-./tools/docker-up.sh dev
-./tools/docker-healthcheck.sh dev
+Windows 11:
+
+```powershell
+git clone https://github.com/spikeal8-maker/asa-lab.git
+cd asa-lab
+powershell -ExecutionPolicy Bypass -File .\tools\asa-lab.ps1 up
 ```
 
-После запуска:
+Linux или WSL2:
+
+```bash
+git clone https://github.com/spikeal8-maker/asa-lab.git
+cd asa-lab
+./tools/asa-lab.sh up
+```
+
+После готовности:
 
 ```text
 Web  http://127.0.0.1:4610
 API  http://127.0.0.1:4611
-E2E  http://127.0.0.1:4612
 ```
 
+Скрипт печатает данные тестового педагога после успешной проверки готовности.
+Повторный запуск сохраняет `.env` и PostgreSQL volume. Управление, обновление,
+Windows/WSL2 и production-рекомендации описаны в
+[`docs/deployment/QUICK_START.md`](docs/deployment/QUICK_START.md).
+
 Локальный `.env`, сгенерированные credentials, данные PostgreSQL и backup-файлы
-не должны попадать в Git.
+не должны попадать в Git. Node.js 22 и Corepack нужны только для разработки и
+запуска проверок вне Docker. Порт 4612 зарезервирован для изолированных E2E-
+проверок и обычным запуском не открывается.
 
 ## Проверки
 
