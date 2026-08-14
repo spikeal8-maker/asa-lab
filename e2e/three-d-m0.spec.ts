@@ -81,6 +81,7 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
   await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
     timeout: 20_000,
   });
+  await expect(page).toHaveURL(/#\/3d\/[^/?#]+$/);
 }
 
 async function expandShapeInspector(page: Page): Promise<void> {

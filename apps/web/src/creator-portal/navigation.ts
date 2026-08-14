@@ -43,10 +43,18 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/account', view: { kind: 'account' } },
 ];
 
-export function portalNavigation(canTeach: boolean): readonly PortalNavigationItem[] {
+function decodeRouteParameter(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+export function portalNavigation(_canTeach: boolean): readonly PortalNavigationItem[] {
   return [
     { section: 'home', label: 'Главная' },
-    ...(canTeach ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
+    { section: 'classes', label: 'Классы' },
     { section: 'projects', label: 'Проекты' },
     { section: 'collections', label: 'Коллекции' },
     { section: 'learning', label: 'Учебные пособия' },
@@ -62,14 +70,14 @@ export function canUseClasses(
   return navigation.classes && activeWorkspaceKind === 'organization';
 }
 
-export function sectionForView(view: CreatorPortalView, canTeach: boolean): CreatorPortalSection {
+export function sectionForView(view: CreatorPortalView, _canTeach: boolean): CreatorPortalSection {
   if (view.kind === 'account') return 'account';
   if (view.kind === 'home') return 'home';
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
-  if (canTeach && (view.kind === 'classrooms' || view.kind === 'classroom-projects')) {
+  if (view.kind === 'classrooms' || view.kind === 'classroom-projects') {
     return 'classes';
   }
   return 'projects';
@@ -111,6 +119,29 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
       kind: 'classroom-projects',
       classroomId: classProjects[1] as string,
       classroomTitle: title,
+    };
+  }
+  const independentThreeDEditor = /^\/3d\/([^/]+)$/.exec(path ?? '');
+  if (independentThreeDEditor) {
+    const projectId = decodeRouteParameter(independentThreeDEditor[1] as string);
+    if (!projectId) return { kind: 'my-projects' };
+    return {
+      kind: 'editor',
+      projectId,
+      returnTo: { kind: 'my-projects' },
+    };
+  }
+  const independentChessPage =
+    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|puzzles|learning|bots|review))?$/.exec(
+      path ?? '',
+    );
+  if (independentChessPage) {
+    const projectId = decodeRouteParameter(independentChessPage[1] as string);
+    if (!projectId) return { kind: 'my-projects' };
+    return {
+      kind: 'editor',
+      projectId,
+      returnTo: { kind: 'my-projects' },
     };
   }
   const personalEditor = /^\/(home|projects)\/([^/]+)$/.exec(path ?? '');

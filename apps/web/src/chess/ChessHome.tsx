@@ -20,6 +20,7 @@ interface ChessHomeProps {
   readonly onOpenBoard: () => void;
   readonly onOpenOnline: () => void;
   readonly onOpenTraining: () => void;
+  readonly onOpenLearning: () => void;
   readonly onOpenReview: () => void;
   readonly onOpenBot: () => void;
 }
@@ -30,6 +31,7 @@ interface ChessHomeNavigationProps {
   readonly onOpenBoard: () => void;
   readonly onOpenOnline: () => void;
   readonly onOpenTraining: () => void;
+  readonly onOpenLearning: () => void;
   readonly onOpenReview: () => void;
   readonly onOpenBot: () => void;
 }
@@ -64,7 +66,13 @@ function ChessHomeNavigation(props: ChessHomeNavigationProps): JSX.Element {
       selected: false,
       action: props.onOpenTraining,
     },
-    { label: 'Учёба', note: 'Уроки ASA', icon: '▰', selected: false, action: props.onOpenTraining },
+    {
+      label: 'Учёба',
+      note: 'Уроки ASA',
+      icon: '▰',
+      selected: false,
+      action: props.onOpenLearning,
+    },
     { label: 'Боты', note: '12 соперников', icon: '♟', selected: false, action: props.onOpenBot },
     {
       label: 'Разбор',
@@ -312,7 +320,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
                 <h2>Уроки по вашим ошибкам</h2>
               </div>
               <p>После решения задач ASA предложит оригинальный урок по нужной теме.</p>
-              <button type="button" onClick={props.onOpenTraining}>
+              <button type="button" onClick={props.onOpenLearning}>
                 Открыть обучение
               </button>
             </article>
