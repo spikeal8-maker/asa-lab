@@ -46,6 +46,18 @@ describe('ASA 3D document', () => {
     expect(redoHistory(undone).present.nodes[0]?.primitive).toBe('cylinder');
   });
 
+  it('keeps visibility available while a shape is locked', () => {
+    const locked = { ...createThreeDNode('box', 'locked-box'), locked: true };
+    const source = { ...createEmptyThreeDDocument(), nodes: [locked] };
+    const hidden = commitCommand(createHistory(source), {
+      type: 'set-visible',
+      nodeId: locked.id,
+      visible: false,
+    });
+    expect(hidden.present.nodes[0]).toMatchObject({ locked: true, visible: false });
+    expect(source.nodes[0]).toMatchObject({ locked: true, visible: true });
+  });
+
   it('upgrades legacy version-one documents with reversible modelling metadata', () => {
     const document = createEmptyThreeDDocument();
     const legacyNode = createThreeDNode('box', 'legacy');

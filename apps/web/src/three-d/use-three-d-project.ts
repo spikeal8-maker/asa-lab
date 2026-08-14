@@ -17,6 +17,7 @@ import {
   type BooleanOperation,
   type HistoryState,
   type PrimitiveKind,
+  type ShapeOperation,
   type ThreeDCommand,
   type ThreeDDimensions,
   type ThreeDDocument,
@@ -50,6 +51,7 @@ export interface ThreeDProjectController {
     primitive: PrimitiveKind,
     position?: { x: number; z: number },
     additive?: boolean,
+    operation?: ShapeOperation,
   ) => void;
   readonly copySelected: () => void;
   readonly pasteCopied: () => void;
@@ -231,8 +233,13 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   }, []);
 
   const addPrimitive = useCallback(
-    (primitive: PrimitiveKind, position?: { x: number; z: number }, additive = false): void => {
-      const node = createThreeDNode(primitive, makeId(primitive));
+    (
+      primitive: PrimitiveKind,
+      position?: { x: number; z: number },
+      additive = false,
+      operation: ShapeOperation = 'solid',
+    ): void => {
+      const node = { ...createThreeDNode(primitive, makeId(primitive)), operation };
       const positioned = position
         ? {
             ...node,
@@ -246,7 +253,11 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       setSelectedIds((current) =>
         additive ? [...new Set([...current, positioned.id])] : [positioned.id],
       );
-      setNotice(`Форма «${positioned.name}» добавлена на рабочую плоскость.`);
+      setNotice(
+        operation === 'hole'
+          ? `Отверстие «${positioned.name}» добавлено на рабочую плоскость.`
+          : `Форма «${positioned.name}» добавлена на рабочую плоскость.`,
+      );
     },
     [execute],
   );

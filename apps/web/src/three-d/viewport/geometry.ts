@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
 
 function wedgeGeometry(): THREE.BufferGeometry {
@@ -209,6 +210,16 @@ export function createPrimitiveGeometryForKind(
 }
 
 export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry {
+  if (node.primitive === 'box' && node.bevel > 0) {
+    const minimumDimension = Math.max(
+      0.001,
+      Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height),
+    );
+    const radius = Math.min(0.49, node.bevel / minimumDimension);
+    return normaliseToUnitBox(
+      new RoundedBoxGeometry(1, 1, 1, Math.max(1, Math.min(12, node.sides)), radius),
+    );
+  }
   return createPrimitiveGeometryForKind(node.primitive, node.sides);
 }
 

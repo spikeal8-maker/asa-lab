@@ -96,11 +96,14 @@ export function applyThreeDCommand(source: ThreeDDocument, command: ThreeDComman
         ? { document: { ...document, nodes }, changed: true }
         : { document: source, changed: false };
     }
-    case 'set-visible':
-      return replaceNode(document, command.nodeId, (node) => ({
-        ...node,
-        visible: command.visible,
-      }));
+    case 'set-visible': {
+      const nodes = document.nodes.map((node) =>
+        node.id === command.nodeId ? { ...node, visible: command.visible } : node,
+      );
+      return document.nodes.some((node) => node.id === command.nodeId)
+        ? { document: { ...document, nodes }, changed: true }
+        : { document: source, changed: false };
+    }
     case 'replace-node': {
       const index = document.nodes.findIndex((node) => node.id === command.node.id);
       if (index < 0 || document.nodes[index]?.locked) return { document: source, changed: false };

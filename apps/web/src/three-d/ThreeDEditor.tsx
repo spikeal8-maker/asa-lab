@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
 import type { PublicUser } from '../api';
 import { AsaLabMark } from '../brand/AsaLabBrand';
 import {
@@ -83,6 +84,10 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const [exportOpen, setExportOpen] = useState(false);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [alignmentOpen, setAlignmentOpen] = useState(false);
+  const [draggedPlacement, setDraggedPlacement] = useState<{
+    readonly primitive: PrimitiveKind;
+    readonly operation: ShapeOperation;
+  } | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -355,6 +360,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             onSelect={controller.setSelectedId}
             onTransformCommit={controller.commitTransform}
             onDropPrimitive={controller.addPrimitive}
+            activePlacement={draggedPlacement}
           />
 
           <div className="asa3d-view-cube" aria-label="Стандартные виды">
@@ -499,6 +505,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         </div>
         <ShapeLibrary
           onAdd={controller.addPrimitive}
+          onDragStateChange={setDraggedPlacement}
           gridVisible={document.grid.visible}
           onToggleGrid={() => replaceGrid({ visible: !document.grid.visible })}
           onOpenGridSettings={() => setGridSettingsOpen(true)}

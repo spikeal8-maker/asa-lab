@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { createThreeDNode, type PrimitiveKind } from '@asa-lab/three-d';
 import {
   createNodeObject,
+  createPrimitiveGeometry,
   createPrimitiveGeometryForKind,
   disposeObject,
 } from '../viewport/geometry';
@@ -28,6 +29,18 @@ describe('ASA 3D primitive geometry', () => {
     expect(mesh.material.transparent).toBe(true);
     expect(mesh.material.depthWrite).toBe(false);
     disposeObject(object);
+  });
+
+  it('uses the saved radius and steps for a rounded parallelepiped', () => {
+    const node = { ...createThreeDNode('box', 'rounded-box'), bevel: 3, sides: 8 };
+    const geometry = createPrimitiveGeometry(node);
+    geometry.computeBoundingBox();
+    const size = geometry.boundingBox?.getSize(new THREE.Vector3());
+    expect(geometry.getAttribute('position').count).toBeGreaterThan(36);
+    expect(size?.x).toBeCloseTo(1, 5);
+    expect(size?.y).toBeCloseTo(1, 5);
+    expect(size?.z).toBeCloseTo(1, 5);
+    geometry.dispose();
   });
 
   it('normalises every catalog primitive to exact width, height and depth', () => {

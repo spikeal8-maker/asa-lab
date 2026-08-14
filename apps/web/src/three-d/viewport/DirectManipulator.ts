@@ -59,6 +59,8 @@ interface DragState {
   readonly initialHeight: number;
   readonly axisWorld: THREE.Vector3 | null;
   readonly startRotationVector: THREE.Vector3 | null;
+  /** Keeps the exact visual handle point under an off-centre pointer grab. */
+  readonly pointerGrabOffset: THREE.Vector3;
   readonly floorPositionY: number;
   moved: boolean;
   currentAngleDegrees: number;
@@ -69,7 +71,7 @@ interface LabelAnchor {
   readonly point: THREE.Vector3;
 }
 
-const HANDLE_COLOR = new THREE.Color('#f4f5f5');
+const HANDLE_COLOR = new THREE.Color('#e8ecee');
 const HANDLE_ACTIVE = new THREE.Color('#ef3b32');
 const OUTLINE_COLOR = '#00a9cf';
 const DIMENSION_COLOR = '#30383d';
@@ -159,11 +161,14 @@ function createSquareHandleTexture(): THREE.CanvasTexture {
   const context = canvas.getContext('2d');
   if (context) {
     context.clearRect(0, 0, 64, 64);
-    context.fillStyle = '#ffffff';
-    context.strokeStyle = '#252b2f';
-    context.lineWidth = 7;
-    context.fillRect(17, 17, 30, 30);
-    context.strokeRect(17, 17, 30, 30);
+    context.shadowColor = 'rgba(10, 22, 28, 0.42)';
+    context.shadowBlur = 4;
+    context.shadowOffsetY = 2;
+    context.fillStyle = '#f5f7f7';
+    context.strokeStyle = '#20292d';
+    context.lineWidth = 8;
+    context.fillRect(16, 16, 32, 32);
+    context.strokeRect(16, 16, 32, 32);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -290,6 +295,7 @@ export class DirectManipulator {
     this.canvas.addEventListener('pointerup', this.handlePointerUp, true);
     this.canvas.addEventListener('pointercancel', this.handlePointerCancel, true);
     this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
+    this.canvas.style.cursor = 'default';
   }
 
   private addSquareHandle(descriptor: HandleDescriptor): void {
@@ -335,6 +341,8 @@ export class DirectManipulator {
       depthWrite: false,
       toneMapped: false,
     });
+    material.rotation =
+      descriptor.axis === 'y' ? -Math.PI / 2 : descriptor.axis === 'x' ? Math.PI : 0;
     const root = new THREE.Sprite(material);
     root.userData['directHandleId'] = descriptor.id;
     root.renderOrder = 58;
@@ -526,8 +534,13 @@ export class DirectManipulator {
     const visibleRoots = [...this.handles.values()]
       .map((visual) => visual.root)
       .filter((root) => root.visible);
-    const hit = this.raycaster.intersectObjects(visibleRoots, true)[0];
-    const handleId = findHandleId(hit?.object);
+    const directHit = this.raycaster.intersectObjects(visibleRoots, true)[0];
+    const directHandleId = findHandleId(directHit?.object);
+    if (directHandleId) return this.handles.get(directHandleId)?.descriptor ?? null;
+    const ringHit = this.rotationRing.visible
+      ? this.raycaster.intersectObject(this.rotationRing, true)[0]
+      : undefined;
+    const handleId = findHandleId(ringHit?.object);
     return handleId ? (this.handles.get(handleId)?.descriptor ?? null) : null;
   }
 
@@ -592,11 +605,7 @@ export class DirectManipulator {
     const handle = this.intersectHandle();
     this.setHoveredHandle(handle?.id ?? null);
     if (handle) return;
-    const hit = this.intersectEntry();
-    if (hit?.nodeId === this.selectedId && !hit.entry.node.locked)
-      this.canvas.style.cursor = 'move';
-    else if (hit) this.canvas.style.cursor = 'pointer';
-    else this.canvas.style.cursor = 'grab';
+    this.canvas.style.cursor = 'default';
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
@@ -638,11 +647,20 @@ export class DirectManipulator {
     const localY = new THREE.Vector3(0, 1, 0).applyQuaternion(startQuaternion).normalize();
     let plane: THREE.Plane;
     let axisWorld: THREE.Vector3 | null = null;
+    let mathematicalHandlePoint: THREE.Vector3 | null = null;
 
     if (descriptor.kind === 'move') {
       plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     } else if (descriptor.kind === 'resize') {
-      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(localY, startPosition);
+      mathematicalHandlePoint = this.worldFromLocal(
+        entry,
+        new THREE.Vector3(
+          (descriptor.xSign ?? 0) * (dimensions.x / 2),
+          -dimensions.y / 2,
+          (descriptor.zSign ?? 0) * (dimensions.z / 2),
+        ),
+      );
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(localY, mathematicalHandlePoint);
     } else if (descriptor.kind === 'height') {
       axisWorld = localY;
       plane = this.dragPlaneForAxis(axisWorld, startPosition);
@@ -653,11 +671,18 @@ export class DirectManipulator {
       axisWorld = axisVector(descriptor.axis ?? 'y')
         .applyQuaternion(startQuaternion)
         .normalize();
-      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axisWorld, startPosition);
+      const ringPoint =
+        this.rotationRing.visible && this.rotationRingAxis === descriptor.axis
+          ? this.rotationRing.position
+          : (this.handles.get(descriptor.id)?.root.position ?? startPosition);
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axisWorld, ringPoint);
     }
 
     const startPoint = new THREE.Vector3();
     if (!this.raycaster.ray.intersectPlane(plane, startPoint)) return;
+    const pointerGrabOffset = mathematicalHandlePoint
+      ? mathematicalHandlePoint.clone().sub(startPoint)
+      : new THREE.Vector3();
     const bounds = new THREE.Box3().setFromObject(object);
     const startRotationVector =
       descriptor.kind === 'rotate'
@@ -683,6 +708,7 @@ export class DirectManipulator {
       initialHeight: dimensions.y,
       axisWorld,
       startRotationVector,
+      pointerGrabOffset,
       floorPositionY: startPosition.y - bounds.min.y,
       moved: false,
       currentAngleDegrees: 0,
@@ -691,7 +717,7 @@ export class DirectManipulator {
     this.backgroundPointerStart = null;
     this.container.dataset['manipulating'] = descriptor.kind;
     this.canvas.setPointerCapture(event.pointerId);
-    this.canvas.style.cursor = descriptor.kind === 'rotate' ? 'grabbing' : 'move';
+    this.canvas.style.cursor = 'default';
     if (descriptor.kind !== 'move') this.setHoveredHandle(descriptor.id);
     this.showMeasurements(descriptor);
   }
@@ -723,7 +749,11 @@ export class DirectManipulator {
       );
     } else if (drag.descriptor.kind === 'resize') {
       const inverse = drag.startQuaternion.clone().invert();
-      const localPointer = point.clone().sub(drag.startPosition).applyQuaternion(inverse);
+      const localPointer = point
+        .clone()
+        .add(drag.pointerGrabOffset)
+        .sub(drag.startPosition)
+        .applyQuaternion(inverse);
       const result = calculateAnchoredResize({
         initialWidth: drag.initialWidth,
         initialDepth: drag.initialDepth,
@@ -800,7 +830,7 @@ export class DirectManipulator {
     this.drag = null;
     this.orbit.enabled = true;
     delete this.container.dataset['manipulating'];
-    this.canvas.style.cursor = 'grab';
+    this.canvas.style.cursor = 'default';
     if (drag.moved) {
       let dimensions: ThreeDDimensions | undefined;
       if (drag.descriptor.kind === 'resize' || drag.descriptor.kind === 'height') {
@@ -860,8 +890,8 @@ export class DirectManipulator {
 
     const descriptor = handleId ? this.handles.get(handleId)?.descriptor : null;
     if (descriptor?.kind === 'rotate') {
-      this.showRotationRing(descriptor.axis ?? 'y');
-      this.canvas.style.cursor = 'grab';
+      this.showRotationRing(descriptor.axis ?? 'y', descriptor.id);
+      this.canvas.style.cursor = 'default';
     } else {
       this.clearRotationRing();
       if (descriptor?.kind === 'resize') {
@@ -874,11 +904,12 @@ export class DirectManipulator {
     this.showMeasurements(descriptor ?? null);
   }
 
-  private showRotationRing(axis: RotationAxis): void {
+  private showRotationRing(axis: RotationAxis, handleId: string): void {
     const entry = this.selectedEntry();
     if (!entry) return;
     this.clearRotationRing();
     this.rotationRingAxis = axis;
+    this.rotationRing.userData['directHandleId'] = handleId;
     const dimensions = this.effectiveDimensions(entry);
     const radius = Math.max(dimensions.x, dimensions.y, dimensions.z) * 1.55;
     const inner = radius * 0.69;
@@ -892,8 +923,25 @@ export class DirectManipulator {
       side: THREE.DoubleSide,
     });
     const band = new THREE.Mesh(new THREE.RingGeometry(inner, radius, 96), ringMaterial);
+    band.userData['directHandleId'] = handleId;
     band.renderOrder = 51;
     this.rotationRing.add(band);
+
+    // A wider invisible bridge joins the small arrow to the visible band, so the
+    // ring remains interactive while the pointer moves away from the arrow.
+    const hitBand = new THREE.Mesh(
+      new THREE.RingGeometry(radius * 0.43, radius * 1.08, 96),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    hitBand.userData['directHandleId'] = handleId;
+    hitBand.renderOrder = 50;
+    this.rotationRing.add(hitBand);
 
     const linePoints: THREE.Vector3[] = [];
     const addCircle = (circleRadius: number): void => {
@@ -951,6 +999,7 @@ export class DirectManipulator {
 
   private clearRotationRing(): void {
     this.rotationRingAxis = null;
+    delete this.rotationRing.userData['directHandleId'];
     disposeGraph(this.rotationRing);
     this.rotationRing.clear();
     this.rotationRing.visible = false;

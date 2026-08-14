@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type {
+  PrimitiveKind,
+  ShapeOperation,
   ThreeDDimensions,
   ThreeDDocument,
   ThreeDNode,
   ThreeDTransform,
 } from '@asa-lab/three-d';
+import { createThreeDNode } from '@asa-lab/three-d';
 import { DirectManipulator, type DirectManipulationEntry } from './DirectManipulator';
 import { createBooleanMesh } from './csg';
 import { createNodeObject, disposeObject } from './geometry';
@@ -24,6 +27,12 @@ interface SceneEntry extends DirectManipulationEntry {
   readonly object: THREE.Group;
   readonly node: ThreeDNode;
   readonly signature: string;
+}
+
+interface PlacementPreview {
+  readonly primitive: PrimitiveKind;
+  readonly operation: ShapeOperation;
+  readonly object: THREE.Group;
 }
 
 function snap(value: number, step: number): number {
@@ -115,6 +124,7 @@ export class SceneRuntime {
   private readonly entries = new Map<string, SceneEntry>();
   private readonly booleanRoot = new THREE.Group();
   private readonly rulerRoot = new THREE.Group();
+  private placementPreview: PlacementPreview | null = null;
   private documentSignature = '';
   private gridSignature = '';
   private readonly gridRoot = new THREE.Group();
@@ -580,6 +590,59 @@ export class SceneRuntime {
     return { x: snap(point.x, this.gridSnap), z: snap(point.z, this.gridSnap) };
   }
 
+  setPlacementPreview(
+    primitive: PrimitiveKind,
+    operation: ShapeOperation,
+    clientX: number,
+    clientY: number,
+  ): void {
+    const point = this.workplanePoint(clientX, clientY);
+    if (!point) {
+      this.clearPlacementPreview();
+      return;
+    }
+    if (
+      !this.placementPreview ||
+      this.placementPreview.primitive !== primitive ||
+      this.placementPreview.operation !== operation
+    ) {
+      this.clearPlacementPreview();
+      const node = {
+        ...createThreeDNode(primitive, '__placement-preview__'),
+        operation,
+      };
+      const object = createNodeObject(node);
+      object.name = 'ASA placement preview';
+      object.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          material.transparent = true;
+          material.opacity = operation === 'hole' ? 0.42 : 0.72;
+          material.depthWrite = false;
+        }
+        child.castShadow = true;
+        child.receiveShadow = false;
+        child.renderOrder = 18;
+      });
+      this.scene.add(object);
+      this.placementPreview = { primitive, operation, object };
+    }
+    this.placementPreview.object.position.x = point.x;
+    this.placementPreview.object.position.z = point.z;
+    this.placementPreview.object.updateMatrixWorld(true);
+    this.container.dataset['placementPreview'] = `${operation}:${primitive}:${point.x}:${point.z}`;
+  }
+
+  clearPlacementPreview(): void {
+    if (this.placementPreview) {
+      this.scene.remove(this.placementPreview.object);
+      disposeObject(this.placementPreview.object);
+      this.placementPreview = null;
+    }
+    delete this.container.dataset['placementPreview'];
+  }
+
   setView(view: 'home' | 'top' | 'front' | 'right'): void {
     const position = {
       home: HOME_CAMERA_POSITION,
@@ -621,6 +684,7 @@ export class SceneRuntime {
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
     this.manipulator.dispose();
+    this.clearPlacementPreview();
     this.orbit.dispose();
     for (const entry of this.entries.values()) disposeObject(entry.object);
     this.entries.clear();

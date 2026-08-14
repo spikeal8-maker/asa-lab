@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import {
   PRIMITIVE_KINDS,
   type PrimitiveKind,
+  type ShapeOperation,
   type ThreeDDimensions,
   type ThreeDDocument,
   type ThreeDTransform,
@@ -27,7 +28,12 @@ interface ThreeViewportProps {
     primitive: PrimitiveKind,
     position: { x: number; z: number },
     additive?: boolean,
+    operation?: ShapeOperation,
   ) => void;
+  readonly activePlacement: {
+    readonly primitive: PrimitiveKind;
+    readonly operation: ShapeOperation;
+  } | null;
 }
 
 const PRIMITIVES = new Set<PrimitiveKind>(PRIMITIVE_KINDS);
@@ -99,6 +105,10 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       }
     }, [props.document, props.selectedIds]);
 
+    useEffect(() => {
+      if (!props.activePlacement) runtimeRef.current?.clearPlacementPreview();
+    }, [props.activePlacement]);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -113,8 +123,32 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       event.preventDefault();
       const primitive = event.dataTransfer.getData('application/x-asa-3d-primitive');
       if (!PRIMITIVES.has(primitive as PrimitiveKind)) return;
+      const operationValue = event.dataTransfer.getData('application/x-asa-3d-operation');
+      const operation: ShapeOperation =
+        operationValue === 'hole' || props.activePlacement?.operation === 'hole' ? 'hole' : 'solid';
       const point = runtimeRef.current?.workplanePoint(event.clientX, event.clientY);
-      if (point) props.onDropPrimitive(primitive as PrimitiveKind, point, event.shiftKey);
+      runtimeRef.current?.clearPlacementPreview();
+      if (point)
+        props.onDropPrimitive(primitive as PrimitiveKind, point, event.shiftKey, operation);
+    };
+
+    const handleDragOver = (event: React.DragEvent<HTMLDivElement>): void => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      const placement = props.activePlacement;
+      if (placement)
+        runtimeRef.current?.setPlacementPreview(
+          placement.primitive,
+          placement.operation,
+          event.clientX,
+          event.clientY,
+        );
+    };
+
+    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>): void => {
+      const related = event.relatedTarget;
+      if (related instanceof Node && event.currentTarget.contains(related)) return;
+      runtimeRef.current?.clearPlacementPreview();
     };
 
     return (
@@ -122,7 +156,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         ref={containerRef}
         className="asa3d-viewport"
         data-testid="asa3d-viewport"
-        onDragOver={(event) => event.preventDefault()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         data-runtime-ready={runtimeReady ? 'true' : 'false'}
         data-selected-node-id={props.selectedIds.at(-1) ?? ''}

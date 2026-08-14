@@ -1,5 +1,5 @@
 import { useMemo, useState, type DragEvent } from 'react';
-import type { PrimitiveKind } from '@asa-lab/three-d';
+import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
 import { CommentIcon, SearchIcon } from '../electronics/workbench-icons';
 import { ShapeThumbnail } from './ShapeThumbnail';
 import { GridIcon, RulerIcon } from './three-d-icons';
@@ -9,6 +9,10 @@ interface ShapeLibraryProps {
     primitive: PrimitiveKind,
     position?: { x: number; z: number },
     additive?: boolean,
+    operation?: ShapeOperation,
+  ) => void;
+  readonly onDragStateChange: (
+    placement: { readonly primitive: PrimitiveKind; readonly operation: ShapeOperation } | null,
   ) => void;
   readonly gridVisible: boolean;
   readonly onToggleGrid: () => void;
@@ -51,13 +55,27 @@ const SHAPES: readonly {
   { primitive: 'heart', label: 'Сердце', color: '#b7653f', category: 'symbols' },
 ];
 
-function beginDrag(event: DragEvent<HTMLButtonElement>, primitive: PrimitiveKind): void {
+function beginDrag(
+  event: DragEvent<HTMLButtonElement>,
+  primitive: PrimitiveKind,
+  operation: ShapeOperation,
+): void {
   event.dataTransfer.effectAllowed = 'copy';
   event.dataTransfer.setData('application/x-asa-3d-primitive', primitive);
+  event.dataTransfer.setData('application/x-asa-3d-operation', operation);
+  const transparentDragImage = globalThis.document.createElement('canvas');
+  transparentDragImage.width = 1;
+  transparentDragImage.height = 1;
+  event.dataTransfer.setDragImage(transparentDragImage, 0, 0);
 }
+
+const HOLE_SHORTCUTS = SHAPES.filter(
+  ({ primitive }) => primitive === 'box' || primitive === 'cylinder' || primitive === 'sphere',
+);
 
 export function ShapeLibrary({
   onAdd,
+  onDragStateChange,
   gridVisible,
   onToggleGrid,
   onOpenGridSettings,
@@ -149,14 +167,39 @@ export function ShapeLibrary({
         </label>
       )}
       <div className="asa3d-shape-grid">
+        {!searchOpen &&
+          category === 'basic' &&
+          HOLE_SHORTCUTS.map(({ primitive, label }) => (
+            <button
+              type="button"
+              className={`asa3d-shape-card asa3d-hole-card shape-${primitive}`}
+              key={`hole-${primitive}`}
+              draggable
+              onDragStart={(event) => {
+                beginDrag(event, primitive, 'hole');
+                onDragStateChange({ primitive, operation: 'hole' });
+              }}
+              onDragEnd={() => onDragStateChange(null)}
+              onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'hole')}
+              aria-label={`Отверстие: ${label}`}
+              title={`Добавить отверстие: ${label}`}
+            >
+              <ShapeThumbnail primitive={primitive} color="#aeb9c0" operation="hole" />
+              <small>Отверстие</small>
+            </button>
+          ))}
         {filteredShapes.map(({ primitive, label, color }) => (
           <button
             type="button"
             className={`asa3d-shape-card shape-${primitive}`}
             key={primitive}
             draggable
-            onDragStart={(event) => beginDrag(event, primitive)}
-            onClick={(event) => onAdd(primitive, undefined, event.shiftKey)}
+            onDragStart={(event) => {
+              beginDrag(event, primitive, 'solid');
+              onDragStateChange({ primitive, operation: 'solid' });
+            }}
+            onDragEnd={() => onDragStateChange(null)}
+            onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
             title={`Добавить: ${label}`}
           >
             <ShapeThumbnail primitive={primitive} color={color} />
