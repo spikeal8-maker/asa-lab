@@ -137,7 +137,9 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="b4"]').click();
   await expect(page.getByText(/Искра:/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.checkers-move-panel, .checkers-board-toolbar')).toContainText('Искра');
+  await expect(page.locator('.checkers-move-panel, .checkers-board-toolbar')).toContainText(
+    'Искра',
+  );
   await expect(page.locator('.checkers-save-state')).toContainText('Сохранено', {
     timeout: 15_000,
   });
