@@ -71,3 +71,38 @@ export function HomeIcon(props: IconProps): JSX.Element {
     </IconBase>
   );
 }
+
+export function GroupIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M4 4h7v7H4zM13 13h7v7h-7z" />
+      <path d="M8 13v3a2 2 0 0 0 2 2h1M13 6h1a2 2 0 0 1 2 2v3" />
+    </IconBase>
+  );
+}
+
+export function UngroupIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M3 3h7v7H3zM14 14h7v7h-7z" />
+      <path d="m9 15-3 3m0-3v3h3M15 9l3-3m-3 0h3v3" />
+    </IconBase>
+  );
+}
+
+export function AlignIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M12 3v18M4 6h8M7 11h5M2 16h10M12 8h8M12 13h5M12 18h10" />
+    </IconBase>
+  );
+}
+
+export function HoleIcon(props: IconProps): JSX.Element {
+  return (
+    <IconBase {...props}>
+      <path d="M4 6 12 2l8 4v12l-8 4-8-4z" strokeDasharray="2.4 2.4" />
+      <path d="m4 6 8 4 8-4M12 10v12" strokeDasharray="2.4 2.4" />
+    </IconBase>
+  );
+}

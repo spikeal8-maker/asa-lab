@@ -69,7 +69,7 @@
     "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",
     "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run apps/web/src/electronics/testing && pnpm typecheck && pnpm build",
     "gate:electronics-m1:browser": "pnpm e2e:electronics-simulation",
-    "gate:three-d-m0": "pnpm test:three-d && pnpm typecheck && pnpm build",
+    "gate:three-d-m0": "pnpm nx build module-sdk && pnpm nx build chess && pnpm test:three-d && pnpm typecheck && pnpm build",
     "gate:three-d-m0:browser": "pnpm e2e:three-d",
     "test:checkers": "vitest run contexts/checkers/testing apps/web/src/checkers/testing apps/api/src/checkers.controller.spec.ts",
     "typecheck:checkers": "tsc -p contexts/checkers/tsconfig.json --noEmit",
