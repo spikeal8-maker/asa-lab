@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
-import { UserIcon } from '../electronics/workbench-icons';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 
@@ -23,6 +22,7 @@ export function PortalHeader({
   onNavigate,
   onSessionChanged,
   onLoggedOut,
+  onCreate,
 }: {
   session: SessionPayload;
   active: PortalSection;
@@ -30,6 +30,7 @@ export function PortalHeader({
   onNavigate: (section: PortalSection) => void;
   onSessionChanged: (session: SessionPayload) => void;
   onLoggedOut: () => void;
+  onCreate: () => void;
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,13 @@ export function PortalHeader({
   const activeWorkspace = session.workspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
+  const initials =
+    session.user.displayName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
+      .join('') || 'A';
 
   async function logout(): Promise<void> {
     if (busy) return;
@@ -80,29 +88,38 @@ export function PortalHeader({
         <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
           <AsaLabWordmark />
         </button>
-        <nav className="portal-nav" aria-label="Основная навигация">
-          {portalNavigation(canTeach).map((item) => (
-            <button
-              type="button"
-              key={item.section}
-              className={active === item.section ? 'portal-nav-item active' : 'portal-nav-item'}
-              aria-current={active === item.section ? 'page' : undefined}
-              onClick={() => onNavigate(item.section)}
-            >
-              <span className="portal-nav-glyph" aria-hidden="true">
-                {SECTION_GLYPHS[item.section]}
-              </span>
-              {item.label}
+        <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
+          <button type="button" onClick={() => onNavigate('collections')}>
+            Галерея
+          </button>
+          <button type="button" onClick={() => onNavigate('learning')}>
+            Учебные материалы
+          </button>
+          {canTeach ? (
+            <button type="button" onClick={() => onNavigate('classes')}>
+              Для преподавателей
             </button>
-          ))}
+          ) : null}
+          <button type="button" onClick={() => onNavigate('help')}>
+            Ресурсы
+          </button>
         </nav>
+        <button
+          type="button"
+          className="portal-header-create"
+          aria-label="Создать проект"
+          onClick={onCreate}
+        >
+          <span aria-hidden="true">＋</span>
+          <span className="portal-header-create-label">Создать</span>
+        </button>
         <details
           ref={accountMenu}
           className={active === 'account' ? 'portal-account active' : 'portal-account'}
         >
           <summary aria-label={`Меню аккаунта ${session.user.displayName}`}>
             <span className="portal-user-avatar" aria-hidden="true">
-              <UserIcon />
+              {initials}
             </span>
             <span className="portal-user-copy">
               <strong>{session.user.displayName}</strong>
@@ -158,6 +175,33 @@ export function PortalHeader({
           </div>
         </details>
       </header>
+      <aside className="portal-sidebar" aria-label="Основная навигация">
+        <div className="portal-sidebar-profile">
+          <span className="portal-sidebar-avatar" aria-hidden="true">
+            {initials}
+          </span>
+          <span>
+            <strong>{session.user.displayName}</strong>
+            <small>{activeWorkspace?.title ?? 'Рабочее пространство'}</small>
+          </span>
+        </div>
+        <nav className="portal-nav">
+          {portalNavigation(canTeach).map((item) => (
+            <button
+              type="button"
+              key={item.section}
+              className={active === item.section ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-current={active === item.section ? 'page' : undefined}
+              onClick={() => onNavigate(item.section)}
+            >
+              <span className="portal-nav-glyph" aria-hidden="true">
+                {SECTION_GLYPHS[item.section]}
+              </span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
       {error ? (
         <p className="portal-global-error" role="alert">
           {error}

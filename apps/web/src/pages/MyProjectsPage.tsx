@@ -6,12 +6,13 @@ import {
   type CSSProperties,
   type FormEvent,
 } from 'react';
-import { api, type ModuleSummary, type Project } from '../api';
+import { api, type ModuleSummary, type Project, type ProjectStatus } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
-type SortMode = 'recent' | 'title';
+type SortMode = 'recent' | 'oldest' | 'title';
+type LayoutMode = 'grid' | 'list';
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -22,6 +23,12 @@ function formatDate(value: string): string {
     year: 'numeric',
   }).format(date);
 }
+
+const STATUS_TABS: ReadonlyArray<{ value: ProjectStatus; label: string }> = [
+  { value: 'active', label: 'Проекты' },
+  { value: 'archived', label: 'Архив' },
+  { value: 'trashed', label: 'Корзина' },
+];
 
 export function MyProjectsPage({
   onOpenProject,
@@ -34,15 +41,19 @@ export function MyProjectsPage({
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus>('active');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [layout, setLayout] = useState<LayoutMode>('grid');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setItems(null);
     setError(null);
     const [projectsResult, modulesResult] = await Promise.all([
-      api.listProjects({ scope: 'personal' }),
+      api.listProjects({ scope: 'personal', status: statusFilter }),
       api.listModules(),
     ]);
     if (!projectsResult.ok || !modulesResult.ok) {
@@ -55,7 +66,7 @@ export function MyProjectsPage({
     }
     setItems(projectsResult.data.items);
     setModules(modulesResult.data.items);
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     void load();
@@ -76,7 +87,8 @@ export function MyProjectsPage({
     });
     return [...result].sort((left, right) => {
       if (sortMode === 'title') return left.title.localeCompare(right.title, 'ru');
-      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      const direction = sortMode === 'oldest' ? 1 : -1;
+      return direction * (new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime());
     });
   }, [items, moduleFilter, query, sortMode]);
 
@@ -104,21 +116,60 @@ export function MyProjectsPage({
     setRenamingId(null);
   }
 
+  async function changeStatus(project: Project, status: ProjectStatus): Promise<void> {
+    setActionBusy(project.id);
+    setError(null);
+    const result = await api.changeProjectStatus(project.id, status);
+    setActionBusy(null);
+    if (!result.ok) {
+      setError(result.error.message || 'Не удалось изменить состояние проекта.');
+      return;
+    }
+    setItems((current) => current?.filter((item) => item.id !== project.id) ?? null);
+  }
+
+  async function duplicate(project: Project): Promise<void> {
+    setActionBusy(project.id);
+    setError(null);
+    const result = await api.duplicateProject(
+      project.id,
+      `${project.title} — копия`,
+      `duplicate-${project.id}-${crypto.randomUUID()}`,
+    );
+    setActionBusy(null);
+    if (!result.ok) {
+      setError(result.error.message || 'Не удалось создать копию проекта.');
+      return;
+    }
+    setItems((current) => (current ? [result.data.project, ...current] : [result.data.project]));
+  }
+
   return (
     <main className="portal-content project-hub" id="main-content" tabIndex={-1}>
-      <section className="portal-hero">
+      <section className="portal-hero project-hub-heading">
         <div>
-          <p className="portal-eyebrow">Личная мастерская</p>
           <h1>Мои проекты</h1>
-          <p>
-            Создавайте демонстрации во всех доступных средах, сохраняйте версии и готовьте будущие
-            задания независимо от классов.
-          </p>
+          <p>Все ваши проекты, версии и рабочие среды в одном месте.</p>
         </div>
         <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
           <PlusIcon /> Создать
         </button>
       </section>
+
+      <div className="project-status-tabs" role="tablist" aria-label="Состояние проектов">
+        {STATUS_TABS.map((tab) => (
+          <button
+            type="button"
+            role="tab"
+            key={tab.value}
+            aria-selected={statusFilter === tab.value}
+            className={statusFilter === tab.value ? 'active' : undefined}
+            onClick={() => setStatusFilter(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <section className="project-hub-toolbar" aria-label="Фильтры проектов">
         <label className="project-search">
@@ -147,10 +198,29 @@ export function MyProjectsPage({
             value={sortMode}
             onChange={(event) => setSortMode(event.target.value as SortMode)}
           >
-            <option value="recent">Сначала новые</option>
+            <option value="recent">Сначала недавние</option>
+            <option value="oldest">Сначала старые</option>
             <option value="title">По названию</option>
           </select>
         </label>
+        <div className="project-layout-toggle" aria-label="Вид проектов">
+          <button
+            type="button"
+            className={layout === 'grid' ? 'active' : undefined}
+            aria-label="Сетка"
+            onClick={() => setLayout('grid')}
+          >
+            ▦
+          </button>
+          <button
+            type="button"
+            className={layout === 'list' ? 'active' : undefined}
+            aria-label="Список"
+            onClick={() => setLayout('list')}
+          >
+            ☷
+          </button>
+        </div>
       </section>
 
       {error ? (
@@ -175,11 +245,27 @@ export function MyProjectsPage({
           <span className="portal-empty-icon" aria-hidden="true">
             +
           </span>
-          <h2>Создайте первый проект</h2>
-          <p>Выберите учебную среду. Класс для личной работы не требуется.</p>
-          <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
-            <PlusIcon /> Создать проект
-          </button>
+          <h2>
+            {statusFilter === 'active'
+              ? 'Создайте первый проект'
+              : statusFilter === 'archived'
+                ? 'Архив пуст'
+                : 'Корзина пуста'}
+          </h2>
+          <p>
+            {statusFilter === 'active'
+              ? 'Выберите учебную среду. Класс для личной работы не требуется.'
+              : 'Здесь появятся проекты после соответствующего действия.'}
+          </p>
+          {statusFilter === 'active' ? (
+            <button
+              type="button"
+              className="portal-create-button"
+              onClick={() => setCreating(true)}
+            >
+              <PlusIcon /> Создать проект
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -191,17 +277,19 @@ export function MyProjectsPage({
       ) : null}
 
       {visibleItems.length > 0 ? (
-        <ul className="project-gallery project-hub-grid" data-testid="personal-project-grid">
+        <ul
+          className={`project-gallery project-hub-grid ${layout}`}
+          data-testid="personal-project-grid"
+        >
           {visibleItems.map((project) => {
             const module = modulesByKey.get(project.moduleKey);
-            const style = {
-              '--module-accent': moduleAccent(project.moduleKey),
-            } as CSSProperties;
+            const style = { '--module-accent': moduleAccent(project.moduleKey) } as CSSProperties;
             return (
               <li key={project.id} className="project-gallery-card project-hub-card" style={style}>
                 <button
                   type="button"
                   className="project-preview project-module-preview"
+                  disabled={statusFilter !== 'active'}
                   onClick={() => onOpenProject(project.id)}
                 >
                   {module ? (
@@ -250,23 +338,73 @@ export function MyProjectsPage({
                           <span>{module?.displayName ?? project.moduleKey}</span>
                         </div>
                         <h2>{project.title}</h2>
-                        <p>Создан {formatDate(project.createdAt)}</p>
+                        <p>Изменён {formatDate(project.updatedAt)}</p>
                       </div>
                       <div className="project-card-actions">
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => onOpenProject(project.id)}
-                        >
-                          Открыть
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => beginRename(project)}
-                        >
-                          Переименовать
-                        </button>
+                        {statusFilter === 'active' ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => onOpenProject(project.id)}
+                            >
+                              Открыть
+                            </button>
+                            <details className="project-card-menu">
+                              <summary aria-label={`Действия с проектом ${project.title}`}>
+                                •••
+                              </summary>
+                              <div>
+                                <button type="button" onClick={() => beginRename(project)}>
+                                  Переименовать
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={actionBusy === project.id}
+                                  onClick={() => void duplicate(project)}
+                                >
+                                  Дублировать
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={actionBusy === project.id}
+                                  onClick={() => void changeStatus(project, 'archived')}
+                                >
+                                  Архивировать
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger"
+                                  disabled={actionBusy === project.id}
+                                  onClick={() => void changeStatus(project, 'trashed')}
+                                >
+                                  В корзину
+                                </button>
+                              </div>
+                            </details>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              disabled={actionBusy === project.id}
+                              onClick={() => void changeStatus(project, 'active')}
+                            >
+                              Восстановить
+                            </button>
+                            {statusFilter === 'archived' ? (
+                              <button
+                                type="button"
+                                className="btn-ghost"
+                                disabled={actionBusy === project.id}
+                                onClick={() => void changeStatus(project, 'trashed')}
+                              >
+                                В корзину
+                              </button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </>
                   )}

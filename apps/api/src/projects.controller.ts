@@ -16,8 +16,10 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import type {
+  ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
   CreateProjectUseCase,
+  DuplicateProjectUseCase,
   ListProjectsUseCase,
   OpenProjectUseCase,
   ProjectErrorCode,
@@ -48,6 +50,10 @@ export class ProjectsController {
     @Inject(TOKENS.listProjectsUseCase) private readonly listUseCase: ListProjectsUseCase,
     @Inject(TOKENS.openProjectUseCase) private readonly openUseCase: OpenProjectUseCase,
     @Inject(TOKENS.renameProjectUseCase) private readonly renameUseCase: RenameProjectUseCase,
+    @Inject(TOKENS.changeProjectStatusUseCase)
+    private readonly changeStatusUseCase: ChangeProjectStatusUseCase,
+    @Inject(TOKENS.duplicateProjectUseCase)
+    private readonly duplicateUseCase: DuplicateProjectUseCase,
     @Inject(TOKENS.saveDraftUseCase) private readonly saveUseCase: SaveDraftUseCase,
     @Inject(TOKENS.createCheckpointUseCase)
     private readonly checkpointUseCase: CreateCheckpointUseCase,
@@ -86,12 +92,13 @@ export class ProjectsController {
     @Req() request: FastifyRequest,
     @Query('scope') scope: string | undefined,
     @Query('classroomId') classroomId: string | undefined,
+    @Query('status') status: string | undefined,
   ): Promise<{ items: unknown[] }> {
     const context = await this.requireContext(request);
     const result = await this.listUseCase.execute(
       context.tenantId,
       ProjectsController.actorOf(context),
-      { scope, classroomId },
+      { scope, classroomId, status },
     );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return { items: result.value };
@@ -165,6 +172,52 @@ export class ProjectsController {
       projectId,
       actor: ProjectsController.actorOf(context),
       title: shape.body['title'],
+    });
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    return { project: result.value };
+  }
+
+  @Post(':projectId/duplicate')
+  async duplicate(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+    @Headers('idempotency-key') idempotencyHeader: string | undefined,
+  ): Promise<{ project: unknown; created: boolean }> {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['title']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const keyCheck = checkIdempotencyKey(idempotencyHeader);
+    if (!keyCheck.ok) {
+      throw new HttpException(error('invalid_idempotency_key', keyCheck.message), 400);
+    }
+    const result = await this.duplicateUseCase.execute({
+      tenantId: context.tenantId,
+      projectId,
+      actor: ProjectsController.actorOf(context),
+      title: shape.body['title'],
+      idempotencyKey: keyCheck.key,
+    });
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    reply.code(result.value.created ? 201 : 200);
+    return result.value;
+  }
+
+  @Post(':projectId/status')
+  async changeStatus(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+  ): Promise<{ project: unknown }> {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['status']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.changeStatusUseCase.execute({
+      tenantId: context.tenantId,
+      projectId,
+      actor: ProjectsController.actorOf(context),
+      status: shape.body['status'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return { project: result.value };

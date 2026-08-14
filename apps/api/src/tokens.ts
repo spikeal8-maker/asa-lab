@@ -16,6 +16,8 @@ export const TOKENS = {
   listProjectsUseCase: 'LIST_PROJECTS_USECASE',
   openProjectUseCase: 'OPEN_PROJECT_USECASE',
   renameProjectUseCase: 'RENAME_PROJECT_USECASE',
+  changeProjectStatusUseCase: 'CHANGE_PROJECT_STATUS_USECASE',
+  duplicateProjectUseCase: 'DUPLICATE_PROJECT_USECASE',
   saveDraftUseCase: 'SAVE_DRAFT_USECASE',
   createCheckpointUseCase: 'CREATE_CHECKPOINT_USECASE',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',

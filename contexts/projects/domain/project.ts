@@ -3,6 +3,7 @@
  * a class or publish a project inside a class workspace. */
 
 export type ProjectScope = 'personal' | 'classroom';
+export type ProjectStatus = 'active' | 'archived' | 'trashed';
 
 export interface Project {
   readonly id: string;
@@ -10,7 +11,7 @@ export interface Project {
   readonly classroomId: string | null;
   readonly moduleKey: string;
   readonly title: string;
-  readonly status: string;
+  readonly status: ProjectStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -32,6 +33,10 @@ export interface ProjectVersion {
 
 export function isProjectScope(value: unknown): value is ProjectScope {
   return value === 'personal' || value === 'classroom';
+}
+
+export function isProjectStatus(value: unknown): value is ProjectStatus {
+  return value === 'active' || value === 'archived' || value === 'trashed';
 }
 
 export function isValidProjectTitle(value: unknown): value is string {

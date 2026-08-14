@@ -57,6 +57,7 @@ export interface Classroom {
 }
 
 export type ProjectScope = 'personal' | 'classroom';
+export type ProjectStatus = 'active' | 'archived' | 'trashed';
 
 export interface Project {
   id: string;
@@ -64,7 +65,7 @@ export interface Project {
   classroomId: string | null;
   moduleKey: string;
   title: string;
-  status: string;
+  status: ProjectStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -240,6 +241,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
 export interface ProjectListOptions {
   scope?: ProjectScope;
   classroomId?: string;
+  status?: ProjectStatus;
 }
 
 export interface CreateProjectOptions {
@@ -313,6 +315,7 @@ export const api = {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);
     if (options.classroomId) query.set('classroomId', options.classroomId);
+    if (options.status) query.set('status', options.status);
     const suffix = query.size > 0 ? `?${query.toString()}` : '';
     return call<{ items: Project[] }>(`/api/projects${suffix}`);
   },
@@ -331,6 +334,20 @@ export const api = {
     call<{ project: Project }>(`/api/projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ title }),
+    }),
+  duplicateProject: (projectId: string, title: string, idempotencyKey: string) =>
+    call<{ project: Project; created: boolean }>(
+      `/api/projects/${encodeURIComponent(projectId)}/duplicate`,
+      {
+        method: 'POST',
+        headers: { 'idempotency-key': idempotencyKey },
+        body: JSON.stringify({ title }),
+      },
+    ),
+  changeProjectStatus: (projectId: string, status: ProjectStatus) =>
+    call<{ project: Project }>(`/api/projects/${encodeURIComponent(projectId)}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
     }),
   openProject: <TDocument = unknown, TResult = unknown>(projectId: string) =>
     call<{

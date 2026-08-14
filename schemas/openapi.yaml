@@ -247,7 +247,251 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/projects:
+    get:
+      operationId: getProjects
+      summary: List projects visible to the active workspace actor
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [personal, classroom]
+        - name: classroomId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProjectStatus'
+      responses:
+        '200':
+          description: Project collection filtered by lifecycle state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCollection'
+        '400':
+          description: Invalid filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: postProject
+      summary: Create a project and its initial draft atomically
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEnvelope'
+        '200':
+          description: Idempotent repeat returned the existing project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEnvelope'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key was reused with a different payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: getProject
+      summary: Open the project draft and immutable version history
+      responses:
+        '200':
+          description: Project workbench payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenProjectEnvelope'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: patchProject
+      summary: Rename a project that is not in trash
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameProjectRequest'
+      responses:
+        '200':
+          description: Project renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectOnlyEnvelope'
+        '400':
+          description: Invalid title
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/projects/{projectId}/duplicate:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      operationId: postProjectDuplicate
+      summary: Duplicate a project with its current draft
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameProjectRequest'
+      responses:
+        '201':
+          description: Duplicate created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEnvelope'
+        '200':
+          description: Idempotent repeat returned the existing duplicate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEnvelope'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key was reused with a different payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/projects/{projectId}/status:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      operationId: postProjectStatus
+      summary: Archive, trash or restore a project through an allowed transition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeProjectStatusRequest'
+      responses:
+        '201':
+          description: Lifecycle state changed without deleting project data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectOnlyEnvelope'
+        '400':
+          description: Invalid lifecycle transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Project is unavailable to the active actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
     LiveResponse:
       type: object
@@ -505,3 +749,141 @@ components:
           properties:
             total:
               type: integer
+    ProjectStatus:
+      type: string
+      enum: [active, archived, trashed]
+    Project:
+      type: object
+      additionalProperties: false
+      required: [id, scope, classroomId, moduleKey, title, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [personal, classroom]
+        classroomId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        moduleKey:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProjectCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+    ProjectEnvelope:
+      type: object
+      additionalProperties: false
+      required: [project, created]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        created:
+          type: boolean
+    ProjectOnlyEnvelope:
+      type: object
+      additionalProperties: false
+      required: [project]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+    CreateProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, classroomId, module, title]
+      properties:
+        scope:
+          type: string
+          enum: [personal, classroom]
+        classroomId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        module:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+    RenameProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+    ChangeProjectStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+    ProjectDraft:
+      type: object
+      required: [projectId, document, revision, updatedAt]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        document: {}
+        revision:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+    ProjectVersion:
+      type: object
+      additionalProperties: false
+      required: [id, projectId, versionNo, label, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        versionNo:
+          type: integer
+        label:
+          oneOf:
+            - type: string
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+    OpenProjectEnvelope:
+      type: object
+      additionalProperties: false
+      required: [project, draft, versions, result]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        draft:
+          $ref: '#/components/schemas/ProjectDraft'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectVersion'
+        result: {}

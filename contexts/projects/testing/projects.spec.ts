@@ -7,7 +7,9 @@ import {
 } from '../domain/project';
 import {
   CreateCheckpointUseCase,
+  ChangeProjectStatusUseCase,
   CreateProjectUseCase,
+  DuplicateProjectUseCase,
   ListProjectsUseCase,
   OpenProjectUseCase,
   RenameProjectUseCase,
@@ -61,6 +63,10 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
       versions: [],
     }),
     rename: async (_tenantId, _projectId, _teacherId, title) => ({ ...personalProject, title }),
+    updateStatus: async (_tenantId, _projectId, _actor, status) => ({
+      ...personalProject,
+      status,
+    }),
     saveDraft: async () => ({ projectId: 'p1', document: {}, revision: 2, updatedAt: 'now' }),
     createCheckpoint: async () => ({
       id: 'v1',
@@ -272,6 +278,64 @@ describe('list, rename, draft and checkpoint', () => {
       label: '  Первая версия  ',
     });
     expect(checkpoint.ok && checkpoint.value.versionNo).toBe(1);
+  });
+
+  it('archives, trashes and restores through explicit state transitions', async () => {
+    let current = personalProject;
+    const { port } = repo({
+      load: async () => ({
+        project: current,
+        draft: { projectId: current.id, document: {}, revision: 1, updatedAt: 'now' },
+        versions: [],
+      }),
+      updateStatus: async (_tenantId, _projectId, _actor, status) => {
+        current = { ...current, status };
+        return current;
+      },
+    });
+    const usecase = new ChangeProjectStatusUseCase(port);
+    expect(
+      await usecase.execute({
+        tenantId: 't1',
+        projectId: 'p1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
+        status: 'archived',
+      }),
+    ).toMatchObject({ ok: true, value: { status: 'archived' } });
+    expect(
+      await usecase.execute({
+        tenantId: 't1',
+        projectId: 'p1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
+        status: 'active',
+      }),
+    ).toMatchObject({ ok: true, value: { status: 'active' } });
+    expect(
+      await usecase.execute({
+        tenantId: 't1',
+        projectId: 'p1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
+        status: 'invalid',
+      }),
+    ).toMatchObject({ ok: false, code: 'validation_error' });
+  });
+
+  it('duplicates the current draft into an independent private project', async () => {
+    const { port, creates } = repo();
+    const result = await new DuplicateProjectUseCase(port).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
+      title: 'Копия схемы',
+      idempotencyKey: 'duplicate-1',
+    });
+    expect(result).toMatchObject({ ok: true, value: { created: true } });
+    expect(creates[0]).toMatchObject({
+      title: 'Копия схемы',
+      scope: 'personal',
+      moduleKey: 'electronics',
+      initialDocument: { schemaVersion: 1, components: [], connections: [] },
+    });
   });
 
   it('reports a missing project on open, rename, save and checkpoint', async () => {
