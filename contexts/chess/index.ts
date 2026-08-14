@@ -216,6 +216,7 @@ export {
   createChessPuzzleSession,
   playChessPuzzleMove,
   requestChessPuzzleHint,
+  retryChessPuzzleSession,
   resetChessPuzzleSession,
   validateChessPuzzle,
   type ChessPuzzle,
@@ -226,6 +227,30 @@ export {
   type PuzzleTheme,
   type PuzzleValidationResult,
 } from './domain/puzzle.js';
+export {
+  ASA_CHESS_LESSONS,
+  ASA_CHESS_PUZZLES,
+  asaChessLessonById,
+  asaChessPuzzleById,
+} from './domain/learning-catalog.js';
+export {
+  chessLearningAttempt,
+  chessPuzzleSessionFromAttempt,
+  createEmptyChessLearningProgress,
+  recordChessPuzzleHint,
+  recordChessPuzzleMove,
+  recordChessPuzzleRetry,
+  recommendChessLesson,
+  selectChessLearningPuzzle,
+  solvedChessPuzzleCount,
+  validateChessLearningProgress,
+  type ChessLearningEvent,
+  type ChessLearningProgress,
+  type ChessLearningResult,
+  type ChessLesson,
+  type ChessPuzzleAttemptRecord,
+  type ChessPuzzleRatingEvidence,
+} from './domain/learning-progress.js';
 export {
   asaMoveQuality,
   reviewChessDocument,
