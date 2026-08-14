@@ -54,6 +54,8 @@ function directory(
       },
     ],
     profile: async () => (overrides.profile === undefined ? PROFILE : overrides.profile),
+    avatar: async () => ({ avatarDataUrl: null }),
+    updateAvatar: async (_accountId, avatarDataUrl) => ({ avatarDataUrl }),
     updateProfile: async (_accountId, username, displayName) =>
       overrides.usernameTaken ? { conflict: 'username' } : { ...PROFILE, username, displayName },
     selfAttestEducator: async () =>
@@ -132,6 +134,25 @@ describe('Account C1 management use case', () => {
     await expect(
       usecase.updateProfile(ACCOUNT_ID, { username: 'OWNER', displayName: 'Владелец' }),
     ).resolves.toEqual({ ok: false, code: 'username_taken' });
+  });
+
+  it('accepts safe raster avatars, supports removal and rejects executable or oversized data', async () => {
+    const usecase = new AccountManagementUseCase(directory(), sessionStore());
+    const png = 'data:image/png;base64,aGVsbG8=';
+    await expect(usecase.updateAvatar(ACCOUNT_ID, png)).resolves.toEqual({
+      ok: true,
+      avatar: { avatarDataUrl: png },
+    });
+    await expect(usecase.updateAvatar(ACCOUNT_ID, null)).resolves.toEqual({
+      ok: true,
+      avatar: { avatarDataUrl: null },
+    });
+    await expect(
+      usecase.updateAvatar(ACCOUNT_ID, 'data:image/svg+xml;base64,PHN2Zz4='),
+    ).resolves.toEqual({ ok: false, code: 'validation_error' });
+    await expect(
+      usecase.updateAvatar(ACCOUNT_ID, `data:image/png;base64,${'A'.repeat(300_001)}`),
+    ).resolves.toEqual({ ok: false, code: 'validation_error' });
   });
 
   it('accepts an adult educator attestation and preserves idempotent state', async () => {

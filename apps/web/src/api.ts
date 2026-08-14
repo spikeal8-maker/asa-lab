@@ -40,6 +40,10 @@ export interface AccountProfile {
   workspaces: WorkspaceRef[];
 }
 
+export interface AccountAvatar {
+  avatarDataUrl: string | null;
+}
+
 export interface AccountSession {
   id: string;
   createdAt: string;
@@ -282,6 +286,12 @@ export const api = {
     ),
   logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
+  accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
+  updateAccountAvatar: (avatarDataUrl: string | null) =>
+    call<AccountAvatar>('/api/account/avatar', {
+      method: 'PATCH',
+      body: JSON.stringify({ avatarDataUrl }),
+    }),
   updateAccountProfile: (username: string, displayName: string) =>
     call<AccountProfile>('/api/account/profile', {
       method: 'PATCH',

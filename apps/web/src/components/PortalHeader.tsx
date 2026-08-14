@@ -1,20 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { createAvatarDataUrl } from '../creator-portal/avatar-file';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
-import { SearchIcon } from '../electronics/workbench-icons';
+import {
+  ClassesIcon,
+  CollapseIcon,
+  CommentIcon,
+  ExpandIcon,
+  FolderIcon,
+  ListIcon,
+  PlusIcon,
+  SearchIcon,
+} from '../electronics/workbench-icons';
+import { GridIcon, HomeIcon, RulerIcon } from '../three-d/three-d-icons';
 
 export type PortalSection = CreatorPortalSection;
 
-const SECTION_GLYPHS: Record<Exclude<PortalSection, 'account'>, string> = {
-  home: '⌂',
-  projects: '□',
-  learning: '▤',
-  collections: '◇',
-  challenges: '✦',
-  classes: '◎',
-  help: '?',
-};
+function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
+  if (section === 'home') return <HomeIcon />;
+  if (section === 'classes') return <ClassesIcon />;
+  if (section === 'projects') return <GridIcon />;
+  if (section === 'collections') return <FolderIcon />;
+  if (section === 'learning') return <ListIcon />;
+  if (section === 'challenges') return <RulerIcon />;
+  return <CommentIcon />;
+}
+
+function AvatarVisual({
+  avatarDataUrl,
+  initials,
+}: {
+  avatarDataUrl: string | null;
+  initials: string;
+}): JSX.Element {
+  return avatarDataUrl ? <img src={avatarDataUrl} alt="" /> : <span>{initials}</span>;
+}
 
 export function PortalHeader({
   session,
@@ -35,10 +56,12 @@ export function PortalHeader({
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem('asa-portal-sidebar') === 'collapsed',
   );
   const accountMenu = useRef<HTMLDetailsElement>(null);
+  const avatarInput = useRef<HTMLInputElement>(null);
   const activeWorkspace = session.workspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
@@ -55,6 +78,54 @@ export function PortalHeader({
   useEffect(() => {
     setError(null);
   }, [session.activeWorkspace.workspaceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.accountAvatar().then((result) => {
+      if (!cancelled && result.ok) setAvatarDataUrl(result.data.avatarDataUrl);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.user.id]);
+
+  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file || busy) return;
+    setBusy('avatar');
+    setError(null);
+    try {
+      const dataUrl = await createAvatarDataUrl(file);
+      const result = await api.updateAccountAvatar(dataUrl);
+      if (!result.ok) {
+        setError('Не удалось сохранить фотографию профиля.');
+        return;
+      }
+      setAvatarDataUrl(result.data.avatarDataUrl);
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : 'Не удалось обработать фотографию профиля.',
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeAvatar(): Promise<void> {
+    if (busy || !avatarDataUrl) return;
+    setBusy('avatar');
+    setError(null);
+    const result = await api.updateAccountAvatar(null);
+    setBusy(null);
+    if (!result.ok) {
+      setError('Не удалось удалить фотографию профиля.');
+      return;
+    }
+    setAvatarDataUrl(null);
+  }
 
   async function logout(): Promise<void> {
     if (busy) return;
@@ -144,7 +215,7 @@ export function PortalHeader({
         >
           <summary aria-label={`Меню аккаунта ${session.user.displayName}`}>
             <span className="portal-user-avatar" aria-hidden="true">
-              {initials}
+              <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
             </span>
             <span className="portal-user-copy">
               <strong>{session.user.displayName}</strong>
@@ -155,6 +226,20 @@ export function PortalHeader({
             <div className="portal-account-identity">
               <strong>{session.user.displayName}</strong>
               <span>{session.user.email}</span>
+            </div>
+            <div className="portal-account-avatar-actions">
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => avatarInput.current?.click()}
+              >
+                {avatarDataUrl ? 'Изменить фотографию' : 'Загрузить фотографию'}
+              </button>
+              {avatarDataUrl ? (
+                <button type="button" disabled={busy !== null} onClick={() => void removeAvatar()}>
+                  Удалить
+                </button>
+              ) : null}
             </div>
             <div className="portal-account-workspaces">
               <p>Рабочее пространство</p>
@@ -205,10 +290,30 @@ export function PortalHeader({
         aria-label="Основная навигация"
       >
         <div className="portal-sidebar-profile">
-          <span className="portal-sidebar-avatar" aria-hidden="true">
-            {initials}
-          </span>
-          <span>
+          <button
+            type="button"
+            className="portal-sidebar-avatar"
+            aria-label={
+              avatarDataUrl ? 'Изменить фотографию профиля' : 'Загрузить фотографию профиля'
+            }
+            title={avatarDataUrl ? 'Изменить фотографию' : 'Загрузить фотографию'}
+            disabled={busy !== null}
+            onClick={() => avatarInput.current?.click()}
+          >
+            <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
+            <span className="portal-avatar-upload-badge" aria-hidden="true">
+              <PlusIcon />
+            </span>
+          </button>
+          <input
+            ref={avatarInput}
+            className="portal-avatar-file-input"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            aria-label="Выбрать фотографию профиля"
+            onChange={(event) => void uploadAvatar(event)}
+          />
+          <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
             <small>{activeWorkspace?.title ?? 'Рабочее пространство'}</small>
           </span>
@@ -223,7 +328,7 @@ export function PortalHeader({
               onClick={() => onNavigate(item.section)}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
-                {SECTION_GLYPHS[item.section]}
+                {sectionIcon(item.section)}
               </span>
               <span className="portal-nav-label">{item.label}</span>
             </button>
@@ -238,7 +343,7 @@ export function PortalHeader({
               onClick={() => onNavigate('help')}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
-                {SECTION_GLYPHS.help}
+                {sectionIcon('help')}
               </span>
               <span className="portal-nav-label">{helpNavigation.label}</span>
             </button>
@@ -255,7 +360,7 @@ export function PortalHeader({
             window.localStorage.setItem('asa-portal-sidebar', next ? 'collapsed' : 'expanded');
           }}
         >
-          <span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span>
+          {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}
         </button>
       </aside>
       {error ? (

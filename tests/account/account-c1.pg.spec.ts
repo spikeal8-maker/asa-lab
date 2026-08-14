@@ -354,6 +354,44 @@ describe('Account C1 profile and sessions', () => {
     expect(forgedEmail.statusCode).toBe(400);
   });
 
+  it('stores a safe raster avatar, returns it and supports the initials fallback', async () => {
+    const account = await register('avatar-owner');
+    const avatarDataUrl = 'data:image/png;base64,aGVsbG8=';
+    const update = await inject(app, {
+      method: 'PATCH',
+      url: '/api/account/avatar',
+      cookies: { asa_session: account.token },
+      payload: { avatarDataUrl },
+    });
+    expect(update.statusCode).toBe(200);
+    expect(update.json()).toEqual({ avatarDataUrl });
+
+    const read = await inject(app, {
+      method: 'GET',
+      url: '/api/account/avatar',
+      cookies: { asa_session: account.token },
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toEqual({ avatarDataUrl });
+
+    const unsafe = await inject(app, {
+      method: 'PATCH',
+      url: '/api/account/avatar',
+      cookies: { asa_session: account.token },
+      payload: { avatarDataUrl: 'data:image/svg+xml;base64,PHN2Zz4=' },
+    });
+    expect(unsafe.statusCode).toBe(400);
+
+    const remove = await inject(app, {
+      method: 'PATCH',
+      url: '/api/account/avatar',
+      cookies: { asa_session: account.token },
+      payload: { avatarDataUrl: null },
+    });
+    expect(remove.statusCode).toBe(200);
+    expect(remove.json()).toEqual({ avatarDataUrl: null });
+  });
+
   it('lists safe metadata and revokes one, all others and no cross-account session', async () => {
     const account = await register('session-owner');
     const other = await register('session-foreign');

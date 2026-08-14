@@ -111,6 +111,37 @@ export class AccountC1Controller {
     return profile;
   }
 
+  @Get('account/avatar')
+  async avatar(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    const avatar = await this.account.avatar(context.accountId);
+    if (!avatar) throw new HttpException(error('not_found', 'account was not found'), 404);
+    return avatar;
+  }
+
+  @Patch('account/avatar')
+  async updateAvatar(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['avatarDataUrl']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.account.updateAvatar(context.accountId, shape.body['avatarDataUrl']);
+    if (!result.ok) {
+      const status = result.code === 'not_found' ? 404 : 400;
+      throw new HttpException(
+        error(
+          result.code,
+          result.code === 'validation_error'
+            ? 'avatar must be a PNG, JPEG or WebP data URL up to 300 KB'
+            : 'account was not found',
+        ),
+        status,
+      );
+    }
+    return result.avatar;
+  }
+
   @Patch('account/profile')
   async updateProfile(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
     const context = await this.requireContext(request);

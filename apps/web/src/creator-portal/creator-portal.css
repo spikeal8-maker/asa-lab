@@ -63,7 +63,16 @@
 .portal-header .portal-user-avatar {
   width: 42px;
   height: 42px;
+  overflow: hidden;
   font-size: 14px;
+}
+
+.portal-user-avatar img,
+.portal-sidebar-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .portal-global-nav {
@@ -183,12 +192,12 @@
   padding-left: 7px;
 }
 
-.portal-sidebar.collapsed .portal-sidebar-profile > span:last-child,
+.portal-sidebar.collapsed .portal-sidebar-profile-copy,
 .portal-sidebar.collapsed .portal-nav-label {
   display: none;
 }
 
-.portal-sidebar-profile > span:last-child {
+.portal-sidebar-profile-copy {
   display: grid;
   width: 100%;
   min-width: 0;
@@ -213,22 +222,80 @@
 }
 
 .portal-sidebar-avatar {
+  position: relative;
   display: grid;
   place-items: center;
   width: 76px;
   height: 76px;
+  padding: 0;
+  border: 3px solid #fff;
   border-radius: 50%;
   color: #fff;
   background: linear-gradient(145deg, #148fc3, #0d587b);
   font-size: 20px;
   font-weight: 850;
+  cursor: pointer;
   box-shadow: 0 4px 12px rgba(11, 102, 143, 0.18);
+}
+
+.portal-sidebar-avatar:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 3px #dff3fb,
+    0 6px 16px rgba(11, 102, 143, 0.22);
+}
+
+.portal-sidebar-avatar:focus-visible {
+  outline: 3px solid #56bce6;
+  outline-offset: 3px;
+}
+
+.portal-sidebar-avatar:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.portal-avatar-upload-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #0879b7;
+  color: #fff;
+  box-shadow: 0 2px 7px rgba(25, 58, 76, 0.22);
+}
+
+.portal-avatar-upload-badge svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+
+.portal-avatar-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .portal-sidebar.collapsed .portal-sidebar-avatar {
   width: 44px;
   height: 44px;
   font-size: 14px;
+}
+
+.portal-sidebar.collapsed .portal-avatar-upload-badge {
+  right: -5px;
+  bottom: -5px;
+  width: 19px;
+  height: 19px;
 }
 
 .portal-sidebar .portal-nav {
@@ -273,9 +340,17 @@
 }
 
 .portal-sidebar .portal-nav-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
   width: 28px;
   color: currentColor;
-  font-size: 20px;
+}
+
+.portal-sidebar .portal-nav-glyph svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.75;
 }
 
 .portal-sidebar-footer {
@@ -295,8 +370,8 @@
 }
 
 .portal-sidebar.collapsed .portal-nav-glyph {
+  justify-content: center;
   width: 28px;
-  font-size: 19px;
 }
 
 .portal-sidebar-collapse {
@@ -323,6 +398,12 @@
 .portal-sidebar-collapse:hover {
   color: #0879b7;
   background: #f2f9fc;
+}
+
+.portal-sidebar-collapse svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
 }
 
 .portal-shell > .portal-content,

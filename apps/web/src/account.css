@@ -81,6 +81,33 @@
   text-overflow: ellipsis;
 }
 
+.portal-account-avatar-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5eaee;
+}
+
+.portal-account-avatar-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #cbd9e1;
+  border-radius: 18px;
+  background: #fff;
+  color: #176f9f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.portal-account-avatar-actions button:hover:not(:disabled) {
+  border-color: #148fc3;
+  background: #eef8fc;
+}
+
+.portal-account-avatar-actions button:last-child:not(:first-child) {
+  color: #9b4038;
+}
+
 .portal-account-workspaces {
   padding: 12px 10px;
   border-bottom: 1px solid #e5eaee;

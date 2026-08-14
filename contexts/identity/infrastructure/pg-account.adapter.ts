@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type {
   AccountDirectoryPort,
+  AccountAvatarRecord,
   AccountProfileRecord,
   EducatorAttestation,
   RegistrationConflict,
@@ -125,6 +126,24 @@ export class PgAccountDirectory implements AccountDirectoryPort {
     return this.toProfile(result.rows[0]);
   }
 
+  async avatar(accountId: string): Promise<AccountAvatarRecord | null> {
+    const result = await this.pool.query(`SELECT avatar_data_url FROM auth_account_avatar($1)`, [
+      accountId,
+    ]);
+    return this.toAvatar(result.rows[0]);
+  }
+
+  async updateAvatar(
+    accountId: string,
+    avatarDataUrl: string | null,
+  ): Promise<AccountAvatarRecord | null> {
+    const result = await this.pool.query(
+      `SELECT avatar_data_url FROM auth_update_account_avatar($1, $2)`,
+      [accountId, avatarDataUrl],
+    );
+    return this.toAvatar(result.rows[0]);
+  }
+
   async updateProfile(
     accountId: string,
     username: string,
@@ -202,6 +221,14 @@ export class PgAccountDirectory implements AccountDirectoryPort {
           displayName: row['display_name'] as string,
           birthDate: dateOnly(row['birth_date']),
           country: row['country'] as string,
+        }
+      : null;
+  }
+
+  private toAvatar(row: Record<string, unknown> | undefined): AccountAvatarRecord | null {
+    return row
+      ? {
+          avatarDataUrl: typeof row['avatar_data_url'] === 'string' ? row['avatar_data_url'] : null,
         }
       : null;
   }

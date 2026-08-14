@@ -30,6 +30,7 @@ export {
 } from './domain/account-policy.js';
 export type {
   AccountDirectoryPort,
+  AccountAvatarRecord,
   AccountProfileRecord,
   AccountRecord,
   AccountSessionRef,
@@ -56,8 +57,10 @@ export {
 } from './application/account-login.usecase.js';
 export {
   AccountManagementUseCase,
+  isValidAvatarDataUrl,
   type AccountProfileView,
   type EducatorAttestationResult,
+  type UpdateAvatarResult,
   type UpdateProfileResult,
 } from './application/account-management.usecase.js';
 export { ActiveContextUseCase } from './application/active-context.usecase.js';

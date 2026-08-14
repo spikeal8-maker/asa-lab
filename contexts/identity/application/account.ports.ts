@@ -45,6 +45,10 @@ export interface AccountProfileRecord {
   readonly country: string;
 }
 
+export interface AccountAvatarRecord {
+  readonly avatarDataUrl: string | null;
+}
+
 export interface EducatorAttestation {
   readonly eligible: boolean;
   readonly state: string | null;
@@ -88,6 +92,11 @@ export interface AccountDirectoryPort {
   capabilities(accountId: string): Promise<CapabilityRef[]>;
   workspaces(accountId: string): Promise<WorkspaceRef[]>;
   profile(accountId: string): Promise<AccountProfileRecord | null>;
+  avatar(accountId: string): Promise<AccountAvatarRecord | null>;
+  updateAvatar(
+    accountId: string,
+    avatarDataUrl: string | null,
+  ): Promise<AccountAvatarRecord | null>;
   updateProfile(
     accountId: string,
     username: string,

@@ -2,6 +2,7 @@ import { hashSessionToken } from '../domain/session-token.js';
 import { isValidDisplayName, isValidUsername } from '../domain/account-policy.js';
 import type {
   AccountDirectoryPort,
+  AccountAvatarRecord,
   AccountProfileRecord,
   AccountSessionRef,
   CapabilityRef,
@@ -11,6 +12,8 @@ import type {
 } from './account.ports.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const AVATAR_DATA_URL_PATTERN = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MAX_AVATAR_DATA_URL_LENGTH = 300_000;
 
 export interface AccountProfileView extends AccountProfileRecord {
   readonly capabilities: CapabilityRef[];
@@ -20,6 +23,19 @@ export interface AccountProfileView extends AccountProfileRecord {
 export type UpdateProfileResult =
   | { readonly ok: true; readonly profile: AccountProfileView }
   | { readonly ok: false; readonly code: 'validation_error' | 'username_taken' | 'not_found' };
+
+export type UpdateAvatarResult =
+  | { readonly ok: true; readonly avatar: AccountAvatarRecord }
+  | { readonly ok: false; readonly code: 'validation_error' | 'not_found' };
+
+export function isValidAvatarDataUrl(value: unknown): value is string | null {
+  return (
+    value === null ||
+    (typeof value === 'string' &&
+      value.length <= MAX_AVATAR_DATA_URL_LENGTH &&
+      AVATAR_DATA_URL_PATTERN.test(value))
+  );
+}
 
 export type EducatorAttestationResult =
   | { readonly ok: true; readonly state: string; readonly created: boolean }
@@ -54,6 +70,18 @@ export class AccountManagementUseCase {
     if ('conflict' in updated) return { ok: false, code: 'username_taken' };
     const profile = await this.profile(accountId);
     return profile === null ? { ok: false, code: 'not_found' } : { ok: true, profile };
+  }
+
+  async avatar(accountId: string): Promise<AccountAvatarRecord | null> {
+    return this.accounts.avatar(accountId);
+  }
+
+  async updateAvatar(accountId: string, avatarDataUrl: unknown): Promise<UpdateAvatarResult> {
+    if (!isValidAvatarDataUrl(avatarDataUrl)) {
+      return { ok: false, code: 'validation_error' };
+    }
+    const avatar = await this.accounts.updateAvatar(accountId, avatarDataUrl);
+    return avatar === null ? { ok: false, code: 'not_found' } : { ok: true, avatar };
   }
 
   async selfAttestEducator(accountId: string): Promise<EducatorAttestationResult> {
