@@ -51,11 +51,10 @@ function decodeRouteParameter(value: string): string | null {
   }
 }
 
-export function portalNavigation(_canTeach: boolean): readonly PortalNavigationItem[] {
-  void _canTeach;
+export function portalNavigation(canTeach: boolean): readonly PortalNavigationItem[] {
   return [
     { section: 'home', label: 'Главная' },
-    { section: 'classes', label: 'Классы' },
+    ...(canTeach ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
     { section: 'projects', label: 'Проекты' },
     { section: 'collections', label: 'Коллекции' },
     { section: 'learning', label: 'Учебные пособия' },
@@ -71,15 +70,14 @@ export function canUseClasses(
   return navigation.classes && activeWorkspaceKind === 'organization';
 }
 
-export function sectionForView(view: CreatorPortalView, _canTeach: boolean): CreatorPortalSection {
-  void _canTeach;
+export function sectionForView(view: CreatorPortalView, canTeach: boolean): CreatorPortalSection {
   if (view.kind === 'account') return 'account';
   if (view.kind === 'home') return 'home';
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
-  if (view.kind === 'classrooms' || view.kind === 'classroom-projects') {
+  if (canTeach && (view.kind === 'classrooms' || view.kind === 'classroom-projects')) {
     return 'classes';
   }
   return 'projects';
