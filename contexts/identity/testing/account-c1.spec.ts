@@ -20,6 +20,7 @@ const PROFILE: AccountProfileRecord = {
   emailVerificationState: 'verified',
   username: 'owner',
   displayName: 'Владелец',
+  bio: '',
   birthDate: '1990-04-12',
   country: 'RU',
 };
@@ -56,8 +57,10 @@ function directory(
     profile: async () => (overrides.profile === undefined ? PROFILE : overrides.profile),
     avatar: async () => ({ avatarDataUrl: null }),
     updateAvatar: async (_accountId, avatarDataUrl) => ({ avatarDataUrl }),
-    updateProfile: async (_accountId, username, displayName) =>
-      overrides.usernameTaken ? { conflict: 'username' } : { ...PROFILE, username, displayName },
+    updateProfile: async (_accountId, username, displayName, bio) =>
+      overrides.usernameTaken
+        ? { conflict: 'username' }
+        : { ...PROFILE, username, displayName, bio },
     selfAttestEducator: async () =>
       overrides.attestation ?? { eligible: true, state: 'provisional', created: true },
     accountForUser: async () => null,
@@ -129,10 +132,18 @@ describe('Account C1 management use case', () => {
       sessionStore(),
     );
     await expect(
-      usecase.updateProfile(ACCOUNT_ID, { username: 'not valid!', displayName: 'Владелец' }),
+      usecase.updateProfile(ACCOUNT_ID, {
+        username: 'not valid!',
+        displayName: 'Владелец',
+        bio: '',
+      }),
     ).resolves.toEqual({ ok: false, code: 'validation_error' });
     await expect(
-      usecase.updateProfile(ACCOUNT_ID, { username: 'OWNER', displayName: 'Владелец' }),
+      usecase.updateProfile(ACCOUNT_ID, {
+        username: 'OWNER',
+        displayName: 'Владелец',
+        bio: '',
+      }),
     ).resolves.toEqual({ ok: false, code: 'username_taken' });
   });
 

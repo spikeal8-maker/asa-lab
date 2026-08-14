@@ -276,14 +276,14 @@ export function App(): JSX.Element {
       (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
-            <p className="portal-eyebrow">Организационное пространство</p>
-            <h1>Классы подключены</h1>
+            <p className="portal-eyebrow">Классы</p>
+            <h1>Вы вошли как педагог</h1>
             <p>
-              Возможность педагога активна. Управление учениками и заданиями станет доступно после
-              привязки профиля педагога к учебной организации.
+              Просматривать раздел классов можно из любого пространства. Создавать классы, добавлять
+              учеников и выдавать задания можно только в подтверждённом пространстве школы.
             </p>
             <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
-              Проверить рабочее пространство
+              Открыть настройки аккаунта
             </button>
           </section>
         </main>
@@ -292,11 +292,11 @@ export function App(): JSX.Element {
       (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
-            <p className="portal-eyebrow">Доступ по роли</p>
-            <h1>Классы недоступны в этом пространстве</h1>
+            <p className="portal-eyebrow">Классы</p>
+            <h1>Раздел классов открыт</h1>
             <p>
-              Раздел появляется только для аккаунта педагога в организационном рабочем пространстве.
-              Переключение пространства само по себе не выдаёт эту возможность.
+              Подтверждённый пользователь может присоединиться к классу по коду преподавателя. Чтобы
+              создавать собственные классы, включите режим педагога и подключите пространство школы.
             </p>
             <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
               Открыть настройки аккаунта

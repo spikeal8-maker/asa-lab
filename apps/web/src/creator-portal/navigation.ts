@@ -51,7 +51,11 @@ function decodeRouteParameter(value: string): string | null {
   }
 }
 
-export function portalNavigation(_canTeach: boolean): readonly PortalNavigationItem[] {
+export function portalNavigation(canTeach: boolean): readonly PortalNavigationItem[] {
+  // Kept in the public signature for callers that also use the capability for
+  // management actions. The Classes destination itself is available to every
+  // signed-in account.
+  void canTeach;
   return [
     { section: 'home', label: 'Главная' },
     { section: 'classes', label: 'Классы' },
@@ -70,7 +74,8 @@ export function canUseClasses(
   return navigation.classes && activeWorkspaceKind === 'organization';
 }
 
-export function sectionForView(view: CreatorPortalView, _canTeach: boolean): CreatorPortalSection {
+export function sectionForView(view: CreatorPortalView, canTeach: boolean): CreatorPortalSection {
+  void canTeach;
   if (view.kind === 'account') return 'account';
   if (view.kind === 'home') return 'home';
   if (view.kind === 'learning') return 'learning';

@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
-import { createAvatarDataUrl } from '../creator-portal/avatar-file';
+import {
+  defaultAvatarForAccount,
+  notifyProfileAvatarChanged,
+  PROFILE_AVATAR_CHANGED_EVENT,
+} from '../creator-portal/default-avatars';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 import {
   ClassesIcon,
@@ -64,7 +68,6 @@ export function PortalHeader({
     () => window.localStorage.getItem('asa-portal-sidebar') === 'collapsed',
   );
   const accountMenu = useRef<HTMLDetailsElement>(null);
-  const avatarInput = useRef<HTMLInputElement>(null);
   const activeWorkspace = session.workspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
@@ -74,6 +77,7 @@ export function PortalHeader({
       .slice(0, 2)
       .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
       .join('') || 'A';
+  const effectiveAvatarUrl = avatarDataUrl ?? defaultAvatarForAccount(session.user.id).src;
   const navigationItems = portalNavigation(canTeach);
   const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
@@ -91,6 +95,15 @@ export function PortalHeader({
       cancelled = true;
     };
   }, [session.user.id]);
+
+  useEffect(() => {
+    function updateAvatarFromPage(event: Event): void {
+      setAvatarDataUrl((event as CustomEvent<string | null>).detail);
+    }
+
+    window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
+    return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
+  }, []);
 
   useEffect(() => {
     function closeAccountMenu(event: PointerEvent): void {
@@ -128,31 +141,6 @@ export function PortalHeader({
     onNavigate(section);
   }
 
-  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
-    if (!file || busy) return;
-    setBusy('avatar');
-    setError(null);
-    try {
-      const dataUrl = await createAvatarDataUrl(file);
-      const result = await api.updateAccountAvatar(dataUrl);
-      if (!result.ok) {
-        setError('Не удалось сохранить фотографию профиля.');
-        return;
-      }
-      setAvatarDataUrl(result.data.avatarDataUrl);
-    } catch (uploadError) {
-      setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : 'Не удалось обработать фотографию профиля.',
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function removeAvatar(): Promise<void> {
     if (busy || !avatarDataUrl) return;
     setBusy('avatar');
@@ -164,6 +152,7 @@ export function PortalHeader({
       return;
     }
     setAvatarDataUrl(null);
+    notifyProfileAvatarChanged(null);
   }
 
   async function logout(): Promise<void> {
@@ -254,7 +243,7 @@ export function PortalHeader({
         >
           <summary aria-label={`Меню аккаунта ${session.user.displayName}`}>
             <span className="portal-user-avatar" aria-hidden="true">
-              <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
+              <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
             </span>
             <span className="portal-user-copy">
               <strong>{session.user.displayName}</strong>
@@ -266,14 +255,12 @@ export function PortalHeader({
               <button
                 type="button"
                 className="portal-account-profile-avatar"
-                aria-label={
-                  avatarDataUrl ? 'Изменить фотографию профиля' : 'Загрузить фотографию профиля'
-                }
-                title={avatarDataUrl ? 'Изменить фотографию' : 'Загрузить фотографию'}
+                aria-label="Открыть выбор аватара"
+                title="Выбрать или загрузить аватар"
                 disabled={busy !== null}
-                onClick={() => avatarInput.current?.click()}
+                onClick={() => navigateFromAccount('account')}
               >
-                <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
+                <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
                 <span className="portal-account-avatar-edit" aria-hidden="true">
                   <PlusIcon />
                 </span>
@@ -334,20 +321,18 @@ export function PortalHeader({
               </button>
             </div>
 
-            {canTeach ? (
-              <div className="portal-account-group">
-                <button
-                  type="button"
-                  className="portal-account-item"
-                  onClick={() => navigateFromAccount('classes')}
-                >
-                  <span className="portal-account-item-icon" aria-hidden="true">
-                    <ClassesIcon />
-                  </span>
-                  <span>Мои классы</span>
-                </button>
-              </div>
-            ) : null}
+            <div className="portal-account-group">
+              <button
+                type="button"
+                className="portal-account-item"
+                onClick={() => navigateFromAccount('classes')}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <ClassesIcon />
+                </span>
+                <span>Мои классы</span>
+              </button>
+            </div>
 
             <div className="portal-account-group">
               <details className="portal-account-workspaces">
@@ -425,19 +410,11 @@ export function PortalHeader({
             disabled={busy !== null}
             onClick={openAccountMenu}
           >
-            <AvatarVisual avatarDataUrl={avatarDataUrl} initials={initials} />
+            <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
             <span className="portal-avatar-upload-badge" aria-hidden="true">
               <ChevronIcon />
             </span>
           </button>
-          <input
-            ref={avatarInput}
-            className="portal-avatar-file-input"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            aria-label="Выбрать фотографию профиля"
-            onChange={(event) => void uploadAvatar(event)}
-          />
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
             <small>{activeWorkspace?.title ?? 'Рабочее пространство'}</small>

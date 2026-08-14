@@ -34,6 +34,7 @@ export interface AccountProfile {
   emailVerificationState: string;
   username: string;
   displayName: string;
+  bio: string;
   birthDate: string;
   country: string;
   capabilities: CapabilityRef[];
@@ -356,10 +357,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ avatarDataUrl }),
     }),
-  updateAccountProfile: (username: string, displayName: string) =>
+  updateAccountProfile: (username: string, displayName: string, bio: string) =>
     call<AccountProfile>('/api/account/profile', {
       method: 'PATCH',
-      body: JSON.stringify({ username, displayName }),
+      body: JSON.stringify({ username, displayName, bio }),
     }),
   listWorkspaces: () =>
     call<{ items: WorkspaceRef[]; activeWorkspaceId: string }>('/api/workspaces'),

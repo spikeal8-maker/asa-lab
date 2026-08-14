@@ -14,6 +14,7 @@ import type {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const AVATAR_DATA_URL_PATTERN = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 const MAX_AVATAR_DATA_URL_LENGTH = 300_000;
+const MAX_PROFILE_BIO_LENGTH = 960;
 
 export interface AccountProfileView extends AccountProfileRecord {
   readonly capabilities: CapabilityRef[];
@@ -58,14 +59,20 @@ export class AccountManagementUseCase {
 
   async updateProfile(
     accountId: string,
-    input: { username: unknown; displayName: unknown },
+    input: { username: unknown; displayName: unknown; bio: unknown },
   ): Promise<UpdateProfileResult> {
-    if (!isValidUsername(input.username) || !isValidDisplayName(input.displayName)) {
+    if (
+      !isValidUsername(input.username) ||
+      !isValidDisplayName(input.displayName) ||
+      typeof input.bio !== 'string' ||
+      input.bio.trim().length > MAX_PROFILE_BIO_LENGTH
+    ) {
       return { ok: false, code: 'validation_error' };
     }
     const username = (input.username as string).trim().toLowerCase();
     const displayName = (input.displayName as string).trim();
-    const updated = await this.accounts.updateProfile(accountId, username, displayName);
+    const bio = input.bio.trim();
+    const updated = await this.accounts.updateProfile(accountId, username, displayName, bio);
     if (updated === null) return { ok: false, code: 'not_found' };
     if ('conflict' in updated) return { ok: false, code: 'username_taken' };
     const profile = await this.profile(accountId);

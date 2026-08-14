@@ -145,13 +145,20 @@ export class AccountC1Controller {
   @Patch('account/profile')
   async updateProfile(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
     const context = await this.requireContext(request);
-    const shape = checkBodyShape(rawBody, ['username', 'displayName']);
+    const shape = checkBodyShape(rawBody, ['username', 'displayName', 'bio']);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    let bio = shape.body['bio'];
+    if (bio === undefined) {
+      const existing = await this.account.profile(context.accountId);
+      if (!existing) throw new HttpException(error('not_found', 'account was not found'), 404);
+      bio = existing.bio;
     }
     const result = await this.account.updateProfile(context.accountId, {
       username: shape.body['username'],
       displayName: shape.body['displayName'],
+      bio,
     });
     if (!result.ok) {
       if (result.code === 'username_taken') {
@@ -159,7 +166,7 @@ export class AccountC1Controller {
       }
       const status = result.code === 'not_found' ? 404 : 400;
       throw new HttpException(
-        error(result.code, 'проверьте имя пользователя и отображаемое имя'),
+        error(result.code, 'проверьте имя пользователя, отображаемое имя и текст «О себе»'),
         status,
       );
     }

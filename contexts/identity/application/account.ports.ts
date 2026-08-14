@@ -41,6 +41,7 @@ export interface AccountProfileRecord {
   readonly emailVerificationState: string;
   readonly username: string;
   readonly displayName: string;
+  readonly bio: string;
   readonly birthDate: string;
   readonly country: string;
 }
@@ -101,6 +102,7 @@ export interface AccountDirectoryPort {
     accountId: string,
     username: string,
     displayName: string,
+    bio: string,
   ): Promise<AccountProfileRecord | RegistrationConflict | null>;
   selfAttestEducator(accountId: string): Promise<EducatorAttestation>;
   accountForUser(tenantId: string, userId: string): Promise<LinkedAccount | null>;

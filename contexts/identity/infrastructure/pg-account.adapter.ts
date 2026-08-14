@@ -119,8 +119,8 @@ export class PgAccountDirectory implements AccountDirectoryPort {
 
   async profile(accountId: string): Promise<AccountProfileRecord | null> {
     const result = await this.pool.query(
-      `SELECT email, email_verification_state, username, display_name, birth_date, country
-         FROM auth_account_profile($1)`,
+      `SELECT email, email_verification_state, username, display_name, bio, birth_date, country
+         FROM auth_account_profile_v2($1)`,
       [accountId],
     );
     return this.toProfile(result.rows[0]);
@@ -148,12 +148,13 @@ export class PgAccountDirectory implements AccountDirectoryPort {
     accountId: string,
     username: string,
     displayName: string,
+    bio: string,
   ): Promise<AccountProfileRecord | RegistrationConflict | null> {
     try {
       const result = await this.pool.query(
-        `SELECT email, email_verification_state, username, display_name, birth_date, country
-           FROM auth_update_account_profile($1, $2, $3)`,
-        [accountId, username, displayName],
+        `SELECT email, email_verification_state, username, display_name, bio, birth_date, country
+           FROM auth_update_account_profile_v2($1, $2, $3, $4)`,
+        [accountId, username, displayName, bio],
       );
       return this.toProfile(result.rows[0]);
     } catch (error) {
@@ -219,6 +220,7 @@ export class PgAccountDirectory implements AccountDirectoryPort {
           emailVerificationState: row['email_verification_state'] as string,
           username: row['username'] as string,
           displayName: row['display_name'] as string,
+          bio: typeof row['bio'] === 'string' ? row['bio'] : '',
           birthDate: dateOnly(row['birth_date']),
           country: row['country'] as string,
         }
