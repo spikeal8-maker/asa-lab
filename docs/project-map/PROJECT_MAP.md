@@ -16,7 +16,7 @@ TASK-CHECKERS-M1-001
 Issue #98
 branch agent/checkers-education-m1
 status in_progress
-checkpoint project_document_foundation
+checkpoint persistence_classroom_vertical
 execution lease codex-checkers-m1
 ```
 

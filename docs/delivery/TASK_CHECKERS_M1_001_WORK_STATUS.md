@@ -14,7 +14,7 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 task: TASK-CHECKERS-M1-001
 branch: agent/checkers-education-m1
 status: in_progress
-checkpoint: project_document_foundation
+checkpoint: persistence_classroom_vertical
 execution_lease: codex-checkers-m1
 convergence baseline: db1038c66630c80bf121e7c794a44f119a028753
 ```
