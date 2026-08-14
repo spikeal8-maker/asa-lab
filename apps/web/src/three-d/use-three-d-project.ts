@@ -49,6 +49,7 @@ export interface ThreeDProjectController {
   readonly setTitle: (title: string) => void;
   readonly renameProject: () => Promise<void>;
   readonly setSelectedId: (nodeId: string | null, additive?: boolean) => void;
+  readonly selectAll: () => void;
   readonly execute: (command: ThreeDCommand) => void;
   readonly addPrimitive: (
     primitive: PrimitiveKind,
@@ -315,6 +316,12 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       incoming.forEach((id) => (remove ? next.delete(id) : next.add(id)));
       return [...next];
     });
+  }, []);
+
+  const selectAll = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (!document) return;
+    setSelectedIds(document.nodes.filter((node) => node.visible).map((node) => node.id));
   }, []);
 
   const addPrimitive = useCallback(
@@ -748,6 +755,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     setTitle,
     renameProject,
     setSelectedId,
+    selectAll,
     execute,
     addPrimitive,
     copySelected,

@@ -192,6 +192,7 @@ export function App(): JSX.Element {
       <ModuleEditorHost
         projectId={view.projectId}
         onBack={() => setView(view.returnTo)}
+        returnTo={view.returnTo}
         user={session.session.user}
       />
     );

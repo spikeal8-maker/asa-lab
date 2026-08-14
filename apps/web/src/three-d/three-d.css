@@ -364,6 +364,18 @@ button.asa3d-save-recovery {
   pointer-events: none;
 }
 
+.asa3d-selection-marquee {
+  position: absolute;
+  box-sizing: border-box;
+  background: rgba(22, 167, 207, 0.12);
+  border: 1px solid #12a7cf;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52);
+}
+
+.asa3d-selection-marquee[hidden] {
+  display: none;
+}
+
 .asa3d-measurement-label {
   position: absolute;
   min-width: 40px;

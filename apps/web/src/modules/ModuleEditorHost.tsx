@@ -3,12 +3,17 @@ import { api, type PublicUser } from '../api';
 import { ChessModuleExperience } from '../chess/ChessModuleExperience';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
 import { loadCheckersEditor } from '../checkers/load-checkers-editor';
+import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-portal/navigation';
 import { SchematicEditor } from '../pages/SchematicEditor';
 
 interface ModuleEditorProps {
   projectId: string;
   onBack: () => void;
   user: PublicUser;
+}
+
+interface ModuleEditorHostProps extends ModuleEditorProps {
+  returnTo: CreatorPortalReturnView;
 }
 
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
@@ -27,7 +32,7 @@ type HostState =
 
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
-export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
+export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
   const [state, setState] = useState<HostState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
       const moduleKey = result.data.project.moduleKey;
       const canonicalHash =
         moduleKey === 'three-d'
-          ? `#/3d/${encodeURIComponent(props.projectId)}`
+          ? threeDEditorHash(props.projectId, props.returnTo)
           : moduleKey === 'chess'
             ? chessRouteToHash(
                 props.projectId,
@@ -57,7 +62,7 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
     return () => {
       active = false;
     };
-  }, [props.projectId]);
+  }, [props.projectId, props.returnTo]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;
@@ -121,7 +126,7 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
         </main>
       }
     >
-      <Editor {...props} />
+      <Editor projectId={props.projectId} onBack={props.onBack} user={props.user} />
     </Suspense>
   );
 }

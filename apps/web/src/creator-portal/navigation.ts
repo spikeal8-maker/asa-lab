@@ -22,6 +22,8 @@ export type CreatorPortalView =
         | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
     };
 
+export type CreatorPortalReturnView = Extract<CreatorPortalView, { kind: 'editor' }>['returnTo'];
+
 export interface PortalNavigationItem {
   readonly section: Exclude<CreatorPortalSection, 'account'>;
   readonly label: string;
@@ -102,6 +104,33 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   return `#/${returnPath}/${view.projectId}`;
 }
 
+/** A 3D project is a standalone editor page. Like Tinkercad's editor URLs, the
+ * document identity stays canonical while the dashboard return destination is
+ * carried separately and survives a refresh. */
+export function threeDEditorHash(projectId: string, returnTo: CreatorPortalReturnView): string {
+  const returnHash = creatorViewToHash(returnTo);
+  return `#/3d/${encodeURIComponent(projectId)}?returnTo=${encodeURIComponent(returnHash.slice(1))}`;
+}
+
+function threeDReturnView(query: string | undefined): CreatorPortalReturnView {
+  const returnTo = new URLSearchParams(query ?? '').get('returnTo');
+  if (returnTo === '/home') return { kind: 'home' };
+  if (returnTo === '/projects') return { kind: 'my-projects' };
+  const [path, nestedQuery] = (returnTo ?? '').split('?');
+  const classroom = /^\/classrooms\/([^/]+)\/projects$/.exec(path ?? '');
+  if (classroom) {
+    const classroomId = decodeRouteParameter(classroom[1] as string);
+    if (classroomId) {
+      return {
+        kind: 'classroom-projects',
+        classroomId,
+        classroomTitle: new URLSearchParams(nestedQuery ?? '').get('title') ?? 'Класс',
+      };
+    }
+  }
+  return { kind: 'my-projects' };
+}
+
 export function creatorViewFromHash(hash: string): CreatorPortalView {
   const raw = hash.replace(/^#/, '');
   const [path, query] = raw.split('?');
@@ -133,7 +162,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     return {
       kind: 'editor',
       projectId,
-      returnTo: { kind: 'my-projects' },
+      returnTo: threeDReturnView(query),
     };
   }
   const independentChessPage =

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   creatorViewFromHash,
   creatorViewToHash,
+  threeDEditorHash,
   type CreatorPortalView,
 } from '../../apps/web/src/creator-portal/navigation';
 
@@ -34,6 +35,23 @@ describe('Creator Portal routing', () => {
 
     expect(creatorViewFromHash(creatorViewToHash(homeEditor))).toEqual(homeEditor);
     expect(creatorViewFromHash(creatorViewToHash(projectsEditor))).toEqual(projectsEditor);
+  });
+
+  it('gives the standalone 3D editor a canonical document URL with a durable return route', () => {
+    const home = threeDEditorHash('3d project/one', { kind: 'home' });
+    const projects = threeDEditorHash('3d-project-two', { kind: 'my-projects' });
+
+    expect(home).toBe('#/3d/3d%20project%2Fone?returnTo=%2Fhome');
+    expect(creatorViewFromHash(home)).toEqual({
+      kind: 'editor',
+      projectId: '3d project/one',
+      returnTo: { kind: 'home' },
+    });
+    expect(creatorViewFromHash(projects)).toEqual({
+      kind: 'editor',
+      projectId: '3d-project-two',
+      returnTo: { kind: 'my-projects' },
+    });
   });
 
   it('preserves classroom context and encoded title on deep links', () => {

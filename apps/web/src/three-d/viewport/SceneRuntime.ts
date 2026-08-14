@@ -132,6 +132,18 @@ export class SceneRuntime {
   private animationFrame = 0;
   private readonly resizeObserver: ResizeObserver;
 
+  private readonly publishCameraState = (): void => {
+    const values = [
+      this.camera.position.x,
+      this.camera.position.y,
+      this.camera.position.z,
+      this.orbit.target.x,
+      this.orbit.target.y,
+      this.orbit.target.z,
+    ].map((value) => Math.round(value * 1000) / 1000);
+    this.container.dataset['cameraState'] = values.join(',');
+  };
+
   constructor(
     private readonly container: HTMLElement,
     callbacks: SceneRuntimeCallbacks,
@@ -170,6 +182,13 @@ export class SceneRuntime {
     this.orbit.maxPolarAngle = Math.PI * 0.495;
     this.orbit.minDistance = 35;
     this.orbit.maxDistance = 1200;
+    // Tinkercad-style desktop navigation: the primary button belongs only to
+    // object interaction and marquee selection. Camera gestures never steal it.
+    this.orbit.mouseButtons.LEFT = null;
+    this.orbit.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+    this.orbit.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
+    this.orbit.addEventListener('change', this.publishCameraState);
+    this.container.dataset['mouseNavigation'] = 'left-select;right-orbit;middle-pan;wheel-zoom';
 
     this.manipulator = new DirectManipulator(
       this.scene,
@@ -203,6 +222,7 @@ export class SceneRuntime {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
+    this.publishCameraState();
     this.animate();
   }
 
@@ -275,7 +295,10 @@ export class SceneRuntime {
       selectedNodes.every((node) => node.groupId === firstGroupId)
         ? firstGroupId
         : null;
-    this.setSelection(selectedGroupId ? `group:${selectedGroupId}` : (selectedIds.at(-1) ?? null));
+    const runtimeSelectionIds = selectedGroupId
+      ? [`group:${selectedGroupId}`]
+      : selectedIds.filter((id) => this.entries.has(id));
+    this.setSelection(runtimeSelectionIds.at(-1) ?? null, runtimeSelectionIds);
   }
 
   private syncBooleanGroups(document: ThreeDDocument): void {
@@ -573,8 +596,8 @@ export class SceneRuntime {
     this.gridRoot.clear();
   }
 
-  setSelection(nodeId: string | null): void {
-    this.manipulator.setSelection(nodeId);
+  setSelection(nodeId: string | null, nodeIds: readonly string[] = nodeId ? [nodeId] : []): void {
+    this.manipulator.setSelection(nodeId, nodeIds);
   }
 
   workplanePoint(clientX: number, clientY: number): { x: number; z: number } | null {
@@ -685,6 +708,7 @@ export class SceneRuntime {
     this.resizeObserver.disconnect();
     this.manipulator.dispose();
     this.clearPlacementPreview();
+    this.orbit.removeEventListener('change', this.publishCameraState);
     this.orbit.dispose();
     for (const entry of this.entries.values()) disposeObject(entry.object);
     this.entries.clear();

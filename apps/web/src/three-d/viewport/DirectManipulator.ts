@@ -66,6 +66,23 @@ interface DragState {
   currentAngleDegrees: number;
 }
 
+interface MarqueeState {
+  readonly pointerId: number;
+  readonly startX: number;
+  readonly startY: number;
+  readonly additive: boolean;
+  currentX: number;
+  currentY: number;
+  moved: boolean;
+}
+
+interface ScreenRectangle {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
 interface LabelAnchor {
   readonly element: HTMLDivElement;
   readonly point: THREE.Vector3;
@@ -222,14 +239,16 @@ export class DirectManipulator {
   private readonly rotationRing = new THREE.Group();
   private readonly dimensionRoot = new THREE.Group();
   private readonly overlay: HTMLDivElement;
+  private readonly selectionBox: HTMLDivElement;
   private readonly rotationTexture = createRotationArrowTexture();
   private readonly squareTexture = createSquareHandleTexture();
   private readonly liftTexture = createLiftHandleTexture();
   private selectedId: string | null = null;
+  private selectedIds: readonly string[] = [];
   private hoveredHandleId: string | null = null;
   private rotationRingAxis: RotationAxis | null = null;
   private gridSnap = 1;
-  private backgroundPointerStart: { readonly x: number; readonly y: number } | null = null;
+  private marquee: MarqueeState | null = null;
   private drag: DragState | null = null;
   private labelAnchors: LabelAnchor[] = [];
   private handlePositionSignature = '';
@@ -289,6 +308,12 @@ export class DirectManipulator {
     this.overlay.setAttribute('aria-live', 'polite');
     this.overlay.setAttribute('aria-atomic', 'false');
     this.container.append(this.overlay);
+
+    this.selectionBox = globalThis.document.createElement('div');
+    this.selectionBox.className = 'asa3d-selection-marquee';
+    this.selectionBox.dataset['testid'] = 'asa3d-selection-marquee';
+    this.selectionBox.hidden = true;
+    this.overlay.append(this.selectionBox);
 
     this.canvas.addEventListener('pointerdown', this.handlePointerDown, true);
     this.canvas.addEventListener('pointermove', this.handlePointerMove, true);
@@ -355,9 +380,14 @@ export class DirectManipulator {
     this.gridSnap = Number.isFinite(step) && step > 0 ? step : 1;
   }
 
-  setSelection(nodeId: string | null): void {
+  setSelection(nodeId: string | null, nodeIds: readonly string[] = nodeId ? [nodeId] : []): void {
     this.selectedId = nodeId;
+    this.selectedIds = [...new Set(nodeIds.filter((id) => this.getEntries().has(id)))];
+    if (nodeId && !this.selectedIds.includes(nodeId)) {
+      this.selectedIds = [...this.selectedIds, nodeId];
+    }
     this.container.dataset['selectedNodeId'] = nodeId ?? '';
+    this.container.dataset['selectedNodeIds'] = this.selectedIds.join(',');
     this.clearDimensionVisuals();
     this.setHoveredHandle(null);
     this.update();
@@ -365,6 +395,12 @@ export class DirectManipulator {
 
   private selectedEntry(): DirectManipulationEntry | null {
     return this.selectedId ? (this.getEntries().get(this.selectedId) ?? null) : null;
+  }
+
+  private selectedEntries(): readonly DirectManipulationEntry[] {
+    return this.selectedIds
+      .map((id) => this.getEntries().get(id))
+      .filter((entry): entry is DirectManipulationEntry => Boolean(entry?.object.visible));
   }
 
   private effectiveDimensions(entry: DirectManipulationEntry): THREE.Vector3 {
@@ -386,6 +422,23 @@ export class DirectManipulator {
   }
 
   update(): void {
+    const selectedEntries = this.selectedEntries();
+    if (selectedEntries.length > 1) {
+      const bounds = new THREE.Box3();
+      selectedEntries.forEach((selected) => bounds.expandByObject(selected.object));
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      this.outline.visible = !bounds.isEmpty();
+      this.outline.position.copy(center);
+      this.outline.quaternion.identity();
+      this.outline.scale.copy(size).multiplyScalar(1.003);
+      this.centreMarker.visible = false;
+      this.handleRoot.visible = false;
+      this.rotationRing.visible = false;
+      this.publishHandlePositions(null);
+      this.clearDimensionVisuals();
+      return;
+    }
     const entry = this.selectedEntry();
     if (!entry || !entry.object.visible) {
       this.outline.visible = false;
@@ -557,8 +610,121 @@ export class DirectManipulator {
     return nodeId && entry ? { nodeId, entry } : null;
   }
 
+  private marqueeRectangle(state: MarqueeState): ScreenRectangle {
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const startX = state.startX - canvasRect.left;
+    const startY = state.startY - canvasRect.top;
+    const currentX = state.currentX - canvasRect.left;
+    const currentY = state.currentY - canvasRect.top;
+    return {
+      left: Math.max(0, Math.min(startX, currentX)),
+      top: Math.max(0, Math.min(startY, currentY)),
+      right: Math.min(canvasRect.width, Math.max(startX, currentX)),
+      bottom: Math.min(canvasRect.height, Math.max(startY, currentY)),
+    };
+  }
+
+  private updateMarqueeVisual(): void {
+    const state = this.marquee;
+    if (!state || !state.moved) {
+      this.selectionBox.hidden = true;
+      delete this.overlay.dataset['marqueeBounds'];
+      return;
+    }
+    const rectangle = this.marqueeRectangle(state);
+    this.selectionBox.hidden = false;
+    this.selectionBox.style.left = `${rectangle.left}px`;
+    this.selectionBox.style.top = `${rectangle.top}px`;
+    this.selectionBox.style.width = `${Math.max(1, rectangle.right - rectangle.left)}px`;
+    this.selectionBox.style.height = `${Math.max(1, rectangle.bottom - rectangle.top)}px`;
+    this.overlay.dataset['marqueeBounds'] = JSON.stringify(rectangle);
+  }
+
+  private entryScreenRectangle(entry: DirectManipulationEntry): ScreenRectangle | null {
+    const bounds = new THREE.Box3().setFromObject(entry.object);
+    if (bounds.isEmpty()) return null;
+    const width = Math.max(1, this.canvas.clientWidth);
+    const height = Math.max(1, this.canvas.clientHeight);
+    const corners: THREE.Vector3[] = [];
+    for (const x of [bounds.min.x, bounds.max.x]) {
+      for (const y of [bounds.min.y, bounds.max.y]) {
+        for (const z of [bounds.min.z, bounds.max.z]) corners.push(new THREE.Vector3(x, y, z));
+      }
+    }
+    const projected = corners.map((corner) => corner.project(this.camera));
+    if (!projected.some((point) => point.z >= -1 && point.z <= 1)) return null;
+    const xs = projected.map((point) => (point.x * 0.5 + 0.5) * width);
+    const ys = projected.map((point) => (-point.y * 0.5 + 0.5) * height);
+    return {
+      left: Math.min(...xs),
+      top: Math.min(...ys),
+      right: Math.max(...xs),
+      bottom: Math.max(...ys),
+    };
+  }
+
+  private entriesInMarquee(rectangle: ScreenRectangle): readonly string[] {
+    const ids: string[] = [];
+    for (const [id, entry] of this.getEntries()) {
+      if (!entry.object.visible) continue;
+      const candidate = this.entryScreenRectangle(entry);
+      if (!candidate) continue;
+      const intersects =
+        candidate.right >= rectangle.left &&
+        candidate.left <= rectangle.right &&
+        candidate.bottom >= rectangle.top &&
+        candidate.top <= rectangle.bottom;
+      if (intersects) ids.push(id);
+    }
+    return ids;
+  }
+
+  private applySelection(ids: readonly string[], additive: boolean): void {
+    const uniqueIds = [...new Set(ids.filter((id) => this.getEntries().has(id)))];
+    let nextIds: readonly string[];
+    if (!additive) {
+      nextIds = uniqueIds;
+    } else {
+      const next = new Set(this.selectedIds);
+      const remove = uniqueIds.length > 0 && uniqueIds.every((id) => next.has(id));
+      uniqueIds.forEach((id) => (remove ? next.delete(id) : next.add(id)));
+      nextIds = [...next];
+    }
+    this.setSelection(nextIds.at(-1) ?? null, nextIds);
+    if (!additive) {
+      const [first, ...rest] = uniqueIds;
+      if (!first) {
+        this.callbacks.onSelect(null, false);
+        return;
+      }
+      this.callbacks.onSelect(first, false);
+      rest.forEach((id) => this.callbacks.onSelect(id, true));
+      return;
+    }
+    uniqueIds.forEach((id) => this.callbacks.onSelect(id, true));
+  }
+
+  private finishMarquee(select: boolean): void {
+    const state = this.marquee;
+    if (!state) return;
+    if (this.canvas.hasPointerCapture(state.pointerId)) {
+      this.canvas.releasePointerCapture(state.pointerId);
+    }
+    this.marquee = null;
+    this.selectionBox.hidden = true;
+    delete this.overlay.dataset['marqueeBounds'];
+    delete this.container.dataset['selecting'];
+    if (!select) return;
+    if (!state.moved) {
+      if (!state.additive) this.applySelection([], false);
+      return;
+    }
+    this.applySelection(this.entriesInMarquee(this.marqueeRectangle(state)), state.additive);
+  }
+
   private readonly handlePointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
     this.setPointer(event.clientX, event.clientY);
     const handle = this.intersectHandle();
     const selected = this.selectedEntry();
@@ -573,14 +739,12 @@ export class DirectManipulator {
     if (hit) {
       event.preventDefault();
       event.stopPropagation();
-      if (event.shiftKey) {
-        this.callbacks.onSelect(hit.nodeId, true);
+      if (additive) {
+        this.applySelection([hit.nodeId], true);
         return;
       }
-      if (this.selectedId !== hit.nodeId) {
-        this.selectedId = hit.nodeId;
-        this.callbacks.onSelect(hit.nodeId, false);
-        this.update();
+      if (this.selectedId !== hit.nodeId || this.selectedIds.length !== 1) {
+        this.applySelection([hit.nodeId], false);
       }
       if (!hit.entry.node.locked) {
         this.beginDrag(event, hit.nodeId, hit.entry, { id: 'move', kind: 'move' });
@@ -588,11 +752,38 @@ export class DirectManipulator {
       return;
     }
 
-    this.backgroundPointerStart = { x: event.clientX, y: event.clientY };
+    event.preventDefault();
+    event.stopPropagation();
+    this.marquee = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      currentX: event.clientX,
+      currentY: event.clientY,
+      additive,
+      moved: false,
+    };
+    this.canvas.setPointerCapture(event.pointerId);
     this.setHoveredHandle(null);
   };
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.marquee) {
+      if (event.pointerId !== this.marquee.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.marquee.currentX = event.clientX;
+      this.marquee.currentY = event.clientY;
+      this.marquee.moved =
+        this.marquee.moved ||
+        Math.hypot(
+          this.marquee.currentX - this.marquee.startX,
+          this.marquee.currentY - this.marquee.startY,
+        ) > 4;
+      if (this.marquee.moved) this.container.dataset['selecting'] = 'marquee';
+      this.updateMarqueeVisual();
+      return;
+    }
     if (this.drag) {
       if (event.pointerId !== this.drag.pointerId) return;
       event.preventDefault();
@@ -609,28 +800,29 @@ export class DirectManipulator {
   };
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.marquee && event.pointerId === this.marquee.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.marquee.currentX = event.clientX;
+      this.marquee.currentY = event.clientY;
+      this.finishMarquee(true);
+      return;
+    }
     if (this.drag && event.pointerId === this.drag.pointerId) {
       event.preventDefault();
       event.stopPropagation();
       this.finishDrag();
       return;
     }
-
-    const start = this.backgroundPointerStart;
-    this.backgroundPointerStart = null;
-    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 5) {
-      this.selectedId = null;
-      this.callbacks.onSelect(null, false);
-      this.setSelection(null);
-    }
   };
 
   private readonly handlePointerCancel = (event: PointerEvent): void => {
+    if (this.marquee?.pointerId === event.pointerId) this.finishMarquee(false);
     if (this.drag?.pointerId === event.pointerId) this.finishDrag();
   };
 
   private readonly handlePointerLeave = (): void => {
-    if (!this.drag) this.setHoveredHandle(null);
+    if (!this.drag && !this.marquee) this.setHoveredHandle(null);
   };
 
   private beginDrag(
@@ -714,7 +906,7 @@ export class DirectManipulator {
       currentAngleDegrees: 0,
     };
     this.orbit.enabled = false;
-    this.backgroundPointerStart = null;
+    this.finishMarquee(false);
     this.container.dataset['manipulating'] = descriptor.kind;
     this.canvas.setPointerCapture(event.pointerId);
     this.canvas.style.cursor = 'default';

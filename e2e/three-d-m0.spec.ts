@@ -81,7 +81,7 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
   await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
     timeout: 20_000,
   });
-  await expect(page).toHaveURL(/#\/3d\/[^/?#]+$/);
+  await expect(page).toHaveURL(/#\/3d\/[^/?#]+\?returnTo=%2Fprojects$/);
 }
 
 async function expandShapeInspector(page: Page): Promise<void> {
@@ -133,7 +133,49 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(page, teacher);
   await createThreeDProject(page, 'Корпус датчика');
+  const viewport = page.getByTestId('asa3d-viewport');
   await expect(page.locator('.asa3d-canvas')).toHaveCSS('cursor', 'default');
+  await expect(viewport).toHaveAttribute(
+    'data-mouse-navigation',
+    'left-select;right-orbit;middle-pan;wheel-zoom',
+  );
+  const viewportBounds = await viewport.boundingBox();
+  const initialCamera = await viewport.getAttribute('data-camera-state');
+  if (!viewportBounds || !initialCamera) throw new Error('3D camera evidence unavailable');
+  const emptyPoint = {
+    x: viewportBounds.x + viewportBounds.width * 0.18,
+    y: viewportBounds.y + viewportBounds.height * 0.18,
+  };
+
+  await page.mouse.move(emptyPoint.x, emptyPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(emptyPoint.x + 74, emptyPoint.y + 52, { steps: 5 });
+  await expect(page.getByTestId('asa3d-selection-marquee')).toBeVisible();
+  await expect(viewport).toHaveAttribute('data-selecting', 'marquee');
+  await page.mouse.up();
+  await expect(page.getByTestId('asa3d-selection-marquee')).toBeHidden();
+  await expect(viewport).toHaveAttribute('data-camera-state', initialCamera);
+
+  await page.mouse.move(emptyPoint.x, emptyPoint.y);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(emptyPoint.x + 90, emptyPoint.y + 18, { steps: 6 });
+  await page.mouse.up({ button: 'right' });
+  await expect(viewport).not.toHaveAttribute('data-camera-state', initialCamera);
+  await page.getByTitle('Домой').click();
+
+  const beforePan = await viewport.getAttribute('data-camera-state');
+  await page.mouse.move(emptyPoint.x, emptyPoint.y);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(emptyPoint.x + 55, emptyPoint.y + 35, { steps: 5 });
+  await page.mouse.up({ button: 'middle' });
+  await expect(viewport).not.toHaveAttribute('data-camera-state', beforePan ?? '');
+  await page.getByTitle('Домой').click();
+
+  const beforeZoom = await viewport.getAttribute('data-camera-state');
+  await page.mouse.move(emptyPoint.x, emptyPoint.y);
+  await page.mouse.wheel(0, -420);
+  await expect(viewport).not.toHaveAttribute('data-camera-state', beforeZoom ?? '');
+  await page.getByTitle('Домой').click();
 
   await previewAndDropShape(page);
   await page.getByRole('button', { name: 'Удалить (Delete)' }).click();
@@ -156,6 +198,9 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
   await expect(page.getByLabel('Параметры выбранной формы')).toBeVisible();
   await expandShapeInspector(page);
+  await page.getByLabel('Положение X, мм').fill('-14');
+  const solidId = await viewport.getAttribute('data-selected-node-id');
+  const solidCentre = (await directHandlePoint(page, 'resize-south-west')).centre;
   await page.screenshot({
     path: 'e2e/artifacts/three-d/direct-manipulation-inspector-expanded.png',
     fullPage: true,
@@ -166,16 +211,40 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
     page.getByLabel('Тип формы').getByRole('button', { name: 'Отверстие', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await expandShapeInspector(page);
-  await page.getByLabel('Положение X, мм').fill('28');
+  await page.getByLabel('Положение X, мм').fill('0');
+  const holeId = await viewport.getAttribute('data-selected-node-id');
+  const holeCentre = (await directHandlePoint(page, 'resize-south-east')).centre;
+  if (!solidId || !holeId || solidId === holeId)
+    throw new Error('Two distinct 3D objects required');
+
+  await page.mouse.click(solidCentre.x, solidCentre.y);
+  await expect(viewport).toHaveAttribute('data-selected-node-id', solidId);
   await page.keyboard.down('Shift');
-  await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+  await page.mouse.click(holeCentre.x, holeCentre.y);
   await page.keyboard.up('Shift');
   await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-ids', /,/);
-  await page.getByRole('button', { name: 'Сгруппировать (Ctrl+G)' }).click();
+  const groupButton = page.getByRole('button', { name: 'Сгруппировать (Ctrl+G)' });
+  await expect(groupButton).toBeEnabled();
+  await groupButton.click();
   await expect(page.getByText(/Булева группа · 2/)).toBeVisible();
   await expect(page.getByLabel('Булева операция')).toHaveValue('difference');
   await page.getByLabel('Булева операция').selectOption('difference');
   await page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' }).click();
+
+  const marqueeStart = {
+    x: Math.min(solidCentre.x, holeCentre.x) - 58,
+    y: Math.min(solidCentre.y, holeCentre.y) - 58,
+  };
+  const marqueeEnd = {
+    x: Math.max(solidCentre.x, holeCentre.x) + 58,
+    y: Math.max(solidCentre.y, holeCentre.y) + 58,
+  };
+  await page.mouse.move(marqueeStart.x, marqueeStart.y);
+  await page.mouse.down();
+  await page.mouse.move(marqueeEnd.x, marqueeEnd.y, { steps: 8 });
+  await expect(page.getByTestId('asa3d-selection-marquee')).toBeVisible();
+  await page.mouse.up();
+  await expect(viewport).toHaveAttribute('data-selected-node-ids', /,/);
   await page.getByRole('button', { name: 'Выравнивание' }).click();
   await page.getByRole('button', { name: 'X · ширина: По центру' }).click();
   await page.getByRole('button', { name: 'Расширенная линейка' }).click();

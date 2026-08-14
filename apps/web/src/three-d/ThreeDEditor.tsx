@@ -109,6 +109,9 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
       } else if (modifier && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         controller.duplicateSelected();
+      } else if (modifier && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        controller.selectAll();
       } else if (modifier && event.key.toLowerCase() === 'g') {
         event.preventDefault();
         if (event.shiftKey) controller.ungroupSelected();
@@ -116,6 +119,8 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         controller.removeSelected();
+      } else if (event.key === 'Escape') {
+        controller.setSelectedId(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
