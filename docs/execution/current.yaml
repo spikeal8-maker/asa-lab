@@ -26,7 +26,7 @@ task:
   # after PR #95; the Checkers lane does not modify it. Chess and Electronics
   # remain outside this task's writable product scope.
   status: in_progress
-  checkpoint: project_document_foundation
+  checkpoint: persistence_classroom_vertical
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
@@ -48,9 +48,9 @@ revisions:
 # validate_control_plane.py enforces all of that.
 execution_lease:
   executor_id: codex-checkers-m1
-  holder: unassigned
-  acquired_at: null
-  expires_at: null
+  holder: codex-checkers-m1
+  acquired_at: "2026-08-14T11:18:00Z"
+  expires_at: "2026-08-15T11:18:00Z"
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
@@ -80,6 +80,10 @@ primary_lane:
   owned_paths:
     - contexts/checkers/**
     - apps/web/src/checkers/**
+    - tests/checkers/**
+    - e2e/checkers-module.spec.ts
+    - e2e/artifacts/checkers/**
+    - docs/product/CHECKERS_EXECUTION_PLAN.md
 
 parallel_lanes:
   - id: chess
@@ -242,9 +246,13 @@ integration:
     - START_HERE_FOR_AI.md
     - package.json
     - pnpm-lock.yaml
+    - apps/api/package.json
+    - apps/web/package.json
     - tools/validate_control_plane.py
     - tools/test_validate_control_plane.py
     - .github/workflows/**
+    - apps/api/src/module-registry.ts
+    - apps/web/src/modules/ModuleEditorHost.tsx
     - docs/delivery/**
     - docs/project-map/**
     - docs/testing/**

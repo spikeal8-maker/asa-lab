@@ -294,7 +294,7 @@ tasks:
     task_id: TASK-CHECKERS-M1-001
     # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
     status: in_progress
-    checkpoint: project_document_foundation
+    checkpoint: persistence_classroom_vertical
     issue: https://github.com/spikeal8-maker/asa-lab/issues/98
     branch: agent/checkers-education-m1
     base_branch: main
