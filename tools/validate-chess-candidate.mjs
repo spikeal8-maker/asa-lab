@@ -183,7 +183,8 @@ requireMarkers('contexts/chess/domain/puzzle.ts', [
 ]);
 requireMarkers('apps/api/src/module-registry.ts', [
   "import { CHESS_MODULE } from '@asa-lab/chess'",
-  'new ModuleRegistry([ELECTRONICS_MODULE, CHESS_MODULE',
+  'new ModuleRegistry([',
+  'CHESS_MODULE,',
 ]);
 requireMarkers('apps/web/src/modules/ModuleEditorHost.tsx', [
   "import { ChessModuleExperience } from '../chess/ChessModuleExperience'",

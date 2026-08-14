@@ -1,0 +1,18 @@
+{
+  "name": "checkers",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "contexts/checkers",
+  "tags": ["type:lib", "scope:core", "context:checkers"],
+  "targets": {
+    "build": {
+      "command": "tsc -p contexts/checkers/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p contexts/checkers/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint contexts/checkers"
+    }
+  }
+}

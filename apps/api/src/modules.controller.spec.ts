@@ -3,7 +3,7 @@ import { createApiModuleRegistry } from './module-registry';
 import { ModulesController } from './modules.controller';
 
 describe('ModulesController', () => {
-  it('returns Electronics, ASA Chess and ASA 3D as creatable first-party modules', () => {
+  it('returns Electronics, ASA Chess, ASA Checkers and ASA 3D as creatable modules', () => {
     const controller = new ModulesController(createApiModuleRegistry());
     const modules = controller.list().items;
     expect(modules.find((module) => module.moduleKey === 'electronics')).toMatchObject({
@@ -21,6 +21,15 @@ describe('ModulesController', () => {
       previewKind: 'board',
       iconKey: 'chess',
     });
+    expect(modules.find((module) => module.moduleKey === 'checkers')).toMatchObject({
+      displayName: 'ASA Шашки',
+      projectType: 'checkers-game',
+      availability: 'active',
+      creatable: true,
+      safeModeSupported: true,
+      previewKind: 'board',
+      iconKey: 'checkers',
+    });
     expect(modules.find((module) => module.moduleKey === 'three-d')).toMatchObject({
       displayName: 'ASA 3D',
       projectType: 'three-d-scene',
@@ -34,11 +43,6 @@ describe('ModulesController', () => {
     const controller = new ModulesController(createApiModuleRegistry());
     const modules = controller.list().items;
     expect(modules.find((module) => module.moduleKey === 'blocks')).toMatchObject({
-      availability: 'coming_soon',
-      creatable: false,
-    });
-    expect(modules.find((module) => module.moduleKey === 'checkers')).toMatchObject({
-      displayName: 'Шашки',
       availability: 'coming_soon',
       creatable: false,
     });

@@ -59,6 +59,10 @@ export default defineConfig(({ command }) => ({
               replacement: resolve(repositoryRoot, 'contexts/chess/index.ts'),
             },
             {
+              find: '@asa-lab/checkers',
+              replacement: resolve(repositoryRoot, 'contexts/checkers/index.ts'),
+            },
+            {
               find: '@asa-lab/module-sdk',
               replacement: resolve(repositoryRoot, 'packages/module-sdk/src/index.ts'),
             },
@@ -83,7 +87,12 @@ export default defineConfig(({ command }) => ({
       },
     },
     commonjsOptions: {
-      include: [/node_modules/, /contexts\/chess\/dist/, /packages\/module-sdk\/dist/],
+      include: [
+        /node_modules/,
+        /contexts\/chess\/dist/,
+        /contexts\/checkers\/dist/,
+        /packages\/module-sdk\/dist/,
+      ],
     },
   },
   server: {

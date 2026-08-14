@@ -1,0 +1,116 @@
+export {
+  CHECKERS_FILES,
+  CHECKERS_RANKS,
+  createInitialCheckersDocument,
+  isDarkSquare,
+  isCheckersSquare,
+  validateCheckersDocument,
+  type CheckersDocument,
+  type CheckersDocumentResult,
+  type CheckersGameMode,
+  type CheckersMoveRecord,
+  type CheckersPiece,
+  type CheckersPieceKind,
+  type CheckersResult,
+  type CheckersRuleset,
+  type CheckersSide,
+  type CheckersSquare,
+} from './domain/document.js';
+export { CHECKERS_MODULE, type CheckersAnalysisSummary } from './module.js';
+export {
+  createInitialCheckersProjectDocument,
+  validateCheckersProjectDocument,
+  type CheckersEducationState,
+  type CheckersProjectDocument,
+} from './domain/project.js';
+export { CHECKERS_STARTER_PUZZLES } from './domain/starter-content.js';
+export {
+  applyCheckersMove,
+  generateLegalCheckersMoves,
+  getCheckersGameStatus,
+  type CheckersGameStatus,
+  type CheckersLegalMove,
+  type CheckersMoveInput,
+} from './domain/rules.js';
+export {
+  CHECKERS_BOTS,
+  CHECKERS_BOT_IDS,
+  chooseCheckersBotMove,
+  type CheckersBotDecision,
+  type CheckersBotDefinition,
+  type CheckersBotExplanation,
+  type CheckersBotId,
+  type CheckersBotSearchOptions,
+} from './domain/bot.js';
+export {
+  CHECKERS_CONCEPT_IDS,
+  CHECKERS_CURRICULUM,
+  applyCheckersLearningEvidence,
+  buildCheckersStudentHome,
+  createEmptyConceptProgress,
+  validateCheckersAssignment,
+  type CheckersAssignment,
+  type CheckersAssignmentKind,
+  type CheckersAssignmentStatus,
+  type CheckersAssigneeKind,
+  type CheckersBotProgress,
+  type CheckersConceptId,
+  type CheckersConceptProgress,
+  type CheckersCurriculumUnit,
+  type CheckersEvidenceKind,
+  type CheckersEvidenceOutcome,
+  type CheckersHomeRecommendation,
+  type CheckersLearningEvidence,
+  type CheckersResumeItem,
+  type CheckersStudentAssignment,
+  type CheckersStudentHome,
+  type CheckersStudentHomeInput,
+} from './domain/learning.js';
+export {
+  CHECKERS_REACTIONS,
+  CHECKERS_REACTION_IDS,
+  createCheckersReactionEvent,
+  decideCheckersReaction,
+  type CheckersReactionDecision,
+  type CheckersReactionEvent,
+  type CheckersReactionId,
+  type CheckersReactionRequest,
+} from './domain/reactions.js';
+export {
+  CheckersGameService,
+  type CheckersBotTurn,
+  type CheckersGameRepository,
+  type CheckersGameSession,
+  type CheckersSessionMode,
+  type CheckersSessionPlayer,
+  type CreateCheckersSessionCommand,
+  type PlayCheckersBotMoveCommand,
+  type PlayCheckersMoveCommand,
+} from './application/game-service.js';
+export { InMemoryCheckersGameRepository } from './infrastructure/in-memory-game-repository.js';
+export {
+  createCheckersPuzzleAttempt,
+  requestCheckersPuzzleHint,
+  submitCheckersPuzzleMove,
+  validateCheckersPuzzle,
+  type CheckersPuzzle,
+  type CheckersPuzzleAttempt,
+  type CheckersPuzzleHintOutcome,
+  type CheckersPuzzleMoveOutcome,
+} from './domain/puzzle.js';
+export {
+  advanceCheckersDrawTracker,
+  checkersPositionKey,
+  createCheckersDrawTracker,
+  getCheckersAutomaticDrawReason,
+  type CheckersAutomaticDrawReason,
+  type CheckersDrawTracker,
+  type CheckersPositionOccurrence,
+} from './domain/draw.js';
+export {
+  analyzeCheckersGameReview,
+  replayCheckersGame,
+  type CheckersReviewInsight,
+  type CheckersReviewTheme,
+} from './domain/review.js';
+export { applyCheckersGameMove } from './domain/game.js';

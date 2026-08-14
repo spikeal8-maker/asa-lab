@@ -12,6 +12,11 @@ interface ModuleEditorProps {
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
   electronics: SchematicEditor,
   chess: ChessModuleExperience,
+  checkers: lazy(() =>
+    import('../checkers/CheckersModuleExperience').then((module) => ({
+      default: module.CheckersModuleExperience,
+    })),
+  ),
   'three-d': lazy(() =>
     import('../three-d/ThreeDEditor').then((module) => ({ default: module.ThreeDEditor })),
   ),
@@ -84,7 +89,7 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
     <Suspense
       fallback={
         <main className="page-center" role="status" aria-live="polite">
-          Загружаем ASA 3D…
+          Загружаем учебную среду…
         </main>
       }
     >
