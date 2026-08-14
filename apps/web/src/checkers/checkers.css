@@ -42,19 +42,18 @@
 .checkers-global-notice {
   position: fixed;
   z-index: 80;
-  top: 68px;
-  left: 50%;
+  right: 24px;
+  bottom: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  width: min(720px, calc(100% - 28px));
+  width: min(420px, calc(100% - 28px));
   padding: 12px 14px 12px 18px;
   border: 1px solid #b9dce9;
   border-radius: 14px;
   background: rgb(240 251 255 / 97%);
   box-shadow: 0 16px 40px rgb(16 55 75 / 18%);
   color: #17324a;
-  transform: translateX(-50%);
 }
 
 .checkers-global-notice span {
@@ -544,7 +543,9 @@
 
 .checkers-workspace {
   min-height: 100vh;
-  background: #eef3f5;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: radial-gradient(circle at 42% 38%, rgb(255 255 255 / 78%), transparent 34%), #edf2f4;
 }
 
 .checkers-editor-header {
@@ -664,8 +665,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 44px;
-  padding: 0 20px;
+  min-height: 42px;
+  padding: 0 24px;
   border-bottom: 1px solid #d8e0e5;
   background: #fff;
   color: var(--checkers-muted);
@@ -699,29 +700,95 @@
 
 .checkers-game-layout {
   display: grid;
-  grid-template-columns: minmax(520px, 1fr) minmax(300px, 390px);
+  grid-template-columns: minmax(0, 1fr) minmax(310px, 360px);
+  align-items: start;
   gap: 20px;
-  min-height: calc(100vh - 93px);
-  padding: 22px;
+  width: min(1180px, 100%);
+  height: calc(100vh - 90px);
+  height: calc(100dvh - 90px);
+  min-height: 0;
+  margin: 0 auto;
+  padding: 16px 24px 20px;
 }
 
 .checkers-board-stage {
   display: grid;
-  place-items: center;
+  align-content: start;
+  justify-items: center;
   min-width: 0;
+  min-height: 0;
+}
+
+.checkers-board-frame {
+  display: grid;
+  gap: 10px;
+  width: min(660px, 100%, calc(100dvh - 236px));
+  min-width: 0;
+}
+
+.checkers-board-toolbar,
+.checkers-board-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.checkers-board-toolbar {
+  min-height: 48px;
+  padding: 0 4px;
+}
+
+.checkers-board-turn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.checkers-board-turn > span:last-child {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.checkers-board-turn strong {
+  color: #16364a;
+  font-size: 15px;
+}
+
+.checkers-board-turn small {
+  overflow: hidden;
+  color: #6b7f8b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkers-legal-count {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid #d4e0e5;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 82%);
+  color: #466273;
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .checkers-board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  width: min(72vh, 720px, 100%);
+  width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border: 10px solid #fff;
-  border-radius: 18px;
+  box-sizing: border-box;
+  border: 8px solid #f9fbfc;
+  border-radius: 16px;
+  background: #f9fbfc;
   box-shadow:
-    0 18px 50px rgb(26 53 69 / 18%),
-    0 0 0 1px rgb(28 58 76 / 10%);
+    0 18px 42px rgb(26 53 69 / 14%),
+    0 0 0 1px rgb(28 58 76 / 12%);
 }
 
 .checkers-square {
@@ -731,53 +798,92 @@
   min-width: 0;
   padding: 0;
   border: 0;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .checkers-square.light {
-  background: #f3ead9;
+  background: #f2e8d6;
 }
 
 .checkers-square.dark {
-  background: #65a4a3;
+  background: #4f8d91;
+  cursor: default;
+}
+
+.checkers-square.movable,
+.checkers-square.destination {
   cursor: pointer;
 }
 
-.checkers-square.dark:hover:not(:disabled) {
-  background: #72b0ae;
+.checkers-square.movable:hover:not(:disabled),
+.checkers-square.destination:hover:not(:disabled) {
+  background: #5b9b9f;
 }
 
 .checkers-square.selected {
-  box-shadow: inset 0 0 0 5px #ffd15c;
+  z-index: 1;
+  background: #3f7780;
+  box-shadow: inset 0 0 0 4px #ffd56b;
 }
 
 .checkers-square.destination {
-  box-shadow: inset 0 0 0 4px rgb(255 255 255 / 55%);
+  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 60%);
+}
+
+.checkers-square:focus-visible {
+  z-index: 3;
+  outline: 4px solid #ffca4f;
+  outline-offset: -4px;
 }
 
 .checkers-destination-dot {
   position: absolute;
-  width: 22%;
+  width: 28%;
   aspect-ratio: 1;
+  border: 3px solid rgb(255 255 255 / 76%);
   border-radius: 50%;
-  background: rgb(23 50 74 / 52%);
+  background: rgb(20 60 78 / 52%);
+  box-shadow: 0 2px 8px rgb(16 45 60 / 22%);
 }
 
 .checkers-piece {
   position: relative;
   display: grid;
   place-items: center;
-  width: 72%;
+  width: 68%;
   aspect-ratio: 1;
-  border: 4px solid;
+  border: 3px solid;
   border-radius: 50%;
   box-shadow:
-    inset 0 5px 0 rgb(255 255 255 / 22%),
-    0 5px 8px rgb(17 38 50 / 28%);
-  transition: transform 120ms ease;
+    inset 0 4px 0 rgb(255 255 255 / 20%),
+    0 4px 0 rgb(17 38 50 / 18%),
+    0 8px 13px rgb(17 38 50 / 22%);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
 }
 
-.checkers-square:hover .checkers-piece {
-  transform: translateY(-2px);
+.checkers-piece::after {
+  position: absolute;
+  inset: 9%;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 50%;
+  content: '';
+}
+
+.checkers-square.movable .checkers-piece {
+  box-shadow:
+    inset 0 4px 0 rgb(255 255 255 / 20%),
+    0 4px 0 rgb(17 38 50 / 18%),
+    0 0 0 4px rgb(255 211 101 / 42%),
+    0 8px 14px rgb(17 38 50 / 24%);
+}
+
+.checkers-square.movable:hover .checkers-piece,
+.checkers-square.selected .checkers-piece {
+  transform: translateY(-3px) scale(1.03);
 }
 
 .checkers-piece.light {
@@ -798,6 +904,11 @@
   content: '';
 }
 
+.checkers-piece.king::after {
+  inset: 22%;
+  border-color: rgb(213 168 61 / 72%);
+}
+
 .checkers-crown {
   color: #d5a83d;
   font-size: clamp(12px, 2.2vw, 28px);
@@ -807,9 +918,14 @@
 .checkers-file-label {
   position: absolute;
   z-index: 2;
-  color: rgb(14 46 57 / 62%);
-  font-size: clamp(8px, 1vw, 12px);
+  color: #47606b;
+  font-size: clamp(9px, 0.8vw, 12px);
   font-weight: 800;
+}
+
+.checkers-square.dark .checkers-rank-label,
+.checkers-square.dark .checkers-file-label {
+  color: rgb(255 255 255 / 74%);
 }
 
 .checkers-rank-label {
@@ -822,32 +938,69 @@
   bottom: 3px;
 }
 
+.checkers-board-help {
+  min-height: 42px;
+  justify-content: flex-start;
+  padding: 8px 12px;
+  border: 1px solid #d8e3e7;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 78%);
+  color: #526b79;
+}
+
+.checkers-board-help > span {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #173f57;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.checkers-board-help p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .checkers-side-panel {
-  align-self: stretch;
+  display: flex;
+  align-self: start;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(100vh - 122px);
+  max-height: calc(100dvh - 122px);
   overflow: hidden;
   border: 1px solid #dbe3e7;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #fff;
-  box-shadow: 0 10px 30px rgb(35 61 76 / 8%);
+  box-shadow: 0 12px 32px rgb(35 61 76 / 9%);
 }
 
 .checkers-panel-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  flex: 0 0 auto;
   border-bottom: 1px solid #e1e7ea;
+  background: #f7fafb;
 }
 
 .checkers-panel-tabs button {
-  min-height: 48px;
+  min-height: 46px;
   border: 0;
   border-bottom: 3px solid transparent;
-  background: #fff;
+  background: transparent;
   color: var(--checkers-muted);
   font-weight: 650;
 }
 
 .checkers-panel-tabs button[aria-selected='true'] {
   border-bottom-color: var(--checkers-blue);
+  background: #fff;
   color: var(--checkers-blue-dark);
 }
 
@@ -858,14 +1011,17 @@
 .checkers-task-panel,
 .checkers-move-panel,
 .checkers-reaction-panel {
-  padding: 24px;
+  min-height: 0;
+  padding: 22px;
+  overflow: auto;
 }
 
 .checkers-task-panel h2,
 .checkers-move-panel h2,
 .checkers-reaction-panel h2 {
   margin: 8px 0 10px;
-  font-size: 22px;
+  font-size: 21px;
+  line-height: 1.2;
 }
 
 .checkers-task-panel p,
@@ -878,8 +1034,8 @@
 .checkers-hint-ladder {
   display: grid;
   gap: 10px;
-  margin-top: 24px;
-  padding: 16px;
+  margin-top: 20px;
+  padding: 15px;
   border-radius: 14px;
   background: #eff8f5;
 }
@@ -1355,7 +1511,7 @@
   background: #f3f6f7;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 800px) {
   .checkers-bot-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1378,13 +1534,26 @@
     width: min(240px, 36vw);
   }
 
+  .checkers-workspace {
+    overflow: auto;
+  }
+
   .checkers-game-layout {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100dvh - 96px);
     padding: 16px;
+  }
+
+  .checkers-board-frame,
+  .checkers-side-panel {
+    width: min(620px, 100%);
+    justify-self: center;
   }
 
   .checkers-side-panel {
     min-height: 320px;
+    max-height: none;
   }
 
   .checkers-home-grid {
@@ -1402,7 +1571,8 @@
 
 @media (max-width: 680px) {
   .checkers-global-notice {
-    top: 12px;
+    right: 14px;
+    bottom: 12px;
   }
 
   .checkers-learning-shell {
@@ -1463,10 +1633,22 @@
     padding: 10px;
   }
 
+  .checkers-board-frame {
+    gap: 8px;
+  }
+
+  .checkers-board-toolbar {
+    min-height: 44px;
+  }
+
   .checkers-board {
     width: 100%;
     border-width: 6px;
     border-radius: 12px;
+  }
+
+  .checkers-board-help {
+    align-items: flex-start;
   }
 
   .checkers-home {

@@ -97,6 +97,10 @@ export function CheckersWorkspace({
     () => model.legalMoves.filter((move) => move.pieceId === selectedPieceId),
     [model.legalMoves, selectedPieceId],
   );
+  const movablePieceIds = useMemo(
+    () => [...new Set(model.legalMoves.map((move) => move.pieceId))],
+    [model.legalMoves],
+  );
   const destinations = selectedMoves.flatMap((move) => move.path.at(-1) ?? []);
 
   const selectSquare = (square: CheckersBoardSquare): void => {
@@ -107,7 +111,10 @@ export function CheckersWorkspace({
       return;
     }
     const piece = model.pieces.find(
-      (candidate) => candidate.square === square && candidate.side === model.sideToMove,
+      (candidate) =>
+        candidate.square === square &&
+        candidate.side === model.sideToMove &&
+        movablePieceIds.includes(candidate.id),
     );
     setSelectedPieceId(piece?.id ?? null);
   };
@@ -180,13 +187,36 @@ export function CheckersWorkspace({
 
       <main className="checkers-game-layout" id="main-content" tabIndex={-1}>
         <section className="checkers-board-stage" aria-label="Игровая доска">
-          <CheckersBoard
-            pieces={model.pieces}
-            selectedPieceId={selectedPieceId}
-            legalDestinations={destinations}
-            {...(model.readOnly === undefined ? {} : { disabled: model.readOnly })}
-            onSquareClick={selectSquare}
-          />
+          <div className="checkers-board-frame">
+            <div className="checkers-board-toolbar">
+              <div className="checkers-board-turn">
+                <span className={`checkers-turn-dot ${model.sideToMove}`} aria-hidden="true" />
+                <span>
+                  <strong>{model.sideToMove === 'light' ? 'Ход светлых' : 'Ход тёмных'}</strong>
+                  <small>{model.opponentLabel}</small>
+                </span>
+              </div>
+              <span className="checkers-legal-count">Ходов: {model.legalMoves.length}</span>
+            </div>
+
+            <CheckersBoard
+              pieces={model.pieces}
+              selectedPieceId={selectedPieceId}
+              legalDestinations={destinations}
+              movablePieceIds={movablePieceIds}
+              {...(model.readOnly === undefined ? {} : { disabled: model.readOnly })}
+              onSquareClick={selectSquare}
+            />
+
+            <div className="checkers-board-help" role="status" aria-live="polite">
+              <span aria-hidden="true">{selectedPieceId ? '2' : '1'}</span>
+              <p>
+                {selectedPieceId
+                  ? 'Теперь выберите подсвеченное поле назначения.'
+                  : 'Выберите шашку с мягкой золотой подсветкой.'}
+              </p>
+            </div>
+          </div>
         </section>
 
         <aside className="checkers-side-panel" aria-label="Панель занятия и партии">
