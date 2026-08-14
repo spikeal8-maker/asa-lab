@@ -159,9 +159,9 @@ parallel_lanes:
       head_sha: 5c66766303750475885bb42a91fee78834401ad7
     execution_lease:
       executor_id: codex-three-d-direct-manipulation
-      holder: unassigned
-      acquired_at: null
-      expires_at: null
+      holder: codex-three-d-direct-manipulation
+      acquired_at: "2026-08-14T07:11:03Z"
+      expires_at: "2026-08-15T07:11:03Z"
       reviewer_role_requires_lease: false
     gates:
       focused:
