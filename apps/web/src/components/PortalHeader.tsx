@@ -39,9 +39,7 @@ export function PortalHeader({
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
   const initials =
-    session.user.displayName
-      .trim()
-      .split(/\s+/)
+    (session.user.displayName.match(/[\p{L}\p{N}]+/gu) ?? [])
       .slice(0, 2)
       .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
       .join('') || 'A';
