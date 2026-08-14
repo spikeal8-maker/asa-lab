@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -52,6 +53,7 @@ TEXT_SUFFIXES = {".ts", ".tsx", ".js", ".mjs", ".cjs", ".rs", ".sql", ".py"}
 # Generated and third-party directories are never part of first-party review.
 IGNORE_DIRS = {
     ".git",
+    ".codex-worktrees",
     "node_modules",
     "dist",
     "build",
@@ -145,9 +147,17 @@ def validate_baseline(errors: list[str]) -> None:
 
 def validate_markdown_links(errors: list[str]) -> int:
     scanned = 0
-    for path in sorted(ROOT.rglob("*.md")):
-        if _is_ignored(path):
-            continue
+    markdown_files: list[Path] = []
+    for directory, child_directories, filenames in os.walk(ROOT):
+        child_directories[:] = sorted(
+            name for name in child_directories if name not in IGNORE_DIRS
+        )
+        markdown_files.extend(
+            Path(directory) / filename
+            for filename in filenames
+            if filename.endswith(".md")
+        )
+    for path in sorted(markdown_files):
         scanned += 1
         text = path.read_text(encoding="utf-8")
         for match in MARKDOWN_LINK_PATTERN.finditer(text):
