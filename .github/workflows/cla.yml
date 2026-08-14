@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  statuses: write
 
 jobs:
   cla:
@@ -26,8 +27,34 @@ jobs:
           node-version: 22
 
       - name: Validate contributor agreement
+        id: validate
+        continue-on-error: true
         env:
           PR_AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
           PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: node tools/validate-pr-cla.mjs
+
+      - name: Publish result on the pull request commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RESULT: ${{ steps.validate.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          state=success
+          description='Contributor license agreement accepted'
+          if [ "$RESULT" != 'success' ]; then
+            state=failure
+            description='Contributor license agreement acceptance required'
+          fi
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f state="$state" \
+            -f context='CLA acceptance' \
+            -f description="$description" \
+            -f target_url="$RUN_URL"
+
+      - name: Fail the workflow when acceptance is missing
+        if: steps.validate.outcome != 'success'
+        run: exit 1

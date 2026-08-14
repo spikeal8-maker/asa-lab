@@ -112,6 +112,9 @@ requireText(
   'ref: ${{ github.event.repository.default_branch }}',
 );
 requireText('.github/workflows/cla.yml', claWorkflow, 'CLA acceptance');
+requireText('.github/workflows/cla.yml', claWorkflow, 'statuses: write');
+requireText('.github/workflows/cla.yml', claWorkflow, 'github.event.pull_request.head.sha');
+requireText('.github/workflows/cla.yml', claWorkflow, "context='CLA acceptance'");
 requireText('tools/validate-pr-cla.mjs', claValidator, 'PR_AUTHOR_ASSOCIATION');
 requireText('tools/validate-pr-cla.mjs', claValidator, '--self-test');
 requireText('apps/web/src/pages/PublicEntryPage.tsx', entryPage, 'Исходный код · AGPL-3.0');
