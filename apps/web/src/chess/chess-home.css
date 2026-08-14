@@ -2,8 +2,8 @@
   min-height: 100vh;
   display: grid;
   grid-template-rows: 48px 1fr;
-  background: #312e2b;
-  color: #f5f4f2;
+  background: linear-gradient(180deg, #f7fbfd 0%, #e9f2f6 100%);
+  color: #102a43;
 }
 
 .asa-chess-home-shell > .editor-header {
@@ -15,7 +15,7 @@
 .asa-chess-home-body {
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
 }
 
 .asa-chess-home-sidebar {
@@ -25,9 +25,9 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   padding: 18px 12px 14px;
-  background: #232220;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 10px 0 28px rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.96);
+  border-right: 1px solid #d9e4ea;
+  box-shadow: 8px 0 24px rgba(16, 42, 67, 0.06);
 }
 
 .asa-chess-home-brand {
@@ -44,10 +44,10 @@
   display: grid;
   place-items: center;
   border-radius: 11px;
-  background: linear-gradient(145deg, #8fbe4e, #5c9232);
+  background: linear-gradient(145deg, #18a8d0, #087fa4);
   color: #fff;
   font-size: 25px;
-  box-shadow: 0 8px 20px rgba(82, 139, 44, 0.26);
+  box-shadow: 0 8px 20px rgba(8, 127, 164, 0.22);
 }
 
 .asa-chess-home-sidebar nav {
@@ -66,7 +66,7 @@
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: #d8d7d4;
+  color: #294d68;
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -74,13 +74,13 @@
 
 .asa-chess-home-sidebar button:hover,
 .asa-chess-home-sidebar button.is-selected {
-  background: #3a3836;
-  color: #fff;
+  background: #e8f6fa;
+  color: #0b5f7b;
 }
 
 .asa-chess-home-sidebar button:focus-visible,
 .asa-chess-home-card button:focus-visible {
-  outline: 3px solid rgba(139, 190, 77, 0.7);
+  outline: 3px solid rgba(10, 145, 182, 0.35);
   outline-offset: 2px;
 }
 
@@ -94,7 +94,7 @@
 }
 
 .asa-chess-home-sidebar button small {
-  color: #9e9c98;
+  color: #6b7d87;
   font-size: 10px;
 }
 
@@ -105,13 +105,13 @@
   flex: 0 0 32px;
   place-items: center;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #9cca5b;
+  background: #e7f4f8;
+  color: #087fa4;
   font-size: 19px;
 }
 
 .asa-chess-home-sidebar button.is-selected .asa-chess-home-nav-icon {
-  background: #78a943;
+  background: #0a91b6;
   color: #fff;
 }
 
@@ -119,11 +119,11 @@
   display: grid;
   gap: 10px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #e0e8ed;
 }
 
 .asa-chess-home-projects {
-  color: #bdbbb8 !important;
+  color: #4f6570 !important;
 }
 
 .asa-chess-home-user {
@@ -132,7 +132,7 @@
   gap: 9px;
   align-items: center;
   padding: 5px 10px;
-  color: #e7e5e2;
+  color: #244d5d;
   font-size: 12px;
 }
 
@@ -142,13 +142,14 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #456579;
+  background: #0b6f91;
+  color: #fff;
   font-weight: 800;
 }
 
 .asa-chess-home-content {
   min-width: 0;
-  width: min(100%, 1440px);
+  width: min(100%, 1380px);
   margin: 0 auto;
   padding: 24px clamp(18px, 3vw, 42px) 44px;
 }
@@ -163,7 +164,7 @@
 
 .asa-chess-home-welcome span,
 .asa-chess-home-kicker {
-  color: #a9cf72;
+  color: #087fa4;
   font-size: 11px;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -172,13 +173,13 @@
 
 .asa-chess-home-welcome h1 {
   margin: 4px 0;
-  color: #fff;
+  color: #0b3558;
   font-size: clamp(27px, 3vw, 42px);
 }
 
 .asa-chess-home-welcome p {
   margin: 0;
-  color: #bcb9b4;
+  color: #5f7380;
 }
 
 .asa-chess-home-rating {
@@ -187,13 +188,14 @@
   align-items: center;
   gap: 10px;
   padding: 11px 15px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #cbdbe3;
   border-radius: 12px;
-  background: #262522;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(16, 42, 67, 0.08);
 }
 
 .asa-chess-home-rating > span {
-  color: #d7a93d;
+  color: #d49b19;
   font-size: 30px;
 }
 
@@ -202,11 +204,11 @@
 }
 
 .asa-chess-home-rating small {
-  color: #999691;
+  color: #657985;
 }
 
 .asa-chess-home-rating strong {
-  color: #fff;
+  color: #0b3558;
   font-size: 21px;
 }
 
@@ -217,58 +219,58 @@
 }
 
 .asa-chess-home-card {
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid #cedce4;
   border-radius: 13px;
-  background: #262522;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(16, 42, 67, 0.1);
 }
 
 .asa-chess-home-card h2 {
   margin: 4px 0 7px;
-  color: #fff;
+  color: #0b3558;
 }
 
 .asa-chess-home-card p {
-  color: #afaca7;
+  color: #5e737f;
   line-height: 1.5;
 }
 
 .asa-chess-home-card button {
   min-height: 40px;
   padding: 8px 14px;
-  border: 1px solid #4b4946;
+  border: 1px solid #b8c9d2;
   border-radius: 8px;
-  background: #393735;
-  color: #f5f4f2;
+  background: #fff;
+  color: #173f56;
   cursor: pointer;
   font: inherit;
   font-weight: 750;
 }
 
 .asa-chess-home-card button:hover {
-  background: #484542;
+  background: #edf8fb;
+  border-color: #79b7c8;
 }
 
 .asa-chess-home-card button.is-primary {
-  border-color: #78a943;
-  background: linear-gradient(#8fbe4e, #72a33d);
+  border-color: #0a91b6;
+  background: linear-gradient(#16a6ca, #087fa4);
   color: #fff;
-  text-shadow: 0 1px rgba(0, 0, 0, 0.25);
+  text-shadow: none;
 }
 
 .asa-chess-home-card button.is-primary:hover {
-  background: linear-gradient(#99c957, #7caf43);
+  background: linear-gradient(#0f9fc3, #067999);
 }
 
 .asa-chess-home-play-card {
-  min-height: 330px;
+  min-height: 312px;
   display: grid;
   grid-template-columns: minmax(240px, 1fr) minmax(250px, 330px);
   gap: 18px;
   align-items: center;
   padding: 20px;
-  background:
-    radial-gradient(circle at 22% 5%, rgba(124, 174, 67, 0.18), transparent 20rem), #262522;
+  background: radial-gradient(circle at 16% 5%, rgba(10, 145, 182, 0.13), transparent 20rem), #fff;
 }
 
 .asa-chess-home-card-copy h2 {
@@ -291,7 +293,7 @@
 .asa-chess-home-mini-board,
 .asa-chess-home-puzzle-board {
   width: 100%;
-  max-width: 310px;
+  max-width: 286px;
   margin: auto;
   pointer-events: none;
 }
@@ -300,9 +302,9 @@
 .asa-chess-home-puzzle-board .asa-chess-board {
   width: 100%;
   border-width: 3px;
-  border-color: #171715;
+  border-color: #294d5f;
   border-radius: 6px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 24px rgba(16, 42, 67, 0.2);
 }
 
 .asa-chess-home-mini-board .asa-chess-piece,
@@ -363,13 +365,13 @@
   display: grid;
   place-items: center;
   border-radius: 11px;
-  background: rgba(128, 183, 68, 0.18);
-  color: #a9d071;
+  background: #e5f4f8;
+  color: #087fa4;
   font-size: 25px;
 }
 
 .asa-chess-home-feature small {
-  color: #92908c;
+  color: #6a7d87;
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
@@ -382,14 +384,14 @@
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: #45423f;
+  background: #e3ebef;
 }
 
 .asa-chess-home-progress span {
   height: 100%;
   display: block;
   border-radius: inherit;
-  background: #83b64a;
+  background: #0a91b6;
 }
 
 .asa-chess-home-lower-grid {
@@ -426,12 +428,12 @@
   align-items: center;
   padding: 9px;
   border-radius: 8px;
-  background: #312f2c;
+  background: #f3f7f9;
 }
 
 .asa-chess-home-activity li span,
 .asa-chess-home-activity li small {
-  color: #95918c;
+  color: #6a7d87;
 }
 
 .asa-chess-home-empty-activity {
@@ -441,11 +443,11 @@
   gap: 15px;
   padding: 18px;
   border-radius: 9px;
-  background: #312f2c;
+  background: #f3f7f9;
 }
 
 .asa-chess-home-empty-activity span {
-  color: #82b54a;
+  color: #0a91b6;
   font-size: 38px;
 }
 
@@ -461,19 +463,19 @@
   gap: 3px;
   padding: 11px 7px;
   border-radius: 8px;
-  background: #312f2c;
+  background: #f3f7f9;
   text-align: center;
 }
 
 .asa-chess-home-stats dt {
-  color: #999590;
+  color: #6a7d87;
   font-size: 10px;
   text-transform: uppercase;
 }
 
 .asa-chess-home-stats dd {
   margin: 0;
-  color: #fff;
+  color: #0b3558;
   font-size: 22px;
   font-weight: 850;
 }
@@ -487,8 +489,8 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: #312e2b;
-  color: #fff;
+  background: linear-gradient(180deg, #f7fbfd 0%, #e9f2f6 100%);
+  color: #0b3558;
 }
 
 @media (max-width: 1120px) {

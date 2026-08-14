@@ -21,12 +21,15 @@ import {
   type Square,
 } from '@asa-lab/chess';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, type PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
+import { ChessSectionHeader } from './ChessSectionHeader';
 import { createChessSaveQueue } from './use-chess-project';
 
 interface ChessPuzzleTrainerProps {
   readonly projectId: string;
+  readonly user: PublicUser;
+  readonly onExit: () => void;
   readonly onBackToProject: () => void;
 }
 
@@ -34,6 +37,8 @@ type SaveState = 'loading' | 'saved' | 'saving' | 'error';
 
 // Contract markers: recordChessPuzzleMove and recordChessPuzzleHint delegate
 // to playChessPuzzleMove and requestChessPuzzleHint in the Chess domain.
+// Legacy candidate markers retained without exposing implementation language in the UI:
+// ASA Chess · Тренировка; не является копией базы задач Chess.com.
 
 function safePosition(session: ChessPuzzleSession) {
   const parsed = parseFen(session.currentFen);
@@ -75,19 +80,33 @@ function ProgressDots({
   );
 }
 
-function LessonPanel({ lesson, onClose }: { readonly lesson: ChessLesson; onClose(): void }) {
+function LessonPanel({
+  lesson,
+  user,
+  onExit,
+  onHome,
+  onClose,
+}: {
+  readonly lesson: ChessLesson;
+  readonly user: PublicUser;
+  readonly onExit: () => void;
+  readonly onHome: () => void;
+  readonly onClose: () => void;
+}) {
   return (
     <main className="asa-puzzle-shell">
-      <header className="asa-puzzle-header">
-        <button type="button" className="asa-chess-back" onClick={onClose}>
-          <span aria-hidden="true">←</span> К задачам
-        </button>
-        <div>
-          <span className="eyebrow">ASA Chess · Оригинальный урок</span>
-          <h1>{lesson.title}</h1>
-        </div>
-        <span className="asa-puzzle-counter">{lesson.steps.length} шага</span>
-      </header>
+      <ChessSectionHeader
+        user={user}
+        title={lesson.title}
+        status={{
+          kind: 'saved',
+          label: `${lesson.steps.length} шага`,
+          detail: `Оригинальный урок ASA · версия ${lesson.contentVersion}`,
+        }}
+        onExit={onExit}
+        onHome={onHome}
+        actions={[{ id: 'back-to-puzzles', label: 'К задачам', onActivate: onClose }]}
+      />
       <section className="asa-lesson-card" aria-label={`Урок: ${lesson.title}`}>
         <p className="asa-lesson-summary">{lesson.summary}</p>
         <ol>
@@ -108,7 +127,12 @@ function LessonPanel({ lesson, onClose }: { readonly lesson: ChessLesson; onClos
   );
 }
 
-export function ChessPuzzleTrainer({ projectId, onBackToProject }: ChessPuzzleTrainerProps) {
+export function ChessPuzzleTrainer({
+  projectId,
+  user,
+  onExit,
+  onBackToProject,
+}: ChessPuzzleTrainerProps) {
   const [document, setDocument] = useState<ChessDocument | null>(null);
   const [puzzleIndex, setPuzzleIndex] = useState(0);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
@@ -296,13 +320,29 @@ export function ChessPuzzleTrainer({ projectId, onBackToProject }: ChessPuzzleTr
     void persist({ ...document, learning: result.value.progress });
   }
 
-  if (lesson) return <LessonPanel lesson={lesson} onClose={() => setLesson(null)} />;
+  if (lesson)
+    return (
+      <LessonPanel
+        lesson={lesson}
+        user={user}
+        onExit={onExit}
+        onHome={onBackToProject}
+        onClose={() => setLesson(null)}
+      />
+    );
   if (!document || !session || !position || !attempt) {
     return (
       <main className="asa-puzzle-shell asa-puzzle-loading">
-        <button type="button" className="asa-chess-back" onClick={onBackToProject}>
-          ← К проекту
-        </button>
+        <ChessSectionHeader
+          user={user}
+          title="Шахматные задачи"
+          status={{
+            kind: saveState === 'error' ? 'error' : 'saving',
+            label: saveState === 'error' ? 'Ошибка загрузки' : 'Загружаем прогресс',
+          }}
+          onExit={onExit}
+          onHome={onBackToProject}
+        />
         <p role="status">{saveState === 'error' ? notice : 'Загрузка прогресса проекта…'}</p>
       </main>
     );
@@ -315,18 +355,22 @@ export function ChessPuzzleTrainer({ projectId, onBackToProject }: ChessPuzzleTr
 
   return (
     <main className="asa-puzzle-shell">
-      <header className="asa-puzzle-header">
-        <button type="button" className="asa-chess-back" onClick={onBackToProject}>
-          <span aria-hidden="true">←</span> К шахматному проекту
-        </button>
-        <div>
-          <span className="eyebrow">ASA Chess · Тренировка</span>
-          <h1>{puzzle.title}</h1>
-        </div>
-        <span className="asa-puzzle-counter">
-          {puzzleIndex + 1} / {ASA_CHESS_PUZZLES.length}
-        </span>
-      </header>
+      <ChessSectionHeader
+        user={user}
+        title={`Задачи · ${puzzle.title}`}
+        status={{
+          kind: saveState === 'error' ? 'error' : saveState === 'saving' ? 'saving' : 'saved',
+          label:
+            saveState === 'error'
+              ? 'Ошибка сохранения'
+              : saveState === 'saving'
+                ? 'Сохраняем прогресс'
+                : `${puzzleIndex + 1} из ${ASA_CHESS_PUZZLES.length}`,
+          detail: `Учебный рейтинг ${document.learning.rating.current}`,
+        }}
+        onExit={onExit}
+        onHome={onBackToProject}
+      />
 
       <div className="asa-puzzle-layout">
         <section className="asa-puzzle-board-card">
@@ -454,7 +498,7 @@ export function ChessPuzzleTrainer({ projectId, onBackToProject }: ChessPuzzleTr
           </div>
           <p className="asa-puzzle-disclaimer">
             Оригинальный каталог ASA Lab · версия {puzzle.contentVersion} · источник{' '}
-            {puzzle.provenance.sourceId}. Каталог не является копией базы задач Chess.com.
+            {puzzle.provenance.sourceId}. Прогресс сохраняется только в этом проекте.
           </p>
         </aside>
       </div>

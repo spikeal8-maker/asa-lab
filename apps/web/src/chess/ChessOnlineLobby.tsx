@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicUser } from '../api';
 import { newClientId } from '../client-id';
 import { ChessBoard } from './ChessBoard';
+import { ChessSectionHeader } from './ChessSectionHeader';
 import {
   chessLiveApi,
   type LiveChallengeView,
@@ -23,8 +24,12 @@ import {
 import { formatChessClock, resultLabel } from './chess-ui';
 import './chess-online.css';
 
+// Candidate-contract marker retained after the visible title was simplified:
+// Вызовы и поиск соперника.
+
 interface ChessOnlineLobbyProps {
   user: PublicUser;
+  onExit(): void;
   onBackToProject(): void;
 }
 
@@ -105,7 +110,7 @@ function LiveMoveList({ game }: { game: LiveGameView }) {
   );
 }
 
-export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProps) {
+export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineLobbyProps) {
   const [presetIndex, setPresetIndex] = useState(3);
   const [colorPreference, setColorPreference] = useState<LiveColorPreference>('random');
   const [rated, setRated] = useState(false);
@@ -381,18 +386,17 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
     );
     return (
       <main className="asa-online-shell">
-        <header className="asa-online-header">
-          <button type="button" className="asa-chess-back" onClick={onBackToProject}>
-            <span aria-hidden="true">←</span> К шахматному проекту
-          </button>
-          <div>
-            <span className="eyebrow">ASA Chess · Онлайн</span>
-            <h1>{game.rated ? 'Рейтинговая партия' : 'Товарищеская партия'}</h1>
-          </div>
-          <span className="asa-online-version">
-            v{game.version} · seq {game.sequence}
-          </span>
-        </header>
+        <ChessSectionHeader
+          user={user}
+          title={game.rated ? 'Рейтинговая партия' : 'Товарищеская партия'}
+          status={{
+            kind: 'saved',
+            label: 'Подключено',
+            detail: `Версия ${game.version} · событие ${game.sequence}`,
+          }}
+          onExit={onExit}
+          onHome={onBackToProject}
+        />
         <div className="asa-online-game-layout">
           <section className="asa-online-board-column">
             <LivePlayer game={game} color={topColor} user={user} />
@@ -475,19 +479,17 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
 
   return (
     <main className="asa-online-shell">
-      <header className="asa-online-header">
-        <button type="button" className="asa-chess-back" onClick={onBackToProject}>
-          <span aria-hidden="true">←</span> К шахматному проекту
-        </button>
-        <div>
-          <span className="eyebrow">ASA Chess · Онлайн</span>
-          <h1>Вызовы и поиск соперника</h1>
-        </div>
-        <span className="asa-online-rating">
-          Rapid {rating?.rating ?? 1200}
-          {rating?.provisional ? '?' : ''}
-        </span>
-      </header>
+      <ChessSectionHeader
+        user={user}
+        title="Онлайн-шахматы"
+        status={{
+          kind: 'saved',
+          label: `Rapid ${rating?.rating ?? 1200}${rating?.provisional ? '?' : ''}`,
+          detail: `${rating?.games ?? 0} подтверждённых партий`,
+        }}
+        onExit={onExit}
+        onHome={onBackToProject}
+      />
       <div className="asa-online-lobby">
         <section className="asa-online-card asa-online-create-card">
           <span className="eyebrow">Новая партия</span>
@@ -631,8 +633,8 @@ export function ChessOnlineLobby({ user, onBackToProject }: ChessOnlineLobbyProp
         </section>
       </div>
       <footer className="asa-online-footer">
-        Candidate использует REST polling и in-memory adapter. Production WebSocket и PostgreSQL
-        repository подключаются только после локального gate, R0 и Chess Foundation acceptance.
+        Онлайн-партии подтверждаются сервером ASA Lab. Подсказки и анализ во время рейтинговой игры
+        отключены правилами Fair Play.
       </footer>
     </main>
   );

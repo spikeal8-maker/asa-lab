@@ -7,6 +7,7 @@ import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
 import { ChessReviewPage } from './ChessReviewPage';
 import './chess-training.css';
 import './chess-review.css';
+import './chess-theme.css';
 
 interface ChessModuleExperienceProps {
   projectId: string;
@@ -64,16 +65,32 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
   }
   if (surface === 'training') {
     return (
-      <ChessPuzzleTrainer projectId={props.projectId} onBackToProject={() => setSurface('home')} />
+      <ChessPuzzleTrainer
+        projectId={props.projectId}
+        user={props.user}
+        onExit={props.onBack}
+        onBackToProject={() => setSurface('home')}
+      />
     );
   }
   if (surface === 'review') {
     return (
-      <ChessReviewPage projectId={props.projectId} onBackToProject={() => setSurface('home')} />
+      <ChessReviewPage
+        projectId={props.projectId}
+        user={props.user}
+        onExit={props.onBack}
+        onBackToProject={() => setSurface('home')}
+      />
     );
   }
   if (surface === 'online') {
-    return <ChessOnlineLobby user={props.user} onBackToProject={() => setSurface('home')} />;
+    return (
+      <ChessOnlineLobby
+        user={props.user}
+        onExit={props.onBack}
+        onBackToProject={() => setSurface('home')}
+      />
+    );
   }
   return <ChessEditor {...props} startNewGame={startNewGame} onHome={() => setSurface('home')} />;
 }

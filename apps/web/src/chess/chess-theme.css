@@ -1,0 +1,195 @@
+/* Unified ASA Lab visual language for every Chess surface. */
+:where(.asa-chess-shell, .asa-online-shell, .asa-puzzle-shell, .asa-review-shell) {
+  --asa-chess-ink: #0b3558;
+  --asa-chess-text: #294d68;
+  --asa-chess-muted: #627985;
+  --asa-chess-accent: #0a91b6;
+  --asa-chess-accent-strong: #067999;
+  --asa-chess-accent-soft: #e6f5fa;
+  --asa-chess-border: #cbdbe3;
+  --asa-chess-card: #fff;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(10, 145, 182, 0.1), transparent 30rem),
+    linear-gradient(180deg, #f7fbfd 0%, #e8f1f5 100%);
+  color: var(--asa-chess-text);
+}
+
+:where(.asa-online-shell, .asa-puzzle-shell, .asa-review-shell) > .editor-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.asa-chess-workspace {
+  width: min(100%, 1480px);
+  margin: 0 auto;
+  grid-template-columns: minmax(520px, 1fr) minmax(330px, 390px);
+  align-items: start;
+  padding: 20px 24px 28px;
+}
+
+.asa-chess-player,
+.asa-chess-panel,
+.asa-online-card,
+.asa-online-game-panel,
+.asa-puzzle-board-card,
+.asa-puzzle-panel,
+.asa-review-board-card,
+.asa-review-quality-grid article,
+.asa-review-explanation,
+.asa-review-timeline,
+.asa-review-moves,
+.asa-lesson-card {
+  border-color: var(--asa-chess-border);
+  background: var(--asa-chess-card);
+  box-shadow: 0 10px 28px rgba(16, 42, 67, 0.1);
+}
+
+.asa-online-lobby {
+  max-width: 1320px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding: 28px 24px 20px;
+}
+
+.asa-online-card {
+  min-height: 360px;
+  border-radius: 14px;
+}
+
+.asa-online-card h2,
+.asa-online-rating-details dd,
+.asa-puzzle-panel strong,
+.asa-lesson-card h2,
+.asa-review-quality-grid strong {
+  color: var(--asa-chess-ink);
+}
+
+.asa-online-card .eyebrow,
+.asa-online-status-card .eyebrow,
+.asa-lesson-recommendation > span {
+  color: var(--asa-chess-accent-strong);
+}
+
+.asa-online-time-grid button.selected,
+.asa-online-color-grid button.selected,
+.asa-online-primary-actions button,
+.asa-online-primary-actions button:last-child,
+.asa-puzzle-navigation .primary-button {
+  border-color: var(--asa-chess-accent);
+  background: var(--asa-chess-accent);
+  color: #fff;
+}
+
+.asa-online-primary-actions button:hover,
+.asa-online-primary-actions button:last-child:hover,
+.asa-puzzle-navigation .primary-button:hover {
+  border-color: var(--asa-chess-accent-strong);
+  background: var(--asa-chess-accent-strong);
+}
+
+.asa-online-rated-toggle,
+.asa-online-rating-details,
+.asa-online-code-field input,
+.asa-puzzle-rating,
+.asa-puzzle-stats div {
+  border-color: var(--asa-chess-border);
+  background: #f6fafc;
+}
+
+.asa-online-status-card {
+  background: radial-gradient(circle at 50% 28%, rgba(10, 145, 182, 0.1), transparent 12rem), #fff;
+}
+
+.asa-online-footer {
+  max-width: 900px;
+  color: var(--asa-chess-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.asa-online-game-layout,
+.asa-puzzle-layout,
+.asa-review-layout {
+  width: min(100%, 1380px);
+}
+
+.asa-puzzle-layout {
+  grid-template-columns: minmax(470px, 720px) minmax(330px, 410px);
+  align-items: start;
+  padding: 24px;
+}
+
+.asa-puzzle-project-progress,
+.asa-lesson-recommendation {
+  border: 1px solid #b9dce6;
+  background: var(--asa-chess-accent-soft);
+  color: #174b61;
+}
+
+.asa-puzzle-rating,
+.asa-puzzle-themes span {
+  background: #edf5f8;
+  color: #486775;
+}
+
+.asa-puzzle-progress span.complete,
+.asa-puzzle-progress span.current {
+  background: var(--asa-chess-accent);
+}
+
+.asa-puzzle-feedback.solved,
+.asa-learning-save.is-saved {
+  color: #167a4e;
+}
+
+.asa-puzzle-actions button,
+.asa-puzzle-navigation button,
+.asa-lesson-recommendation button {
+  border-color: #b7c9d2;
+  background: #fff;
+  color: var(--asa-chess-ink);
+}
+
+.asa-puzzle-actions button:hover,
+.asa-puzzle-navigation button:hover:not(:disabled),
+.asa-lesson-recommendation button:hover {
+  border-color: #79b7c8;
+  background: #edf8fb;
+}
+
+.asa-lesson-card li {
+  border-left-color: var(--asa-chess-accent);
+  background: #f4fafc;
+}
+
+.asa-review-layout {
+  grid-template-columns: minmax(430px, 620px) minmax(430px, 1fr);
+  padding: 24px;
+}
+
+.asa-review-loading {
+  min-height: calc(100vh - 48px);
+  background: transparent;
+}
+
+.asa-review-note,
+.asa-chess-fair-play-note,
+.asa-online-authority-note {
+  border: 1px solid #d7e4ea;
+  background: #f5fafc;
+  color: #4c6572;
+}
+
+@media (max-width: 1000px) {
+  .asa-chess-workspace,
+  .asa-online-lobby,
+  .asa-puzzle-layout,
+  .asa-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .asa-online-card {
+    min-height: auto;
+  }
+}

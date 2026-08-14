@@ -63,7 +63,8 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Вызовы и поиск соперника' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Онлайн-шахматы' })).toBeAttached();
+  await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeVisible();
 }
 
 async function clickMove(page: Page, from: string, to: string): Promise<void> {

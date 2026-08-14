@@ -21,8 +21,9 @@ import {
   type Square,
 } from '@asa-lab/chess';
 import { useEffect, useMemo, useState } from 'react';
-import { api, type Project } from '../api';
+import { api, type Project, type PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
+import { ChessSectionHeader } from './ChessSectionHeader';
 import { ChessReviewExplanation } from './ChessReviewExplanation';
 import { ChessReviewTimeline } from './ChessReviewTimeline';
 import { chessReviewDisplayFen } from './chess-review-ui';
@@ -30,6 +31,8 @@ import { evaluationLabel } from './chess-ui';
 
 interface ChessReviewPageProps {
   projectId: string;
+  user: PublicUser;
+  onExit(): void;
   onBackToProject(): void;
 }
 
@@ -42,7 +45,12 @@ const CLASSIFICATION_LABEL: Readonly<Record<AsaMoveClassification, string>> = {
   blunder: 'Грубая ошибка',
 };
 
-export function ChessReviewPage({ projectId, onBackToProject }: ChessReviewPageProps): JSX.Element {
+export function ChessReviewPage({
+  projectId,
+  user,
+  onExit,
+  onBackToProject,
+}: ChessReviewPageProps): JSX.Element {
   const [project, setProject] = useState<Project | null>(null);
   const [document, setDocument] = useState<ChessDocument | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -184,37 +192,56 @@ export function ChessReviewPage({ projectId, onBackToProject }: ChessReviewPageP
 
   if (state === 'loading') {
     return (
-      <main className="asa-review-loading" role="status" aria-live="polite">
-        Выполняем прозрачный локальный разбор партии…
+      <main className="asa-review-shell">
+        <ChessSectionHeader
+          user={user}
+          title="Разбор партии"
+          status={{ kind: 'saving', label: 'Анализируем позицию' }}
+          onExit={onExit}
+          onHome={onBackToProject}
+        />
+        <div className="asa-review-loading" role="status" aria-live="polite">
+          Выполняем прозрачный локальный разбор партии…
+        </div>
       </main>
     );
   }
   if (state === 'error' || !project || !document || !review || !position) {
     return (
-      <main className="asa-review-loading">
-        <section role="alert">
-          <h1>Разбор недоступен</h1>
-          <p>{message || 'Не удалось построить разбор партии.'}</p>
-          <button type="button" className="secondary-button" onClick={onBackToProject}>
-            К проекту
-          </button>
-        </section>
+      <main className="asa-review-shell">
+        <ChessSectionHeader
+          user={user}
+          title="Разбор партии"
+          status={{ kind: 'error', label: 'Разбор недоступен' }}
+          onExit={onExit}
+          onHome={onBackToProject}
+        />
+        <div className="asa-review-loading">
+          <section role="alert">
+            <h1>Разбор недоступен</h1>
+            <p>{message || 'Не удалось построить разбор партии.'}</p>
+            <button type="button" className="secondary-button" onClick={onBackToProject}>
+              На главную
+            </button>
+          </section>
+        </div>
       </main>
     );
   }
 
   return (
     <main className="asa-review-shell">
-      <header className="asa-review-header">
-        <button type="button" className="asa-chess-back" onClick={onBackToProject}>
-          <span aria-hidden="true">←</span> К шахматному проекту
-        </button>
-        <div>
-          <span className="eyebrow">ASA Chess · Разбор</span>
-          <h1>{project.title}</h1>
-        </div>
-        <span className="asa-review-algorithm">ASA Review v1 · depth {review.depth}</span>
-      </header>
+      <ChessSectionHeader
+        user={user}
+        title={`Разбор · ${project.title}`}
+        status={{
+          kind: 'saved',
+          label: 'Разбор готов',
+          detail: `ASA Review v1 · глубина ${review.depth}`,
+        }}
+        onExit={onExit}
+        onHome={onBackToProject}
+      />
 
       <div className="asa-review-layout">
         <section className="asa-review-board-card">
@@ -384,8 +411,8 @@ export function ChessReviewPage({ projectId, onBackToProject }: ChessReviewPageP
           )}
 
           <p className="asa-review-note">
-            {review.note} Этот foundation-разбор использует небольшой локальный ASA Bot и не
-            заменяет будущий глубокий worker-анализ.
+            {review.note} Оценка построена учебным движком ASA и предназначена для спокойного
+            разбора уже сыгранной партии.
           </p>
         </section>
       </div>
