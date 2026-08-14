@@ -11,6 +11,7 @@ import {
 import { CheckersStudentHome } from '../CheckersStudentHome';
 import { CheckersTeacherDashboard } from '../CheckersTeacherDashboard';
 import { CheckersWorkspace } from '../CheckersWorkspace';
+import { isRecoverableCheckersChunkError } from '../load-checkers-editor';
 
 const pieces: readonly CheckersBoardPiece[] = [
   { id: 'light-c3', side: 'light', kind: 'man', square: 'c3' },
@@ -40,6 +41,15 @@ describe('Checkers presentation contract', () => {
     expect(resolveCheckersLandingSurface('classroom', true)).toBe('teacher');
     expect(resolveCheckersLandingSurface('classroom', false)).toBe('home');
     expect(resolveCheckersLandingSurface('personal', true)).toBe('home');
+  });
+
+  it('recognises stale lazy chunks so the editor can recover without a manual refresh', () => {
+    expect(
+      isRecoverableCheckersChunkError(
+        new TypeError('Failed to fetch dynamically imported module: /assets/checkers-old.js'),
+      ),
+    ).toBe(true);
+    expect(isRecoverableCheckersChunkError(new Error('Project access denied'))).toBe(false);
   });
 
   it('derives class completion and exact evidence from isolated learner progress', () => {
@@ -132,6 +142,8 @@ describe('Checkers presentation contract', () => {
   it('renders the student aggregate around one clear next action', () => {
     const markup = renderToStaticMarkup(
       createElement(CheckersStudentHome, {
+        projectTitle: 'Шашки 5Б',
+        onBack: () => undefined,
         model: {
           studentName: 'Маша',
           recommendation: {
@@ -189,7 +201,7 @@ describe('Checkers presentation contract', () => {
       }),
     );
 
-    expect(markup).toContain('aria-label="ASA Lab"');
+    expect(markup).toContain('aria-label="Вернуться в кабинет шашек"');
     expect(markup).toContain('Название шашечного проекта');
     expect(markup).toContain('Учусь');
     expect(markup).toContain('Играю');

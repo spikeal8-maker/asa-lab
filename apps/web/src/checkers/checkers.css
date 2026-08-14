@@ -16,7 +16,75 @@
 
 .checkers-experience {
   min-height: 100vh;
-  background: #f7fafb;
+  background: radial-gradient(circle at 18% 8%, rgb(255 255 255 / 94%), transparent 28%), #eef3f5;
+}
+
+.checkers-home-header {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+  align-items: center;
+  min-height: 62px;
+  padding: 0 28px;
+  border-bottom: 1px solid #d8e1e5;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 2px 12px rgb(23 50 74 / 5%);
+}
+
+.checkers-home-header > button {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  gap: 10px;
+  padding: 8px 12px 8px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #153a50;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.checkers-home-header > button:hover {
+  background: #eef5f6;
+}
+
+.checkers-home-header img {
+  width: 34px;
+  height: 34px;
+}
+
+.checkers-home-header > div {
+  display: grid;
+  justify-items: center;
+  line-height: 1.2;
+}
+
+.checkers-home-header > div span {
+  color: var(--checkers-blue-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.checkers-home-header > div strong {
+  max-width: 340px;
+  overflow: hidden;
+  color: var(--checkers-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkers-home-header-mode {
+  justify-self: end;
+  padding: 8px 13px;
+  border: 1px solid #cfe1e4;
+  border-radius: 999px;
+  background: #f5faf9;
+  color: #315f63;
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .checkers-loading {
@@ -544,17 +612,20 @@
 .checkers-workspace {
   min-height: 100vh;
   min-height: 100dvh;
-  overflow: hidden;
-  background: radial-gradient(circle at 42% 38%, rgb(255 255 255 / 78%), transparent 34%), #edf2f4;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 34% 12%, rgb(255 255 255 / 82%), transparent 30%),
+    linear-gradient(180deg, #edf3f5 0%, #e8eef1 100%);
 }
 
 .checkers-editor-header {
   position: relative;
   z-index: 10;
   display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) auto;
+  grid-template-columns: minmax(360px, 1fr) auto minmax(420px, 1fr);
   align-items: center;
-  height: 48px;
+  height: 62px;
   border-bottom: 1px solid #d6dde2;
   background: #fff;
   box-shadow: 0 1px 2px rgb(18 44 62 / 5%);
@@ -570,9 +641,9 @@
 
 .checkers-brand {
   gap: 9px;
-  padding: 0 14px 0 10px;
+  gap: 8px;
+  padding: 0 12px;
   border: 0;
-  border-right: 1px solid #e0e5e8;
   background: #fff;
   color: #0b3558;
   font-weight: 750;
@@ -584,8 +655,19 @@
 }
 
 .checkers-brand img {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+}
+
+.checkers-back-arrow {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #edf4f5;
+  color: #1c5060;
+  font-size: 18px;
 }
 
 .checkers-brand-zone > input {
@@ -594,7 +676,7 @@
   margin-left: 10px;
   padding: 7px 15px;
   border: 1px solid #d8dde2;
-  border-radius: 18px;
+  border-radius: 12px;
   color: #354f62;
   font: inherit;
   font-weight: 650;
@@ -624,8 +706,10 @@
 }
 
 .checkers-mode-tabs {
+  justify-content: flex-end;
   gap: 6px;
-  padding-right: 8px;
+  min-width: 0;
+  padding-right: 16px;
 }
 
 .checkers-mode-tabs > button {
@@ -661,28 +745,6 @@
   font-weight: 800;
 }
 
-.checkers-context-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 0 24px;
-  border-bottom: 1px solid #d8e0e5;
-  background: #fff;
-  color: var(--checkers-muted);
-  font-size: 13px;
-}
-
-.checkers-context-bar > div {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.checkers-context-bar strong {
-  color: var(--checkers-ink);
-}
-
 .checkers-turn-dot {
   width: 12px;
   height: 12px;
@@ -700,15 +762,16 @@
 
 .checkers-game-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(310px, 360px);
+  grid-template-columns: minmax(480px, 620px) minmax(350px, 410px);
+  justify-content: center;
   align-items: start;
-  gap: 20px;
-  width: min(1180px, 100%);
-  height: calc(100vh - 90px);
-  height: calc(100dvh - 90px);
+  gap: 30px;
+  width: min(1200px, 100%);
+  height: calc(100vh - 62px);
+  height: calc(100dvh - 62px);
   min-height: 0;
   margin: 0 auto;
-  padding: 16px 24px 20px;
+  padding: 22px 24px 28px;
 }
 
 .checkers-board-stage {
@@ -722,7 +785,7 @@
 .checkers-board-frame {
   display: grid;
   gap: 10px;
-  width: min(660px, 100%, calc(100dvh - 236px));
+  width: min(620px, 100%, calc(100dvh - 206px));
   min-width: 0;
 }
 
@@ -735,8 +798,8 @@
 }
 
 .checkers-board-toolbar {
-  min-height: 48px;
-  padding: 0 4px;
+  min-height: 50px;
+  padding: 0 2px;
 }
 
 .checkers-board-turn {
@@ -755,6 +818,23 @@
 .checkers-board-turn strong {
   color: #16364a;
   font-size: 15px;
+}
+
+.checkers-board-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  min-width: 0;
+}
+
+.checkers-board-meta > small {
+  max-width: 210px;
+  overflow: hidden;
+  color: #6d7f88;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .checkers-board-turn small {
@@ -783,12 +863,13 @@
   aspect-ratio: 1;
   overflow: hidden;
   box-sizing: border-box;
-  border: 8px solid #f9fbfc;
-  border-radius: 16px;
-  background: #f9fbfc;
+  border: 10px solid #274954;
+  border-radius: 18px;
+  background: #274954;
   box-shadow:
-    0 18px 42px rgb(26 53 69 / 14%),
-    0 0 0 1px rgb(28 58 76 / 12%);
+    0 24px 50px rgb(26 53 69 / 18%),
+    0 0 0 1px rgb(19 49 62 / 30%),
+    inset 0 0 0 1px rgb(255 255 255 / 16%);
 }
 
 .checkers-square {
@@ -804,11 +885,11 @@
 }
 
 .checkers-square.light {
-  background: #f2e8d6;
+  background: #eadfc9;
 }
 
 .checkers-square.dark {
-  background: #4f8d91;
+  background: #527a76;
   cursor: default;
 }
 
@@ -819,13 +900,13 @@
 
 .checkers-square.movable:hover:not(:disabled),
 .checkers-square.destination:hover:not(:disabled) {
-  background: #5b9b9f;
+  background: #638c85;
 }
 
 .checkers-square.selected {
   z-index: 1;
-  background: #3f7780;
-  box-shadow: inset 0 0 0 4px #ffd56b;
+  background: #406a69;
+  box-shadow: inset 0 0 0 5px #ffd66f;
 }
 
 .checkers-square.destination {
@@ -852,14 +933,15 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 68%;
+  width: 72%;
   aspect-ratio: 1;
-  border: 3px solid;
+  border: 4px solid;
   border-radius: 50%;
   box-shadow:
-    inset 0 4px 0 rgb(255 255 255 / 20%),
+    inset 0 3px 2px rgb(255 255 255 / 24%),
+    inset 0 -3px 2px rgb(17 38 50 / 14%),
     0 4px 0 rgb(17 38 50 / 18%),
-    0 8px 13px rgb(17 38 50 / 22%);
+    0 8px 15px rgb(17 38 50 / 24%);
   transition:
     transform 120ms ease,
     box-shadow 120ms ease;
@@ -867,8 +949,8 @@
 
 .checkers-piece::after {
   position: absolute;
-  inset: 9%;
-  border: 1px solid rgb(255 255 255 / 24%);
+  inset: 10%;
+  border: 2px solid rgb(255 255 255 / 24%);
   border-radius: 50%;
   content: '';
 }
@@ -887,13 +969,13 @@
 }
 
 .checkers-piece.light {
-  border-color: #d9c7a6;
-  background: linear-gradient(145deg, #fffdf5, #eadabf);
+  border-color: #ccb991;
+  background: linear-gradient(145deg, #fffdf5 8%, #ead9b9 92%);
 }
 
 .checkers-piece.dark {
-  border-color: #1b3443;
-  background: linear-gradient(145deg, #456476, #203b4b);
+  border-color: #152f3c;
+  background: linear-gradient(145deg, #476879 5%, #203a48 92%);
 }
 
 .checkers-piece.king::before {
@@ -942,9 +1024,9 @@
   min-height: 42px;
   justify-content: flex-start;
   padding: 8px 12px;
-  border: 1px solid #d8e3e7;
-  border-radius: 12px;
-  background: rgb(255 255 255 / 78%);
+  border: 1px solid #cfdee2;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 88%);
   color: #526b79;
 }
 
@@ -972,13 +1054,13 @@
   align-self: start;
   flex-direction: column;
   width: 100%;
-  max-height: calc(100vh - 122px);
-  max-height: calc(100dvh - 122px);
+  max-height: calc(100vh - 106px);
+  max-height: calc(100dvh - 106px);
   overflow: hidden;
   border: 1px solid #dbe3e7;
-  border-radius: 16px;
+  border-radius: 20px;
   background: #fff;
-  box-shadow: 0 12px 32px rgb(35 61 76 / 9%);
+  box-shadow: 0 18px 42px rgb(35 61 76 / 12%);
 }
 
 .checkers-panel-tabs {
@@ -990,7 +1072,7 @@
 }
 
 .checkers-panel-tabs button {
-  min-height: 46px;
+  min-height: 54px;
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
@@ -1012,7 +1094,7 @@
 .checkers-move-panel,
 .checkers-reaction-panel {
   min-height: 0;
-  padding: 22px;
+  padding: 28px;
   overflow: auto;
 }
 
@@ -1020,7 +1102,7 @@
 .checkers-move-panel h2,
 .checkers-reaction-panel h2 {
   margin: 8px 0 10px;
-  font-size: 21px;
+  font-size: 24px;
   line-height: 1.2;
 }
 
@@ -1035,9 +1117,10 @@
   display: grid;
   gap: 10px;
   margin-top: 20px;
-  padding: 15px;
-  border-radius: 14px;
-  background: #eff8f5;
+  padding: 18px;
+  border: 1px solid #d9e9e4;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #eff8f5, #f8fbfa);
 }
 
 .checkers-hint-ladder button,
@@ -1089,9 +1172,9 @@
 }
 
 .checkers-home {
-  width: min(1180px, calc(100% - 40px));
+  width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 36px 0 64px;
+  padding: 32px 0 64px;
 }
 
 .checkers-home-welcome,
@@ -1104,7 +1187,7 @@
 
 .checkers-home-welcome h1 {
   margin: 7px 0 8px;
-  font-size: clamp(30px, 4vw, 48px);
+  font-size: clamp(30px, 3.2vw, 42px);
   line-height: 1.08;
 }
 
@@ -1168,7 +1251,7 @@
 }
 
 .checkers-home-card.featured {
-  min-height: 230px;
+  min-height: 214px;
   padding: 30px;
   background: linear-gradient(135deg, #fff 0%, #ecf8f3 100%);
 }
@@ -1511,7 +1594,7 @@
   background: #f3f6f7;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 1040px) {
   .checkers-bot-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1549,6 +1632,14 @@
   .checkers-side-panel {
     width: min(620px, 100%);
     justify-self: center;
+  }
+
+  .checkers-home-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .checkers-home-header > div {
+    display: none;
   }
 
   .checkers-side-panel {
@@ -1598,6 +1689,19 @@
     grid-template-columns: 1fr;
   }
 
+  .checkers-home-header {
+    min-height: 56px;
+    padding: 0 12px;
+  }
+
+  .checkers-home-header > button span {
+    display: none;
+  }
+
+  .checkers-home-header-mode {
+    padding: 7px 10px;
+  }
+
   .checkers-brand-zone {
     min-width: 0;
   }
@@ -1617,17 +1721,6 @@
     border-top: 1px solid #edf0f2;
   }
 
-  .checkers-context-bar {
-    align-items: flex-start;
-    gap: 6px;
-    padding: 10px 14px;
-  }
-
-  .checkers-context-bar,
-  .checkers-context-bar > div {
-    flex-direction: column;
-  }
-
   .checkers-game-layout {
     min-height: auto;
     padding: 10px;
@@ -1638,7 +1731,14 @@
   }
 
   .checkers-board-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
     min-height: 44px;
+  }
+
+  .checkers-board-meta {
+    justify-content: space-between;
+    width: 100%;
   }
 
   .checkers-board {
