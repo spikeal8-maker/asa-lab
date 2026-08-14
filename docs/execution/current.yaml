@@ -114,11 +114,11 @@ parallel_lanes:
       pr: 116
       pr_draft: false
       status: done
-      checkpoint: puzzle_learning_vertical
+      checkpoint: merged_to_main
       owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
-      head_sha: 1729ecf65a7ddd01b4c2e2680c5d4fa88ff39d9a
+      head_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
       owner_accepted_sha: 1729ecf65a7ddd01b4c2e2680c5d4fa88ff39d9a
       product_merge_sha: 28a147371b8b75071ee304470eca7326ab7458c0
     execution_lease:
