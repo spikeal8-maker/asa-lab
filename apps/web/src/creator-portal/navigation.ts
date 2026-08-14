@@ -52,6 +52,7 @@ function decodeRouteParameter(value: string): string | null {
 }
 
 export function portalNavigation(_canTeach: boolean): readonly PortalNavigationItem[] {
+  void _canTeach;
   return [
     { section: 'home', label: 'Главная' },
     { section: 'classes', label: 'Классы' },
@@ -71,6 +72,7 @@ export function canUseClasses(
 }
 
 export function sectionForView(view: CreatorPortalView, _canTeach: boolean): CreatorPortalSection {
+  void _canTeach;
   if (view.kind === 'account') return 'account';
   if (view.kind === 'home') return 'home';
   if (view.kind === 'learning') return 'learning';
