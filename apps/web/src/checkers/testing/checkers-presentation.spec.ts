@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { newClientId } from '../../client-id';
 import { CheckersBoard, type CheckersBoardPiece } from '../CheckersBoard';
 import { resolveCheckersLandingSurface } from '../CheckersModuleExperience';
 import { CheckersStudentHome } from '../CheckersStudentHome';
@@ -13,6 +14,24 @@ const pieces: readonly CheckersBoardPiece[] = [
 ];
 
 describe('Checkers presentation contract', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('creates durable action ids when randomUUID is unavailable over plain HTTP', () => {
+    let nextByte = 0;
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => {
+        bytes.forEach((_, index) => {
+          bytes[index] = nextByte++;
+        });
+        return bytes;
+      },
+    });
+
+    expect(newClientId()).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
+  });
+
   it('opens a classroom dashboard only for a user allowed to manage classes', () => {
     expect(resolveCheckersLandingSurface('classroom', true)).toBe('teacher');
     expect(resolveCheckersLandingSurface('classroom', false)).toBe('home');

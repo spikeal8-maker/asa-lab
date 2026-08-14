@@ -8,6 +8,7 @@ import type {
 } from '@asa-lab/checkers';
 import { useEffect, useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
+import { newClientId } from '../client-id';
 import { CheckersStudentHome, type CheckersHomeCard } from './CheckersStudentHome';
 import { CheckersTeacherDashboard } from './CheckersTeacherDashboard';
 import { CheckersWorkspace, type CheckersWorkspaceMove } from './CheckersWorkspace';
@@ -231,11 +232,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
   const selectedBot = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId)!;
 
   const startPuzzle = (puzzle: CheckersPuzzle): void => {
-    const created = createCheckersPuzzleAttempt(
-      puzzle,
-      `attempt-${crypto.randomUUID()}`,
-      props.user.id,
-    );
+    const created = createCheckersPuzzleAttempt(puzzle, `attempt-${newClientId()}`, props.user.id);
     if (!created.ok) {
       checkers.setNotice(created.message);
       return;

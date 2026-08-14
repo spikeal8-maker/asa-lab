@@ -38,6 +38,15 @@ test.beforeAll(async () => {
   mkdirSync('e2e/artifacts/checkers', { recursive: true });
 });
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+});
+
 test.afterAll(async () => {
   await admin.end();
 });

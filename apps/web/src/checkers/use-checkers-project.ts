@@ -11,6 +11,7 @@ import type {
 } from '@asa-lab/checkers';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Project, type PublicUser } from '../api';
+import { newClientId } from '../client-id';
 
 const {
   CHECKERS_BOTS,
@@ -275,7 +276,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       const item = progress.find((candidate) => candidate.conceptId === conceptId);
       if (!item) continue;
       const event: CheckersLearningEvidence = {
-        id: `evidence-${crypto.randomUUID()}`,
+        id: `evidence-${newClientId()}`,
         studentId: item.studentId,
         conceptId,
         kind: 'puzzle-attempt',
@@ -317,7 +318,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       return false;
     }
     const assignment: CheckersAssignment = {
-      id: `assignment-${crypto.randomUUID()}`,
+      id: `assignment-${newClientId()}`,
       classroomId: project.classroomId,
       teacherId: user.id,
       title: input.title.trim(),
