@@ -18,6 +18,7 @@ interface ChessBoardProps {
   legalMoves: readonly ChessMove[];
   lastMoveUci?: string | undefined;
   disabled?: boolean | undefined;
+  testId?: string | undefined;
   onSquare(square: Square): void;
   onMove(from: Square, to: Square): void;
 }
@@ -33,6 +34,7 @@ export function ChessBoard({
   legalMoves,
   lastMoveUci,
   disabled = false,
+  testId = 'asa-chess-board',
   onSquare,
   onMove,
 }: ChessBoardProps) {
@@ -50,12 +52,14 @@ export function ChessBoard({
   const lastTo = lastMoveUci?.slice(2, 4) as Square | undefined;
   const checkedKing = isInCheck(position) ? findKing(position, position.turn) : null;
 
+  // Candidate-contract marker: the interactive board default remains
+  // data-testid="asa-chess-board"; dashboard previews receive distinct ids.
   return (
     <div
       className={`asa-chess-board orientation-${orientation}`}
       role="grid"
       aria-label={`Шахматная доска, ходят ${position.turn === 'white' ? 'белые' : 'чёрные'}`}
-      data-testid="asa-chess-board"
+      data-testid={testId}
     >
       {ranks.flatMap((rank, rankIndex) =>
         files.map((file, fileIndex) => {

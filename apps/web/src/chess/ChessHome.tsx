@@ -247,6 +247,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
                   legalMoves={[]}
                   lastMoveUci={latestMove}
                   disabled
+                  testId="asa-chess-home-position"
                   onSquare={() => undefined}
                   onMove={() => undefined}
                 />
@@ -261,6 +262,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
                   selectedSquare={null}
                   legalMoves={[]}
                   disabled
+                  testId="asa-chess-home-puzzle"
                   onSquare={() => undefined}
                   onMove={() => undefined}
                 />

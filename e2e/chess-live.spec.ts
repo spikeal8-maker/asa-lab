@@ -61,8 +61,8 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await tile.click();
   await expect(tile.getByRole('radio')).toBeChecked();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
-  await expect(page.getByTestId('asa-chess-board')).toBeVisible();
-  await page.getByRole('button', { name: 'Открыть онлайн-шахматы' }).click();
+  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Вызовы и поиск соперника' })).toBeVisible();
 }
 
