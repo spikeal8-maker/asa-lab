@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
+import { SearchIcon } from '../electronics/workbench-icons';
 
 export type PortalSection = CreatorPortalSection;
 
@@ -47,6 +48,9 @@ export function PortalHeader({
       .slice(0, 2)
       .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
       .join('') || 'A';
+  const navigationItems = portalNavigation(canTeach);
+  const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
+  const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
   useEffect(() => {
     setError(null);
@@ -98,6 +102,9 @@ export function PortalHeader({
           <AsaLabWordmark />
         </button>
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
+          <button type="button" onClick={() => onNavigate('projects')}>
+            Проекты
+          </button>
           <button type="button" onClick={() => onNavigate('collections')}>
             Галерея
           </button>
@@ -106,7 +113,7 @@ export function PortalHeader({
           </button>
           {canTeach ? (
             <button type="button" onClick={() => onNavigate('classes')}>
-              Для преподавателей
+              Преподаватели
             </button>
           ) : null}
           <button type="button" onClick={() => onNavigate('help')}>
@@ -120,7 +127,7 @@ export function PortalHeader({
           title="Поиск проектов"
           onClick={() => onNavigate('projects')}
         >
-          <span aria-hidden="true">⌕</span>
+          <SearchIcon />
         </button>
         <button
           type="button"
@@ -207,7 +214,7 @@ export function PortalHeader({
           </span>
         </div>
         <nav className="portal-nav">
-          {portalNavigation(canTeach).map((item) => (
+          {primaryNavigation.map((item) => (
             <button
               type="button"
               key={item.section}
@@ -222,6 +229,21 @@ export function PortalHeader({
             </button>
           ))}
         </nav>
+        {helpNavigation ? (
+          <div className="portal-sidebar-footer">
+            <button
+              type="button"
+              className={active === 'help' ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-current={active === 'help' ? 'page' : undefined}
+              onClick={() => onNavigate('help')}
+            >
+              <span className="portal-nav-glyph" aria-hidden="true">
+                {SECTION_GLYPHS.help}
+              </span>
+              <span className="portal-nav-label">{helpNavigation.label}</span>
+            </button>
+          </div>
+        ) : null}
         <button
           type="button"
           className="portal-sidebar-collapse"

@@ -6,6 +6,7 @@ import { creatorHomeState } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
 const PROJECTS_PER_MODULE = 4;
+const HOME_MODULE_ORDER = ['three-d', 'electronics', 'chess'] as const;
 
 function formatRelativeDate(value: string): string {
   const date = new Date(value);
@@ -75,7 +76,22 @@ export function CreatorHomePage({
   }, [load]);
 
   const activeModules = useMemo(
-    () => (modules ?? []).filter((module) => module.availability === 'active' && module.creatable),
+    () =>
+      (modules ?? [])
+        .filter((module) => module.availability === 'active' && module.creatable)
+        .sort((left, right) => {
+          const leftIndex = HOME_MODULE_ORDER.indexOf(
+            left.moduleKey as (typeof HOME_MODULE_ORDER)[number],
+          );
+          const rightIndex = HOME_MODULE_ORDER.indexOf(
+            right.moduleKey as (typeof HOME_MODULE_ORDER)[number],
+          );
+          return (
+            (leftIndex < 0 ? HOME_MODULE_ORDER.length : leftIndex) -
+              (rightIndex < 0 ? HOME_MODULE_ORDER.length : rightIndex) ||
+            left.displayName.localeCompare(right.displayName, 'ru')
+          );
+        }),
     [modules],
   );
   const projectsByModule = useMemo(() => {
