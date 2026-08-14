@@ -9,7 +9,7 @@ import {
 import { api, type ModuleSummary, type Project } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { PortalLink } from '../components/PortalLink';
-import { creatorViewToHash } from '../creator-portal/navigation';
+import { creatorViewToHref } from '../creator-portal/navigation';
 import { PlusIcon } from '@asa-lab/ui-kit';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
@@ -28,7 +28,7 @@ function formatDate(value: string): string {
 export function MyProjectsPage({
   onOpenProject,
 }: {
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [items, setItems] = useState<Project[] | null>(null);
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
@@ -203,12 +203,13 @@ export function MyProjectsPage({
               <li key={project.id} className="project-gallery-card project-hub-card" style={style}>
                 <PortalLink
                   className="project-preview project-module-preview"
-                  href={creatorViewToHash({
+                  href={creatorViewToHref({
                     kind: 'editor',
                     projectId: project.id,
+                    moduleKey: project.moduleKey,
                     returnTo: { kind: 'my-projects' },
                   })}
-                  onNavigate={() => onOpenProject(project.id)}
+                  onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                 >
                   {module ? (
                     <ModuleGlyph module={module} size={64} />
@@ -261,12 +262,13 @@ export function MyProjectsPage({
                       <div className="project-card-actions">
                         <PortalLink
                           className="btn-secondary"
-                          href={creatorViewToHash({
+                          href={creatorViewToHref({
                             kind: 'editor',
                             projectId: project.id,
+                            moduleKey: project.moduleKey,
                             returnTo: { kind: 'my-projects' },
                           })}
-                          onNavigate={() => onOpenProject(project.id)}
+                          onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                         >
                           Открыть
                         </PortalLink>
@@ -293,7 +295,7 @@ export function MyProjectsPage({
           onClose={() => setCreating(false)}
           onCreated={(project) => {
             setCreating(false);
-            onOpenProject(project.id);
+            onOpenProject(project.id, project.moduleKey);
           }}
         />
       ) : null}

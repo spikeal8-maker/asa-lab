@@ -3,6 +3,11 @@ import type { Project } from '../api';
 export type CreatorPortalSection =
   'home' | 'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help' | 'account';
 
+export type CreatorPortalReturnView =
+  | { kind: 'home' }
+  | { kind: 'my-projects' }
+  | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
+
 export type CreatorPortalView =
   | { kind: 'home' }
   | { kind: 'my-projects' }
@@ -16,10 +21,8 @@ export type CreatorPortalView =
   | {
       kind: 'editor';
       projectId: string;
-      returnTo:
-        | { kind: 'home' }
-        | { kind: 'my-projects' }
-        | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
+      moduleKey?: string;
+      returnTo: CreatorPortalReturnView;
     };
 
 export interface PortalNavigationItem {
@@ -95,6 +98,19 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   return `#/${returnPath}/${view.projectId}`;
 }
 
+/**
+ * Browser-native destination for a Portal view. Electronics owns a stable,
+ * directly reloadable editor path, while the legacy hash routes remain valid
+ * for the Portal and for modules that have not crossed this boundary yet.
+ */
+export function creatorViewToHref(view: CreatorPortalView): string {
+  if (view.kind === 'editor' && view.moduleKey === 'electronics') {
+    const returnTo = creatorViewToHash(view.returnTo);
+    return `/projects/${encodeURIComponent(view.projectId)}/electronics/edit?returnTo=${encodeURIComponent(returnTo)}`;
+  }
+  return `/${creatorViewToHash(view)}`;
+}
+
 export function creatorViewFromHash(hash: string): CreatorPortalView {
   const raw = hash.replace(/^#/, '');
   const [path, query] = raw.split('?');
@@ -128,6 +144,44 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     };
   }
   return PORTAL_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'home' };
+}
+
+function returnViewFromQuery(search: string): CreatorPortalReturnView {
+  const requested = new URLSearchParams(search).get('returnTo') ?? '#/projects';
+  const parsed = creatorViewFromHash(requested.replace(/^\//, ''));
+  if (
+    parsed.kind === 'home' ||
+    parsed.kind === 'my-projects' ||
+    parsed.kind === 'classroom-projects'
+  ) {
+    return parsed;
+  }
+  return { kind: 'my-projects' };
+}
+
+/** Parse both canonical path-based module routes and the historical hashes. */
+export function creatorViewFromLocation(location: {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+}): CreatorPortalView {
+  const electronicsEditor = /^\/projects\/([^/]+)\/electronics\/edit\/?$/.exec(location.pathname);
+  if (electronicsEditor) {
+    let projectId = electronicsEditor[1] as string;
+    try {
+      projectId = decodeURIComponent(projectId);
+    } catch {
+      // Keep the encoded identifier. The API will reject it without making the
+      // router fall back to an unrelated Portal page.
+    }
+    return {
+      kind: 'editor',
+      projectId,
+      moduleKey: 'electronics',
+      returnTo: returnViewFromQuery(location.search),
+    };
+  }
+  return creatorViewFromHash(location.hash);
 }
 
 export function recentProjects(projects: readonly Project[], limit = 4): readonly Project[] {

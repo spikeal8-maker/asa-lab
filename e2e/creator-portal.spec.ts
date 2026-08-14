@@ -101,11 +101,26 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-creator-home-desktop.png`, fullPage: true });
 
-  await page
+  const electronicsProjectLink = page
     .getByTestId('creator-recent-projects')
-    .getByRole('link', { name: /Личная схема/ })
-    .click();
-  await expect(page).toHaveURL(new RegExp(`#\\/home\\/${electronicsProjectId}$`));
+    .getByRole('link', { name: /Личная схема/ });
+  const electronicsHref = `/projects/${electronicsProjectId}/electronics/edit?returnTo=%23%2Fhome`;
+  await expect(electronicsProjectLink).toHaveAttribute('href', electronicsHref);
+
+  const electronicsTabPromise = page.context().waitForEvent('page');
+  await electronicsProjectLink.click({ button: 'middle' });
+  const electronicsTab = await electronicsTabPromise;
+  await electronicsTab.waitForLoadState('domcontentloaded');
+  await expect(electronicsTab).toHaveURL(new RegExp(`${electronicsHref}$`));
+  await expect(electronicsTab.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await electronicsTab.close();
+  await expect(page).toHaveURL(/#\/home$/);
+
+  await electronicsProjectLink.click();
+  await expect(page).toHaveURL(new RegExp(`${electronicsHref}$`));
+  await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(new RegExp(`${electronicsHref}$`));
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();

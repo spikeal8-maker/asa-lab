@@ -15,8 +15,8 @@ import {
   PublicEntryPage,
   RegisterPage,
   canUseClasses,
-  creatorViewFromHash,
-  creatorViewToHash,
+  creatorViewFromLocation,
+  creatorViewToHref,
   sectionForView,
   type CreatorPortalSection,
   type CreatorPortalView,
@@ -57,13 +57,14 @@ export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
   const [publicView, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
   const [view, setViewState] = useState<CreatorPortalView>(() =>
-    creatorViewFromHash(window.location.hash),
+    creatorViewFromLocation(window.location),
   );
 
   const setView = useCallback((next: CreatorPortalView) => {
     setViewState(next);
-    const hash = creatorViewToHash(next);
-    if (window.location.hash !== hash) window.history.pushState(null, '', hash);
+    const href = creatorViewToHref(next);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (current !== href) window.history.pushState(null, '', href);
   }, []);
 
   const setPublicView = useCallback((next: PublicView) => {
@@ -74,7 +75,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const sync = (): void => {
-      setViewState(creatorViewFromHash(window.location.hash));
+      setViewState(creatorViewFromLocation(window.location));
       setPublicViewState(publicViewFromHash());
     };
     window.addEventListener('popstate', sync);
@@ -130,7 +131,7 @@ export function App(): JSX.Element {
   if (session.kind === 'anonymous') {
     const signedIn = (payload: SessionPayload): void => {
       setSession({ kind: 'authenticated', session: payload });
-      setView({ kind: 'home' });
+      setView(view.kind === 'editor' ? view : { kind: 'home' });
     };
 
     if (publicView.kind === 'sign-up') {
@@ -184,6 +185,14 @@ export function App(): JSX.Element {
       <ModuleEditorHost
         projectId={view.projectId}
         onBack={() => setView(view.returnTo)}
+        onModuleResolved={(moduleKey) => {
+          if (view.moduleKey === moduleKey) return;
+          const normalized = { ...view, moduleKey };
+          setViewState(normalized);
+          if (moduleKey === 'electronics') {
+            window.history.replaceState(null, '', creatorViewToHref(normalized));
+          }
+        }}
         user={session.session.user}
       />
     );
@@ -229,15 +238,15 @@ export function App(): JSX.Element {
           session={session.session}
           canTeach={canTeachHere}
           onNavigate={navigate}
-          onOpenProject={(projectId) =>
-            setView({ kind: 'editor', projectId, returnTo: { kind: 'home' } })
+          onOpenProject={(projectId, moduleKey) =>
+            setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
           }
         />
       ) : null}
       {view.kind === 'my-projects' ? (
         <MyProjectsPage
-          onOpenProject={(projectId) =>
-            setView({ kind: 'editor', projectId, returnTo: { kind: 'my-projects' } })
+          onOpenProject={(projectId, moduleKey) =>
+            setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
           }
         />
       ) : null}
@@ -259,7 +268,9 @@ export function App(): JSX.Element {
           classroomId={view.classroomId}
           classroomTitle={view.classroomTitle}
           onBack={() => setView({ kind: 'classrooms' })}
-          onOpenProject={(projectId) => setView({ kind: 'editor', projectId, returnTo: view })}
+          onOpenProject={(projectId, moduleKey) =>
+            setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
+          }
         />
       ) : null}
       {canTeachHere &&

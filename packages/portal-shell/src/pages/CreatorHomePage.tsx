@@ -6,7 +6,7 @@ import { PlusIcon } from '@asa-lab/ui-kit';
 import {
   creatorHomeState,
   creatorSectionToHash,
-  creatorViewToHash,
+  creatorViewToHref,
   recentProjects,
 } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
@@ -35,7 +35,7 @@ export function CreatorHomePage({
   onNavigate: (
     section: 'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help',
   ) => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
@@ -200,12 +200,13 @@ export function CreatorHomePage({
               return (
                 <li key={project.id} style={style}>
                   <PortalLink
-                    href={creatorViewToHash({
+                    href={creatorViewToHref({
                       kind: 'editor',
                       projectId: project.id,
+                      moduleKey: project.moduleKey,
                       returnTo: { kind: 'home' },
                     })}
-                    onNavigate={() => onOpenProject(project.id)}
+                    onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                   >
                     <span className="creator-project-glyph">
                       {module ? <ModuleGlyph module={module} size={42} /> : '?'}
@@ -287,7 +288,7 @@ export function CreatorHomePage({
           onClose={() => setCreating(false)}
           onCreated={(project) => {
             setCreating(false);
-            onOpenProject(project.id);
+            onOpenProject(project.id, project.moduleKey);
           }}
         />
       ) : null}

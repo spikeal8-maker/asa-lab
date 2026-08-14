@@ -13,6 +13,7 @@ import { api, type PublicUser } from '../api';
 interface ModuleEditorProps {
   projectId: string;
   onBack: () => void;
+  onModuleResolved?: (moduleKey: string) => void;
   user: PublicUser;
 }
 
@@ -74,12 +75,13 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
         setState({ kind: 'error', message: result.error.message || 'Не удалось открыть проект.' });
         return;
       }
+      props.onModuleResolved?.(result.data.project.moduleKey);
       setState({ kind: 'ready', moduleKey: result.data.project.moduleKey });
     });
     return () => {
       active = false;
     };
-  }, [props.projectId]);
+  }, [props.onModuleResolved, props.projectId]);
 
   if (state.kind === 'loading') {
     return (
@@ -129,7 +131,7 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
           </main>
         }
       >
-        <Editor {...props} />
+        <Editor projectId={props.projectId} onBack={props.onBack} user={props.user} />
       </Suspense>
     </ModuleFailureBoundary>
   );

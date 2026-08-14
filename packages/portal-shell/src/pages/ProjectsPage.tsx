@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type Project } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { PortalLink } from '../components/PortalLink';
-import { creatorSectionToHash, creatorViewToHash } from '../creator-portal/navigation';
+import { creatorSectionToHash, creatorViewToHref } from '../creator-portal/navigation';
 import { CircuitIcon, PlusIcon } from '@asa-lab/ui-kit';
 
 export function ProjectsPage({
@@ -14,7 +14,7 @@ export function ProjectsPage({
   classroomId: string;
   classroomTitle: string;
   onBack: () => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [items, setItems] = useState<Project[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -83,12 +83,13 @@ export function ProjectsPage({
             <li key={project.id} className="project-gallery-card" data-testid="project-card">
               <PortalLink
                 className="project-preview"
-                href={creatorViewToHash({
+                href={creatorViewToHref({
                   kind: 'editor',
                   projectId: project.id,
+                  moduleKey: project.moduleKey,
                   returnTo: { kind: 'classroom-projects', classroomId, classroomTitle },
                 })}
-                onNavigate={() => onOpenProject(project.id)}
+                onNavigate={() => onOpenProject(project.id, project.moduleKey)}
               >
                 <span className="project-preview-grid">
                   <CircuitIcon />
@@ -101,12 +102,13 @@ export function ProjectsPage({
                 </div>
                 <PortalLink
                   className="btn-secondary"
-                  href={creatorViewToHash({
+                  href={creatorViewToHref({
                     kind: 'editor',
                     projectId: project.id,
+                    moduleKey: project.moduleKey,
                     returnTo: { kind: 'classroom-projects', classroomId, classroomTitle },
                   })}
-                  onNavigate={() => onOpenProject(project.id)}
+                  onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                 >
                   Открыть
                 </PortalLink>
@@ -123,7 +125,7 @@ export function ProjectsPage({
           onClose={() => setCreating(false)}
           onCreated={(project) => {
             setCreating(false);
-            onOpenProject(project.id);
+            onOpenProject(project.id, project.moduleKey);
           }}
         />
       ) : null}
