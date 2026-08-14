@@ -6,10 +6,11 @@ import {
   type Color,
   type PromotionPiece,
 } from '@asa-lab/chess';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
 import { ChessEditorHeader } from './ChessEditorHeader';
+import type { ChessPanelTab } from './chess-navigation';
 import {
   PIECE_SYMBOL,
   botProfileUiSummary,
@@ -26,10 +27,11 @@ interface ChessEditorProps {
   onBack: () => void;
   onHome?: () => void;
   startNewGame?: boolean;
+  initialPanelTab?: ChessPanelTab;
+  onPanelTabChange?: (tab: ChessPanelTab) => void;
   user: PublicUser;
 }
 
-type PanelTab = 'game' | 'analysis' | 'versions';
 type ImportKind = 'pgn' | 'fen';
 
 interface TimePreset {
@@ -375,12 +377,23 @@ export function ChessEditor({
   onBack,
   onHome,
   startNewGame = false,
+  initialPanelTab = 'game',
+  onPanelTabChange,
   user,
 }: ChessEditorProps): JSX.Element {
   const controller = useChessProject(projectId);
-  const [panelTab, setPanelTab] = useState<PanelTab>('game');
+  const [panelTab, setPanelTab] = useState<ChessPanelTab>(initialPanelTab);
   const [newGameOpen, setNewGameOpen] = useState(startNewGame);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
+
+  useEffect(() => {
+    setPanelTab(initialPanelTab);
+  }, [initialPanelTab]);
+
+  function selectPanelTab(tab: ChessPanelTab): void {
+    setPanelTab(tab);
+    onPanelTabChange?.(tab);
+  }
 
   if (controller.loadState === 'loading') {
     return (
@@ -530,7 +543,7 @@ export function ChessEditor({
                 role="tab"
                 aria-selected={panelTab === value}
                 className={panelTab === value ? 'active' : ''}
-                onClick={() => setPanelTab(value)}
+                onClick={() => selectPanelTab(value)}
               >
                 {label}
               </button>

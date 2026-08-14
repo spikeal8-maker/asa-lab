@@ -31,6 +31,8 @@ interface ChessPuzzleTrainerProps {
   readonly user: PublicUser;
   readonly onExit: () => void;
   readonly onBackToProject: () => void;
+  readonly initialSection?: 'puzzles' | 'learning';
+  readonly onOpenPuzzles?: () => void;
 }
 
 type SaveState = 'loading' | 'saved' | 'saving' | 'error';
@@ -132,6 +134,8 @@ export function ChessPuzzleTrainer({
   user,
   onExit,
   onBackToProject,
+  initialSection = 'puzzles',
+  onOpenPuzzles,
 }: ChessPuzzleTrainerProps) {
   const [document, setDocument] = useState<ChessDocument | null>(null);
   const [puzzleIndex, setPuzzleIndex] = useState(0);
@@ -182,12 +186,19 @@ export function ChessPuzzleTrainer({
         (candidate) => candidate.id === parsed.value.learning.activePuzzleId,
       );
       if (selectedIndex >= 0) setPuzzleIndex(selectedIndex);
+      if (initialSection === 'learning') {
+        setLesson(
+          recommendChessLesson(parsed.value.learning, ASA_CHESS_PUZZLES, ASA_CHESS_LESSONS) ??
+            ASA_CHESS_LESSONS[0] ??
+            null,
+        );
+      }
       setSaveState('saved');
     });
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [initialSection, projectId]);
 
   async function persist(next: ChessDocument): Promise<void> {
     setDocument(next);
@@ -327,7 +338,10 @@ export function ChessPuzzleTrainer({
         user={user}
         onExit={onExit}
         onHome={onBackToProject}
-        onClose={() => setLesson(null)}
+        onClose={() => {
+          setLesson(null);
+          onOpenPuzzles?.();
+        }}
       />
     );
   if (!document || !session || !position || !attempt) {

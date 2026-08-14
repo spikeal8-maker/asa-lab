@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessEditor } from './ChessEditor';
 import { ChessHome } from './ChessHome';
 import { ChessOnlineLobby } from './ChessOnlineLobby';
 import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
 import { ChessReviewPage } from './ChessReviewPage';
+import {
+  chessRouteFromHash,
+  chessRouteToHash,
+  type ChessPage,
+  type ChessPanelTab,
+  type ChessRouteState,
+} from './chess-navigation';
 import './chess-training.css';
 import './chess-review.css';
 import './chess-theme.css';
@@ -14,8 +21,6 @@ interface ChessModuleExperienceProps {
   onBack: () => void;
   user: PublicUser;
 }
-
-type ChessSurface = 'home' | 'project' | 'training' | 'review' | 'online';
 
 // Candidate-contract marker retained while the visible launcher has moved into
 // the full Chess home navigation: Открыть шахматные задачи.
@@ -29,68 +34,85 @@ type ChessSurface = 'home' | 'project' | 'training' | 'review' | 'online';
  * online uses the separate server-authoritative chess-live aggregate.
  */
 export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.Element {
-  const storageKey = `asa-chess-surface:${props.projectId}`;
-  const [surface, setSurface] = useState<ChessSurface>(() => {
-    if (typeof window === 'undefined') return 'home';
-    const stored = window.sessionStorage.getItem(storageKey);
-    return stored === 'project' ||
-      stored === 'training' ||
-      stored === 'review' ||
-      stored === 'online'
-      ? stored
-      : 'home';
-  });
-  const [startNewGame, setStartNewGame] = useState(false);
+  const [route, setRoute] = useState<ChessRouteState>(() =>
+    chessRouteFromHash(window.location.hash, props.projectId),
+  );
+
   useEffect(() => {
-    if (surface === 'home') window.sessionStorage.removeItem(storageKey);
-    else window.sessionStorage.setItem(storageKey, surface);
-  }, [storageKey, surface]);
-  if (surface === 'home') {
+    const syncFromAddress = (): void => {
+      setRoute(chessRouteFromHash(window.location.hash, props.projectId));
+    };
+    window.addEventListener('popstate', syncFromAddress);
+    window.addEventListener('hashchange', syncFromAddress);
+    return () => {
+      window.removeEventListener('popstate', syncFromAddress);
+      window.removeEventListener('hashchange', syncFromAddress);
+    };
+  }, [props.projectId]);
+
+  const navigate = useCallback(
+    (page: ChessPage, panelTab: ChessPanelTab = 'game'): void => {
+      const next = { page, panelTab } satisfies ChessRouteState;
+      const hash = chessRouteToHash(props.projectId, next);
+      setRoute(next);
+      if (window.location.hash !== hash) window.history.pushState(null, '', hash);
+    },
+    [props.projectId],
+  );
+
+  if (route.page === 'home') {
     return (
       <ChessHome
         {...props}
-        onOpenBoard={() => {
-          setStartNewGame(false);
-          setSurface('project');
-        }}
-        onOpenOnline={() => setSurface('online')}
-        onOpenTraining={() => setSurface('training')}
-        onOpenReview={() => setSurface('review')}
-        onOpenBot={() => {
-          setStartNewGame(true);
-          setSurface('project');
-        }}
+        onOpenBoard={() => navigate('play')}
+        onOpenOnline={() => navigate('online')}
+        onOpenTraining={() => navigate('puzzles')}
+        onOpenLearning={() => navigate('learning')}
+        onOpenReview={() => navigate('review')}
+        onOpenBot={() => navigate('bots')}
       />
     );
   }
-  if (surface === 'training') {
+  if (route.page === 'puzzles' || route.page === 'learning') {
     return (
       <ChessPuzzleTrainer
+        key={route.page}
         projectId={props.projectId}
         user={props.user}
         onExit={props.onBack}
-        onBackToProject={() => setSurface('home')}
+        initialSection={route.page}
+        onOpenPuzzles={() => navigate('puzzles')}
+        onBackToProject={() => navigate('home')}
       />
     );
   }
-  if (surface === 'review') {
+  if (route.page === 'review') {
     return (
       <ChessReviewPage
         projectId={props.projectId}
         user={props.user}
         onExit={props.onBack}
-        onBackToProject={() => setSurface('home')}
+        onBackToProject={() => navigate('home')}
       />
     );
   }
-  if (surface === 'online') {
+  if (route.page === 'online') {
     return (
       <ChessOnlineLobby
         user={props.user}
         onExit={props.onBack}
-        onBackToProject={() => setSurface('home')}
+        onBackToProject={() => navigate('home')}
       />
     );
   }
-  return <ChessEditor {...props} startNewGame={startNewGame} onHome={() => setSurface('home')} />;
+  return (
+    <ChessEditor
+      key={route.page}
+      {...props}
+      initialPanelTab={route.panelTab}
+      startNewGame={route.page === 'bots'}
+      onPanelTabChange={(panelTab) => navigate('play', panelTab)}
+      onHome={() => navigate('home')}
+    />
+  );
 }

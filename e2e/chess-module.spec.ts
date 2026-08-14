@@ -22,9 +22,11 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await expect(chessTile.getByRole('radio')).toBeChecked();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.getByRole('button', { name: 'Открыть доску', exact: true }).click();
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/game$/);
   await expect(page.getByLabel('Название проекта')).toHaveValue(title);
 }
 
@@ -65,6 +67,7 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
   await page.getByRole('button', { name: 'Версия', exact: true }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
   await page.getByRole('tab', { name: 'Версии' }).click();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/versions$/);
   await expect(page.getByText('Версия №1', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'PGN', exact: true }).click();
@@ -117,6 +120,7 @@ test('review selects exact plies and accepts only the verified retry move', asyn
 
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
   await page.getByRole('button', { name: 'Разбор', exact: true }).click();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/review$/);
   await expect(page.getByRole('heading', { name: 'Разбор ошибки и повторение' })).toBeVisible();
   await expect(page.getByLabel('График оценки по полуходам')).toBeVisible();
   await expect(page.getByLabel('Проверенные факты разбора')).toContainText(
@@ -155,6 +159,7 @@ test('learner opens the original ASA puzzle trainer and solves a mate in one wit
   await createChessProject(page, 'Тренировка по тактике');
   await page.getByRole('button', { name: 'Главная', exact: true }).click();
   await page.getByRole('button', { name: 'Задачи', exact: true }).click();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/puzzles$/);
   await expect(page.getByRole('heading', { name: 'Мат в один ход' })).toBeVisible();
   await expect(page.getByText('Прогресс этого проекта: 0 из 3')).toBeVisible();
 

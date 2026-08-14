@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
 import { ChessModuleExperience } from '../chess/ChessModuleExperience';
+import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
 import { loadCheckersEditor } from '../checkers/load-checkers-editor';
 import { SchematicEditor } from '../pages/SchematicEditor';
 
@@ -20,7 +21,9 @@ const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
 };
 
 type HostState =
-  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; moduleKey: string };
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; moduleKey: string; projectTitle: string };
 
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
@@ -36,12 +39,40 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
         setState({ kind: 'error', message: result.error.message || 'Не удалось открыть проект.' });
         return;
       }
-      setState({ kind: 'ready', moduleKey: result.data.project.moduleKey });
+      const moduleKey = result.data.project.moduleKey;
+      const canonicalHash =
+        moduleKey === 'three-d'
+          ? `#/3d/${encodeURIComponent(props.projectId)}`
+          : moduleKey === 'chess'
+            ? chessRouteToHash(
+                props.projectId,
+                chessRouteFromHash(window.location.hash, props.projectId),
+              )
+            : null;
+      if (canonicalHash && window.location.hash !== canonicalHash) {
+        window.history.replaceState(null, '', canonicalHash);
+      }
+      setState({ kind: 'ready', moduleKey, projectTitle: result.data.project.title });
     });
     return () => {
       active = false;
     };
   }, [props.projectId]);
+
+  useEffect(() => {
+    if (state.kind !== 'ready') return;
+    const previousTitle = document.title;
+    const moduleTitle =
+      state.moduleKey === 'three-d'
+        ? 'ASA 3D'
+        : state.moduleKey === 'chess'
+          ? 'ASA Chess'
+          : 'ASA Lab';
+    document.title = `${state.projectTitle} · ${moduleTitle}`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [state]);
 
   if (state.kind === 'loading') {
     return (
