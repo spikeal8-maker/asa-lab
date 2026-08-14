@@ -14,11 +14,13 @@ import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 export function CreateProjectModal({
   scope,
   classroomId,
+  initialModule,
   onClose,
   onCreated,
 }: {
   scope: ProjectScope;
   classroomId?: string;
+  initialModule?: string | undefined;
   onClose: () => void;
   onCreated: (project: Project) => void;
 }): JSX.Element {
@@ -50,12 +52,19 @@ export function CreateProjectModal({
         return;
       }
       setModules(result.data.items);
-      setSelectedModule(result.data.items.find((module) => module.creatable)?.moduleKey ?? null);
+      const requestedModule = result.data.items.find(
+        (module) => module.moduleKey === initialModule && module.creatable,
+      );
+      setSelectedModule(
+        requestedModule?.moduleKey ??
+          result.data.items.find((module) => module.creatable)?.moduleKey ??
+          null,
+      );
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialModule]);
 
   function trap(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key === 'Escape' && !busy) {

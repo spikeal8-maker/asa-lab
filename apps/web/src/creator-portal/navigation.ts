@@ -46,12 +46,12 @@ const PORTAL_ROUTES: ReadonlyArray<{
 export function portalNavigation(canTeach: boolean): readonly PortalNavigationItem[] {
   return [
     { section: 'home', label: 'Главная' },
-    { section: 'projects', label: 'Мои проекты' },
-    { section: 'learning', label: 'Обучение' },
-    { section: 'collections', label: 'Коллекции' },
-    { section: 'challenges', label: 'Испытания' },
     ...(canTeach ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
-    { section: 'help', label: 'Помощь' },
+    { section: 'projects', label: 'Проекты' },
+    { section: 'collections', label: 'Коллекции' },
+    { section: 'learning', label: 'Учебные пособия' },
+    { section: 'challenges', label: 'Задачи' },
+    { section: 'help', label: 'Справочный центр' },
   ];
 }
 

@@ -132,7 +132,7 @@ test('classes remain a separate teacher workspace from personal projects', async
       'Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.',
     ),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Мои проекты' }).click();
+  await page.getByRole('button', { name: 'Проекты', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
   failures.assertEmpty();
 });

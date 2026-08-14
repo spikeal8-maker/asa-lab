@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
@@ -34,15 +34,23 @@ export function PortalHeader({
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem('asa-portal-sidebar') === 'collapsed',
+  );
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const activeWorkspace = session.workspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
+  const avatarName = session.user.displayName.replace(/\([^)]*\)/g, ' ');
   const initials =
-    (session.user.displayName.match(/[\p{L}\p{N}]+/gu) ?? [])
+    (avatarName.match(/[\p{L}\p{N}]+/gu) ?? [])
       .slice(0, 2)
       .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
       .join('') || 'A';
+
+  useEffect(() => {
+    setError(null);
+  }, [session.activeWorkspace.workspaceId]);
 
   async function logout(): Promise<void> {
     if (busy) return;
@@ -64,20 +72,23 @@ export function PortalHeader({
     setBusy(`workspace:${workspaceId}`);
     setError(null);
     const result = await api.switchWorkspace(workspaceId);
-    if (!result.ok) {
-      setBusy(null);
-      setError(result.error.message);
-      return;
-    }
     const refreshed = await api.me();
     setBusy(null);
-    if (!refreshed.ok || !refreshed.data.authenticated) {
-      setError('Не удалось обновить активное рабочее пространство.');
+    if (
+      refreshed.ok &&
+      refreshed.data.authenticated &&
+      refreshed.data.activeWorkspace.workspaceId === workspaceId
+    ) {
+      onSessionChanged(refreshed.data);
+      accountMenu.current?.removeAttribute('open');
+      onNavigate('home');
       return;
     }
-    onSessionChanged(refreshed.data);
-    accountMenu.current?.removeAttribute('open');
-    onNavigate('home');
+    setError(
+      result.ok
+        ? 'Не удалось обновить рабочее пространство. Обновите страницу и повторите.'
+        : 'Не удалось переключить рабочее пространство. Обновите страницу и повторите.',
+    );
   }
 
   return (
@@ -91,7 +102,7 @@ export function PortalHeader({
             Галерея
           </button>
           <button type="button" onClick={() => onNavigate('learning')}>
-            Учебные материалы
+            Обучение
           </button>
           {canTeach ? (
             <button type="button" onClick={() => onNavigate('classes')}>
@@ -102,6 +113,15 @@ export function PortalHeader({
             Ресурсы
           </button>
         </nav>
+        <button
+          type="button"
+          className="portal-header-search"
+          aria-label="Поиск проектов"
+          title="Поиск проектов"
+          onClick={() => onNavigate('projects')}
+        >
+          <span aria-hidden="true">⌕</span>
+        </button>
         <button
           type="button"
           className="portal-header-create"
@@ -173,7 +193,10 @@ export function PortalHeader({
           </div>
         </details>
       </header>
-      <aside className="portal-sidebar" aria-label="Основная навигация">
+      <aside
+        className={sidebarCollapsed ? 'portal-sidebar collapsed' : 'portal-sidebar'}
+        aria-label="Основная навигация"
+      >
         <div className="portal-sidebar-profile">
           <span className="portal-sidebar-avatar" aria-hidden="true">
             {initials}
@@ -195,10 +218,23 @@ export function PortalHeader({
               <span className="portal-nav-glyph" aria-hidden="true">
                 {SECTION_GLYPHS[item.section]}
               </span>
-              {item.label}
+              <span className="portal-nav-label">{item.label}</span>
             </button>
           ))}
         </nav>
+        <button
+          type="button"
+          className="portal-sidebar-collapse"
+          aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
+          title={sidebarCollapsed ? 'Развернуть' : 'Свернуть'}
+          onClick={() => {
+            const next = !sidebarCollapsed;
+            setSidebarCollapsed(next);
+            window.localStorage.setItem('asa-portal-sidebar', next ? 'collapsed' : 'expanded');
+          }}
+        >
+          <span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span>
+        </button>
       </aside>
       {error ? (
         <p className="portal-global-error" role="alert">

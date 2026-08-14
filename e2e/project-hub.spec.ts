@@ -41,7 +41,7 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
   });
   expect(response.status()).toBe(201);
 
-  await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
+  await page.getByRole('button', { name: 'Проекты', exact: true }).click();
   await expect(page).toHaveURL(/#\/projects$/);
   const original = page.locator('.project-hub-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник', exact: true }),

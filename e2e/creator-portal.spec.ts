@@ -78,10 +78,12 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
 
   await expect(page).toHaveURL(/#\/home$/);
-  await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Электроника' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
-  await expect(page.getByText('Здесь появятся ваши проекты')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Новый проект Электроника/ })).toBeVisible();
 
   const electronicsProjectId = await createProjectThroughApi(page, {
     module: 'electronics',
@@ -96,8 +98,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await page.reload();
   await expect(page.getByTestId('creator-recent-projects')).toContainText('Личная схема');
   await expect(page.getByTestId('creator-recent-projects')).toContainText('Шахматный разбор');
-  await expect(page.getByRole('heading', { name: 'Уведомления' })).toBeVisible();
-  await expect(page.getByText('Новых уведомлений нет')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ASA Chess' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-creator-home-desktop.png`, fullPage: true });
 
@@ -108,7 +109,9 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page).toHaveURL(new RegExp(`#\\/home\\/${electronicsProjectId}$`));
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+  ).toBeVisible();
 
   await page
     .getByTestId('creator-recent-projects')
@@ -117,9 +120,11 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page).toHaveURL(new RegExp(`#\\/home\\/${chessProjectId}$`));
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+  ).toBeVisible();
 
-  await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
+  await page.getByRole('button', { name: 'Проекты', exact: true }).click();
   await expect(page).toHaveURL(/#\/projects$/);
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
   await expect(page.getByText('Личная схема')).toBeVisible();
@@ -138,9 +143,9 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await page.goForward();
   await expect(page.getByRole('heading', { name: 'Коллекции', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Испытания', exact: true }).click();
+  await page.getByRole('button', { name: 'Задачи', exact: true }).click();
   await expect(page.getByText('Назначенных испытаний сейчас нет')).toBeVisible();
-  await page.getByRole('button', { name: 'Помощь', exact: true }).click();
+  await page.getByRole('button', { name: 'Справочный центр', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Помощь', exact: true })).toBeVisible();
 
   await page.locator('.portal-account > summary').click();
@@ -166,7 +171,9 @@ test('creator uses Home, honest resources, routing and the integrated account sh
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/home');
-  await expect(page.getByRole('heading', { name: 'Здравствуйте, Алекс' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: `${EVIDENCE_DIR}/07-creator-home-mobile.png`, fullPage: true });
 

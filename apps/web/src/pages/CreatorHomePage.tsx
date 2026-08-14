@@ -2,20 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { api, type ModuleSummary, type Project, type SessionPayload } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { PlusIcon } from '../electronics/workbench-icons';
-import { creatorHomeState, recentProjects } from '../creator-portal/navigation';
+import { creatorHomeState } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
-function firstName(displayName: string): string {
-  return displayName.trim().split(/\s+/)[0] || displayName;
-}
+const PROJECTS_PER_MODULE = 4;
 
-function formatDate(value: string): string {
+function formatRelativeDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
+  const elapsedDays = Math.round((date.getTime() - Date.now()) / 86_400_000);
+  const formatter = new Intl.RelativeTimeFormat('ru-RU', { numeric: 'auto' });
+  if (Math.abs(elapsedDays) < 30) return formatter.format(elapsedDays, 'day');
+  const elapsedMonths = Math.round(elapsedDays / 30);
+  if (Math.abs(elapsedMonths) < 12) return formatter.format(elapsedMonths, 'month');
+  return formatter.format(Math.round(elapsedMonths / 12), 'year');
+}
+
+function sortProjects(projects: readonly Project[]): Project[] {
+  return [...projects].sort((left, right) => {
+    const timeDifference = new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+    return timeDifference === 0 ? left.title.localeCompare(right.title, 'ru') : timeDifference;
+  });
 }
 
 export function CreatorHomePage({
@@ -35,6 +42,7 @@ export function CreatorHomePage({
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingModule, setCreatingModule] = useState<string | undefined>();
   const loadSequence = useRef(0);
   const activeWorkspaceId = session.activeWorkspace.workspaceId;
 
@@ -51,7 +59,7 @@ export function CreatorHomePage({
       setError(
         projectsResult.status === 0 || modulesResult.status === 0
           ? 'Сервер недоступен.'
-          : 'Не удалось загрузить рабочее пространство.',
+          : 'Не удалось загрузить проекты.',
       );
       return;
     }
@@ -66,204 +74,160 @@ export function CreatorHomePage({
     };
   }, [load]);
 
-  const modulesByKey = useMemo(
-    () => new Map((modules ?? []).map((module) => [module.moduleKey, module])),
+  const activeModules = useMemo(
+    () => (modules ?? []).filter((module) => module.availability === 'active' && module.creatable),
     [modules],
   );
-  const recent = useMemo(() => recentProjects(projects ?? []), [projects]);
+  const projectsByModule = useMemo(() => {
+    const grouped = new Map<string, Project[]>();
+    for (const project of sortProjects(projects ?? [])) {
+      const group = grouped.get(project.moduleKey) ?? [];
+      group.push(project);
+      grouped.set(project.moduleKey, group);
+    }
+    return grouped;
+  }, [projects]);
   const visibleState = creatorHomeState(projects, error);
   const activeWorkspace =
     session.workspaces.find(
       (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
     )?.title ?? 'Личное пространство';
 
+  function openCreate(moduleKey?: string): void {
+    setCreatingModule(moduleKey);
+    setCreating(true);
+  }
+
   return (
     <main className="portal-content creator-home" id="main-content" tabIndex={-1}>
-      <section className="creator-home-welcome">
-        <div>
-          <p className="portal-eyebrow">{activeWorkspace}</p>
-          <h1>Здравствуйте, {firstName(session.user.displayName)}</h1>
-          <p>Продолжайте недавнюю работу или начните новый проект в доступной учебной среде.</p>
-        </div>
-        <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
-          <PlusIcon /> Создать
-        </button>
-      </section>
-
-      <section className="creator-quick-actions" aria-labelledby="creator-actions-title">
-        <div className="creator-section-heading">
-          <div>
-            <p className="creator-section-kicker">Быстрый старт</p>
-            <h2 id="creator-actions-title">Что вы хотите сделать?</h2>
-          </div>
-        </div>
-        <div className="creator-action-grid">
-          <button
-            type="button"
-            className="creator-action-card primary"
-            onClick={() => setCreating(true)}
-          >
-            <span aria-hidden="true">＋</span>
-            <strong>Новый проект</strong>
-            <small>Электроника, шахматы и другие доступные среды</small>
-          </button>
-          <button
-            type="button"
-            className="creator-action-card"
-            onClick={() => onNavigate('learning')}
-          >
-            <span aria-hidden="true">▤</span>
-            <strong>Продолжить обучение</strong>
-            <small>Ориентиры по работе с проектами</small>
-          </button>
-          {canTeach ? (
-            <button
-              type="button"
-              className="creator-action-card"
-              onClick={() => onNavigate('classes')}
+      <section className="creator-dashboard-banner" aria-labelledby="creator-banner-title">
+        <div className="creator-dashboard-art" aria-hidden="true">
+          {activeModules.slice(0, 3).map((module, index) => (
+            <span
+              key={module.moduleKey}
+              className={`creator-dashboard-art-tile tile-${index + 1}`}
+              style={{ '--module-accent': moduleAccent(module.moduleKey) } as CSSProperties}
             >
-              <span aria-hidden="true">◎</span>
-              <strong>Открыть классы</strong>
-              <small>Ученики, задания и проекты класса</small>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="creator-action-card"
-              onClick={() => onNavigate('collections')}
-            >
-              <span aria-hidden="true">◇</span>
-              <strong>Открыть коллекции</strong>
-              <small>Место для сохранённых материалов</small>
-            </button>
-          )}
+              <ModuleGlyph module={module} size={70} />
+            </span>
+          ))}
         </div>
-      </section>
-
-      <section className="creator-recent" aria-labelledby="recent-projects-title">
-        <div className="creator-section-heading">
-          <div>
-            <p className="creator-section-kicker">Недавняя работа</p>
-            <h2 id="recent-projects-title">Мои проекты</h2>
-          </div>
+        <div className="creator-dashboard-banner-copy">
+          <p className="creator-dashboard-context">{activeWorkspace}</p>
+          <h1 id="creator-banner-title">Проектируйте и обучайте в ASA Lab</h1>
+          <p>Создавайте модели, схемы и учебные проекты в одном рабочем пространстве.</p>
           <button
             type="button"
-            className="creator-text-action"
-            onClick={() => onNavigate('projects')}
+            className="creator-banner-action"
+            onClick={() => onNavigate(canTeach ? 'classes' : 'learning')}
           >
-            Все проекты
+            {canTeach ? 'Открыть классы' : 'Перейти к обучению'}
           </button>
         </div>
+      </section>
 
-        {visibleState === 'error' ? (
-          <div className="creator-state" role="alert">
-            <strong>Проекты сейчас не загрузились</strong>
-            <p>{error}</p>
-            <button type="button" className="btn-secondary" onClick={() => void load()}>
-              Повторить
-            </button>
-          </div>
-        ) : null}
+      {visibleState === 'error' ? (
+        <section className="creator-dashboard-state" role="alert">
+          <strong>Проекты сейчас не загрузились</strong>
+          <p>{error}</p>
+          <button type="button" className="btn-secondary" onClick={() => void load()}>
+            Повторить
+          </button>
+        </section>
+      ) : null}
 
-        {visibleState === 'loading' ? (
-          <div className="creator-recent-grid loading" aria-label="Загрузка недавних проектов">
-            <div />
-            <div />
-            <div />
-          </div>
-        ) : null}
+      {visibleState === 'loading' ? (
+        <section className="creator-dashboard-loading" aria-label="Загрузка проектов">
+          <div />
+          <div />
+          <div />
+          <div />
+        </section>
+      ) : null}
 
-        {visibleState === 'empty' ? (
-          <div className="creator-state creator-empty">
-            <span aria-hidden="true">✦</span>
-            <strong>Здесь появятся ваши проекты</strong>
-            <p>Создайте первый проект — он сохранится в личном рабочем пространстве.</p>
-            <button type="button" className="btn-secondary" onClick={() => setCreating(true)}>
-              Создать первый проект
-            </button>
-          </div>
-        ) : null}
+      {visibleState === 'empty' || visibleState === 'ready' ? (
+        <div className="creator-module-feed" data-testid="creator-recent-projects">
+          {activeModules.map((module) => {
+            const moduleProjects = projectsByModule.get(module.moduleKey) ?? [];
+            const visibleProjects = moduleProjects.slice(0, PROJECTS_PER_MODULE);
+            const hiddenCount = Math.max(0, moduleProjects.length - visibleProjects.length);
+            const style = { '--module-accent': moduleAccent(module.moduleKey) } as CSSProperties;
 
-        {visibleState === 'ready' ? (
-          <ul className="creator-recent-grid" data-testid="creator-recent-projects">
-            {recent.map((project) => {
-              const module = modulesByKey.get(project.moduleKey);
-              const style = {
-                '--module-accent': moduleAccent(project.moduleKey),
-              } as CSSProperties;
-              return (
-                <li key={project.id} style={style}>
-                  <button type="button" onClick={() => onOpenProject(project.id)}>
-                    <span className="creator-project-glyph">
-                      {module ? <ModuleGlyph module={module} size={42} /> : '?'}
+            return (
+              <section
+                className="creator-module-section"
+                aria-labelledby={`creator-module-${module.moduleKey}`}
+                key={module.moduleKey}
+                style={style}
+              >
+                <div className="creator-module-heading">
+                  <h2 id={`creator-module-${module.moduleKey}`}>
+                    <span aria-hidden="true">
+                      <ModuleGlyph module={module} size={24} />
                     </span>
-                    <span className="creator-project-copy">
-                      <strong>{project.title}</strong>
-                      <small>
-                        {module?.displayName ?? project.moduleKey} · изменено{' '}
-                        {formatDate(project.updatedAt)}
-                      </small>
-                    </span>
-                    <span className="creator-project-open">Открыть</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-      </section>
+                    {module.displayName}
+                  </h2>
+                  {moduleProjects.length > PROJECTS_PER_MODULE ? (
+                    <button type="button" onClick={() => onNavigate('projects')}>
+                      Показать ещё {hiddenCount}
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => onNavigate('projects')}>
+                      Все проекты
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  )}
+                </div>
 
-      <section className="creator-notifications" aria-labelledby="creator-notifications-title">
-        <div className="creator-section-heading">
-          <div>
-            <p className="creator-section-kicker">Центр событий</p>
-            <h2 id="creator-notifications-title">Уведомления</h2>
-          </div>
+                <ul className="creator-module-grid">
+                  {visibleProjects.map((project) => (
+                    <li className="creator-dashboard-project" key={project.id}>
+                      <button type="button" onClick={() => onOpenProject(project.id)}>
+                        <span className="creator-dashboard-project-preview">
+                          <span className="creator-preview-orbit" aria-hidden="true" />
+                          <ModuleGlyph module={module} size={78} />
+                        </span>
+                        <span className="creator-dashboard-project-meta">
+                          <strong>{project.title}</strong>
+                          <small>{formatRelativeDate(project.updatedAt)}</small>
+                          <span>
+                            <small>Личный проект</small>
+                            <small aria-hidden="true">•••</small>
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                  {visibleProjects.length < PROJECTS_PER_MODULE ? (
+                    <li className="creator-dashboard-project create-project">
+                      <button type="button" onClick={() => openCreate(module.moduleKey)}>
+                        <span className="creator-dashboard-create-icon" aria-hidden="true">
+                          <PlusIcon />
+                        </span>
+                        <strong>Новый проект</strong>
+                        <small>{module.displayName}</small>
+                      </button>
+                    </li>
+                  ) : null}
+                </ul>
+              </section>
+            );
+          })}
         </div>
-        <div className="creator-notification-empty">
-          <span aria-hidden="true">✓</span>
-          <div>
-            <strong>Новых уведомлений нет</strong>
-            <p>
-              Важные изменения проектов и рабочих пространств появятся здесь, когда для них будет
-              доступно серверное событие.
-            </p>
-          </div>
-          <button type="button" className="creator-text-action" onClick={() => onNavigate('help')}>
-            Как работает кабинет
-          </button>
-        </div>
-      </section>
-
-      <section className="creator-discover" aria-labelledby="creator-discover-title">
-        <div className="creator-section-heading">
-          <div>
-            <p className="creator-section-kicker">Навигация</p>
-            <h2 id="creator-discover-title">Полезные разделы</h2>
-          </div>
-        </div>
-        <div className="creator-discover-grid">
-          <button type="button" onClick={() => onNavigate('learning')}>
-            <strong>Обучение</strong>
-            <span>Начните с понятного маршрута по средам ASA Lab.</span>
-          </button>
-          <button type="button" onClick={() => onNavigate('challenges')}>
-            <strong>Испытания</strong>
-            <span>Практические идеи без неподтверждённых достижений.</span>
-          </button>
-          <button type="button" onClick={() => onNavigate('help')}>
-            <strong>Помощь</strong>
-            <span>Ответы о проектах, сохранении и рабочих пространствах.</span>
-          </button>
-        </div>
-      </section>
+      ) : null}
 
       {creating ? (
         <CreateProjectModal
           scope="personal"
-          onClose={() => setCreating(false)}
+          initialModule={creatingModule}
+          onClose={() => {
+            setCreating(false);
+            setCreatingModule(undefined);
+          }}
           onCreated={(project) => {
             setCreating(false);
+            setCreatingModule(undefined);
             onOpenProject(project.id);
           }}
         />
