@@ -3,9 +3,11 @@ import * as THREE from 'three';
 import { createThreeDNode, type PrimitiveKind } from '@asa-lab/three-d';
 import {
   createNodeObject,
+  createPrimitiveGeometry,
   createPrimitiveGeometryForKind,
   disposeObject,
 } from '../viewport/geometry';
+import { createBooleanGeometry } from '../viewport/csg';
 
 describe('ASA 3D primitive geometry', () => {
   it('keeps exact millimetre dimensions in the mesh transform', () => {
@@ -29,6 +31,18 @@ describe('ASA 3D primitive geometry', () => {
     disposeObject(object);
   });
 
+  it('uses the saved radius and steps for a rounded parallelepiped', () => {
+    const node = { ...createThreeDNode('box', 'rounded-box'), bevel: 3, sides: 8 };
+    const geometry = createPrimitiveGeometry(node);
+    geometry.computeBoundingBox();
+    const size = geometry.boundingBox?.getSize(new THREE.Vector3());
+    expect(geometry.getAttribute('position').count).toBeGreaterThan(36);
+    expect(size?.x).toBeCloseTo(1, 5);
+    expect(size?.y).toBeCloseTo(1, 5);
+    expect(size?.z).toBeCloseTo(1, 5);
+    geometry.dispose();
+  });
+
   it('normalises every catalog primitive to exact width, height and depth', () => {
     const primitives: PrimitiveKind[] = [
       'box',
@@ -38,6 +52,16 @@ describe('ASA 3D primitive geometry', () => {
       'torus',
       'wedge',
       'roof',
+      'pyramid',
+      'half-sphere',
+      'tube',
+      'rounded-box',
+      'polygon',
+      'star',
+      'heart',
+      'diamond',
+      'capsule',
+      'paraboloid',
     ];
     for (const primitive of primitives) {
       const geometry = createPrimitiveGeometryForKind(primitive, 48);
@@ -49,5 +73,42 @@ describe('ASA 3D primitive geometry', () => {
       expect(size?.z, primitive).toBeCloseTo(1, 5);
       geometry.dispose();
     }
+  });
+
+  it('subtracts a hole from a solid into printable boolean geometry', () => {
+    const solid = createThreeDNode('box', 'solid');
+    const hole = {
+      ...createThreeDNode('cylinder', 'hole'),
+      operation: 'hole' as const,
+      dimensions: { width: 8, depth: 8, height: 30 },
+    };
+    const geometry = createBooleanGeometry([solid, hole], 'difference');
+    expect(geometry).not.toBeNull();
+    expect(geometry?.getAttribute('position').count).toBeGreaterThan(36);
+    geometry?.dispose();
+  });
+
+  it('switches boolean modes without losing the saved solid and hole roles', () => {
+    const solid = createThreeDNode('box', 'solid');
+    const hole = {
+      ...createThreeDNode('cylinder', 'hole'),
+      operation: 'hole' as const,
+      dimensions: { width: 8, depth: 8, height: 30 },
+    };
+    const nodes = [solid, hole] as const;
+    const differenceBefore = createBooleanGeometry(nodes, 'difference');
+    const intersection = createBooleanGeometry(nodes, 'intersection');
+    const differenceAfter = createBooleanGeometry(nodes, 'difference');
+
+    expect(differenceBefore?.getAttribute('position').count).toBeGreaterThan(36);
+    expect(intersection?.getAttribute('position').count).toBeGreaterThan(0);
+    expect(differenceAfter?.getAttribute('position').count).toBe(
+      differenceBefore?.getAttribute('position').count,
+    );
+    expect(nodes.map((node) => node.operation)).toEqual(['solid', 'hole']);
+
+    differenceBefore?.dispose();
+    intersection?.dispose();
+    differenceAfter?.dispose();
   });
 });

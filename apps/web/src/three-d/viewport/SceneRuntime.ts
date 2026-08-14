@@ -1,20 +1,38 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import type { ThreeDDocument, ThreeDTransform } from '@asa-lab/three-d';
+import type {
+  PrimitiveKind,
+  ShapeOperation,
+  ThreeDDimensions,
+  ThreeDDocument,
+  ThreeDNode,
+  ThreeDTransform,
+} from '@asa-lab/three-d';
+import { createThreeDNode } from '@asa-lab/three-d';
+import { DirectManipulator, type DirectManipulationEntry } from './DirectManipulator';
+import { createBooleanMesh } from './csg';
 import { createNodeObject, disposeObject } from './geometry';
 
-export type TransformMode = 'translate' | 'rotate' | 'scale';
-
 export interface SceneRuntimeCallbacks {
-  readonly onSelect: (nodeId: string | null) => void;
-  readonly onTransformCommit: (nodeId: string, transform: ThreeDTransform) => void;
+  readonly onSelect: (nodeId: string | null, additive: boolean) => void;
+  readonly onTransformCommit: (
+    nodeId: string,
+    transform: ThreeDTransform,
+    dimensions?: ThreeDDimensions,
+  ) => void;
   readonly onWebGlError: (message: string) => void;
 }
 
-interface SceneEntry {
+interface SceneEntry extends DirectManipulationEntry {
   readonly object: THREE.Group;
+  readonly node: ThreeDNode;
   readonly signature: string;
+}
+
+interface PlacementPreview {
+  readonly primitive: PrimitiveKind;
+  readonly operation: ShapeOperation;
+  readonly object: THREE.Group;
 }
 
 function snap(value: number, step: number): number {
@@ -100,22 +118,23 @@ export class SceneRuntime {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly orbit: OrbitControls;
-  private readonly transform: TransformControls;
+  private readonly manipulator: DirectManipulator;
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entries = new Map<string, SceneEntry>();
+  private readonly booleanRoot = new THREE.Group();
+  private readonly rulerRoot = new THREE.Group();
+  private placementPreview: PlacementPreview | null = null;
+  private documentSignature = '';
+  private gridSignature = '';
   private readonly gridRoot = new THREE.Group();
-  private selectionHelper: THREE.BoxHelper | null = null;
-  private selectedId: string | null = null;
   private gridSnap = 1;
   private animationFrame = 0;
-  private pointerStart: { x: number; y: number } | null = null;
-  private transformDragging = false;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(
     private readonly container: HTMLElement,
-    private readonly callbacks: SceneRuntimeCallbacks,
+    callbacks: SceneRuntimeCallbacks,
   ) {
     this.scene.background = new THREE.Color('#fafafa');
     this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
@@ -129,8 +148,9 @@ export class SceneRuntime {
         powerPreference: 'high-performance',
       });
     } catch {
-      callbacks.onWebGlError('WebGL2 недоступен. Включите аппаратное ускорение браузера.');
-      throw new Error('WebGL2 is unavailable');
+      const message = 'WebGL2 недоступен. Включите аппаратное ускорение браузера.';
+      callbacks.onWebGlError(message);
+      throw new Error(message);
     }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
@@ -151,18 +171,18 @@ export class SceneRuntime {
     this.orbit.minDistance = 35;
     this.orbit.maxDistance = 1200;
 
-    this.transform = new TransformControls(this.camera, this.renderer.domElement);
-    this.transform.setTranslationSnap(1);
-    this.transform.setRotationSnap(THREE.MathUtils.degToRad(15));
-    this.transform.setScaleSnap(0.1);
-    this.transform.setSize(0.78);
-    this.transform.addEventListener('dragging-changed', (event) => {
-      const dragging = Boolean(event.value);
-      this.transformDragging = dragging;
-      this.orbit.enabled = !dragging;
-    });
-    this.transform.addEventListener('mouseUp', () => this.commitSelectedTransform());
-    this.scene.add(this.transform.getHelper());
+    this.manipulator = new DirectManipulator(
+      this.scene,
+      this.camera,
+      this.renderer.domElement,
+      this.container,
+      this.orbit,
+      () => this.entries,
+      {
+        onSelect: callbacks.onSelect,
+        onCommit: callbacks.onTransformCommit,
+      },
+    );
 
     const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 2.05);
     this.scene.add(hemisphere);
@@ -178,41 +198,13 @@ export class SceneRuntime {
     const fill = new THREE.DirectionalLight('#bcecff', 0.9);
     fill.position.set(155, 105, -120);
     this.scene.add(fill);
-    this.scene.add(this.gridRoot);
+    this.scene.add(this.gridRoot, this.booleanRoot, this.rulerRoot);
 
-    this.renderer.domElement.addEventListener('pointerdown', this.handlePointerDown);
-    this.renderer.domElement.addEventListener('pointerup', this.handlePointerUp);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
     this.animate();
   }
-
-  private readonly handlePointerDown = (event: PointerEvent): void => {
-    this.pointerStart = { x: event.clientX, y: event.clientY };
-  };
-
-  private readonly handlePointerUp = (event: PointerEvent): void => {
-    const start = this.pointerStart;
-    this.pointerStart = null;
-    if (
-      !start ||
-      this.transformDragging ||
-      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
-    )
-      return;
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.set(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const meshes = [...this.entries.values()].map((entry) => entry.object);
-    const hit = this.raycaster.intersectObjects(meshes, true)[0];
-    const nodeId =
-      typeof hit?.object.userData['nodeId'] === 'string' ? hit.object.userData['nodeId'] : null;
-    this.callbacks.onSelect(nodeId);
-  };
 
   private resize(): void {
     const width = Math.max(1, this.container.clientWidth);
@@ -225,36 +217,195 @@ export class SceneRuntime {
   private animate = (): void => {
     this.animationFrame = window.requestAnimationFrame(this.animate);
     this.orbit.update();
-    this.selectionHelper?.update();
+    this.manipulator.update();
     this.renderer.render(this.scene, this.camera);
   };
 
-  setDocument(document: ThreeDDocument, selectedId: string | null): void {
+  setDocument(document: ThreeDDocument, selectedIds: readonly string[]): void {
     this.gridSnap = document.grid.snap;
-    this.transform.setTranslationSnap(document.grid.snap);
-    this.syncGrid(document);
-    const incomingIds = new Set(document.nodes.map((node) => node.id));
+    this.manipulator.setGridSnap(document.grid.snap);
+    const gridSignature = JSON.stringify(document.grid);
+    if (gridSignature !== this.gridSignature) {
+      this.gridSignature = gridSignature;
+      this.syncGrid(document);
+    }
+    const documentSignature = JSON.stringify(document.nodes);
+    const documentChanged = documentSignature !== this.documentSignature;
+    this.documentSignature = documentSignature;
+    const groupedIds = new Set(
+      document.nodes.filter((node) => node.groupId).map((node) => node.id),
+    );
+    const groupEntryIds = new Set(
+      document.nodes
+        .filter((node) => node.groupId)
+        .map((node) => `group:${node.groupId as string}`),
+    );
+    const incomingIds = new Set([
+      ...document.nodes.filter((node) => !groupedIds.has(node.id)).map((node) => node.id),
+      ...groupEntryIds,
+    ]);
     for (const [id, entry] of this.entries) {
       if (incomingIds.has(id)) continue;
-      if (this.transform.object === entry.object) this.transform.detach();
       this.scene.remove(entry.object);
       disposeObject(entry.object);
       this.entries.delete(id);
     }
     for (const node of document.nodes) {
+      if (node.groupId) continue;
       const signature = JSON.stringify(node);
       const existing = this.entries.get(node.id);
       if (existing?.signature === signature) continue;
       if (existing) {
-        if (this.transform.object === existing.object) this.transform.detach();
         this.scene.remove(existing.object);
         disposeObject(existing.object);
       }
       const object = createNodeObject(node);
       this.scene.add(object);
-      this.entries.set(node.id, { object, signature });
+      this.entries.set(node.id, { object, node, signature });
     }
-    this.setSelection(selectedId);
+    if (documentChanged) this.syncBooleanGroups(document);
+    this.syncRuler(document, selectedIds);
+    const selectedNodes = selectedIds
+      .map((id) => document.nodes.find((node) => node.id === id))
+      .filter((node): node is ThreeDNode => Boolean(node));
+    const firstGroupId = selectedNodes[0]?.groupId;
+    const selectedGroupId =
+      selectedNodes.length > 1 &&
+      firstGroupId &&
+      selectedNodes.every((node) => node.groupId === firstGroupId)
+        ? firstGroupId
+        : null;
+    this.setSelection(selectedGroupId ? `group:${selectedGroupId}` : (selectedIds.at(-1) ?? null));
+  }
+
+  private syncBooleanGroups(document: ThreeDDocument): void {
+    for (const [id, entry] of this.entries) {
+      if (!id.startsWith('group:')) continue;
+      this.booleanRoot.remove(entry.object);
+      disposeObject(entry.object);
+      this.entries.delete(id);
+    }
+    this.booleanRoot.clear();
+    const groups = new Map<string, ThreeDNode[]>();
+    for (const node of document.nodes) {
+      if (!node.groupId) continue;
+      const group = groups.get(node.groupId) ?? [];
+      group.push(node);
+      groups.set(node.groupId, group);
+    }
+    for (const [groupId, nodes] of groups) {
+      const operation = nodes[0]?.groupOperation ?? 'union';
+      let rendered: THREE.Object3D | null;
+      try {
+        rendered = createBooleanMesh(nodes, operation);
+      } catch {
+        const fallback = new THREE.Group();
+        nodes
+          .filter((node) => node.visible)
+          .forEach((node) => fallback.add(createNodeObject(node)));
+        rendered = fallback.children.length > 0 ? fallback : null;
+      }
+      if (!rendered) continue;
+      const entryId = `group:${groupId}`;
+      const bounds = new THREE.Box3().setFromObject(rendered);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      const proxyNode: ThreeDNode = {
+        ...nodes[0]!,
+        id: entryId,
+        name: `Группа (${nodes.length})`,
+        operation: 'solid',
+        transform: {
+          position: { x: center.x, y: center.y, z: center.z },
+          rotation: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+        },
+        dimensions: { width: size.x, depth: size.z, height: size.y },
+        groupId,
+      };
+      const wrapper = new THREE.Group();
+      wrapper.userData['nodeId'] = entryId;
+      wrapper.name = proxyNode.name;
+      rendered.position.sub(center);
+      rendered.traverse((child) => {
+        child.userData['nodeId'] = entryId;
+      });
+      wrapper.position.copy(center);
+      wrapper.add(rendered);
+      this.booleanRoot.add(wrapper);
+      this.entries.set(entryId, {
+        object: wrapper,
+        node: proxyNode,
+        signature: JSON.stringify(nodes),
+      });
+    }
+  }
+
+  private syncRuler(document: ThreeDDocument, selectedIds: readonly string[]): void {
+    this.clearRuler();
+    if (!document.ruler.visible) return;
+    const origin = new THREE.Vector3(
+      document.ruler.origin.x,
+      document.ruler.origin.y + 0.08,
+      document.ruler.origin.z,
+    );
+    const addAxis = (direction: THREE.Vector3, color: string, length: number): void => {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        origin,
+        origin.clone().add(direction.multiplyScalar(length)),
+      ]);
+      const line = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color, depthTest: false, toneMapped: false }),
+      );
+      line.renderOrder = 25;
+      this.rulerRoot.add(line);
+    };
+    addAxis(new THREE.Vector3(1, 0, 0), '#d63d3d', Math.min(70, document.grid.width / 2));
+    addAxis(new THREE.Vector3(0, 0, 1), '#268f72', Math.min(70, document.grid.depth / 2));
+    addAxis(new THREE.Vector3(0, 1, 0), '#2e72c7', 45);
+    if (selectedIds.length > 0) {
+      const entryIds = new Set(
+        selectedIds.map((id) => {
+          const node = document.nodes.find((candidate) => candidate.id === id);
+          return node?.groupId ? `group:${node.groupId}` : id;
+        }),
+      );
+      [...entryIds]
+        .map((id) => this.entries.get(id)?.object.position)
+        .filter((point): point is THREE.Vector3 => Boolean(point))
+        .forEach((point) => {
+          const geometry = new THREE.BufferGeometry().setFromPoints([origin, point]);
+          const line = new THREE.Line(
+            geometry,
+            new THREE.LineDashedMaterial({
+              color: '#26343a',
+              dashSize: 2,
+              gapSize: 1,
+              transparent: true,
+              opacity: 0.75,
+            }),
+          );
+          line.computeLineDistances();
+          this.rulerRoot.add(line);
+        });
+    }
+  }
+
+  private clearRuler(): void {
+    this.rulerRoot.traverse((child) => {
+      const disposable = child as THREE.Object3D & {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      disposable.geometry?.dispose();
+      if (Array.isArray(disposable.material)) {
+        disposable.material.forEach((material) => material.dispose());
+      } else {
+        disposable.material?.dispose();
+      }
+    });
+    this.rulerRoot.clear();
   }
 
   private syncGrid(document: ThreeDDocument): void {
@@ -423,47 +574,7 @@ export class SceneRuntime {
   }
 
   setSelection(nodeId: string | null): void {
-    this.selectedId = nodeId;
-    this.transform.detach();
-    if (this.selectionHelper) {
-      this.scene.remove(this.selectionHelper);
-      this.selectionHelper.dispose();
-      this.selectionHelper = null;
-    }
-    if (!nodeId) return;
-    const entry = this.entries.get(nodeId);
-    if (!entry || !entry.object.visible) return;
-    this.transform.attach(entry.object);
-    this.selectionHelper = new THREE.BoxHelper(entry.object, '#006fb9');
-    this.scene.add(this.selectionHelper);
-  }
-
-  setTransformMode(mode: TransformMode): void {
-    this.transform.setMode(mode);
-  }
-
-  private commitSelectedTransform(): void {
-    if (!this.selectedId) return;
-    const object = this.entries.get(this.selectedId)?.object;
-    if (!object) return;
-    const toDegrees = 180 / Math.PI;
-    this.callbacks.onTransformCommit(this.selectedId, {
-      position: {
-        x: snap(object.position.x, this.gridSnap),
-        y: snap(object.position.y, this.gridSnap),
-        z: snap(object.position.z, this.gridSnap),
-      },
-      rotation: {
-        x: Math.round(object.rotation.x * toDegrees * 10) / 10,
-        y: Math.round(object.rotation.y * toDegrees * 10) / 10,
-        z: Math.round(object.rotation.z * toDegrees * 10) / 10,
-      },
-      scale: {
-        x: Math.max(0.05, Math.round(object.scale.x * 100) / 100),
-        y: Math.max(0.05, Math.round(object.scale.y * 100) / 100),
-        z: Math.max(0.05, Math.round(object.scale.z * 100) / 100),
-      },
-    });
+    this.manipulator.setSelection(nodeId);
   }
 
   workplanePoint(clientX: number, clientY: number): { x: number; z: number } | null {
@@ -477,6 +588,59 @@ export class SceneRuntime {
     if (!this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), point))
       return null;
     return { x: snap(point.x, this.gridSnap), z: snap(point.z, this.gridSnap) };
+  }
+
+  setPlacementPreview(
+    primitive: PrimitiveKind,
+    operation: ShapeOperation,
+    clientX: number,
+    clientY: number,
+  ): void {
+    const point = this.workplanePoint(clientX, clientY);
+    if (!point) {
+      this.clearPlacementPreview();
+      return;
+    }
+    if (
+      !this.placementPreview ||
+      this.placementPreview.primitive !== primitive ||
+      this.placementPreview.operation !== operation
+    ) {
+      this.clearPlacementPreview();
+      const node = {
+        ...createThreeDNode(primitive, '__placement-preview__'),
+        operation,
+      };
+      const object = createNodeObject(node);
+      object.name = 'ASA placement preview';
+      object.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          material.transparent = true;
+          material.opacity = operation === 'hole' ? 0.42 : 0.72;
+          material.depthWrite = false;
+        }
+        child.castShadow = true;
+        child.receiveShadow = false;
+        child.renderOrder = 18;
+      });
+      this.scene.add(object);
+      this.placementPreview = { primitive, operation, object };
+    }
+    this.placementPreview.object.position.x = point.x;
+    this.placementPreview.object.position.z = point.z;
+    this.placementPreview.object.updateMatrixWorld(true);
+    this.container.dataset['placementPreview'] = `${operation}:${primitive}:${point.x}:${point.z}`;
+  }
+
+  clearPlacementPreview(): void {
+    if (this.placementPreview) {
+      this.scene.remove(this.placementPreview.object);
+      disposeObject(this.placementPreview.object);
+      this.placementPreview = null;
+    }
+    delete this.container.dataset['placementPreview'];
   }
 
   setView(view: 'home' | 'top' | 'front' | 'right'): void {
@@ -519,16 +683,13 @@ export class SceneRuntime {
   dispose(): void {
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();
-    this.renderer.domElement.removeEventListener('pointerdown', this.handlePointerDown);
-    this.renderer.domElement.removeEventListener('pointerup', this.handlePointerUp);
-    this.transform.detach();
-    this.transform.dispose();
+    this.manipulator.dispose();
+    this.clearPlacementPreview();
     this.orbit.dispose();
-    this.selectionHelper?.dispose();
-    this.selectionHelper = null;
     for (const entry of this.entries.values()) disposeObject(entry.object);
     this.entries.clear();
     this.clearGrid();
+    this.clearRuler();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

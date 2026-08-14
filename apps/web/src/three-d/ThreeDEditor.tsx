@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
 import type { PublicUser } from '../api';
 import { AsaLabMark } from '../brand/AsaLabBrand';
 import {
@@ -7,16 +8,15 @@ import {
   DuplicateIcon,
   PasteIcon,
   RedoIcon,
-  RotateIcon,
   UndoIcon,
 } from '../electronics/workbench-icons';
 import { downloadThreeDJson, downloadThreeDStl } from './exporters';
 import { ShapeInspector } from './ShapeInspector';
 import { ShapeLibrary } from './ShapeLibrary';
-import { CubeIcon, HomeIcon, MoveIcon, ScaleIcon } from './three-d-icons';
+import { SelectionTools } from './SelectionTools';
+import { AlignIcon, CubeIcon, GroupIcon, HoleIcon, HomeIcon, UngroupIcon } from './three-d-icons';
 import { useThreeDProject } from './use-three-d-project';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
-import type { TransformMode } from './viewport/SceneRuntime';
 import './three-d.css';
 
 interface ThreeDEditorProps {
@@ -81,9 +81,13 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const controller = useThreeDProject(projectId);
   const viewportRef = useRef<ThreeViewportHandle>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const [transformMode, setTransformMode] = useState<TransformMode>('translate');
   const [exportOpen, setExportOpen] = useState(false);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+  const [alignmentOpen, setAlignmentOpen] = useState(false);
+  const [draggedPlacement, setDraggedPlacement] = useState<{
+    readonly primitive: PrimitiveKind;
+    readonly operation: ShapeOperation;
+  } | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -105,15 +109,13 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
       } else if (modifier && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         controller.duplicateSelected();
+      } else if (modifier && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        if (event.shiftKey) controller.ungroupSelected();
+        else controller.groupSelected('union');
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         controller.removeSelected();
-      } else if (event.key.toLowerCase() === 'm') {
-        setTransformMode('translate');
-      } else if (event.key.toLowerCase() === 'r') {
-        setTransformMode('rotate');
-      } else if (event.key.toLowerCase() === 's') {
-        setTransformMode('scale');
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -203,9 +205,60 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           <ToolbarButton
             label="Копировать (Ctrl+C)"
             onClick={controller.copySelected}
-            disabled={!controller.selectedNode}
+            disabled={controller.selectedNodes.length === 0}
           >
             <DuplicateIcon />
+          </ToolbarButton>
+          <span className="asa3d-toolbar-divider" />
+          <ToolbarButton
+            label="Сделать телом"
+            active={
+              controller.selectedNodes.length > 0 &&
+              controller.selectedNodes.every((node) => node.operation === 'solid')
+            }
+            onClick={() => controller.setSelectionOperation('solid')}
+            disabled={controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)}
+          >
+            <CubeIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Сделать отверстием"
+            active={
+              controller.selectedNodes.length > 0 &&
+              controller.selectedNodes.every((node) => node.operation === 'hole')
+            }
+            onClick={() => controller.setSelectionOperation('hole')}
+            disabled={controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)}
+          >
+            <HoleIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Сгруппировать (Ctrl+G)"
+            onClick={() => controller.groupSelected('union')}
+            disabled={
+              controller.selectedNodes.filter((node) => !node.locked).length < 2 ||
+              Boolean(controller.selectedGroupId)
+            }
+          >
+            <GroupIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Разгруппировать (Ctrl+Shift+G)"
+            onClick={controller.ungroupSelected}
+            disabled={!controller.selectedGroupId}
+          >
+            <UngroupIcon />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Выравнивание"
+            active={alignmentOpen}
+            onClick={() => setAlignmentOpen((open) => !open)}
+            disabled={
+              controller.selectedNodes.filter((node) => !node.locked).length < 2 ||
+              Boolean(controller.selectedGroupId)
+            }
+          >
+            <AlignIcon />
           </ToolbarButton>
           <ToolbarButton
             label="Вставить (Ctrl+V)"
@@ -217,7 +270,10 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           <ToolbarButton
             label="Удалить (Delete)"
             onClick={controller.removeSelected}
-            disabled={!controller.selectedNode || controller.selectedNode.locked}
+            disabled={
+              controller.selectedNodes.length === 0 ||
+              controller.selectedNodes.every((node) => node.locked)
+            }
           >
             <DeleteIcon />
           </ToolbarButton>
@@ -235,30 +291,6 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             disabled={controller.history.future.length === 0}
           >
             <RedoIcon />
-          </ToolbarButton>
-        </div>
-
-        <div className="asa3d-toolbar-group asa3d-transform-tools" aria-label="Преобразование">
-          <ToolbarButton
-            label="Перемещение (M)"
-            active={transformMode === 'translate'}
-            onClick={() => setTransformMode('translate')}
-          >
-            <MoveIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Поворот (R)"
-            active={transformMode === 'rotate'}
-            onClick={() => setTransformMode('rotate')}
-          >
-            <RotateIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Масштаб (S)"
-            active={transformMode === 'scale'}
-            onClick={() => setTransformMode('scale')}
-          >
-            <ScaleIcon />
           </ToolbarButton>
         </div>
 
@@ -324,11 +356,11 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           <ThreeViewport
             ref={viewportRef}
             document={document}
-            selectedId={controller.selectedId}
-            transformMode={transformMode}
+            selectedIds={controller.selectedIds}
             onSelect={controller.setSelectedId}
             onTransformCommit={controller.commitTransform}
             onDropPrimitive={controller.addPrimitive}
+            activePlacement={draggedPlacement}
           />
 
           <div className="asa3d-view-cube" aria-label="Стандартные виды">
@@ -380,6 +412,18 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
               onClose={() => controller.setSelectedId(null)}
             />
           )}
+
+          {controller.selectedNodes.length > 0 &&
+            (alignmentOpen || controller.selectedGroupId || document.ruler.visible) && (
+              <SelectionTools
+                nodes={controller.selectedNodes}
+                groupId={controller.selectedGroupId}
+                ruler={document.ruler}
+                onAlign={controller.alignSelected}
+                onGroupOperation={controller.setSelectedGroupOperation}
+                onRulerOrigin={controller.setRulerOriginFromSelection}
+              />
+            )}
 
           {gridSettingsOpen && (
             <section className="asa3d-grid-panel" aria-label="Параметры рабочей плоскости">
@@ -461,9 +505,17 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         </div>
         <ShapeLibrary
           onAdd={controller.addPrimitive}
+          onDragStateChange={setDraggedPlacement}
           gridVisible={document.grid.visible}
           onToggleGrid={() => replaceGrid({ visible: !document.grid.visible })}
           onOpenGridSettings={() => setGridSettingsOpen(true)}
+          rulerVisible={document.ruler.visible}
+          onToggleRuler={() =>
+            controller.execute({
+              type: 'replace-ruler',
+              value: { ...document.ruler, visible: !document.ruler.visible },
+            })
+          }
         />
       </section>
 
