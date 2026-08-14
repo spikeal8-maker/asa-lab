@@ -112,20 +112,20 @@ parallel_lanes:
       branch: agent/chess-r2-puzzles-learning
       base_branch: main
       pr: 116
-      pr_draft: true
-      status: in_progress
+      pr_draft: false
+      status: done
       checkpoint: puzzle_learning_vertical
-      owner_acceptance: pending
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
-      head_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
-      owner_accepted_sha: null
-      product_merge_sha: b00338740d7435d8a230e4f1c0182466fe10c33f
+      head_sha: 1729ecf65a7ddd01b4c2e2680c5d4fa88ff39d9a
+      owner_accepted_sha: 1729ecf65a7ddd01b4c2e2680c5d4fa88ff39d9a
+      product_merge_sha: 28a147371b8b75071ee304470eca7326ab7458c0
     execution_lease:
       executor_id: codex-chess-r2
-      holder: codex-chess-r2
-      acquired_at: "2026-08-14T10:54:45Z"
-      expires_at: "2026-08-15T10:54:45Z"
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
       reviewer_role_requires_lease: false
     gates:
       focused:
