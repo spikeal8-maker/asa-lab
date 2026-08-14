@@ -324,8 +324,12 @@
   width: min(100%, 760px);
   aspect-ratio: 1;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+  box-sizing: border-box;
+  contain: layout paint;
+  container-type: inline-size;
+  isolation: isolate;
   border-radius: 7px;
   overflow: hidden;
   border: 4px solid #294d5f;
@@ -338,9 +342,13 @@
   position: relative;
   min-width: 0;
   min-height: 0;
+  aspect-ratio: 1;
+  overflow: hidden;
   border: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   cursor: pointer;
   color: #203340;
@@ -372,11 +380,26 @@
 }
 
 .asa-chess-piece {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 3;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.asa-chess-piece-glyph {
+  display: block;
   font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', serif;
-  font-size: clamp(31px, 6.8vw, 73px);
+  font-size: clamp(24px, 6.8vw, 73px);
+  font-size: 9.75cqi;
   line-height: 1;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  transform: translateY(-0.18cqi);
+  transform-origin: center;
   transition: transform 100ms ease;
   filter: drop-shadow(0 2px 1px rgba(15, 30, 39, 0.26));
 }
@@ -392,9 +415,9 @@
   -webkit-text-stroke: 0.45px #0b1d27;
 }
 
-.asa-chess-square:hover .asa-chess-piece,
-.asa-chess-square:focus-visible .asa-chess-piece {
-  transform: scale(1.05);
+.asa-chess-square:hover .asa-chess-piece-glyph,
+.asa-chess-square:focus-visible .asa-chess-piece-glyph {
+  transform: translateY(-0.18cqi) scale(1.04);
 }
 
 .asa-chess-coordinate {
@@ -1125,10 +1148,6 @@
 
   .asa-chess-board {
     border-width: 3px;
-  }
-
-  .asa-chess-piece {
-    font-size: clamp(29px, 12vw, 55px);
   }
 
   .asa-chess-board-actions {

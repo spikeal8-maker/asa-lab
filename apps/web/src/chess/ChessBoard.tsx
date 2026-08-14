@@ -60,6 +60,7 @@ export function ChessBoard({
       role="grid"
       aria-label={`Шахматная доска, ходят ${position.turn === 'white' ? 'белые' : 'чёрные'}`}
       data-testid={testId}
+      data-board-renderer="asa-grid-v2"
     >
       {ranks.flatMap((rank, rankIndex) =>
         files.map((file, fileIndex) => {
@@ -126,7 +127,9 @@ export function ChessBoard({
                   aria-hidden="true"
                   data-piece-type={piece.type}
                 >
-                  {PIECE_SYMBOL[piece.color][piece.type]}
+                  <span className="asa-chess-piece-glyph">
+                    {PIECE_SYMBOL[piece.color][piece.type]}
+                  </span>
                 </span>
               )}
             </button>
