@@ -260,6 +260,7 @@ integration:
     - tools/test_validate_control_plane.py
     - .github/workflows/**
     - apps/api/src/module-registry.ts
+    - apps/api/src/modules.controller.spec.ts
     - apps/web/src/modules/ModuleEditorHost.tsx
     - docs/delivery/**
     - docs/project-map/**
