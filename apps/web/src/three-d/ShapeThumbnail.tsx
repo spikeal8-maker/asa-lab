@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import type { PrimitiveKind } from '@asa-lab/three-d';
+import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
 import { createPrimitiveGeometryForKind } from './viewport/geometry';
 
 interface ShapeThumbnailProps {
   readonly color: string;
   readonly primitive: PrimitiveKind;
+  readonly operation?: ShapeOperation;
 }
 
 interface ProjectedPoint {
@@ -121,7 +122,12 @@ function previewModelMatrix(primitive: PrimitiveKind): THREE.Matrix4 {
   return matrix;
 }
 
-function renderThumbnail(target: HTMLCanvasElement, primitive: PrimitiveKind, color: string): void {
+function renderThumbnail(
+  target: HTMLCanvasElement,
+  primitive: PrimitiveKind,
+  color: string,
+  operation: ShapeOperation,
+): void {
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
   target.width = Math.round(WIDTH * pixelRatio);
   target.height = Math.round(HEIGHT * pixelRatio);
@@ -141,9 +147,26 @@ function renderThumbnail(target: HTMLCanvasElement, primitive: PrimitiveKind, co
   const modelMatrix = previewModelMatrix(primitive);
   const geometry = createPrimitiveGeometryForKind(primitive, 48);
   const triangles = collectTriangles(geometry, camera, modelMatrix, color);
+  const stripeCanvas = globalThis.document.createElement('canvas');
+  stripeCanvas.width = 12;
+  stripeCanvas.height = 12;
+  const stripeContext = stripeCanvas.getContext('2d');
+  if (stripeContext) {
+    stripeContext.fillStyle = '#c8d0d5';
+    stripeContext.fillRect(0, 0, 12, 12);
+    stripeContext.strokeStyle = '#929fa7';
+    stripeContext.lineWidth = 4;
+    stripeContext.beginPath();
+    stripeContext.moveTo(-3, 11);
+    stripeContext.lineTo(11, -3);
+    stripeContext.moveTo(3, 15);
+    stripeContext.lineTo(15, 3);
+    stripeContext.stroke();
+  }
+  const stripePattern = context.createPattern(stripeCanvas, 'repeat');
   for (const triangle of triangles) {
-    context.fillStyle = triangle.color;
-    context.strokeStyle = triangle.color;
+    context.fillStyle = operation === 'hole' && stripePattern ? stripePattern : triangle.color;
+    context.strokeStyle = operation === 'hole' ? '#7f8c94' : triangle.color;
     context.lineWidth = 0.65;
     context.beginPath();
     context.moveTo(triangle.points[0].x, triangle.points[0].y);
@@ -156,19 +179,23 @@ function renderThumbnail(target: HTMLCanvasElement, primitive: PrimitiveKind, co
   geometry.dispose();
 }
 
-export function ShapeThumbnail({ color, primitive }: ShapeThumbnailProps): JSX.Element {
+export function ShapeThumbnail({
+  color,
+  primitive,
+  operation = 'solid',
+}: ShapeThumbnailProps): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     try {
-      renderThumbnail(canvas, primitive, color);
+      renderThumbnail(canvas, primitive, color, operation);
       delete canvas.dataset['renderFailed'];
     } catch {
       canvas.dataset['renderFailed'] = 'true';
     }
-  }, [color, primitive]);
+  }, [color, operation, primitive]);
 
   return <canvas ref={canvasRef} className="asa3d-shape-thumbnail" aria-hidden="true" />;
 }

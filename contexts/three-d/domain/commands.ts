@@ -5,6 +5,7 @@ import {
   type ThreeDDocument,
   type ThreeDGridSettings,
   type ThreeDNode,
+  type ThreeDRulerSettings,
   type ThreeDTransform,
 } from './document.js';
 
@@ -23,7 +24,9 @@ export type ThreeDCommand =
   | { readonly type: 'set-locked'; readonly nodeId: string; readonly locked: boolean }
   | { readonly type: 'set-visible'; readonly nodeId: string; readonly visible: boolean }
   | { readonly type: 'replace-node'; readonly node: ThreeDNode }
-  | { readonly type: 'replace-grid'; readonly value: ThreeDGridSettings };
+  | { readonly type: 'replace-nodes'; readonly nodes: readonly ThreeDNode[] }
+  | { readonly type: 'replace-grid'; readonly value: ThreeDGridSettings }
+  | { readonly type: 'replace-ruler'; readonly value: ThreeDRulerSettings };
 
 export interface CommandResult {
   readonly document: ThreeDDocument;
@@ -93,11 +96,14 @@ export function applyThreeDCommand(source: ThreeDDocument, command: ThreeDComman
         ? { document: { ...document, nodes }, changed: true }
         : { document: source, changed: false };
     }
-    case 'set-visible':
-      return replaceNode(document, command.nodeId, (node) => ({
-        ...node,
-        visible: command.visible,
-      }));
+    case 'set-visible': {
+      const nodes = document.nodes.map((node) =>
+        node.id === command.nodeId ? { ...node, visible: command.visible } : node,
+      );
+      return document.nodes.some((node) => node.id === command.nodeId)
+        ? { document: { ...document, nodes }, changed: true }
+        : { document: source, changed: false };
+    }
     case 'replace-node': {
       const index = document.nodes.findIndex((node) => node.id === command.node.id);
       if (index < 0 || document.nodes[index]?.locked) return { document: source, changed: false };
@@ -105,8 +111,29 @@ export function applyThreeDCommand(source: ThreeDDocument, command: ThreeDComman
       nodes[index] = command.node;
       return { document: { ...document, nodes }, changed: true };
     }
+    case 'replace-nodes': {
+      const replacements = new Map(command.nodes.map((node) => [node.id, node]));
+      let changed = false;
+      const nodes = document.nodes.map((node) => {
+        const replacement = replacements.get(node.id);
+        if (!replacement || node.locked) return node;
+        changed = true;
+        return replacement;
+      });
+      return changed
+        ? { document: { ...document, nodes }, changed: true }
+        : { document: source, changed: false };
+    }
     case 'replace-grid':
       return { document: { ...document, grid: { ...command.value } }, changed: true };
+    case 'replace-ruler':
+      return {
+        document: {
+          ...document,
+          ruler: { ...command.value, origin: { ...command.value.origin } },
+        },
+        changed: true,
+      };
   }
 }
 

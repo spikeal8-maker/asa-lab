@@ -1,0 +1,1193 @@
+import * as THREE from 'three';
+import type { ThreeDDimensions, ThreeDNode, ThreeDTransform } from '@asa-lab/three-d';
+import {
+  calculateAnchoredResize,
+  calculateHeightResize,
+  calculateLiftPosition,
+  normaliseDegrees,
+  snapRotationRadians,
+  snapToStep,
+} from './manipulation';
+
+export interface DirectManipulationEntry {
+  readonly object: THREE.Group;
+  readonly node: ThreeDNode;
+}
+
+interface OrbitLike {
+  enabled: boolean;
+}
+
+interface DirectManipulatorCallbacks {
+  readonly onSelect: (nodeId: string | null, additive: boolean) => void;
+  readonly onCommit: (
+    nodeId: string,
+    transform: ThreeDTransform,
+    dimensions?: ThreeDDimensions,
+  ) => void;
+}
+
+type RotationAxis = 'x' | 'y' | 'z';
+type HandleKind = 'resize' | 'height' | 'lift' | 'rotate';
+
+interface HandleDescriptor {
+  readonly id: string;
+  readonly kind: HandleKind;
+  readonly xSign?: -1 | 0 | 1;
+  readonly zSign?: -1 | 0 | 1;
+  readonly axis?: RotationAxis;
+}
+
+interface HandleVisual {
+  readonly descriptor: HandleDescriptor;
+  readonly root: THREE.Object3D;
+  readonly accent: THREE.Color;
+}
+
+interface DragState {
+  readonly pointerId: number;
+  readonly nodeId: string;
+  readonly entry: DirectManipulationEntry;
+  readonly descriptor: HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' };
+  readonly plane: THREE.Plane;
+  readonly startPoint: THREE.Vector3;
+  readonly startPosition: THREE.Vector3;
+  readonly startQuaternion: THREE.Quaternion;
+  readonly startScale: THREE.Vector3;
+  readonly initialWidth: number;
+  readonly initialDepth: number;
+  readonly initialHeight: number;
+  readonly axisWorld: THREE.Vector3 | null;
+  readonly startRotationVector: THREE.Vector3 | null;
+  /** Keeps the exact visual handle point under an off-centre pointer grab. */
+  readonly pointerGrabOffset: THREE.Vector3;
+  readonly floorPositionY: number;
+  moved: boolean;
+  currentAngleDegrees: number;
+}
+
+interface LabelAnchor {
+  readonly element: HTMLDivElement;
+  readonly point: THREE.Vector3;
+}
+
+const HANDLE_COLOR = new THREE.Color('#e8ecee');
+const HANDLE_ACTIVE = new THREE.Color('#ef3b32');
+const OUTLINE_COLOR = '#00a9cf';
+const DIMENSION_COLOR = '#30383d';
+const RING_COLOR = '#15a9d1';
+
+const RESIZE_HANDLES: readonly HandleDescriptor[] = [
+  { id: 'resize-north-west', kind: 'resize', xSign: -1, zSign: -1 },
+  { id: 'resize-north', kind: 'resize', xSign: 0, zSign: -1 },
+  { id: 'resize-north-east', kind: 'resize', xSign: 1, zSign: -1 },
+  { id: 'resize-east', kind: 'resize', xSign: 1, zSign: 0 },
+  { id: 'resize-south-east', kind: 'resize', xSign: 1, zSign: 1 },
+  { id: 'resize-south', kind: 'resize', xSign: 0, zSign: 1 },
+  { id: 'resize-south-west', kind: 'resize', xSign: -1, zSign: 1 },
+  { id: 'resize-west', kind: 'resize', xSign: -1, zSign: 0 },
+] as const;
+
+const HEIGHT_HANDLE: HandleDescriptor = { id: 'resize-height', kind: 'height' };
+const LIFT_HANDLE: HandleDescriptor = { id: 'lift', kind: 'lift' };
+const ROTATE_HANDLES: readonly HandleDescriptor[] = [
+  { id: 'rotate-x', kind: 'rotate', axis: 'x' },
+  { id: 'rotate-y', kind: 'rotate', axis: 'y' },
+  { id: 'rotate-z', kind: 'rotate', axis: 'z' },
+] as const;
+
+function round(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function axisVector(axis: RotationAxis): THREE.Vector3 {
+  if (axis === 'x') return new THREE.Vector3(1, 0, 0);
+  if (axis === 'y') return new THREE.Vector3(0, 1, 0);
+  return new THREE.Vector3(0, 0, 1);
+}
+
+function findNodeId(object: THREE.Object3D | undefined): string | null {
+  let current = object;
+  while (current) {
+    const nodeId = current.userData['nodeId'];
+    if (typeof nodeId === 'string') return nodeId;
+    current = current.parent ?? undefined;
+  }
+  return null;
+}
+
+function findHandleId(object: THREE.Object3D | undefined): string | null {
+  let current = object;
+  while (current) {
+    const handleId = current.userData['directHandleId'];
+    if (typeof handleId === 'string') return handleId;
+    current = current.parent ?? undefined;
+  }
+  return null;
+}
+
+function createRotationArrowTexture(): THREE.CanvasTexture {
+  const canvas = globalThis.document.createElement('canvas');
+  canvas.width = 96;
+  canvas.height = 96;
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.clearRect(0, 0, 96, 96);
+    context.strokeStyle = '#ffffff';
+    context.fillStyle = '#ffffff';
+    context.lineWidth = 9;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.arc(48, 52, 26, Math.PI * 1.08, Math.PI * 1.88);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(72, 33);
+    context.lineTo(72, 57);
+    context.lineTo(53, 43);
+    context.closePath();
+    context.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  return texture;
+}
+
+function createSquareHandleTexture(): THREE.CanvasTexture {
+  const canvas = globalThis.document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.clearRect(0, 0, 64, 64);
+    context.shadowColor = 'rgba(10, 22, 28, 0.42)';
+    context.shadowBlur = 4;
+    context.shadowOffsetY = 2;
+    context.fillStyle = '#f5f7f7';
+    context.strokeStyle = '#20292d';
+    context.lineWidth = 8;
+    context.fillRect(16, 16, 32, 32);
+    context.strokeRect(16, 16, 32, 32);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  return texture;
+}
+
+function createLiftHandleTexture(): THREE.CanvasTexture {
+  const canvas = globalThis.document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.clearRect(0, 0, 64, 64);
+    context.fillStyle = '#ffffff';
+    context.beginPath();
+    context.moveTo(32, 9);
+    context.lineTo(50, 51);
+    context.lineTo(14, 51);
+    context.closePath();
+    context.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  return texture;
+}
+
+function disposeGraph(root: THREE.Object3D): void {
+  root.traverse((child) => {
+    const disposable = child as THREE.Object3D & {
+      geometry?: THREE.BufferGeometry;
+      material?: THREE.Material | THREE.Material[];
+    };
+    disposable.geometry?.dispose();
+    if (Array.isArray(disposable.material)) {
+      disposable.material.forEach((material) => material.dispose());
+    } else {
+      disposable.material?.dispose();
+    }
+  });
+}
+
+export class DirectManipulator {
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly pointer = new THREE.Vector2();
+  private readonly outline: THREE.LineSegments;
+  private readonly centreMarker: THREE.Mesh;
+  private readonly handleRoot = new THREE.Group();
+  private readonly handles = new Map<string, HandleVisual>();
+  private readonly rotationRing = new THREE.Group();
+  private readonly dimensionRoot = new THREE.Group();
+  private readonly overlay: HTMLDivElement;
+  private readonly rotationTexture = createRotationArrowTexture();
+  private readonly squareTexture = createSquareHandleTexture();
+  private readonly liftTexture = createLiftHandleTexture();
+  private selectedId: string | null = null;
+  private hoveredHandleId: string | null = null;
+  private rotationRingAxis: RotationAxis | null = null;
+  private gridSnap = 1;
+  private backgroundPointerStart: { readonly x: number; readonly y: number } | null = null;
+  private drag: DragState | null = null;
+  private labelAnchors: LabelAnchor[] = [];
+  private handlePositionSignature = '';
+
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly camera: THREE.PerspectiveCamera,
+    private readonly canvas: HTMLCanvasElement,
+    private readonly container: HTMLElement,
+    private readonly orbit: OrbitLike,
+    private readonly getEntries: () => ReadonlyMap<string, DirectManipulationEntry>,
+    private readonly callbacks: DirectManipulatorCallbacks,
+  ) {
+    this.handleRoot.name = 'ASA direct-manipulation handles';
+    this.rotationRing.name = 'ASA direct-manipulation rotation ring';
+    this.dimensionRoot.name = 'ASA direct-manipulation dimensions';
+    this.scene.add(this.handleRoot, this.rotationRing, this.dimensionRoot);
+
+    this.outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+      new THREE.LineBasicMaterial({
+        color: OUTLINE_COLOR,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.98,
+        toneMapped: false,
+      }),
+    );
+    this.outline.name = 'ASA selected-object outline';
+    this.outline.renderOrder = 50;
+    this.outline.visible = false;
+    this.scene.add(this.outline);
+
+    this.centreMarker = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({
+        color: '#30383d',
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    this.centreMarker.name = 'ASA selected-object centre';
+    this.centreMarker.renderOrder = 53;
+    this.centreMarker.visible = false;
+    this.scene.add(this.centreMarker);
+
+    for (const descriptor of [...RESIZE_HANDLES, HEIGHT_HANDLE]) {
+      this.addSquareHandle(descriptor);
+    }
+    this.addLiftHandle(LIFT_HANDLE);
+    for (const descriptor of ROTATE_HANDLES) this.addRotationHandle(descriptor);
+
+    this.overlay = globalThis.document.createElement('div');
+    this.overlay.className = 'asa3d-manipulation-overlay';
+    this.overlay.dataset['testid'] = 'asa3d-manipulator-overlay';
+    this.overlay.setAttribute('aria-live', 'polite');
+    this.overlay.setAttribute('aria-atomic', 'false');
+    this.container.append(this.overlay);
+
+    this.canvas.addEventListener('pointerdown', this.handlePointerDown, true);
+    this.canvas.addEventListener('pointermove', this.handlePointerMove, true);
+    this.canvas.addEventListener('pointerup', this.handlePointerUp, true);
+    this.canvas.addEventListener('pointercancel', this.handlePointerCancel, true);
+    this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
+    this.canvas.style.cursor = 'default';
+  }
+
+  private addSquareHandle(descriptor: HandleDescriptor): void {
+    const material = new THREE.SpriteMaterial({
+      map: this.squareTexture,
+      color: HANDLE_COLOR,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
+    });
+    const root = new THREE.Sprite(material);
+    root.userData['directHandleId'] = descriptor.id;
+    root.renderOrder = 57;
+    root.visible = false;
+    this.handleRoot.add(root);
+    this.handles.set(descriptor.id, { descriptor, root, accent: material.color });
+  }
+
+  private addLiftHandle(descriptor: HandleDescriptor): void {
+    const material = new THREE.SpriteMaterial({
+      map: this.liftTexture,
+      color: '#30383d',
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
+    });
+    const root = new THREE.Sprite(material);
+    root.userData['directHandleId'] = descriptor.id;
+    root.renderOrder = 58;
+    root.visible = false;
+    this.handleRoot.add(root);
+    this.handles.set(descriptor.id, { descriptor, root, accent: material.color });
+  }
+
+  private addRotationHandle(descriptor: HandleDescriptor): void {
+    const material = new THREE.SpriteMaterial({
+      map: this.rotationTexture,
+      color: '#414b50',
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    material.rotation =
+      descriptor.axis === 'y' ? -Math.PI / 2 : descriptor.axis === 'x' ? Math.PI : 0;
+    const root = new THREE.Sprite(material);
+    root.userData['directHandleId'] = descriptor.id;
+    root.renderOrder = 58;
+    root.visible = false;
+    this.handleRoot.add(root);
+    this.handles.set(descriptor.id, { descriptor, root, accent: material.color });
+  }
+
+  setGridSnap(step: number): void {
+    this.gridSnap = Number.isFinite(step) && step > 0 ? step : 1;
+  }
+
+  setSelection(nodeId: string | null): void {
+    this.selectedId = nodeId;
+    this.container.dataset['selectedNodeId'] = nodeId ?? '';
+    this.clearDimensionVisuals();
+    this.setHoveredHandle(null);
+    this.update();
+  }
+
+  private selectedEntry(): DirectManipulationEntry | null {
+    return this.selectedId ? (this.getEntries().get(this.selectedId) ?? null) : null;
+  }
+
+  private effectiveDimensions(entry: DirectManipulationEntry): THREE.Vector3 {
+    return new THREE.Vector3(
+      entry.node.dimensions.width * Math.abs(entry.object.scale.x),
+      entry.node.dimensions.height * Math.abs(entry.object.scale.y),
+      entry.node.dimensions.depth * Math.abs(entry.object.scale.z),
+    );
+  }
+
+  private worldFromLocal(entry: DirectManipulationEntry, local: THREE.Vector3): THREE.Vector3 {
+    return local.applyQuaternion(entry.object.quaternion).add(entry.object.position);
+  }
+
+  private worldUnitsPerPixel(point: THREE.Vector3): number {
+    const distance = Math.max(1, this.camera.position.distanceTo(point));
+    const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * distance;
+    return visibleHeight / Math.max(1, this.canvas.clientHeight);
+  }
+
+  update(): void {
+    const entry = this.selectedEntry();
+    if (!entry || !entry.object.visible) {
+      this.outline.visible = false;
+      this.centreMarker.visible = false;
+      this.handleRoot.visible = false;
+      this.rotationRing.visible = false;
+      this.publishHandlePositions(null);
+      this.clearDimensionVisuals();
+      return;
+    }
+
+    const dimensions = this.effectiveDimensions(entry);
+    const halfWidth = dimensions.x / 2;
+    const halfHeight = dimensions.y / 2;
+    const halfDepth = dimensions.z / 2;
+    this.outline.visible = true;
+    this.outline.position.copy(entry.object.position);
+    this.outline.quaternion.copy(entry.object.quaternion);
+    this.outline.scale.copy(dimensions).multiplyScalar(1.003);
+
+    const frontCentre = this.worldFromLocal(entry, new THREE.Vector3(0, 0, halfDepth));
+    const centreUnit = this.worldUnitsPerPixel(frontCentre);
+    this.centreMarker.visible = true;
+    this.centreMarker.position.copy(frontCentre);
+    this.centreMarker.quaternion.copy(this.camera.quaternion);
+    this.centreMarker.scale.setScalar(centreUnit * 6);
+
+    const showHandles = !entry.node.locked;
+    this.handleRoot.visible = showHandles;
+    if (showHandles) {
+      for (const descriptor of RESIZE_HANDLES) {
+        const visual = this.handles.get(descriptor.id);
+        if (!visual) continue;
+        const local = new THREE.Vector3(
+          (descriptor.xSign ?? 0) * halfWidth,
+          -halfHeight,
+          (descriptor.zSign ?? 0) * halfDepth,
+        );
+        const world = this.worldFromLocal(entry, local);
+        visual.root.visible = true;
+        visual.root.position.copy(world);
+        visual.root.quaternion.copy(entry.object.quaternion);
+        visual.root.scale.setScalar(this.worldUnitsPerPixel(world) * 20);
+      }
+
+      const heightVisual = this.handles.get(HEIGHT_HANDLE.id);
+      if (heightVisual) {
+        const world = this.worldFromLocal(entry, new THREE.Vector3(0, halfHeight, 0));
+        heightVisual.root.visible = true;
+        heightVisual.root.position.copy(world);
+        heightVisual.root.quaternion.copy(entry.object.quaternion);
+        heightVisual.root.scale.setScalar(this.worldUnitsPerPixel(world) * 20);
+      }
+
+      const bounds = new THREE.Box3().setFromObject(entry.object);
+      const liftVisual = this.handles.get(LIFT_HANDLE.id);
+      if (liftVisual) {
+        const top = new THREE.Vector3(
+          entry.object.position.x,
+          bounds.max.y,
+          entry.object.position.z,
+        );
+        const unit = this.worldUnitsPerPixel(top);
+        top.y += unit * 57;
+        liftVisual.root.visible = true;
+        liftVisual.root.position.copy(top);
+        liftVisual.root.quaternion.identity();
+        liftVisual.root.scale.setScalar(unit * 23);
+      }
+
+      const rotateY = this.handles.get('rotate-y');
+      if (rotateY) {
+        const boundary = this.worldFromLocal(entry, new THREE.Vector3(halfWidth, -halfHeight, 0));
+        const unit = this.worldUnitsPerPixel(boundary);
+        const world = this.worldFromLocal(
+          entry,
+          new THREE.Vector3(halfWidth + unit * 34, -halfHeight, 0),
+        );
+        rotateY.root.visible = true;
+        rotateY.root.position.copy(world);
+        rotateY.root.scale.set(unit * 34, unit * 34, 1);
+      }
+
+      const rotateX = this.handles.get('rotate-x');
+      if (rotateX) {
+        const boundary = this.worldFromLocal(entry, new THREE.Vector3(0, -halfHeight, halfDepth));
+        const unit = this.worldUnitsPerPixel(boundary);
+        const world = this.worldFromLocal(
+          entry,
+          new THREE.Vector3(0, -halfHeight, halfDepth + unit * 34),
+        );
+        rotateX.root.visible = true;
+        rotateX.root.position.copy(world);
+        rotateX.root.scale.set(unit * 34, unit * 34, 1);
+      }
+
+      const rotateZ = this.handles.get('rotate-z');
+      if (rotateZ) {
+        const boundary = this.worldFromLocal(entry, new THREE.Vector3(0, halfHeight, 0));
+        const unit = this.worldUnitsPerPixel(boundary);
+        const world = this.worldFromLocal(entry, new THREE.Vector3(0, halfHeight + unit * 29, 0));
+        rotateZ.root.visible = true;
+        rotateZ.root.position.copy(world);
+        rotateZ.root.scale.set(unit * 34, unit * 34, 1);
+      }
+    }
+
+    this.updateRotationRingTransform(entry);
+    this.publishHandlePositions(entry);
+    this.updateLabelPositions();
+  }
+
+  private publishHandlePositions(entry: DirectManipulationEntry | null): void {
+    const project = (point: THREE.Vector3): { readonly x: number; readonly y: number } => {
+      const projected = point.clone().project(this.camera);
+      return {
+        x: round((projected.x * 0.5 + 0.5) * Math.max(1, this.canvas.clientWidth), 1),
+        y: round((-projected.y * 0.5 + 0.5) * Math.max(1, this.canvas.clientHeight), 1),
+      };
+    };
+    const payload = {
+      centre: entry ? project(entry.object.position) : null,
+      handles: entry
+        ? [...this.handles.values()]
+            .filter((visual) => visual.root.visible)
+            .map((visual) => ({ id: visual.descriptor.id, ...project(visual.root.position) }))
+        : [],
+    };
+    const signature = JSON.stringify(payload);
+    if (signature === this.handlePositionSignature) return;
+    this.handlePositionSignature = signature;
+    this.overlay.dataset['handlePositions'] = signature;
+  }
+
+  private setPointer(clientX: number, clientY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+  }
+
+  private intersectHandle(): HandleDescriptor | null {
+    if (!this.handleRoot.visible) return null;
+    const visibleRoots = [...this.handles.values()]
+      .map((visual) => visual.root)
+      .filter((root) => root.visible);
+    const directHit = this.raycaster.intersectObjects(visibleRoots, true)[0];
+    const directHandleId = findHandleId(directHit?.object);
+    if (directHandleId) return this.handles.get(directHandleId)?.descriptor ?? null;
+    const ringHit = this.rotationRing.visible
+      ? this.raycaster.intersectObject(this.rotationRing, true)[0]
+      : undefined;
+    const handleId = findHandleId(ringHit?.object);
+    return handleId ? (this.handles.get(handleId)?.descriptor ?? null) : null;
+  }
+
+  private intersectEntry(): {
+    readonly nodeId: string;
+    readonly entry: DirectManipulationEntry;
+  } | null {
+    const objects = [...this.getEntries().values()]
+      .filter((entry) => entry.object.visible)
+      .map((entry) => entry.object);
+    const hit = this.raycaster.intersectObjects(objects, true)[0];
+    const nodeId = findNodeId(hit?.object);
+    const entry = nodeId ? this.getEntries().get(nodeId) : null;
+    return nodeId && entry ? { nodeId, entry } : null;
+  }
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    this.setPointer(event.clientX, event.clientY);
+    const handle = this.intersectHandle();
+    const selected = this.selectedEntry();
+    if (handle && selected && !selected.node.locked) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.beginDrag(event, this.selectedId as string, selected, handle);
+      return;
+    }
+
+    const hit = this.intersectEntry();
+    if (hit) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.shiftKey) {
+        this.callbacks.onSelect(hit.nodeId, true);
+        return;
+      }
+      if (this.selectedId !== hit.nodeId) {
+        this.selectedId = hit.nodeId;
+        this.callbacks.onSelect(hit.nodeId, false);
+        this.update();
+      }
+      if (!hit.entry.node.locked) {
+        this.beginDrag(event, hit.nodeId, hit.entry, { id: 'move', kind: 'move' });
+      }
+      return;
+    }
+
+    this.backgroundPointerStart = { x: event.clientX, y: event.clientY };
+    this.setHoveredHandle(null);
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.drag) {
+      if (event.pointerId !== this.drag.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.updateDrag(event);
+      return;
+    }
+
+    this.setPointer(event.clientX, event.clientY);
+    const handle = this.intersectHandle();
+    this.setHoveredHandle(handle?.id ?? null);
+    if (handle) return;
+    this.canvas.style.cursor = 'default';
+  };
+
+  private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.drag && event.pointerId === this.drag.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.finishDrag();
+      return;
+    }
+
+    const start = this.backgroundPointerStart;
+    this.backgroundPointerStart = null;
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 5) {
+      this.selectedId = null;
+      this.callbacks.onSelect(null, false);
+      this.setSelection(null);
+    }
+  };
+
+  private readonly handlePointerCancel = (event: PointerEvent): void => {
+    if (this.drag?.pointerId === event.pointerId) this.finishDrag();
+  };
+
+  private readonly handlePointerLeave = (): void => {
+    if (!this.drag) this.setHoveredHandle(null);
+  };
+
+  private beginDrag(
+    event: PointerEvent,
+    nodeId: string,
+    entry: DirectManipulationEntry,
+    descriptor: HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' },
+  ): void {
+    const object = entry.object;
+    const startPosition = object.position.clone();
+    const startQuaternion = object.quaternion.clone();
+    const startScale = object.scale.clone();
+    const dimensions = this.effectiveDimensions(entry);
+    const localY = new THREE.Vector3(0, 1, 0).applyQuaternion(startQuaternion).normalize();
+    let plane: THREE.Plane;
+    let axisWorld: THREE.Vector3 | null = null;
+    let mathematicalHandlePoint: THREE.Vector3 | null = null;
+
+    if (descriptor.kind === 'move') {
+      plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    } else if (descriptor.kind === 'resize') {
+      mathematicalHandlePoint = this.worldFromLocal(
+        entry,
+        new THREE.Vector3(
+          (descriptor.xSign ?? 0) * (dimensions.x / 2),
+          -dimensions.y / 2,
+          (descriptor.zSign ?? 0) * (dimensions.z / 2),
+        ),
+      );
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(localY, mathematicalHandlePoint);
+    } else if (descriptor.kind === 'height') {
+      axisWorld = localY;
+      plane = this.dragPlaneForAxis(axisWorld, startPosition);
+    } else if (descriptor.kind === 'lift') {
+      axisWorld = new THREE.Vector3(0, 1, 0);
+      plane = this.dragPlaneForAxis(axisWorld, startPosition);
+    } else {
+      axisWorld = axisVector(descriptor.axis ?? 'y')
+        .applyQuaternion(startQuaternion)
+        .normalize();
+      const ringPoint =
+        this.rotationRing.visible && this.rotationRingAxis === descriptor.axis
+          ? this.rotationRing.position
+          : (this.handles.get(descriptor.id)?.root.position ?? startPosition);
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axisWorld, ringPoint);
+    }
+
+    const startPoint = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(plane, startPoint)) return;
+    const pointerGrabOffset = mathematicalHandlePoint
+      ? mathematicalHandlePoint.clone().sub(startPoint)
+      : new THREE.Vector3();
+    const bounds = new THREE.Box3().setFromObject(object);
+    const startRotationVector =
+      descriptor.kind === 'rotate'
+        ? startPoint
+            .clone()
+            .sub(startPosition)
+            .projectOnPlane(axisWorld as THREE.Vector3)
+            .normalize()
+        : null;
+
+    this.drag = {
+      pointerId: event.pointerId,
+      nodeId,
+      entry,
+      descriptor,
+      plane,
+      startPoint,
+      startPosition,
+      startQuaternion,
+      startScale,
+      initialWidth: dimensions.x,
+      initialDepth: dimensions.z,
+      initialHeight: dimensions.y,
+      axisWorld,
+      startRotationVector,
+      pointerGrabOffset,
+      floorPositionY: startPosition.y - bounds.min.y,
+      moved: false,
+      currentAngleDegrees: 0,
+    };
+    this.orbit.enabled = false;
+    this.backgroundPointerStart = null;
+    this.container.dataset['manipulating'] = descriptor.kind;
+    this.canvas.setPointerCapture(event.pointerId);
+    this.canvas.style.cursor = 'default';
+    if (descriptor.kind !== 'move') this.setHoveredHandle(descriptor.id);
+    this.showMeasurements(descriptor);
+  }
+
+  private dragPlaneForAxis(axis: THREE.Vector3, point: THREE.Vector3): THREE.Plane {
+    const cameraDirection = new THREE.Vector3();
+    this.camera.getWorldDirection(cameraDirection);
+    const normal = cameraDirection.addScaledVector(axis, -cameraDirection.dot(axis));
+    if (normal.lengthSq() < 0.0001) {
+      normal.copy(new THREE.Vector3(0, 0, 1)).addScaledVector(axis, -axis.z);
+    }
+    return new THREE.Plane().setFromNormalAndCoplanarPoint(normal.normalize(), point);
+  }
+
+  private updateDrag(event: PointerEvent): void {
+    const drag = this.drag;
+    if (!drag) return;
+    this.setPointer(event.clientX, event.clientY);
+    const point = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(drag.plane, point)) return;
+    const delta = point.clone().sub(drag.startPoint);
+    const object = drag.entry.object;
+
+    if (drag.descriptor.kind === 'move') {
+      object.position.set(
+        snapToStep(drag.startPosition.x + delta.x, this.gridSnap),
+        drag.startPosition.y,
+        snapToStep(drag.startPosition.z + delta.z, this.gridSnap),
+      );
+    } else if (drag.descriptor.kind === 'resize') {
+      const inverse = drag.startQuaternion.clone().invert();
+      const localPointer = point
+        .clone()
+        .add(drag.pointerGrabOffset)
+        .sub(drag.startPosition)
+        .applyQuaternion(inverse);
+      const result = calculateAnchoredResize({
+        initialWidth: drag.initialWidth,
+        initialDepth: drag.initialDepth,
+        pointerX: localPointer.x,
+        pointerZ: localPointer.z,
+        xSign: drag.descriptor.xSign ?? 0,
+        zSign: drag.descriptor.zSign ?? 0,
+        snapStep: this.gridSnap,
+      });
+      object.scale.set(
+        result.width / drag.entry.node.dimensions.width,
+        drag.startScale.y,
+        result.depth / drag.entry.node.dimensions.depth,
+      );
+      const centreOffset = new THREE.Vector3(result.centerOffsetX, 0, result.centerOffsetZ)
+        .applyQuaternion(drag.startQuaternion)
+        .add(drag.startPosition);
+      object.position.copy(centreOffset);
+    } else if (drag.descriptor.kind === 'height') {
+      const axisDelta = delta.dot(drag.axisWorld as THREE.Vector3);
+      const result = calculateHeightResize(drag.initialHeight, axisDelta, this.gridSnap);
+      object.scale.set(
+        drag.startScale.x,
+        result.height / drag.entry.node.dimensions.height,
+        drag.startScale.z,
+      );
+      object.position
+        .copy(drag.startPosition)
+        .add((drag.axisWorld as THREE.Vector3).clone().multiplyScalar(result.centerOffset));
+    } else if (drag.descriptor.kind === 'lift') {
+      const axisDelta = delta.dot(drag.axisWorld as THREE.Vector3);
+      object.position.copy(drag.startPosition);
+      object.position.y = calculateLiftPosition(
+        drag.startPosition.y,
+        axisDelta,
+        drag.floorPositionY,
+        this.gridSnap,
+      );
+    } else {
+      const axis = drag.axisWorld as THREE.Vector3;
+      const currentVector = point.clone().sub(drag.startPosition).projectOnPlane(axis).normalize();
+      const startVector = drag.startRotationVector as THREE.Vector3;
+      const unsigned = Math.acos(THREE.MathUtils.clamp(startVector.dot(currentVector), -1, 1));
+      const sign = Math.sign(axis.dot(startVector.clone().cross(currentVector))) || 1;
+      const snapped = snapRotationRadians(unsigned * sign, event.shiftKey ? 15 : 1);
+      drag.currentAngleDegrees = normaliseDegrees(THREE.MathUtils.radToDeg(snapped));
+      const localRotation = new THREE.Quaternion().setFromAxisAngle(
+        axisVector(drag.descriptor.axis ?? 'y'),
+        snapped,
+      );
+      object.quaternion.copy(drag.startQuaternion).multiply(localRotation).normalize();
+    }
+
+    object.updateMatrixWorld(true);
+    drag.moved = this.transformChanged(drag);
+    this.update();
+    this.showMeasurements(drag.descriptor);
+  }
+
+  private transformChanged(drag: DragState): boolean {
+    const object = drag.entry.object;
+    return (
+      object.position.distanceToSquared(drag.startPosition) > 0.000001 ||
+      object.scale.distanceToSquared(drag.startScale) > 0.000001 ||
+      1 - Math.abs(object.quaternion.dot(drag.startQuaternion)) > 0.000001
+    );
+  }
+
+  private finishDrag(): void {
+    const drag = this.drag;
+    if (!drag) return;
+    if (this.canvas.hasPointerCapture(drag.pointerId))
+      this.canvas.releasePointerCapture(drag.pointerId);
+    this.drag = null;
+    this.orbit.enabled = true;
+    delete this.container.dataset['manipulating'];
+    this.canvas.style.cursor = 'default';
+    if (drag.moved) {
+      let dimensions: ThreeDDimensions | undefined;
+      if (drag.descriptor.kind === 'resize' || drag.descriptor.kind === 'height') {
+        const effective = this.effectiveDimensions(drag.entry);
+        dimensions = {
+          width: round(effective.x, 3),
+          depth: round(effective.z, 3),
+          height: round(effective.y, 3),
+        };
+        drag.entry.object.scale.set(1, 1, 1);
+      }
+      this.commitEntry(drag.nodeId, drag.entry.object, dimensions);
+    }
+    this.clearDimensionVisuals();
+    this.setHoveredHandle(null);
+    this.update();
+  }
+
+  private commitEntry(nodeId: string, object: THREE.Object3D, dimensions?: ThreeDDimensions): void {
+    const toDegrees = 180 / Math.PI;
+    this.callbacks.onCommit(
+      nodeId,
+      {
+        position: {
+          x: round(object.position.x, 3),
+          y: round(object.position.y, 3),
+          z: round(object.position.z, 3),
+        },
+        rotation: {
+          x: round(normaliseDegrees(object.rotation.x * toDegrees), 1),
+          y: round(normaliseDegrees(object.rotation.y * toDegrees), 1),
+          z: round(normaliseDegrees(object.rotation.z * toDegrees), 1),
+        },
+        scale: {
+          x: Math.max(0.0025, round(Math.abs(object.scale.x), 4)),
+          y: Math.max(0.0025, round(Math.abs(object.scale.y), 4)),
+          z: Math.max(0.0025, round(Math.abs(object.scale.z), 4)),
+        },
+      },
+      dimensions,
+    );
+  }
+
+  private setHoveredHandle(handleId: string | null): void {
+    if (this.hoveredHandleId === handleId) return;
+    this.hoveredHandleId = handleId;
+    for (const [id, visual] of this.handles) {
+      const active = id === handleId;
+      if (visual.descriptor.kind === 'lift') {
+        visual.accent.copy(active ? HANDLE_ACTIVE : new THREE.Color('#30383d'));
+      } else if (visual.descriptor.kind === 'rotate') {
+        visual.accent.copy(active ? HANDLE_ACTIVE : new THREE.Color('#414b50'));
+      } else {
+        visual.accent.copy(active ? HANDLE_ACTIVE : HANDLE_COLOR);
+      }
+    }
+
+    const descriptor = handleId ? this.handles.get(handleId)?.descriptor : null;
+    if (descriptor?.kind === 'rotate') {
+      this.showRotationRing(descriptor.axis ?? 'y', descriptor.id);
+      this.canvas.style.cursor = 'default';
+    } else {
+      this.clearRotationRing();
+      if (descriptor?.kind === 'resize') {
+        this.canvas.style.cursor =
+          descriptor.xSign !== 0 && descriptor.zSign !== 0 ? 'nwse-resize' : 'col-resize';
+      } else if (descriptor?.kind === 'height' || descriptor?.kind === 'lift') {
+        this.canvas.style.cursor = 'ns-resize';
+      }
+    }
+    this.showMeasurements(descriptor ?? null);
+  }
+
+  private showRotationRing(axis: RotationAxis, handleId: string): void {
+    const entry = this.selectedEntry();
+    if (!entry) return;
+    this.clearRotationRing();
+    this.rotationRingAxis = axis;
+    this.rotationRing.userData['directHandleId'] = handleId;
+    const dimensions = this.effectiveDimensions(entry);
+    const radius = Math.max(dimensions.x, dimensions.y, dimensions.z) * 1.55;
+    const inner = radius * 0.69;
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: RING_COLOR,
+      transparent: true,
+      opacity: 0.2,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+    const band = new THREE.Mesh(new THREE.RingGeometry(inner, radius, 96), ringMaterial);
+    band.userData['directHandleId'] = handleId;
+    band.renderOrder = 51;
+    this.rotationRing.add(band);
+
+    // A wider invisible bridge joins the small arrow to the visible band, so the
+    // ring remains interactive while the pointer moves away from the arrow.
+    const hitBand = new THREE.Mesh(
+      new THREE.RingGeometry(radius * 0.43, radius * 1.08, 96),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    hitBand.userData['directHandleId'] = handleId;
+    hitBand.renderOrder = 50;
+    this.rotationRing.add(hitBand);
+
+    const linePoints: THREE.Vector3[] = [];
+    const addCircle = (circleRadius: number): void => {
+      for (let index = 0; index < 96; index += 1) {
+        const first = (index / 96) * Math.PI * 2;
+        const second = ((index + 1) / 96) * Math.PI * 2;
+        linePoints.push(
+          new THREE.Vector3(Math.cos(first) * circleRadius, Math.sin(first) * circleRadius, 0),
+          new THREE.Vector3(Math.cos(second) * circleRadius, Math.sin(second) * circleRadius, 0),
+        );
+      }
+    };
+    addCircle(inner);
+    addCircle(radius);
+    for (let index = 0; index < 24; index += 1) {
+      const angle = (index / 24) * Math.PI * 2;
+      linePoints.push(
+        new THREE.Vector3(Math.cos(angle) * inner, Math.sin(angle) * inner, 0),
+        new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0),
+      );
+    }
+    const lines = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(linePoints),
+      new THREE.LineBasicMaterial({
+        color: RING_COLOR,
+        transparent: true,
+        opacity: 0.68,
+        depthTest: false,
+        toneMapped: false,
+      }),
+    );
+    lines.renderOrder = 52;
+    this.rotationRing.add(lines);
+    this.rotationRing.visible = true;
+    this.updateRotationRingTransform(entry);
+  }
+
+  private updateRotationRingTransform(entry: DirectManipulationEntry): void {
+    if (!this.rotationRingAxis || !this.rotationRing.visible) return;
+    const dimensions = this.effectiveDimensions(entry);
+    this.rotationRing.position.copy(entry.object.position);
+    if (this.rotationRingAxis === 'y') {
+      this.rotationRing.position.copy(
+        this.worldFromLocal(entry, new THREE.Vector3(0, -dimensions.y / 2, 0)),
+      );
+    }
+    const orientation = new THREE.Quaternion();
+    if (this.rotationRingAxis === 'y') {
+      orientation.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+    } else if (this.rotationRingAxis === 'x') {
+      orientation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    }
+    this.rotationRing.quaternion.copy(entry.object.quaternion).multiply(orientation);
+  }
+
+  private clearRotationRing(): void {
+    this.rotationRingAxis = null;
+    delete this.rotationRing.userData['directHandleId'];
+    disposeGraph(this.rotationRing);
+    this.rotationRing.clear();
+    this.rotationRing.visible = false;
+  }
+
+  private clearDimensionVisuals(): void {
+    disposeGraph(this.dimensionRoot);
+    this.dimensionRoot.clear();
+    this.overlay.replaceChildren();
+    this.labelAnchors = [];
+  }
+
+  private showMeasurements(
+    descriptor: HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' } | null,
+  ): void {
+    this.clearDimensionVisuals();
+    const entry = this.selectedEntry();
+    if (!entry || !descriptor) return;
+    const dimensions = this.effectiveDimensions(entry);
+    const halfWidth = dimensions.x / 2;
+    const halfHeight = dimensions.y / 2;
+    const halfDepth = dimensions.z / 2;
+    const offset = Math.max(2, Math.max(dimensions.x, dimensions.y, dimensions.z) * 0.1);
+
+    if (descriptor.kind === 'move') {
+      this.addLabel(
+        `X ${this.formatMillimetres(entry.object.position.x)} · Y ${this.formatMillimetres(entry.object.position.z)}`,
+        this.worldFromLocal(entry, new THREE.Vector3(0, halfHeight + offset, 0)),
+        'asa3d-position-value',
+      );
+      return;
+    }
+
+    if (descriptor.kind === 'resize') {
+      if ((descriptor.xSign ?? 0) !== 0) {
+        const z = halfDepth + offset;
+        this.addLocalDimension(entry, [
+          new THREE.Vector3(-halfWidth, -halfHeight, z),
+          new THREE.Vector3(halfWidth, -halfHeight, z),
+          new THREE.Vector3(-halfWidth, -halfHeight, z - offset * 0.45),
+          new THREE.Vector3(-halfWidth, -halfHeight, z + offset * 0.45),
+          new THREE.Vector3(halfWidth, -halfHeight, z - offset * 0.45),
+          new THREE.Vector3(halfWidth, -halfHeight, z + offset * 0.45),
+        ]);
+        this.addLabel(
+          this.formatMillimetres(dimensions.x),
+          this.worldFromLocal(entry, new THREE.Vector3(0, -halfHeight, z + offset * 0.42)),
+          'asa3d-width-value',
+        );
+      }
+      if ((descriptor.zSign ?? 0) !== 0) {
+        const x = -halfWidth - offset;
+        this.addLocalDimension(entry, [
+          new THREE.Vector3(x, -halfHeight, -halfDepth),
+          new THREE.Vector3(x, -halfHeight, halfDepth),
+          new THREE.Vector3(x - offset * 0.45, -halfHeight, -halfDepth),
+          new THREE.Vector3(x + offset * 0.45, -halfHeight, -halfDepth),
+          new THREE.Vector3(x - offset * 0.45, -halfHeight, halfDepth),
+          new THREE.Vector3(x + offset * 0.45, -halfHeight, halfDepth),
+        ]);
+        this.addLabel(
+          this.formatMillimetres(dimensions.z),
+          this.worldFromLocal(entry, new THREE.Vector3(x - offset * 0.42, -halfHeight, 0)),
+          'asa3d-depth-value',
+        );
+      }
+      return;
+    }
+
+    if (descriptor.kind === 'height') {
+      const x = halfWidth + offset;
+      this.addLocalDimension(entry, [
+        new THREE.Vector3(x, -halfHeight, 0),
+        new THREE.Vector3(x, halfHeight, 0),
+        new THREE.Vector3(x - offset * 0.45, -halfHeight, 0),
+        new THREE.Vector3(x + offset * 0.45, -halfHeight, 0),
+        new THREE.Vector3(x - offset * 0.45, halfHeight, 0),
+        new THREE.Vector3(x + offset * 0.45, halfHeight, 0),
+      ]);
+      this.addLabel(
+        this.formatMillimetres(dimensions.y),
+        this.worldFromLocal(entry, new THREE.Vector3(x + offset * 0.5, 0, 0)),
+        'asa3d-height-value',
+      );
+      return;
+    }
+
+    if (descriptor.kind === 'lift') {
+      const bounds = new THREE.Box3().setFromObject(entry.object);
+      const x = bounds.max.x + offset;
+      this.addWorldDimension([
+        new THREE.Vector3(x, 0, entry.object.position.z),
+        new THREE.Vector3(x, bounds.min.y, entry.object.position.z),
+        new THREE.Vector3(x - offset * 0.45, 0, entry.object.position.z),
+        new THREE.Vector3(x + offset * 0.45, 0, entry.object.position.z),
+        new THREE.Vector3(x - offset * 0.45, bounds.min.y, entry.object.position.z),
+        new THREE.Vector3(x + offset * 0.45, bounds.min.y, entry.object.position.z),
+      ]);
+      this.addLabel(
+        this.formatMillimetres(Math.max(0, bounds.min.y)),
+        new THREE.Vector3(
+          x + offset * 0.55,
+          Math.max(0, bounds.min.y / 2),
+          entry.object.position.z,
+        ),
+        'asa3d-lift-value',
+      );
+      return;
+    }
+
+    const rotationVisual = this.handles.get(descriptor.id);
+    const angle = this.drag?.descriptor.kind === 'rotate' ? this.drag.currentAngleDegrees : 0;
+    this.addLabel(
+      `${round(angle, 1)}°`,
+      rotationVisual?.root.position.clone() ?? entry.object.position.clone(),
+      'asa3d-angle-value',
+    );
+  }
+
+  private addLocalDimension(entry: DirectManipulationEntry, localPoints: THREE.Vector3[]): void {
+    this.addWorldDimension(localPoints.map((point) => this.worldFromLocal(entry, point)));
+  }
+
+  private addWorldDimension(points: THREE.Vector3[]): void {
+    const line = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({
+        color: DIMENSION_COLOR,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.96,
+        toneMapped: false,
+      }),
+    );
+    line.renderOrder = 54;
+    this.dimensionRoot.add(line);
+  }
+
+  private addLabel(text: string, point: THREE.Vector3, testId: string): void {
+    const element = globalThis.document.createElement('div');
+    element.className = 'asa3d-measurement-label';
+    element.dataset['testid'] = testId;
+    element.textContent = text;
+    this.overlay.append(element);
+    this.labelAnchors.push({ element, point });
+    this.updateLabelPositions();
+  }
+
+  private formatMillimetres(value: number): string {
+    return round(value, 2).toFixed(2);
+  }
+
+  private updateLabelPositions(): void {
+    const width = Math.max(1, this.canvas.clientWidth);
+    const height = Math.max(1, this.canvas.clientHeight);
+    for (const anchor of this.labelAnchors) {
+      const projected = anchor.point.clone().project(this.camera);
+      const visible = projected.z >= -1 && projected.z <= 1;
+      anchor.element.style.display = visible ? 'block' : 'none';
+      anchor.element.style.left = `${(projected.x * 0.5 + 0.5) * width}px`;
+      anchor.element.style.top = `${(-projected.y * 0.5 + 0.5) * height}px`;
+    }
+  }
+
+  dispose(): void {
+    this.canvas.removeEventListener('pointerdown', this.handlePointerDown, true);
+    this.canvas.removeEventListener('pointermove', this.handlePointerMove, true);
+    this.canvas.removeEventListener('pointerup', this.handlePointerUp, true);
+    this.canvas.removeEventListener('pointercancel', this.handlePointerCancel, true);
+    this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+    this.orbit.enabled = true;
+    this.overlay.remove();
+    this.rotationTexture.dispose();
+    this.squareTexture.dispose();
+    this.liftTexture.dispose();
+    disposeGraph(this.handleRoot);
+    disposeGraph(this.rotationRing);
+    disposeGraph(this.dimensionRoot);
+    disposeGraph(this.outline);
+    disposeGraph(this.centreMarker);
+    this.scene.remove(
+      this.handleRoot,
+      this.rotationRing,
+      this.dimensionRoot,
+      this.outline,
+      this.centreMarker,
+    );
+    this.handles.clear();
+    this.labelAnchors = [];
+  }
+}
