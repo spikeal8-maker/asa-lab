@@ -63,103 +63,120 @@ function HomeCard({
 
 export function CheckersStudentHome({
   model,
+  projectTitle,
+  onBack,
   onOpen,
 }: {
   model: CheckersStudentHomeViewModel;
+  projectTitle: string;
+  onBack: () => void;
   onOpen: (id: string) => void;
 }): JSX.Element {
   return (
-    <main className="checkers-home" id="main-content" tabIndex={-1}>
-      <section className="checkers-home-welcome" aria-labelledby="checkers-home-title">
+    <>
+      <header className="checkers-home-header">
+        <button type="button" onClick={onBack} aria-label="Вернуться к проектам ASA Lab">
+          <img src="/asa-lab-mark.svg" alt="" aria-hidden="true" />
+          <span>ASA Lab</span>
+        </button>
         <div>
-          <span className="checkers-kicker">ASA Шашки</span>
-          <h1 id="checkers-home-title">{model.studentName}, твой следующий ход</h1>
-          <p>Здесь собраны задания, обучение, игры и повторение — ничего не потеряется.</p>
+          <span>ASA Шашки</span>
+          <strong>{projectTitle}</strong>
         </div>
-        <div
-          className="checkers-mastery-ring"
-          aria-label={`Общее освоение ${model.masteryPercent}%`}
-        >
-          <strong>{model.masteryPercent}%</strong>
-          <span>освоено</span>
-        </div>
-      </section>
-
-      {model.teacherFeedback ? (
-        <section className="checkers-teacher-feedback" aria-labelledby="checkers-feedback-title">
-          <span className="checkers-home-eyebrow">От педагога</span>
-          <h2 id="checkers-feedback-title">Учебная рекомендация</h2>
-          <p>{model.teacherFeedback}</p>
-        </section>
-      ) : null}
-
-      <section className="checkers-home-primary" aria-label="Рекомендованное действие">
-        <HomeCard card={model.recommendation} featured onOpen={onOpen} />
-        <div className="checkers-home-stats">
-          <button type="button" onClick={() => onOpen('learning-path')}>
-            <span>Путь обучения</span>
-            <strong>
-              {model.learningUnit} / {model.learningUnitsTotal}
-            </strong>
-            <small>текущий модуль</small>
-          </button>
-          <button type="button" onClick={() => onOpen('review-queue')}>
-            <span>Повторить</span>
-            <strong>{model.reviewCount}</strong>
-            <small>коротких заданий</small>
-          </button>
-          <button type="button" onClick={() => onOpen('bot-ladder')}>
-            <span>Соперник</span>
-            <strong>{model.currentBotName}</strong>
-            <small>
-              уровень {model.botRung} из {model.botRungsTotal}
-            </small>
-          </button>
-        </div>
-      </section>
-
-      <section className="checkers-home-section" aria-labelledby="checkers-assignments-title">
-        <div className="checkers-section-heading">
+        <span className="checkers-home-header-mode">Учебный кабинет</span>
+      </header>
+      <main className="checkers-home" id="main-content" tabIndex={-1}>
+        <section className="checkers-home-welcome" aria-labelledby="checkers-home-title">
           <div>
+            <span className="checkers-kicker">ASA Шашки</span>
+            <h1 id="checkers-home-title">{model.studentName}, твой следующий ход</h1>
+            <p>Здесь собраны задания, обучение, игры и повторение — ничего не потеряется.</p>
+          </div>
+          <div
+            className="checkers-mastery-ring"
+            aria-label={`Общее освоение ${model.masteryPercent}%`}
+          >
+            <strong>{model.masteryPercent}%</strong>
+            <span>освоено</span>
+          </div>
+        </section>
+
+        {model.teacherFeedback ? (
+          <section className="checkers-teacher-feedback" aria-labelledby="checkers-feedback-title">
             <span className="checkers-home-eyebrow">От педагога</span>
-            <h2 id="checkers-assignments-title">Мои задания</h2>
+            <h2 id="checkers-feedback-title">Учебная рекомендация</h2>
+            <p>{model.teacherFeedback}</p>
+          </section>
+        ) : null}
+
+        <section className="checkers-home-primary" aria-label="Рекомендованное действие">
+          <HomeCard card={model.recommendation} featured onOpen={onOpen} />
+          <div className="checkers-home-stats">
+            <button type="button" onClick={() => onOpen('learning-path')}>
+              <span>Путь обучения</span>
+              <strong>
+                {model.learningUnit} / {model.learningUnitsTotal}
+              </strong>
+              <small>текущий модуль</small>
+            </button>
+            <button type="button" onClick={() => onOpen('review-queue')}>
+              <span>Повторить</span>
+              <strong>{model.reviewCount}</strong>
+              <small>коротких заданий</small>
+            </button>
+            <button type="button" onClick={() => onOpen('bot-ladder')}>
+              <span>Соперник</span>
+              <strong>{model.currentBotName}</strong>
+              <small>
+                уровень {model.botRung} из {model.botRungsTotal}
+              </small>
+            </button>
+          </div>
+        </section>
+
+        <section className="checkers-home-section" aria-labelledby="checkers-assignments-title">
+          <div className="checkers-section-heading">
+            <div>
+              <span className="checkers-home-eyebrow">От педагога</span>
+              <h2 id="checkers-assignments-title">Мои задания</h2>
+            </div>
+            <button
+              type="button"
+              className="checkers-link-button"
+              onClick={() => onOpen('assignments')}
+            >
+              Все задания
+            </button>
+          </div>
+          {model.assignments.length > 0 ? (
+            <div className="checkers-home-grid">
+              {model.assignments.slice(0, 3).map((card) => (
+                <HomeCard key={card.id} card={card} onOpen={onOpen} />
+              ))}
+            </div>
+          ) : (
+            <div className="checkers-home-empty">
+              <strong>Новых заданий пока нет</strong>
+              <span>Можно продолжить свой учебный путь или сыграть с ботом.</span>
+            </div>
+          )}
+        </section>
+
+        <section className="checkers-class-card" aria-labelledby="checkers-class-title">
+          <div>
+            <span className="checkers-home-eyebrow">Игра в классе</span>
+            <h2 id="checkers-class-title">Вместе — без открытого чата</h2>
+            <p>Можно принять вызов одноклассника и отправлять только добрые готовые реакции.</p>
           </div>
           <button
             type="button"
-            className="checkers-link-button"
-            onClick={() => onOpen('assignments')}
+            disabled={!model.classPlayAvailable}
+            onClick={() => onOpen('class-play')}
           >
-            Все задания
+            {model.classPlayAvailable ? 'Открыть игры класса' : 'Сейчас нет доступных игр'}
           </button>
-        </div>
-        {model.assignments.length > 0 ? (
-          <div className="checkers-home-grid">
-            {model.assignments.slice(0, 3).map((card) => (
-              <HomeCard key={card.id} card={card} onOpen={onOpen} />
-            ))}
-          </div>
-        ) : (
-          <div className="checkers-home-empty">
-            <strong>Новых заданий пока нет</strong>
-            <span>Можно продолжить свой учебный путь или сыграть с ботом.</span>
-          </div>
-        )}
-      </section>
-
-      <section className="checkers-class-card" aria-labelledby="checkers-class-title">
-        <div>
-          <span className="checkers-home-eyebrow">Игра в классе</span>
-          <h2 id="checkers-class-title">Вместе — без открытого чата</h2>
-          <p>Можно принять вызов одноклассника и отправлять только добрые готовые реакции.</p>
-        </div>
-        <button
-          type="button"
-          disabled={!model.classPlayAvailable}
-          onClick={() => onOpen('class-play')}
-        >
-          {model.classPlayAvailable ? 'Открыть игры класса' : 'Сейчас нет доступных игр'}
-        </button>
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   );
 }

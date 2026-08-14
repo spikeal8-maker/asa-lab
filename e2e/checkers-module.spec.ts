@@ -93,7 +93,15 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   const projectId = await createProject(page, { title: 'Мой путь в шашках' });
-  await page.goto(`/#/projects/${projectId}`);
+  // Mount the project list after the API-created project exists, then enter the
+  // lazy editor through the SPA. No page reload is allowed in this journey.
+  await page.goto('/#/projects');
+  await page
+    .getByRole('listitem')
+    .filter({ hasText: 'Мой путь в шашках' })
+    .getByRole('button', { name: 'Открыть' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/#/projects/${projectId}$`));
 
   await expect(page.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
   await expect(page.getByText('Здесь собраны задания, обучение, игры и повторение')).toBeVisible();
@@ -129,7 +137,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="b4"]').click();
   await expect(page.getByText(/Искра:/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('.checkers-move-panel, .checkers-context-bar')).toContainText('Искра');
+  await expect(page.locator('.checkers-move-panel, .checkers-board-toolbar')).toContainText('Искра');
   await expect(page.locator('.checkers-save-state')).toContainText('Сохранено', {
     timeout: 15_000,
   });
@@ -508,7 +516,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   await expect(teacherEventRow).toContainText('В процессе');
   await teacherEventRow.getByRole('button', { name: 'Открыть разбор' }).click();
   await expect(page.getByText('Пошаговый разбор')).toBeVisible();
-  await page.getByRole('button', { name: 'ASA Lab' }).click();
+  await page.getByRole('button', { name: 'Вернуться в кабинет шашек' }).click();
   await expect(page.getByRole('heading', { name: 'Сигналы по реакциям' })).toBeVisible();
   const teacherEventState = await secondContext.request.get(
     `/api/checkers/projects/${projectId}/play`,
