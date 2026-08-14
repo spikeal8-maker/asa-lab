@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CheckersBoard, type CheckersBoardPiece } from '../CheckersBoard';
+import { resolveCheckersLandingSurface } from '../CheckersModuleExperience';
 import { CheckersStudentHome } from '../CheckersStudentHome';
 import { CheckersTeacherDashboard } from '../CheckersTeacherDashboard';
 import { CheckersWorkspace } from '../CheckersWorkspace';
@@ -12,6 +13,12 @@ const pieces: readonly CheckersBoardPiece[] = [
 ];
 
 describe('Checkers presentation contract', () => {
+  it('opens a classroom dashboard only for a user allowed to manage classes', () => {
+    expect(resolveCheckersLandingSurface('classroom', true)).toBe('teacher');
+    expect(resolveCheckersLandingSurface('classroom', false)).toBe('home');
+    expect(resolveCheckersLandingSurface('personal', true)).toBe('home');
+  });
+
   it('renders an accessible 8x8 board with 32 playable squares', () => {
     const markup = renderToStaticMarkup(
       createElement(CheckersBoard, {

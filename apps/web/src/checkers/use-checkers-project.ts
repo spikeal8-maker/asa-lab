@@ -82,6 +82,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const [document, setDocument] = useState<CheckersProjectDocument | null>(null);
   const [analysis, setAnalysis] = useState<CheckersAnalysisSummary | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [canManageClassroom, setCanManageClassroom] = useState(false);
   const [saveStatus, setSaveStatus] = useState<CheckersSaveStatus>('saved');
   const [notice, setNotice] = useState<string | null>(null);
   const [botThinking, setBotThinking] = useState(false);
@@ -92,8 +93,14 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
 
   const load = useCallback(async () => {
     setLoadState('loading');
-    const response = await api.openProject<CheckersProjectDocument, CheckersAnalysisSummary>(
-      projectId,
+    const [response, sessionResponse] = await Promise.all([
+      api.openProject<CheckersProjectDocument, CheckersAnalysisSummary>(projectId),
+      api.me(),
+    ]);
+    setCanManageClassroom(
+      sessionResponse.ok &&
+        sessionResponse.data.authenticated &&
+        sessionResponse.data.navigation.classroomManagement,
     );
     if (!response.ok) {
       setNotice(response.error.message || 'Не удалось открыть проект по шашкам.');
@@ -380,6 +387,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     projectTitle,
     document,
     analysis,
+    canManageClassroom,
     loadState,
     saveStatus,
     notice,

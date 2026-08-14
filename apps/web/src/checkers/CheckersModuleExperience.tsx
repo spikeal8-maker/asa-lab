@@ -32,6 +32,13 @@ interface CheckersModuleExperienceProps {
 
 type CheckersSurface = 'home' | 'play' | 'learning' | 'bots' | 'review' | 'teacher';
 
+export function resolveCheckersLandingSurface(
+  projectScope: 'personal' | 'classroom',
+  canManageClassroom: boolean,
+): 'home' | 'teacher' {
+  return projectScope === 'classroom' && canManageClassroom ? 'teacher' : 'home';
+}
+
 const ASSIGNMENT_KINDS: readonly { value: CheckersAssignmentKind; label: string }[] = [
   { value: 'puzzle-set', label: 'Набор задач' },
   { value: 'lesson', label: 'Урок' },
@@ -179,8 +186,9 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
   const [assignmentDialog, setAssignmentDialog] = useState(false);
 
   useEffect(() => {
-    if (checkers.project?.scope === 'classroom') setSurface('teacher');
-  }, [checkers.project?.scope]);
+    if (checkers.project?.scope !== 'classroom') return;
+    setSurface(resolveCheckersLandingSurface(checkers.project.scope, checkers.canManageClassroom));
+  }, [checkers.canManageClassroom, checkers.project?.scope]);
 
   const mastery = useMemo(() => {
     const progress = checkers.document?.education.progress ?? [];

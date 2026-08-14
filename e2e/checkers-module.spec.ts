@@ -85,6 +85,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page.locator('[data-square="b4"]').click();
   await expect(page.getByText(/Искра:/)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.checkers-move-panel, .checkers-context-bar')).toContainText('Искра');
+  await page.getByRole('button', { name: 'Закрыть сообщение' }).click();
 
   await page.screenshot({
     path: 'e2e/artifacts/checkers/checkers-student-desktop.png',
