@@ -7,10 +7,10 @@ project:
   # current_focus and active_checkpoint mirror docs/execution/current.yaml, which
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
-  current_focus: TASK-CHECKERS-M1-001
-  active_checkpoint: persistence_classroom_vertical
+  current_focus: null
+  active_checkpoint: merged_to_main
   canonical_branch: main
-  product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
+  product_merge_sha: 20986b1c8aa023b8359008d55c82393cc0426954
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
   source_of_truth: docs/project-map/project-map.yaml
   execution_state_source: docs/execution/current.yaml
@@ -43,7 +43,7 @@ nodes:
   - {id: ACT-EDUCATOR, label: Educator, kind: actor, layer: actors, status: in_progress, summary: "Uses capability-aware Classes and creator surfaces."}
   - {id: ACT-STUDENT, label: Student, kind: actor, layer: actors, status: in_progress, summary: "Uses the Checkers learning path, assignments, bots and safe class play within existing account and class contracts."}
   - {id: ACT-ADMIN, label: School Admin, kind: actor, layer: actors, status: planned, summary: "Future organization administration."}
-  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Owner-authorised Checkers-only execution lease is active; see docs/execution/current.yaml."}
+  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: done, summary: "Owner-authorised Checkers task is accepted; see docs/execution/current.yaml."}
 
   - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: in_progress, summary: "Public entry, Creator Portal, Account and editors."}
   - {id: PLANE-CONTROL, label: Control Plane, kind: plane, layer: architecture, status: in_progress, summary: "Modular monolith API and bounded contexts."}
@@ -100,7 +100,7 @@ nodes:
   - {id: PHASE-R3, label: R3 Project Lifecycle, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "R3A gateway done; R3B remains blocked and deferred."}
   - {id: PHASE-R4, label: R4 Electronics Parity, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Post-merge M1 corrective work aligns physical pins, breadboard footprints and live LED evidence; M2 remains blocked."}
   - {id: PHASE-R10, label: R10 3D Foundation, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "The ASA-native 3D M0 slice is merged and deployed; later R10 CAD capabilities remain blocked pending separate owner activation."}
-  - {id: PHASE-R11, label: R11 Educational Checkers, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Independent Russian-draughts rules, learning, assignments, bots, review and safe class play."}
+  - {id: PHASE-R11, label: R11 Educational Checkers, kind: roadmap_phase, layer: roadmap, status: done, summary: "Independent Russian-draughts rules, learning, assignments, bots, review and safe class play."}
   - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and learning cycle."}
 
   - {id: TASK-BOOT-001, label: Bootstrap, kind: task, layer: delivery, status: done, summary: "Monorepo foundation.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
@@ -111,7 +111,7 @@ nodes:
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: blocked, summary: "Owner paused the open corrective PR #92 while Checkers M1 runs; no completion is claimed.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: done, summary: "PR #95 merged into main; the Portal creates ASA 3D projects and the saved WebGL scene reloads through Project Core.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
-  - {id: TASK-CHECKERS-M1-001, label: R11-M1 Educational Russian Draughts, kind: task, layer: delivery, status: in_progress, summary: "Build the independent Checkers system from Issue #98: rules, learning, teacher work, bots, review and safe class play.", phase: PHASE-R11, issue: https://github.com/spikeal8-maker/asa-lab/issues/98}
+  - {id: TASK-CHECKERS-M1-001, label: R11-M1 Educational Russian Draughts, kind: task, layer: delivery, status: done, summary: "Independent Checkers system from Issue #98: rules, learning, teacher work, bots, review and safe class play.", phase: PHASE-R11, issue: https://github.com/spikeal8-maker/asa-lab/issues/98}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}

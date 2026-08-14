@@ -287,11 +287,15 @@ def validate_focus(
     if focus is None:
         if active_tasks:
             errors.append(f"current_focus is null but active tasks exist: {active_tasks}")
-        unfinished = [task_id for task_id in queue_ids if nodes[task_id].get("status") != "done"]
-        if unfinished:
+        actionable = [
+            task_id
+            for task_id in queue_ids
+            if nodes[task_id].get("status") not in {"done", "blocked"}
+        ]
+        if actionable:
             errors.append(
-                "current_focus may be null only when the executable queue is complete: "
-                + ", ".join(unfinished)
+                "current_focus may be null only when no executable task is actionable: "
+                + ", ".join(actionable)
             )
         return
 
@@ -430,8 +434,8 @@ def validate_delivery_alignment(
     focus = document.get("project", {}).get("current_focus")
     # The map's focus names the task being worked on. Once that task is done there
     # is nothing to focus on until the next one is defined, and the focus is null —
-    # which validate_focus already permits, but only when the executable queue is
-    # complete, so a null focus cannot hide unfinished work.
+    # which validate_focus permits when every remaining queue item is explicitly
+    # blocked. A null focus still cannot hide ready or in-flight work.
     #
     # Requiring the focus to equal the task's id whatever its status made the two
     # rules contradict each other the moment a task finished: one demanded the id,

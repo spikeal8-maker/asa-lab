@@ -116,6 +116,7 @@ describe('Checkers presentation contract', () => {
         pieces,
         selectedPieceId: 'light-c3',
         legalDestinations: ['e5'],
+        movablePieceIds: ['light-c3'],
       }),
     );
 
@@ -125,6 +126,7 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('c3: светлая шашка');
     expect(markup).toContain('d4: тёмная дамка');
     expect(markup).toContain('e5: допустимое поле хода');
+    expect(markup).toContain('data-movable="true"');
   });
 
   it('renders the student aggregate around one clear next action', () => {
@@ -192,6 +194,8 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('Учусь');
     expect(markup).toContain('Играю');
     expect(markup).toContain('Разбор');
+    expect(markup).toContain('Выберите шашку с мягкой золотой подсветкой.');
+    expect(markup).toContain('Ходов: 1');
     expect(markup).toContain('Свободного чата здесь нет');
     expect(markup).not.toContain('<textarea');
     expect(markup).not.toContain('contenteditable');

@@ -88,7 +88,11 @@ def _remote_branch_exists(branch: str) -> bool:
 _CURRENT_TASK = _control_plane_task()
 ACTIVE_TASK = str(_CURRENT_TASK["id"])
 ACTIVE_BRANCH = str(_CURRENT_TASK["branch"])
-ACTIVE_CODE_PRESENT = _checkout_contains_task_branch(ACTIVE_BRANCH)
+ACTIVE_TASK_IS_DONE = str(_CURRENT_TASK.get("status")) == "done"
+# A completed task is verified from the canonical checkout itself. Its temporary
+# product branch may be deleted after merge; command validation below still
+# proves that every registered test is present and executable here.
+ACTIVE_CODE_PRESENT = ACTIVE_TASK_IS_DONE or _checkout_contains_task_branch(ACTIVE_BRANCH)
 EXTERNAL_GOVERNANCE_TASKS = {"TASK-GOV-001"}
 HISTORICAL_TASK_IDS = {
     "TASK-CI-001", "TASK-ARCH-001", "TASK-ENV-001", "TASK-TEN-001",
@@ -373,7 +377,8 @@ def main() -> int:
     print(f"activeTask={ACTIVE_TASK}")
     print(f"activeTests={len(active_ids)}")
     if ACTIVE_CODE_PRESENT:
-        print("activeTaskLayer=executable (its branch is in this checkout)")
+        source = "canonical checkout" if ACTIVE_TASK_IS_DONE else "task branch in this checkout"
+        print(f"activeTaskLayer=executable ({source})")
     else:
         # Said out loud rather than passed over: this checkout could not confirm
         # that the active task's commands resolve, only that its branch exists.

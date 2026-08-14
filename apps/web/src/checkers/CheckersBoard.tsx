@@ -15,6 +15,7 @@ export function CheckersBoard({
   orientation = 'light',
   selectedPieceId,
   legalDestinations = [],
+  movablePieceIds = [],
   disabled = false,
   onSquareClick,
 }: {
@@ -22,6 +23,7 @@ export function CheckersBoard({
   orientation?: 'light' | 'dark';
   selectedPieceId?: string | null;
   legalDestinations?: readonly CheckersBoardSquare[];
+  movablePieceIds?: readonly string[];
   disabled?: boolean;
   onSquareClick?: (square: CheckersBoardSquare) => void;
 }): JSX.Element {
@@ -30,6 +32,7 @@ export function CheckersBoard({
   const ranks = orientation === 'light' ? [...RANKS].reverse() : RANKS;
   const bySquare = new Map(pieces.map((piece) => [piece.square, piece] as const));
   const destinations = new Set(legalDestinations);
+  const movablePieces = new Set(movablePieceIds);
   const playableSquares = ranks.flatMap((rank) =>
     files
       .map((file) => `${file}${rank}` as CheckersBoardSquare)
@@ -65,10 +68,11 @@ export function CheckersBoard({
           const piece = bySquare.get(square);
           const selected = piece?.id === selectedPieceId;
           const destination = destinations.has(square);
+          const movable = piece ? movablePieces.has(piece.id) : false;
           const label = piece
             ? `${square}: ${piece.side === 'light' ? 'светлая' : 'тёмная'} ${
                 piece.kind === 'king' ? 'дамка' : 'шашка'
-              }`
+              }${movable ? ', доступна для хода' : ''}`
             : `${square}: ${destination ? 'допустимое поле хода' : 'пустое поле'}`;
 
           return (
@@ -78,8 +82,9 @@ export function CheckersBoard({
               role="gridcell"
               className={`checkers-square ${isPlayable ? 'dark' : 'light'}${
                 selected ? ' selected' : ''
-              }${destination ? ' destination' : ''}`}
+              }${destination ? ' destination' : ''}${movable ? ' movable' : ''}`}
               data-square={square}
+              data-movable={movable ? 'true' : undefined}
               aria-label={label}
               aria-selected={selected}
               tabIndex={

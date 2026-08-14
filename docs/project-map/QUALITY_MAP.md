@@ -13,11 +13,11 @@ Rendered from the control plane; `pnpm control-plane:check` fails if these
 values drift from [`current.yaml`](../execution/current.yaml).
 
 ```text
-TASK-CHECKERS-M1-001  in_progress
-current_focus          TASK-CHECKERS-M1-001
+TASK-CHECKERS-M1-001  done
+current_focus          none
 branch                 agent/checkers-education-m1
 Issue                  #98
-checkpoint             persistence_classroom_vertical
+checkpoint             merged_to_main
 execution_lease        codex-checkers-m1
 ```
 
