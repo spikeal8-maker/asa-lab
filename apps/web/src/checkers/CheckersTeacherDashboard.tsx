@@ -18,6 +18,9 @@ export interface CheckersTeacherStudentRow {
   readonly assignmentProgress: string;
   readonly signal: 'ok' | 'inactive' | 'repeated-error';
   readonly signalLabel: string;
+  readonly accuracyLabel: string;
+  readonly hintUsageLabel: string;
+  readonly mistakeTheme: string;
   readonly lastEvidence: string;
 }
 
@@ -25,6 +28,23 @@ export interface CheckersConceptColumn {
   readonly id: string;
   readonly shortLabel: string;
   readonly fullLabel: string;
+}
+
+export interface CheckersTeacherSafetySignal {
+  readonly id: string;
+  readonly reporterName: string;
+  readonly senderName: string;
+  readonly reactionLabel: string;
+  readonly status: string;
+  readonly createdLabel: string;
+}
+
+export interface CheckersTeacherGameRow {
+  readonly id: string;
+  readonly playersLabel: string;
+  readonly modeLabel: string;
+  readonly statusLabel: string;
+  readonly moveCount: number;
 }
 
 export interface CheckersTeacherDashboardViewModel {
@@ -37,6 +57,8 @@ export interface CheckersTeacherDashboardViewModel {
   readonly students: readonly CheckersTeacherStudentRow[];
   readonly concepts: readonly CheckersConceptColumn[];
   readonly masteryByStudent: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  readonly safetySignals: readonly CheckersTeacherSafetySignal[];
+  readonly games: readonly CheckersTeacherGameRow[];
 }
 
 function statusLabel(status: CheckersTeacherAssignmentRow['status']): string {
@@ -56,14 +78,22 @@ export function CheckersTeacherDashboard({
   model,
   onBack,
   onCreateAssignment,
+  onCreateEvent,
+  onEnrolStudent,
+  onRefresh,
   onOpenAssignment,
   onOpenStudent,
+  onOpenGame,
 }: {
   model: CheckersTeacherDashboardViewModel;
   onBack: () => void;
   onCreateAssignment: () => void;
+  onCreateEvent: () => void;
+  onEnrolStudent: () => void;
+  onRefresh: () => void;
   onOpenAssignment: (id: string) => void;
   onOpenStudent: (id: string) => void;
+  onOpenGame: (id: string) => void;
 }): JSX.Element {
   return (
     <main className="checkers-teacher" id="main-content" tabIndex={-1}>
@@ -76,9 +106,25 @@ export function CheckersTeacherDashboard({
           <h1>{model.classroomTitle}</h1>
           <p>Задания, активность и доказательства по каждому шашечному понятию.</p>
         </div>
-        <button type="button" className="checkers-primary-action" onClick={onCreateAssignment}>
-          Создать задание
-        </button>
+        <div className="checkers-teacher-actions">
+          <button type="button" className="checkers-link-button" onClick={onRefresh}>
+            Обновить данные
+          </button>
+          <button type="button" className="checkers-link-button" onClick={onEnrolStudent}>
+            Добавить ученика
+          </button>
+          <button
+            type="button"
+            className="checkers-link-button"
+            disabled={model.studentCount < 2}
+            onClick={onCreateEvent}
+          >
+            Создать матч класса
+          </button>
+          <button type="button" className="checkers-primary-action" onClick={onCreateAssignment}>
+            Создать задание
+          </button>
+        </div>
       </header>
 
       <section className="checkers-teacher-stats" aria-label="Сводка класса">
@@ -163,6 +209,51 @@ export function CheckersTeacherDashboard({
         </div>
       </section>
 
+      <section className="checkers-teacher-section" aria-labelledby="teacher-games-title">
+        <div className="checkers-section-heading">
+          <div>
+            <span className="checkers-home-eyebrow">Матчи класса</span>
+            <h2 id="teacher-games-title">Партии и разбор</h2>
+          </div>
+          <p>Педагог видит точную историю ходов, но не вмешивается в активную партию.</p>
+        </div>
+        {model.games.length > 0 ? (
+          <div className="checkers-assignment-table-wrap">
+            <table className="checkers-teacher-table">
+              <thead>
+                <tr>
+                  <th>Участники</th>
+                  <th>Режим</th>
+                  <th>Статус</th>
+                  <th>Ходов</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {model.games.map((game) => (
+                  <tr key={game.id}>
+                    <td>{game.playersLabel}</td>
+                    <td>{game.modeLabel}</td>
+                    <td>{game.statusLabel}</td>
+                    <td>{game.moveCount}</td>
+                    <td>
+                      <button type="button" onClick={() => onOpenGame(game.id)}>
+                        Открыть разбор
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="checkers-home-empty">
+            <strong>Партий класса пока нет</strong>
+            <span>Создайте матч педагога или дождитесь дружеского вызова учеников.</span>
+          </div>
+        )}
+      </section>
+
       <section className="checkers-teacher-section" aria-labelledby="teacher-mastery-title">
         <div className="checkers-section-heading">
           <div>
@@ -226,6 +317,9 @@ export function CheckersTeacherDashboard({
                 <th>Ученик</th>
                 <th>Активность</th>
                 <th>Задания</th>
+                <th>Точность</th>
+                <th>Подсказки</th>
+                <th>Тема ошибок</th>
                 <th>Наблюдаемый сигнал</th>
                 <th>Последнее доказательство</th>
               </tr>
@@ -240,6 +334,9 @@ export function CheckersTeacherDashboard({
                   </td>
                   <td>{student.activityLabel}</td>
                   <td>{student.assignmentProgress}</td>
+                  <td>{student.accuracyLabel}</td>
+                  <td>{student.hintUsageLabel}</td>
+                  <td>{student.mistakeTheme}</td>
                   <td>
                     <span className={`checkers-student-signal ${student.signal}`}>
                       {student.signalLabel}
@@ -251,6 +348,47 @@ export function CheckersTeacherDashboard({
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="checkers-teacher-section" aria-labelledby="teacher-safety-title">
+        <div className="checkers-section-heading">
+          <div>
+            <span className="checkers-home-eyebrow">Без свободного текста</span>
+            <h2 id="teacher-safety-title">Сигналы по реакциям</h2>
+          </div>
+          <p>Ученик передаёт только сам факт и готовую реакцию — собственного сообщения нет.</p>
+        </div>
+        {model.safetySignals.length > 0 ? (
+          <div className="checkers-assignment-table-wrap">
+            <table className="checkers-teacher-table">
+              <thead>
+                <tr>
+                  <th>Кто сообщил</th>
+                  <th>Отправитель</th>
+                  <th>Реакция</th>
+                  <th>Время</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody>
+                {model.safetySignals.map((signal) => (
+                  <tr key={signal.id}>
+                    <td>{signal.reporterName}</td>
+                    <td>{signal.senderName}</td>
+                    <td>{signal.reactionLabel}</td>
+                    <td>{signal.createdLabel}</td>
+                    <td>{signal.status === 'open' ? 'Нужно проверить' : 'Проверено'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="checkers-home-empty">
+            <strong>Открытых сигналов нет</strong>
+            <span>Все готовые реакции сохраняются в аудите и ограничены по частоте.</span>
+          </div>
+        )}
       </section>
     </main>
   );

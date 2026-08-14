@@ -1,9 +1,13 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createInitialCheckersProjectDocument, type CheckersAssignment } from '@asa-lab/checkers';
 import { newClientId } from '../../client-id';
 import { CheckersBoard, type CheckersBoardPiece } from '../CheckersBoard';
-import { resolveCheckersLandingSurface } from '../CheckersModuleExperience';
+import {
+  buildCheckersTeacherModel,
+  resolveCheckersLandingSurface,
+} from '../CheckersModuleExperience';
 import { CheckersStudentHome } from '../CheckersStudentHome';
 import { CheckersTeacherDashboard } from '../CheckersTeacherDashboard';
 import { CheckersWorkspace } from '../CheckersWorkspace';
@@ -36,6 +40,74 @@ describe('Checkers presentation contract', () => {
     expect(resolveCheckersLandingSurface('classroom', true)).toBe('teacher');
     expect(resolveCheckersLandingSurface('classroom', false)).toBe('home');
     expect(resolveCheckersLandingSurface('personal', true)).toBe('home');
+  });
+
+  it('derives class completion and exact evidence from isolated learner progress', () => {
+    const assignment: CheckersAssignment = {
+      id: 'assignment-1',
+      classroomId: 'class-1',
+      teacherId: 'teacher-1',
+      title: 'Обязательное взятие',
+      kind: 'puzzle-set',
+      targetRef: 'puzzle-set:starter',
+      assigneeKind: 'group',
+      assigneeIds: ['student-1'],
+      dueAt: null,
+      attemptLimit: null,
+      hintsAllowed: true,
+      maxHintLevel: 3,
+      minimumScore: 70,
+      requiredCompletions: 1,
+      status: 'assigned',
+    };
+    const initial = createInitialCheckersProjectDocument('student-1');
+    const model = buildCheckersTeacherModel(
+      '5Б',
+      [assignment],
+      {
+        assignments: [assignment],
+        safetySignals: [],
+        students: [
+          {
+            id: 'student-1',
+            displayName: 'Маша',
+            email: 'masha@test.local',
+            lastActivityAt: '2026-08-14T10:00:00.000Z',
+            progress: initial.education.progress,
+            evidence: [
+              {
+                id: 'evidence-1',
+                studentId: 'student-1',
+                conceptId: 'mandatory-capture',
+                kind: 'puzzle-attempt',
+                outcome: 'correct',
+                sourceId: 'capture-choice',
+                occurredAt: '2026-08-14T10:00:00.000Z',
+                firstAttempt: true,
+                hintLevel: 0,
+                transferPosition: false,
+                score: 100,
+              },
+            ],
+            completedPuzzleIds: ['capture-choice'],
+            lastMove: {
+              ply: 1,
+              path: ['c3', 'e5'],
+              capturedIds: ['dark-d4'],
+            },
+            revision: 1,
+            updatedAt: '2026-08-14T10:00:00.000Z',
+          },
+        ],
+      },
+      Date.parse('2026-08-14T12:00:00.000Z'),
+    );
+
+    expect(model.studentCount).toBe(1);
+    expect(model.activeThisWeek).toBe(1);
+    expect(model.assignmentCompletionPercent).toBe(100);
+    expect(model.assignments[0]).toMatchObject({ completed: 1, assigned: 1 });
+    expect(model.students[0]?.lastEvidence).toContain('capture-choice · ход c3:e5 · 100%');
   });
 
   it('renders an accessible 8x8 board with 32 playable squares', () => {
@@ -154,6 +226,9 @@ describe('Checkers presentation contract', () => {
               assignmentProgress: '1 из 1',
               signal: 'ok',
               signalLabel: 'Идёт по плану',
+              accuracyLabel: '100%',
+              hintUsageLabel: '0 из 1',
+              mistakeTheme: 'нет повторяющейся ошибки',
               lastEvidence: 'c3:e5, без подсказки',
             },
             {
@@ -164,6 +239,9 @@ describe('Checkers presentation contract', () => {
               assignmentProgress: '0 из 1',
               signal: 'repeated-error',
               signalLabel: 'Пропускает взятие назад',
+              accuracyLabel: '33%',
+              hintUsageLabel: '2 из 3',
+              mistakeTheme: 'Взятие назад',
               lastEvidence: 'e5-c3, 3 попытки',
             },
           ],
@@ -172,11 +250,34 @@ describe('Checkers presentation contract', () => {
             'student-1': { capture: 82 },
             'student-2': { capture: 34 },
           },
+          safetySignals: [
+            {
+              id: 'signal-1',
+              reporterName: 'Маша И.',
+              senderName: 'Илья К.',
+              reactionLabel: 'Думаю…',
+              status: 'open',
+              createdLabel: 'сегодня',
+            },
+          ],
+          games: [
+            {
+              id: 'game-1',
+              playersLabel: 'Маша И. — Илья К.',
+              modeLabel: 'Матч педагога',
+              statusLabel: 'В процессе',
+              moveCount: 4,
+            },
+          ],
         },
         onBack: () => undefined,
         onCreateAssignment: () => undefined,
+        onCreateEvent: () => undefined,
+        onEnrolStudent: () => undefined,
+        onRefresh: () => undefined,
         onOpenAssignment: () => undefined,
         onOpenStudent: () => undefined,
+        onOpenGame: () => undefined,
       }),
     );
 
@@ -185,5 +286,9 @@ describe('Checkers presentation contract', () => {
     expect(markup).toContain('До конкретного хода');
     expect(markup).toContain('Пропускает взятие назад');
     expect(markup).toContain('c3:e5, без подсказки');
+    expect(markup).toContain('Сигналы по реакциям');
+    expect(markup).toContain('Партии и разбор');
+    expect(markup).toContain('Матч педагога');
+    expect(markup).toContain('Думаю…');
   });
 });

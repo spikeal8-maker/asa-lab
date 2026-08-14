@@ -219,7 +219,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
     ...((init?.headers as Record<string, string> | undefined) ?? {}),
   };
   try {
-    response = await fetch(path, { credentials: 'same-origin', ...init, headers });
+    response = await fetch(path, {
+      credentials: 'same-origin',
+      ...init,
+      cache: 'no-store',
+      headers,
+    });
   } catch {
     return { ok: false, status: 0, error: { code: 'network', message: 'сервер недоступен' } };
   }
@@ -250,6 +255,65 @@ export interface CreateProjectOptions {
   title: string;
   module: string;
   idempotencyKey: string;
+}
+
+export interface CheckersClassroomStudent<TProgress = unknown, TEvidence = unknown> {
+  id: string;
+  displayName: string;
+  email: string;
+  lastActivityAt: string | null;
+  progress: TProgress[];
+  evidence: TEvidence[];
+  completedPuzzleIds: string[];
+  lastMove: { ply: number; path: string[]; capturedIds: string[] } | null;
+  revision: number;
+  updatedAt: string | null;
+}
+
+export interface CheckersSafetySignal {
+  id: string;
+  gameId: string;
+  reactionEventId: string;
+  reactionId: string;
+  reporterName: string;
+  senderName: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface CheckersClassGame<TDocument = unknown> {
+  id: string;
+  mode: 'friendly' | 'team' | 'teacher-event';
+  status: 'pending' | 'active' | 'declined' | 'finished';
+  version: number;
+  side: 'light' | 'dark' | null;
+  lightPlayer: { id: string; displayName: string };
+  darkPlayer: { id: string; displayName: string };
+  document: TDocument;
+  createdAt: string;
+  updatedAt: string;
+  reactions: Array<{
+    id: string;
+    senderName: string;
+    reactionId: string;
+    sentAt: string;
+  }>;
+}
+
+export interface CheckersClassPlay<TDocument = unknown> {
+  role: 'owner' | 'student';
+  muted: boolean;
+  classmates: Array<{ id: string; displayName: string }>;
+  games: CheckersClassGame<TDocument>[];
+}
+
+export type CheckersTeacherFeedbackId =
+  'great-progress' | 'retry-capture' | 'review-turning-point' | 'ready-next';
+
+export interface CheckersTeacherFeedback {
+  id: string;
+  feedbackId: CheckersTeacherFeedbackId;
+  createdAt: string;
 }
 
 export const api = {
@@ -365,6 +429,95 @@ export const api = {
     call<{ version: ProjectVersion }>(
       `/api/projects/${encodeURIComponent(projectId)}/checkpoints`,
       { method: 'POST', body: JSON.stringify(label ? { label } : {}) },
+    ),
+  loadCheckersStudentState: <TDocument = unknown>(projectId: string) =>
+    call<{
+      role: 'student';
+      document: TDocument;
+      revision: number;
+      updatedAt: string | null;
+      teacherFeedback: CheckersTeacherFeedback[];
+    }>(`/api/checkers/projects/${encodeURIComponent(projectId)}/state`),
+  saveCheckersStudentState: <TDocument = unknown>(projectId: string, document: TDocument) =>
+    call<{ document: TDocument; revision: number; updatedAt: string }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/state`,
+      { method: 'PUT', body: JSON.stringify({ document }) },
+    ),
+  checkersClassroom: <TAssignment = unknown, TProgress = unknown, TEvidence = unknown>(
+    projectId: string,
+  ) =>
+    call<{
+      assignments: TAssignment[];
+      students: CheckersClassroomStudent<TProgress, TEvidence>[];
+      safetySignals: CheckersSafetySignal[];
+    }>(`/api/checkers/projects/${encodeURIComponent(projectId)}/classroom`),
+  enrolCheckersStudent: (projectId: string, email: string) =>
+    call<{
+      student: {
+        student_user_id: string;
+        student_account_id: string;
+        display_name: string;
+        email: string;
+      };
+    }>(`/api/checkers/projects/${encodeURIComponent(projectId)}/students`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  loadCheckersClassPlay: <TDocument = unknown>(projectId: string) =>
+    call<CheckersClassPlay<TDocument>>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/play`,
+    ),
+  createCheckersChallenge: (
+    projectId: string,
+    opponentId: string,
+    mode: 'friendly' | 'team' = 'friendly',
+  ) =>
+    call<{ game: { id: string; status: string; version: number } }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/challenges`,
+      { method: 'POST', body: JSON.stringify({ opponentId, mode }) },
+    ),
+  createCheckersTeacherEvent: (projectId: string, lightPlayerId: string, darkPlayerId: string) =>
+    call<{ game: { id: string; status: string; version: number } }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/events`,
+      { method: 'POST', body: JSON.stringify({ lightPlayerId, darkPlayerId }) },
+    ),
+  acceptCheckersChallenge: (projectId: string, gameId: string) =>
+    call<{ game: { id: string; status: string; version: number } }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/games/${encodeURIComponent(gameId)}/accept`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+  playCheckersClassMove: (
+    projectId: string,
+    gameId: string,
+    input: { expectedVersion: number; pieceId: string; path: readonly string[] },
+  ) =>
+    call<{ game: { document_json: unknown; status: string; version: number; updated_at: string } }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/games/${encodeURIComponent(gameId)}/moves`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  sendCheckersReaction: (projectId: string, gameId: string, reactionId: string) =>
+    call<{ reaction: { id: string; reaction_id: string; created_at: string } }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/games/${encodeURIComponent(gameId)}/reactions`,
+      { method: 'POST', body: JSON.stringify({ reactionId }) },
+    ),
+  muteCheckersReactions: (projectId: string, muted: boolean) =>
+    call<{ muted: boolean }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/reactions/mute`,
+      { method: 'PUT', body: JSON.stringify({ muted }) },
+    ),
+  reportCheckersReaction: (projectId: string, gameId: string, reactionEventId: string) =>
+    call<{ reported: true }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/games/${encodeURIComponent(gameId)}/reactions/${encodeURIComponent(reactionEventId)}/report`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+  sendCheckersTeacherFeedback: (
+    projectId: string,
+    studentId: string,
+    feedbackId: CheckersTeacherFeedbackId,
+  ) =>
+    call<{ feedback: CheckersTeacherFeedback }>(
+      `/api/checkers/projects/${encodeURIComponent(projectId)}/feedback`,
+      { method: 'POST', body: JSON.stringify({ studentId, feedbackId }) },
     ),
   createClassroom: (title: string, idempotencyKey: string) =>
     call<{ classroom: Classroom; created: boolean }>('/api/classrooms', {

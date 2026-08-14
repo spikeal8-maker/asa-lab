@@ -1,4 +1,4 @@
-import type { CheckersDocument } from './document.js';
+import { createInitialCheckersDocument, type CheckersDocument } from './document.js';
 import type { CheckersPuzzle } from './puzzle.js';
 
 function lessonPosition(
@@ -19,6 +19,24 @@ function lessonPosition(
 /** Original ASA Lab starter positions. Expected lines are validated by the same
  * Russian-64 rules engine that powers normal games. */
 export const CHECKERS_STARTER_PUZZLES: readonly CheckersPuzzle[] = [
+  {
+    id: 'first-step',
+    title: 'Первый ход и координаты',
+    instruction: 'Найди шашку на c3 и сделай спокойный ход по диагонали на b4.',
+    initialDocument: lessonPosition([
+      { id: 'light-c3', side: 'light', kind: 'man', square: 'c3' },
+      { id: 'dark-h8', side: 'dark', kind: 'man', square: 'h8' },
+    ]),
+    conceptIds: ['board-and-coordinates', 'man-movement'],
+    expectedLines: [[{ pieceId: 'light-c3', path: ['c3', 'b4'] }]],
+    hints: [
+      'Игровые поля обозначены буквой и цифрой.',
+      'Светлые простые шашки идут в сторону восьмой горизонтали.',
+      'Тихий ход занимает соседнее свободное поле по диагонали.',
+      'Выбери шашку на c3 и посмотри поле слева впереди.',
+      'Сыграй c3-b4.',
+    ],
+  },
   {
     id: 'capture-choice',
     title: 'Обязательное взятие',
@@ -96,6 +114,118 @@ export const CHECKERS_STARTER_PUZZLES: readonly CheckersPuzzle[] = [
       'Приземлиться нужно за ней.',
       'Для этой задачи выбери ближайшее поле e5.',
       'Сыграй b2:e5.',
+    ],
+  },
+  {
+    id: 'safe-exchange',
+    title: 'Безопасность и темп',
+    instruction: 'Продвинь центральную шашку, сохранив связь с краем и не открывая взятие.',
+    initialDocument: lessonPosition([
+      { id: 'light-c3', side: 'light', kind: 'man', square: 'c3' },
+      { id: 'light-g1', side: 'light', kind: 'man', square: 'g1' },
+      { id: 'dark-a7', side: 'dark', kind: 'man', square: 'a7' },
+      { id: 'dark-h8', side: 'dark', kind: 'man', square: 'h8' },
+    ]),
+    conceptIds: ['safe-pieces-and-exchange', 'tempo'],
+    expectedLines: [[{ pieceId: 'light-c3', path: ['c3', 'd4'] }]],
+    hints: [
+      'Сначала убедись, что обязательного взятия нет.',
+      'Центральные поля дают больше направлений для следующего хода.',
+      'Не двигай крайнюю шашку без необходимости.',
+      'Продвинь шашку c3 вправо вперед.',
+      'Сыграй c3-d4.',
+    ],
+  },
+  {
+    id: 'combination-entry',
+    title: 'Вход в комбинацию',
+    instruction: 'Увидь весь маршрут заранее и сними две шашки одним непрерывным ходом.',
+    initialDocument: lessonPosition([
+      { id: 'light-e3', side: 'light', kind: 'man', square: 'e3' },
+      { id: 'dark-d4', side: 'dark', kind: 'man', square: 'd4' },
+      { id: 'dark-b6', side: 'dark', kind: 'man', square: 'b6' },
+      { id: 'dark-h8', side: 'dark', kind: 'man', square: 'h8' },
+    ]),
+    conceptIds: ['elementary-combinations', 'multi-capture'],
+    expectedLines: [[{ pieceId: 'light-e3', path: ['e3', 'c5', 'a7'] }]],
+    hints: [
+      'Взятие обязательно, поэтому ищи маршрут со снятием.',
+      'Первая цель стоит на d4.',
+      'После приземления на c5 проверь продолжение.',
+      'Вторая цель стоит на b6.',
+      'Сыграй e3:c5:a7.',
+    ],
+  },
+  {
+    id: 'breakthrough-race',
+    title: 'Прорыв к превращению',
+    instruction: 'Сделай ход, который приближает шашку к дамочному ряду и сохраняет два пути.',
+    initialDocument: lessonPosition([
+      { id: 'light-c5', side: 'light', kind: 'man', square: 'c5' },
+      { id: 'light-g3', side: 'light', kind: 'man', square: 'g3' },
+      { id: 'dark-a7', side: 'dark', kind: 'man', square: 'a7' },
+      { id: 'dark-h8', side: 'dark', kind: 'man', square: 'h8' },
+    ]),
+    conceptIds: ['opposition', 'breakthrough', 'promotion-races'],
+    expectedLines: [[{ pieceId: 'light-c5', path: ['c5', 'd6'] }]],
+    hints: [
+      'До превращения светлой шашке осталось две горизонтали.',
+      'Сравни поля b6 и d6.',
+      'Ход к центру оставляет больше вариантов продолжения.',
+      'Выбери шашку c5 и поле справа впереди.',
+      'Сыграй c5-d6.',
+    ],
+  },
+  {
+    id: 'king-endgame',
+    title: 'Дамочное окончание',
+    instruction: 'Займи центральную диагональ дамкой и сохрани контроль над длинными линиями.',
+    initialDocument: lessonPosition([
+      { id: 'light-b2', side: 'light', kind: 'king', square: 'b2' },
+      { id: 'dark-h8', side: 'dark', kind: 'king', square: 'h8' },
+    ]),
+    conceptIds: ['king-endgames', 'draw-awareness'],
+    expectedLines: [[{ pieceId: 'light-b2', path: ['b2', 'c3'] }]],
+    hints: [
+      'Дамка может пройти любое свободное расстояние по диагонали.',
+      'В окончаниях важно не прижимать свою дамку к краю без плана.',
+      'Центральная диагональ помогает контролировать больше полей.',
+      'Сделай короткий точный ход с b2.',
+      'Сыграй b2-c3.',
+    ],
+  },
+  {
+    id: 'opening-plan',
+    title: 'Дебютный план',
+    instruction: 'Начни полную партию ходом, который развивает шашку и сохраняет строй.',
+    initialDocument: createInitialCheckersDocument('lesson'),
+    conceptIds: ['opening-principles', 'full-game-planning'],
+    expectedLines: [[{ pieceId: 'light-10', path: ['c3', 'b4'] }]],
+    hints: [
+      'В начале партии развивай шашки без одиночных рывков.',
+      'Сначала проверь, что взятий нет.',
+      'Шашка на c3 может начать развитие левого фланга.',
+      'Выбери соседнее поле b4.',
+      'Сыграй c3-b4.',
+    ],
+  },
+  {
+    id: 'fair-play-match',
+    title: 'Матч и честная игра',
+    instruction:
+      'Сделай первый ход учебного матча: спокойно, по правилам и без подсказок сопернику.',
+    initialDocument: lessonPosition([
+      { id: 'light-a3', side: 'light', kind: 'man', square: 'a3' },
+      { id: 'dark-h8', side: 'dark', kind: 'man', square: 'h8' },
+    ]),
+    conceptIds: ['clocks-and-fair-play'],
+    expectedLines: [[{ pieceId: 'light-a3', path: ['a3', 'b4'] }]],
+    hints: [
+      'До хода проверь очередь и состояние часов.',
+      'Используй только разрешённые игровые действия.',
+      'После партии поблагодари соперника готовой безопасной реакцией.',
+      'У шашки a3 есть одно поле впереди.',
+      'Сыграй a3-b4.',
     ],
   },
 ] as const;

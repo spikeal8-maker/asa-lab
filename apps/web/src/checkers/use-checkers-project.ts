@@ -4,20 +4,30 @@ import type {
   CheckersAssignment,
   CheckersAssignmentKind,
   CheckersBotId,
+  CheckersConceptProgress,
+  CheckersDocument,
   CheckersLearningEvidence,
   CheckersLegalMove,
   CheckersProjectDocument,
   CheckersPuzzleAttempt,
 } from '@asa-lab/checkers';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type Project, type PublicUser } from '../api';
+import {
+  api,
+  type CheckersClassPlay,
+  type CheckersSafetySignal,
+  type CheckersTeacherFeedback,
+  type CheckersTeacherFeedbackId,
+  type Project,
+  type PublicUser,
+} from '../api';
 import { newClientId } from '../client-id';
 
 const {
   CHECKERS_BOTS,
   CHECKERS_CONCEPT_IDS,
   applyCheckersLearningEvidence,
-  applyCheckersMove,
+  applyCheckersGameMove,
   chooseCheckersBotMove,
   createInitialCheckersDocument,
   generateLegalCheckersMoves,
@@ -52,6 +62,33 @@ export interface CreateCheckersAssignmentInput {
   readonly dueAt: string | null;
   readonly hintsAllowed: boolean;
   readonly minimumScore: number;
+  readonly assigneeKind: 'class' | 'student' | 'group';
+  readonly assigneeIds: readonly string[];
+  readonly attemptLimit: number | null;
+  readonly requiredCompletions: number;
+}
+
+export interface CheckersClassroomStudentProgress {
+  readonly id: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly lastActivityAt: string | null;
+  readonly progress: readonly CheckersConceptProgress[];
+  readonly evidence: readonly CheckersLearningEvidence[];
+  readonly completedPuzzleIds: readonly string[];
+  readonly lastMove: {
+    readonly ply: number;
+    readonly path: readonly string[];
+    readonly capturedIds: readonly string[];
+  } | null;
+  readonly revision: number;
+  readonly updatedAt: string | null;
+}
+
+export interface CheckersClassroomOverview {
+  readonly assignments: readonly CheckersAssignment[];
+  readonly students: readonly CheckersClassroomStudentProgress[];
+  readonly safetySignals: readonly CheckersSafetySignal[];
 }
 
 function nowIso(): string {
@@ -66,12 +103,41 @@ function progressionAfterWin(document: CheckersProjectDocument): CheckersProject
   const unlockedBotRung = mayUnlock
     ? Math.min(CHECKERS_BOTS.length, document.education.unlockedBotRung + 1)
     : document.education.unlockedBotRung;
+  const progressItem = document.education.progress.find(
+    (item) => item.conceptId === 'full-game-planning',
+  );
+  const evidence: CheckersLearningEvidence | null = progressItem
+    ? {
+        id: `evidence-${newClientId()}`,
+        studentId: progressItem.studentId,
+        conceptId: 'full-game-planning',
+        kind: 'game-demonstration',
+        outcome: 'demonstrated',
+        sourceId: `bot:${document.education.selectedBotId}`,
+        occurredAt: nowIso(),
+        firstAttempt: true,
+        hintLevel: 0,
+        transferPosition: true,
+        score: 100,
+      }
+    : null;
+  const updatedProgress =
+    evidence && progressItem ? applyCheckersLearningEvidence(progressItem, evidence) : null;
   return {
     ...document,
     education: {
       ...document.education,
       unlockedBotRung,
       winsOnCurrentRung: mayUnlock ? 0 : wins,
+      progress: updatedProgress?.ok
+        ? document.education.progress.map((item) =>
+            item.conceptId === progressItem?.conceptId ? updatedProgress.value : item,
+          )
+        : document.education.progress,
+      evidence:
+        evidence && updatedProgress?.ok
+          ? [...document.education.evidence, evidence]
+          : document.education.evidence,
       lastActivityAt: nowIso(),
     },
   };
@@ -84,6 +150,11 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const [analysis, setAnalysis] = useState<CheckersAnalysisSummary | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [canManageClassroom, setCanManageClassroom] = useState(false);
+  const [classroomOverview, setClassroomOverview] = useState<CheckersClassroomOverview | null>(
+    null,
+  );
+  const [classPlay, setClassPlay] = useState<CheckersClassPlay<CheckersDocument> | null>(null);
+  const [teacherFeedback, setTeacherFeedback] = useState<readonly CheckersTeacherFeedback[]>([]);
   const [saveStatus, setSaveStatus] = useState<CheckersSaveStatus>('saved');
   const [notice, setNotice] = useState<string | null>(null);
   const [botThinking, setBotThinking] = useState(false);
@@ -98,11 +169,11 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       api.openProject<CheckersProjectDocument, CheckersAnalysisSummary>(projectId),
       api.me(),
     ]);
-    setCanManageClassroom(
+    const canManage =
       sessionResponse.ok &&
-        sessionResponse.data.authenticated &&
-        sessionResponse.data.navigation.classroomManagement,
-    );
+      sessionResponse.data.authenticated &&
+      sessionResponse.data.navigation.classroomManagement;
+    setCanManageClassroom(canManage);
     if (!response.ok) {
       setNotice(response.error.message || 'Не удалось открыть проект по шашкам.');
       setLoadState('error');
@@ -113,7 +184,19 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       setLoadState('error');
       return;
     }
-    const parsed = validateCheckersProjectDocument(response.data.draft.document);
+    let sourceDocument: unknown = response.data.draft.document;
+    let loadedTeacherFeedback: readonly CheckersTeacherFeedback[] = [];
+    if (response.data.project.scope === 'classroom' && !canManage) {
+      const studentState = await api.loadCheckersStudentState<CheckersProjectDocument>(projectId);
+      if (!studentState.ok) {
+        setNotice(studentState.error.message || 'Не удалось загрузить прогресс ученика.');
+        setLoadState('error');
+        return;
+      }
+      sourceDocument = studentState.data.document;
+      loadedTeacherFeedback = studentState.data.teacherFeedback;
+    }
+    const parsed = validateCheckersProjectDocument(sourceDocument);
     if (!parsed.ok) {
       setNotice(`Документ шашек повреждён: ${parsed.message}`);
       setLoadState('error');
@@ -133,6 +216,29 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     setProjectTitle(response.data.project.title);
     setDocument(normalized);
     setAnalysis(response.data.result);
+    setTeacherFeedback(loadedTeacherFeedback);
+    if (response.data.project.scope === 'classroom' && canManage) {
+      const overview = await api.checkersClassroom<
+        CheckersAssignment,
+        CheckersConceptProgress,
+        CheckersLearningEvidence
+      >(projectId);
+      setClassroomOverview(
+        overview.ok ? overview.data : { assignments: [], students: [], safetySignals: [] },
+      );
+    } else {
+      setClassroomOverview(null);
+    }
+    if (response.data.project.scope === 'classroom') {
+      const play = await api.loadCheckersClassPlay<CheckersDocument>(projectId);
+      setClassPlay(
+        play.ok
+          ? play.data
+          : { role: canManage ? 'owner' : 'student', muted: false, classmates: [], games: [] },
+      );
+    } else {
+      setClassPlay(null);
+    }
     setSaveStatus('saved');
     setLoadState('ready');
   }, [projectId, user.id]);
@@ -144,28 +250,69 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const persist = useCallback(
     async (next: CheckersProjectDocument, quiet = false): Promise<boolean> => {
       setSaveStatus('saving');
-      const response = await saveQueue.current!.run(() =>
-        api.saveDraft<CheckersProjectDocument, CheckersAnalysisSummary>(projectId, next),
-      );
-      if (!response.ok) {
-        setSaveStatus('error');
-        if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
-        return false;
+      const studentState = project?.scope === 'classroom' && !canManageClassroom;
+      let savedDocument: unknown;
+      let savedAnalysis = analysis;
+      if (studentState) {
+        const response = await saveQueue.current!.run(() =>
+          api.saveCheckersStudentState<CheckersProjectDocument>(projectId, next),
+        );
+        if (!response.ok) {
+          setSaveStatus('error');
+          if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
+          return false;
+        }
+        savedDocument = response.data.document;
+      } else {
+        const response = await saveQueue.current!.run(() =>
+          api.saveDraft<CheckersProjectDocument, CheckersAnalysisSummary>(projectId, next),
+        );
+        if (!response.ok) {
+          setSaveStatus('error');
+          if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
+          return false;
+        }
+        savedDocument = response.data.draft.document;
+        savedAnalysis = response.data.result;
       }
-      const parsed = validateCheckersProjectDocument(response.data.draft.document);
+      const parsed = validateCheckersProjectDocument(savedDocument);
       if (!parsed.ok) {
         setSaveStatus('error');
         setNotice('Сервер вернул некорректный документ шашек.');
         return false;
       }
       setDocument(parsed.value);
-      setAnalysis(response.data.result);
+      setAnalysis(savedAnalysis);
       setSaveStatus('saved');
       if (!quiet) setNotice('Проект по шашкам сохранён.');
       return true;
     },
-    [projectId],
+    [analysis, canManageClassroom, project?.scope, projectId],
   );
+
+  const refreshClassroomOverview = useCallback(async (): Promise<boolean> => {
+    const response = await api.checkersClassroom<
+      CheckersAssignment,
+      CheckersConceptProgress,
+      CheckersLearningEvidence
+    >(projectId);
+    if (!response.ok) {
+      setNotice(`Не удалось обновить класс: ${response.error.message}`);
+      return false;
+    }
+    setClassroomOverview(response.data);
+    return true;
+  }, [projectId]);
+
+  const refreshClassPlay = useCallback(async (): Promise<boolean> => {
+    const response = await api.loadCheckersClassPlay<CheckersDocument>(projectId);
+    if (!response.ok) {
+      setNotice(`Не удалось обновить игры класса: ${response.error.message}`);
+      return false;
+    }
+    setClassPlay(response.data);
+    return true;
+  }, [projectId]);
 
   const commit = useCallback((next: CheckersProjectDocument, message?: string) => {
     setDocument(next);
@@ -203,7 +350,10 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
 
   function playMove(move: CheckersLegalMove): void {
     if (!document || botThinking) return;
-    const applied = applyCheckersMove(document.game, { pieceId: move.pieceId, path: move.path });
+    const applied = applyCheckersGameMove(document.game, {
+      pieceId: move.pieceId,
+      path: move.path,
+    });
     if (!applied.ok) {
       setNotice(applied.message);
       return;
@@ -212,7 +362,13 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   }
 
   useEffect(() => {
-    if (!document || document.game.result !== '*' || document.game.sideToMove !== 'dark') return;
+    if (
+      !document ||
+      document.game.mode !== 'game' ||
+      document.game.result !== '*' ||
+      document.game.sideToMove !== 'dark'
+    )
+      return;
     const selected = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId);
     if (!selected || selected.rung > document.education.unlockedBotRung) return;
     const taskId = botTask.current + 1;
@@ -226,7 +382,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         setNotice(decision.message);
         return;
       }
-      const applied = applyCheckersMove(document.game, {
+      const applied = applyCheckersGameMove(document.game, {
         pieceId: decision.value.move.pieceId,
         path: decision.value.move.path,
       });
@@ -242,10 +398,10 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     };
   }, [commitGame, document]);
 
-  function startBotGame(botId: CheckersBotId): boolean {
+  function startBotGame(botId: CheckersBotId, teacherOverride = false): boolean {
     if (!document) return false;
     const bot = CHECKERS_BOTS.find((item) => item.id === botId);
-    if (!bot || bot.rung > document.education.unlockedBotRung) {
+    if (!bot || (!teacherOverride && bot.rung > document.education.unlockedBotRung)) {
       setNotice('Этот соперник пока закрыт. Пройди задачи и победи предыдущего бота.');
       return false;
     }
@@ -253,7 +409,14 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       {
         ...document,
         game: createInitialCheckersDocument('game'),
-        education: { ...document.education, selectedBotId: botId, lastActivityAt: nowIso() },
+        education: {
+          ...document.education,
+          selectedBotId: botId,
+          unlockedBotRung: teacherOverride
+            ? Math.max(document.education.unlockedBotRung, bot.rung)
+            : document.education.unlockedBotRung,
+          lastActivityAt: nowIso(),
+        },
       },
       `Новая партия с ботом «${bot.displayName}». Ты играешь светлыми.`,
     );
@@ -269,7 +432,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   }
 
   function completePuzzle(attempt: CheckersPuzzleAttempt, conceptIds: readonly string[]): void {
-    if (!document || document.education.completedPuzzleIds.includes(attempt.puzzleId)) return;
+    if (!document) return;
     let progress = [...document.education.progress];
     const evidence: CheckersLearningEvidence[] = [];
     for (const conceptId of CHECKERS_CONCEPT_IDS.filter((id) => conceptIds.includes(id))) {
@@ -302,7 +465,9 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         game: attempt.document,
         education: {
           ...document.education,
-          completedPuzzleIds: [...document.education.completedPuzzleIds, attempt.puzzleId],
+          completedPuzzleIds: document.education.completedPuzzleIds.includes(attempt.puzzleId)
+            ? document.education.completedPuzzleIds
+            : [...document.education.completedPuzzleIds, attempt.puzzleId],
           progress,
           evidence: [...document.education.evidence, ...evidence],
           lastActivityAt: nowIso(),
@@ -312,7 +477,52 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     );
   }
 
-  function createAssignment(input: CreateCheckersAssignmentInput): boolean {
+  function recordPuzzleFailure(
+    attempt: CheckersPuzzleAttempt,
+    conceptIds: readonly string[],
+  ): void {
+    if (!document) return;
+    let progress = [...document.education.progress];
+    const evidence: CheckersLearningEvidence[] = [];
+    for (const conceptId of CHECKERS_CONCEPT_IDS.filter((id) => conceptIds.includes(id))) {
+      const item = progress.find((candidate) => candidate.conceptId === conceptId);
+      if (!item) continue;
+      const event: CheckersLearningEvidence = {
+        id: `evidence-${newClientId()}`,
+        studentId: item.studentId,
+        conceptId,
+        kind: 'puzzle-attempt',
+        outcome: 'incorrect',
+        sourceId: attempt.puzzleId,
+        occurredAt: nowIso(),
+        firstAttempt: attempt.incorrectAttempts === 1,
+        hintLevel: attempt.hintLevel,
+        transferPosition: false,
+        score: 0,
+      };
+      const updated = applyCheckersLearningEvidence(item, event);
+      if (updated.ok) {
+        progress = progress.map((candidate) =>
+          candidate.conceptId === conceptId ? updated.value : candidate,
+        );
+        evidence.push(event);
+      }
+    }
+    commit(
+      {
+        ...document,
+        education: {
+          ...document.education,
+          progress,
+          evidence: [...document.education.evidence, ...evidence],
+          lastActivityAt: nowIso(),
+        },
+      },
+      'Попытка сохранена. Ошибка станет темой короткого повторения, а не оценкой ученика.',
+    );
+  }
+
+  async function createAssignment(input: CreateCheckersAssignmentInput): Promise<boolean> {
     if (!document || !project?.classroomId) {
       setNotice('Задания класса можно создавать только в проекте, привязанном к классу.');
       return false;
@@ -324,14 +534,14 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       title: input.title.trim(),
       kind: input.kind,
       targetRef: input.targetRef,
-      assigneeKind: 'class',
-      assigneeIds: [project.classroomId],
+      assigneeKind: input.assigneeKind,
+      assigneeIds: input.assigneeIds,
       dueAt: input.dueAt,
-      attemptLimit: null,
+      attemptLimit: input.attemptLimit,
       hintsAllowed: input.hintsAllowed,
       maxHintLevel: input.hintsAllowed ? 3 : 0,
       minimumScore: input.minimumScore,
-      requiredCompletions: 1,
+      requiredCompletions: input.requiredCompletions,
       status: 'assigned',
     };
     const validated = validateCheckersAssignment(assignment);
@@ -339,18 +549,18 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       setNotice(validated.message);
       return false;
     }
-    commit(
-      {
-        ...document,
-        education: {
-          ...document.education,
-          assignments: [...document.education.assignments, validated.value],
-          lastActivityAt: nowIso(),
-        },
+    const next: CheckersProjectDocument = {
+      ...document,
+      education: {
+        ...document.education,
+        assignments: [...document.education.assignments, validated.value],
+        lastActivityAt: nowIso(),
       },
-      `Задание «${assignment.title}» опубликовано в проекте класса.`,
-    );
-    return true;
+    };
+    const saved = await persist(next, true);
+    if (saved) setNotice(`Задание «${assignment.title}» опубликовано в проекте класса.`);
+    else setNotice('Задание не опубликовано: сервер не подтвердил сохранение. Попробуйте ещё раз.');
+    return saved;
   }
 
   function toggleReactions(): void {
@@ -383,12 +593,127 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     }
   }
 
+  async function enrolStudent(email: string): Promise<boolean> {
+    const response = await api.enrolCheckersStudent(projectId, email);
+    if (!response.ok) {
+      setNotice(`Не удалось добавить ученика: ${response.error.message}`);
+      return false;
+    }
+    await refreshClassroomOverview();
+    setNotice(`Ученик ${response.data.student.display_name} добавлен в шашечный класс.`);
+    return true;
+  }
+
+  async function createClassChallenge(
+    opponentId: string,
+    mode: 'friendly' | 'team' = 'friendly',
+  ): Promise<boolean> {
+    const response = await api.createCheckersChallenge(projectId, opponentId, mode);
+    if (!response.ok) {
+      setNotice(`Не удалось отправить вызов: ${response.error.message}`);
+      return false;
+    }
+    await refreshClassPlay();
+    setNotice('Вызов отправлен однокласснику. Свободного чата в игре нет.');
+    return true;
+  }
+
+  async function createTeacherEvent(lightPlayerId: string, darkPlayerId: string): Promise<boolean> {
+    const response = await api.createCheckersTeacherEvent(projectId, lightPlayerId, darkPlayerId);
+    if (!response.ok) {
+      setNotice(`Не удалось создать матч педагога: ${response.error.message}`);
+      return false;
+    }
+    await refreshClassPlay();
+    setNotice('Матч педагога создан. Оба ученика сразу увидят его в играх класса.');
+    return true;
+  }
+
+  async function acceptClassChallenge(gameId: string): Promise<boolean> {
+    const response = await api.acceptCheckersChallenge(projectId, gameId);
+    if (!response.ok) {
+      setNotice(`Не удалось принять вызов: ${response.error.message}`);
+      return false;
+    }
+    await refreshClassPlay();
+    setNotice('Вызов принят. Светлые ходят первыми.');
+    return true;
+  }
+
+  async function playClassMove(
+    gameId: string,
+    expectedVersion: number,
+    move: CheckersLegalMove,
+  ): Promise<boolean> {
+    const response = await api.playCheckersClassMove(projectId, gameId, {
+      expectedVersion,
+      pieceId: move.pieceId,
+      path: move.path,
+    });
+    if (!response.ok) {
+      setNotice(`Ход не принят: ${response.error.message}`);
+      await refreshClassPlay();
+      return false;
+    }
+    await refreshClassPlay();
+    setNotice(`Ход ${move.notation} сохранён в партии класса.`);
+    return true;
+  }
+
+  async function sendClassReaction(gameId: string, reactionId: string): Promise<boolean> {
+    const response = await api.sendCheckersReaction(projectId, gameId, reactionId);
+    if (!response.ok) {
+      setNotice(`Реакция не отправлена: ${response.error.message}`);
+      return false;
+    }
+    await refreshClassPlay();
+    setNotice('Добрая реакция отправлена и записана в журнале класса.');
+    return true;
+  }
+
+  async function setClassReactionsMuted(muted: boolean): Promise<boolean> {
+    const response = await api.muteCheckersReactions(projectId, muted);
+    if (!response.ok) {
+      setNotice(`Не удалось изменить реакции: ${response.error.message}`);
+      return false;
+    }
+    await refreshClassPlay();
+    setNotice(muted ? 'Реакции скрыты у вас.' : 'Добрые реакции снова видны.');
+    return true;
+  }
+
+  async function reportClassReaction(gameId: string, reactionEventId: string): Promise<boolean> {
+    const response = await api.reportCheckersReaction(projectId, gameId, reactionEventId);
+    if (!response.ok) {
+      setNotice(`Не удалось передать сигнал педагогу: ${response.error.message}`);
+      return false;
+    }
+    setNotice('Сигнал передан педагогу без свободного текста.');
+    return true;
+  }
+
+  async function sendTeacherFeedback(
+    studentId: string,
+    feedbackId: CheckersTeacherFeedbackId,
+  ): Promise<boolean> {
+    const response = await api.sendCheckersTeacherFeedback(projectId, studentId, feedbackId);
+    if (!response.ok) {
+      setNotice(`Не удалось сохранить рекомендацию: ${response.error.message}`);
+      return false;
+    }
+    setNotice('Учебная рекомендация отправлена ученику и сохранена в журнале класса.');
+    return true;
+  }
+
   return {
     project,
     projectTitle,
     document,
     analysis,
     canManageClassroom,
+    classroomOverview,
+    classPlay,
+    teacherFeedback,
     loadState,
     saveStatus,
     notice,
@@ -399,9 +724,21 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     startBotGame,
     openLesson,
     completePuzzle,
+    recordPuzzleFailure,
     createAssignment,
     toggleReactions,
     renameProject,
+    enrolStudent,
+    refreshClassroomOverview,
+    refreshClassPlay,
+    createClassChallenge,
+    createTeacherEvent,
+    acceptClassChallenge,
+    playClassMove,
+    sendClassReaction,
+    setClassReactionsMuted,
+    reportClassReaction,
+    sendTeacherFeedback,
     resetGame: () => document && commitGame(createInitialCheckersDocument(document.game.mode)),
     saveNow: () => (document ? persist(document) : Promise.resolve(false)),
     reload: load,

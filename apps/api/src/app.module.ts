@@ -43,6 +43,7 @@ import {
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { AccountC1Controller } from './account-c1.controller.js';
+import { CheckersClassroomController } from './checkers-classroom.controller.js';
 import { ChessLiveController } from './chess-live.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { HealthController } from './health.controller.js';
@@ -131,6 +132,7 @@ export class AppModule {
         ClassroomsController,
         ModulesController,
         ProjectsController,
+        CheckersClassroomController,
         ChessLiveController,
         VersionController,
       ],

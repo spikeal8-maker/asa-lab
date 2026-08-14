@@ -107,6 +107,22 @@ describe('runtime role hardening', () => {
       'academic_periods:SELECT',
       'audit_events:INSERT',
       'audit_events:SELECT',
+      'checkers_class_games:INSERT',
+      'checkers_class_games:SELECT',
+      'checkers_class_games:UPDATE',
+      'checkers_reaction_events:INSERT',
+      'checkers_reaction_events:SELECT',
+      'checkers_reaction_mutes:INSERT',
+      'checkers_reaction_mutes:SELECT',
+      'checkers_reaction_mutes:UPDATE',
+      'checkers_safety_signals:INSERT',
+      'checkers_safety_signals:SELECT',
+      'checkers_safety_signals:UPDATE',
+      'checkers_student_states:INSERT',
+      'checkers_student_states:SELECT',
+      'checkers_student_states:UPDATE',
+      'checkers_teacher_feedback:INSERT',
+      'checkers_teacher_feedback:SELECT',
       'chess_live_challenges:INSERT',
       'chess_live_challenges:SELECT',
       'chess_live_challenges:UPDATE',
@@ -151,7 +167,7 @@ describe('runtime role hardening', () => {
       projectUpdateColumns.rows.map(
         (row) => `${row.table_name}:${row.column_name}:${row.privilege_type}`,
       ),
-    ).toEqual(['projects:title:UPDATE']);
+    ).toEqual(['projects:status:UPDATE', 'projects:title:UPDATE']);
     const sequences = await runtime.query(
       `SELECT c.relname,
               has_sequence_privilege(current_user, c.oid, 'USAGE') AS usage
@@ -210,6 +226,12 @@ describe('row level security', () => {
   it('without a tenant context the runtime role sees no classroom or chess-live rows', async () => {
     for (const table of [
       'classrooms',
+      'checkers_class_games',
+      'checkers_reaction_events',
+      'checkers_reaction_mutes',
+      'checkers_safety_signals',
+      'checkers_student_states',
+      'checkers_teacher_feedback',
       'chess_live_challenges',
       'chess_live_games',
       'chess_live_events',

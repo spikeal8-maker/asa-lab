@@ -22,6 +22,7 @@ export interface CheckersStudentHomeViewModel {
   readonly botRung: number;
   readonly botRungsTotal: number;
   readonly classPlayAvailable: boolean;
+  readonly teacherFeedback?: string;
 }
 
 function Progress({ value, label }: { value: number; label: string }): JSX.Element {
@@ -83,6 +84,14 @@ export function CheckersStudentHome({
           <span>освоено</span>
         </div>
       </section>
+
+      {model.teacherFeedback ? (
+        <section className="checkers-teacher-feedback" aria-labelledby="checkers-feedback-title">
+          <span className="checkers-home-eyebrow">От педагога</span>
+          <h2 id="checkers-feedback-title">Учебная рекомендация</h2>
+          <p>{model.teacherFeedback}</p>
+        </section>
+      ) : null}
 
       <section className="checkers-home-primary" aria-label="Рекомендованное действие">
         <HomeCard card={model.recommendation} featured onOpen={onOpen} />

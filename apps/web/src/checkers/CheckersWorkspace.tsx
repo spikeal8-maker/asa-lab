@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { CheckersReviewInsight } from '@asa-lab/checkers';
 import { CheckersBoard, type CheckersBoardPiece, type CheckersBoardSquare } from './CheckersBoard';
 import './checkers.css';
 
@@ -29,6 +30,16 @@ export interface CheckersWorkspaceViewModel {
   readonly instruction: string;
   readonly hintText?: string;
   readonly reactionsEnabled: boolean;
+  readonly reactionEvents?: readonly {
+    readonly id: string;
+    readonly senderName: string;
+    readonly reactionId: string;
+    readonly sentAt: string;
+  }[];
+  readonly reviewInsights?: readonly CheckersReviewInsight[];
+  readonly reviewPly?: number;
+  readonly reviewTotalPly?: number;
+  readonly readOnly?: boolean;
 }
 
 const SAVE_LABELS: Readonly<Record<CheckersWorkspaceViewModel['saveState'], string>> = {
@@ -65,6 +76,8 @@ export function CheckersWorkspace({
   onReaction,
   onHint,
   onToggleReactions,
+  onReviewStep,
+  onReportReaction,
 }: {
   model: CheckersWorkspaceViewModel;
   onBack: () => void;
@@ -74,6 +87,8 @@ export function CheckersWorkspace({
   onReaction: (reactionId: (typeof REACTIONS)[number][0]) => void;
   onHint?: () => void;
   onToggleReactions?: () => void;
+  onReviewStep?: (ply: number) => void;
+  onReportReaction?: (eventId: string) => void;
 }): JSX.Element {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState(model.projectTitle);
@@ -169,6 +184,7 @@ export function CheckersWorkspace({
             pieces={model.pieces}
             selectedPieceId={selectedPieceId}
             legalDestinations={destinations}
+            {...(model.readOnly === undefined ? {} : { disabled: model.readOnly })}
             onSquareClick={selectSquare}
           />
         </section>
@@ -196,7 +212,6 @@ export function CheckersWorkspace({
               role="tab"
               aria-selected={panel === 'reactions'}
               title="Свободного чата здесь нет — только готовые добрые реакции"
-              disabled={!model.reactionsEnabled}
               onClick={() => setPanel('reactions')}
             >
               Реакции
@@ -205,16 +220,61 @@ export function CheckersWorkspace({
 
           {panel === 'task' ? (
             <div className="checkers-task-panel" role="tabpanel">
-              <span className="checkers-home-eyebrow">Сейчас</span>
-              <h2>{model.instructionTitle}</h2>
-              <p>{model.instruction}</p>
-              <div className="checkers-hint-ladder">
-                <strong>Нужна подсказка?</strong>
-                {model.hintText ? <p className="checkers-hint-text">{model.hintText}</p> : null}
-                <button type="button" onClick={onHint} disabled={!onHint}>
-                  {model.hintText ? 'Следующая подсказка' : 'Напомнить правило'}
-                </button>
-              </div>
+              {model.mode === 'review' ? (
+                <>
+                  <span className="checkers-home-eyebrow">Пошаговый разбор</span>
+                  <h2>Позиция после хода {model.reviewPly ?? 0}</h2>
+                  <div className="checkers-review-controls" aria-label="Навигация по записи партии">
+                    <button
+                      type="button"
+                      disabled={(model.reviewPly ?? 0) <= 0}
+                      onClick={() => onReviewStep?.(Math.max(0, (model.reviewPly ?? 0) - 1))}
+                    >
+                      ← Предыдущий
+                    </button>
+                    <span>
+                      {model.reviewPly ?? 0} / {model.reviewTotalPly ?? 0}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={(model.reviewPly ?? 0) >= (model.reviewTotalPly ?? 0)}
+                      onClick={() =>
+                        onReviewStep?.(
+                          Math.min(model.reviewTotalPly ?? 0, (model.reviewPly ?? 0) + 1),
+                        )
+                      }
+                    >
+                      Следующий →
+                    </button>
+                  </div>
+                  <div className="checkers-review-insights">
+                    {(model.reviewInsights ?? []).map((insight) => (
+                      <article key={insight.id} className={insight.tone}>
+                        <strong>{insight.title}</strong>
+                        <p>{insight.explanation}</p>
+                        {insight.ply !== null ? (
+                          <button type="button" onClick={() => onReviewStep?.(insight.ply!)}>
+                            Показать ход {insight.ply}
+                          </button>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="checkers-home-eyebrow">Сейчас</span>
+                  <h2>{model.instructionTitle}</h2>
+                  <p>{model.instruction}</p>
+                  <div className="checkers-hint-ladder">
+                    <strong>Нужна подсказка?</strong>
+                    {model.hintText ? <p className="checkers-hint-text">{model.hintText}</p> : null}
+                    <button type="button" onClick={onHint} disabled={!onHint}>
+                      {model.hintText ? 'Следующая подсказка' : 'Напомнить правило'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
           {panel === 'moves' ? (
@@ -238,15 +298,36 @@ export function CheckersWorkspace({
             <div className="checkers-reaction-panel" role="tabpanel">
               <h2>Добрые реакции</h2>
               <p>Свободного чата здесь нет. Выбери готовую реакцию.</p>
-              <div>
-                {REACTIONS.map(([id, label]) => (
-                  <button key={id} type="button" onClick={() => onReaction(id)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {model.reactionsEnabled ? (
+                <div>
+                  {REACTIONS.map(([id, label]) => (
+                    <button key={id} type="button" onClick={() => onReaction(id)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="checkers-reactions-muted">Реакции скрыты только у вас.</p>
+              )}
+              {(model.reactionEvents ?? []).length > 0 && model.reactionsEnabled ? (
+                <ol className="checkers-reaction-events" aria-label="Журнал готовых реакций">
+                  {(model.reactionEvents ?? []).map((event) => (
+                    <li key={event.id}>
+                      <span>
+                        <strong>{event.senderName}</strong>{' '}
+                        {REACTIONS.find(([id]) => id === event.reactionId)?.[1] ?? 'реакция'}
+                      </span>
+                      {onReportReaction ? (
+                        <button type="button" onClick={() => onReportReaction(event.id)}>
+                          Сообщить педагогу
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
               <button type="button" className="checkers-mute-reactions" onClick={onToggleReactions}>
-                {model.reactionsEnabled ? 'Отключить реакции у себя' : 'Включить реакции'}
+                {model.reactionsEnabled ? 'Скрыть реакции у себя' : 'Показывать реакции'}
               </button>
             </div>
           ) : null}

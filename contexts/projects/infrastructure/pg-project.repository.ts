@@ -48,6 +48,16 @@ const ACCESS_SQL = `(
   OR (p.project_scope = 'classroom' AND $4::uuid IS NOT NULL AND EXISTS (
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
+           AND m.user_id = $4))
+)`;
+
+const OWNER_ACCESS_SQL = `(
+  (p.project_scope = 'personal'
+     AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $3)
+          OR ($4::uuid IS NOT NULL AND p.created_by = $4)))
+  OR (p.project_scope = 'classroom' AND $4::uuid IS NOT NULL AND EXISTS (
+        SELECT 1 FROM classroom_memberships m
+         WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
            AND m.user_id = $4 AND m.member_role = 'owner'))
 )`;
 
@@ -199,7 +209,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
             WHERE p.tenant_id=$1 AND p.project_scope='classroom'
               AND p.classroom_id=$2 AND m.user_id=$3
-              AND m.member_role='owner' AND p.status=$4
+              AND p.status=$4
             ORDER BY d.updated_at DESC`,
           [tenantId, filter.classroomId, actor.userId, status],
         );
@@ -213,7 +223,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
            LEFT JOIN classroom_memberships m
              ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
-            AND m.user_id=$3 AND m.member_role='owner'
+            AND m.user_id=$3
           WHERE p.tenant_id=$1 AND p.status=$4
             AND ((p.project_scope='personal'
                   AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id=$2)
@@ -289,7 +299,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     return withTenantContext(this.pool, actualTenantId, async (client) => {
       const updated = await client.query(
         `UPDATE projects p SET title=$5
-          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${ACCESS_SQL}
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${OWNER_ACCESS_SQL}
           RETURNING id,project_scope,classroom_id,module_key,title,status,created_at`,
         [actualTenantId, projectId, actor.principalId, actor.userId, title],
       );
@@ -331,7 +341,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           WHERE d.tenant_id=$1 AND d.project_id=$2
             AND p.tenant_id=d.tenant_id AND p.id=d.project_id
             AND p.status <> 'trashed'
-            AND ${ACCESS_SQL}
+            AND ${OWNER_ACCESS_SQL}
           RETURNING d.project_id,d.document_json,d.revision,d.updated_at`,
         [
           actualTenantId,
@@ -364,7 +374,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     return withTenantContext(this.pool, actualTenantId, async (client) => {
       const updated = await client.query(
         `UPDATE projects p SET status=$5
-          WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}
+          WHERE p.tenant_id=$1 AND p.id=$2 AND ${OWNER_ACCESS_SQL}
             AND (($5 = 'archived' AND p.status = 'active')
               OR ($5 = 'trashed' AND p.status IN ('active', 'archived'))
               OR ($5 = 'active' AND p.status IN ('archived', 'trashed')))
@@ -409,7 +419,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         `SELECT d.document_json
            FROM project_drafts d
            JOIN projects p ON p.tenant_id=d.tenant_id AND p.id=d.project_id
-          WHERE d.tenant_id=$1 AND d.project_id=$2 AND p.status <> 'trashed' AND ${ACCESS_SQL}
+          WHERE d.tenant_id=$1 AND d.project_id=$2 AND p.status <> 'trashed' AND ${OWNER_ACCESS_SQL}
           FOR UPDATE OF d`,
         [actualTenantId, projectId, actor.principalId, actor.userId],
       );

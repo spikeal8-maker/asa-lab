@@ -107,3 +107,10 @@ export {
   type CheckersDrawTracker,
   type CheckersPositionOccurrence,
 } from './domain/draw.js';
+export {
+  analyzeCheckersGameReview,
+  replayCheckersGame,
+  type CheckersReviewInsight,
+  type CheckersReviewTheme,
+} from './domain/review.js';
+export { applyCheckersGameMove } from './domain/game.js';

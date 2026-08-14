@@ -289,6 +289,22 @@
   min-height: auto;
 }
 
+.checkers-group-picker {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #d7e3e8;
+  border-radius: 12px;
+  background: #f7fafb;
+}
+
+.checkers-group-picker legend {
+  padding: 0 6px;
+  color: var(--checkers-ink);
+  font-weight: 800;
+}
+
 .checkers-teacher {
   width: min(1260px, calc(100% - 40px));
   margin: 0 auto;
@@ -306,6 +322,18 @@
   display: block;
   margin: 0 0 20px;
   padding: 0;
+}
+
+.checkers-teacher-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkers-teacher-actions .checkers-link-button {
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
 }
 
 .checkers-teacher-heading h1 {
@@ -1120,6 +1148,213 @@
   background: #acb8be;
 }
 
+.checkers-teacher-feedback {
+  margin: 18px 0 24px;
+  padding: 18px 22px;
+  border: 1px solid #b9d7e2;
+  border-radius: 16px;
+  background: #f2f9fc;
+}
+
+.checkers-teacher-feedback h2 {
+  margin: 5px 0;
+  color: var(--checkers-ink);
+  font-size: 20px;
+}
+
+.checkers-teacher-feedback p {
+  margin: 0;
+  color: var(--checkers-muted);
+}
+
+.checkers-class-play {
+  width: min(100% - 48px, 1180px);
+  margin: 0 auto;
+  padding: 42px 0 64px;
+}
+
+.checkers-safety-card {
+  margin: 24px 0 30px;
+  padding: 20px 24px;
+  border: 1px solid #b9dfd0;
+  border-radius: 18px;
+  background: #f2fbf7;
+}
+
+.checkers-safety-card > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.checkers-safety-card > div > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #28765c;
+}
+
+.checkers-safety-card h2,
+.checkers-class-section h2,
+.checkers-classmate-grid h3,
+.checkers-class-game-list h3 {
+  margin: 0;
+  color: var(--checkers-ink);
+}
+
+.checkers-safety-card p,
+.checkers-classmate-grid p,
+.checkers-class-game-list p {
+  margin: 6px 0 0;
+  color: var(--checkers-muted);
+}
+
+.checkers-class-section {
+  margin-top: 34px;
+}
+
+.checkers-classmate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.checkers-classmate-grid > article,
+.checkers-class-game-list > article {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dde4e7;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.checkers-classmate-grid > article > div:nth-child(2),
+.checkers-class-game-list > article > div {
+  flex: 1;
+}
+
+.checkers-classmate-grid > article > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkers-classmate-avatar {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  font-weight: 800;
+  background: #3d6c78;
+}
+
+.checkers-class-game-list {
+  display: grid;
+  gap: 12px;
+}
+
+.checkers-class-game-status {
+  display: inline-flex;
+  margin-bottom: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #52636a;
+  font-size: 12px;
+  font-weight: 700;
+  background: #edf2f4;
+}
+
+.checkers-class-game-status.active {
+  color: #21634d;
+  background: #dff5eb;
+}
+
+.checkers-review-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.checkers-review-controls button,
+.checkers-review-insights button {
+  min-height: 38px;
+  border: 1px solid #ccd7db;
+  border-radius: 10px;
+  color: var(--checkers-ink);
+  background: #fff;
+}
+
+.checkers-review-insights {
+  display: grid;
+  gap: 10px;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.checkers-review-insights article {
+  padding: 12px;
+  border-left: 4px solid #72919a;
+  border-radius: 10px;
+  background: #f5f8f9;
+}
+
+.checkers-review-insights article.positive {
+  border-left-color: #2c8769;
+  background: #f0faf6;
+}
+
+.checkers-review-insights article.attention {
+  border-left-color: #c17732;
+  background: #fff8ef;
+}
+
+.checkers-review-insights p {
+  margin: 6px 0 10px;
+}
+
+.checkers-reaction-events {
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  margin: 14px 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.checkers-reaction-events li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f3f6f7;
+}
+
+.checkers-reaction-events li button {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.checkers-reactions-muted {
+  padding: 14px;
+  border-radius: 10px;
+  background: #f3f6f7;
+}
+
 @media (max-width: 960px) {
   .checkers-bot-grid {
     grid-template-columns: 1fr 1fr;
@@ -1158,6 +1393,10 @@
 
   .checkers-teacher-stats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .checkers-classmate-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1235,6 +1474,17 @@
     padding-top: 24px;
   }
 
+  .checkers-class-play {
+    width: min(100% - 24px, 1180px);
+    padding-top: 24px;
+  }
+
+  .checkers-classmate-grid > article,
+  .checkers-class-game-list > article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .checkers-home-welcome,
   .checkers-class-card {
     align-items: flex-start;
@@ -1261,6 +1511,11 @@
   }
 
   .checkers-teacher-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .checkers-teacher-actions {
     align-items: stretch;
     flex-direction: column;
   }
