@@ -68,6 +68,26 @@ async function activateStudentWorkspace(
   expect(switched.status()).toBe(201);
 }
 
+async function expectUniformBoardCells(page: Page): Promise<void> {
+  const cells = page.locator('[data-square]');
+  await expect(cells).toHaveCount(64);
+
+  const dimensions = await cells.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const { width, height } = node.getBoundingClientRect();
+      return { width, height };
+    }),
+  );
+  const first = dimensions[0];
+  expect(first).toBeDefined();
+
+  for (const cell of dimensions) {
+    expect(Math.abs(cell.width - first!.width)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(cell.height - first!.height)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(cell.width - cell.height)).toBeLessThanOrEqual(0.5);
+  }
+}
+
 test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'e2e-checkers');
@@ -114,9 +134,17 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     .getByRole('button')
     .click();
   await expect(page.getByText('Задача · Обязательное взятие')).toBeVisible();
+  await expectUniformBoardCells(page);
 
+  const puzzleSave = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/projects/${projectId}/draft`) &&
+      response.request().method() === 'PUT' &&
+      response.ok(),
+  );
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="e5"]').click();
+  await puzzleSave;
   await expect(
     page.getByText('Задача решена. Доказательство добавлено в учебный прогресс.'),
   ).toBeVisible();
@@ -349,6 +377,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   await registerStudent(page, first);
   await registerStudent(page, second);
   await page.context().clearCookies();
+  await page.reload();
 
   await login(page);
   const classroomResponse = await page.context().request.post('/api/classrooms', {
