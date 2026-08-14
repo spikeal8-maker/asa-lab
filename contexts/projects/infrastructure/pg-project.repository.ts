@@ -1,6 +1,12 @@
 import type pg from 'pg';
 import { withTenantContext } from '@asa-lab/database';
-import type { Project, ProjectDraft, ProjectScope, ProjectVersion } from '../domain/project.js';
+import type {
+  Project,
+  ProjectDraft,
+  ProjectScope,
+  ProjectStatus,
+  ProjectVersion,
+} from '../domain/project.js';
 import type {
   CreateProjectInput,
   CreateProjectResult,
@@ -16,7 +22,7 @@ interface ProjectRow {
   classroom_id: string | null;
   module_key: string;
   title: string;
-  status: string;
+  status: ProjectStatus;
   created_at: string;
   updated_at?: string;
   request_fingerprint?: string | null;
@@ -151,6 +157,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     actor: ProjectActor,
     filter: ProjectListFilter,
   ): Promise<Project[]> {
+    const status = filter.status ?? 'active';
     if (actor.userId === null) {
       if (filter.scope === 'classroom' || filter.classroomId) return [];
       return withTenantContext(this.pool, tenantId, async (client) => {
@@ -160,9 +167,9 @@ export class PgProjectRepository implements ProjectRepositoryPort {
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
             WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
-              AND p.project_scope='personal' AND p.status='active'
+              AND p.project_scope='personal' AND p.status=$3
             ORDER BY d.updated_at DESC`,
-          [tenantId, actor.principalId],
+          [tenantId, actor.principalId, status],
         );
         return (result.rows as ProjectRow[]).map(toProject);
       });
@@ -174,11 +181,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                   p.status, p.created_at, d.updated_at
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
-            WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = 'active'
+            WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = $4
               AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $2)
                    OR p.created_by = $3)
             ORDER BY d.updated_at DESC`,
-          [tenantId, actor.principalId, actor.userId],
+          [tenantId, actor.principalId, actor.userId, status],
         );
         return (result.rows as ProjectRow[]).map(toProject);
       }
@@ -192,9 +199,9 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
             WHERE p.tenant_id=$1 AND p.project_scope='classroom'
               AND p.classroom_id=$2 AND m.user_id=$3
-              AND m.member_role='owner' AND p.status='active'
+              AND m.member_role='owner' AND p.status=$4
             ORDER BY d.updated_at DESC`,
-          [tenantId, filter.classroomId, actor.userId],
+          [tenantId, filter.classroomId, actor.userId, status],
         );
         return (result.rows as ProjectRow[]).map(toProject);
       }
@@ -207,13 +214,13 @@ export class PgProjectRepository implements ProjectRepositoryPort {
            LEFT JOIN classroom_memberships m
              ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
             AND m.user_id=$3 AND m.member_role='owner'
-          WHERE p.tenant_id=$1 AND p.status='active'
+          WHERE p.tenant_id=$1 AND p.status=$4
             AND ((p.project_scope='personal'
                   AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id=$2)
                        OR p.created_by=$3))
                  OR (p.project_scope='classroom' AND m.user_id IS NOT NULL))
           ORDER BY d.updated_at DESC`,
-        [tenantId, actor.principalId, actor.userId],
+        [tenantId, actor.principalId, actor.userId, status],
       );
       return (result.rows as ProjectRow[]).map(toProject);
     });
@@ -282,7 +289,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     return withTenantContext(this.pool, actualTenantId, async (client) => {
       const updated = await client.query(
         `UPDATE projects p SET title=$5
-          WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${ACCESS_SQL}
           RETURNING id,project_scope,classroom_id,module_key,title,status,created_at`,
         [actualTenantId, projectId, actor.principalId, actor.userId, title],
       );
@@ -323,6 +330,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
            FROM projects p
           WHERE d.tenant_id=$1 AND d.project_id=$2
             AND p.tenant_id=d.tenant_id AND p.id=d.project_id
+            AND p.status <> 'trashed'
             AND ${ACCESS_SQL}
           RETURNING d.project_id,d.document_json,d.revision,d.updated_at`,
         [
@@ -345,6 +353,49 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     });
   }
 
+  async updateStatus(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+    status: ProjectStatus,
+  ): Promise<Project | null> {
+    const actualTenantId = await this.projectTenant(tenantId, projectId, actor);
+    if (actualTenantId === null) return null;
+    return withTenantContext(this.pool, actualTenantId, async (client) => {
+      const updated = await client.query(
+        `UPDATE projects p SET status=$5
+          WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}
+            AND (($5 = 'archived' AND p.status = 'active')
+              OR ($5 = 'trashed' AND p.status IN ('active', 'archived'))
+              OR ($5 = 'active' AND p.status IN ('archived', 'trashed')))
+          RETURNING id,project_scope,classroom_id,module_key,title,status,created_at`,
+        [actualTenantId, projectId, actor.principalId, actor.userId, status],
+      );
+      const row = updated.rows[0] as ProjectRow | undefined;
+      if (!row) return null;
+      const activity = await client.query(
+        `UPDATE project_drafts SET updated_at=now()
+          WHERE tenant_id=$1 AND project_id=$2 RETURNING updated_at`,
+        [actualTenantId, projectId],
+      );
+      if (activity.rows[0]?.updated_at !== undefined) {
+        row.updated_at = String(activity.rows[0].updated_at);
+      }
+      await client.query(
+        `INSERT INTO audit_events
+           (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
+         VALUES ($1,$2,'project',$3,'project.status_changed',$4)`,
+        [
+          actualTenantId,
+          actor.userId,
+          projectId,
+          JSON.stringify({ status, actorPrincipalId: actor.principalId }),
+        ],
+      );
+      return toProject(row);
+    });
+  }
+
   async createCheckpoint(
     tenantId: string,
     projectId: string,
@@ -358,7 +409,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         `SELECT d.document_json
            FROM project_drafts d
            JOIN projects p ON p.tenant_id=d.tenant_id AND p.id=d.project_id
-          WHERE d.tenant_id=$1 AND d.project_id=$2 AND ${ACCESS_SQL}
+          WHERE d.tenant_id=$1 AND d.project_id=$2 AND p.status <> 'trashed' AND ${ACCESS_SQL}
           FOR UPDATE OF d`,
         [actualTenantId, projectId, actor.principalId, actor.userId],
       );

@@ -8,6 +8,68 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+interface DirectHandleSnapshot {
+  readonly centre: { readonly x: number; readonly y: number };
+  readonly handles: readonly { readonly id: string; readonly x: number; readonly y: number }[];
+}
+
+async function directHandlePoint(
+  page: Page,
+  handleId: string,
+): Promise<{
+  readonly handle: { readonly x: number; readonly y: number };
+  readonly centre: { readonly x: number; readonly y: number };
+}> {
+  const viewport = page.getByTestId('asa3d-viewport');
+  await expect(viewport).toHaveAttribute('data-selected-node-id', /.+/);
+  const overlay = page.getByTestId('asa3d-manipulator-overlay');
+  await expect(overlay).toHaveAttribute('data-handle-positions', new RegExp(handleId));
+  const snapshot = JSON.parse(
+    (await overlay.getAttribute('data-handle-positions')) ?? '{}',
+  ) as DirectHandleSnapshot;
+  const handle = snapshot.handles.find((candidate) => candidate.id === handleId);
+  const bounds = await viewport.boundingBox();
+  if (!handle || !snapshot.centre || !bounds) throw new Error(`3D handle ${handleId} unavailable`);
+  return {
+    handle: { x: bounds.x + handle.x, y: bounds.y + handle.y },
+    centre: { x: bounds.x + snapshot.centre.x, y: bounds.y + snapshot.centre.y },
+  };
+}
+
+async function selectObject(
+  page: Page,
+  preferredPoint?: { readonly x: number; readonly y: number },
+): Promise<void> {
+  const viewport = page.getByTestId('asa3d-viewport');
+  const bounds = await viewport.boundingBox();
+  if (!bounds) throw new Error('3D viewport unavailable');
+  const candidates = [
+    preferredPoint,
+    { x: bounds.x + bounds.width * 0.5, y: bounds.y + bounds.height * 0.5 },
+    { x: bounds.x + bounds.width * 0.56, y: bounds.y + bounds.height * 0.47 },
+    { x: bounds.x + bounds.width * 0.45, y: bounds.y + bounds.height * 0.52 },
+  ].filter((candidate): candidate is { readonly x: number; readonly y: number } =>
+    Boolean(candidate),
+  );
+
+  for (const candidate of candidates) {
+    await page.mouse.click(candidate.x, candidate.y);
+    if (await viewport.getAttribute('data-selected-node-id')) return;
+  }
+  throw new Error('Unable to select the 3D object from the rendered workplane');
+}
+
+function extendFromCentre(
+  handle: { readonly x: number; readonly y: number },
+  centre: { readonly x: number; readonly y: number },
+  distance: number,
+): { readonly x: number; readonly y: number } {
+  const x = handle.x - centre.x;
+  const y = handle.y - centre.y;
+  const length = Math.max(1, Math.hypot(x, y));
+  return { x: handle.x + (x / length) * distance, y: handle.y + (y / length) * distance };
+}
+
 async function createThreeDProject(page: Page, title: string): Promise<void> {
   await page.getByRole('button', { name: 'Создать', exact: true }).click();
   await page.getByLabel('Название проекта').fill(title);
@@ -16,6 +78,39 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
   await tile.click();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
+    timeout: 20_000,
+  });
+}
+
+async function expandShapeInspector(page: Page): Promise<void> {
+  const expand = page.getByRole('button', { name: 'Развернуть параметры формы' });
+  if (await expand.isVisible()) await expand.click();
+  await expect(page.getByLabel('Ширина, мм')).toBeVisible();
+}
+
+async function previewAndDropShape(page: Page): Promise<void> {
+  const source = page.getByRole('button', { name: 'Параллелепипед', exact: true });
+  const viewport = page.getByTestId('asa3d-viewport');
+  const bounds = await viewport.boundingBox();
+  if (!bounds) throw new Error('3D viewport unavailable');
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  const point = {
+    x: bounds.x + bounds.width * 0.58,
+    y: bounds.y + bounds.height * 0.54,
+  };
+  await source.dispatchEvent('dragstart', { dataTransfer });
+  await viewport.dispatchEvent('dragover', { dataTransfer, clientX: point.x, clientY: point.y });
+  await expect(viewport).toHaveAttribute('data-placement-preview', /^solid:box:/);
+  mkdirSync('e2e/artifacts/three-d', { recursive: true });
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/direct-manipulation-placement-preview.png',
+    fullPage: true,
+  });
+  await viewport.dispatchEvent('drop', { dataTransfer, clientX: point.x, clientY: point.y });
+  await source.dispatchEvent('dragend', { dataTransfer });
+  await expect(viewport).not.toHaveAttribute('data-placement-preview', /.+/);
+  await expect(viewport).toHaveAttribute('data-selected-node-id', /.+/);
 }
 
 test.beforeAll(async () => {
@@ -28,10 +123,15 @@ test.afterAll(async () => {
 });
 
 test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({ page }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(300_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(page, teacher);
   await createThreeDProject(page, 'Корпус датчика');
+  await expect(page.locator('.asa3d-canvas')).toHaveCSS('cursor', 'default');
+
+  await previewAndDropShape(page);
+  await page.getByRole('button', { name: 'Удалить (Delete)' }).click();
+  await expect(page.getByText('0 объектов', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Параметры', exact: true }).click();
   await expect(page.getByLabel('Параметры рабочей плоскости')).toContainText('Миллиметры (мм)');
@@ -41,13 +141,113 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
 
   await page.getByRole('button', { name: 'Поиск форм' }).click();
   await page.getByLabel('Название формы').fill('сф');
-  await expect(page.locator('.asa3d-shape-card')).toHaveCount(1);
-  await expect(page.locator('.asa3d-shape-card')).toContainText('Сфера');
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Сфера', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Полусфера', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Поиск форм' }).click();
-  await expect(page.locator('.asa3d-shape-card')).toHaveCount(7);
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(11);
 
-  await page.getByRole('button', { name: 'Параллелепипед' }).click();
+  await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
   await expect(page.getByLabel('Параметры выбранной формы')).toBeVisible();
+  await expandShapeInspector(page);
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/direct-manipulation-inspector-expanded.png',
+    fullPage: true,
+  });
+
+  await page.getByRole('button', { name: 'Отверстие: Цилиндр', exact: true }).click();
+  await expect(
+    page.getByLabel('Тип формы').getByRole('button', { name: 'Отверстие', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expandShapeInspector(page);
+  await page.getByLabel('Положение X, мм').fill('28');
+  await page.keyboard.down('Shift');
+  await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+  await page.keyboard.up('Shift');
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-ids', /,/);
+  await page.getByRole('button', { name: 'Сгруппировать (Ctrl+G)' }).click();
+  await expect(page.getByText(/Булева группа · 2/)).toBeVisible();
+  await expect(page.getByLabel('Булева операция')).toHaveValue('difference');
+  await page.getByLabel('Булева операция').selectOption('difference');
+  await page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' }).click();
+  await page.getByRole('button', { name: 'Выравнивание' }).click();
+  await page.getByRole('button', { name: 'X · ширина: По центру' }).click();
+  await page.getByRole('button', { name: 'Расширенная линейка' }).click();
+  await expect(page.getByText('Линейка · мм')).toBeVisible();
+  await page.getByRole('button', { name: 'Удалить (Delete)' }).click();
+  await selectObject(page);
+  await expandShapeInspector(page);
+
+  const corner = await directHandlePoint(page, 'resize-south-west');
+  await page.mouse.move(corner.handle.x, corner.handle.y);
+  await expect(page.getByTestId('asa3d-width-value')).toHaveText('20.00');
+  await expect(page.getByTestId('asa3d-depth-value')).toHaveText('20.00');
+  const enlargedCorner = extendFromCentre(corner.handle, corner.centre, 36);
+  await page.mouse.down();
+  await page.mouse.move(corner.handle.x + 1, corner.handle.y);
+  await expect(page.getByTestId('asa3d-width-value')).toHaveText(/^(19|20|21)\.00$/);
+  await expect(page.getByTestId('asa3d-depth-value')).toHaveText(/^(19|20|21)\.00$/);
+  await page.mouse.move(enlargedCorner.x, enlargedCorner.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByLabel('Ширина, мм')).not.toHaveValue('20');
+  await expect(page.getByLabel('Глубина, мм')).not.toHaveValue('20');
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
+  await expect(page.getByLabel('Ширина, мм')).toHaveValue('20');
+  await expect(page.getByLabel('Глубина, мм')).toHaveValue('20');
+
+  const height = await directHandlePoint(page, 'resize-height');
+  await page.mouse.move(height.handle.x, height.handle.y);
+  await expect(page.getByTestId('asa3d-height-value')).toHaveText('20.00');
+  const taller = extendFromCentre(height.handle, height.centre, 34);
+  await page.mouse.down();
+  await page.mouse.move(taller.x, taller.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByLabel('Высота, мм')).not.toHaveValue('20');
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
+  await expect(page.getByLabel('Высота, мм')).toHaveValue('20');
+
+  const lift = await directHandlePoint(page, 'lift');
+  await page.mouse.move(lift.handle.x, lift.handle.y);
+  await expect(page.getByTestId('asa3d-lift-value')).toHaveText('0.00');
+  await page.mouse.down();
+  await page.mouse.move(lift.handle.x, lift.handle.y - 36, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByLabel('Положение Y, мм')).not.toHaveValue('10');
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
+  await expect(page.getByLabel('Положение Y, мм')).toHaveValue('10');
+
+  const rotate = await directHandlePoint(page, 'rotate-y');
+  await page.mouse.move(rotate.handle.x, rotate.handle.y);
+  await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
+  const ringGrab = extendFromCentre(rotate.handle, rotate.centre, 18);
+  await page.mouse.move(ringGrab.x, ringGrab.y, { steps: 8 });
+  await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
+  const angle = Math.PI / 7;
+  const dx = ringGrab.x - rotate.centre.x;
+  const dy = ringGrab.y - rotate.centre.y;
+  const rotated = {
+    x: rotate.centre.x + dx * Math.cos(angle) - dy * Math.sin(angle),
+    y: rotate.centre.y + dx * Math.sin(angle) + dy * Math.cos(angle),
+  };
+  await page.mouse.down();
+  await page.mouse.move(rotated.x, rotated.y, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.getByLabel('Поворот Y, градусов')).not.toHaveValue('0');
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
+  await expect(page.getByLabel('Поворот Y, градусов')).toHaveValue('0');
+
+  const movable = await directHandlePoint(page, 'resize-height');
+  await page.mouse.move(movable.centre.x, movable.centre.y);
+  await page.mouse.down();
+  await page.mouse.move(movable.centre.x + 42, movable.centre.y + 18, { steps: 8 });
+  await page.mouse.up();
+  const movedX = Number(await page.getByLabel('Положение X, мм').inputValue());
+  const movedZ = Number(await page.getByLabel('Положение Z, мм').inputValue());
+  expect(Math.abs(movedX) + Math.abs(movedZ)).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
+  await expect(page.getByLabel('Положение X, мм')).toHaveValue('0');
+  await expect(page.getByLabel('Положение Z, мм')).toHaveValue('0');
+
   await page.getByLabel('Ширина, мм').fill('42');
   await page.getByLabel('Глубина, мм').fill('28');
   await page.getByLabel('Высота, мм').fill('12');
@@ -63,22 +263,54 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   });
   await page.locator('.asa3d-toast').click();
 
-  mkdirSync('e2e/artifacts', { recursive: true });
+  mkdirSync('e2e/artifacts/three-d', { recursive: true });
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.screenshot({ path: 'e2e/artifacts/three-d-desktop.png', fullPage: true });
+  await selectObject(page, movable.centre);
+  const dimensionEvidence = await directHandlePoint(page, 'resize-south-west');
+  await page.mouse.move(dimensionEvidence.handle.x, dimensionEvidence.handle.y);
+  await expect(page.getByTestId('asa3d-width-value')).toHaveText('42.00');
+  await expect(page.getByTestId('asa3d-depth-value')).toHaveText('28.00');
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/direct-manipulation-desktop.png',
+    fullPage: true,
+  });
+  const rotationEvidence = await directHandlePoint(page, 'rotate-y');
+  await page.mouse.move(rotationEvidence.handle.x, rotationEvidence.handle.y);
+  await expect(page.getByTestId('asa3d-angle-value')).toHaveText('0°');
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/direct-manipulation-rotation.png',
+    fullPage: true,
+  });
 
   await page.reload();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
+  await selectObject(page);
+  await expandShapeInspector(page);
+  await expect(page.getByLabel('Ширина, мм')).toHaveValue('42');
+  await expect(page.getByLabel('Глубина, мм')).toHaveValue('28');
+  await expect(page.getByLabel('Высота, мм')).toHaveValue('12');
+  await expect(page.getByLabel('Положение X, мм')).toHaveValue('16');
+  await expect(page.getByLabel('Поворот Z, градусов')).toHaveValue('15');
   await page.getByRole('button', { name: /Версия/ }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
+  await page.locator('.asa3d-toast').click();
+  await page.getByRole('button', { name: 'Свернуть параметры формы' }).click();
 
   await page.setViewportSize({ width: 768, height: 1024 });
   await expect(page.getByLabel('Библиотека форм')).toBeVisible();
-  await page.screenshot({ path: 'e2e/artifacts/three-d-tablet.png', fullPage: true });
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-id', /.+/);
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/direct-manipulation-tablet.png',
+    fullPage: true,
+  });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel('Библиотека форм')).toBeVisible();
-  await page.screenshot({ path: 'e2e/artifacts/three-d-mobile.png', fullPage: true });
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-id', /.+/);
+  await page.screenshot({
+    path: 'e2e/artifacts/three-d/direct-manipulation-mobile.png',
+    fullPage: true,
+  });
   failures.assertEmpty();
 });

@@ -4,6 +4,8 @@ import {
   createEmptyThreeDDocument,
   createHistory,
   createThreeDNode,
+  groupDocumentNodes,
+  alignDocumentNodes,
   parseThreeDDocument,
   redoHistory,
   undoHistory,
@@ -42,5 +44,53 @@ describe('ASA 3D document', () => {
     const undone = undoHistory(added);
     expect(undone.present.nodes).toHaveLength(0);
     expect(redoHistory(undone).present.nodes[0]?.primitive).toBe('cylinder');
+  });
+
+  it('keeps visibility available while a shape is locked', () => {
+    const locked = { ...createThreeDNode('box', 'locked-box'), locked: true };
+    const source = { ...createEmptyThreeDDocument(), nodes: [locked] };
+    const hidden = commitCommand(createHistory(source), {
+      type: 'set-visible',
+      nodeId: locked.id,
+      visible: false,
+    });
+    expect(hidden.present.nodes[0]).toMatchObject({ locked: true, visible: false });
+    expect(source.nodes[0]).toMatchObject({ locked: true, visible: true });
+  });
+
+  it('upgrades legacy version-one documents with reversible modelling metadata', () => {
+    const document = createEmptyThreeDDocument();
+    const legacyNode = createThreeDNode('box', 'legacy');
+    const legacy = { ...legacyNode } as Record<string, unknown>;
+    delete legacy['groupId'];
+    delete legacy['groupOperation'];
+    const legacyDocument = { ...document } as Record<string, unknown>;
+    delete legacyDocument['ruler'];
+    const parsed = parseThreeDDocument({ ...legacyDocument, nodes: [legacy] });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.nodes[0]).toMatchObject({ groupId: null, groupOperation: null });
+    expect(parsed.value.ruler).toEqual({
+      visible: false,
+      origin: { x: 0, y: 0, z: 0 },
+      precision: 2,
+    });
+  });
+
+  it('groups, aligns and ungroups editable nodes without flattening them', () => {
+    const first = createThreeDNode('box', 'first');
+    const second = {
+      ...createThreeDNode('cylinder', 'second'),
+      transform: {
+        ...createThreeDNode('cylinder', 'second').transform,
+        position: { x: 30, y: 10, z: 12 },
+      },
+    };
+    const document = { ...createEmptyThreeDDocument(), nodes: [first, second] };
+    const aligned = alignDocumentNodes(document, ['first', 'second'], 'z', 'center');
+    expect(aligned.nodes[0]?.transform.position.z).toBe(aligned.nodes[1]?.transform.position.z);
+    const grouped = groupDocumentNodes(aligned, ['first', 'second'], 'group-1', 'union');
+    expect(grouped.nodes).toHaveLength(2);
+    expect(grouped.nodes.every((node) => node.groupId === 'group-1')).toBe(true);
   });
 });

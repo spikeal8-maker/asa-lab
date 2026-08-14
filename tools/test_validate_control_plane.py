@@ -261,6 +261,41 @@ def task_healthy(_):
     return errors
 
 
+@case("direct main ignores expired legacy leases", expect="")
+def direct_main_ignores_expired_lease(_):
+    document = task_document()
+    document["development_policy"] = {
+        "mode": "direct_main",
+        "branch": "main",
+        "feature_branches": "optional",
+        "pull_requests": "optional",
+        "execution_leases": "disabled",
+        "lane_path_ownership": "advisory",
+    }
+    document["execution_lease"] = lease(
+        acquired_at=stamp(-9), expires_at=stamp(-1)
+    )
+    errors: list[str] = []
+    cp.check_current(document, errors)
+    return errors
+
+
+@case("direct main task may omit a pull request", expect="")
+def direct_main_without_pr(_):
+    document = task_document(branch="main", pr=None)
+    document["development_policy"] = {
+        "mode": "direct_main",
+        "branch": "main",
+        "feature_branches": "optional",
+        "pull_requests": "optional",
+        "execution_leases": "disabled",
+        "lane_path_ownership": "advisory",
+    }
+    errors: list[str] = []
+    cp.check_current(document, errors)
+    return errors
+
+
 # ── schema 1.1 lanes: identity and portable disjoint scopes ─────────────────
 
 

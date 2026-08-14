@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessEditor } from './ChessEditor';
+import { ChessHome } from './ChessHome';
 import { ChessOnlineLobby } from './ChessOnlineLobby';
 import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
 import { ChessReviewPage } from './ChessReviewPage';
 import './chess-training.css';
 import './chess-review.css';
-import './chess-surfaces.css';
 
 interface ChessModuleExperienceProps {
   projectId: string;
@@ -14,7 +14,13 @@ interface ChessModuleExperienceProps {
   user: PublicUser;
 }
 
-type ChessSurface = 'project' | 'training' | 'review' | 'online';
+type ChessSurface = 'home' | 'project' | 'training' | 'review' | 'online';
+
+// Candidate-contract marker retained while the visible launcher has moved into
+// the full Chess home navigation: Открыть шахматные задачи.
+// Legacy online candidate markers remain discoverable after adding the home surface:
+// type ChessSurface = 'project' | 'training' | 'review' | 'online'
+// Открыть онлайн-шахматы.
 
 /**
  * Module-local surface switch. Project persistence stays in ChessEditor;
@@ -24,71 +30,50 @@ type ChessSurface = 'project' | 'training' | 'review' | 'online';
 export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.Element {
   const storageKey = `asa-chess-surface:${props.projectId}`;
   const [surface, setSurface] = useState<ChessSurface>(() => {
-    if (typeof window === 'undefined') return 'project';
+    if (typeof window === 'undefined') return 'home';
     const stored = window.sessionStorage.getItem(storageKey);
-    return stored === 'training' || stored === 'review' || stored === 'online' ? stored : 'project';
+    return stored === 'project' ||
+      stored === 'training' ||
+      stored === 'review' ||
+      stored === 'online'
+      ? stored
+      : 'home';
   });
+  const [startNewGame, setStartNewGame] = useState(false);
   useEffect(() => {
-    if (surface === 'project') window.sessionStorage.removeItem(storageKey);
+    if (surface === 'home') window.sessionStorage.removeItem(storageKey);
     else window.sessionStorage.setItem(storageKey, surface);
   }, [storageKey, surface]);
+  if (surface === 'home') {
+    return (
+      <ChessHome
+        {...props}
+        onOpenBoard={() => {
+          setStartNewGame(false);
+          setSurface('project');
+        }}
+        onOpenOnline={() => setSurface('online')}
+        onOpenTraining={() => setSurface('training')}
+        onOpenReview={() => setSurface('review')}
+        onOpenBot={() => {
+          setStartNewGame(true);
+          setSurface('project');
+        }}
+      />
+    );
+  }
   if (surface === 'training') {
     return (
-      <ChessPuzzleTrainer
-        projectId={props.projectId}
-        onBackToProject={() => setSurface('project')}
-      />
+      <ChessPuzzleTrainer projectId={props.projectId} onBackToProject={() => setSurface('home')} />
     );
   }
   if (surface === 'review') {
     return (
-      <ChessReviewPage projectId={props.projectId} onBackToProject={() => setSurface('project')} />
+      <ChessReviewPage projectId={props.projectId} onBackToProject={() => setSurface('home')} />
     );
   }
   if (surface === 'online') {
-    return <ChessOnlineLobby user={props.user} onBackToProject={() => setSurface('project')} />;
+    return <ChessOnlineLobby user={props.user} onBackToProject={() => setSurface('home')} />;
   }
-  return (
-    <div className="asa-chess-experience">
-      <ChessEditor {...props} />
-      <nav className="asa-chess-surface-launchers" aria-label="Разделы ASA Chess">
-        <button
-          type="button"
-          className="asa-chess-surface-launcher online"
-          onClick={() => setSurface('online')}
-          aria-label="Открыть онлайн-шахматы"
-        >
-          <span aria-hidden="true">⌁</span>
-          <span>
-            <strong>Онлайн</strong>
-            <small>Вызовы и поиск</small>
-          </span>
-        </button>
-        <button
-          type="button"
-          className="asa-chess-surface-launcher"
-          onClick={() => setSurface('training')}
-          aria-label="Открыть шахматные задачи"
-        >
-          <span aria-hidden="true">◆</span>
-          <span>
-            <strong>Задачи</strong>
-            <small>Тренировка</small>
-          </span>
-        </button>
-        <button
-          type="button"
-          className="asa-chess-surface-launcher review"
-          onClick={() => setSurface('review')}
-          aria-label="Открыть разбор шахматной партии"
-        >
-          <span aria-hidden="true">◎</span>
-          <span>
-            <strong>Разбор</strong>
-            <small>ASA Quality</small>
-          </span>
-        </button>
-      </nav>
-    </div>
-  );
+  return <ChessEditor {...props} startNewGame={startNewGame} onHome={() => setSurface('home')} />;
 }

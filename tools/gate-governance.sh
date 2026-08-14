@@ -29,7 +29,10 @@ run "$PYTHON" -m compileall -q tools
 # developer machine with gh logged in — a skip would make the remote comparison
 # optional, which is the same as not having it.
 CONTROL_PLANE_ARGS=()
-if [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] || gh auth status >/dev/null 2>&1; then
+DEVELOPMENT_MODE="$($PYTHON -c 'import yaml; print((yaml.safe_load(open("docs/execution/current.yaml", encoding="utf-8")) or {}).get("development_policy", {}).get("mode", "coordinated_lanes"))')"
+if [ "$DEVELOPMENT_MODE" = "direct_main" ]; then
+  echo "── direct_main: branch, PR and lease remote checks are disabled"
+elif [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] || gh auth status >/dev/null 2>&1; then
   CONTROL_PLANE_ARGS+=(--require-github)
 else
   echo "── warning: no GitHub credentials; remote control-plane checks will be skipped"

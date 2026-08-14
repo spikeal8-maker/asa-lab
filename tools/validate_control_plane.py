@@ -35,7 +35,8 @@ CATALOG_VALIDATOR_PATH = ROOT / "tools/validate_test_catalog.py"
 PACKAGE_JSON_PATH = ROOT / "package.json"
 
 TASK_ID_PATTERN = re.compile(r"\bTASK-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}\b")
-BRANCH_PATTERN = re.compile(r"\bagent/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
+PRODUCT_BRANCH_PATTERN = re.compile(r"\bagent/[a-z0-9][a-z0-9./_-]*", re.IGNORECASE)
+BRANCH_PATTERN = re.compile(r"(?:main|agent/[a-z0-9][a-z0-9./_-]*)", re.IGNORECASE)
 SHA_PATTERN = re.compile(r"\b[0-9a-f]{40}\b")
 
 # Documents that describe policy or process and must not restate execution state.
@@ -51,13 +52,14 @@ FORBIDDEN_MANIFEST_KEYS = (
     "assistant_role",
 )
 
-REQUIRED_TASK_FIELDS = ("id", "issue", "branch", "base_branch", "pr", "status", "checkpoint")
+REQUIRED_TASK_FIELDS = ("id", "issue", "branch", "base_branch", "status", "checkpoint")
 ALLOWED_STATUSES = {"ready", "in_progress", "in_review", "blocked", "done"}
 ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 LANE_ID = re.compile(r"^[a-z][a-z0-9-]*$")
 PORTABLE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 SUPPORTED_SCHEMA_VERSIONS = {"1.0.0", "1.1.0"}
+DIRECT_MAIN_MODE = "direct_main"
 
 # Engineering invariants AGENTS.md states as already in force. A policy claim
 # that nothing checks is how the documents drifted apart in the first place, so
@@ -159,17 +161,59 @@ def check_task_record(task: Any, errors: list[str], label: str = "current.yaml t
         errors.append(f"{label}.status invalid: {task.get('status')!r}")
     if not TASK_ID_PATTERN.fullmatch(str(task.get("id", ""))):
         errors.append(f"{label}.id invalid: {task.get('id')!r}")
-    for field in ("issue", "pr"):
-        value = task.get(field)
-        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-            errors.append(f"{label}.{field} must be a positive integer")
     branch = task.get("branch")
     if not isinstance(branch, str) or not BRANCH_PATTERN.fullmatch(branch):
         errors.append(f"{label}.branch invalid: {branch!r}")
+    issue = task.get("issue")
+    if not isinstance(issue, int) or isinstance(issue, bool) or issue <= 0:
+        errors.append(f"{label}.issue must be a positive integer")
+    pr = task.get("pr")
+    if branch == "main":
+        if pr is not None and (
+            not isinstance(pr, int) or isinstance(pr, bool) or pr <= 0
+        ):
+            errors.append(f"{label}.pr must be null or a positive integer for main")
+    elif not isinstance(pr, int) or isinstance(pr, bool) or pr <= 0:
+        errors.append(f"{label}.pr must be a positive integer")
     base_branch = task.get("base_branch")
     if not isinstance(base_branch, str) or not PORTABLE_SEGMENT.fullmatch(base_branch):
         errors.append(f"{label}.base_branch invalid: {base_branch!r}")
     return task
+
+
+def development_mode(current: dict[str, Any]) -> str:
+    policy = current.get("development_policy")
+    if not isinstance(policy, dict):
+        return "coordinated_lanes"
+    return str(policy.get("mode") or "coordinated_lanes")
+
+
+def check_development_policy(current: dict[str, Any], errors: list[str]) -> str:
+    policy = current.get("development_policy")
+    if policy is None:
+        return "coordinated_lanes"
+    if not isinstance(policy, dict):
+        errors.append("current.yaml development_policy must be a mapping")
+        return "coordinated_lanes"
+    mode = development_mode(current)
+    if mode != DIRECT_MAIN_MODE:
+        errors.append(
+            "current.yaml development_policy.mode must be 'direct_main' when declared"
+        )
+        return mode
+    expected = {
+        "branch": "main",
+        "feature_branches": "optional",
+        "pull_requests": "optional",
+        "execution_leases": "disabled",
+        "lane_path_ownership": "advisory",
+    }
+    for field, value in expected.items():
+        if policy.get(field) != value:
+            errors.append(
+                f"current.yaml development_policy.{field} must be {value!r} in direct_main mode"
+            )
+    return mode
 
 
 def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
@@ -179,8 +223,10 @@ def check_current(current: Any, errors: list[str]) -> dict[str, Any]:
     version = str(current.get("schema_version") or "1.0.0")
     if version not in SUPPORTED_SCHEMA_VERSIONS:
         errors.append(f"current.yaml schema_version unsupported: {version!r}")
+    mode = check_development_policy(current, errors)
     task = check_task_record(current.get("task"), errors)
-    check_lease(current.get("execution_lease"), errors)
+    if mode != DIRECT_MAIN_MODE:
+        check_lease(current.get("execution_lease"), errors)
     check_gate_shape(current.get("gates"), errors)
     return task
 
@@ -323,6 +369,7 @@ def collect_lanes(
 ) -> list[dict[str, Any]]:
     """Collect schema 1.0 as one unscoped lane and schema 1.1 as scoped lanes."""
     version = str(current.get("schema_version") or "1.0.0")
+    leases_required = development_mode(current) != DIRECT_MAIN_MODE
     primary_meta = current.get("primary_lane")
     parallel = current.get("parallel_lanes")
     integration = current.get("integration")
@@ -402,7 +449,8 @@ def collect_lanes(
             lease = source.get("execution_lease")
             gates = source.get("gates")
             revisions = source.get("revisions") or {}
-            check_lease(lease, errors)
+            if leases_required:
+                check_lease(lease, errors)
             check_gate_shape(gates, errors)
         if not isinstance(revisions, dict):
             errors.append(f"current.yaml {label}.revisions must be a mapping")
@@ -516,7 +564,7 @@ def check_stateless_documents(errors: list[str]) -> None:
                 continue
             for pattern, label in (
                 (TASK_ID_PATTERN, "task id"),
-                (BRANCH_PATTERN, "product branch"),
+                (PRODUCT_BRANCH_PATTERN, "product branch"),
                 (SHA_PATTERN, "commit SHA"),
             ):
                 found = pattern.search(line)
@@ -1137,6 +1185,7 @@ def main() -> int:
     check_no_duplicate_keys(errors)
     task = check_current(current, errors)
     if task:
+        direct_main = development_mode(current) == DIRECT_MAIN_MODE
         lanes = collect_lanes(current, task, errors)
         # Revisions listed in current.yaml are legitimate historical references.
         lane_tasks = [
@@ -1151,16 +1200,22 @@ def main() -> int:
         task = lane_tasks[0]
         check_stateless_documents(errors)
         check_source_invariants(errors)
-        check_state_file_is_canonical(lane_tasks, errors, notes)
-        check_manifest(task, errors)
-        check_project_map(task, errors)
-        check_active_tests(task, errors)
         check_catalog_validator(errors)
         check_gate_scripts(current, errors, lanes)
-        check_lane_branch_scopes(lanes, errors, notes, args.require_github)
-        for lane_task in lane_tasks:
-            check_git(lane_task, errors, notes)
-            check_github(lane_task, errors, notes, args.require_github)
+        if direct_main:
+            notes.append(
+                "direct_main mode: leases, lane path ownership, product branches and PRs "
+                "are advisory and do not block development"
+            )
+        else:
+            check_state_file_is_canonical(lane_tasks, errors, notes)
+            check_manifest(task, errors)
+            check_project_map(task, errors)
+            check_active_tests(task, errors)
+            check_lane_branch_scopes(lanes, errors, notes, args.require_github)
+            for lane_task in lane_tasks:
+                check_git(lane_task, errors, notes)
+                check_github(lane_task, errors, notes, args.require_github)
 
     if errors:
         print("ASA Lab control plane validation: FAIL", file=sys.stderr)
@@ -1170,10 +1225,16 @@ def main() -> int:
 
     print("ASA Lab control plane validation: PASS")
     print(f"activeTask={task.get('id')}")
-    print(f"branch={task.get('branch')}")
-    print(f"pr={task.get('pr')}")
+    if development_mode(current) == DIRECT_MAIN_MODE:
+        print("developmentMode=direct_main")
+        print("branch=main")
+        print("pullRequests=optional")
+        print("executionLeases=disabled")
+    else:
+        print(f"branch={task.get('branch')}")
+        print(f"pr={task.get('pr')}")
+        print(f"leaseHolder={(current.get('execution_lease') or {}).get('holder')}")
     print(f"status={task.get('status')}")
-    print(f"leaseHolder={(current.get('execution_lease') or {}).get('holder')}")
     if len(lane_tasks) > 1:
         print(f"lanes={','.join(str(lane.get('id')) for lane in lanes)}")
         print(f"integrationOwner={(current.get('integration') or {}).get('owner_lane')}")

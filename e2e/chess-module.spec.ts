@@ -21,6 +21,9 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await chessTile.click();
   await expect(chessTile.getByRole('radio')).toBeChecked();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
+  await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await page.getByRole('button', { name: 'Открыть доску', exact: true }).click();
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await expect(page.getByLabel('Название проекта')).toHaveValue(title);
 }
@@ -112,7 +115,8 @@ test('review selects exact plies and accepts only the verified retry move', asyn
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByText('Сохранено', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Открыть разбор шахматной партии' }).click();
+  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await page.getByRole('button', { name: 'Разбор', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Разбор ошибки и повторение' })).toBeVisible();
   await expect(page.getByLabel('График оценки по полуходам')).toBeVisible();
   await expect(page.getByLabel('Проверенные факты разбора')).toContainText(
@@ -149,7 +153,8 @@ test('learner opens the original ASA puzzle trainer and solves a mate in one wit
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createChessProject(page, 'Тренировка по тактике');
-  await page.getByRole('button', { name: 'Открыть шахматные задачи' }).click();
+  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await page.getByRole('button', { name: 'Задачи', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мат в один ход' })).toBeVisible();
   await expect(page.getByText('Прогресс этого проекта: 0 из 3')).toBeVisible();
 

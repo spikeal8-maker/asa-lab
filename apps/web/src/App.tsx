@@ -12,6 +12,7 @@ import { AccountPage } from './pages/AccountPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { PortalHeader } from './components/PortalHeader';
+import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import {
@@ -63,6 +64,7 @@ export function App(): JSX.Element {
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromHash(window.location.hash),
   );
+  const [shellCreating, setShellCreating] = useState(false);
 
   const setView = useCallback((next: CreatorPortalView) => {
     setViewState(next);
@@ -227,6 +229,7 @@ export function App(): JSX.Element {
           setSession({ kind: 'anonymous' });
           setPublicView({ kind: 'entry' });
         }}
+        onCreate={() => setShellCreating(true)}
       />
       {view.kind === 'home' ? (
         <CreatorHomePage
@@ -302,6 +305,16 @@ export function App(): JSX.Element {
         <AccountPage
           session={session.session}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
+        />
+      ) : null}
+      {shellCreating ? (
+        <CreateProjectModal
+          scope="personal"
+          onClose={() => setShellCreating(false)}
+          onCreated={(project) => {
+            setShellCreating(false);
+            setView({ kind: 'editor', projectId: project.id, returnTo: { kind: 'my-projects' } });
+          }}
         />
       ) : null}
     </div>

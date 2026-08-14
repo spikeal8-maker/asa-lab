@@ -20,8 +20,10 @@ import {
   PgClassroomRepository,
 } from '@asa-lab/classroom';
 import {
+  ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
   CreateProjectUseCase,
+  DuplicateProjectUseCase,
   ListProjectsUseCase,
   OpenProjectUseCase,
   PgProjectRepository,
@@ -206,6 +208,14 @@ export class AppModule {
         {
           provide: TOKENS.renameProjectUseCase,
           useFactory: () => new RenameProjectUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.changeProjectStatusUseCase,
+          useFactory: () => new ChangeProjectStatusUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.duplicateProjectUseCase,
+          useFactory: () => new DuplicateProjectUseCase(projectRepository()),
         },
         {
           provide: TOKENS.saveDraftUseCase,

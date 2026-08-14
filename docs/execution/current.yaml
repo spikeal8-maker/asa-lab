@@ -1,5 +1,16 @@
 schema_version: 1.1.0
 
+# Owner-selected development workflow. There is one user-visible product and it
+# is developed directly in main. Legacy lane, branch, PR and lease records below
+# remain as planning/history metadata only; they do not grant or block writes.
+development_policy:
+  mode: direct_main
+  branch: main
+  feature_branches: optional
+  pull_requests: optional
+  execution_leases: disabled
+  lane_path_ownership: advisory
+
 # ─────────────────────────────────────────────────────────────────────────────
 # THE single source of execution state for ASA Lab.
 #
@@ -41,11 +52,8 @@ revisions:
   # Set only by an owner acceptance transition. Never set by an agent.
   owner_accepted_sha: null
 
-# Who is allowed to write to the product branch right now.
-# A second agent that finds a held lease stays a reviewer and does not commit.
-# holder must be either 'unassigned' or exactly executor_id; while it is held
-# both timestamps are required and expires_at must be after acquired_at.
-# validate_control_plane.py enforces all of that.
+# Legacy compatibility record. It is not an access-control mechanism while
+# development_policy.execution_leases is disabled.
 execution_lease:
   executor_id: codex-checkers-m1
   holder: codex-checkers-m1
@@ -152,20 +160,22 @@ parallel_lanes:
       branch: agent/three-d-direct-manipulation
       base_branch: main
       pr: 108
-      pr_draft: true
-      status: in_progress
-      checkpoint: direct_manipulation_foundation
-      owner_acceptance: pending
+      pr_draft: false
+      status: done
+      checkpoint: merged_to_main
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 5c66766303750475885bb42a91fee78834401ad7
       # Head at lane activation. Later PR heads must descend from it; product
       # progress does not require a governance rewrite after every push.
       head_sha: 5c66766303750475885bb42a91fee78834401ad7
+      owner_accepted_sha: 82c3155724ef651b51de2ee3ae317003f7592288
+      product_merge_sha: b2668d35702c6a0340d840747cd193af6f020e7a
     execution_lease:
       executor_id: codex-three-d-direct-manipulation
-      holder: codex-three-d-direct-manipulation
-      acquired_at: "2026-08-14T07:11:03Z"
-      expires_at: "2026-08-15T07:11:03Z"
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
       reviewer_role_requires_lease: false
     gates:
       focused:
@@ -252,6 +262,7 @@ integration:
     - tools/test_validate_control_plane.py
     - .github/workflows/**
     - apps/api/src/module-registry.ts
+    - apps/api/src/modules.controller.spec.ts
     - apps/web/src/modules/ModuleEditorHost.tsx
     - docs/delivery/**
     - docs/project-map/**
