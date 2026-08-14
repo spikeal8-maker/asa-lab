@@ -17,3 +17,4 @@ export {
   type CheckersTeacherDashboardViewModel,
   type CheckersTeacherStudentRow,
 } from './CheckersTeacherDashboard';
+export { CheckersModuleExperience } from './CheckersModuleExperience';

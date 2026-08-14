@@ -18,6 +18,13 @@ export {
 } from './domain/document.js';
 export { CHECKERS_MODULE, type CheckersAnalysisSummary } from './module.js';
 export {
+  createInitialCheckersProjectDocument,
+  validateCheckersProjectDocument,
+  type CheckersEducationState,
+  type CheckersProjectDocument,
+} from './domain/project.js';
+export { CHECKERS_STARTER_PUZZLES } from './domain/starter-content.js';
+export {
   applyCheckersMove,
   generateLegalCheckersMoves,
   getCheckersGameStatus,

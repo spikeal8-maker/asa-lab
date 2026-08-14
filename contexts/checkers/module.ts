@@ -1,9 +1,9 @@
 import { defineModule, type ModuleDiagnostic } from '@asa-lab/module-sdk';
 import {
-  createInitialCheckersDocument,
-  validateCheckersDocument,
-  type CheckersDocument,
-} from './domain/document.js';
+  createInitialCheckersProjectDocument,
+  validateCheckersProjectDocument,
+  type CheckersProjectDocument,
+} from './domain/project.js';
 
 export interface CheckersAnalysisSummary {
   readonly lightMen: number;
@@ -11,7 +11,7 @@ export interface CheckersAnalysisSummary {
   readonly darkMen: number;
   readonly darkKings: number;
   readonly moveCount: number;
-  readonly result: CheckersDocument['result'];
+  readonly result: CheckersProjectDocument['game']['result'];
 }
 
 const CHECKERS_MANIFEST = {
@@ -40,35 +40,38 @@ function invalidDocument(message: string): readonly ModuleDiagnostic[] {
   ];
 }
 
-export const CHECKERS_MODULE = defineModule<CheckersDocument, CheckersAnalysisSummary>(
+export const CHECKERS_MODULE = defineModule<CheckersProjectDocument, CheckersAnalysisSummary>(
   CHECKERS_MANIFEST,
   {
-    createEmptyProject: () => createInitialCheckersDocument(),
+    createEmptyProject: () => createInitialCheckersProjectDocument(),
     validate: (payload: unknown) => {
-      const parsed = validateCheckersDocument(payload);
+      const parsed = validateCheckersProjectDocument(payload);
       if (!parsed.ok) return { ok: false, diagnostics: invalidDocument(parsed.message) };
       return { ok: true, payload: parsed.value, diagnostics: [] };
     },
-    createPreview: (payload: CheckersDocument) => ({
+    createPreview: (payload: CheckersProjectDocument) => ({
       kind: 'board',
-      summary: `${payload.pieces.length} шашек · ${payload.moveHistory.length} ходов`,
+      summary: `${payload.game.pieces.length} шашек · ${payload.game.moveHistory.length} ходов`,
       inlineData: JSON.stringify({
-        ruleset: payload.ruleset,
-        sideToMove: payload.sideToMove,
-        pieces: payload.pieces,
+        ruleset: payload.game.ruleset,
+        sideToMove: payload.game.sideToMove,
+        pieces: payload.game.pieces,
       }),
     }),
-    analyse: (payload: CheckersDocument) => ({
-      lightMen: payload.pieces.filter((piece) => piece.side === 'light' && piece.kind === 'man')
+    analyse: (payload: CheckersProjectDocument) => ({
+      lightMen: payload.game.pieces.filter(
+        (piece) => piece.side === 'light' && piece.kind === 'man',
+      ).length,
+      lightKings: payload.game.pieces.filter(
+        (piece) => piece.side === 'light' && piece.kind === 'king',
+      ).length,
+      darkMen: payload.game.pieces.filter((piece) => piece.side === 'dark' && piece.kind === 'man')
         .length,
-      lightKings: payload.pieces.filter((piece) => piece.side === 'light' && piece.kind === 'king')
-        .length,
-      darkMen: payload.pieces.filter((piece) => piece.side === 'dark' && piece.kind === 'man')
-        .length,
-      darkKings: payload.pieces.filter((piece) => piece.side === 'dark' && piece.kind === 'king')
-        .length,
-      moveCount: payload.moveHistory.length,
-      result: payload.result,
+      darkKings: payload.game.pieces.filter(
+        (piece) => piece.side === 'dark' && piece.kind === 'king',
+      ).length,
+      moveCount: payload.game.moveHistory.length,
+      result: payload.game.result,
     }),
   },
 );

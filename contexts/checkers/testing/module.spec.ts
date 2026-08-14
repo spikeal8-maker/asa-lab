@@ -40,7 +40,7 @@ describe('ASA Checkers module provider', () => {
         {
           code: 'checkers_document_invalid',
           severity: 'error',
-          message: 'checkers document has an invalid shape',
+          message: 'checkers project document has an invalid shape',
         },
       ],
     });

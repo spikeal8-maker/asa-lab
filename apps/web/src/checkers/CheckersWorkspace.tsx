@@ -27,6 +27,7 @@ export interface CheckersWorkspaceViewModel {
   readonly moveHistory: readonly CheckersMoveHistoryItem[];
   readonly instructionTitle: string;
   readonly instruction: string;
+  readonly hintText?: string;
   readonly reactionsEnabled: boolean;
 }
 
@@ -62,6 +63,8 @@ export function CheckersWorkspace({
   onModeChange,
   onMove,
   onReaction,
+  onHint,
+  onToggleReactions,
 }: {
   model: CheckersWorkspaceViewModel;
   onBack: () => void;
@@ -69,6 +72,8 @@ export function CheckersWorkspace({
   onModeChange: (mode: CheckersWorkspaceViewModel['mode']) => void;
   onMove: (move: CheckersWorkspaceMove) => void;
   onReaction: (reactionId: (typeof REACTIONS)[number][0]) => void;
+  onHint?: () => void;
+  onToggleReactions?: () => void;
 }): JSX.Element {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState(model.projectTitle);
@@ -205,7 +210,10 @@ export function CheckersWorkspace({
               <p>{model.instruction}</p>
               <div className="checkers-hint-ladder">
                 <strong>Нужна подсказка?</strong>
-                <button type="button">Напомнить правило</button>
+                {model.hintText ? <p className="checkers-hint-text">{model.hintText}</p> : null}
+                <button type="button" onClick={onHint} disabled={!onHint}>
+                  {model.hintText ? 'Следующая подсказка' : 'Напомнить правило'}
+                </button>
               </div>
             </div>
           ) : null}
@@ -237,8 +245,8 @@ export function CheckersWorkspace({
                   </button>
                 ))}
               </div>
-              <button type="button" className="checkers-mute-reactions">
-                Отключить реакции у себя
+              <button type="button" className="checkers-mute-reactions" onClick={onToggleReactions}>
+                {model.reactionsEnabled ? 'Отключить реакции у себя' : 'Включить реакции'}
               </button>
             </div>
           ) : null}

@@ -134,6 +134,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@asa-lab/checkers':
+        specifier: workspace:*
+        version: link:../../contexts/checkers
       '@asa-lab/chess':
         specifier: workspace:*
         version: link:../../contexts/chess
@@ -197,6 +200,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@asa-lab/checkers':
+        specifier: workspace:*
+        version: link:../../contexts/checkers
       '@asa-lab/chess':
         specifier: workspace:*
         version: link:../../contexts/chess
