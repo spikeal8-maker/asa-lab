@@ -80,6 +80,8 @@ primary_lane:
   owned_paths:
     - contexts/checkers/**
     - apps/api/src/checkers/**
+    - apps/api/src/checkers.controller.ts
+    - apps/api/src/checkers.controller.spec.ts
     - apps/web/src/checkers/**
     - migrations/0014_checkers_learning.sql
     - tests/checkers/**
@@ -187,7 +189,6 @@ parallel_lanes:
     worktree_id: r3-project-lifecycle
     owned_paths:
       - contexts/projects/**
-      - apps/api/src/app.module.ts
       - apps/api/src/projects.controller.ts
       - apps/api/src/tokens.ts
       - apps/web/src/api.ts
@@ -248,9 +249,12 @@ integration:
     - START_HERE_FOR_AI.md
     - package.json
     - pnpm-lock.yaml
+    - apps/api/package.json
+    - apps/web/package.json
     - tools/validate_control_plane.py
     - tools/test_validate_control_plane.py
     - .github/workflows/**
+    - apps/api/src/app.module.ts
     - apps/api/src/module-registry.ts
     - apps/web/src/modules/ModuleEditorHost.tsx
     - docs/delivery/**
