@@ -307,11 +307,6 @@
   box-shadow: 0 10px 24px rgba(16, 42, 67, 0.2);
 }
 
-.asa-chess-home-mini-board .asa-chess-piece,
-.asa-chess-home-puzzle-board .asa-chess-piece {
-  font-size: clamp(18px, 2.4vw, 39px);
-}
-
 .asa-chess-home-mini-board .asa-chess-coordinate,
 .asa-chess-home-puzzle-board .asa-chess-coordinate {
   display: none;
