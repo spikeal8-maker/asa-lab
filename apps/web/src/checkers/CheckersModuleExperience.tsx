@@ -1162,6 +1162,8 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     );
     content = (
       <CheckersStudentHome
+        projectTitle={checkers.projectTitle}
+        onBack={props.onBack}
         model={{
           studentName: props.user.displayName,
           recommendation: {

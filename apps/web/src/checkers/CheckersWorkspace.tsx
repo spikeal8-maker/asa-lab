@@ -136,9 +136,17 @@ export function CheckersWorkspace({
     <div className="checkers-workspace">
       <header className="checkers-editor-header">
         <div className="checkers-brand-zone">
-          <button type="button" className="checkers-brand" onClick={onBack} aria-label="ASA Lab">
+          <button
+            type="button"
+            className="checkers-brand"
+            onClick={onBack}
+            aria-label="Вернуться в кабинет шашек"
+          >
+            <span className="checkers-back-arrow" aria-hidden="true">
+              ←
+            </span>
             <img src="/asa-lab-mark.svg" alt="" aria-hidden="true" />
-            <span>ASA Lab</span>
+            <span>ASA Шашки</span>
           </button>
           <input
             value={draftTitle}
@@ -189,15 +197,6 @@ export function CheckersWorkspace({
         </nav>
       </header>
 
-      <div className="checkers-context-bar">
-        <div>
-          <span className={`checkers-turn-dot ${model.sideToMove}`} />
-          <strong>{model.sideToMove === 'light' ? 'Ход светлых' : 'Ход тёмных'}</strong>
-          <span>{model.opponentLabel}</span>
-        </div>
-        <span>{model.modeLabel}</span>
-      </div>
-
       <main className="checkers-game-layout" id="main-content" tabIndex={-1}>
         <section className="checkers-board-stage" aria-label="Игровая доска">
           <div className="checkers-board-frame">
@@ -209,7 +208,10 @@ export function CheckersWorkspace({
                   <small>{model.opponentLabel}</small>
                 </span>
               </div>
-              <span className="checkers-legal-count">Ходов: {model.legalMoves.length}</span>
+              <div className="checkers-board-meta">
+                <small>{model.modeLabel}</small>
+                <span className="checkers-legal-count">Ходов: {model.legalMoves.length}</span>
+              </div>
             </div>
 
             <CheckersBoard

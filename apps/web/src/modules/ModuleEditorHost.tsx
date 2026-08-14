@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
 import { ChessModuleExperience } from '../chess/ChessModuleExperience';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
+import { loadCheckersEditor } from '../checkers/load-checkers-editor';
 import { SchematicEditor } from '../pages/SchematicEditor';
 
 interface ModuleEditorProps {
@@ -13,11 +14,7 @@ interface ModuleEditorProps {
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
   electronics: SchematicEditor,
   chess: ChessModuleExperience,
-  checkers: lazy(() =>
-    import('../checkers/CheckersModuleExperience').then((module) => ({
-      default: module.CheckersModuleExperience,
-    })),
-  ),
+  checkers: lazy(loadCheckersEditor),
   'three-d': lazy(() =>
     import('../three-d/ThreeDEditor').then((module) => ({ default: module.ThreeDEditor })),
   ),
