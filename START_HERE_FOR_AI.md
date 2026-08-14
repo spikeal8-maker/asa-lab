@@ -4,8 +4,8 @@
 ветки, Issue, PR или SHA — только порядок действий. Актуальное состояние живёт
 в одном месте: [`docs/execution/current.yaml`](docs/execution/current.yaml).
 
-Если ты нашёл здесь захардкоженный `TASK-…`, `agent/…` или SHA — это дефект
-управляющей инфраструктуры. Останови работу и сообщи владельцу.
+Если ты нашёл здесь захардкоженный `TASK-…` или SHA — это дефект управляющей
+инфраструктуры. Исправь его вместе с текущей работой.
 
 ## 1. Прочитай политику
 
@@ -22,10 +22,10 @@ AGENTS.md
 cat docs/execution/current.yaml
 ```
 
-Корневые `task`, `execution_lease` и `gates` описывают primary lane. При schema
-1.1 прочитай также `primary_lane`, каждый элемент `parallel_lanes` и
-`integration`: оттуда берутся lane, ветка, lease, `owned_paths`, shared paths и
-единственный integration owner. Schema 1.0 означает один корневой lane.
+Поле `development_policy` определяет способ работы. При `mode: direct_main`
+единственная актуальная версия разрабатывается непосредственно в `main`.
+Исторические `execution_lease`, lane, branch, PR и `owned_paths` не являются
+разрешениями и не блокируют работу.
 
 Ни один другой файл не является источником этих значений. Если
 `EXECUTION_MANIFEST.yaml`, `project-map.yaml`, `QUALITY_MAP.md`, тело PR или
@@ -38,42 +38,30 @@ cat docs/execution/current.yaml
 pnpm control-plane:check
 ```
 
-Проверка сравнивает `current.yaml` с фактическим Git, remote HEAD, головой PR,
-телом PR и остальными документами. При FAIL — сначала чинится рассинхрон,
-никакой продуктовой работы.
+Проверка подтверждает целостность YAML, обязательных gates и инженерных
+инвариантов. В режиме `direct_main` устаревшие lease, branch и PR не проверяются.
+Реальное повреждение структуры исправляется до продуктовой работы.
 
 ## 4. Проверь Git
 
 ```bash
 git remote -v
 git status --short --branch
-git fetch --all --prune
-git switch "<branch выбранного lane из current.yaml>"
-git pull --ff-only
+git fetch origin main
+git switch main
+git pull --ff-only origin main
 git rev-parse HEAD
 ```
 
 Не удалять untracked backups, credentials и owner screenshots. Не использовать
-force-push, reset --hard, rebase опубликованной истории, merge или tag.
+force-push, reset --hard, rebase опубликованной истории или tag без отдельного
+поручения владельца.
 
-## 5. Выбери lane и проверь execution lease
+## 5. Проверь параллельную работу
 
-Для primary lane используется корневой `execution_lease`; для дополнительного
-lane — его собственный `execution_lease`. Каждый lease определяет единственного
-писателя только в соответствующую продуктовую ветку и только в её
-`owned_paths`.
-
-- лизом выбранного lane владеешь ты → работай в пределах его `owned_paths`;
-- лиз держит кто-то другой → ты **reviewer**: читай, запускай тесты, отчитывайся,
-  но не коммить в продуктовую ветку этого lane;
-- `holder: unassigned` → продуктовая работа не начата; получи лиз у владельца
-  одним явным переходом, прежде чем писать код.
-
-Shared paths меняет только `integration.owner_lane`. Даже он не редактирует
-`docs/execution/current.yaml` в продуктовой ветке: состояние меняется отдельным
-governance PR.
-
-Читать репозиторий, запускать тесты и публиковать отчёт можно без лиза.
+Проверь `git status`, существующие worktree и затрагиваемые файлы. Не удаляй и
+не перезаписывай чужие незавершённые изменения. Lane и `owned_paths` можно
+использовать как подсказки о расположении модулей, но не как запрет записи.
 
 ## 6. Обязательное чтение по задаче
 
@@ -87,8 +75,8 @@ AGENTS.md
 → GitHub Issue из current.yaml
 ```
 
-Manifest, project map и active-task registry пока сверяются с primary lane для
-обратной совместимости. Параллельный lane не переписывает их под себя.
+Manifest, project map и active-task registry описывают устройство и тесты
+проекта. Они не ограничивают работу только одной задачей или директорией.
 
 Планируемые, ещё не исполнимые тесты лежат отдельно в
 [`docs/testing/planned-test-catalog.yaml`](docs/testing/planned-test-catalog.yaml)
@@ -105,8 +93,8 @@ pnpm gate:electronics-m1:browser # браузерный journey, нужен по
 pnpm gate:repository             # governance + code + data, нужен PostgreSQL
 ```
 
-Список gates выбранного lane и то, что каждый из них покрывает, читается из его
-`gates` в `current.yaml` (для primary — из корневого `gates`). Не подменяй gate его частью: `gate:code` без
+Список доступных gates читается из `package.json` и `current.yaml`. Не подменяй
+gate его частью: `gate:code` без
 PostgreSQL не равен `gate:repository`, а `gate:electronics-m1` не включает
 браузер.
 
@@ -124,5 +112,5 @@ NX_SKIP_NX_CACHE=true pnpm gate:repository
 ## 8. Stop
 
 Останавливайся на условиях из `AGENTS.md` и из `blocking` в `current.yaml`.
-Перевод задачи в `in_review`, merge, снятие Draft и активация следующей задачи —
-только решением владельца.
+В режиме `direct_main` execution lease, product branch, PR и lane ownership не
+являются условиями остановки.
