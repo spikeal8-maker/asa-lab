@@ -25,6 +25,7 @@ import {
   type ThreeDTransform,
 } from '@asa-lab/three-d';
 import { api, type ProjectVersion } from '../api';
+import { clearLocalThreeDDraft, readLocalThreeDDraft, writeLocalThreeDDraft } from './local-draft';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -40,6 +41,8 @@ export interface ThreeDProjectController {
   readonly selectedNodes: readonly ThreeDNode[];
   readonly selectedGroupId: string | null;
   readonly saveState: SaveState;
+  readonly saveError: string | null;
+  readonly requiresSignIn: boolean;
   readonly notice: string | null;
   readonly versions: readonly ProjectVersion[];
   readonly hasClipboard: boolean;
@@ -71,6 +74,8 @@ export interface ThreeDProjectController {
   readonly undo: () => void;
   readonly redo: () => void;
   readonly createCheckpoint: () => Promise<void>;
+  readonly retrySave: () => void;
+  readonly signInAgain: () => void;
   readonly importDocument: (value: unknown) => boolean;
   readonly clearNotice: () => void;
 }
@@ -83,6 +88,28 @@ function makeId(prefix: string): string {
   localIdSequence += 1;
   const entropy = Math.random().toString(36).slice(2, 10);
   return `${prefix}-${Date.now().toString(36)}-${localIdSequence.toString(36)}-${entropy}`;
+}
+
+function friendlySaveFailure(status: number): {
+  readonly message: string;
+  readonly signIn: boolean;
+} {
+  if (status === 401) {
+    return {
+      message: 'Сессия завершена. Изменения сохранены в этом браузере.',
+      signIn: true,
+    };
+  }
+  if (status === 0) {
+    return {
+      message: 'Нет соединения с сервером. Изменения сохранены в этом браузере.',
+      signIn: false,
+    };
+  }
+  return {
+    message: 'Сервер пока не принял изменения. Они сохранены в этом браузере.',
+    signIn: false,
+  };
 }
 
 function rotateVector(
@@ -117,11 +144,15 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('Новый 3D-проект');
   const [saveState, setSaveState] = useState<SaveState>('saved');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
+  const [saveRetry, setSaveRetry] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [versions, setVersions] = useState<readonly ProjectVersion[]>([]);
   const [clipboard, setClipboard] = useState<readonly ThreeDNode[]>([]);
   const lastSavedRef = useRef('');
   const savedTitleRef = useRef('Новый 3D-проект');
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const replaceHistory = useCallback((next: HistoryState): void => {
     historyRef.current = next;
@@ -135,7 +166,11 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     void api.openProject<ThreeDDocument>(projectId).then((response) => {
       if (!active) return;
       if (!response.ok) {
-        setError(response.error.message || 'Не удалось открыть 3D-проект.');
+        setError(
+          response.status === 401
+            ? 'Сессия завершена. Обновите страницу и войдите снова.'
+            : response.error.message || 'Не удалось открыть 3D-проект.',
+        );
         setLoading(false);
         return;
       }
@@ -145,16 +180,31 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         setLoading(false);
         return;
       }
-      const next = createHistory(parsed.value);
+      const serverSignature = JSON.stringify(parsed.value);
+      const localDraft = readLocalThreeDDraft(window.localStorage, projectId);
+      const localParsed =
+        localDraft?.serverSignature === serverSignature
+          ? parseThreeDDocument(localDraft.document)
+          : null;
+      const restoredDocument = localParsed?.ok ? localParsed.value : parsed.value;
+      const restored = JSON.stringify(restoredDocument) !== serverSignature;
+      const next = createHistory(restoredDocument);
       historyRef.current = next;
       setHistory(next);
       setSelectedIds([]);
       setClipboard([]);
-      lastSavedRef.current = JSON.stringify(parsed.value);
+      lastSavedRef.current = serverSignature;
       setTitle(response.data.project.title);
       savedTitleRef.current = response.data.project.title;
       setVersions(response.data.versions);
-      setSaveState('saved');
+      setSaveState(restored ? 'dirty' : 'saved');
+      setSaveError(null);
+      setRequiresSignIn(false);
+      if (restored) {
+        setNotice('Восстановлены несохранённые изменения из этого браузера.');
+      } else {
+        clearLocalThreeDDraft(window.localStorage, projectId);
+      }
       setLoading(false);
     });
     return () => {
@@ -163,31 +213,66 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   }, [projectId]);
 
   useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const enqueueAutosave = useCallback(
+    (document: ThreeDDocument, signature: string): void => {
+      autosaveQueueRef.current = autosaveQueueRef.current.then(async () => {
+        const current = historyRef.current?.present;
+        if (!current || JSON.stringify(current) !== signature) return;
+        setSaveState('saving');
+        const response = await api.saveDraft<ThreeDDocument>(projectId, document);
+        if (!response.ok) {
+          const failure = friendlySaveFailure(response.status);
+          setSaveState('error');
+          setSaveError(failure.message);
+          setRequiresSignIn(failure.signIn);
+          setNotice(null);
+          return;
+        }
+        lastSavedRef.current = signature;
+        setSaveError(null);
+        setRequiresSignIn(false);
+        const currentDocument = historyRef.current?.present;
+        const currentSignature = currentDocument ? JSON.stringify(currentDocument) : signature;
+        if (currentSignature === signature) {
+          clearLocalThreeDDraft(window.localStorage, projectId);
+        } else if (currentDocument) {
+          writeLocalThreeDDraft(window.localStorage, projectId, currentDocument, signature);
+          // The creator may undo back to a document that looked saved while
+          // this request was in flight. The response just changed the server
+          // baseline, so explicitly enqueue that current document again.
+          setSaveRetry((current) => current + 1);
+        }
+        setSaveState(currentSignature === signature ? 'saved' : 'dirty');
+      });
+    },
+    [projectId],
+  );
+
+  useEffect(() => {
     const document = history?.present;
     if (!document || loading) return;
     const signature = JSON.stringify(document);
     if (signature === lastSavedRef.current) {
       setSaveState('saved');
+      setSaveError(null);
+      setRequiresSignIn(false);
+      clearLocalThreeDDraft(window.localStorage, projectId);
       return;
     }
+    writeLocalThreeDDraft(window.localStorage, projectId, document, lastSavedRef.current);
     setSaveState('dirty');
+    setSaveError(null);
+    setRequiresSignIn(false);
     const timer = window.setTimeout(() => {
-      setSaveState('saving');
-      void api.saveDraft<ThreeDDocument>(projectId, document).then((response) => {
-        if (!response.ok) {
-          setSaveState('error');
-          setNotice(`Автосохранение не выполнено: ${response.error.message}`);
-          return;
-        }
-        lastSavedRef.current = signature;
-        const currentSignature = historyRef.current
-          ? JSON.stringify(historyRef.current.present)
-          : signature;
-        setSaveState(currentSignature === signature ? 'saved' : 'dirty');
-      });
+      enqueueAutosave(document, signature);
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [history?.present, loading, projectId]);
+  }, [enqueueAutosave, history?.present, loading, projectId, saveRetry]);
 
   const execute = useCallback(
     (command: ThreeDCommand): void => {
@@ -553,20 +638,44 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     setSaveState('saving');
     const save = await api.saveDraft<ThreeDDocument>(projectId, document);
     if (!save.ok) {
+      const failure = friendlySaveFailure(save.status);
       setSaveState('error');
-      setNotice(`Не удалось сохранить проект: ${save.error.message}`);
+      setSaveError(failure.message);
+      setRequiresSignIn(failure.signIn);
+      setNotice(null);
       return;
     }
     lastSavedRef.current = JSON.stringify(document);
+    clearLocalThreeDDraft(window.localStorage, projectId);
+    setSaveError(null);
+    setRequiresSignIn(false);
     const response = await api.createCheckpoint(projectId, 'Версия из ASA 3D');
     if (!response.ok) {
+      const failure = friendlySaveFailure(response.status);
       setSaveState('error');
-      setNotice(`Не удалось создать версию: ${response.error.message}`);
+      setSaveError(failure.message);
+      setRequiresSignIn(failure.signIn);
+      setNotice(null);
       return;
     }
     setVersions((current) => [response.data.version, ...current]);
     setSaveState('saved');
     setNotice(`Создана неизменяемая версия №${response.data.version.versionNo}.`);
+  }, [projectId]);
+
+  const retrySave = useCallback((): void => {
+    setSaveError(null);
+    setRequiresSignIn(false);
+    setSaveRetry((current) => current + 1);
+  }, []);
+
+  const signInAgain = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (document) {
+      writeLocalThreeDDraft(window.localStorage, projectId, document, lastSavedRef.current);
+    }
+    window.location.hash = '#/sign-in';
+    window.location.reload();
   }, [projectId]);
 
   const renameProject = useCallback(async (): Promise<void> => {
@@ -582,7 +691,15 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     const response = await api.renameProject(projectId, trimmed);
     if (!response.ok) {
       setTitle(savedTitleRef.current);
-      setNotice(`Название не изменено: ${response.error.message}`);
+      if (response.status === 401) {
+        const failure = friendlySaveFailure(response.status);
+        setSaveState('error');
+        setSaveError(failure.message);
+        setRequiresSignIn(true);
+        setNotice(null);
+      } else {
+        setNotice('Название пока не изменено. Попробуйте ещё раз.');
+      }
       return;
     }
     savedTitleRef.current = response.data.project.title;
@@ -623,6 +740,8 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     selectedNodes,
     selectedGroupId,
     saveState,
+    saveError,
+    requiresSignIn,
     notice,
     versions,
     hasClipboard: clipboard.length > 0,
@@ -645,6 +764,8 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     undo,
     redo,
     createCheckpoint,
+    retrySave,
+    signInAgain,
     importDocument,
     clearNotice: () => setNotice(null),
   };

@@ -71,7 +71,7 @@ function extendFromCentre(
 }
 
 async function createThreeDProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: 'Создать', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать проект', exact: true }).click();
   await page.getByLabel('Название проекта').fill(title);
   const tile = page.locator('.module-tile').filter({ hasText: 'ASA 3D' });
   await expect(tile).toContainText('Браузерное 3D-моделирование');
@@ -87,6 +87,11 @@ async function expandShapeInspector(page: Page): Promise<void> {
   const expand = page.getByRole('button', { name: 'Развернуть параметры формы' });
   if (await expand.isVisible()) await expand.click();
   await expect(page.getByLabel('Ширина, мм')).toBeVisible();
+}
+
+async function dismissNotice(page: Page): Promise<void> {
+  const close = page.getByRole('button', { name: 'Закрыть уведомление' });
+  if (await close.isVisible()) await close.click();
 }
 
 async function previewAndDropShape(page: Page): Promise<void> {
@@ -261,7 +266,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByText('Все изменения сохранены', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
-  await page.locator('.asa3d-toast').click();
+  await dismissNotice(page);
 
   mkdirSync('e2e/artifacts/three-d', { recursive: true });
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -294,7 +299,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByLabel('Поворот Z, градусов')).toHaveValue('15');
   await page.getByRole('button', { name: /Версия/ }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
-  await page.locator('.asa3d-toast').click();
+  await dismissNotice(page);
   await page.getByRole('button', { name: 'Свернуть параметры формы' }).click();
 
   await page.setViewportSize({ width: 768, height: 1024 });
@@ -313,4 +318,20 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
     fullPage: true,
   });
   failures.assertEmpty();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expandShapeInspector(page);
+  await page.route(/\/api\/projects\/[^/]+\/draft$/, async (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'unauthorized', message: 'no active session' } }),
+    }),
+  );
+  await page.getByLabel('Ширина, мм').fill('43');
+  await expect(page.getByRole('button', { name: /Сессия завершена.*Войти снова/ })).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.locator('.asa3d-toast')).toHaveCount(0);
+  await expect(page.getByText(/no active session/i)).toHaveCount(0);
 });

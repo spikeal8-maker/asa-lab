@@ -185,10 +185,25 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             }}
           />
         </div>
-        <span className={`asa3d-save-state save-${controller.saveState}`}>
-          {controller.saveState === 'saved' && <CheckIcon />}
-          {SAVE_LABELS[controller.saveState]}
-        </span>
+        {controller.saveState === 'error' ? (
+          <button
+            type="button"
+            className="asa3d-save-state asa3d-save-recovery save-error"
+            title={controller.saveError ?? undefined}
+            aria-label={`${controller.saveError ?? 'Не удалось сохранить.'} ${
+              controller.requiresSignIn ? 'Войти снова' : 'Повторить сохранение'
+            }`}
+            onClick={controller.requiresSignIn ? controller.signInAgain : controller.retrySave}
+          >
+            <span>{controller.requiresSignIn ? 'Сессия завершена' : 'Сохранение прервано'}</span>
+            <strong>{controller.requiresSignIn ? 'Войти снова' : 'Повторить'}</strong>
+          </button>
+        ) : (
+          <span className={`asa3d-save-state save-${controller.saveState}`}>
+            {controller.saveState === 'saved' && <CheckIcon />}
+            {SAVE_LABELS[controller.saveState]}
+          </span>
+        )}
         <nav className="asa3d-mode-buttons" aria-label="Среда проекта">
           <button type="button" className="active" aria-current="page">
             <CubeIcon />
@@ -520,9 +535,12 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
       </section>
 
       {controller.notice && (
-        <button type="button" className="asa3d-toast" onClick={controller.clearNotice}>
-          {controller.notice}
-        </button>
+        <div className="asa3d-notice" role="status" aria-live="polite">
+          <span>{controller.notice}</span>
+          <button type="button" onClick={controller.clearNotice} aria-label="Закрыть уведомление">
+            ×
+          </button>
+        </div>
       )}
     </main>
   );

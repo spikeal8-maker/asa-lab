@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ThreeDCommand, ThreeDNode, Vector3Value } from '@asa-lab/three-d';
+import { ChevronIcon, CloseIcon, ViewIcon } from '../electronics/workbench-icons';
 
 interface ShapeInspectorProps {
   readonly node: ThreeDNode;
@@ -27,8 +28,8 @@ function numeric(value: string, fallback: number, minimum?: number): number {
 type VectorKey = keyof Vector3Value;
 
 export function ShapeInspector({ node, execute, onClose }: ShapeInspectorProps): JSX.Element {
-  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
-  const expanded = expandedNodeId === node.id;
+  const [collapsedNodeId, setCollapsedNodeId] = useState<string | null>(null);
+  const expanded = collapsedNodeId !== node.id;
   const maximumRadius = Math.max(
     0,
     Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height) / 2,
@@ -81,25 +82,31 @@ export function ShapeInspector({ node, execute, onClose }: ShapeInspectorProps):
           style={node.operation === 'solid' ? { backgroundColor: node.color } : undefined}
           aria-hidden="true"
         />
-        <input
-          key={node.id}
-          defaultValue={node.name}
-          aria-label="Название формы"
-          onBlur={(event) =>
-            execute({ type: 'rename', nodeId: node.id, name: event.currentTarget.value })
-          }
-        />
+        <div className="asa3d-inspector-title">
+          <input
+            key={node.id}
+            defaultValue={node.name}
+            aria-label="Название формы"
+            onBlur={(event) =>
+              execute({ type: 'rename', nodeId: node.id, name: event.currentTarget.value })
+            }
+          />
+          <span>
+            {node.dimensions.width.toFixed(1)} × {node.dimensions.depth.toFixed(1)} ×{' '}
+            {node.dimensions.height.toFixed(1)} мм
+          </span>
+        </div>
         <button
           type="button"
           className="asa3d-inspector-expand"
           aria-label={expanded ? 'Свернуть параметры формы' : 'Развернуть параметры формы'}
           aria-expanded={expanded}
-          onClick={() => setExpandedNodeId(expanded ? null : node.id)}
+          onClick={() => setCollapsedNodeId(expanded ? node.id : null)}
         >
-          {expanded ? '⌃' : '⌄'}
+          <ChevronIcon className={expanded ? 'expanded' : ''} />
         </button>
         <button type="button" onClick={onClose} aria-label="Закрыть параметры">
-          ×
+          <CloseIcon />
         </button>
       </header>
 
@@ -125,6 +132,19 @@ export function ShapeInspector({ node, execute, onClose }: ShapeInspectorProps):
           Отверстие
         </button>
       </section>
+
+      {!expanded && (
+        <div className="asa3d-inspector-summary" aria-label="Краткие параметры формы">
+          <span>
+            Позиция <strong>X {node.transform.position.x.toFixed(1)}</strong>{' '}
+            <strong>Y {node.transform.position.y.toFixed(1)}</strong>{' '}
+            <strong>Z {node.transform.position.z.toFixed(1)}</strong>
+          </span>
+          <button type="button" onClick={() => setCollapsedNodeId(null)}>
+            Все параметры
+          </button>
+        </div>
+      )}
 
       {expanded && (
         <div className="asa3d-inspector-details">
@@ -305,7 +325,7 @@ export function ShapeInspector({ node, execute, onClose }: ShapeInspectorProps):
           aria-pressed={node.locked}
           onClick={() => execute({ type: 'set-locked', nodeId: node.id, locked: !node.locked })}
         >
-          <span aria-hidden="true">{node.locked ? '▣' : '□'}</span>
+          <span className={`asa3d-lock-icon ${node.locked ? 'locked' : ''}`} aria-hidden="true" />
           {node.locked ? 'Разблокировать' : 'Заблокировать'}
         </button>
         <button
@@ -314,7 +334,7 @@ export function ShapeInspector({ node, execute, onClose }: ShapeInspectorProps):
           aria-pressed={!node.visible}
           onClick={() => execute({ type: 'set-visible', nodeId: node.id, visible: !node.visible })}
         >
-          <span aria-hidden="true">{node.visible ? '◉' : '○'}</span>
+          <ViewIcon aria-hidden="true" />
           {node.visible ? 'Скрыть' : 'Показать'}
         </button>
       </footer>

@@ -114,6 +114,33 @@
   color: #b93830;
 }
 
+button.asa3d-save-recovery {
+  justify-self: center;
+  width: auto;
+  margin: 0;
+  padding: 5px 9px 5px 11px;
+  color: #9b3d2e;
+  background: #fff7f2;
+  border: 1px solid #efc2b7;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.asa3d-save-recovery:hover,
+.asa3d-save-recovery:focus-visible {
+  color: #7f2e23;
+  background: #fff0e8;
+  border-color: #e79f8e;
+  outline: none;
+}
+
+.asa3d-save-recovery strong {
+  padding-left: 7px;
+  color: #0b78a4;
+  font-size: 11px;
+  border-left: 1px solid #efc2b7;
+}
+
 .asa3d-save-state.save-saving,
 .asa3d-save-state.save-dirty {
   color: #1681ab;
@@ -850,17 +877,17 @@
 
 .asa3d-inspector {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: 20px;
+  right: 20px;
   z-index: 10;
-  width: min(268px, calc(100% - 150px));
+  width: min(320px, calc(100% - 150px));
   max-height: calc(100% - 90px);
   overflow: auto;
   padding: 0;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid #d3dce1;
-  border-radius: 8px;
-  box-shadow: 0 12px 34px rgba(28, 53, 69, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 14px 38px rgba(28, 53, 69, 0.18);
 }
 
 .asa3d-inspector button {
@@ -871,21 +898,37 @@
 
 .asa3d-inspector > header {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 30px 30px;
+  grid-template-columns: 36px minmax(0, 1fr) 34px 34px;
   align-items: center;
-  gap: 3px;
-  min-height: 44px;
-  padding: 5px 6px;
+  gap: 4px;
+  min-height: 56px;
+  padding: 6px 8px;
   border-bottom: 1px solid #e4eaed;
+}
+
+.asa3d-inspector-title {
+  display: grid;
+  min-width: 0;
 }
 
 .asa3d-inspector > header input {
   min-width: 0;
-  height: 32px;
-  padding: 0 8px;
+  height: 29px;
+  padding: 0 5px;
+  color: #283d49;
+  font-size: 14px;
   font-weight: 700;
   border: 1px solid transparent;
   border-radius: 5px;
+}
+
+.asa3d-inspector-title > span {
+  padding: 0 5px;
+  overflow: hidden;
+  color: #7a8992;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .asa3d-inspector > header input:focus {
@@ -894,17 +937,40 @@
 }
 
 .asa3d-inspector > header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
   font-size: 20px;
   background: transparent;
   border: 0;
 }
 
+.asa3d-inspector > header button:hover {
+  color: #0d7ea5;
+  background: #edf6f8;
+  border-radius: 6px;
+}
+
+.asa3d-inspector > header button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .asa3d-inspector > header .asa3d-inspector-expand {
-  height: 30px;
+  height: 32px;
   color: #526670;
   font-size: 18px;
   border-radius: 4px;
+}
+
+.asa3d-inspector-expand svg {
+  transition: transform 150ms ease;
+}
+
+.asa3d-inspector-expand svg.expanded {
+  transform: rotate(180deg);
 }
 
 .asa3d-inspector > header .asa3d-inspector-expand:hover {
@@ -914,8 +980,8 @@
 .asa3d-inspector-swatch {
   display: block;
   box-sizing: border-box;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   margin: auto;
   border: 1px solid rgba(38, 50, 57, 0.3);
   border-radius: 4px;
@@ -928,27 +994,27 @@
 }
 
 .asa3d-inspector section {
-  padding: 9px 12px;
+  padding: 12px 14px;
   border-top: 1px solid #edf0f2;
 }
 
 .asa3d-inspector .asa3d-operation-picker {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 8px;
+  gap: 8px;
+  padding: 10px;
   border-top: 0;
 }
 
 .asa3d-operation-picker button {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 28px 1fr;
   align-items: center;
   gap: 7px;
-  min-height: 36px;
-  padding: 4px 7px;
+  min-height: 44px;
+  padding: 6px 9px;
   color: #566a75;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-align: left;
   background: #f7f9fa;
@@ -966,11 +1032,37 @@
 .asa3d-operation-picker i {
   display: block;
   box-sizing: border-box;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   background: #ef3340;
   border: 1px solid rgba(34, 48, 56, 0.28);
   border-radius: 4px;
+}
+
+.asa3d-inspector-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px 11px;
+  color: #72828b;
+  font-size: 10px;
+  border-top: 1px solid #e7ecef;
+}
+
+.asa3d-inspector-summary strong {
+  color: #3f5663;
+  font-weight: 600;
+}
+
+.asa3d-inspector-summary button {
+  padding: 5px 8px;
+  color: #147fa5;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eef8fa;
+  border: 1px solid #b9dfe7;
+  border-radius: 5px;
 }
 
 .asa3d-inspector-details {
@@ -982,9 +1074,9 @@
 }
 
 .asa3d-inspector h3 {
-  margin: 0 0 7px;
+  margin: 0 0 9px;
   color: #657681;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -993,14 +1085,14 @@
 .asa3d-color-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 9px;
 }
 
 .asa3d-color-grid > button,
 .asa3d-custom-color {
   position: relative;
-  width: 25px;
-  height: 25px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   overflow: hidden;
   border: 2px solid #fff;
@@ -1039,21 +1131,19 @@
 .asa3d-field-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 8px;
 }
 
 .asa3d-field-grid label {
-  position: relative;
   display: grid;
+  gap: 4px;
 }
 
 .asa3d-field-grid label span {
-  position: absolute;
-  top: 8px;
-  left: 6px;
-  z-index: 1;
+  position: static;
+  padding-left: 2px;
   color: #7a8992;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   pointer-events: none;
 }
@@ -1062,10 +1152,10 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  height: 30px;
-  padding: 0 4px 0 20px;
+  height: 34px;
+  padding: 0 7px;
   color: #314652;
-  font-size: 11px;
+  font-size: 12px;
   background: #f7f9fa;
   border: 1px solid #dbe2e6;
   border-radius: 5px;
@@ -1099,23 +1189,56 @@
 .asa3d-inspector footer {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 7px 8px 8px;
+  gap: 8px;
+  padding: 9px 10px 10px;
   border-top: 1px solid #e7ecef;
 }
 
 .asa3d-inspector footer button {
   display: grid;
-  grid-template-columns: 18px 1fr;
+  grid-template-columns: 20px 1fr;
   align-items: center;
-  gap: 3px;
-  min-height: 30px;
-  padding: 4px;
+  gap: 6px;
+  min-height: 36px;
+  padding: 5px 7px;
   color: #536773;
-  font-size: 10px;
+  font-size: 11px;
   background: #f4f7f8;
   border: 1px solid #d9e0e4;
   border-radius: 5px;
+}
+
+.asa3d-inspector footer button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.asa3d-lock-icon {
+  position: relative;
+  box-sizing: border-box;
+  width: 13px;
+  height: 11px;
+  margin-left: 2px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+}
+
+.asa3d-lock-icon::before {
+  position: absolute;
+  bottom: 7px;
+  left: 1px;
+  width: 7px;
+  height: 7px;
+  content: '';
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  transform: translateX(3px) rotate(20deg);
+  transform-origin: 0 100%;
+}
+
+.asa3d-lock-icon.locked::before {
+  transform: translateX(0) rotate(0);
 }
 
 .asa3d-inspector footer button.active {
@@ -1273,20 +1396,46 @@
   border-radius: 2px;
 }
 
-.asa3d-toast {
+.asa3d-notice {
   position: fixed;
-  bottom: 24px;
-  left: 50%;
+  top: 110px;
+  right: calc(var(--asa3d-library-width) + 340px);
   z-index: 90;
-  max-width: min(520px, calc(100vw - 30px));
-  padding: 11px 16px;
-  color: #fff;
-  background: #263b47;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(480px, calc(100vw - 30px));
+  padding: 8px 9px 8px 13px;
+  color: #405661;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #cfdde2;
+  border-radius: 7px;
+  box-shadow: 0 5px 16px rgba(31, 57, 70, 0.14);
+  transform: none;
+  pointer-events: none;
+}
+
+.asa3d-notice button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: #657984;
+  font-size: 18px;
+  line-height: 1;
+  background: transparent;
   border: 0;
-  border-radius: 8px;
-  box-shadow: 0 8px 25px rgba(25, 43, 54, 0.25);
-  transform: translateX(-50%);
+  border-radius: 4px;
   cursor: pointer;
+  pointer-events: auto;
+}
+
+.asa3d-notice button:hover {
+  color: #147fa5;
+  background: #edf6f8;
 }
 
 @media (max-width: 1180px) {
@@ -1314,6 +1463,12 @@
   .asa3d-shape-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .asa3d-notice {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }
 
 @media (max-width: 760px) {
@@ -1321,6 +1476,10 @@
     --asa3d-header-height: 48px;
     --asa3d-toolbar-height: 44px;
     grid-template-rows: var(--asa3d-header-height) var(--asa3d-toolbar-height) minmax(0, 1fr);
+  }
+
+  .asa3d-notice {
+    display: none;
   }
 
   .asa3d-brand {
