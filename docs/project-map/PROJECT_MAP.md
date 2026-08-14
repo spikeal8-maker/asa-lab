@@ -15,8 +15,8 @@ Rendered from the control plane. Do not edit these values here independently;
 TASK-CHECKERS-M1-001
 Issue #98
 branch agent/checkers-education-m1
-status in_progress
-checkpoint persistence_classroom_vertical
+status done
+checkpoint merged_to_main
 execution lease codex-checkers-m1
 ```
 
@@ -28,7 +28,7 @@ scope. Electronics PR #92 stays paused; Chess remains a separate subject module.
 flowchart LR
   ACCOUNT["Account C1 done"] --> PORTAL["Creator Portal done"]
   PORTAL --> GATE["R3A module gateway done"]
-  GATE --> CHECKERS["Checkers M1 in progress"]
+  GATE --> CHECKERS["Checkers M1 done"]
   GATE --> THREED["3D M0 merged"]
   GATE --> ELECTRONICS["Electronics corrective paused"]
   CLASSROOM["Existing classes and authorization"] --> CHECKERS

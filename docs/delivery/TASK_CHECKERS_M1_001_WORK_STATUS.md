@@ -13,10 +13,10 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 ```text
 task: TASK-CHECKERS-M1-001
 branch: agent/checkers-education-m1
-status: in_progress
-checkpoint: persistence_classroom_vertical
+status: done
+checkpoint: merged_to_main
 execution_lease: codex-checkers-m1
-convergence baseline: db1038c66630c80bf121e7c794a44f119a028753
+convergence baseline: 0a7d11658c3c836818c313c6ff3ff2161f902ac3
 ```
 
 ## Owner decision
