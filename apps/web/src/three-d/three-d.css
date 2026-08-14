@@ -371,6 +371,30 @@
   min-height: 0;
 }
 
+.asa3d-viewport-starting {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: #4c6670;
+  font-size: 14px;
+  background: #fafafa;
+}
+
+.asa3d-webgl-error button {
+  padding: 8px 14px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  background: var(--asa3d-blue);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .asa3d-loader {
   width: 38px;
   height: 38px;
@@ -394,6 +418,181 @@
   background: #f7f8fa;
   border-left: 1px solid var(--asa3d-line);
   box-shadow: -2px 0 7px rgba(37, 58, 71, 0.05);
+}
+
+.asa3d-library-category {
+  flex: 1;
+}
+
+.asa3d-library-category select {
+  width: 100%;
+  color: #50616b;
+  font: inherit;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.asa3d-library-settings {
+  margin: 8px 10px 10px;
+  padding: 8px;
+  color: #4b6570;
+  font-size: 12px;
+  background: #f7fafb;
+  border: 1px solid #dbe5e9;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.asa3d-selection-tools {
+  position: absolute;
+  top: 96px;
+  left: 18px;
+  z-index: 9;
+  width: min(330px, calc(100% - 36px));
+  color: #26343a;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #cbd8dd;
+  border-radius: 5px;
+  box-shadow: 0 8px 24px rgba(46, 65, 73, 0.16);
+}
+
+.asa3d-selection-tools > header,
+.asa3d-selection-tools > section,
+.asa3d-boolean-mode {
+  display: block;
+  padding: 11px 13px;
+  border-bottom: 1px solid #e4eaed;
+}
+
+.asa3d-selection-tools h3 {
+  margin: 0 0 8px;
+  color: #5f7077;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.asa3d-boolean-mode span {
+  display: block;
+  margin-bottom: 6px;
+  color: #6b7a81;
+  font-size: 11px;
+}
+
+.asa3d-boolean-mode select {
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #cdd8dc;
+  border-radius: 3px;
+}
+
+.asa3d-align-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: #5f7077;
+  font-size: 11px;
+}
+
+.asa3d-align-row > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.asa3d-align-row button {
+  display: grid;
+  height: 28px;
+  place-items: center;
+  background: #f7fafb;
+  border: 1px solid #d5dfe3;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.asa3d-align-row button:hover {
+  color: var(--asa3d-blue);
+  border-color: var(--asa3d-blue);
+}
+
+.asa3d-align-row i {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 14px;
+  border: 1px solid currentColor;
+}
+
+.asa3d-align-row i::after {
+  position: absolute;
+  background: currentColor;
+  content: '';
+}
+
+.asa3d-align-row i[class$='minimum']::after {
+  top: -4px;
+  bottom: -4px;
+  left: -4px;
+  width: 2px;
+}
+.asa3d-align-row i[class$='center']::after {
+  top: -4px;
+  bottom: -4px;
+  left: 6px;
+  width: 2px;
+}
+.asa3d-align-row i[class$='maximum']::after {
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  width: 2px;
+}
+
+.asa3d-ruler-readout > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.asa3d-ruler-readout label {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #d8e1e5;
+  border-radius: 3px;
+}
+
+.asa3d-ruler-readout label span {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #60747d;
+  font-size: 11px;
+  background: #edf3f5;
+}
+
+.asa3d-ruler-readout output {
+  padding: 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.asa3d-ruler-readout > button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  color: #226b82;
+  background: #eef8fb;
+  border: 1px solid #b9dce6;
+  border-radius: 3px;
+  cursor: pointer;
 }
 
 .asa3d-library button {

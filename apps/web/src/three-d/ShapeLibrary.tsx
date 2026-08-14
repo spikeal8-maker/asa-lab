@@ -5,20 +5,50 @@ import { ShapeThumbnail } from './ShapeThumbnail';
 import { GridIcon, RulerIcon } from './three-d-icons';
 
 interface ShapeLibraryProps {
-  readonly onAdd: (primitive: PrimitiveKind) => void;
+  readonly onAdd: (
+    primitive: PrimitiveKind,
+    position?: { x: number; z: number },
+    additive?: boolean,
+  ) => void;
   readonly gridVisible: boolean;
   readonly onToggleGrid: () => void;
   readonly onOpenGridSettings: () => void;
+  readonly rulerVisible: boolean;
+  readonly onToggleRuler: () => void;
 }
 
-const SHAPES: readonly { primitive: PrimitiveKind; label: string; color: string }[] = [
-  { primitive: 'box', label: 'Параллелепипед', color: '#d71920' },
-  { primitive: 'cylinder', label: 'Цилиндр', color: '#df7414' },
-  { primitive: 'sphere', label: 'Сфера', color: '#0099c6' },
-  { primitive: 'cone', label: 'Конус', color: '#6e2786' },
-  { primitive: 'torus', label: 'Тор', color: '#0098c7' },
-  { primitive: 'wedge', label: 'Клин', color: '#2f7d3a' },
-  { primitive: 'roof', label: 'Крыша', color: '#58a84f' },
+type ShapeCategory = 'basic' | 'round' | 'generators' | 'symbols';
+
+const CATEGORIES: readonly { readonly id: ShapeCategory; readonly label: string }[] = [
+  { id: 'basic', label: 'Основные формы' },
+  { id: 'round', label: 'Круглые формы' },
+  { id: 'generators', label: 'Генераторы форм' },
+  { id: 'symbols', label: 'Символы и знаки' },
+];
+
+const SHAPES: readonly {
+  primitive: PrimitiveKind;
+  label: string;
+  color: string;
+  category: ShapeCategory;
+}[] = [
+  { primitive: 'box', label: 'Параллелепипед', color: '#d71920', category: 'basic' },
+  { primitive: 'cylinder', label: 'Цилиндр', color: '#df7414', category: 'basic' },
+  { primitive: 'sphere', label: 'Сфера', color: '#0099c6', category: 'basic' },
+  { primitive: 'cone', label: 'Конус', color: '#6e2786', category: 'basic' },
+  { primitive: 'torus', label: 'Тор', color: '#0098c7', category: 'basic' },
+  { primitive: 'wedge', label: 'Клин', color: '#2f7d3a', category: 'basic' },
+  { primitive: 'roof', label: 'Крыша', color: '#58a84f', category: 'basic' },
+  { primitive: 'pyramid', label: 'Пирамида', color: '#f2c313', category: 'basic' },
+  { primitive: 'half-sphere', label: 'Полусфера', color: '#d94693', category: 'round' },
+  { primitive: 'tube', label: 'Труба', color: '#e68117', category: 'round' },
+  { primitive: 'rounded-box', label: 'Скруглённый блок', color: '#1e70c9', category: 'round' },
+  { primitive: 'polygon', label: 'Многоугольник', color: '#304c97', category: 'generators' },
+  { primitive: 'capsule', label: 'Капсула', color: '#00a5c8', category: 'round' },
+  { primitive: 'paraboloid', label: 'Параболоид', color: '#7fb34d', category: 'generators' },
+  { primitive: 'diamond', label: 'Ромб', color: '#d82633', category: 'symbols' },
+  { primitive: 'star', label: 'Звезда', color: '#f2c313', category: 'symbols' },
+  { primitive: 'heart', label: 'Сердце', color: '#b7653f', category: 'symbols' },
 ];
 
 function beginDrag(event: DragEvent<HTMLButtonElement>, primitive: PrimitiveKind): void {
@@ -31,15 +61,19 @@ export function ShapeLibrary({
   gridVisible,
   onToggleGrid,
   onOpenGridSettings,
+  rulerVisible,
+  onToggleRuler,
 }: ShapeLibraryProps): JSX.Element {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [showHint, setShowHint] = useState(true);
+  const [category, setCategory] = useState<ShapeCategory>('basic');
   const filteredShapes = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('ru');
-    if (!searchOpen || !normalized) return SHAPES;
-    return SHAPES.filter(({ label }) => label.toLocaleLowerCase('ru').includes(normalized));
-  }, [query, searchOpen]);
+    if (searchOpen && normalized)
+      return SHAPES.filter(({ label }) => label.toLocaleLowerCase('ru').includes(normalized));
+    return SHAPES.filter((shape) => shape.category === category);
+  }, [category, query, searchOpen]);
 
   return (
     <aside className="asa3d-library" aria-label="Библиотека форм">
@@ -53,7 +87,13 @@ export function ShapeLibrary({
         >
           <GridIcon />
         </button>
-        <button type="button" title="Линейка и параметры сетки" onClick={onOpenGridSettings}>
+        <button
+          type="button"
+          className={rulerVisible ? 'active' : ''}
+          title="Расширенная линейка"
+          aria-pressed={rulerVisible}
+          onClick={onToggleRuler}
+        >
           <RulerIcon />
         </button>
         <button
@@ -67,7 +107,20 @@ export function ShapeLibrary({
         </button>
       </header>
       <div className="asa3d-library-title">
-        <span>Основные формы</span>
+        <label className="asa3d-library-category">
+          <span className="sr-only">Каталог форм</span>
+          <select
+            aria-label="Каталог форм"
+            value={category}
+            onChange={(event) => setCategory(event.currentTarget.value as ShapeCategory)}
+          >
+            {CATEGORIES.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           aria-label="Поиск форм"
@@ -103,7 +156,7 @@ export function ShapeLibrary({
             key={primitive}
             draggable
             onDragStart={(event) => beginDrag(event, primitive)}
-            onClick={() => onAdd(primitive)}
+            onClick={(event) => onAdd(primitive, undefined, event.shiftKey)}
             title={`Добавить: ${label}`}
           >
             <ShapeThumbnail primitive={primitive} color={color} />
@@ -115,6 +168,9 @@ export function ShapeLibrary({
       {showHint && (
         <p className="asa3d-library-hint">Перетащите форму на плоскость или нажмите на неё.</p>
       )}
+      <button type="button" className="asa3d-library-settings" onClick={onOpenGridSettings}>
+        Параметры рабочей плоскости
+      </button>
     </aside>
   );
 }

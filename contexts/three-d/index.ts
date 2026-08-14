@@ -1,10 +1,12 @@
 export {
   THREE_D_SCHEMA_VERSION,
   THREE_D_UNITS,
+  PRIMITIVE_KINDS,
   cloneThreeDDocument,
   createEmptyThreeDDocument,
   createThreeDNode,
   parseThreeDDocument,
+  type BooleanOperation,
   type DocumentParseResult,
   type PrimitiveKind,
   type ShapeOperation,
@@ -13,9 +15,21 @@ export {
   type ThreeDDocument,
   type ThreeDGridSettings,
   type ThreeDNode,
+  type ThreeDRulerSettings,
   type ThreeDTransform,
   type Vector3Value,
 } from './domain/document.js';
+export {
+  alignDocumentNodes,
+  groupDocumentNodes,
+  nodeBounds,
+  selectionBounds,
+  setDocumentNodeOperation,
+  ungroupDocumentNodes,
+  type AlignmentAxis,
+  type AlignmentMode,
+  type ThreeDBounds,
+} from './domain/operations.js';
 export {
   applyThreeDCommand,
   commitCommand,

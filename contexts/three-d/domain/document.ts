@@ -1,8 +1,29 @@
 export const THREE_D_SCHEMA_VERSION = 1 as const;
 export const THREE_D_UNITS = 'mm' as const;
 
-export type PrimitiveKind = 'box' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'wedge' | 'roof';
+export const PRIMITIVE_KINDS = [
+  'box',
+  'cylinder',
+  'sphere',
+  'cone',
+  'torus',
+  'wedge',
+  'roof',
+  'pyramid',
+  'half-sphere',
+  'tube',
+  'rounded-box',
+  'polygon',
+  'star',
+  'heart',
+  'diamond',
+  'capsule',
+  'paraboloid',
+] as const;
+
+export type PrimitiveKind = (typeof PRIMITIVE_KINDS)[number];
 export type ShapeOperation = 'solid' | 'hole';
+export type BooleanOperation = 'union' | 'difference' | 'intersection';
 
 export interface Vector3Value {
   readonly x: number;
@@ -36,6 +57,10 @@ export interface ThreeDNode {
   readonly bevel: number;
   readonly visible: boolean;
   readonly locked: boolean;
+  /** A reversible modelling group. Null keeps the primitive independent. */
+  readonly groupId: string | null;
+  /** Repeated on group members so the browser can rebuild the boolean result. */
+  readonly groupOperation: BooleanOperation | null;
 }
 
 export interface ThreeDGridSettings {
@@ -51,12 +76,19 @@ export interface ThreeDCameraState {
   readonly projection: 'perspective' | 'orthographic';
 }
 
+export interface ThreeDRulerSettings {
+  readonly visible: boolean;
+  readonly origin: Vector3Value;
+  readonly precision: 0 | 1 | 2;
+}
+
 export interface ThreeDDocument {
   readonly schemaVersion: typeof THREE_D_SCHEMA_VERSION;
   readonly units: typeof THREE_D_UNITS;
   readonly nodes: readonly ThreeDNode[];
   readonly grid: ThreeDGridSettings;
   readonly camera: ThreeDCameraState;
+  readonly ruler: ThreeDRulerSettings;
 }
 
 export interface DocumentParseSuccess {
@@ -77,6 +109,12 @@ const DEFAULT_CAMERA: ThreeDCameraState = {
   projection: 'perspective',
 };
 
+const DEFAULT_RULER: ThreeDRulerSettings = {
+  visible: false,
+  origin: { x: 0, y: 0, z: 0 },
+  precision: 2,
+};
+
 export function createEmptyThreeDDocument(): ThreeDDocument {
   return {
     schemaVersion: THREE_D_SCHEMA_VERSION,
@@ -84,6 +122,7 @@ export function createEmptyThreeDDocument(): ThreeDDocument {
     nodes: [],
     grid: { width: 200, depth: 200, snap: 1, visible: true },
     camera: DEFAULT_CAMERA,
+    ruler: DEFAULT_RULER,
   };
 }
 
@@ -95,6 +134,17 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
       return { width: 24, depth: 24, height: 7 };
     case 'roof':
       return { width: 20, depth: 20, height: 15 };
+    case 'tube':
+      return { width: 24, depth: 24, height: 8 };
+    case 'star':
+    case 'heart':
+      return { width: 24, depth: 20, height: 5 };
+    case 'half-sphere':
+      return { width: 20, depth: 20, height: 10 };
+    case 'rounded-box':
+      return { width: 24, depth: 18, height: 12 };
+    case 'capsule':
+      return { width: 14, depth: 14, height: 28 };
     default:
       return { width: 20, depth: 20, height: 20 };
   }
@@ -108,6 +158,16 @@ const SHAPE_NAMES: Readonly<Record<PrimitiveKind, string>> = {
   torus: 'Тор',
   wedge: 'Клин',
   roof: 'Крыша',
+  pyramid: 'Пирамида',
+  'half-sphere': 'Полусфера',
+  tube: 'Труба',
+  'rounded-box': 'Скруглённый блок',
+  polygon: 'Многоугольник',
+  star: 'Звезда',
+  heart: 'Сердце',
+  diamond: 'Ромб',
+  capsule: 'Капсула',
+  paraboloid: 'Параболоид',
 };
 
 const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
@@ -118,6 +178,16 @@ const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
   torus: '#00a5c8',
   wedge: '#2f7de1',
   roof: '#5fbf5f',
+  pyramid: '#f2c313',
+  'half-sphere': '#d94693',
+  tube: '#e68117',
+  'rounded-box': '#1e70c9',
+  polygon: '#304c97',
+  star: '#f2c313',
+  heart: '#b7653f',
+  diamond: '#d82633',
+  capsule: '#00a5c8',
+  paraboloid: '#7fb34d',
 };
 
 export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNode {
@@ -135,10 +205,19 @@ export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNo
       scale: { x: 1, y: 1, z: 1 },
     },
     dimensions,
-    sides: primitive === 'cylinder' || primitive === 'cone' ? 32 : 24,
+    sides:
+      primitive === 'polygon'
+        ? 6
+        : primitive === 'pyramid'
+          ? 4
+          : primitive === 'cylinder' || primitive === 'cone'
+            ? 32
+            : 24,
     bevel: 0,
     visible: true,
     locked: false,
+    groupId: null,
+    groupOperation: null,
   };
 }
 
@@ -164,15 +243,11 @@ function isPositiveDimension(value: unknown): value is number {
 }
 
 function isPrimitive(value: unknown): value is PrimitiveKind {
-  return (
-    value === 'box' ||
-    value === 'cylinder' ||
-    value === 'sphere' ||
-    value === 'cone' ||
-    value === 'torus' ||
-    value === 'wedge' ||
-    value === 'roof'
-  );
+  return typeof value === 'string' && (PRIMITIVE_KINDS as readonly string[]).includes(value);
+}
+
+function isBooleanOperation(value: unknown): value is BooleanOperation {
+  return value === 'union' || value === 'difference' || value === 'intersection';
 }
 
 function isNode(value: unknown): value is ThreeDNode {
@@ -202,7 +277,13 @@ function isNode(value: unknown): value is ThreeDNode {
     isFiniteNumber(value['bevel']) &&
     (value['bevel'] as number) >= 0 &&
     typeof value['visible'] === 'boolean' &&
-    typeof value['locked'] === 'boolean'
+    typeof value['locked'] === 'boolean' &&
+    (value['groupId'] === undefined ||
+      value['groupId'] === null ||
+      (typeof value['groupId'] === 'string' && value['groupId'].length > 0)) &&
+    (value['groupOperation'] === undefined ||
+      value['groupOperation'] === null ||
+      isBooleanOperation(value['groupOperation']))
   );
 }
 
@@ -221,6 +302,20 @@ export function parseThreeDDocument(value: unknown): DocumentParseResult {
   const ids = new Set(nodes.map((node) => node.id));
   if (ids.size !== nodes.length) {
     return { ok: false, message: 'Идентификаторы 3D-объектов должны быть уникальными.' };
+  }
+  const normalizedNodes = nodes.map((node) => ({
+    ...node,
+    groupId: node.groupId ?? null,
+    groupOperation: node.groupId ? (node.groupOperation ?? 'union') : null,
+  }));
+  const operationsByGroup = new Map<string, BooleanOperation>();
+  for (const node of normalizedNodes) {
+    if (!node.groupId || !node.groupOperation) continue;
+    const current = operationsByGroup.get(node.groupId);
+    if (current && current !== node.groupOperation) {
+      return { ok: false, message: 'Участники 3D-группы содержат разные булевы операции.' };
+    }
+    operationsByGroup.set(node.groupId, node.groupOperation);
   }
   const grid = value['grid'];
   if (
@@ -241,7 +336,27 @@ export function parseThreeDDocument(value: unknown): DocumentParseResult {
   ) {
     return { ok: false, message: 'Настройки камеры повреждены.' };
   }
-  return { ok: true, value: value as unknown as ThreeDDocument };
+  const ruler = value['ruler'];
+  const normalizedRuler =
+    ruler === undefined
+      ? DEFAULT_RULER
+      : isRecord(ruler) &&
+          typeof ruler['visible'] === 'boolean' &&
+          isVector(ruler['origin']) &&
+          (ruler['precision'] === 0 || ruler['precision'] === 1 || ruler['precision'] === 2)
+        ? (ruler as unknown as ThreeDRulerSettings)
+        : null;
+  if (!normalizedRuler) {
+    return { ok: false, message: 'Настройки 3D-линейки повреждены.' };
+  }
+  return {
+    ok: true,
+    value: {
+      ...(value as unknown as ThreeDDocument),
+      nodes: normalizedNodes,
+      ruler: normalizedRuler,
+    },
+  };
 }
 
 export function cloneThreeDDocument(document: ThreeDDocument): ThreeDDocument {
@@ -257,6 +372,10 @@ export function cloneThreeDDocument(document: ThreeDDocument): ThreeDDocument {
       },
     })),
     grid: { ...document.grid },
+    ruler: {
+      ...document.ruler,
+      origin: { ...document.ruler.origin },
+    },
     camera: {
       ...document.camera,
       position: { ...document.camera.position },

@@ -7,10 +7,11 @@ import type {
   ThreeDTransform,
 } from '@asa-lab/three-d';
 import { DirectManipulator, type DirectManipulationEntry } from './DirectManipulator';
+import { createBooleanMesh } from './csg';
 import { createNodeObject, disposeObject } from './geometry';
 
 export interface SceneRuntimeCallbacks {
-  readonly onSelect: (nodeId: string | null) => void;
+  readonly onSelect: (nodeId: string | null, additive: boolean) => void;
   readonly onTransformCommit: (
     nodeId: string,
     transform: ThreeDTransform,
@@ -112,6 +113,10 @@ export class SceneRuntime {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly entries = new Map<string, SceneEntry>();
+  private readonly booleanRoot = new THREE.Group();
+  private readonly rulerRoot = new THREE.Group();
+  private documentSignature = '';
+  private gridSignature = '';
   private readonly gridRoot = new THREE.Group();
   private gridSnap = 1;
   private animationFrame = 0;
@@ -133,8 +138,9 @@ export class SceneRuntime {
         powerPreference: 'high-performance',
       });
     } catch {
-      callbacks.onWebGlError('WebGL2 недоступен. Включите аппаратное ускорение браузера.');
-      throw new Error('WebGL2 is unavailable');
+      const message = 'WebGL2 недоступен. Включите аппаратное ускорение браузера.';
+      callbacks.onWebGlError(message);
+      throw new Error(message);
     }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
@@ -182,7 +188,7 @@ export class SceneRuntime {
     const fill = new THREE.DirectionalLight('#bcecff', 0.9);
     fill.position.set(155, 105, -120);
     this.scene.add(fill);
-    this.scene.add(this.gridRoot);
+    this.scene.add(this.gridRoot, this.booleanRoot, this.rulerRoot);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -205,11 +211,29 @@ export class SceneRuntime {
     this.renderer.render(this.scene, this.camera);
   };
 
-  setDocument(document: ThreeDDocument, selectedId: string | null): void {
+  setDocument(document: ThreeDDocument, selectedIds: readonly string[]): void {
     this.gridSnap = document.grid.snap;
     this.manipulator.setGridSnap(document.grid.snap);
-    this.syncGrid(document);
-    const incomingIds = new Set(document.nodes.map((node) => node.id));
+    const gridSignature = JSON.stringify(document.grid);
+    if (gridSignature !== this.gridSignature) {
+      this.gridSignature = gridSignature;
+      this.syncGrid(document);
+    }
+    const documentSignature = JSON.stringify(document.nodes);
+    const documentChanged = documentSignature !== this.documentSignature;
+    this.documentSignature = documentSignature;
+    const groupedIds = new Set(
+      document.nodes.filter((node) => node.groupId).map((node) => node.id),
+    );
+    const groupEntryIds = new Set(
+      document.nodes
+        .filter((node) => node.groupId)
+        .map((node) => `group:${node.groupId as string}`),
+    );
+    const incomingIds = new Set([
+      ...document.nodes.filter((node) => !groupedIds.has(node.id)).map((node) => node.id),
+      ...groupEntryIds,
+    ]);
     for (const [id, entry] of this.entries) {
       if (incomingIds.has(id)) continue;
       this.scene.remove(entry.object);
@@ -217,6 +241,7 @@ export class SceneRuntime {
       this.entries.delete(id);
     }
     for (const node of document.nodes) {
+      if (node.groupId) continue;
       const signature = JSON.stringify(node);
       const existing = this.entries.get(node.id);
       if (existing?.signature === signature) continue;
@@ -228,7 +253,147 @@ export class SceneRuntime {
       this.scene.add(object);
       this.entries.set(node.id, { object, node, signature });
     }
-    this.setSelection(selectedId);
+    if (documentChanged) this.syncBooleanGroups(document);
+    this.syncRuler(document, selectedIds);
+    const selectedNodes = selectedIds
+      .map((id) => document.nodes.find((node) => node.id === id))
+      .filter((node): node is ThreeDNode => Boolean(node));
+    const firstGroupId = selectedNodes[0]?.groupId;
+    const selectedGroupId =
+      selectedNodes.length > 1 &&
+      firstGroupId &&
+      selectedNodes.every((node) => node.groupId === firstGroupId)
+        ? firstGroupId
+        : null;
+    this.setSelection(selectedGroupId ? `group:${selectedGroupId}` : (selectedIds.at(-1) ?? null));
+  }
+
+  private syncBooleanGroups(document: ThreeDDocument): void {
+    for (const [id, entry] of this.entries) {
+      if (!id.startsWith('group:')) continue;
+      this.booleanRoot.remove(entry.object);
+      disposeObject(entry.object);
+      this.entries.delete(id);
+    }
+    this.booleanRoot.clear();
+    const groups = new Map<string, ThreeDNode[]>();
+    for (const node of document.nodes) {
+      if (!node.groupId) continue;
+      const group = groups.get(node.groupId) ?? [];
+      group.push(node);
+      groups.set(node.groupId, group);
+    }
+    for (const [groupId, nodes] of groups) {
+      const operation = nodes[0]?.groupOperation ?? 'union';
+      let rendered: THREE.Object3D | null;
+      try {
+        rendered = createBooleanMesh(nodes, operation);
+      } catch {
+        const fallback = new THREE.Group();
+        nodes.filter((node) => node.visible).forEach((node) => fallback.add(createNodeObject(node)));
+        rendered = fallback.children.length > 0 ? fallback : null;
+      }
+      if (!rendered) continue;
+      const entryId = `group:${groupId}`;
+      const bounds = new THREE.Box3().setFromObject(rendered);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      const proxyNode: ThreeDNode = {
+        ...nodes[0]!,
+        id: entryId,
+        name: `Группа (${nodes.length})`,
+        operation: 'solid',
+        transform: {
+          position: { x: center.x, y: center.y, z: center.z },
+          rotation: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+        },
+        dimensions: { width: size.x, depth: size.z, height: size.y },
+        groupId,
+      };
+      const wrapper = new THREE.Group();
+      wrapper.userData['nodeId'] = entryId;
+      wrapper.name = proxyNode.name;
+      rendered.position.sub(center);
+      rendered.traverse((child) => {
+        child.userData['nodeId'] = entryId;
+      });
+      wrapper.position.copy(center);
+      wrapper.add(rendered);
+      this.booleanRoot.add(wrapper);
+      this.entries.set(entryId, {
+        object: wrapper,
+        node: proxyNode,
+        signature: JSON.stringify(nodes),
+      });
+    }
+  }
+
+  private syncRuler(document: ThreeDDocument, selectedIds: readonly string[]): void {
+    this.clearRuler();
+    if (!document.ruler.visible) return;
+    const origin = new THREE.Vector3(
+      document.ruler.origin.x,
+      document.ruler.origin.y + 0.08,
+      document.ruler.origin.z,
+    );
+    const addAxis = (direction: THREE.Vector3, color: string, length: number): void => {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        origin,
+        origin.clone().add(direction.multiplyScalar(length)),
+      ]);
+      const line = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color, depthTest: false, toneMapped: false }),
+      );
+      line.renderOrder = 25;
+      this.rulerRoot.add(line);
+    };
+    addAxis(new THREE.Vector3(1, 0, 0), '#d63d3d', Math.min(70, document.grid.width / 2));
+    addAxis(new THREE.Vector3(0, 0, 1), '#268f72', Math.min(70, document.grid.depth / 2));
+    addAxis(new THREE.Vector3(0, 1, 0), '#2e72c7', 45);
+    if (selectedIds.length > 0) {
+      const entryIds = new Set(
+        selectedIds.map((id) => {
+          const node = document.nodes.find((candidate) => candidate.id === id);
+          return node?.groupId ? `group:${node.groupId}` : id;
+        }),
+      );
+      [...entryIds]
+        .map((id) => this.entries.get(id)?.object.position)
+        .filter((point): point is THREE.Vector3 => Boolean(point))
+        .forEach((point) => {
+          const geometry = new THREE.BufferGeometry().setFromPoints([origin, point]);
+          const line = new THREE.Line(
+            geometry,
+            new THREE.LineDashedMaterial({
+              color: '#26343a',
+              dashSize: 2,
+              gapSize: 1,
+              transparent: true,
+              opacity: 0.75,
+            }),
+          );
+          line.computeLineDistances();
+          this.rulerRoot.add(line);
+        });
+    }
+  }
+
+  private clearRuler(): void {
+    this.rulerRoot.traverse((child) => {
+      const disposable = child as THREE.Object3D & {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      disposable.geometry?.dispose();
+      if (Array.isArray(disposable.material)) {
+        disposable.material.forEach((material) => material.dispose());
+      } else {
+        disposable.material?.dispose();
+      }
+    });
+    this.rulerRoot.clear();
   }
 
   private syncGrid(document: ThreeDDocument): void {
@@ -458,6 +623,7 @@ export class SceneRuntime {
     for (const entry of this.entries.values()) disposeObject(entry.object);
     this.entries.clear();
     this.clearGrid();
+    this.clearRuler();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

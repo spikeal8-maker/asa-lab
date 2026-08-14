@@ -19,7 +19,7 @@ interface OrbitLike {
 }
 
 interface DirectManipulatorCallbacks {
-  readonly onSelect: (nodeId: string | null) => void;
+  readonly onSelect: (nodeId: string | null, additive: boolean) => void;
   readonly onCommit: (
     nodeId: string,
     transform: ThreeDTransform,
@@ -560,9 +560,13 @@ export class DirectManipulator {
     if (hit) {
       event.preventDefault();
       event.stopPropagation();
+      if (event.shiftKey) {
+        this.callbacks.onSelect(hit.nodeId, true);
+        return;
+      }
       if (this.selectedId !== hit.nodeId) {
         this.selectedId = hit.nodeId;
-        this.callbacks.onSelect(hit.nodeId);
+        this.callbacks.onSelect(hit.nodeId, false);
         this.update();
       }
       if (!hit.entry.node.locked) {
@@ -607,7 +611,7 @@ export class DirectManipulator {
     this.backgroundPointerStart = null;
     if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 5) {
       this.selectedId = null;
-      this.callbacks.onSelect(null);
+      this.callbacks.onSelect(null, false);
       this.setSelection(null);
     }
   };

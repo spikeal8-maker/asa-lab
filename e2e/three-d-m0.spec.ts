@@ -78,6 +78,9 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
   await tile.click();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
+    timeout: 20_000,
+  });
 }
 
 test.beforeAll(async () => {
@@ -103,13 +106,33 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
 
   await page.getByRole('button', { name: 'Поиск форм' }).click();
   await page.getByLabel('Название формы').fill('сф');
-  await expect(page.locator('.asa3d-shape-card')).toHaveCount(1);
-  await expect(page.locator('.asa3d-shape-card')).toContainText('Сфера');
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Сфера', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Полусфера', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Поиск форм' }).click();
-  await expect(page.locator('.asa3d-shape-card')).toHaveCount(7);
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(8);
 
   await page.getByRole('button', { name: 'Параллелепипед' }).click();
   await expect(page.getByLabel('Параметры выбранной формы')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Цилиндр', exact: true }).click();
+  await page.getByRole('button', { name: 'Сделать отверстием' }).click();
+  await page.getByLabel('Положение X, мм').fill('28');
+  await page.keyboard.down('Shift');
+  await page.getByRole('button', { name: 'Параллелепипед' }).click();
+  await page.keyboard.up('Shift');
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-ids', /,/);
+  await page.getByRole('button', { name: 'Сгруппировать (Ctrl+G)' }).click();
+  await expect(page.getByText(/Булева группа · 2/)).toBeVisible();
+  await expect(page.getByLabel('Булева операция')).toHaveValue('difference');
+  await page.getByLabel('Булева операция').selectOption('difference');
+  await page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' }).click();
+  await page.getByRole('button', { name: 'Выравнивание' }).click();
+  await page.getByRole('button', { name: 'X · ширина: По центру' }).click();
+  await page.getByRole('button', { name: 'Расширенная линейка' }).click();
+  await expect(page.getByText('Линейка · мм')).toBeVisible();
+  await page.getByRole('button', { name: 'Удалить (Delete)' }).click();
+  await selectObject(page);
 
   const corner = await directHandlePoint(page, 'resize-south-west');
   await page.mouse.move(corner.handle.x, corner.handle.y);
