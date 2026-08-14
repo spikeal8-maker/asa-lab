@@ -160,15 +160,17 @@ parallel_lanes:
       branch: agent/three-d-direct-manipulation
       base_branch: main
       pr: 108
-      pr_draft: true
-      status: in_progress
-      checkpoint: direct_manipulation_foundation
-      owner_acceptance: pending
+      pr_draft: false
+      status: done
+      checkpoint: merged_to_main
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 5c66766303750475885bb42a91fee78834401ad7
       # Head at lane activation. Later PR heads must descend from it; product
       # progress does not require a governance rewrite after every push.
       head_sha: 5c66766303750475885bb42a91fee78834401ad7
+      owner_accepted_sha: 82c3155724ef651b51de2ee3ae317003f7592288
+      product_merge_sha: b2668d35702c6a0340d840747cd193af6f020e7a
     execution_lease:
       executor_id: codex-three-d-direct-manipulation
       holder: unassigned
