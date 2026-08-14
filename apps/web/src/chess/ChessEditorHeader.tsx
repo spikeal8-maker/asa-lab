@@ -29,6 +29,7 @@ export function ChessEditorHeader({
   statusDetail,
   busy,
   onBack,
+  onHome,
   onNewGame,
   onCheckpoint,
   onSave,
@@ -42,12 +43,23 @@ export function ChessEditorHeader({
   readonly statusDetail: string;
   readonly busy: boolean;
   readonly onBack: () => void;
+  readonly onHome?: (() => void) | undefined;
   readonly onNewGame: () => void;
   readonly onCheckpoint: () => void;
   readonly onSave: () => void;
   readonly userDisplayName: string;
 }): JSX.Element {
   const actions: readonly EditorHeaderItem[] = [
+    ...(onHome
+      ? [
+          {
+            id: 'chess-home',
+            label: 'Главная',
+            visibility: 'wide' as const,
+            onActivate: onHome,
+          },
+        ]
+      : []),
     {
       id: 'new-game',
       label: 'Новая',

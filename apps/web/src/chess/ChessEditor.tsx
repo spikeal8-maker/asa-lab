@@ -24,6 +24,8 @@ import './chess.css';
 interface ChessEditorProps {
   projectId: string;
   onBack: () => void;
+  onHome?: () => void;
+  startNewGame?: boolean;
   user: PublicUser;
 }
 
@@ -368,10 +370,16 @@ function ImportDialog({
   );
 }
 
-export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.Element {
+export function ChessEditor({
+  projectId,
+  onBack,
+  onHome,
+  startNewGame = false,
+  user,
+}: ChessEditorProps): JSX.Element {
   const controller = useChessProject(projectId);
   const [panelTab, setPanelTab] = useState<PanelTab>('game');
-  const [newGameOpen, setNewGameOpen] = useState(false);
+  const [newGameOpen, setNewGameOpen] = useState(startNewGame);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
 
   if (controller.loadState === 'loading') {
@@ -429,6 +437,7 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
         }
         busy={controller.busy}
         onBack={onBack}
+        onHome={onHome}
         onNewGame={() => setNewGameOpen(true)}
         onCheckpoint={() => void controller.checkpoint()}
         onSave={() => void controller.saveNow()}
