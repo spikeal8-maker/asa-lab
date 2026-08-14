@@ -338,7 +338,7 @@
   touch-action: manipulation;
 }
 
-.asa-chess-square {
+.asa-chess-board > button.asa-chess-square {
   position: relative;
   min-width: 0;
   min-height: 0;
