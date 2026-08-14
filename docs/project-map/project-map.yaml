@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-map_version: 2026.08.11-2
+map_version: 2026.08.12-1
 project:
   id: asa-lab
   name: ASA Lab
@@ -8,7 +8,7 @@ project:
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
   current_focus: TASK-CHECKERS-M1-001
-  active_checkpoint: project_document_foundation
+  active_checkpoint: persistence_classroom_vertical
   canonical_branch: main
   product_merge_sha: 67b4f8eea3804d750684dd1c6dce929f5f1f9bfa
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
@@ -77,7 +77,7 @@ nodes:
   - {id: MOD-CHESS, label: ASA Chess, kind: subject_module, layer: modules, status: in_progress, summary: "Existing Chess and Chess Online must remain reachable.", path: contexts/chess}
   - {id: MOD-CHECKERS, label: ASA Checkers, kind: subject_module, layer: modules, status: in_progress, summary: "Independent Russian-draughts learning, assignments, bots, review and safe class play.", path: contexts/checkers}
   - {id: MOD-BLOCKS, label: Block Coding, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
-  - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: blocked, summary: "ASA-native M0 foundation is paused by owner transition; PR #95 remains Draft and no completion is claimed."}
+  - {id: MOD-3D, label: 3D Design, kind: subject_module, layer: modules, status: done, summary: "ASA-native M0 foundation is merged by PR #95, active in the module registry and creatable from the main Portal.", path: contexts/three-d}
   - {id: MOD-ROBOTICS, label: Robotics, kind: subject_module, layer: modules, status: planned, summary: "Future module."}
 
   - {id: DOC-AGENTS, label: AGENTS.md, kind: document, layer: governance, status: done, summary: "Coding-agent contract.", path: AGENTS.md}
@@ -93,13 +93,13 @@ nodes:
 
   - {id: PROGRAM-ALPHA-001, label: Product Alpha, kind: program, layer: delivery, status: in_progress, summary: "The owner prioritised a complete educational Checkers system after the accepted Portal shell and R3A gateway."}
   - {id: TRACK-TECH-ALPHA, label: Technical Alpha, kind: delivery_track, layer: delivery, status: done, summary: "Foundation, Portal and Account C1 merged."}
-  - {id: TRACK-ROADMAP, label: Product Roadmap, kind: delivery_track, layer: delivery, status: in_progress, summary: "Portal and R3A are done; Electronics and 3D corrective work are paused; Checkers M1 is active by owner transition."}
+  - {id: TRACK-ROADMAP, label: Product Roadmap, kind: delivery_track, layer: delivery, status: in_progress, summary: "Portal, R3A and 3D M0 are merged; Electronics corrective work is paused; Checkers M1 remains active."}
   - {id: PHASE-0, label: Foundation, kind: roadmap_phase, layer: roadmap, status: done, summary: "Foundation complete."}
   - {id: PHASE-1, label: Account C1, kind: roadmap_phase, layer: roadmap, status: done, summary: "Identity/security slice complete."}
   - {id: PHASE-R2, label: R2 Creator Portal, kind: roadmap_phase, layer: roadmap, status: done, summary: "Portal shell accepted and merged by PR #71."}
   - {id: PHASE-R3, label: R3 Project Lifecycle, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "R3A gateway done; R3B remains blocked and deferred."}
   - {id: PHASE-R4, label: R4 Electronics Parity, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Post-merge M1 corrective work aligns physical pins, breadboard footprints and live LED evidence; M2 remains blocked."}
-  - {id: PHASE-R10, label: R10 3D Foundation, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "The ASA-native 3D M0 slice is paused by owner transition; later R10 capabilities remain blocked."}
+  - {id: PHASE-R10, label: R10 3D Foundation, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "The ASA-native 3D M0 slice is merged and deployed; later R10 CAD capabilities remain blocked pending separate owner activation."}
   - {id: PHASE-R11, label: R11 Educational Checkers, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Independent Russian-draughts rules, learning, assignments, bots, review and safe class play."}
   - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and learning cycle."}
 
@@ -109,8 +109,8 @@ nodes:
   - {id: TASK-ACCOUNT-C1-001, label: Account C1, kind: task, layer: delivery, status: done, summary: "Issue 48 completed and merged.", phase: PHASE-1, issue: https://github.com/spikeal8-maker/asa-lab/issues/48}
   - {id: TASK-CREATOR-PORTAL-001, label: R2 Creator Portal, kind: task, layer: delivery, status: done, summary: "Creator Home and capability-aware Portal shell merged by PR #71.", phase: PHASE-R2, issue: https://github.com/spikeal8-maker/asa-lab/issues/62}
   - {id: TASK-R3A-ELECTRONICS-GATEWAY-001, label: R3A Electronics Gateway, kind: task, layer: delivery, status: done, summary: "Existing Module Registry, shared Editor Host and module-neutral Project lifecycle verified.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
-  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: blocked, summary: "Owner paused the open corrective PR #92 while the independent 3D M0 foundation runs; no completion is claimed.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
-  - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: blocked, summary: "Owner-paused Draft PR #95; no merge or completion is claimed while Checkers M1 runs.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
+  - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: blocked, summary: "Owner paused the open corrective PR #92 while Checkers M1 runs; no completion is claimed.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
+  - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: done, summary: "PR #95 merged into main; the Portal creates ASA 3D projects and the saved WebGL scene reloads through Project Core.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
   - {id: TASK-CHECKERS-M1-001, label: R11-M1 Educational Russian Draughts, kind: task, layer: delivery, status: in_progress, summary: "Build the independent Checkers system from Issue #98: rules, learning, teacher work, bots, review and safe class play.", phase: PHASE-R11, issue: https://github.com/spikeal8-maker/asa-lab/issues/98}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
@@ -234,5 +234,5 @@ execution_queue:
   - {position: 4, task_id: TASK-CREATOR-PORTAL-001, instruction: "Implement only R2 Creator Home and capability-aware Portal shell on agent/r2-creator-portal.", gate: "focused tests, full regression, live browser evidence and owner review"}
   - {position: 5, task_id: TASK-R3A-ELECTRONICS-GATEWAY-001, instruction: "Verify the existing Registry, Editor Host and module-neutral lifecycle without an architecture rewrite.", gate: "focused module and project tests"}
   - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Verify the preserved Electronics M1 foundation with corrected ordinary-LED states and zoom-stable wire/terminal presentation.", gate: "focused CI, one actual-editor journey and owner review"}
-  - {position: 7, task_id: TASK-3D-M0-001, instruction: "Build only the ASA-native 3D foundation from Issue #94; keep later CAD, boolean and parity scope blocked.", gate: "focused domain/integration/lazy-bundle checks, one save-reload browser journey and owner review"}
+  - {position: 7, task_id: TASK-3D-M0-001, instruction: "Preserve the merged ASA-native 3D foundation from Issue #94; later CAD, boolean and parity scope requires a separate task.", gate: "done: PR #95 merged after focused checks and an owner-requested save-reload browser verification"}
   - {position: 8, task_id: TASK-CHECKERS-M1-001, instruction: "Build only the independent educational Russian-draughts system from Issue #98; preserve Chess, Electronics, 3D and subject-neutral Core.", gate: "focused rules/project/learning/bot/class-safety tests, student and teacher browser journeys, repository gate and owner review"}

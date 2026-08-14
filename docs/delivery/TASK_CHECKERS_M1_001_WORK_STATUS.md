@@ -14,7 +14,7 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 task: TASK-CHECKERS-M1-001
 branch: agent/checkers-education-m1
 status: in_progress
-checkpoint: project_document_foundation
+checkpoint: persistence_classroom_vertical
 execution_lease: codex-checkers-m1
 convergence baseline: db1038c66630c80bf121e7c794a44f119a028753
 ```
@@ -22,8 +22,9 @@ convergence baseline: db1038c66630c80bf121e7c794a44f119a028753
 ## Owner decision
 
 The owner activated a standalone educational Russian-draughts system and
-limited product work to Checkers only. The prior 3D M0 task is paused without a
-merge or completion claim. Chess and Electronics are preserved.
+limited current product work to Checkers only. 3D M0 is already preserved in
+`main` by merged PR #95 and remains outside the Checkers writable scope. Chess
+and Electronics are preserved.
 
 ## Required result
 

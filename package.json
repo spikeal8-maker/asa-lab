@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "ASA Lab modular education platform monorepo foundation.",
+  "license": "AGPL-3.0-only",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=22",
@@ -24,6 +25,7 @@
     "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
     "security:secrets": "node tools/secret-scan.mjs",
     "security:dependencies": "node tools/dependency-inventory.mjs",
+    "license:check": "node tools/validate-license-policy.mjs && node tools/validate-pr-cla.mjs --self-test",
     "graph:report": "nx graph --file=docs/project-map/nx-project-graph.json",
     "db:seed:dev": "node tools/seed-dev.mjs",
     "demo": "node tools/demo.mjs",
@@ -50,7 +52,7 @@
     "test:chess-live:pg": "vitest run tests/chess-live/pg-repository.spec.ts",
     "typecheck:chess-live": "tsc -p contexts/chess-live/tsconfig.json --noEmit",
     "e2e:chess-live": "playwright test e2e/chess-live.spec.ts",
-    "gate:chess-r1": "pnpm nx build module-sdk && pnpm chess:contract && pnpm test:chess && pnpm typecheck:chess && pnpm nx build chess && pnpm nx build database && pnpm chess-live:contract && pnpm test:chess-live && pnpm typecheck:chess-live && pnpm nx run web:typecheck && pnpm nx run web:build",
+    "gate:chess-r1": "pnpm nx build module-sdk && pnpm nx build chess && pnpm chess:contract && pnpm test:chess && pnpm typecheck:chess && pnpm nx build database && pnpm chess-live:contract && pnpm test:chess-live && pnpm typecheck:chess-live && pnpm nx run web:typecheck && pnpm nx run web:build",
     "gate:chess-r1:browser": "pnpm e2e:chess && pnpm e2e:chess-live",
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
@@ -62,7 +64,7 @@
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "control-plane:check": "python tools/validate_control_plane.py",
     "gate:governance": "bash tools/gate-governance.sh",
-    "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm security:dependencies && pnpm build",
+    "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm license:check && pnpm security:dependencies && pnpm build",
     "gate:data": "pnpm db:migrate:check && pnpm test && pnpm test:rls",
     "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",
     "gate:electronics-m1": "pnpm test:electronics && pnpm vitest run apps/web/src/electronics/testing && pnpm typecheck && pnpm build",
@@ -127,7 +129,8 @@
       "brace-expansion@>=5.0.0 <=5.0.8": "5.0.9",
       "axios@>=1.15.2 <1.18.0": "1.18.0",
       "js-yaml@>=4.0.0 <4.3.1": "^4.3.1",
-      "nanoid@<3.3.17": "^3.3.17"
+      "nanoid@<3.3.17": "^3.3.17",
+      "postcss@<=8.5.22": "8.5.23"
     }
   }
 }

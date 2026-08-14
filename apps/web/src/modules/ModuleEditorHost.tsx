@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
 import { ChessModuleExperience } from '../chess/ChessModuleExperience';
 import { SchematicEditor } from '../pages/SchematicEditor';
@@ -12,6 +12,9 @@ interface ModuleEditorProps {
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
   electronics: SchematicEditor,
   chess: ChessModuleExperience,
+  'three-d': lazy(() =>
+    import('../three-d/ThreeDEditor').then((module) => ({ default: module.ThreeDEditor })),
+  ),
 };
 
 type HostState =
@@ -77,5 +80,15 @@ export function ModuleEditorHost(props: ModuleEditorProps): JSX.Element {
     );
   }
 
-  return <Editor {...props} />;
+  return (
+    <Suspense
+      fallback={
+        <main className="page-center" role="status" aria-live="polite">
+          Загружаем ASA 3D…
+        </main>
+      }
+    >
+      <Editor {...props} />
+    </Suspense>
+  );
 }

@@ -1,17 +1,24 @@
 import {
+  ASA_BOT_PROFILES,
   PIECE_SYMBOL as DOMAIN_PIECES,
   opposite,
-  type BotLevel,
   type ChessMode,
   type Color,
-  type NewChessGameOptions,
   type PromotionPiece,
 } from '@asa-lab/chess';
 import { useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
-import { PIECE_SYMBOL, evaluationLabel, formatChessClock, resultLabel } from './chess-ui';
-import { useChessProject } from './use-chess-project';
+import { ChessEditorHeader } from './ChessEditorHeader';
+import {
+  PIECE_SYMBOL,
+  botProfileUiSummary,
+  evaluationLabel,
+  formatChessClock,
+  resolveAsaBotProfile,
+  resultLabel,
+} from './chess-ui';
+import { useChessProject, type ProfiledChessGameOptions } from './use-chess-project';
 import './chess.css';
 
 interface ChessEditorProps {
@@ -36,13 +43,6 @@ const TIME_PRESETS: readonly TimePreset[] = [
   { label: '15+10', initialMs: 15 * 60 * 1000, incrementMs: 10 * 1000 },
 ] as const;
 
-const SAVE_COPY = {
-  saved: 'Сохранено',
-  dirty: 'Есть изменения',
-  saving: 'Сохранение…',
-  error: 'Ошибка сохранения',
-} as const;
-
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -63,9 +63,11 @@ function playerName(
   color: Color,
   mode: ChessMode,
   botColor: Color | null,
+  botDisplayName: string | null,
   user: PublicUser,
 ): string {
-  if (mode === 'computer') return color === botColor ? 'ASA Bot' : user.displayName;
+  if (mode === 'computer')
+    return color === botColor ? (botDisplayName ?? 'ASA Bot') : user.displayName;
   if (mode === 'local') return color === 'white' ? 'Белые' : 'Чёрные';
   return color === 'white' ? 'Белая сторона' : 'Чёрная сторона';
 }
@@ -135,18 +137,21 @@ function MoveList({ moves }: { moves: readonly { san: string; uci: string }[] })
   );
 }
 
-function NewGameDialog({
+export function NewGameDialog({
   onClose,
   onStart,
 }: {
   onClose(): void;
-  onStart(options: NewChessGameOptions): void;
+  onStart(options: ProfiledChessGameOptions): void;
 }) {
   const [mode, setMode] = useState<ChessMode>('computer');
   const [playerColor, setPlayerColor] = useState<Color>('white');
-  const [botLevel, setBotLevel] = useState<BotLevel>(2);
+  const [botProfileId, setBotProfileId] = useState('asa-bot-compass');
   const [timeIndex, setTimeIndex] = useState(2);
   const preset = TIME_PRESETS[timeIndex] ?? TIME_PRESETS[2]!;
+  const selectedProfile =
+    ASA_BOT_PROFILES.find((profile) => profile.id === botProfileId) ?? ASA_BOT_PROFILES[0]!;
+  const profileSummary = botProfileUiSummary(selectedProfile);
   return (
     <div className="asa-chess-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
@@ -203,7 +208,7 @@ function NewGameDialog({
           </fieldset>
         )}
         {mode === 'computer' && (
-          <div className="asa-chess-setup-columns">
+          <div className="asa-chess-bot-setup">
             <fieldset>
               <legend>Играть</legend>
               <div className="asa-chess-segmented">
@@ -219,21 +224,52 @@ function NewGameDialog({
                 ))}
               </div>
             </fieldset>
-            <fieldset>
-              <legend>Сила ASA Bot</legend>
-              <div className="asa-chess-segmented">
-                {([1, 2, 3] as const).map((level) => (
-                  <button
-                    type="button"
-                    key={level}
-                    className={botLevel === level ? 'selected' : ''}
-                    onClick={() => setBotLevel(level)}
+            <fieldset className="asa-chess-bot-profile-picker">
+              <legend>Профиль соперника</legend>
+              <div className="asa-chess-bot-profile-grid">
+                {ASA_BOT_PROFILES.map((profile) => (
+                  <label
+                    key={profile.id}
+                    className={profile.id === selectedProfile.id ? 'selected' : ''}
                   >
-                    {level}
-                  </button>
+                    <input
+                      type="radio"
+                      name="asa-bot-profile"
+                      value={profile.id}
+                      checked={profile.id === selectedProfile.id}
+                      onChange={() => setBotProfileId(profile.id)}
+                    />
+                    <strong>{profile.displayName}</strong>
+                    <small>Движок {profile.engine.level}/3</small>
+                  </label>
                 ))}
               </div>
             </fieldset>
+            <section className="asa-chess-bot-profile-detail" aria-live="polite">
+              <div>
+                <span>Выбранный соперник</span>
+                <strong>{selectedProfile.displayName}</strong>
+              </div>
+              <dl>
+                <div>
+                  <dt>Уровень</dt>
+                  <dd>{profileSummary.levelLabel}</dd>
+                </div>
+                <div>
+                  <dt>Стиль (проект)</dt>
+                  <dd>{profileSummary.styleLabel}</dd>
+                </div>
+                <div>
+                  <dt>Помощь (не включена)</dt>
+                  <dd>{profileSummary.assistanceLabel}</dd>
+                </div>
+                <div>
+                  <dt>Вызов (не включён)</dt>
+                  <dd>{profileSummary.challengeLabel}</dd>
+                </div>
+              </dl>
+              <p>{profileSummary.calibrationNote}</p>
+            </section>
           </div>
         )}
         <div className="asa-chess-dialog-actions">
@@ -247,7 +283,8 @@ function NewGameDialog({
               onStart({
                 mode,
                 playerColor,
-                botLevel,
+                botLevel: selectedProfile.engine.level,
+                botProfileId: selectedProfile.id,
                 ...(mode === 'analysis'
                   ? {}
                   : { initialMs: preset.initialMs, incrementMs: preset.incrementMs }),
@@ -368,6 +405,10 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
   const topColor = opposite(document.orientation);
   const bottomColor = document.orientation;
   const botColor = document.bot?.color ?? null;
+  const botProfile = document.bot?.profileId
+    ? resolveAsaBotProfile(document.bot.profileId, document.bot.level)
+    : null;
+  const botSummary = botProfile ? botProfileUiSummary(botProfile) : null;
   const whiteClock = controller.displayClock('white');
   const blackClock = controller.displayClock('black');
   const evaluation = evaluationPercent(controller.evaluationCp);
@@ -375,58 +416,36 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
 
   return (
     <main className="asa-chess-shell">
-      <header className="asa-chess-header">
-        <button type="button" className="asa-chess-back" onClick={onBack}>
-          <span aria-hidden="true">←</span> Проекты
-        </button>
-        <div className="asa-chess-brand" aria-label="ASA Chess">
-          <span className="asa-chess-brand-mark" aria-hidden="true">
-            ♞
-          </span>
-          <span>
-            <strong>ASA Chess</strong>
-            <small>{modeLabel(document.mode)}</small>
-          </span>
-        </div>
-        <label className="asa-chess-title-field">
-          <span className="sr-only">Название проекта</span>
-          <input
-            value={controller.projectTitle}
-            maxLength={160}
-            onChange={(event) => controller.setProjectTitle(event.target.value)}
-            onBlur={() => void controller.renameProject()}
-          />
-        </label>
-        <span className={`asa-chess-save-state ${controller.saveStatus}`} role="status">
-          {SAVE_COPY[controller.saveStatus]}
-        </span>
-        <div className="asa-chess-header-actions">
-          <button type="button" onClick={() => setNewGameOpen(true)}>
-            Новая
-          </button>
-          <button
-            type="button"
-            disabled={controller.busy}
-            onClick={() => void controller.checkpoint()}
-          >
-            Версия
-          </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={controller.busy}
-            onClick={() => void controller.saveNow()}
-          >
-            Сохранить
-          </button>
-        </div>
-      </header>
+      <ChessEditorHeader
+        projectTitle={controller.projectTitle}
+        persistedProjectTitle={controller.project.title}
+        onProjectTitleChange={controller.setProjectTitle}
+        onProjectTitleCommit={controller.renameProject}
+        saveStatus={controller.saveStatus}
+        statusDetail={
+          controller.saveStatus === 'error'
+            ? 'Изменения не удалось записать на сервер.'
+            : modeLabel(document.mode)
+        }
+        busy={controller.busy}
+        onBack={onBack}
+        onNewGame={() => setNewGameOpen(true)}
+        onCheckpoint={() => void controller.checkpoint()}
+        onSave={() => void controller.saveNow()}
+        userDisplayName={user.displayName}
+      />
 
       <div className="asa-chess-workspace">
         <section className="asa-chess-board-column" aria-label="Партия">
           <ChessPlayerBar
             color={topColor}
-            name={playerName(topColor, document.mode, botColor, user)}
+            name={playerName(
+              topColor,
+              document.mode,
+              botColor,
+              botProfile?.displayName ?? null,
+              user,
+            )}
             milliseconds={topColor === 'white' ? whiteClock : blackClock}
             active={position.turn === topColor && document.result === '*'}
             thinking={controller.botThinking && botColor === topColor}
@@ -453,7 +472,13 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
           </div>
           <ChessPlayerBar
             color={bottomColor}
-            name={playerName(bottomColor, document.mode, botColor, user)}
+            name={playerName(
+              bottomColor,
+              document.mode,
+              botColor,
+              botProfile?.displayName ?? null,
+              user,
+            )}
             milliseconds={bottomColor === 'white' ? whiteClock : blackClock}
             active={position.turn === bottomColor && document.result === '*'}
             thinking={controller.botThinking && botColor === bottomColor}
@@ -518,6 +543,29 @@ export function ChessEditor({ projectId, onBack, user }: ChessEditorProps): JSX.
                       : `${controller.legalMoves.length} допустимых ходов.`}
                 </span>
               </section>
+              {botProfile && botSummary && (
+                <section className="asa-chess-active-bot" aria-label="Профиль соперника">
+                  <div>
+                    <span>ASA соперник</span>
+                    <strong>{botProfile.displayName}</strong>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>Уровень; стиль — проектный сигнал</dt>
+                      <dd>
+                        {botSummary.levelLabel}; {botSummary.styleLabel}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Будущая политика партии</dt>
+                      <dd>
+                        {botSummary.assistanceLabel}; {botSummary.challengeLabel}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p>{botSummary.calibrationNote}</p>
+                </section>
+              )}
               <MoveList moves={document.moves} />
               <div className="asa-chess-game-controls">
                 <button

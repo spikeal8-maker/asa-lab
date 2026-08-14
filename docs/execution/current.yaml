@@ -22,17 +22,17 @@ task:
   base_branch: main
   pr: 101
   pr_draft: true
-  # Owner-authorised independent Checkers system. The prior 3D M0 task is
-  # paused without a merge or completion claim. Chess and Electronics remain
-  # outside this task's writable product scope.
+  # Owner-authorised independent Checkers system. 3D M0 is preserved in main
+  # after PR #95; the Checkers lane does not modify it. Chess and Electronics
+  # remain outside this task's writable product scope.
   status: in_progress
-  checkpoint: project_document_foundation
+  checkpoint: persistence_classroom_vertical
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
 revisions:
   # Last merge into main. The product baseline every release candidate builds on.
-  product_merge_sha: affb18fe1fe5020909d4a01de7926147d3724c24
+  product_merge_sha: 2a119a258b5fe36e05bc8aa8548e95ca87042cf5
   # Which revision is green is a fact GitHub Actions holds per commit. It is
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
@@ -49,8 +49,8 @@ revisions:
 execution_lease:
   executor_id: codex-checkers-m1
   holder: codex-checkers-m1
-  acquired_at: "2026-08-11T18:41:49Z"
-  expires_at: "2026-08-12T18:41:49Z"
+  acquired_at: "2026-08-14T11:18:00Z"
+  expires_at: "2026-08-15T11:18:00Z"
   # Anyone may read, analyse, run tests and report without holding the lease.
   reviewer_role_requires_lease: false
 
@@ -80,10 +80,14 @@ primary_lane:
   owned_paths:
     - contexts/checkers/**
     - apps/web/src/checkers/**
+    - tests/checkers/**
+    - e2e/checkers-module.spec.ts
+    - e2e/artifacts/checkers/**
+    - docs/product/CHECKERS_EXECUTION_PLAN.md
 
 parallel_lanes:
   - id: chess
-    worktree_id: chess-r1
+    worktree_id: chess-r2-puzzles-learning
     owned_paths:
       - contexts/chess/**
       - contexts/chess-live/**
@@ -101,25 +105,25 @@ parallel_lanes:
       - docs/product/ASA_EDITOR_HEADER_CONTRACT.md
       - docs/architecture/SUBJECT_MODULE_ISOLATION_PLAN.md
     task:
-      id: TASK-CHESS-R1-001
-      issue: 97
-      branch: agent/chess-r1-foundation
+      id: TASK-CHESS-R2-001
+      issue: 115
+      branch: agent/chess-r2-puzzles-learning
       base_branch: main
-      pr: 103
-      pr_draft: true
-      status: in_progress
-      checkpoint: published_plan_and_engine_contract
-      owner_acceptance: pending
+      pr: 116
+      pr_draft: false
+      status: done
+      checkpoint: merged_to_main
+      owner_acceptance: accepted
     revisions:
-      convergence_baseline_sha: 3473ec9f87cdc6b7f1f6c94195e4ed2a9b2bb6ea
-      # Head at lane activation. Later PR heads must descend from it; product
-      # progress does not require a governance rewrite after every push.
-      head_sha: 3473ec9f87cdc6b7f1f6c94195e4ed2a9b2bb6ea
+      convergence_baseline_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
+      head_sha: 35dc69eecab39f44d3226bce95cbebba1bae3897
+      owner_accepted_sha: 1729ecf65a7ddd01b4c2e2680c5d4fa88ff39d9a
+      product_merge_sha: 28a147371b8b75071ee304470eca7326ab7458c0
     execution_lease:
-      executor_id: codex-chess-r1
-      holder: codex-chess-r1
-      acquired_at: "2026-08-11T19:20:01Z"
-      expires_at: "2026-08-12T19:20:01Z"
+      executor_id: codex-chess-r2
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
       reviewer_role_requires_lease: false
     gates:
       focused:
@@ -135,6 +139,105 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: three-d
+    worktree_id: three-d-direct-manipulation
+    owned_paths:
+      - contexts/three-d/**
+      - apps/web/src/three-d/**
+      - e2e/three-d-m0.spec.ts
+      - e2e/artifacts/three-d/**
+    task:
+      id: TASK-3D-M1-001
+      issue: 107
+      branch: agent/three-d-direct-manipulation
+      base_branch: main
+      pr: 108
+      pr_draft: true
+      status: in_progress
+      checkpoint: direct_manipulation_foundation
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 5c66766303750475885bb42a91fee78834401ad7
+      # Head at lane activation. Later PR heads must descend from it; product
+      # progress does not require a governance rewrite after every push.
+      head_sha: 5c66766303750475885bb42a91fee78834401ad7
+    execution_lease:
+      executor_id: codex-three-d-direct-manipulation
+      holder: codex-three-d-direct-manipulation
+      acquired_at: "2026-08-14T07:11:03Z"
+      expires_at: "2026-08-15T07:11:03Z"
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: 3D M0 Focused
+        commands:
+          - pnpm gate:three-d-m0
+      browser:
+        workflow: 3D M0 Focused
+        commands:
+          - pnpm gate:three-d-m0:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
+  - id: projects
+    worktree_id: r3-project-lifecycle
+    owned_paths:
+      - contexts/projects/**
+      - apps/api/src/app.module.ts
+      - apps/api/src/projects.controller.ts
+      - apps/api/src/tokens.ts
+      - apps/web/src/api.ts
+      - apps/web/src/App.tsx
+      - apps/web/src/components/CreateProjectModal.tsx
+      - apps/web/src/components/PortalHeader.tsx
+      - apps/web/src/creator-portal/**
+      - apps/web/src/modules/project-hub.css
+      - apps/web/src/pages/CreatorHomePage.tsx
+      - apps/web/src/pages/MyProjectsPage.tsx
+      - apps/web/src/pages/ProjectsPage.tsx
+      - apps/web/src/styles.css
+      - migrations/0013_project_lifecycle.sql
+      - schemas/openapi.yaml
+      - tests/portal/**
+      - e2e/project-hub.spec.ts
+      - e2e/artifacts/project-hub/**
+      - docs/review/TASK_R3B_PROJECT_LIFECYCLE_001/**
+    task:
+      id: TASK-R3B-PROJECT-LIFECYCLE-001
+      issue: 37
+      branch: agent/r3-project-lifecycle
+      base_branch: main
+      pr: 112
+      pr_draft: true
+      status: in_progress
+      checkpoint: project_lifecycle_foundation
+      owner_acceptance: pending
+    revisions:
+      convergence_baseline_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+      head_sha: 4d0d6948e22d26793289bf8175e549d1fc094050
+    execution_lease:
+      executor_id: codex-r3-project-lifecycle
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:project-slice
+          - pnpm test:creator-portal
+      browser:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:creator-portal
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
 integration:
   owner_lane: checkers
   shared_paths:
@@ -143,9 +246,13 @@ integration:
     - START_HERE_FOR_AI.md
     - package.json
     - pnpm-lock.yaml
+    - apps/api/package.json
+    - apps/web/package.json
     - tools/validate_control_plane.py
     - tools/test_validate_control_plane.py
     - .github/workflows/**
+    - apps/api/src/module-registry.ts
+    - apps/web/src/modules/ModuleEditorHost.tsx
     - docs/delivery/**
     - docs/project-map/**
     - docs/testing/**

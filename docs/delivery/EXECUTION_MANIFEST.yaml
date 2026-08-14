@@ -45,9 +45,9 @@ roadmap_after_current:
     activation: paused_by_owner_while_checkers_m1_runs
   - release: R10-M1
     issue: https://github.com/spikeal8-maker/asa-lab/issues/42
-    name: 3D Design roadmap including the paused M0 foundation slice
+    name: 3D Design roadmap after the merged M0 foundation slice
     status: blocked
-    activation: paused_by_owner_until_separate_transition_after_checkers_m1
+    activation: later_scope_requires_separate_owner_transition
 
 ports:
   bind: 127.0.0.1
@@ -249,12 +249,15 @@ tasks:
 
   - position: 7
     task_id: TASK-3D-M0-001
-    status: blocked
-    checkpoint: paused_by_owner_for_checkers_m1
-    activation: paused_by_owner
+    status: done
+    checkpoint: merged_to_main
+    activation: owner_merged
     issue: https://github.com/spikeal8-maker/asa-lab/issues/94
     branch: agent/three-d-m0
     base_branch: main
+    completed_sha: e1962722246295d7d84d94800c21f18ff5a245c3
+    merged_sha: 2a119a258b5fe36e05bc8aa8548e95ca87042cf5
+    merged_pr: 95
     milestone: R10-M1 3D Foundation
     track: product-roadmap
     delivery_stage: STAGE-10-3D-M0
@@ -291,7 +294,7 @@ tasks:
     task_id: TASK-CHECKERS-M1-001
     # Mirrors docs/execution/current.yaml; validate_control_plane.py enforces it.
     status: in_progress
-    checkpoint: project_document_foundation
+    checkpoint: persistence_classroom_vertical
     issue: https://github.com/spikeal8-maker/asa-lab/issues/98
     branch: agent/checkers-education-m1
     base_branch: main

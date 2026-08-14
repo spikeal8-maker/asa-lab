@@ -1,7 +1,7 @@
 import {
   agreeDrawChessDocument,
   chessDocumentPositionKeys,
-  chooseChessBotMove,
+  chooseMappedAsaBotMove,
   createChessGameDocument,
   evaluateChessPosition,
   exportChessPgn,
@@ -28,6 +28,7 @@ import {
 } from '@asa-lab/chess';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Project, type ProjectVersion } from '../api';
+import { applyAsaBotProfile, resolveAsaBotProfile } from './chess-ui';
 
 export type ChessSaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -35,6 +36,28 @@ export interface PromotionRequest {
   readonly from: Square;
   readonly to: Square;
   readonly moves: readonly ChessMove[];
+}
+
+export type ProfiledChessGameOptions = NewChessGameOptions & {
+  readonly botProfileId?: string;
+};
+
+export interface ChessSaveQueue {
+  run<T>(operation: () => Promise<T>): Promise<T>;
+}
+
+export function createChessSaveQueue(): ChessSaveQueue {
+  let tail: Promise<void> = Promise.resolve();
+  return {
+    run<T>(operation: () => Promise<T>): Promise<T> {
+      const result = tail.then(operation);
+      tail = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    },
+  };
 }
 
 function parsePosition(fen: string): ChessPosition | null {
@@ -61,6 +84,8 @@ export function useChessProject(projectId: string) {
   const turnStartedAtRef = useRef(Date.now());
   const timeoutCommittedRef = useRef(false);
   const botTaskRef = useRef(0);
+  const saveQueueRef = useRef<ChessSaveQueue | null>(null);
+  saveQueueRef.current ??= createChessSaveQueue();
 
   const position = useMemo(
     () => (document ? parsePosition(document.currentFen) : null),
@@ -117,7 +142,9 @@ export function useChessProject(projectId: string) {
   const persist = useCallback(
     async (next: ChessDocument, quiet = false): Promise<boolean> => {
       setSaveStatus('saving');
-      const response = await api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next);
+      const response = await saveQueueRef.current!.run(() =>
+        api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next),
+      );
       if (!response.ok) {
         setSaveStatus('error');
         if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
@@ -186,7 +213,9 @@ export function useChessProject(projectId: string) {
     setBotThinking(true);
     const timer = window.setTimeout(() => {
       if (botTaskRef.current !== taskId) return;
-      const choice = chooseChessBotMove(position, document.bot?.level ?? 2);
+      const profile = resolveAsaBotProfile(document.bot?.profileId, document.bot?.level ?? 2);
+      const botDisplayName = document.bot?.profileId ? profile.displayName : 'ASA Bot';
+      const choice = chooseMappedAsaBotMove(position, profile);
       if (!choice) {
         setBotThinking(false);
         return;
@@ -194,9 +223,9 @@ export function useChessProject(projectId: string) {
       const next = playChessDocumentMove(document, choice.uci, 0);
       setBotThinking(false);
       if (next.ok) {
-        commit(next.value, `ASA Bot: ${next.value.moves.at(-1)?.san ?? choice.uci}`);
+        commit(next.value, `${botDisplayName}: ${next.value.moves.at(-1)?.san ?? choice.uci}`);
       } else {
-        setNotice(`ASA Bot не смог сделать ход: ${next.message}`);
+        setNotice(`${botDisplayName} не смог сделать ход: ${next.message}`);
       }
     }, 300);
 
@@ -265,8 +294,13 @@ export function useChessProject(projectId: string) {
     executeMove(move);
   }
 
-  function startGame(options: NewChessGameOptions): void {
-    const next = createChessGameDocument(options);
+  function startGame(options: ProfiledChessGameOptions): void {
+    let next = createChessGameDocument(options);
+    if (document) next = { ...next, learning: document.learning };
+    if (next.mode === 'computer' && next.bot) {
+      const profile = resolveAsaBotProfile(options.botProfileId, next.bot.level);
+      next = applyAsaBotProfile(next, profile);
+    }
     commit(
       next,
       options.mode === 'analysis'
@@ -358,7 +392,10 @@ export function useChessProject(projectId: string) {
       setNotice(`PGN не импортирован: ${parsed.message}`);
       return false;
     }
-    commit(parsed.value, 'PGN импортирован в доску анализа.');
+    commit(
+      document ? { ...parsed.value, learning: document.learning } : parsed.value,
+      'PGN импортирован в доску анализа.',
+    );
     return true;
   }
 
@@ -372,6 +409,7 @@ export function useChessProject(projectId: string) {
     commit(
       {
         ...next,
+        ...(document ? { learning: document.learning } : {}),
         initialFen: fen.trim(),
         currentFen: fen.trim(),
         headers: { ...next.headers, SetUp: '1', FEN: fen.trim() },

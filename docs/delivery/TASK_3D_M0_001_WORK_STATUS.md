@@ -6,26 +6,28 @@ Programme source: `docs/delivery/EXECUTION_MANIFEST.yaml`
 
 Owner scope: Issue #94
 
-Current PR: #95
+Merged PR: #95
 
 Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 
 ```text
 task: TASK-3D-M0-001
 branch: agent/three-d-m0
-status: blocked
-checkpoint: paused_by_owner_for_checkers_m1
-execution_lease: released_by_owner_transition
+status: done
+checkpoint: merged_to_main
+execution_lease: released_after_merge
 convergence baseline: e3707e9147ab51a10173bec4471f2b8b1d67d84f
+completed revision: e1962722246295d7d84d94800c21f18ff5a245c3
+merge revision: 2a119a258b5fe36e05bc8aa8548e95ca87042cf5
 ```
 
 ## Owner decision
 
-The owner paused this task on 2026-08-11 in order to activate the independent
-Checkers M1 task. PR #95 remains open and Draft; no merge, completion or owner
-acceptance is claimed. The execution lease recorded above is historical and is
-no longer the active lease; current state lives only in
-`docs/execution/current.yaml`.
+The owner requested permanent integration on 2026-08-12. PR #95 was taken out
+of Draft and merged into `main`; Issue #94 is closed. The permanent development
+stack on ports 4610/4611 was rebuilt from merge revision `2a119a2` without
+replacing its PostgreSQL volume. The active Checkers and Chess lanes remain
+independent and do not own the merged 3D paths.
 
 ## Required result
 
@@ -60,5 +62,6 @@ create 3D project
 - object-storage or tenant-model redesign;
 - claiming Tinkercad parity from the foundation slice.
 
-Stop after focused checks and desktop/tablet/mobile evidence. PR #95 remains
-Draft until the owner reviews the live vertical slice.
+M0 remains part of `main`. Boolean modelling, expanded CAD interchange and
+broader Tinkercad-like functionality require separately activated milestones;
+they do not remove or disable the merged foundation.

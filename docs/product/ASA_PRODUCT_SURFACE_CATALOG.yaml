@@ -779,15 +779,15 @@ surfaces:
 
   - id: EDT-003
     name: 3D Design editor
-    route: /projects/:projectId/editor?mode=3d
+    route: /projects/:projectId/three-d
     actors: [account_creator, educator, registered_student, student_seat]
     release: R10
     template: EDITOR_HOST
-    implementation: absent
+    implementation: partial
     purpose: Model, import, combine, measure and export printable 3D designs.
     primary_actions: [place_shape, transform, align, group, duplicate, ruler, import, export]
     required_states: [loading, empty, populated, validation_error, authorization_denied, server_error, offline_or_reconnecting]
-    screenshot_ids: [three-d-editor]
+    screenshot_ids: [three-d-desktop, three-d-tablet, three-d-mobile]
 
   - id: EDT-004
     name: Codeblocks editor

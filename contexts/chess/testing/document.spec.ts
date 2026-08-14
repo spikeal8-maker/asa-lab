@@ -10,6 +10,7 @@ import {
   undoChessDocumentMove,
   validateChessDocument,
 } from '../domain/document';
+import { ASA_BOT_PROFILES } from '../domain/bot-profiles';
 
 describe('ASA Chess project document', () => {
   it('creates strict analysis and playable defaults', () => {
@@ -21,6 +22,7 @@ describe('ASA Chess project document', () => {
       bot: null,
       result: '*',
       termination: 'ongoing',
+      learning: { schemaVersion: 1, attempts: {} },
     });
     expect(createEmptyChessDocument('local')).toMatchObject({
       mode: 'local',
@@ -34,8 +36,71 @@ describe('ASA Chess project document', () => {
     });
     expect(createEmptyChessDocument('computer')).toMatchObject({
       mode: 'computer',
-      bot: { color: 'black', level: 2 },
+      bot: { color: 'black', level: 2, profileId: 'asa-bot-compass' },
     });
+  });
+
+  it('persists a selected ASA profile and accepts legacy bot documents without one', () => {
+    const profile = ASA_BOT_PROFILES.find((candidate) => candidate.id === 'asa-bot-orbit')!;
+    const base = createEmptyChessDocument('computer');
+    const selected = {
+      ...base,
+      bot: {
+        color: 'black' as const,
+        level: profile.engine.level,
+        profileId: profile.id,
+      },
+    };
+    expect(validateChessDocument(selected)).toEqual({ ok: true, value: selected });
+
+    const legacy = {
+      ...base,
+      bot: { color: 'black' as const, level: 2 as const },
+    };
+    expect(validateChessDocument(legacy)).toEqual({ ok: true, value: legacy });
+  });
+
+  it('accepts legacy documents without learning and rebuilds the empty projection', () => {
+    const current = createEmptyChessDocument('analysis');
+    const legacy = { ...current } as Record<string, unknown>;
+    delete legacy['learning'];
+    expect(validateChessDocument(legacy)).toEqual({
+      ok: true,
+      value: current,
+    });
+  });
+
+  it('rejects forged project learning counters during module validation', () => {
+    const document = createEmptyChessDocument('analysis');
+    expect(
+      validateChessDocument({
+        ...document,
+        learning: {
+          schemaVersion: 1,
+          activePuzzleId: null,
+          attempts: {
+            unknown: { puzzleId: 'unknown', attempts: 999 },
+          },
+          rating: document.learning.rating,
+        },
+      }),
+    ).toEqual({ ok: false, message: 'Unknown learning puzzle: unknown.' });
+  });
+
+  it('rejects unknown or level-mismatched bot profile ids', () => {
+    const base = createEmptyChessDocument('computer');
+    expect(
+      validateChessDocument({
+        ...base,
+        bot: { color: 'black', level: 2, profileId: 'asa-bot-unknown' },
+      }),
+    ).toEqual({ ok: false, message: 'bot.profileId does not name an ASA bot profile.' });
+    expect(
+      validateChessDocument({
+        ...base,
+        bot: { color: 'black', level: 1, profileId: 'asa-bot-orbit' },
+      }),
+    ).toEqual({ ok: false, message: 'bot level must match the selected ASA bot profile.' });
   });
 
   it('plays and validates a saved opening with clocks', () => {

@@ -1,4 +1,14 @@
-import type { Color, Piece, PieceType, Square } from '@asa-lab/chess';
+import {
+  ASA_BOT_PROFILES,
+  type AsaBotProfile,
+  type AsaBotStyleSignal,
+  type BotLevel,
+  type ChessDocument,
+  type Color,
+  type Piece,
+  type PieceType,
+  type Square,
+} from '@asa-lab/chess';
 
 export const PIECE_SYMBOL: Readonly<Record<Color, Readonly<Record<PieceType, string>>>> = {
   white: {
@@ -32,6 +42,89 @@ const PIECE_LABEL: Readonly<Record<PieceType, string>> = {
   knight: 'конь',
   pawn: 'пешка',
 };
+
+const BOT_STYLE_LABEL: Readonly<Record<AsaBotStyleSignal, string>> = {
+  tactics: 'тактика',
+  positional: 'позиционная игра',
+  aggression: 'атака',
+  defence: 'защита',
+  material: 'материал',
+  mobility: 'активность фигур',
+};
+
+const HINT_MODE_LABEL: Readonly<Record<AsaBotProfile['policy']['assistance']['hintMode'], string>> =
+  {
+    guided: 'обучающие подсказки',
+    limited: 'ограниченные подсказки',
+    off: 'без подсказок',
+    adaptive: 'адаптивные подсказки',
+  };
+
+const TAKEBACK_LABEL: Readonly<Record<AsaBotProfile['policy']['assistance']['takebacks'], string>> =
+  {
+    encouraged: 'отмена ходов приветствуется',
+    one: 'одна отмена',
+    none: 'без отмены ходов',
+    adaptive: 'отмена зависит от учебного режима',
+  };
+
+const CHALLENGE_LABEL: Readonly<Record<AsaBotProfile['policy']['challenge']['mode'], string>> = {
+  supportive: 'поддерживающий вызов',
+  balanced: 'сбалансированный вызов',
+  competitive: 'соревновательный вызов',
+  adaptive: 'адаптивный вызов',
+};
+
+export interface BotProfileUiSummary {
+  readonly levelLabel: string;
+  readonly styleLabel: string;
+  readonly assistanceLabel: string;
+  readonly challengeLabel: string;
+  readonly calibrationNote: string;
+}
+
+export function botProfileUiSummary(profile: AsaBotProfile): BotProfileUiSummary {
+  const styleSignals = profile.style.signals.map((signal) => BOT_STYLE_LABEL[signal]).join(' · ');
+  return {
+    levelLabel: `Уровень локального движка ${profile.engine.level} из 3`,
+    styleLabel: `Проектные сигналы, пока не влияющие на выбор хода: ${styleSignals}`,
+    assistanceLabel: `Проектная политика, пока не управляющая контролами: ${HINT_MODE_LABEL[profile.policy.assistance.hintMode]}; ${TAKEBACK_LABEL[profile.policy.assistance.takebacks]}`,
+    challengeLabel: `Проектная политика, пока не управляющая сложностью: ${CHALLENGE_LABEL[profile.policy.challenge.mode]}`,
+    calibrationNote: `Проектный Elo-ориентир ${profile.targetEloBand.min}–${profile.targetEloBand.max}. Профиль не откалиброван по серии партий.`,
+  };
+}
+
+export function resolveAsaBotProfile(
+  profileId: string | undefined,
+  level: BotLevel,
+): AsaBotProfile {
+  return (
+    ASA_BOT_PROFILES.find(
+      (profile) => profile.id === profileId && profile.engine.level === level,
+    ) ??
+    ASA_BOT_PROFILES.find((profile) => profile.engine.level === level) ??
+    ASA_BOT_PROFILES[0]!
+  );
+}
+
+export function applyAsaBotProfile(document: ChessDocument, profile: AsaBotProfile): ChessDocument {
+  if (document.mode !== 'computer' || !document.bot) {
+    throw new Error('ASA bot profiles can only be applied to a computer game.');
+  }
+  const botColor = document.bot.color;
+  return {
+    ...document,
+    bot: {
+      color: botColor,
+      level: profile.engine.level,
+      profileId: profile.id,
+    },
+    headers: {
+      ...document.headers,
+      [botColor === 'white' ? 'White' : 'Black']: profile.displayName,
+    },
+  };
+}
 
 export function squareAccessibleLabel(square: Square, piece: Piece | null): string {
   if (!piece) return `${square}, пустое поле`;

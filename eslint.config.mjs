@@ -59,6 +59,10 @@ export const depConstraints = [
     ],
   },
   {
+    sourceTag: 'context:three-d',
+    onlyDependOnLibsWithTags: ['context:three-d', 'scope:shared', 'scope:contract'],
+  },
+  {
     sourceTag: 'type:app',
     onlyDependOnLibsWithTags: ['type:lib'],
   },
