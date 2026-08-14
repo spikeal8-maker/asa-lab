@@ -13,7 +13,7 @@ async function login(page: Page): Promise<void> {
 }
 
 async function createChessProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: 'Создать', exact: true }).click();
+  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
   await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
   await page.getByLabel('Название проекта').fill(title);
   const chessTile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });

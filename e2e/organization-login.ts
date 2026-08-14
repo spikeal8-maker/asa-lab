@@ -17,5 +17,9 @@ export async function loginWithOrganization(
   await page.getByLabel('Email', { exact: true }).fill(credentials.email);
   await page.getByLabel('Пароль').fill(credentials.password);
   await page.getByRole('button', { name: 'Войти через организацию' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: /^(Мои проекты|Проектируйте и обучайте в ASA Lab)$/,
+    }),
+  ).toBeVisible();
 }

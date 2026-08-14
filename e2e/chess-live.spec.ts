@@ -55,7 +55,7 @@ async function login(page: Page, credentials: LivePlayerCredentials): Promise<vo
 }
 
 async function createChessProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: 'Создать', exact: true }).click();
+  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
   await page.getByLabel('Название проекта').fill(title);
   const tile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });
   await tile.click();
@@ -79,12 +79,13 @@ async function pages(browser: Browser): Promise<{
 }> {
   const firstContext = await browser.newContext();
   const secondContext = await browser.newContext();
+  const firstPage = await firstContext.newPage();
+  const secondPage = await secondContext.newPage();
   return {
-    firstPage: await firstContext.newPage(),
-    secondPage: await secondContext.newPage(),
+    firstPage,
+    secondPage,
     close: async () => {
-      await firstContext.close();
-      await secondContext.close();
+      await Promise.all([firstPage.close(), secondPage.close()]);
     },
   };
 }
