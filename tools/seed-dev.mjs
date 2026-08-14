@@ -85,6 +85,83 @@ try {
     ]);
     wrotePassword = true;
   }
+
+  // The account/session-v2 migration backfilled only users that existed when
+  // migration 0010 ran. A dev tenant may be seeded later, so keep the legacy
+  // teacher and the modern account model linked on every idempotent seed run.
+  const teacher = await pool.query(
+    `SELECT id, email, display_name, password_hash
+       FROM users
+      WHERE tenant_id = $1 AND lower(email) = lower($2)
+      LIMIT 1`,
+    [tenantId, EMAIL],
+  );
+  const teacherRow = teacher.rows[0];
+
+  const workspace = await pool.query(
+    `INSERT INTO workspaces (tenant_id, kind, title)
+     VALUES ($1, 'organization', $2)
+     ON CONFLICT (tenant_id) DO UPDATE SET title = EXCLUDED.title
+     RETURNING id`,
+    [tenantId, 'Школа №1580 (dev)'],
+  );
+  const workspaceId = workspace.rows[0].id;
+
+  let account = await pool.query(`SELECT id FROM accounts WHERE lower(email) = lower($1)`, [EMAIL]);
+  if (account.rows.length === 0) {
+    account = await pool.query(
+      `INSERT INTO accounts (email, password_hash, birth_date, country)
+       VALUES ($1, $2, DATE '1990-01-01', 'RU')
+       RETURNING id`,
+      [teacherRow.email, teacherRow.password_hash],
+    );
+  } else if (envPassword) {
+    await pool.query(`UPDATE accounts SET password_hash = $1 WHERE id = $2`, [
+      teacherRow.password_hash,
+      account.rows[0].id,
+    ]);
+  }
+  const accountId = account.rows[0].id;
+  const username = `edu-${accountId.replaceAll('-', '').slice(0, 10)}`;
+
+  await pool.query(
+    `INSERT INTO profiles (account_id, username, display_name)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (account_id) DO NOTHING`,
+    [accountId, username, teacherRow.display_name],
+  );
+  const principal = await pool.query(
+    `INSERT INTO principals (kind, account_id)
+     VALUES ('account', $1)
+     ON CONFLICT (account_id) DO UPDATE SET account_id = EXCLUDED.account_id
+     RETURNING id`,
+    [accountId],
+  );
+  const principalId = principal.rows[0].id;
+
+  await pool.query(
+    `INSERT INTO capability_grants
+       (account_id, capability, state, policy_version, granted_by)
+     VALUES
+       ($1, 'creator', 'verified', 'asa-lab-2026-07', 'migration'),
+       ($1, 'educator', 'verified', 'asa-lab-2026-07', 'migration')
+     ON CONFLICT (account_id, capability) DO UPDATE
+       SET state = 'verified', policy_version = EXCLUDED.policy_version`,
+    [accountId],
+  );
+  await pool.query(
+    `INSERT INTO workspace_memberships (account_id, workspace_id, role)
+     VALUES ($1, $2, 'educator')
+     ON CONFLICT (account_id, workspace_id) DO NOTHING`,
+    [accountId, workspaceId],
+  );
+  await pool.query(
+    `INSERT INTO legacy_user_account_links (tenant_id, user_id, account_id, principal_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (tenant_id, user_id) DO NOTHING`,
+    [tenantId, teacherRow.id, accountId, principalId],
+  );
+
   mkdirSync(LOCAL_DIR, { recursive: true });
   if (wrotePassword && !envPassword) {
     writeFileSync(
