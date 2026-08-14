@@ -84,6 +84,7 @@ export function useChessProject(projectId: string) {
   const turnStartedAtRef = useRef(Date.now());
   const timeoutCommittedRef = useRef(false);
   const botTaskRef = useRef(0);
+  const saveGenerationRef = useRef(0);
   const saveQueueRef = useRef<ChessSaveQueue | null>(null);
   saveQueueRef.current ??= createChessSaveQueue();
 
@@ -141,19 +142,25 @@ export function useChessProject(projectId: string) {
 
   const persist = useCallback(
     async (next: ChessDocument, quiet = false): Promise<boolean> => {
+      const generation = saveGenerationRef.current + 1;
+      saveGenerationRef.current = generation;
       setSaveStatus('saving');
       const response = await saveQueueRef.current!.run(() =>
         api.saveDraft<ChessDocument, ChessAnalysisSummary>(projectId, next),
       );
       if (!response.ok) {
-        setSaveStatus('error');
-        if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
+        if (generation === saveGenerationRef.current) {
+          setSaveStatus('error');
+          if (!quiet) setNotice(`Не удалось сохранить: ${response.error.message}`);
+        }
         return false;
       }
       setDocument(response.data.draft.document);
       setAnalysis(response.data.result);
-      setSaveStatus('saved');
-      if (!quiet) setNotice('Шахматный проект сохранён.');
+      if (generation === saveGenerationRef.current) {
+        setSaveStatus('saved');
+        if (!quiet) setNotice('Шахматный проект сохранён.');
+      }
       return true;
     },
     [projectId],
