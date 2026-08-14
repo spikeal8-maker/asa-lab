@@ -296,6 +296,7 @@ export function useChessProject(projectId: string) {
 
   function startGame(options: ProfiledChessGameOptions): void {
     let next = createChessGameDocument(options);
+    if (document) next = { ...next, learning: document.learning };
     if (next.mode === 'computer' && next.bot) {
       const profile = resolveAsaBotProfile(options.botProfileId, next.bot.level);
       next = applyAsaBotProfile(next, profile);
@@ -391,7 +392,10 @@ export function useChessProject(projectId: string) {
       setNotice(`PGN не импортирован: ${parsed.message}`);
       return false;
     }
-    commit(parsed.value, 'PGN импортирован в доску анализа.');
+    commit(
+      document ? { ...parsed.value, learning: document.learning } : parsed.value,
+      'PGN импортирован в доску анализа.',
+    );
     return true;
   }
 
@@ -405,6 +409,7 @@ export function useChessProject(projectId: string) {
     commit(
       {
         ...next,
+        ...(document ? { learning: document.learning } : {}),
         initialFen: fen.trim(),
         currentFen: fen.trim(),
         headers: { ...next.headers, SetUp: '1', FEN: fen.trim() },

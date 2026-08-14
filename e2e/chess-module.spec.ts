@@ -143,18 +143,68 @@ test('review selects exact plies and accepts only the verified retry move', asyn
   failures.assertEmpty();
 });
 
-test('learner opens the original ASA puzzle trainer and solves a mate in one', async ({ page }) => {
+test('learner opens the original ASA puzzle trainer and solves a mate in one with durable evidence', async ({
+  page,
+}) => {
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createChessProject(page, 'Тренировка по тактике');
   await page.getByRole('button', { name: 'Открыть шахматные задачи' }).click();
   await expect(page.getByRole('heading', { name: 'Мат в один ход' })).toBeVisible();
+  await expect(page.getByText('Прогресс этого проекта: 0 из 3')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Подсказка', exact: true }).click();
+  await expect(page.getByText('Обратите внимание на фигуру на поле f7.')).toBeVisible();
+  await expect(page.getByText('Прогресс сохранён', { exact: true })).toBeVisible();
+  await clickMove(page, 'f7', 'f1');
+  await expect(
+    page.getByText('Этот ход легален, но не решает задачу. Попробуйте ещё раз.'),
+  ).toBeVisible();
+  await expect(page.getByText('Прогресс сохранён', { exact: true })).toBeVisible();
   await clickMove(page, 'f7', 'g7');
   await expect(page.getByText('Решено', { exact: true })).toBeVisible();
   await expect(page.getByText(/Ферзь встаёт на g7/)).toBeVisible();
-  await page.getByRole('button', { name: 'Следующая задача' }).click();
-  await expect(page.getByRole('heading', { name: 'Мат по последней горизонтали' })).toBeVisible();
+  await expect(page.getByText('Прогресс сохранён', { exact: true })).toBeVisible();
+  await expect(page.getByText('Прогресс этого проекта: 1 из 3')).toBeVisible();
+  await expect(page.getByLabel('Статистика попытки').locator('dd')).toHaveText([
+    '2',
+    '1',
+    '1',
+    '416',
+  ]);
+  await expect(page.getByText(/Формула asa-puzzle-rating-v1/)).toBeVisible();
+  await expect(page.getByLabel('Рекомендованный урок')).toContainText('Как построить матовую сеть');
+
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.screenshot({ path: 'e2e/artifacts/chess-puzzle-desktop.png', fullPage: true });
+
+  await page.getByRole('button', { name: 'Открыть урок' }).click();
+  await expect(page.getByRole('heading', { name: 'Как построить матовую сеть' })).toBeVisible();
+  await expect(page.getByLabel('Урок: Как построить матовую сеть')).toContainText(
+    'Сначала найдите шах',
+  );
+  await expect(page.getByText(/лицензия ASA-Lab-Original/)).toBeVisible();
+  await page.getByRole('button', { name: 'К задачам' }).click();
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Мат в один ход' })).toBeVisible();
+  await expect(page.getByText('Прогресс этого проекта: 1 из 3')).toBeVisible();
+  await expect(page.getByText('Решено', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Статистика попытки').locator('dd')).toHaveText([
+    '2',
+    '1',
+    '1',
+    '416',
+  ]);
+  await expect(page.getByLabel('Рекомендованный урок')).toContainText('Как построить матовую сеть');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: 'Открыть урок' })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.locator('.asa-puzzle-shell').evaluate((node) => node.scrollWidth <= node.clientWidth),
+    )
+    .toBe(true);
+  await page.screenshot({ path: 'e2e/artifacts/chess-learning-mobile.png', fullPage: true });
   failures.assertEmpty();
 });

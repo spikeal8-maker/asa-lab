@@ -1,28 +1,48 @@
 import {
-  createChessPuzzleSession,
+  ASA_CHESS_LESSONS,
+  ASA_CHESS_PUZZLES,
+  chessLearningAttempt,
+  chessPuzzleSessionFromAttempt,
   generateLegalMoves,
   moveToUci,
   parseFen,
-  playChessPuzzleMove,
-  requestChessPuzzleHint,
-  resetChessPuzzleSession,
+  recommendChessLesson,
+  recordChessPuzzleHint,
+  recordChessPuzzleMove,
+  recordChessPuzzleRetry,
+  solvedChessPuzzleCount,
+  selectChessLearningPuzzle,
+  validateChessDocument,
+  type ChessDocument,
+  type ChessLesson,
   type ChessMove,
   type ChessPuzzle,
   type ChessPuzzleSession,
   type Square,
 } from '@asa-lab/chess';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../api';
 import { ChessBoard } from './ChessBoard';
-import { ASA_STARTER_PUZZLES } from './chess-puzzles';
+import { createChessSaveQueue } from './use-chess-project';
 
 interface ChessPuzzleTrainerProps {
-  onBackToProject(): void;
+  readonly projectId: string;
+  readonly onBackToProject: () => void;
 }
+
+type SaveState = 'loading' | 'saved' | 'saving' | 'error';
+
+// Contract markers: recordChessPuzzleMove and recordChessPuzzleHint delegate
+// to playChessPuzzleMove and requestChessPuzzleHint in the Chess domain.
 
 function safePosition(session: ChessPuzzleSession) {
   const parsed = parseFen(session.currentFen);
   if (!parsed.ok) throw new Error(parsed.message);
   return parsed.value;
+}
+
+function operationId(kind: 'move' | 'hint' | 'retry', serial: number): string {
+  return `web-${kind}-${Date.now()}-${serial}`;
 }
 
 function ProgressDots({
@@ -32,10 +52,17 @@ function ProgressDots({
 }: {
   total: number;
   cursor: number;
-  status: ChessPuzzleSession['status'];
+  status: string;
 }) {
   return (
-    <div className="asa-puzzle-progress" aria-label={`Пройдено ${cursor} из ${total} полуходов`}>
+    <div
+      className="asa-puzzle-progress"
+      role="progressbar"
+      aria-label={`Пройдено ${cursor} из ${total} полуходов`}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-valuenow={cursor}
+    >
       {Array.from({ length: total }, (_, index) => (
         <span
           key={index}
@@ -48,55 +75,172 @@ function ProgressDots({
   );
 }
 
-export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps) {
+function LessonPanel({ lesson, onClose }: { readonly lesson: ChessLesson; onClose(): void }) {
+  return (
+    <main className="asa-puzzle-shell">
+      <header className="asa-puzzle-header">
+        <button type="button" className="asa-chess-back" onClick={onClose}>
+          <span aria-hidden="true">←</span> К задачам
+        </button>
+        <div>
+          <span className="eyebrow">ASA Chess · Оригинальный урок</span>
+          <h1>{lesson.title}</h1>
+        </div>
+        <span className="asa-puzzle-counter">{lesson.steps.length} шага</span>
+      </header>
+      <section className="asa-lesson-card" aria-label={`Урок: ${lesson.title}`}>
+        <p className="asa-lesson-summary">{lesson.summary}</p>
+        <ol>
+          {lesson.steps.map((step) => (
+            <li key={step.id}>
+              <h2>{step.title}</h2>
+              <p>{step.text}</p>
+              <small>Поля для проверки: {step.focusSquares.join(', ')}</small>
+            </li>
+          ))}
+        </ol>
+        <p className="asa-puzzle-disclaimer">
+          Материал создан редакцией ASA Lab · версия {lesson.contentVersion} · лицензия
+          ASA-Lab-Original.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+export function ChessPuzzleTrainer({ projectId, onBackToProject }: ChessPuzzleTrainerProps) {
+  const [document, setDocument] = useState<ChessDocument | null>(null);
   const [puzzleIndex, setPuzzleIndex] = useState(0);
-  const puzzle: ChessPuzzle = ASA_STARTER_PUZZLES[puzzleIndex] ?? ASA_STARTER_PUZZLES[0]!;
-  const [session, setSession] = useState(() => createChessPuzzleSession(puzzle));
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [notice, setNotice] = useState(
     'Найдите лучший ход за сторону, которой принадлежит очередь.',
   );
   const [hint, setHint] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>('loading');
+  const [lesson, setLesson] = useState<ChessLesson | null>(null);
+  const saveQueue = useRef(createChessSaveQueue());
+  const serial = useRef(0);
 
-  const position = useMemo(() => safePosition(session), [session]);
-  const legalMoves = useMemo(() => generateLegalMoves(position), [position]);
+  const puzzle: ChessPuzzle = ASA_CHESS_PUZZLES[puzzleIndex] ?? ASA_CHESS_PUZZLES[0]!;
+  const attempt = document ? chessLearningAttempt(document.learning, puzzle) : null;
+  const session = attempt ? chessPuzzleSessionFromAttempt(attempt) : null;
+  const position = useMemo(() => (session ? safePosition(session) : null), [session]);
+  const legalMoves = useMemo(() => (position ? generateLegalMoves(position) : []), [position]);
   const selectedMoves = useMemo(
     () => legalMoves.filter((move) => move.from === selectedSquare),
     [legalMoves, selectedSquare],
   );
+  const recommendedLesson = useMemo(
+    () =>
+      document
+        ? recommendChessLesson(document.learning, ASA_CHESS_PUZZLES, ASA_CHESS_LESSONS)
+        : null,
+    [document],
+  );
 
-  function setPuzzle(index: number): void {
-    const nextPuzzle = ASA_STARTER_PUZZLES[index] ?? ASA_STARTER_PUZZLES[0]!;
+  useEffect(() => {
+    let cancelled = false;
+    void api.openProject<ChessDocument>(projectId).then((response) => {
+      if (cancelled) return;
+      if (!response.ok) {
+        setNotice(`Не удалось открыть прогресс проекта: ${response.error.message}`);
+        setSaveState('error');
+        return;
+      }
+      const parsed = validateChessDocument(response.data.draft.document);
+      if (!parsed.ok) {
+        setNotice(`Повреждён шахматный документ: ${parsed.message}`);
+        setSaveState('error');
+        return;
+      }
+      setDocument(parsed.value);
+      const selectedIndex = ASA_CHESS_PUZZLES.findIndex(
+        (candidate) => candidate.id === parsed.value.learning.activePuzzleId,
+      );
+      if (selectedIndex >= 0) setPuzzleIndex(selectedIndex);
+      setSaveState('saved');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  async function persist(next: ChessDocument): Promise<void> {
+    setDocument(next);
+    setSaveState('saving');
+    const response = await saveQueue.current.run(() =>
+      api.saveDraft<ChessDocument>(projectId, next),
+    );
+    if (!response.ok) {
+      setSaveState('error');
+      setNotice(`Прогресс не сохранён: ${response.error.message}`);
+      return;
+    }
+    const parsed = validateChessDocument(response.data.draft.document);
+    if (!parsed.ok) {
+      setSaveState('error');
+      setNotice(`Сервер вернул повреждённый прогресс: ${parsed.message}`);
+      return;
+    }
+    setDocument(parsed.value);
+    setSaveState('saved');
+  }
+
+  function choosePuzzle(index: number): void {
+    const selected = ASA_CHESS_PUZZLES[index];
+    if (!selected || !document) return;
+    const nextProgress = selectChessLearningPuzzle(
+      document.learning,
+      selected.id,
+      ASA_CHESS_PUZZLES,
+    );
+    if (!nextProgress.ok) {
+      setNotice(nextProgress.message);
+      return;
+    }
     setPuzzleIndex(index);
-    setSession(createChessPuzzleSession(nextPuzzle));
     setSelectedSquare(null);
     setHint(null);
     setNotice('Найдите лучший ход за сторону, которой принадлежит очередь.');
+    void persist({ ...document, learning: nextProgress.value });
   }
 
   function play(move: ChessMove): void {
-    const result = playChessPuzzleMove(puzzle, session, moveToUci(move));
+    if (!document) return;
+    serial.current += 1;
+    const result = recordChessPuzzleMove(
+      document.learning,
+      puzzle,
+      operationId('move', serial.current),
+      moveToUci(move),
+    );
     setSelectedSquare(null);
     if (!result.ok) {
-      setSession(result.session);
       setNotice(result.message);
       return;
     }
-    setSession(result.session);
+    const next = { ...document, learning: result.value.progress };
+    void persist(next);
     setHint(null);
-    if (result.outcome === 'solved') {
+    if (result.value.outcome === 'solved') {
       setNotice(`Задача решена. ${puzzle.explanation}`);
+    } else if (result.value.outcome === 'incorrect') {
+      setNotice(
+        result.value.attempt.status === 'exhausted'
+          ? 'Лимит ошибок исчерпан. Разберите подсказки и начните новую попытку.'
+          : 'Этот ход легален, но не решает задачу. Попробуйте ещё раз.',
+      );
     } else {
       setNotice(
-        result.automaticReplies.length > 0
-          ? `Верно. Ответ соперника: ${result.automaticReplies.join(', ')}. Найдите продолжение.`
+        result.value.automaticReplies.length
+          ? `Верно. Ответ соперника: ${result.value.automaticReplies.join(', ')}.`
           : 'Верно. Найдите следующий ход.',
       );
     }
   }
 
   function selectSquare(square: Square): void {
-    if (session.status === 'solved') return;
+    if (!position || session?.status !== 'active') return;
     const piece = position.board[(Number(square[1]) - 1) * 8 + (square.charCodeAt(0) - 97)];
     if (!selectedSquare) {
       if (piece?.color === position.turn) setSelectedSquare(square);
@@ -105,13 +249,8 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
     const candidates = legalMoves.filter(
       (move) => move.from === selectedSquare && move.to === square,
     );
-    if (candidates.length === 1) {
-      play(candidates[0]!);
-      return;
-    }
-    if (candidates.length > 1) {
-      const queen = candidates.find((move) => move.promotion === 'queen') ?? candidates[0];
-      if (queen) play(queen);
+    if (candidates.length > 0) {
+      play(candidates.find((move) => move.promotion === 'queen') ?? candidates[0]!);
       return;
     }
     setSelectedSquare(piece?.color === position.turn ? square : null);
@@ -119,31 +258,59 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
 
   function dragMove(from: Square, to: Square): void {
     const candidates = legalMoves.filter((move) => move.from === from && move.to === to);
-    if (candidates.length === 1) play(candidates[0]!);
-    else if (candidates.length > 1) {
-      const queen = candidates.find((move) => move.promotion === 'queen') ?? candidates[0];
-      if (queen) play(queen);
-    }
+    if (candidates.length > 0)
+      play(candidates.find((move) => move.promotion === 'queen') ?? candidates[0]!);
   }
 
   function requestHint(): void {
-    const result = requestChessPuzzleHint(puzzle, session);
+    if (!document) return;
+    serial.current += 1;
+    const result = recordChessPuzzleHint(
+      document.learning,
+      puzzle,
+      operationId('hint', serial.current),
+    );
     if (!result.ok) {
       setNotice(result.message);
       return;
     }
-    setSession(result.value.session);
     setHint(result.value.message);
+    void persist({ ...document, learning: result.value.progress });
   }
 
-  function reset(): void {
-    setSession(resetChessPuzzleSession(puzzle));
+  function retryAttempt(): void {
+    if (!document) return;
+    serial.current += 1;
+    const result = recordChessPuzzleRetry(
+      document.learning,
+      puzzle,
+      operationId('retry', serial.current),
+    );
+    if (!result.ok) {
+      setNotice(result.message);
+      return;
+    }
     setSelectedSquare(null);
     setHint(null);
-    setNotice('Задача сброшена. Найдите лучший ход.');
+    setNotice('Новая попытка начата с исходной позиции. Предыдущие ошибки сохранены.');
+    void persist({ ...document, learning: result.value.progress });
   }
 
-  const canGoNext = puzzleIndex < ASA_STARTER_PUZZLES.length - 1;
+  if (lesson) return <LessonPanel lesson={lesson} onClose={() => setLesson(null)} />;
+  if (!document || !session || !position || !attempt) {
+    return (
+      <main className="asa-puzzle-shell asa-puzzle-loading">
+        <button type="button" className="asa-chess-back" onClick={onBackToProject}>
+          ← К проекту
+        </button>
+        <p role="status">{saveState === 'error' ? notice : 'Загрузка прогресса проекта…'}</p>
+      </main>
+    );
+  }
+
+  const solvedCount = solvedChessPuzzleCount(document.learning);
+  const totalLineLength = Math.max(...puzzle.solutionLinesUci.map((line) => line.length));
+  const canGoNext = puzzleIndex < ASA_CHESS_PUZZLES.length - 1;
   const canGoPrevious = puzzleIndex > 0;
 
   return (
@@ -157,7 +324,7 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
           <h1>{puzzle.title}</h1>
         </div>
         <span className="asa-puzzle-counter">
-          {puzzleIndex + 1} / {ASA_STARTER_PUZZLES.length}
+          {puzzleIndex + 1} / {ASA_CHESS_PUZZLES.length}
         </span>
       </header>
 
@@ -168,13 +335,27 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
             orientation={session.userColor}
             selectedSquare={selectedSquare}
             legalMoves={selectedMoves.length > 0 ? selectedMoves : legalMoves}
-            disabled={session.status === 'solved'}
+            disabled={
+              session.status !== 'active' || saveState === 'loading' || saveState === 'saving'
+            }
             onSquare={selectSquare}
             onMove={dragMove}
           />
         </section>
 
         <aside className="asa-puzzle-panel">
+          <div className="asa-puzzle-project-progress">
+            <strong>
+              Прогресс этого проекта: {solvedCount} из {ASA_CHESS_PUZZLES.length}
+            </strong>
+            <span className={`asa-learning-save is-${saveState}`} role="status" aria-live="polite">
+              {saveState === 'saving'
+                ? 'Сохранение прогресса…'
+                : saveState === 'saved'
+                  ? 'Прогресс сохранён'
+                  : 'Ошибка сохранения'}
+            </span>
+          </div>
           <div className="asa-puzzle-meta">
             <span className="asa-puzzle-rating">Уровень {puzzle.rating ?? '—'}</span>
             <div className="asa-puzzle-themes">
@@ -183,46 +364,82 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
               ))}
             </div>
           </div>
-          <ProgressDots
-            total={puzzle.solutionUci.length}
-            cursor={session.cursor}
-            status={session.status}
-          />
+          <ProgressDots total={totalLineLength} cursor={session.cursor} status={session.status} />
           <section
             className={`asa-puzzle-feedback ${session.status === 'solved' ? 'solved' : ''}`}
             aria-live="polite"
           >
-            <strong>{session.status === 'solved' ? 'Решено' : 'Ваш ход'}</strong>
+            <strong>
+              {session.status === 'solved'
+                ? 'Решено'
+                : session.status === 'exhausted'
+                  ? 'Попытка исчерпана'
+                  : 'Ваш ход'}
+            </strong>
             <p>{notice}</p>
             {hint && <p className="asa-puzzle-hint">{hint}</p>}
           </section>
-          <dl className="asa-puzzle-stats">
+          <dl className="asa-puzzle-stats" aria-label="Статистика попытки">
             <div>
               <dt>Попытки</dt>
-              <dd>{session.attempts}</dd>
+              <dd>{attempt.attempts}</dd>
             </div>
             <div>
               <dt>Ошибки</dt>
-              <dd>{session.mistakes}</dd>
+              <dd>{attempt.mistakes}</dd>
             </div>
             <div>
               <dt>Подсказки</dt>
-              <dd>{session.hintsUsed}</dd>
+              <dd>{attempt.hintsUsed}</dd>
+            </div>
+            <div>
+              <dt>Учебный рейтинг</dt>
+              <dd>{document.learning.rating.current}</dd>
             </div>
           </dl>
           <div className="asa-puzzle-actions">
-            <button type="button" onClick={requestHint} disabled={session.status === 'solved'}>
+            <button
+              type="button"
+              onClick={requestHint}
+              disabled={session.status !== 'active' || saveState === 'saving'}
+            >
               Подсказка
             </button>
-            <button type="button" onClick={reset}>
-              Сбросить
+            {session.status === 'exhausted' ? (
+              <button type="button" onClick={retryAttempt} disabled={saveState === 'saving'}>
+                Новая попытка
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSquare(null);
+                setHint(null);
+                setNotice('Продолжайте с сохранённой позиции.');
+              }}
+            >
+              Снять выбор
             </button>
           </div>
+          {recommendedLesson ? (
+            <section className="asa-lesson-recommendation" aria-label="Рекомендованный урок">
+              <span>Рекомендованный урок</span>
+              <strong>{recommendedLesson.title}</strong>
+              <p>{recommendedLesson.summary}</p>
+              <button type="button" onClick={() => setLesson(recommendedLesson)}>
+                Открыть урок
+              </button>
+            </section>
+          ) : null}
+          <p className="asa-puzzle-rating-evidence">
+            Учебный рейтинг: {document.learning.rating.current}. Формула asa-puzzle-rating-v1:
+            базовые 400, за решение +24 с поправкой на уровень, −5 за ошибку и −3 за подсказку.
+          </p>
           <div className="asa-puzzle-navigation">
             <button
               type="button"
               disabled={!canGoPrevious}
-              onClick={() => setPuzzle(puzzleIndex - 1)}
+              onClick={() => choosePuzzle(puzzleIndex - 1)}
             >
               Предыдущая
             </button>
@@ -230,15 +447,14 @@ export function ChessPuzzleTrainer({ onBackToProject }: ChessPuzzleTrainerProps)
               type="button"
               className="primary-button"
               disabled={!canGoNext || session.status !== 'solved'}
-              onClick={() => setPuzzle(puzzleIndex + 1)}
+              onClick={() => choosePuzzle(puzzleIndex + 1)}
             >
               Следующая задача
             </button>
           </div>
           <p className="asa-puzzle-disclaimer">
-            {
-              'Это небольшой оригинальный набор для проверки механики. Он не является копией базы задач Chess.com.'
-            }
+            Оригинальный каталог ASA Lab · версия {puzzle.contentVersion} · источник{' '}
+            {puzzle.provenance.sourceId}. Каталог не является копией базы задач Chess.com.
           </p>
         </aside>
       </div>
