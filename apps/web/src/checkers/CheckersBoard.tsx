@@ -72,7 +72,7 @@ export function CheckersBoard({
           const label = piece
             ? `${square}: ${piece.side === 'light' ? 'светлая' : 'тёмная'} ${
                 piece.kind === 'king' ? 'дамка' : 'шашка'
-              }`
+              }${movable ? ', доступна для хода' : ''}`
             : `${square}: ${destination ? 'допустимое поле хода' : 'пустое поле'}`;
 
           return (

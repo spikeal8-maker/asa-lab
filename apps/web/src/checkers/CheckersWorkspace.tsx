@@ -102,6 +102,19 @@ export function CheckersWorkspace({
     [model.legalMoves],
   );
   const destinations = selectedMoves.flatMap((move) => move.path.at(-1) ?? []);
+  const boardHelp = model.readOnly
+    ? {
+        step: 'i',
+        text:
+          model.mode === 'review'
+            ? 'Доска открыта для разбора. Перемещайтесь по ходам в панели справа.'
+            : 'Доска пока доступна только для просмотра. Дождитесь продолжения партии.',
+      }
+    : model.legalMoves.length === 0
+      ? { step: 'i', text: 'Сейчас нет доступных ходов. Проверьте состояние партии.' }
+      : selectedPieceId
+        ? { step: '2', text: 'Теперь выберите подсвеченное поле назначения.' }
+        : { step: '1', text: 'Выберите шашку с мягкой золотой подсветкой.' };
 
   const selectSquare = (square: CheckersBoardSquare): void => {
     const selectedMove = selectedMoves.find((move) => move.path.at(-1) === square);
@@ -209,12 +222,8 @@ export function CheckersWorkspace({
             />
 
             <div className="checkers-board-help" role="status" aria-live="polite">
-              <span aria-hidden="true">{selectedPieceId ? '2' : '1'}</span>
-              <p>
-                {selectedPieceId
-                  ? 'Теперь выберите подсвеченное поле назначения.'
-                  : 'Выберите шашку с мягкой золотой подсветкой.'}
-              </p>
+              <span aria-hidden="true">{boardHelp.step}</span>
+              <p>{boardHelp.text}</p>
             </div>
           </div>
         </section>
