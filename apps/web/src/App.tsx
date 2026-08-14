@@ -26,6 +26,7 @@ import {
 import './brand/brand.css';
 import './electronics/portal.css';
 import './modules/project-hub.css';
+import './modules/classroom-hub.css';
 import './account.css';
 import './creator-portal/creator-portal.css';
 
@@ -179,6 +180,7 @@ export function App(): JSX.Element {
     );
   }
 
+  const hasTeachingCapability = session.session.navigation.classes;
   const canTeachHere = canUseClasses(
     session.session.navigation,
     session.session.activeWorkspace.kind,
@@ -195,7 +197,7 @@ export function App(): JSX.Element {
     );
   }
 
-  const active = sectionForView(view, canTeachHere);
+  const active = sectionForView(view, hasTeachingCapability);
   const navigate = (section: CreatorPortalSection): void => {
     if (section === 'home') setView({ kind: 'home' });
     else if (section === 'projects') setView({ kind: 'my-projects' });
@@ -222,7 +224,7 @@ export function App(): JSX.Element {
       <PortalHeader
         session={session.session}
         active={active}
-        canTeach={canTeachHere}
+        canTeach={hasTeachingCapability}
         onNavigate={navigate}
         onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
         onLoggedOut={() => {
@@ -269,7 +271,7 @@ export function App(): JSX.Element {
           onOpenProject={(projectId) => setView({ kind: 'editor', projectId, returnTo: view })}
         />
       ) : null}
-      {canTeachHere &&
+      {hasTeachingCapability &&
       !canManageClasses &&
       (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
         <main className="portal-content" id="main-content" tabIndex={-1}>
@@ -286,7 +288,8 @@ export function App(): JSX.Element {
           </section>
         </main>
       ) : null}
-      {!canTeachHere && (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
+      {!hasTeachingCapability &&
+      (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
             <p className="portal-eyebrow">Доступ по роли</p>

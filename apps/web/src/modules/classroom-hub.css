@@ -1,0 +1,269 @@
+.classroom-hub-heading {
+  max-width: 1120px;
+  margin: 0 auto 36px;
+}
+
+.classroom-hub-heading h1 {
+  margin: 0 0 22px;
+  color: #273b49;
+  font-size: clamp(30px, 4vw, 40px);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.classroom-role-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  overflow: hidden;
+  border: 1px solid #9ba9b3;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.classroom-role-tabs button {
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5c6972;
+  font-size: 14px;
+}
+
+.classroom-role-tabs button:hover,
+.classroom-role-tabs button.active {
+  background: #eef8fc;
+  color: #0879ad;
+  box-shadow: inset 0 0 0 2px #1888bd;
+}
+
+.classroom-hub-toolbar {
+  display: grid;
+  grid-template-columns: 32px auto auto 1fr;
+  align-items: center;
+  gap: 12px;
+  max-width: 1120px;
+  margin: 0 auto 18px;
+}
+
+.classroom-select-all,
+.classroom-row-select {
+  display: grid;
+  place-items: center;
+}
+
+.classroom-select-all input,
+.classroom-row-select input {
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  accent-color: #0b82ba;
+}
+
+.classroom-bulk-action {
+  min-height: 40px;
+  border-radius: 999px;
+}
+
+.classroom-sort-button {
+  justify-self: end;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #536673;
+}
+
+.classroom-list {
+  display: grid;
+  gap: 7px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.classroom-list.loading > div {
+  height: 64px;
+  border-radius: 8px;
+  background: linear-gradient(100deg, #e8edf0 20%, #f7f9fa 45%, #e8edf0 70%);
+  background-size: 220% 100%;
+  animation: asa-shimmer 1.4s linear infinite;
+}
+
+.classroom-list-row {
+  display: grid;
+  grid-template-columns: 32px minmax(260px, 1fr) 120px 150px 44px;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 6px 7px 6px 14px;
+  border: 1px solid #edf0f2;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 2px 8px rgba(29, 53, 68, 0.03);
+}
+
+.classroom-list-row:hover {
+  border-color: #c7dde8;
+  background: #fff;
+}
+
+.classroom-row-title {
+  overflow: hidden;
+  padding: 12px 0;
+  border: 0;
+  background: transparent;
+  color: #354e5d;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.classroom-row-title:hover {
+  color: #0879ad;
+}
+
+.classroom-row-students,
+.classroom-row-date {
+  color: #7d8a92;
+  font-size: 13px;
+}
+
+.classroom-row-date {
+  display: grid;
+  gap: 2px;
+}
+
+.classroom-row-date small {
+  color: #98a2a8;
+  font-size: 11px;
+}
+
+.classroom-row-menu {
+  position: relative;
+}
+
+.classroom-row-menu > summary {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 40px;
+  border-radius: 8px;
+  background: #f7f8f9;
+  color: #7b8890;
+  cursor: pointer;
+  list-style: none;
+  letter-spacing: 2px;
+}
+
+.classroom-row-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.classroom-row-menu > div {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  width: 170px;
+  overflow: hidden;
+  border: 1px solid #d6dee3;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(24, 48, 63, 0.16);
+}
+
+.classroom-row-menu button {
+  padding: 11px 13px;
+  border: 0;
+  background: #fff;
+  color: #354e5d;
+  text-align: left;
+}
+
+.classroom-row-menu button:hover:not(:disabled) {
+  background: #eef7fb;
+}
+
+.classroom-tab-empty {
+  display: grid;
+  justify-items: center;
+  max-width: 720px;
+  margin: 72px auto;
+  text-align: center;
+}
+
+.classroom-tab-empty > span {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #e8f6fb;
+  color: #1481b3;
+}
+
+.classroom-tab-empty h2 {
+  margin: 18px 0 6px;
+}
+
+.classroom-tab-empty p {
+  margin: 0;
+  color: #687984;
+}
+
+@media (max-width: 820px) {
+  .classroom-hub-toolbar {
+    grid-template-columns: 28px 1fr auto;
+  }
+
+  .classroom-sort-button {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+
+  .classroom-list-row {
+    grid-template-columns: 28px minmax(0, 1fr) 42px;
+    padding: 8px 6px 8px 12px;
+  }
+
+  .classroom-row-students,
+  .classroom-row-date {
+    grid-column: 2;
+  }
+
+  .classroom-row-menu {
+    grid-column: 3;
+    grid-row: 1 / span 3;
+  }
+}
+
+@media (max-width: 560px) {
+  .classroom-role-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    border-radius: 14px;
+  }
+
+  .classroom-role-tabs button {
+    border-radius: 12px;
+  }
+
+  .classroom-hub-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .classroom-select-all,
+  .classroom-bulk-action {
+    display: none;
+  }
+
+  .classroom-sort-button {
+    grid-column: 1;
+  }
+}
