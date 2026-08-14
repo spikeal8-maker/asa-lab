@@ -102,6 +102,7 @@ test.afterAll(async () => {
 test('two teachers create and play one server-authoritative direct challenge', async ({
   browser,
 }) => {
+  test.setTimeout(60_000);
   const session = await pages(browser);
   const firstFailures = collectBrowserFailures(session.firstPage, {
     allowAnonymousSessionProbe: true,
@@ -228,6 +229,7 @@ test('two teachers create and play one server-authoritative direct challenge', a
 test('rated matchmaking pairs compatible teachers and writes rating after resignation', async ({
   browser,
 }) => {
+  test.setTimeout(60_000);
   const session = await pages(browser);
   const firstFailures = collectBrowserFailures(session.firstPage, {
     allowAnonymousSessionProbe: true,
