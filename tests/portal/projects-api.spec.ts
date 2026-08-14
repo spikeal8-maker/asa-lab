@@ -553,7 +553,7 @@ describe('authorization and validation', () => {
       url: '/api/projects',
       cookies: { asa_session: token },
       headers: { 'idempotency-key': 'invalid-module' },
-      payload: { scope: 'personal', classroomId: null, module: 'checkers', title: 'X' },
+      payload: { scope: 'personal', classroomId: null, module: 'unsupported', title: 'X' },
     });
     expect(unsupported.statusCode).toBe(400);
 
