@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { collectBrowserFailures } from './browser-failures';
+import { openPortalSection } from './portal-navigation';
 
 const EVIDENCE_DIR =
   process.env['ASA_OWNER_EVIDENCE_DIR'] ?? 'e2e/artifacts/project-hub/r3b-project-lifecycle';
@@ -41,7 +42,7 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
   });
   expect(response.status()).toBe(201);
 
-  await page.getByRole('button', { name: 'Проекты', exact: true }).click();
+  await openPortalSection(page, 'Проекты');
   await expect(page).toHaveURL(/#\/projects$/);
   const original = page.locator('.project-hub-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник', exact: true }),

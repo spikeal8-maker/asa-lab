@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /** TST-E2E-ELECTRONICS-SLICE-001: a teacher creates a personal project without
@@ -17,8 +18,7 @@ async function login(page: Page): Promise<void> {
 }
 
 async function createPersonalProject(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: 'Создать', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Создать проект', exact: true }).click();
   await page.getByLabel('Название проекта').fill(title);
   await expect(page.getByRole('dialog').getByText('Электроника', { exact: true })).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
@@ -132,7 +132,7 @@ test('classes remain a separate teacher workspace from personal projects', async
       'Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.',
     ),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Проекты', exact: true }).click();
+  await openPortalSection(page, 'Проекты');
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
   failures.assertEmpty();
 });

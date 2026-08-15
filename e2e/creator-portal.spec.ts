@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openPortalSection, portalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const EVIDENCE_DIR =
@@ -82,7 +83,11 @@ test('creator uses Home, honest resources, routing and the integrated account sh
     page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Электроника' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  // Personal classes are open to every signed-in account, so the destination
+  // itself is present; what stays behind the educator capability is managing a
+  // class. Asserting the destination away would now be asserting a bug.
+  await expect(portalSection(page, 'Классы')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Создать класс' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Новый проект Электроника/ })).toBeVisible();
 
   const electronicsProjectId = await createProjectThroughApi(page, {
@@ -112,16 +117,18 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await electronicsProjectLink.click({ button: 'middle' });
   const electronicsTab = await electronicsTabPromise;
   await electronicsTab.waitForLoadState('domcontentloaded');
-  await expect(electronicsTab).toHaveURL(new RegExp(`${electronicsHref}$`));
+  // The href carries a query string, so it cannot be turned into a pattern
+  // without escaping: an unescaped `?` makes the preceding character optional.
+  await expect(electronicsTab).toHaveURL((url) => url.href.endsWith(electronicsHref));
   await expect(electronicsTab.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await electronicsTab.close();
   await expect(page).toHaveURL(/#\/home$/);
 
   await electronicsProjectLink.click();
-  await expect(page).toHaveURL(new RegExp(`${electronicsHref}$`));
+  await expect(page).toHaveURL((url) => url.href.endsWith(electronicsHref));
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await page.reload();
-  await expect(page).toHaveURL(new RegExp(`${electronicsHref}$`));
+  await expect(page).toHaveURL((url) => url.href.endsWith(electronicsHref));
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await page.goBack();
   await expect(
@@ -139,7 +146,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
     page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
   ).toBeVisible();
 
-  await page.getByRole('button', { name: 'Проекты', exact: true }).click();
+  await openPortalSection(page, 'Проекты');
   await expect(page).toHaveURL(/#\/projects$/);
   await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
   await expect(page.getByText('Личная схема')).toBeVisible();
@@ -218,7 +225,11 @@ test('educator navigation follows server capability and active workspace scope',
   await page.getByLabel('Пароль').fill(`Safe-${unique}-Password`);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/#\/home$/);
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  // Personal classes are open to every signed-in account, so the destination
+  // itself is present; what stays behind the educator capability is managing a
+  // class. Asserting the destination away would now be asserting a bug.
+  await expect(portalSection(page, 'Классы')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Создать класс' })).toHaveCount(0);
 
   const sessionResponse = await page.context().request.get('/api/auth/me');
   expect(sessionResponse.status()).toBe(200);
@@ -239,10 +250,18 @@ test('educator navigation follows server capability and active workspace scope',
   );
 
   await page.locator('.portal-account > summary').click();
-  await page.getByRole('button', { name: 'Профиль и активные сессии' }).click();
-  await page.getByRole('button', { name: 'Подтвердить статус педагога' }).click();
-  await expect(page.getByText('Режим педагога включён.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  // The account menu was redesigned: the profile and sessions entry is now
+  // "Настройки" and opens the same account shell.
+  await page.getByRole('button', { name: 'Настройки' }).click();
+  // Becoming an educator is now a role choice on the account page rather than a
+  // one-off confirmation button.
+  await page.getByLabel(/Кто вы в ASA Lab/).selectOption('educator');
+  await page.getByRole('button', { name: 'Сохранить изменения' }).click();
+  // Personal classes are open to every signed-in account, so the destination
+  // itself is present; what stays behind the educator capability is managing a
+  // class. Asserting the destination away would now be asserting a bug.
+  await expect(portalSection(page, 'Классы')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Создать класс' })).toHaveCount(0);
 
   const tenant = await admin.query(
     `INSERT INTO tenants (title, workspace_slug)
