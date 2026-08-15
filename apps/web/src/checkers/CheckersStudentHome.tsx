@@ -1,3 +1,4 @@
+import { EditorHeader } from '../components/editor-chrome/EditorHeader';
 import './checkers.css';
 
 export interface CheckersHomeCard {
@@ -74,17 +75,27 @@ export function CheckersStudentHome({
 }): JSX.Element {
   return (
     <>
-      <header className="checkers-home-header">
-        <button type="button" onClick={onBack} aria-label="Вернуться к проектам ASA Lab">
-          <img src="/asa-lab-mark.svg" alt="" aria-hidden="true" />
-          <span>ASA Lab</span>
-        </button>
-        <div>
-          <span>ASA Шашки</span>
-          <strong>{projectTitle}</strong>
-        </div>
-        <span className="checkers-home-header-mode">Учебный кабинет</span>
-      </header>
+      <EditorHeader
+        moduleId="checkers"
+        onExit={onBack}
+        exitLabel="Вернуться к проектам ASA Lab"
+        title={{ kind: 'readonly', text: projectTitle }}
+        status={{ kind: 'saved', label: 'Прогресс сохранён', icon: '✓' }}
+        navigation={{
+          ariaLabel: 'Разделы шашек',
+          items: [
+            { id: 'learning', label: 'Обучение', onActivate: () => onOpen('learning-path') },
+            { id: 'bots', label: 'Боты', onActivate: () => onOpen('bot-ladder') },
+            {
+              id: 'class',
+              label: 'Класс',
+              disabled: !model.classPlayAvailable,
+              onActivate: () => onOpen('class-play'),
+            },
+          ],
+        }}
+        avatar={{ label: model.studentName, text: model.studentName.slice(0, 2).toUpperCase() }}
+      />
       <main className="checkers-home" id="main-content" tabIndex={-1}>
         <section className="checkers-home-welcome" aria-labelledby="checkers-home-title">
           <div>

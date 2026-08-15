@@ -127,7 +127,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await expect(page.getByText('Здесь собраны задания, обучение, игры и повторение')).toBeVisible();
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.getByRole('heading', { name: 'Путь русских шашек' })).toBeVisible();
-  await expect(page.getByText('0 / 11 задач')).toBeVisible();
+  await expect(page.getByText('0 / 22 практик')).toBeVisible();
   await page
     .getByRole('article')
     .filter({ hasText: 'Обязательное взятие' })
@@ -135,6 +135,8 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     .click();
   await expect(page.getByText('Задача · Обязательное взятие')).toBeVisible();
   await expectUniformBoardCells(page);
+  await page.getByRole('button', { name: 'Посмотреть пример' }).click();
+  await page.getByRole('button', { name: 'Попробовать самому' }).click();
 
   const puzzleSave = page.waitForResponse(
     (response) =>
@@ -148,13 +150,13 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await expect(
     page.getByText('Задача решена. Доказательство добавлено в учебный прогресс.'),
   ).toBeVisible();
-  await expect(page.locator('.checkers-save-state')).toContainText('Сохранено', {
+  await expect(page.locator('.editor-header-status')).toContainText('Сохранено', {
     timeout: 15_000,
   });
 
   await page.reload();
   await expect(page.getByRole('heading', { name: /твой следующий ход/ })).toBeVisible();
-  await expect(page.getByText('1 из 11 задач')).toBeVisible();
+  await expect(page.getByText('1 из 22 практик')).toBeVisible();
   await page.getByRole('button').filter({ hasText: 'Искра' }).click();
   await expect(page.getByRole('heading', { name: /Шесть соперников/ })).toBeVisible();
   await page
@@ -168,7 +170,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await expect(page.locator('.checkers-move-panel, .checkers-board-toolbar')).toContainText(
     'Искра',
   );
-  await expect(page.locator('.checkers-save-state')).toContainText('Сохранено', {
+  await expect(page.locator('.editor-header-status')).toContainText('Сохранено', {
     timeout: 15_000,
   });
   await page.getByRole('button', { name: 'Закрыть сообщение' }).click();
@@ -182,8 +184,29 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
     path: 'e2e/artifacts/checkers/checkers-student-desktop.png',
     fullPage: true,
   });
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await expectUniformBoardCells(page);
+  const tabletPanel = await page.locator('.checkers-side-panel').boundingBox();
+  expect(tabletPanel).toBeTruthy();
+  expect(tabletPanel!.y).toBeLessThan(768);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: 'e2e/artifacts/checkers/checkers-student-tablet.png',
+    fullPage: true,
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toBeVisible();
+  await expectUniformBoardCells(page);
+  await expect(page.locator('.checkers-mobile-modes')).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
   await page.screenshot({
     path: 'e2e/artifacts/checkers/checkers-student-mobile.png',
     fullPage: true,
@@ -307,15 +330,12 @@ test('teacher assigns real class work and sees the learner evidence after comple
     .filter({ hasText: 'Серии взятий · практика' })
     .getByRole('button', { name: 'Открыть' })
     .click();
-  await studentPage
-    .getByRole('article')
-    .filter({ hasText: 'Обязательное взятие' })
-    .getByRole('button', { name: 'Начать' })
-    .click();
+  await studentPage.getByRole('button', { name: 'Посмотреть пример' }).click();
+  await studentPage.getByRole('button', { name: 'Попробовать самому' }).click();
   await studentPage.locator('[data-square="c3"]').click();
   await studentPage.locator('[data-square="e5"]').click();
   await expect(studentPage.getByText('Задача решена')).toBeVisible();
-  await expect(studentPage.locator('.checkers-save-state')).toContainText('Сохранено', {
+  await expect(studentPage.locator('.editor-header-status')).toContainText('Сохранено', {
     timeout: 15_000,
   });
   await studentContext.close();
@@ -328,7 +348,9 @@ test('teacher assigns real class work and sees the learner evidence after comple
   const feedbackDialog = page.getByRole('dialog', {
     name: `Рекомендация для ${studentDisplayName}`,
   });
-  await expect(feedbackDialog.getByText(/capture-choice, ход c3:e5, 100%/)).toBeVisible();
+  await expect(
+    feedbackDialog.getByText(/Обязательное взятие · ход c3:e5 · результат 100% · без подсказок/),
+  ).toBeVisible();
   await feedbackDialog
     .getByLabel('Готовая педагогическая рекомендация')
     .selectOption('retry-capture');

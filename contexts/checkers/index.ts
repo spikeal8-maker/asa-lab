@@ -23,7 +23,7 @@ export {
   type CheckersEducationState,
   type CheckersProjectDocument,
 } from './domain/project.js';
-export { CHECKERS_STARTER_PUZZLES } from './domain/starter-content.js';
+export { CHECKERS_PRACTICE_PUZZLES, CHECKERS_STARTER_PUZZLES } from './domain/starter-content.js';
 export {
   applyCheckersMove,
   generateLegalCheckersMoves,
@@ -114,3 +114,8 @@ export {
   type CheckersReviewTheme,
 } from './domain/review.js';
 export { applyCheckersGameMove } from './domain/game.js';
+export {
+  createAuthoredCheckersPositionReference,
+  isAuthoredCheckersPositionReference,
+  readAuthoredCheckersPositionReference,
+} from './domain/authored-position.js';

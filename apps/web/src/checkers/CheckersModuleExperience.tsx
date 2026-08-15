@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CheckersClassGame, CheckersTeacherFeedbackId, PublicUser } from '../api';
 import { newClientId } from '../client-id';
 import { CheckersClassPlay } from './CheckersClassPlay';
+import { CheckersPositionComposer } from './CheckersPositionComposer';
 import { CheckersStudentHome, type CheckersHomeCard } from './CheckersStudentHome';
 import { CheckersTeacherDashboard } from './CheckersTeacherDashboard';
 import { CheckersWorkspace, type CheckersWorkspaceMove } from './CheckersWorkspace';
@@ -27,12 +28,14 @@ const {
   CHECKERS_BOTS,
   CHECKERS_CONCEPT_IDS,
   CHECKERS_CURRICULUM,
+  CHECKERS_PRACTICE_PUZZLES,
   CHECKERS_REACTIONS,
   CHECKERS_STARTER_PUZZLES,
   analyzeCheckersGameReview,
   createCheckersPuzzleAttempt,
   generateLegalCheckersMoves,
   replayCheckersGame,
+  readAuthoredCheckersPositionReference,
   requestCheckersPuzzleHint,
   submitCheckersPuzzleMove,
 } = CheckersDomain;
@@ -82,11 +85,32 @@ function assignmentComplete(
   assignment: CheckersAssignment,
   student: CheckersClassroomOverview['students'][number],
 ): boolean {
-  const starterPuzzleIds = new Set(CHECKERS_STARTER_PUZZLES.map((puzzle) => puzzle.id));
+  const starterPuzzleIds = new Set(CHECKERS_PRACTICE_PUZZLES.map((puzzle) => puzzle.id));
+  if (assignment.targetRef === 'puzzle-set:starter') {
+    const completedIds = new Set(
+      student.evidence
+        .filter(
+          (item) =>
+            starterPuzzleIds.has(item.sourceId) &&
+            (item.outcome === 'correct' || item.outcome === 'demonstrated') &&
+            item.score >= assignment.minimumScore,
+        )
+        .map((item) => item.sourceId),
+    );
+    return completedIds.size >= CHECKERS_PRACTICE_PUZZLES.length;
+  }
+  const authoredTarget =
+    assignment.kind === 'position'
+      ? readAuthoredCheckersPositionReference(assignment.targetRef)
+      : null;
+  const targetIds = new Set([
+    assignment.targetRef,
+    ...(authoredTarget?.ok ? [authoredTarget.value.id] : []),
+  ]);
   return (
     student.evidence.filter(
       (item) =>
-        (item.sourceId === assignment.targetRef ||
+        (targetIds.has(item.sourceId) ||
           (assignment.targetRef === 'puzzle-set:starter' && starterPuzzleIds.has(item.sourceId))) &&
         (item.outcome === 'correct' || item.outcome === 'demonstrated') &&
         item.score >= assignment.minimumScore,
@@ -180,7 +204,12 @@ export function buildCheckersTeacherModel(
             ?.title ?? recurringMistake[0])
         : 'нет повторяющейся ошибки',
       lastEvidence: last
-        ? `${last.sourceId}${lastMoveNotation ? ` · ход ${lastMoveNotation}` : ''} · ${last.score}% · подсказка ${last.hintLevel}`
+        ? `${
+            CHECKERS_STARTER_PUZZLES.find((puzzle) => puzzle.id === last.sourceId)?.title ??
+            (last.kind === 'game-demonstration' ? 'Учебная партия' : 'Позиция педагога')
+          }${lastMoveNotation ? ` · ход ${lastMoveNotation}` : ''} · результат ${last.score}% · ${
+            last.hintLevel === 0 ? 'без подсказок' : `подсказок: ${last.hintLevel}`
+          }`
         : 'пока нет доказательств',
     };
   });
@@ -198,9 +227,10 @@ export function buildCheckersTeacherModel(
       ).length,
     0,
   );
+  const conceptShortLabels = ['Коорд.', 'Ход', 'Взят.', 'Назад', 'Серия', 'Дамка'] as const;
   const concepts = CHECKERS_CONCEPT_IDS.slice(0, 6).map((conceptId, index) => ({
     id: conceptId,
-    shortLabel: String(index + 1),
+    shortLabel: conceptShortLabels[index] ?? String(index + 1),
     fullLabel:
       CHECKERS_CURRICULUM.find((unit) => unit.conceptIds.includes(conceptId))?.title ?? conceptId,
   }));
@@ -286,8 +316,8 @@ function AssignmentDialog({
   students: readonly { id: string; displayName: string }[];
 }): JSX.Element {
   const [title, setTitle] = useState('Обязательное взятие');
-  const [kind, setKind] = useState<CheckersAssignmentKind>('puzzle-set');
-  const [targetRef, setTargetRef] = useState('puzzle-set:starter');
+  const [kind, setKind] = useState<CheckersAssignmentKind>('lesson');
+  const [targetRef, setTargetRef] = useState('capture-choice');
   const [dueDate, setDueDate] = useState('');
   const [hintsAllowed, setHintsAllowed] = useState(true);
   const [minimumScore, setMinimumScore] = useState(70);
@@ -295,13 +325,17 @@ function AssignmentDialog({
   const [groupStudentIds, setGroupStudentIds] = useState<readonly string[]>([]);
   const [attemptLimit, setAttemptLimit] = useState('');
   const [requiredCompletions, setRequiredCompletions] = useState(1);
+  const [positionInstruction, setPositionInstruction] = useState(
+    'Найди лучший ход. Сначала проверь обязательные взятия.',
+  );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (kind === 'puzzle-set') setTargetRef('puzzle-set:starter');
     else if (kind === 'bot-milestone') setTargetRef(`bot:${CHECKERS_BOTS[0]!.id}`);
     else if (kind === 'game') setTargetRef('class-match');
-    else setTargetRef(CHECKERS_STARTER_PUZZLES[0]!.id);
+    else if (kind === 'position') setTargetRef('');
+    else setTargetRef(kind === 'lesson' ? 'capture-choice' : CHECKERS_STARTER_PUZZLES[0]!.id);
   }, [kind]);
 
   return (
@@ -339,29 +373,48 @@ function AssignmentDialog({
             ))}
           </select>
         </label>
-        <label>
-          Учебный материал
-          <select value={targetRef} onChange={(event) => setTargetRef(event.target.value)}>
-            {kind === 'puzzle-set' ? (
-              <option value="puzzle-set:starter">Стартовый набор ASA · все позиции</option>
-            ) : null}
-            {kind === 'lesson' || kind === 'position'
-              ? CHECKERS_STARTER_PUZZLES.map((puzzle) => (
-                  <option key={puzzle.id} value={puzzle.id}>
-                    {kind === 'lesson' ? 'Урок' : 'Позиция'} · {puzzle.title}
-                  </option>
-                ))
-              : null}
-            {kind === 'bot-milestone'
-              ? CHECKERS_BOTS.map((bot) => (
-                  <option key={bot.id} value={`bot:${bot.id}`}>
-                    Бот · {bot.displayName}
-                  </option>
-                ))
-              : null}
-            {kind === 'game' ? <option value="class-match">Матч внутри класса</option> : null}
-          </select>
-        </label>
+        {kind === 'position' ? (
+          <>
+            <label>
+              Инструкция ученику
+              <textarea
+                rows={3}
+                maxLength={240}
+                value={positionInstruction}
+                onChange={(event) => setPositionInstruction(event.target.value)}
+              />
+            </label>
+            <CheckersPositionComposer
+              title={title}
+              instruction={positionInstruction}
+              onReferenceChange={setTargetRef}
+            />
+          </>
+        ) : (
+          <label>
+            Учебный материал
+            <select value={targetRef} onChange={(event) => setTargetRef(event.target.value)}>
+              {kind === 'puzzle-set' ? (
+                <option value="puzzle-set:starter">Стартовый набор ASA · все позиции</option>
+              ) : null}
+              {kind === 'lesson'
+                ? CHECKERS_STARTER_PUZZLES.map((puzzle) => (
+                    <option key={puzzle.id} value={puzzle.id}>
+                      Урок · {puzzle.title}
+                    </option>
+                  ))
+                : null}
+              {kind === 'bot-milestone'
+                ? CHECKERS_BOTS.map((bot) => (
+                    <option key={bot.id} value={`bot:${bot.id}`}>
+                      Бот · {bot.displayName}
+                    </option>
+                  ))
+                : null}
+              {kind === 'game' ? <option value="class-match">Матч внутри класса</option> : null}
+            </select>
+          </label>
+        )}
         <label>
           Кому назначить
           <select value={assignee} onChange={(event) => setAssignee(event.target.value)}>
@@ -451,7 +504,10 @@ function AssignmentDialog({
             type="button"
             className="checkers-primary-action"
             disabled={
-              saving || !title.trim() || (assignee === 'group' && groupStudentIds.length === 0)
+              saving ||
+              !title.trim() ||
+              !targetRef ||
+              (assignee === 'group' && groupStudentIds.length === 0)
             }
             onClick={() => {
               setSaving(true);
@@ -703,6 +759,10 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
   const [activePuzzle, setActivePuzzle] = useState<CheckersPuzzle | null>(null);
   const [attempt, setAttempt] = useState<CheckersPuzzleAttempt | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [lessonStage, setLessonStage] = useState<
+    'explain' | 'demonstrate' | 'practice' | 'feedback'
+  >('explain');
+  const [botSideChoice, setBotSideChoice] = useState<'light' | 'dark'>('light');
   const [assignmentDialog, setAssignmentDialog] = useState(false);
   const [eventDialog, setEventDialog] = useState(false);
   const [enrolDialog, setEnrolDialog] = useState(false);
@@ -731,8 +791,25 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
   if (checkers.loadState === 'loading') {
     return (
       <main className="checkers-loading" role="status" aria-live="polite">
-        <span className="checkers-kicker">ASA Шашки</span>
-        <h1>Загружаем партию и учебный прогресс…</h1>
+        <div className="checkers-loading-brand">
+          <img src="/asa-lab-mark.svg" alt="" aria-hidden="true" />
+          <span className="checkers-kicker">ASA Шашки</span>
+          <h1>Собираем твой шашечный кабинет…</h1>
+          <p>Загружаем партию, задания педагога и учебный прогресс.</p>
+        </div>
+        <div className="checkers-loading-preview" aria-hidden="true">
+          <div className="checkers-loading-board">
+            {Array.from({ length: 64 }, (_, index) => (
+              <span key={index} />
+            ))}
+          </div>
+          <div className="checkers-loading-panel">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
       </main>
     );
   }
@@ -802,6 +879,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     setActivePuzzle(puzzle);
     setAttempt(created.value);
     setHint(null);
+    setLessonStage('explain');
     checkers.openLesson(created.value.document, puzzle.title);
     setSurface('learning');
   };
@@ -814,7 +892,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
     }
     if (assignment.kind === 'bot-milestone' && assignment.targetRef.startsWith('bot:')) {
       const botId = assignment.targetRef.slice(4) as CheckersBotId;
-      if (checkers.startBotGame(botId, true)) setSurface('play');
+      if (checkers.startBotGame(botId, true, botSideChoice)) setSurface('play');
       return;
     }
     if (assignment.kind === 'game') {
@@ -822,7 +900,16 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
       setSurface('class');
       return;
     }
-    const puzzle = CHECKERS_STARTER_PUZZLES.find((item) => item.id === assignment.targetRef);
+    if (assignment.kind === 'position') {
+      const authored = readAuthoredCheckersPositionReference(assignment.targetRef);
+      if (authored.ok) {
+        startPuzzle(authored.value);
+        return;
+      }
+      checkers.setNotice(`Позиция педагога не открыта: ${authored.message}`);
+      return;
+    }
+    const puzzle = CHECKERS_PRACTICE_PUZZLES.find((item) => item.id === assignment.targetRef);
     if (puzzle) {
       startPuzzle(puzzle);
       return;
@@ -847,6 +934,10 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
       if (legal) checkers.playMove(legal);
       return;
     }
+    if (lessonStage !== 'practice') {
+      checkers.setNotice('Сначала пройди объяснение и пример, затем переходи к своему ходу.');
+      return;
+    }
     const outcome = submitCheckersPuzzleMove(activePuzzle, attempt, {
       pieceId: move.pieceId,
       path: move.path,
@@ -861,13 +952,22 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
       return;
     }
     if (outcome.value.feedback === 'incorrect') {
-      checkers.recordPuzzleFailure(outcome.value.attempt, outcome.value.conceptIds);
+      checkers.recordPuzzleFailure(
+        outcome.value.attempt,
+        outcome.value.conceptIds,
+        activePuzzle.id.endsWith('-transfer'),
+      );
       checkers.setNotice('Ход допустим, но не решает задачу. Попробуй ещё раз.');
       return;
     }
     checkers.openLesson(outcome.value.attempt.document, activePuzzle.title);
     if (outcome.value.feedback === 'solved') {
-      checkers.completePuzzle(outcome.value.attempt, outcome.value.conceptIds);
+      checkers.completePuzzle(
+        outcome.value.attempt,
+        outcome.value.conceptIds,
+        activePuzzle.id.endsWith('-transfer'),
+      );
+      setLessonStage('feedback');
     } else {
       checkers.setNotice('Верно. Продолжи обязательную последовательность.');
     }
@@ -914,6 +1014,25 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             ? 'Ходы сохраняются на сервере. Доступны только участники этого класса и готовые реакции.'
             : 'Выбирай шашку и подсвеченное поле. Если взятие возможно, система разрешит только взятие.'),
         ...(hint ? { hintText: hint } : {}),
+        ...(activePuzzle
+          ? {
+              lesson: {
+                stage: lessonStage,
+                rule:
+                  activePuzzle.hints[0] ??
+                  'Сначала проверь обязательные взятия, затем сравни спокойные ходы.',
+                example:
+                  activePuzzle.hints[1] ??
+                  'Проследи диагональ от своей шашки и заранее проверь поле приземления.',
+                ...(lessonStage === 'feedback'
+                  ? {
+                      feedback:
+                        'Решение принято движком, а результат и использованные подсказки сохранены для тебя и педагога.',
+                    }
+                  : {}),
+              },
+            }
+          : {}),
         reactionsEnabled: activeClassGame
           ? !(checkers.classPlay?.muted ?? false)
           : document.education.reactionsEnabled,
@@ -928,9 +1047,18 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         readOnly:
           isReview ||
           Boolean(
-            activeClassGame &&
-            (activeClassGame.status !== 'active' || activeClassGame.side !== sourceGame.sideToMove),
+            checkers.botThinking ||
+            (activeClassGame &&
+              (activeClassGame.status !== 'active' ||
+                activeClassGame.side !== sourceGame.sideToMove)),
           ),
+        orientation: activePuzzle
+          ? 'light'
+          : activeClassGame
+            ? (activeClassGame.side ?? 'light')
+            : checkers.botPlayerSide,
+        canRestart: Boolean(activePuzzle || (!activeClassGame && surface === 'play')),
+        canResign: Boolean(!activePuzzle && !activeClassGame && sourceGame.result === '*'),
       }}
       onBack={() => {
         if (activeClassGame) {
@@ -960,6 +1088,17 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
         } else setSurface('play');
       }}
       onMove={playWorkspaceMove}
+      onLessonStageChange={setLessonStage}
+      onRestart={() => {
+        if (activePuzzle) {
+          startPuzzle(activePuzzle);
+          return;
+        }
+        if (!activeClassGame) {
+          checkers.startBotGame(selectedBot.id as CheckersBotId, false, checkers.botPlayerSide);
+        }
+      }}
+      onResign={() => checkers.resignBotGame()}
       {...(activePuzzle && attempt
         ? {
             onHint: () => {
@@ -1035,6 +1174,29 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             <p>Следующий уровень открывается после двух побед и доказанного решения задач.</p>
           </div>
         </header>
+        <fieldset className="checkers-side-choice">
+          <legend>Какими шашками играть?</legend>
+          <label>
+            <input
+              type="radio"
+              name="checkers-side"
+              value="light"
+              checked={botSideChoice === 'light'}
+              onChange={() => setBotSideChoice('light')}
+            />
+            Светлыми — первый ход твой
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="checkers-side"
+              value="dark"
+              checked={botSideChoice === 'dark'}
+              onChange={() => setBotSideChoice('dark')}
+            />
+            Тёмными — сначала ходит бот
+          </label>
+        </fieldset>
         <section className="checkers-bot-grid" aria-label="Соперники ASA Bot">
           {CHECKERS_BOTS.map((bot) => {
             const locked = bot.rung > document.education.unlockedBotRung;
@@ -1047,14 +1209,18 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
                 <h2>{bot.displayName}</h2>
                 <p>{bot.description}</p>
                 <small>
-                  Поиск: глубина {bot.searchDepth} · до{' '}
-                  {bot.defaultNodeBudget.toLocaleString('ru-RU')} узлов
+                  {bot.rung <= 2
+                    ? 'Играет спокойно и оставляет понятные возможности.'
+                    : bot.rung <= 4
+                      ? 'Замечает тактику и помогает готовиться к комбинациям.'
+                      : 'Проверяет план, безопасность и игру в окончаниях.'}
                 </small>
                 <button
                   type="button"
                   disabled={locked}
                   onClick={() => {
-                    if (checkers.startBotGame(bot.id as CheckersBotId)) setSurface('play');
+                    if (checkers.startBotGame(bot.id as CheckersBotId, false, botSideChoice))
+                      setSurface('play');
                   }}
                 >
                   {locked ? 'Сначала предыдущий уровень' : 'Начать партию'}
@@ -1084,7 +1250,8 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             </p>
           </div>
           <strong>
-            {document.education.completedPuzzleIds.length} / {CHECKERS_STARTER_PUZZLES.length} задач
+            {document.education.completedPuzzleIds.length} / {CHECKERS_PRACTICE_PUZZLES.length}{' '}
+            практик
           </strong>
         </header>
         <section className="checkers-curriculum-strip" aria-label="Учебная программа">
@@ -1103,11 +1270,15 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             </div>
           </div>
           <div className="checkers-home-grid">
-            {CHECKERS_STARTER_PUZZLES.map((puzzle, index) => {
+            {CHECKERS_PRACTICE_PUZZLES.map((puzzle, index) => {
               const complete = document.education.completedPuzzleIds.includes(puzzle.id);
               return (
                 <article className="checkers-home-card" key={puzzle.id}>
-                  <span className="checkers-home-eyebrow">Задача {index + 1}</span>
+                  <span className="checkers-home-eyebrow">
+                    {puzzle.id.endsWith('-transfer')
+                      ? 'Перенос навыка'
+                      : `Объяснение ${Math.floor(index / 2) + 1}`}
+                  </span>
                   <h3>{puzzle.title}</h3>
                   <p>{puzzle.instruction}</p>
                   <small>Объяснение → пример → ваш ход → обратная связь движка</small>
@@ -1173,9 +1344,9 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
             description:
               assignmentCards[0]?.description ??
               'Короткая позиция научит видеть главное правило партии.',
-            progressLabel: `${document.education.completedPuzzleIds.length} из ${CHECKERS_STARTER_PUZZLES.length} задач`,
+            progressLabel: `${document.education.completedPuzzleIds.length} из ${CHECKERS_PRACTICE_PUZZLES.length} практик`,
             progressPercent: Math.round(
-              (document.education.completedPuzzleIds.length / CHECKERS_STARTER_PUZZLES.length) *
+              (document.education.completedPuzzleIds.length / CHECKERS_PRACTICE_PUZZLES.length) *
                 100,
             ),
             actionLabel: 'Продолжить',
@@ -1184,7 +1355,10 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
           reviewCount: document.education.progress.filter(
             (item) => item.nextReviewAt && Date.parse(item.nextReviewAt) <= Date.now(),
           ).length,
-          learningUnit: Math.min(11, document.education.completedPuzzleIds.length + 1),
+          learningUnit: Math.min(
+            11,
+            Math.floor(document.education.completedPuzzleIds.length / 2) + 1,
+          ),
           learningUnitsTotal: 11,
           masteryPercent: mastery,
           currentBotName: selectedBot.displayName,
@@ -1207,7 +1381,7 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
               (item) => item.nextReviewAt && Date.parse(item.nextReviewAt) <= Date.now(),
             )?.conceptId;
             const reviewPuzzle = dueConcept
-              ? CHECKERS_STARTER_PUZZLES.find((puzzle) => puzzle.conceptIds.includes(dueConcept))
+              ? CHECKERS_PRACTICE_PUZZLES.find((puzzle) => puzzle.conceptIds.includes(dueConcept))
               : null;
             if (reviewPuzzle) startPuzzle(reviewPuzzle);
             else {

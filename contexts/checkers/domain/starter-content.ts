@@ -229,3 +229,53 @@ export const CHECKERS_STARTER_PUZZLES: readonly CheckersPuzzle[] = [
     ],
   },
 ] as const;
+
+function mirrorSquare(square: string): CheckersDocument['pieces'][number]['square'] {
+  const files = 'abcdefgh';
+  const file = files[7 - files.indexOf(square[0] ?? '')];
+  const rank = 9 - Number(square[1]);
+  return `${file}${rank}` as CheckersDocument['pieces'][number]['square'];
+}
+
+function oppositeSide(side: CheckersDocument['sideToMove']): CheckersDocument['sideToMove'] {
+  return side === 'light' ? 'dark' : 'light';
+}
+
+function mirrorPuzzle(puzzle: CheckersPuzzle): CheckersPuzzle {
+  const idByPiece = new Map(
+    puzzle.initialDocument.pieces.map((piece) => [piece.id, `${piece.id}-transfer`] as const),
+  );
+  return {
+    ...puzzle,
+    id: `${puzzle.id}-transfer`,
+    title: `${puzzle.title} · новая позиция`,
+    instruction: `${puzzle.instruction} Теперь примени то же правило на зеркальной стороне доски.`,
+    initialDocument: {
+      ...puzzle.initialDocument,
+      sideToMove: oppositeSide(puzzle.initialDocument.sideToMove),
+      pieces: puzzle.initialDocument.pieces.map((piece) => ({
+        ...piece,
+        id: idByPiece.get(piece.id)!,
+        side: oppositeSide(piece.side),
+        square: mirrorSquare(piece.square),
+      })),
+    },
+    expectedLines: puzzle.expectedLines.map((line) =>
+      line.map((move) => ({
+        pieceId: idByPiece.get(move.pieceId)!,
+        path: move.path.map(mirrorSquare),
+      })),
+    ),
+    hints: [
+      'Положение изменилось, но проверяемое правило осталось тем же.',
+      `Ходят ${puzzle.initialDocument.sideToMove === 'light' ? 'тёмные' : 'светлые'}.`,
+      'Сначала самостоятельно проверь все обязательные взятия.',
+      `Начни поиск с поля ${mirrorSquare(puzzle.expectedLines[0]![0]!.path[0]!)}.`,
+      `Заверши проверочный ход на поле ${mirrorSquare(puzzle.expectedLines[0]![0]!.path.at(-1)!)}.`,
+    ],
+  };
+}
+
+/** Introduction plus a transfer exercise for every curriculum step. */
+export const CHECKERS_PRACTICE_PUZZLES: readonly CheckersPuzzle[] =
+  CHECKERS_STARTER_PUZZLES.flatMap((puzzle) => [puzzle, mirrorPuzzle(puzzle)]);

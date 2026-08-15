@@ -22,7 +22,7 @@ describe('evidence-based Checkers post-game review', () => {
     expect(afterSecond.value.moveHistory).toHaveLength(2);
   });
 
-  it('reports verified capture safety, tactical loss and the largest turning point', () => {
+  it('does not call a capture a mistake without a verified alternative', () => {
     const document: CheckersDocument = {
       ...createInitialCheckersDocument(),
       moveHistory: [
@@ -40,7 +40,7 @@ describe('evidence-based Checkers post-game review', () => {
     const review = analyzeCheckersGameReview(document);
     expect(review.map((item) => item.theme)).toEqual([
       'mandatory-capture',
-      'tactical-loss',
+      'forced-exchange',
       'turning-point',
       'promotion',
       'result',
@@ -48,6 +48,39 @@ describe('evidence-based Checkers post-game review', () => {
     expect(review.find((item) => item.theme === 'turning-point')).toMatchObject({
       ply: 1,
       explanation: expect.stringContaining('самое крупное взятие (2)'),
+    });
+  });
+
+  it('reports a tactical loss only when another legal move reduces the immediate capture', () => {
+    const position: CheckersDocument = {
+      schemaVersion: 1,
+      ruleset: 'russian-64',
+      mode: 'game',
+      sideToMove: 'light',
+      pieces: [
+        { id: 'light-c3', side: 'light', kind: 'man', square: 'c3' },
+        { id: 'light-g1', side: 'light', kind: 'man', square: 'g1' },
+        { id: 'dark-e5', side: 'dark', kind: 'man', square: 'e5' },
+        { id: 'dark-h8', side: 'dark', kind: 'man', square: 'h8' },
+      ],
+      moveHistory: [],
+      result: '*',
+    };
+    const afterBadMove = applyCheckersMove(position, { pieceId: 'light-c3', path: ['c3', 'd4'] });
+    expect(afterBadMove.ok).toBe(true);
+    if (!afterBadMove.ok) return;
+    const afterCapture = applyCheckersMove(afterBadMove.value, {
+      pieceId: 'dark-e5',
+      path: ['e5', 'c3'],
+    });
+    expect(afterCapture.ok).toBe(true);
+    if (!afterCapture.ok) return;
+
+    const review = analyzeCheckersGameReview(afterCapture.value);
+    expect(review.find((item) => item.theme === 'tactical-loss')).toMatchObject({
+      ply: 1,
+      title: expect.stringContaining('c3-d4'),
+      explanation: expect.stringContaining('уменьшал ближайшую потерю'),
     });
   });
 });

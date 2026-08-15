@@ -158,6 +158,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const [saveStatus, setSaveStatus] = useState<CheckersSaveStatus>('saved');
   const [notice, setNotice] = useState<string | null>(null);
   const [botThinking, setBotThinking] = useState(false);
+  const [botPlayerSide, setBotPlayerSide] = useState<'light' | 'dark'>('light');
   const saveTimer = useRef<number | null>(null);
   const botTask = useRef(0);
   const saveQueue = useRef<CheckersSaveQueue | null>(null);
@@ -366,7 +367,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       !document ||
       document.game.mode !== 'game' ||
       document.game.result !== '*' ||
-      document.game.sideToMove !== 'dark'
+      document.game.sideToMove === botPlayerSide
     )
       return;
     const selected = CHECKERS_BOTS.find((bot) => bot.id === document.education.selectedBotId);
@@ -374,9 +375,10 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     const taskId = botTask.current + 1;
     botTask.current = taskId;
     setBotThinking(true);
-    const timer = window.setTimeout(() => {
+    let timer: number | null = null;
+    let worker: Worker | null = null;
+    const applyDecision = (decision: ReturnType<typeof chooseCheckersBotMove>): void => {
       if (botTask.current !== taskId) return;
-      const decision = chooseCheckersBotMove(document.game, selected.id, { maxTimeMs: 650 });
       setBotThinking(false);
       if (!decision.ok) {
         setNotice(decision.message);
@@ -388,23 +390,49 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
       });
       if (applied.ok)
         commitGame(applied.value, `${selected.displayName}: ${decision.value.move.notation}`);
-    }, 320);
+    };
+    if (typeof Worker === 'function') {
+      worker = new Worker(new URL('./checkers-bot.worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (event: MessageEvent<ReturnType<typeof chooseCheckersBotMove>>) =>
+        applyDecision(event.data);
+      worker.onerror = () => {
+        worker?.terminate();
+        worker = null;
+        timer = window.setTimeout(
+          () =>
+            applyDecision(chooseCheckersBotMove(document.game, selected.id, { maxTimeMs: 650 })),
+          0,
+        );
+      };
+      worker.postMessage({ document: document.game, botId: selected.id, maxTimeMs: 650 });
+    } else {
+      timer = window.setTimeout(
+        () => applyDecision(chooseCheckersBotMove(document.game, selected.id, { maxTimeMs: 650 })),
+        0,
+      );
+    }
     return () => {
-      window.clearTimeout(timer);
+      if (timer !== null) window.clearTimeout(timer);
+      worker?.terminate();
       if (botTask.current === taskId) {
         botTask.current += 1;
         setBotThinking(false);
       }
     };
-  }, [commitGame, document]);
+  }, [botPlayerSide, commitGame, document]);
 
-  function startBotGame(botId: CheckersBotId, teacherOverride = false): boolean {
+  function startBotGame(
+    botId: CheckersBotId,
+    teacherOverride = false,
+    playerSide: 'light' | 'dark' = 'light',
+  ): boolean {
     if (!document) return false;
     const bot = CHECKERS_BOTS.find((item) => item.id === botId);
     if (!bot || (!teacherOverride && bot.rung > document.education.unlockedBotRung)) {
       setNotice('Этот соперник пока закрыт. Пройди задачи и победи предыдущего бота.');
       return false;
     }
+    setBotPlayerSide(playerSide);
     commit(
       {
         ...document,
@@ -418,9 +446,21 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
           lastActivityAt: nowIso(),
         },
       },
-      `Новая партия с ботом «${bot.displayName}». Ты играешь светлыми.`,
+      `Новая партия с ботом «${bot.displayName}». Ты играешь ${
+        playerSide === 'light' ? 'светлыми' : 'тёмными'
+      }.`,
     );
     return true;
+  }
+
+  function resignBotGame(): void {
+    if (!document || document.game.mode !== 'game' || document.game.result !== '*') return;
+    botTask.current += 1;
+    setBotThinking(false);
+    commitGame(
+      { ...document.game, result: botPlayerSide === 'light' ? '0-1' : '1-0' },
+      'Партия завершена. Можно открыть разбор или начать новую.',
+    );
   }
 
   function openLesson(game: CheckersProjectDocument['game'], title: string): void {
@@ -431,7 +471,11 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     );
   }
 
-  function completePuzzle(attempt: CheckersPuzzleAttempt, conceptIds: readonly string[]): void {
+  function completePuzzle(
+    attempt: CheckersPuzzleAttempt,
+    conceptIds: readonly string[],
+    transferPosition = false,
+  ): void {
     if (!document) return;
     let progress = [...document.education.progress];
     const evidence: CheckersLearningEvidence[] = [];
@@ -448,7 +492,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         occurredAt: nowIso(),
         firstAttempt: attempt.incorrectAttempts === 0,
         hintLevel: attempt.hintLevel,
-        transferPosition: false,
+        transferPosition,
         score: Math.max(60, 100 - attempt.incorrectAttempts * 10 - attempt.hintLevel * 4),
       };
       const updated = applyCheckersLearningEvidence(item, event);
@@ -480,6 +524,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   function recordPuzzleFailure(
     attempt: CheckersPuzzleAttempt,
     conceptIds: readonly string[],
+    transferPosition = false,
   ): void {
     if (!document) return;
     let progress = [...document.education.progress];
@@ -497,7 +542,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         occurredAt: nowIso(),
         firstAttempt: attempt.incorrectAttempts === 1,
         hintLevel: attempt.hintLevel,
-        transferPosition: false,
+        transferPosition,
         score: 0,
       };
       const updated = applyCheckersLearningEvidence(item, event);
@@ -718,10 +763,12 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
     saveStatus,
     notice,
     botThinking,
+    botPlayerSide,
     legalMoves,
     setNotice,
     playMove,
     startBotGame,
+    resignBotGame,
     openLesson,
     completePuzzle,
     recordPuzzleFailure,

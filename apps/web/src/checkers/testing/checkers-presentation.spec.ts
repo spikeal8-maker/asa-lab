@@ -58,8 +58,8 @@ describe('Checkers presentation contract', () => {
       classroomId: 'class-1',
       teacherId: 'teacher-1',
       title: 'Обязательное взятие',
-      kind: 'puzzle-set',
-      targetRef: 'puzzle-set:starter',
+      kind: 'lesson',
+      targetRef: 'capture-choice',
       assigneeKind: 'group',
       assigneeIds: ['student-1'],
       dueAt: null,
@@ -117,7 +117,9 @@ describe('Checkers presentation contract', () => {
     expect(model.activeThisWeek).toBe(1);
     expect(model.assignmentCompletionPercent).toBe(100);
     expect(model.assignments[0]).toMatchObject({ completed: 1, assigned: 1 });
-    expect(model.students[0]?.lastEvidence).toContain('capture-choice · ход c3:e5 · 100%');
+    expect(model.students[0]?.lastEvidence).toContain(
+      'Обязательное взятие · ход c3:e5 · результат 100% · без подсказок',
+    );
   });
 
   it('renders an accessible 8x8 board with 32 playable squares', () => {

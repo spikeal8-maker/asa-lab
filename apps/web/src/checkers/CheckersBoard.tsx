@@ -13,6 +13,8 @@ export interface CheckersBoardPiece {
 export function CheckersBoard({
   pieces,
   orientation = 'light',
+  theme = 'calm',
+  showCoordinates = true,
   selectedPieceId,
   legalDestinations = [],
   movablePieceIds = [],
@@ -21,6 +23,8 @@ export function CheckersBoard({
 }: {
   pieces: readonly CheckersBoardPiece[];
   orientation?: 'light' | 'dark';
+  theme?: 'calm' | 'contrast';
+  showCoordinates?: boolean;
   selectedPieceId?: string | null;
   legalDestinations?: readonly CheckersBoardSquare[];
   movablePieceIds?: readonly string[];
@@ -59,6 +63,7 @@ export function CheckersBoard({
       role="grid"
       aria-label="Доска для русских шашек, 8 на 8"
       data-orientation={orientation}
+      data-theme={theme}
     >
       {ranks.flatMap((rank, rankIndex) =>
         files.map((file, fileIndex) => {
@@ -93,7 +98,25 @@ export function CheckersBoard({
                   : -1
               }
               disabled={disabled || !isPlayable}
+              draggable={!disabled && movable}
               onClick={() => onSquareClick?.(square)}
+              onDragStart={(event) => {
+                if (!movable || disabled) {
+                  event.preventDefault();
+                  return;
+                }
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', square);
+                onSquareClick?.(square);
+              }}
+              onDragOver={(event) => {
+                if (destination && !disabled) event.preventDefault();
+              }}
+              onDrop={(event) => {
+                if (!destination || disabled) return;
+                event.preventDefault();
+                onSquareClick?.(square);
+              }}
               onKeyDown={(event) => {
                 if (
                   event.key === 'ArrowLeft' ||
@@ -108,8 +131,12 @@ export function CheckersBoard({
                 }
               }}
             >
-              {fileIndex === 0 ? <span className="checkers-rank-label">{rank}</span> : null}
-              {rankIndex === 7 ? <span className="checkers-file-label">{file}</span> : null}
+              {showCoordinates && fileIndex === 0 ? (
+                <span className="checkers-rank-label">{rank}</span>
+              ) : null}
+              {showCoordinates && rankIndex === 7 ? (
+                <span className="checkers-file-label">{file}</span>
+              ) : null}
               {destination ? (
                 <span className="checkers-destination-dot" aria-hidden="true" />
               ) : null}

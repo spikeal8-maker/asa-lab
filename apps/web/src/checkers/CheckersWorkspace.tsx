@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CheckersReviewInsight } from '@asa-lab/checkers';
+import { EditorHeader } from '../components/editor-chrome/EditorHeader';
 import { CheckersBoard, type CheckersBoardPiece, type CheckersBoardSquare } from './CheckersBoard';
 import './checkers.css';
 
@@ -40,6 +41,15 @@ export interface CheckersWorkspaceViewModel {
   readonly reviewPly?: number;
   readonly reviewTotalPly?: number;
   readonly readOnly?: boolean;
+  readonly orientation?: 'light' | 'dark';
+  readonly lesson?: {
+    readonly stage: 'explain' | 'demonstrate' | 'practice' | 'feedback';
+    readonly rule: string;
+    readonly example: string;
+    readonly feedback?: string;
+  };
+  readonly canRestart?: boolean;
+  readonly canResign?: boolean;
 }
 
 const SAVE_LABELS: Readonly<Record<CheckersWorkspaceViewModel['saveState'], string>> = {
@@ -78,6 +88,9 @@ export function CheckersWorkspace({
   onToggleReactions,
   onReviewStep,
   onReportReaction,
+  onLessonStageChange,
+  onRestart,
+  onResign,
 }: {
   model: CheckersWorkspaceViewModel;
   onBack: () => void;
@@ -89,10 +102,17 @@ export function CheckersWorkspace({
   onToggleReactions?: () => void;
   onReviewStep?: (ply: number) => void;
   onReportReaction?: (eventId: string) => void;
+  onLessonStageChange?: (stage: 'explain' | 'demonstrate' | 'practice') => void;
+  onRestart?: () => void;
+  onResign?: () => void;
 }): JSX.Element {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState(model.projectTitle);
   const [panel, setPanel] = useState<'task' | 'moves' | 'reactions'>('task');
+  const [boardFlipped, setBoardFlipped] = useState(false);
+  const [showCoordinates, setShowCoordinates] = useState(true);
+  const [boardTheme, setBoardTheme] = useState<'calm' | 'contrast'>('calm');
+  useEffect(() => setDraftTitle(model.projectTitle), [model.projectTitle]);
   const selectedMoves = useMemo(
     () => model.legalMoves.filter((move) => move.pieceId === selectedPieceId),
     [model.legalMoves, selectedPieceId],
@@ -102,6 +122,14 @@ export function CheckersWorkspace({
     [model.legalMoves],
   );
   const destinations = selectedMoves.flatMap((move) => move.path.at(-1) ?? []);
+  const orientation = boardFlipped
+    ? model.orientation === 'dark'
+      ? 'light'
+      : 'dark'
+    : (model.orientation ?? 'light');
+  const lessonBlocksInput =
+    model.lesson !== undefined &&
+    (model.lesson.stage === 'explain' || model.lesson.stage === 'demonstrate');
   const boardHelp = model.readOnly
     ? {
         step: 'i',
@@ -134,72 +162,80 @@ export function CheckersWorkspace({
 
   return (
     <div className="checkers-workspace">
-      <header className="checkers-editor-header">
-        <div className="checkers-brand-zone">
+      <EditorHeader
+        moduleId="checkers"
+        onExit={onBack}
+        exitLabel="Вернуться в кабинет шашек"
+        title={{
+          kind: 'editable',
+          value: draftTitle,
+          ariaLabel: 'Название шашечного проекта',
+          maxLength: 255,
+          onChange: setDraftTitle,
+          onCommit: () => onRename(draftTitle),
+          onCancel: () => setDraftTitle(model.projectTitle),
+        }}
+        status={{
+          kind: model.saveState,
+          label: SAVE_LABELS[model.saveState],
+          ...(model.saveError ? { detail: model.saveError } : {}),
+          ...(model.saveState === 'saved' ? { icon: '✓' } : {}),
+        }}
+        navigation={{
+          ariaLabel: 'Режим шашек',
+          items: [
+            {
+              id: 'learn',
+              label: 'Учусь',
+              selected: model.mode === 'learn',
+              onActivate: () => onModeChange('learn'),
+            },
+            {
+              id: 'play',
+              label: 'Играю',
+              selected: model.mode === 'play',
+              onActivate: () => onModeChange('play'),
+            },
+            {
+              id: 'review',
+              label: 'Разбор',
+              selected: model.mode === 'review',
+              onActivate: () => onModeChange('review'),
+            },
+          ],
+        }}
+        avatar={{ label: model.userName, text: initials(model.userName) }}
+      />
+
+      <nav className="checkers-mobile-modes" aria-label="Режим шашек на мобильном устройстве">
+        {(
+          [
+            ['learn', 'Учусь'],
+            ['play', 'Играю'],
+            ['review', 'Разбор'],
+          ] as const
+        ).map(([mode, label]) => (
           <button
+            key={mode}
             type="button"
-            className="checkers-brand"
-            onClick={onBack}
-            aria-label="Вернуться в кабинет шашек"
+            aria-pressed={model.mode === mode}
+            onClick={() => onModeChange(mode)}
           >
-            <span className="checkers-back-arrow" aria-hidden="true">
-              ←
-            </span>
-            <img src="/asa-lab-mark.svg" alt="" aria-hidden="true" />
-            <span>ASA Шашки</span>
+            {label}
           </button>
-          <input
-            value={draftTitle}
-            aria-label="Название шашечного проекта"
-            maxLength={255}
-            onChange={(event) => setDraftTitle(event.target.value)}
-            onBlur={() => onRename(draftTitle)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur();
-              if (event.key === 'Escape') {
-                setDraftTitle(model.projectTitle);
-                event.currentTarget.blur();
-              }
-            }}
-          />
-        </div>
-        <span
-          className={`checkers-save-state ${model.saveState}`}
-          role="status"
-          title={model.saveError}
-        >
-          {model.saveState === 'saved' ? '✓ ' : ''}
-          {model.saveState === 'error' && model.saveError
-            ? `${SAVE_LABELS.error}: ${model.saveError}`
-            : SAVE_LABELS[model.saveState]}
-        </span>
-        <nav className="checkers-mode-tabs" aria-label="Режим шашек">
-          {(
-            [
-              ['learn', 'Учусь'],
-              ['play', 'Играю'],
-              ['review', 'Разбор'],
-            ] as const
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              className={model.mode === mode ? 'active' : ''}
-              aria-pressed={model.mode === mode}
-              onClick={() => onModeChange(mode)}
-            >
-              {label}
-            </button>
-          ))}
-          <span className="checkers-avatar" title={model.userName}>
-            {initials(model.userName)}
-          </span>
-        </nav>
-      </header>
+        ))}
+      </nav>
 
       <main className="checkers-game-layout" id="main-content" tabIndex={-1}>
         <section className="checkers-board-stage" aria-label="Игровая доска">
           <div className="checkers-board-frame">
+            {model.mode !== 'review' ? (
+              <section className="checkers-mobile-task" aria-label="Текущее задание">
+                <span>{model.mode === 'learn' ? 'Учебный шаг' : 'Партия'}</span>
+                <strong>{model.instructionTitle}</strong>
+                <p>{model.instruction}</p>
+              </section>
+            ) : null}
             <div className="checkers-board-toolbar">
               <div className="checkers-board-turn">
                 <span className={`checkers-turn-dot ${model.sideToMove}`} aria-hidden="true" />
@@ -214,12 +250,45 @@ export function CheckersWorkspace({
               </div>
             </div>
 
+            <div
+              className="checkers-game-actions"
+              role="group"
+              aria-label="Настройки доски и партии"
+            >
+              <button type="button" onClick={() => setBoardFlipped((value) => !value)}>
+                ↻ Перевернуть
+              </button>
+              <button type="button" onClick={() => setShowCoordinates((value) => !value)}>
+                {showCoordinates ? 'Скрыть координаты' : 'Показать координаты'}
+              </button>
+              <button
+                type="button"
+                aria-pressed={boardTheme === 'contrast'}
+                onClick={() => setBoardTheme((value) => (value === 'calm' ? 'contrast' : 'calm'))}
+              >
+                {boardTheme === 'calm' ? 'Высокий контраст' : 'Спокойная тема'}
+              </button>
+              {model.canRestart && onRestart ? (
+                <button type="button" onClick={onRestart}>
+                  Новая партия
+                </button>
+              ) : null}
+              {model.canResign && onResign ? (
+                <button type="button" className="danger" onClick={onResign}>
+                  Сдаться
+                </button>
+              ) : null}
+            </div>
+
             <CheckersBoard
               pieces={model.pieces}
+              orientation={orientation}
+              theme={boardTheme}
+              showCoordinates={showCoordinates}
               selectedPieceId={selectedPieceId}
               legalDestinations={destinations}
               movablePieceIds={movablePieceIds}
-              {...(model.readOnly === undefined ? {} : { disabled: model.readOnly })}
+              disabled={Boolean(model.readOnly || lessonBlocksInput)}
               onSquareClick={selectSquare}
             />
 
@@ -307,6 +376,64 @@ export function CheckersWorkspace({
                   <span className="checkers-home-eyebrow">Сейчас</span>
                   <h2>{model.instructionTitle}</h2>
                   <p>{model.instruction}</p>
+                  {model.lesson ? (
+                    <div className="checkers-lesson-flow">
+                      <ol aria-label="Этапы короткого урока">
+                        <li className={model.lesson.stage === 'explain' ? 'active' : ''}>
+                          1. Правило
+                        </li>
+                        <li className={model.lesson.stage === 'demonstrate' ? 'active' : ''}>
+                          2. Пример
+                        </li>
+                        <li className={model.lesson.stage === 'practice' ? 'active' : ''}>
+                          3. Твой ход
+                        </li>
+                        <li className={model.lesson.stage === 'feedback' ? 'active' : ''}>
+                          4. Итог
+                        </li>
+                      </ol>
+                      {model.lesson.stage === 'explain' ? (
+                        <section>
+                          <strong>Сначала пойми правило</strong>
+                          <p>{model.lesson.rule}</p>
+                          <button
+                            type="button"
+                            onClick={() => onLessonStageChange?.('demonstrate')}
+                          >
+                            Посмотреть пример
+                          </button>
+                        </section>
+                      ) : null}
+                      {model.lesson.stage === 'demonstrate' ? (
+                        <section>
+                          <strong>Разберём пример</strong>
+                          <p>{model.lesson.example}</p>
+                          <button type="button" onClick={() => onLessonStageChange?.('practice')}>
+                            Попробовать самому
+                          </button>
+                        </section>
+                      ) : null}
+                      {model.lesson.stage === 'practice' ? (
+                        <section>
+                          <strong>Теперь твой ход</strong>
+                          <p>
+                            Найди решение на доске. Разрешены только ходы по правилам русских шашек.
+                          </p>
+                        </section>
+                      ) : null}
+                      {model.lesson.stage === 'feedback' ? (
+                        <section className="success">
+                          <strong>Навык подтверждён</strong>
+                          <p>{model.lesson.feedback ?? 'Решение сохранено в учебном прогрессе.'}</p>
+                          {onRestart ? (
+                            <button type="button" onClick={onRestart}>
+                              Решить ещё раз
+                            </button>
+                          ) : null}
+                        </section>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="checkers-hint-ladder">
                     <strong>Нужна подсказка?</strong>
                     {model.hintText ? <p className="checkers-hint-text">{model.hintText}</p> : null}

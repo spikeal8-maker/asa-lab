@@ -5,10 +5,15 @@ import {
   type CheckersMoveRecord,
   type CheckersSide,
 } from './document.js';
-import { applyCheckersMove } from './rules.js';
+import { applyCheckersMove, generateLegalCheckersMoves } from './rules.js';
 
 export type CheckersReviewTheme =
-  'mandatory-capture' | 'tactical-loss' | 'turning-point' | 'promotion' | 'result';
+  | 'mandatory-capture'
+  | 'tactical-loss'
+  | 'forced-exchange'
+  | 'turning-point'
+  | 'promotion'
+  | 'result';
 
 export interface CheckersReviewInsight {
   readonly id: string;
@@ -25,6 +30,44 @@ function sideLabel(side: CheckersSide): string {
 
 function notation(move: CheckersMoveRecord): string {
   return move.path.join(move.capturedIds.length > 0 ? ':' : '-');
+}
+
+function immediateCaptureRisk(document: CheckersDocument): number {
+  return generateLegalCheckersMoves(document).reduce(
+    (largest, move) => Math.max(largest, move.capturedIds.length),
+    0,
+  );
+}
+
+function tacticalAlternative(
+  source: CheckersDocument,
+  capture: CheckersMoveRecord,
+): {
+  readonly previous: CheckersMoveRecord;
+  readonly alternative: string;
+  readonly saved: number;
+} | null {
+  if (capture.ply < 2) return null;
+  const previous = source.moveHistory[capture.ply - 2];
+  if (!previous) return null;
+  const beforePrevious = replayCheckersGame(source, capture.ply - 2);
+  if (!beforePrevious.ok) return null;
+  const candidates = generateLegalCheckersMoves(beforePrevious.value);
+  let best: { notation: string; risk: number } | null = null;
+  for (const candidate of candidates) {
+    const applied = applyCheckersMove(beforePrevious.value, candidate);
+    if (!applied.ok) continue;
+    const risk = immediateCaptureRisk(applied.value);
+    if (
+      best === null ||
+      risk < best.risk ||
+      (risk === best.risk && candidate.notation < best.notation)
+    ) {
+      best = { notation: candidate.notation, risk };
+    }
+  }
+  if (!best || best.risk >= capture.capturedIds.length) return null;
+  return { previous, alternative: best.notation, saved: capture.capturedIds.length - best.risk };
 }
 
 /**
@@ -56,16 +99,30 @@ export function analyzeCheckersGameReview(
 
   for (const move of captures) {
     const lostSide: CheckersSide = move.side === 'light' ? 'dark' : 'light';
-    insights.push({
-      id: `tactical-loss-${move.ply}`,
-      theme: 'tactical-loss',
-      ply: move.ply,
-      tone: 'attention',
-      title: `Тактическая потеря ${sideLabel(lostSide)}`,
-      explanation: `Ход ${move.ply}: ${notation(move)} — потеряно ${move.capturedIds.length} ${
-        move.capturedIds.length === 1 ? 'шашку' : 'шашки'
-      }. Вернись на ход раньше и найди более безопасное поле.`,
-    });
+    const alternative = tacticalAlternative(document, move);
+    if (alternative) {
+      insights.push({
+        id: `tactical-loss-${move.ply}`,
+        theme: 'tactical-loss',
+        ply: alternative.previous.ply,
+        tone: 'attention',
+        title: `После хода ${notation(alternative.previous)} возникла потеря`,
+        explanation: `Ответ ${notation(move)} снял ${move.capturedIds.length} ${
+          move.capturedIds.length === 1 ? 'шашку' : 'шашки'
+        } ${sideLabel(lostSide)}. В той позиции ход ${alternative.alternative} уменьшал ближайшую потерю на ${alternative.saved}.`,
+      });
+    } else {
+      insights.push({
+        id: `forced-exchange-${move.ply}`,
+        theme: 'forced-exchange',
+        ply: move.ply,
+        tone: 'neutral',
+        title: 'Взятие подтверждено правилами',
+        explanation: `Ход ${move.ply}: ${notation(move)} снял ${move.capturedIds.length} ${
+          move.capturedIds.length === 1 ? 'шашку' : 'шашки'
+        }. Разбор не называет это ошибкой без доказанной более безопасной альтернативы.`,
+      });
+    }
   }
 
   if (largestCapture) {

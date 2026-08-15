@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHECKERS_CURRICULUM } from '../domain/learning';
 import { validateCheckersPuzzle } from '../domain/puzzle';
-import { CHECKERS_STARTER_PUZZLES } from '../domain/starter-content';
+import { CHECKERS_PRACTICE_PUZZLES, CHECKERS_STARTER_PUZZLES } from '../domain/starter-content';
 
 describe('original ASA Checkers starter content', () => {
   it('contains distinct, engine-valid lessons with five safe hints each', () => {
@@ -12,6 +12,13 @@ describe('original ASA Checkers starter content', () => {
     for (const puzzle of CHECKERS_STARTER_PUZZLES) {
       expect(validateCheckersPuzzle(puzzle)).toEqual({ ok: true, value: puzzle });
       expect(puzzle.hints).toHaveLength(5);
+    }
+  });
+
+  it('adds one engine-valid transfer position for every starter lesson', () => {
+    expect(CHECKERS_PRACTICE_PUZZLES).toHaveLength(CHECKERS_STARTER_PUZZLES.length * 2);
+    for (const puzzle of CHECKERS_PRACTICE_PUZZLES) {
+      expect(validateCheckersPuzzle(puzzle)).toEqual({ ok: true, value: puzzle });
     }
   });
 });
