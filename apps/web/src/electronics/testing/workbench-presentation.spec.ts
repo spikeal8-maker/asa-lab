@@ -188,8 +188,12 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-testid="wire-endpoint"');
     expect(stageSource).toContain('data-testid="wire-segment"');
     expect(stageSource).toContain('c.startSegmentDrag(event, wire.id, segmentIndex)');
-    expect(stageSource).toContain('if (event.detail >= 2)');
-    expect(stageSource).toContain('c.addWireVertexAt(event, wire.id)');
+    expect(stageSource).toContain('Date.now() - previous.at <= 420');
+    expect(stageSource).toContain(
+      'Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8',
+    );
+    expect(stageSource).toContain('handleWireClick(event, wire.id, segmentIndex)');
+    expect(stageSource).toContain('c.addWireVertexAt(event, wireId)');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
