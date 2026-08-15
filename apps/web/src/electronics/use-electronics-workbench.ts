@@ -159,6 +159,19 @@ export function useElectronicsWorkbench(projectId: string) {
   const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
   const segmentDragRef = useRef<SegmentDrag | null>(null);
+  const lastSegmentPressRef = useRef<{
+    wireId: string;
+    x: number;
+    y: number;
+    at: number;
+  } | null>(null);
+  const lastVertexPressRef = useRef<{
+    wireId: string;
+    vertexIndex: number;
+    x: number;
+    y: number;
+    at: number;
+  } | null>(null);
   const endpointDragRef = useRef<EndpointDrag | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
   const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
@@ -1139,6 +1152,27 @@ export function useElectronicsWorkbench(projectId: string) {
     vertexIndex: number,
   ): void {
     if (simulationRunning) return;
+    const previous = lastVertexPressRef.current;
+    const repeated =
+      previous?.wireId === wireId &&
+      previous.vertexIndex === vertexIndex &&
+      Date.now() - previous.at <= 420 &&
+      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8;
+    if (event.detail >= 2 || repeated) {
+      lastVertexPressRef.current = null;
+      vertexDragRef.current = null;
+      removeWireVertexAt(wireId, vertexIndex);
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
+    lastVertexPressRef.current = {
+      wireId,
+      vertexIndex,
+      x: event.clientX,
+      y: event.clientY,
+      at: Date.now(),
+    };
     vertexDragRef.current = { pointerId: event.pointerId, wireId, vertexIndex };
     setSelection({ kind: 'wire', id: wireId, vertexIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
@@ -1150,7 +1184,28 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     segmentIndex: number,
   ): void {
-    if (simulationRunning || pendingTerminal || !document || event.detail > 1) return;
+    if (simulationRunning || pendingTerminal || !document) return;
+    const previous = lastSegmentPressRef.current;
+    const repeated =
+      previous?.wireId === wireId &&
+      Date.now() - previous.at <= 420 &&
+      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8;
+    if (event.detail >= 2 || repeated) {
+      lastSegmentPressRef.current = null;
+      segmentDragRef.current = null;
+      const next = insertWireVertex(document, wireId, toWorld(event));
+      if (next !== document) commitDocument(next, 'Точка управления проводом добавлена.');
+      setSelection({ kind: 'wire', id: wireId });
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
+    lastSegmentPressRef.current = {
+      wireId,
+      x: event.clientX,
+      y: event.clientY,
+      at: Date.now(),
+    };
     segmentDragRef.current = {
       pointerId: event.pointerId,
       wireId,
