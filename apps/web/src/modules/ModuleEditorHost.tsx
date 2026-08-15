@@ -4,7 +4,8 @@ import { ChessModuleExperience } from '../chess/ChessModuleExperience';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
 import { loadCheckersEditor } from '../checkers/load-checkers-editor';
 import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-portal/navigation';
-import { SchematicEditor } from '../pages/SchematicEditor';
+import { loadSchematicEditor } from '../electronics/load-schematic-editor';
+import { EditorErrorBoundary } from './EditorErrorBoundary';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -18,7 +19,7 @@ interface ModuleEditorHostProps extends ModuleEditorProps {
 }
 
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
-  electronics: SchematicEditor,
+  electronics: lazy(loadSchematicEditor),
   chess: ChessModuleExperience,
   checkers: lazy(loadCheckersEditor),
   'three-d': lazy(() =>
@@ -121,14 +122,16 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
   }
 
   return (
-    <Suspense
-      fallback={
-        <main className="page-center" role="status" aria-live="polite">
-          Загружаем учебную среду…
-        </main>
-      }
-    >
-      <Editor projectId={props.projectId} onBack={props.onBack} user={props.user} />
-    </Suspense>
+    <EditorErrorBoundary onBack={props.onBack}>
+      <Suspense
+        fallback={
+          <main className="page-center" role="status" aria-live="polite">
+            Загружаем учебную среду…
+          </main>
+        }
+      >
+        <Editor projectId={props.projectId} onBack={props.onBack} user={props.user} />
+      </Suspense>
+    </EditorErrorBoundary>
   );
 }

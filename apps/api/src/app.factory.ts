@@ -1,17 +1,42 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
+import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import pg from 'pg';
 import type { RuntimeMetrics } from '@asa-lab/observability';
 import { AppModule } from './app.module.js';
 import { TOKENS } from './tokens.js';
 import { isAllowedMutationOrigin, resolveCanonicalWebOrigin } from './origin-policy.js';
+
+/**
+ * Content-hashed filenames may be cached forever; anything else may not.
+ *
+ * This is the one rule here that cannot be taken back: a file served as
+ * immutable stays in a visitor's browser for a year, and no server-side fix
+ * reaches it. So the permission is granted by filename shape — Vite's
+ * `name-hash.ext` — and never by directory. `dist/assets/` also holds
+ * owner-supplied electronics artwork copied verbatim from `public/`, which has
+ * no hash and must stay revalidated.
+ */
+// The hash segment may not itself contain a hyphen. Allowing one lets an
+// ordinary descriptive name qualify — `noto-sans-symbols-2-v25-symbols.woff2`
+// matched before this was tightened. A build hash that happens to contain a
+// hyphen simply falls back to revalidation, which is the safe direction to err.
+const HASHED_ASSET = /-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$/;
+
+export function cacheControlFor(fileName: string): string {
+  return HASHED_ASSET.test(fileName) ? 'public, max-age=31536000, immutable' : 'no-cache';
+}
+
+function applyCacheControl(reply: FastifyReply, filePath: string): void {
+  void reply.header('Cache-Control', cacheControlFor(basename(filePath)));
+}
 
 /**
  * An API with no request log and no metrics is indistinguishable from a healthy
@@ -65,6 +90,16 @@ export async function createApiApp(
   const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
   await fastify.register(fastifyCookie);
 
+  // Caddy compresses in front of the API in production, but dev, the browser
+  // E2E stack and every local measurement talk to the API directly. Without
+  // this they were measuring an uncompressed site that no user would receive,
+  // which makes the numbers meaningless in both directions.
+  await fastify.register(fastifyCompress, {
+    global: true,
+    threshold: 1024,
+    encodings: ['br', 'gzip', 'deflate'],
+  });
+
   const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
   const logRequests = shouldLogRequests(options.logRequests);
 
@@ -117,7 +152,12 @@ export async function createApiApp(
   const webDist =
     options.webDist !== undefined ? options.webDist : resolve(__dirname, '..', '..', 'web', 'dist');
   if (webDist && existsSync(join(webDist, 'index.html'))) {
-    await fastify.register(fastifyStatic, { root: webDist, wildcard: false });
+    await fastify.register(fastifyStatic, {
+      root: webDist,
+      wildcard: false,
+      cacheControl: false,
+      setHeaders: applyCacheControl,
+    });
     const indexHtml = readFileSync(join(webDist, 'index.html'), 'utf8');
     // SPA fallback as a lowest-priority wildcard route. API/health misses stay
     // JSON 404 responses rather than accidentally returning index.html.
@@ -127,7 +167,12 @@ export async function createApiApp(
         await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
         return;
       }
-      await reply.type('text/html; charset=utf-8').send(indexHtml);
+      // The entry document names the hashed chunks, so it must never be held:
+      // a cached index.html would point at files a deploy has already replaced.
+      await reply
+        .header('Cache-Control', 'no-cache')
+        .type('text/html; charset=utf-8')
+        .send(indexHtml);
     });
   }
 

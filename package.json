@@ -25,6 +25,8 @@
     "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
     "test:security": "vitest run tests/security",
     "perf:runtime": "node tools/measure-runtime.mjs",
+    "perf:web": "node tools/measure-load.mjs",
+    "perf:web:check": "node tools/measure-load.mjs http://127.0.0.1:4611 --check",
     "perf:runtime:check": "pnpm nx build identity && node tools/measure-runtime.mjs --check",
     "security:secrets": "node tools/secret-scan.mjs",
     "security:dependencies": "node tools/dependency-inventory.mjs",
@@ -110,6 +112,7 @@
     "yaml": "^2.7.0"
   },
   "dependencies": {
+    "@fastify/compress": "9.2.0",
     "@fastify/cookie": "11.0.1",
     "@fastify/static": "10.1.2",
     "@nestjs/common": "11.1.28",

@@ -729,3 +729,25 @@ tests:
     timeout_seconds: 120
     owner: platform-architecture
     artifacts: [console-report]
+
+  - id: TST-WEB-BOOTSTRAP-001
+    title: Cache policy scopes immutability to hashed filenames and compresses what it sends
+    suite: contracts
+    level: repository
+    phase_available: PHASE-1
+    required_for: [TASK-WEB-BOOTSTRAP-001, TASK-ASSET-DELIVERY-001]
+    command: pnpm vitest run apps/api/src/asset-delivery.spec.ts
+    timeout_seconds: 120
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-LOAD-002
+    title: Page weight and time to a usable first screen stay within budget
+    suite: load
+    level: system
+    phase_available: PHASE-1
+    required_for: [TASK-PERF-BASELINE-001, TASK-WEB-BOOTSTRAP-001, TASK-ASSET-DELIVERY-001]
+    command: pnpm perf:web:check
+    timeout_seconds: 600
+    owner: platform-architecture
+    artifacts: [console-report]

@@ -21,8 +21,11 @@
     "timeToInterfaceMsMax": { "mbps10": 1200, "mbps1_6": 4000 },
     "mainChunkKbMax": 300,
     "measured": {
-      "date": "2026-08-15",
-      "before": { "pageWeightKb": 1824, "timeToInterfaceMs": { "mbps10": 2240, "mbps1_6": 9990 }, "mainChunkKb": 682 }
+      "date": "2026-08-16",
+      "machine": "16 cores, Windows, client on the same host",
+      "note": "Page weight is transferred bytes, not decoded bytes. Reading response bodies reports the uncompressed size and hides compression entirely.",
+      "before": { "pageWeightKb": 1824, "timeToInterfaceMs": { "mbps10": 2240, "mbps1_6": 9990 }, "mainChunkKb": 682 },
+      "after": { "pageWeightKb": 176, "timeToInterfaceMs": { "mbps10": 404, "mbps1_6": 1541 }, "mainChunkKb": 532 }
     }
   }
 }

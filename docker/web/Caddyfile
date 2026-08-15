@@ -14,9 +14,23 @@
 		reverse_proxy api:4611
 	}
 
+	# Content-hashed build output may be held for a year; nothing else may.
+	# The match is on the filename shape, never on the directory: /assets/ also
+	# carries owner-supplied electronics artwork copied verbatim from public/,
+	# which has no hash and must stay revalidated.
+	@hashed path_regexp hashed \-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$
+	handle @hashed {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
 	handle {
 		root * /srv
 		try_files {path} /index.html
+		# The entry document names the hashed chunks, so holding it would point
+		# visitors at files the next deploy has already replaced.
+		header Cache-Control "no-cache"
 		file_server
 	}
 
