@@ -2399,13 +2399,15 @@
   }
 
   .checkers-game-actions {
-    flex-wrap: nowrap;
-    padding-bottom: 2px;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 0;
+    overflow: visible;
   }
 
   .checkers-game-actions button {
-    flex: 0 0 auto;
+    min-width: 0;
+    padding-inline: 7px;
   }
 
   .checkers-board-help {
