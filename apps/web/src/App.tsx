@@ -36,6 +36,11 @@ type SessionState =
   | { kind: 'authenticated'; session: SessionPayload }
   | { kind: 'error' };
 
+type ClassroomSwitchState =
+  | { kind: 'idle' }
+  | { kind: 'switching'; workspaceTitle: string }
+  | { kind: 'error'; message: string };
+
 type PublicView =
   | { kind: 'entry' }
   | { kind: 'sign-in' }
@@ -66,6 +71,7 @@ export function App(): JSX.Element {
     creatorViewFromHash(window.location.hash),
   );
   const [shellCreating, setShellCreating] = useState(false);
+  const [classroomSwitch, setClassroomSwitch] = useState<ClassroomSwitchState>({ kind: 'idle' });
 
   const setView = useCallback((next: CreatorPortalView) => {
     setViewState(next);
@@ -180,7 +186,16 @@ export function App(): JSX.Element {
     );
   }
 
-  const hasTeachingCapability = session.session.navigation.classes;
+  const hasTeachingCapability = session.session.capabilities.some(
+    (entry) =>
+      entry.capability === 'educator' &&
+      (entry.state === 'verified' || entry.state === 'provisional'),
+  );
+  const classroomWorkspaces = session.session.workspaces.filter(
+    (workspace) =>
+      workspace.kind === 'organization' &&
+      ['owner', 'educator', 'school_admin'].includes(workspace.role),
+  );
   const canTeachHere = canUseClasses(
     session.session.navigation,
     session.session.activeWorkspace.kind,
@@ -199,14 +214,45 @@ export function App(): JSX.Element {
   }
 
   const active = sectionForView(view, hasTeachingCapability);
+
+  const switchToClassroomWorkspace = async (workspaceId: string, workspaceTitle: string) => {
+    if (workspaceId === session.session.activeWorkspace.workspaceId) return;
+    setClassroomSwitch({ kind: 'switching', workspaceTitle });
+    const switched = await api.switchWorkspace(workspaceId);
+    const refreshed = switched.ok ? await api.me() : null;
+    if (
+      refreshed?.ok &&
+      refreshed.data.authenticated &&
+      refreshed.data.activeWorkspace.workspaceId === workspaceId
+    ) {
+      setSession({ kind: 'authenticated', session: refreshed.data });
+      setClassroomSwitch({ kind: 'idle' });
+      setView({ kind: 'classrooms' });
+      return;
+    }
+    setClassroomSwitch({
+      kind: 'error',
+      message: 'Не удалось открыть пространство школы. Обновите страницу и повторите.',
+    });
+  };
+
   const navigate = (section: CreatorPortalSection): void => {
     if (section === 'home') setView({ kind: 'home' });
     else if (section === 'projects') setView({ kind: 'my-projects' });
     else if (section === 'learning') setView({ kind: 'learning' });
     else if (section === 'collections') setView({ kind: 'collections' });
     else if (section === 'challenges') setView({ kind: 'challenges' });
-    else if (section === 'classes') setView({ kind: 'classrooms' });
-    else if (section === 'help') setView({ kind: 'help' });
+    else if (section === 'classes') {
+      setView({ kind: 'classrooms' });
+      const onlyWorkspace = classroomWorkspaces.length === 1 ? classroomWorkspaces[0] : undefined;
+      if (
+        hasTeachingCapability &&
+        session.session.activeWorkspace.kind !== 'organization' &&
+        onlyWorkspace
+      ) {
+        void switchToClassroomWorkspace(onlyWorkspace.workspaceId, onlyWorkspace.title);
+      }
+    } else if (section === 'help') setView({ kind: 'help' });
     else setView({ kind: 'account' });
   };
 
@@ -278,12 +324,46 @@ export function App(): JSX.Element {
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
             <p className="portal-eyebrow">Классы</p>
-            <h1>Вы вошли как педагог</h1>
-            <p>
-              Просматривать раздел классов можно из любого пространства. Создавать классы, добавлять
-              учеников и выдавать задания можно только в подтверждённом пространстве школы.
-            </p>
-            <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
+            <h1>
+              {classroomSwitch.kind === 'switching'
+                ? `Открываем классы «${classroomSwitch.workspaceTitle}»`
+                : 'Вы вошли как педагог'}
+            </h1>
+            <p>Подтверждение email для работы с классами не требуется.</p>
+            {classroomWorkspaces.length > 0 ? (
+              <>
+                <p>
+                  Управление учениками и заданиями находится в пространстве школы. Выберите его —
+                  аккаунт и все личные проекты сохранятся.
+                </p>
+                {classroomWorkspaces.map((workspace) => (
+                  <button
+                    key={workspace.workspaceId}
+                    type="button"
+                    className="btn-secondary"
+                    disabled={classroomSwitch.kind === 'switching'}
+                    onClick={() =>
+                      void switchToClassroomWorkspace(workspace.workspaceId, workspace.title)
+                    }
+                  >
+                    {classroomSwitch.kind === 'switching'
+                      ? 'Открываем…'
+                      : `Перейти к классам: ${workspace.title}`}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <p>
+                Режим педагога включён, но к аккаунту ещё не подключено пространство школы. Именно
+                школьное пространство, а не подтверждение почты, необходимо для создания классов.
+              </p>
+            )}
+            {classroomSwitch.kind === 'error' ? (
+              <p className="notice-error" role="alert">
+                {classroomSwitch.message}
+              </p>
+            ) : null}
+            <button type="button" className="btn-ghost" onClick={() => navigate('account')}>
               Открыть настройки аккаунта
             </button>
           </section>
@@ -294,10 +374,10 @@ export function App(): JSX.Element {
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
             <p className="portal-eyebrow">Классы</p>
-            <h1>Раздел классов открыт</h1>
+            <h1>Email не блокирует доступ к классам</h1>
             <p>
-              Подтверждённый пользователь может присоединиться к классу по коду преподавателя. Чтобы
-              создавать собственные классы, включите режим педагога и подключите пространство школы.
+              Проверка почты пока не подключена и не является условием доступа. Чтобы создавать
+              собственные классы, включите режим педагога и подключите пространство школы.
             </p>
             <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
               Открыть настройки аккаунта

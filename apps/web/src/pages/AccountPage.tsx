@@ -65,8 +65,7 @@ function workspaceRoleLabel(role: string): string {
 
 function verificationLabel(state: string): string {
   if (state === 'verified') return 'Email подтверждён';
-  if (state === 'pending') return 'Подтверждение ожидается';
-  return 'Email не подтверждён';
+  return 'Проверка почты пока не подключена';
 }
 
 export function AccountPage({
@@ -461,13 +460,16 @@ export function AccountPage({
                   </div>
                   <strong>Активен</strong>
                 </article>
-                <article className={profile.emailVerificationState === 'verified' ? 'ready' : ''}>
+                <article className="ready">
                   <span>2</span>
                   <div>
-                    <h3>Подтверждённый аккаунт</h3>
-                    <p>Присоединение к классу и участие в проектах по коду преподавателя.</p>
+                    <h3>Доступ к классам</h3>
+                    <p>
+                      Подтверждение email сейчас не требуется. Ученик входит по коду класса, а
+                      педагог управляет классами в пространстве школы.
+                    </p>
                   </div>
-                  <strong>{verificationLabel(profile.emailVerificationState)}</strong>
+                  <strong>Письмо не требуется</strong>
                 </article>
                 <article className={educator ? 'ready' : ''}>
                   <span>3</span>
@@ -573,7 +575,10 @@ export function AccountPage({
                 <div>
                   <span>Email</span>
                   <strong>{profile.email}</strong>
-                  <small>{verificationLabel(profile.emailVerificationState)}</small>
+                  <small>
+                    {verificationLabel(profile.emailVerificationState)}. Это не ограничивает проекты
+                    и классы.
+                  </small>
                 </div>
                 <div>
                   <span>Дата рождения</span>
