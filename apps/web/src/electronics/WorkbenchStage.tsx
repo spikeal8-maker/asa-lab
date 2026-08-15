@@ -4,13 +4,11 @@ import {
   componentPointPosition,
   renderedSize,
   terminalPosition,
-  visualAsset,
 } from './component-catalog';
-import { ComponentPreview } from './component-preview';
 import { ProductionComponentVisual } from './ProductionComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
 import { roundedWirePath, wirePoints } from './workbench-geometry';
-import { CircuitIcon, FitIcon, MoreIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
+import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
@@ -38,24 +36,56 @@ function PickedUpPart({
   // it — so keying this to the preview drew nothing at all while the cursor was
   // still over the panel, which is exactly the moment it is needed.
   const placing = c.catalogPlacement;
-  const typeId = placing?.componentTypeId;
+  const typeId = placing?.mode === 'pointer' && !placing.point ? placing.componentTypeId : null;
 
   useEffect(() => {
     if (!typeId) return;
     function follow(event: PointerEvent): void {
       const node = holder.current;
-      if (node) node.style.transform = `translate(${event.clientX}px, ${event.clientY}px)`;
+      if (node) {
+        node.style.transform = `translate(${event.clientX}px, ${event.clientY}px) translate(-50%, -50%)`;
+      }
     }
     window.addEventListener('pointermove', follow);
     return () => window.removeEventListener('pointermove', follow);
   }, [typeId]);
 
-  if (!typeId) return null;
+  if (!typeId || !placing?.clientPoint) return null;
   const entry = catalogEntry(typeId);
   if (!entry) return null;
+  const size = renderedSize(entry, 0);
+  const stageRect = c.stageRef.current?.getBoundingClientRect();
+  const scale = stageRect
+    ? Math.max(stageRect.width / c.viewBox.width, stageRect.height / c.viewBox.height)
+    : 1;
   return (
-    <div className="workbench-picked-up" ref={holder} aria-hidden="true">
-      <ComponentPreview preview={entry.preview} asset={visualAsset(entry)} entry={entry} />
+    <div
+      className="workbench-picked-up"
+      ref={holder}
+      aria-hidden="true"
+      style={{
+        width: `${size.width * scale}px`,
+        height: `${size.height * scale}px`,
+        transform: `translate(${placing.clientPoint.x}px, ${placing.clientPoint.y}px) translate(-50%, -50%)`,
+      }}
+    >
+      <svg viewBox={`0 0 ${size.width} ${size.height}`} width="100%" height="100%">
+        <ProductionComponentVisual
+          entry={entry}
+          component={{
+            id: 'catalog-pointer-preview',
+            kind: entry.kind,
+            componentTypeId: entry.key,
+            variantId: entry.variantId,
+            position: { x: 0, y: 0 },
+            value: entry.defaultValue,
+          }}
+          width={size.width}
+          height={size.height}
+          visualState="default"
+          effectiveBrightness={0}
+        />
+      </svg>
     </div>
   );
 }
@@ -199,14 +229,30 @@ export function WorkbenchStage({
             const visualState = c.componentVisualState(component);
             const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
             const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
-            const diagnosticText = componentDiagnostics
-              .map(
-                (diagnostic) =>
-                  `${diagnostic.message}${
-                    diagnostic.suggestedAction ? ` ${diagnostic.suggestedAction}` : ''
-                  }`,
-              )
-              .join(' ');
+            const actionableDiagnostics = componentDiagnostics.filter(
+              (diagnostic) => diagnostic.severity !== 'info',
+            );
+            const isLedIndicator = entry.key === 'led-5mm';
+            const isRgbLed = entry.key === 'rgb-led';
+            const ledBurned = (isLedIndicator || isRgbLed) && diagnostics.includes('led_burnout');
+            const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
+            const primaryDiagnostic = ledBurned
+              ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')
+              : ledOvercurrent
+                ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_overcurrent')
+                : actionableDiagnostics[0];
+            const diagnosticText = primaryDiagnostic
+              ? `${primaryDiagnostic.message}${
+                  primaryDiagnostic.suggestedAction ? ` ${primaryDiagnostic.suggestedAction}` : ''
+                }`
+              : '';
+            // The ordinary Tinkercad LED keeps reverse and disconnected states
+            // visually quiet. Its on-canvas marker exists only for actual
+            // over-current, and the destructive state replaces it with the
+            // starburst. Other components retain their existing diagnostics.
+            const showDiagnosticIndicator = isLedIndicator
+              ? ledOvercurrent || ledBurned
+              : !isRgbLed || ledBurned;
             return (
               <g
                 key={component.id}
@@ -248,6 +294,14 @@ export function WorkbenchStage({
                       return (
                         <line
                           key={terminal}
+                          className={`workbench-mounted-lead${
+                            component.kind === 'source' && terminal === 'BAT+'
+                              ? ' positive'
+                              : component.kind === 'source' && terminal === 'BAT-'
+                                ? ' negative'
+                                : ''
+                          }`}
+                          data-mounted-terminal={terminal}
                           x1={physicalPoint.x}
                           y1={physicalPoint.y}
                           x2={landingPoint.x}
@@ -276,6 +330,16 @@ export function WorkbenchStage({
                     }
                   }}
                 >
+                  <rect
+                    className="workbench-component-body-hit"
+                    x="0"
+                    y="0"
+                    width={baseSize.width}
+                    height={baseSize.height}
+                    fill="#ffffff"
+                    fillOpacity={0.001}
+                    pointerEvents="all"
+                  />
                   <ProductionComponentVisual
                     entry={entry}
                     component={component}
@@ -287,30 +351,12 @@ export function WorkbenchStage({
                     selected={selected}
                     selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
+                    onSwitchActuate={
+                      c.simulationRunning && component.kind === 'switch'
+                        ? () => c.toggleComponentState(component.id)
+                        : undefined
+                    }
                   />
-                  {entry.key === 'led-5mm' && c.simulationRunning && diagnostics.length > 0 ? (
-                    <g
-                      className={`workbench-led-diagnostic-badge${
-                        c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''
-                      }`}
-                      data-testid="led-diagnostic-badge"
-                      data-diagnostic-count={diagnostics.length}
-                      transform={`translate(${baseSize.width - 8 / c.viewport.zoom} ${
-                        8 / c.viewport.zoom
-                      })`}
-                      pointerEvents="all"
-                      role="img"
-                      tabIndex={0}
-                      aria-label={diagnosticText}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <title>{diagnosticText}</title>
-                      <circle r={18 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
-                      <text y={7 / c.viewport.zoom} fontSize={20 / c.viewport.zoom}>
-                        !
-                      </text>
-                    </g>
-                  ) : null}
                   {component.kind === 'potentiometer' && c.simulationRunning ? (
                     <circle
                       className="workbench-potentiometer-hit"
@@ -322,6 +368,77 @@ export function WorkbenchStage({
                     />
                   ) : null}
                 </g>
+                {c.simulationRunning && primaryDiagnostic && showDiagnosticIndicator ? (
+                  <g transform={componentTransform(component)}>
+                    <g
+                      className={`workbench-component-diagnostic-indicator${
+                        ledBurned ? ' workbench-led-burnout-explosion' : ''
+                      }${
+                        isLedIndicator && ledOvercurrent ? ' workbench-led-warning-indicator' : ''
+                      }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
+                      data-testid={
+                        ledBurned
+                          ? entry.key === 'rgb-led'
+                            ? 'rgb-led-burnout-explosion'
+                            : 'led-burnout-explosion'
+                          : isLedIndicator
+                            ? 'led-diagnostic-badge'
+                            : 'component-diagnostic-indicator'
+                      }
+                      data-diagnostic-count={actionableDiagnostics.length}
+                      transform={`translate(${
+                        ledBurned ? baseSize.width * 0.5 : baseSize.width * 0.83
+                      } ${ledBurned ? baseSize.height * 0.35 : baseSize.height * 0.16})`}
+                      pointerEvents="all"
+                      role="img"
+                      tabIndex={0}
+                      aria-label={diagnosticText}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        c.selectComponent(component.id, event.shiftKey);
+                      }}
+                    >
+                      <title>{diagnosticText}</title>
+                      {ledBurned ? (
+                        <g transform={`scale(${1 / c.viewport.zoom})`} aria-hidden="true">
+                          <path
+                            className="workbench-led-explosion-outer"
+                            d="M0-30 7-17 20-24 18-9 33-8 22 3 34 13 18 14 19 30 6 21 0 35-7 21-20 29-18 14-34 13-22 3-33-8-18-9-20-24-7-17Z"
+                          />
+                          <path
+                            className="workbench-led-explosion-inner"
+                            d="M0-22 5-11 16-16 13-5 24 0 13 5 16 16 5 11 0 23-5 11-16 16-13 5-24 0-13-5-16-16-5-11Z"
+                          />
+                        </g>
+                      ) : (
+                        <>
+                          <circle r={9 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
+                          <text y={4 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+                            !
+                          </text>
+                        </>
+                      )}
+                      {primaryDiagnostic ? (
+                        <foreignObject
+                          className="workbench-component-diagnostic-tooltip"
+                          x={-100 / c.viewport.zoom}
+                          y={18 / c.viewport.zoom}
+                          width={200 / c.viewport.zoom}
+                          height={142 / c.viewport.zoom}
+                          pointerEvents="none"
+                        >
+                          <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
+                            <strong>{primaryDiagnostic.message}</strong>
+                            {primaryDiagnostic.suggestedAction ? (
+                              <small>{primaryDiagnostic.suggestedAction}</small>
+                            ) : null}
+                          </div>
+                        </foreignObject>
+                      ) : null}
+                    </g>
+                  </g>
+                ) : null}
                 {/* Several hundred invisible hover targets, each recomputing its
                     world position from the board's. While something is being
                     dragged they have nothing to respond to, and drawing them is
@@ -637,41 +754,6 @@ export function WorkbenchStage({
           {Math.round(c.viewport.zoom * 100)}%
         </span>
       </div>
-      {c.notice ? (
-        <div className="workbench-toast" role="status" aria-live="polite">
-          {c.notice}
-        </div>
-      ) : null}
-      {c.simulationRunning ? (
-        <aside className="workbench-results" aria-label="Результаты моделирования">
-          <button type="button" className="workbench-results-toggle" title="Результаты">
-            <MoreIcon />
-          </button>
-          <div className="workbench-results-card">
-            <strong>
-              {c.result?.solved && Math.abs(c.result.current) > 1e-8
-                ? 'Цепь проводит ток'
-                : 'Ток не течёт'}
-            </strong>
-            <span data-testid="current-reading">
-              {c.simulationRunning && c.result?.solved
-                ? `${(c.result.current * 1000).toFixed(1)} мА`
-                : '—'}
-            </span>
-            <ul data-testid="diagnostics">
-              {(c.result?.diagnostics ?? []).slice(0, 3).map((d, i) => (
-                <li key={`${d.code}-${i}`} className={d.severity}>
-                  <span>{d.message}</span>
-                  {d.suggestedAction ? <small>{d.suggestedAction}</small> : null}
-                </li>
-              ))}
-            </ul>
-            {c.versions.length > 0 ? (
-              <small>Последняя версия: №{c.versions[0]?.versionNo}</small>
-            ) : null}
-          </div>
-        </aside>
-      ) : null}
     </section>
   );
 }

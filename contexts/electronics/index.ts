@@ -8,6 +8,7 @@ export {
   type DocumentParseResult,
   type ElectronicsDocument,
   type ElectronicsViewport,
+  type ProductionStateValue,
   type Rotation,
   type SchematicComponent,
   type SchematicConnection,
@@ -15,7 +16,18 @@ export {
   type Terminal,
   type TerminalRef,
 } from './domain/document.js';
+export type { ElectronicsDocument as SchematicDocument } from './domain/document.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
+export {
+  ledBrightnessPercent,
+  ordinaryLedProfile,
+  rgbLedProfile,
+  ORDINARY_LED_PROFILES,
+  RGB_LED_PROFILES,
+  type LedJunctionProfile,
+  type OrdinaryLedColour,
+  type RgbLedChannel,
+} from './domain/led-model.js';
 export {
   electricalModelFor,
   unsupportedElectricalComponents,

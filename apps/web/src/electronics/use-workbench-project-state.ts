@@ -12,16 +12,10 @@ import { defaultProductionType, productionBreadboard } from './production-manife
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState, SaveStatus } from './workbench-model';
 import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
-import { calculateSimulationPreflight, canStartSimulation } from './live-simulation';
+import { prepareLiveSimulationStart } from './live-simulation';
 
 export type SimulationRuntimeStatus =
-  | 'stopped'
-  | 'validating'
-  | 'starting'
-  | 'running'
-  | 'stopping'
-  | 'validation_failed'
-  | 'runtime_failed';
+  'stopped' | 'validating' | 'starting' | 'running' | 'stopping';
 
 function migratedTerminal(
   component: SchematicDocument['components'][number] | undefined,
@@ -332,46 +326,25 @@ export function useWorkbenchProjectState(projectId: string) {
       setSimulationRunning(false);
       setSimulationStatus('stopped');
       setResult(null);
-      setNotice('Моделирование остановлено.');
+      setNotice(null);
       return;
     }
     setSimulationStatus('validating');
-    const nextDocument = {
-      ...document,
-      simulation: { ...document.simulation, running: true },
-    };
-    const preflight = calculateSimulationPreflight(nextDocument);
-    setResult(preflight);
-    if (!canStartSimulation(preflight)) {
-      setSimulationRunning(false);
-      setSimulationStatus('validation_failed');
-      const diagnostic = preflight.diagnostics.find((item) => item.severity === 'error');
-      setNotice(
-        diagnostic
-          ? `Моделирование не запущено: ${diagnostic.message}`
-          : 'Моделирование не запущено: схема не прошла проверку.',
-      );
-      return;
-    }
+    const start = prepareLiveSimulationStart(document);
+    setResult(start.result);
     setSimulationStatus('starting');
-    setDocument(nextDocument);
-    pushHistory(nextDocument);
+    setDocument(start.document);
+    pushHistory(start.document);
     setSimulationRunning(true);
     setSimulationStatus('running');
-    setNotice(
-      'Моделирование запущено. Изменения пересчитываются сразу, сохранение выполняется отдельно.',
-    );
-    void persist(nextDocument, true).then((serverResult) => {
-      if (serverResult && !canStartSimulation(serverResult)) {
-        setSimulationStatus('runtime_failed');
-        setNotice('Серверная проверка схемы не совпала с локальной. Моделирование остановлено.');
-        setSimulationRunning(false);
-        setDocument({
-          ...nextDocument,
-          simulation: { ...nextDocument.simulation, running: false },
-        });
-      }
-    });
+    // Circuits starts immediately and keeps the stage quiet. Electrical
+    // problems belong to the affected part, not to a global toast.
+    setNotice(null);
+    // Persistence validates the same document independently, but an honest
+    // invalid/unsupported/nonconvergent result is diagnostic evidence, not a
+    // reason to switch the visible simulation mode back off. The browser keeps
+    // recalculating the fail-closed result while the learner investigates it.
+    void persist(start.document, true);
   }
 
   function resetSimulation(): void {
@@ -385,7 +358,7 @@ export function useWorkbenchProjectState(projectId: string) {
     setSimulationRunning(false);
     setSimulationStatus('stopped');
     setResult(null);
-    setNotice('Моделирование сброшено. Схема и соединения сохранены.');
+    setNotice(null);
   }
 
   async function checkpoint(): Promise<void> {

@@ -7,12 +7,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import {
-  type ComponentResult,
-  type Diagnostic,
-  type SchematicComponent,
-  type Terminal,
-} from '../api';
+import type { ComponentResult, Diagnostic, SchematicComponent, Terminal } from '../api';
 import {
   catalogEntry,
   componentPointPosition,
@@ -152,6 +147,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [reconnectEndpoint, setReconnectEndpoint] = useState<'from' | 'to' | null>(null);
 
   const stageRef = useRef<SVGSVGElement>(null);
+  const catalogPlacementRef = useRef<CatalogPlacement | null>(null);
   const componentDragRef = useRef<ComponentDrag | null>(null);
   const panDragRef = useRef<PanDrag | null>(null);
   // Where the view actually is while a pan is in flight, since React state is
@@ -172,6 +168,32 @@ export function useElectronicsWorkbench(projectId: string) {
   function visibleCenter(): Point {
     const box = viewportViewBox(viewport, STAGE_WIDTH, STAGE_HEIGHT);
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  function setCatalogPlacementState(next: CatalogPlacement | null): void {
+    catalogPlacementRef.current = next;
+    setCatalogPlacement(next);
+  }
+
+  function catalogPositionAtClient(
+    componentTypeId: string,
+    clientX: number,
+    clientY: number,
+  ): Point | null {
+    const stage = stageRef.current;
+    const entry = catalogEntry(componentTypeId);
+    if (!stage || !entry) return null;
+    const rect = stage.getBoundingClientRect();
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
+      return null;
+    }
+    const pointer = clientToWorld(clientX, clientY, rect, viewport, STAGE_WIDTH, STAGE_HEIGHT);
+    return pointer;
   }
 
   function applyViewport(next: Viewport): void {
@@ -251,9 +273,18 @@ export function useElectronicsWorkbench(projectId: string) {
       at ?? catalogPosition,
       nextId(entry.kind),
     );
+    const placedDocument = at
+      ? snapComponentToBreadboard(added.document, added.component.id)
+      : added.document;
+    const placedComponent = placedDocument.components.find(
+      (component) => component.id === added.component.id,
+    );
+    const mounted = Object.keys(placedComponent?.holeBindings ?? {}).length > 0;
     commitDocument(
-      added.document,
-      `${entry?.label ?? 'Компонент'} добавлен. Соедините выводы проводами.`,
+      placedDocument,
+      mounted
+        ? `${entry.label} установлен в отверстия макетки.`
+        : `${entry.label} добавлен. Соедините выводы проводами.`,
     );
     setSelection({ kind: 'component', id: added.component.id, ids: [added.component.id] });
   }
@@ -287,25 +318,71 @@ export function useElectronicsWorkbench(projectId: string) {
     addComponent(selectedFamilyVariant(family, libraryVariants[familyId]).componentTypeId, at);
   }
 
-  function beginFamilyPlacement(familyId: string): void {
+  function beginFamilyPlacement(
+    familyId: string,
+    pointer?: { readonly pointerId: number; readonly clientX: number; readonly clientY: number },
+  ): void {
     const family = familyById(familyId);
     if (!family?.enabled) return;
     const variant = selectedFamilyVariant(family, libraryVariants[familyId]);
-    setCatalogPlacement({ componentTypeId: variant.componentTypeId, point: null });
+    const next: CatalogPlacement = {
+      componentTypeId: variant.componentTypeId,
+      point: pointer
+        ? catalogPositionAtClient(variant.componentTypeId, pointer.clientX, pointer.clientY)
+        : null,
+      clientPoint: pointer ? { x: pointer.clientX, y: pointer.clientY } : null,
+      pointerId: pointer?.pointerId ?? null,
+      mode: pointer ? 'pointer' : 'keyboard',
+    };
+    setCatalogPlacementState(next);
     setLibraryVariantPopover(null);
     setSelection(null);
     setPendingTerminal(null);
     setWirePreviewEnd(null);
-    setNotice(`${family.familyLabel} прикреплён к указателю. Щёлкните на рабочем поле.`);
+    setNotice(
+      pointer
+        ? `${family.familyLabel}: удерживайте кнопку, перенесите и отпустите на рабочем поле.`
+        : `${family.familyLabel} прикреплён к указателю. Выберите место на рабочем поле.`,
+    );
+  }
+
+  function moveFamilyPlacement(pointerId: number, clientX: number, clientY: number): void {
+    const current = catalogPlacementRef.current;
+    if (current?.mode !== 'pointer' || current.pointerId !== pointerId) return;
+    setCatalogPlacementState({
+      ...current,
+      point: catalogPositionAtClient(current.componentTypeId, clientX, clientY),
+      clientPoint: { x: clientX, y: clientY },
+    });
+  }
+
+  function finishFamilyPlacement(pointerId: number, clientX: number, clientY: number): void {
+    const current = catalogPlacementRef.current;
+    if (current?.mode !== 'pointer' || current.pointerId !== pointerId) return;
+    const point = catalogPositionAtClient(current.componentTypeId, clientX, clientY);
+    setCatalogPlacementState(null);
+    if (!point) {
+      setNotice('Размещение отменено: отпустите компонент над рабочим полем.');
+      return;
+    }
+    addComponent(current.componentTypeId, point);
+  }
+
+  function cancelFamilyPlacement(pointerId?: number): void {
+    const current = catalogPlacementRef.current;
+    if (!current || (pointerId !== undefined && current.pointerId !== pointerId)) return;
+    setCatalogPlacementState(null);
+    setNotice('Размещение отменено.');
   }
 
   function placeCatalogComponent(event: PointerEvent<SVGSVGElement>): void {
-    if (!catalogPlacement || event.button !== 0) return;
+    if (!catalogPlacement || catalogPlacement.mode !== 'keyboard' || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     const { componentTypeId } = catalogPlacement;
-    setCatalogPlacement(null);
-    addComponent(componentTypeId, toWorld(event));
+    setCatalogPlacementState(null);
+    const point = catalogPositionAtClient(componentTypeId, event.clientX, event.clientY);
+    if (point) addComponent(componentTypeId, point);
   }
 
   function duplicateSelected(): void {
@@ -378,6 +455,14 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document) return;
     const next = updateSelectionValue(document, selection, value);
     if (next) commitDocument(next);
+  }
+
+  function updateSelectedResistanceValue(valueOhms: number, unit: string): void {
+    if (!document || !Number.isFinite(valueOhms) || valueOhms < 0) return;
+    const withValue = updateSelectionValue(document, selection, valueOhms);
+    if (!withValue) return;
+    const withUnit = updateSelectionProperties(withValue, selection, { resistanceUnit: unit });
+    commitDocument(withUnit ?? withValue);
   }
 
   function updateSelectedName(name: string): void {
@@ -632,17 +717,21 @@ export function useElectronicsWorkbench(projectId: string) {
       event.stopPropagation();
       return;
     }
-    if (simulationRunning && (component.kind === 'button' || component.kind === 'switch')) {
+    if (simulationRunning && component.kind === 'button') {
       actuatorPressRef.current = {
         componentId: component.id,
         pointerId: event.pointerId,
-        kind: component.kind,
+        kind: 'button',
       };
       stageRef.current?.setPointerCapture(event.pointerId);
       setSelection({ kind: 'component', id: component.id, ids: [component.id] });
-      if (component.kind === 'button') {
-        setComponentState(component.id, true, 'Кнопка нажата.');
-      }
+      setComponentState(component.id, true, 'Кнопка нажата.');
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
+    if (simulationRunning && component.kind === 'switch') {
+      setSelection({ kind: 'component', id: component.id, ids: [component.id] });
       event.stopPropagation();
       event.preventDefault();
       return;
@@ -799,8 +888,17 @@ export function useElectronicsWorkbench(projectId: string) {
       updatePotentiometerFromPointer(potentiometerDrag.componentId, world);
       return;
     }
-    if (catalogPlacement) {
-      setCatalogPlacement((current) => (current ? { ...current, point: world } : current));
+    if (catalogPlacement?.mode === 'keyboard') {
+      const point = catalogPositionAtClient(
+        catalogPlacement.componentTypeId,
+        event.clientX,
+        event.clientY,
+      );
+      setCatalogPlacementState({
+        ...catalogPlacement,
+        point,
+        clientPoint: { x: event.clientX, y: event.clientY },
+      });
       return;
     }
     const vertexDrag = vertexDragRef.current;
@@ -916,11 +1014,7 @@ export function useElectronicsWorkbench(projectId: string) {
     const actuatorPress = actuatorPressRef.current;
     if (actuatorPress?.pointerId === event.pointerId) {
       actuatorPressRef.current = null;
-      if (actuatorPress.kind === 'button') {
-        setComponentState(actuatorPress.componentId, false, 'Кнопка отпущена.');
-      } else {
-        toggleComponentState(actuatorPress.componentId);
-      }
+      setComponentState(actuatorPress.componentId, false, 'Кнопка отпущена.');
     }
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId) {
@@ -1121,7 +1215,7 @@ export function useElectronicsWorkbench(projectId: string) {
         event.preventDefault();
         rotateSelected();
       } else if (event.key === 'Escape') {
-        setCatalogPlacement(null);
+        setCatalogPlacementState(null);
         setPendingTerminal(null);
         setWireDraftVertices([]);
         setWirePreviewEnd(null);
@@ -1236,12 +1330,26 @@ export function useElectronicsWorkbench(projectId: string) {
   const diagnosticsByComponent = useMemo(() => {
     const map = new Map<string, Diagnostic[]>();
     for (const diagnostic of result?.diagnostics ?? []) {
-      for (const componentId of diagnostic.componentIds ?? []) {
+      const explicitComponentIds = diagnostic.componentIds ?? [];
+      // A numerical/topology diagnostic can describe the whole powered circuit
+      // and therefore arrive without a component id. Circuits does not open a
+      // global result window for that case: it anchors the visible warning to
+      // the power source. Keep the calculation fail-closed, but put its message
+      // where the learner can act on it.
+      const componentIds =
+        explicitComponentIds.length > 0
+          ? explicitComponentIds
+          : diagnostic.severity === 'info'
+            ? []
+            : (document?.components
+                .filter((component) => component.kind === 'source')
+                .map((component) => component.id) ?? []);
+      for (const componentId of componentIds) {
         map.set(componentId, [...(map.get(componentId) ?? []), diagnostic]);
       }
     }
     return map;
-  }, [result]);
+  }, [document, result]);
   const diagnosticCodesByComponent = useMemo(
     () =>
       new Map(
@@ -1254,12 +1362,13 @@ export function useElectronicsWorkbench(projectId: string) {
   );
   const errorDiagnosticComponentIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const diagnostic of result?.diagnostics ?? []) {
-      if (diagnostic.severity !== 'error') continue;
-      for (const componentId of diagnostic.componentIds ?? []) ids.add(componentId);
+    for (const [componentId, diagnostics] of diagnosticsByComponent) {
+      if (diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
+        ids.add(componentId);
+      }
     }
     return ids;
-  }, [result]);
+  }, [diagnosticsByComponent]);
 
   function componentVisualState(component: SchematicComponent): ComponentVisualState {
     if (component.kind === 'switch') return component.state ? 'on' : 'default';
@@ -1267,8 +1376,14 @@ export function useElectronicsWorkbench(projectId: string) {
     if (component.kind === 'lamp' && simulationRunning) {
       return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    if (component.kind !== 'led' || !simulationRunning) return 'default';
+    if ((component.kind !== 'led' && component.kind !== 'rgb-led') || !simulationRunning)
+      return 'default';
     const codes = diagnosticCodesByComponent.get(component.id);
+    if (component.kind === 'rgb-led') {
+      if (codes?.has('led_burnout') || codes?.has('short_circuit')) return 'burned';
+      if (codes?.has('led_overcurrent')) return 'overcurrent';
+      return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
+    }
     if (codes?.has('reverse_polarity')) return 'reverse';
     if (codes?.has('led_burnout') || codes?.has('short_circuit')) return 'burned';
     if (codes?.has('led_overcurrent')) return 'overcurrent';
@@ -1341,6 +1456,7 @@ export function useElectronicsWorkbench(projectId: string) {
     rotateSelected,
     mirrorSelected,
     updateSelectedValue,
+    updateSelectedResistanceValue,
     updateSelectedName,
     setSelectedState,
     toggleComponentState,
@@ -1395,6 +1511,9 @@ export function useElectronicsWorkbench(projectId: string) {
     addComponent,
     addFamily,
     beginFamilyPlacement,
+    moveFamilyPlacement,
+    finishFamilyPlacement,
+    cancelFamilyPlacement,
   };
 }
 

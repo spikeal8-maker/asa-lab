@@ -7,21 +7,14 @@ import {
   RESISTOR_BAND_CSS,
   resistorBandState,
   rgbLedColour,
+  rgbLedDisplayColour,
   rgbLedState,
+  rgbLedVisualOpacity,
   WORLD_UNITS_PER_MM,
   type RgbCommonMode,
   type ResistorTolerancePercent,
   type SevenSegmentId,
 } from './production-asset-contracts';
-
-const LED_GLOW_RGB: Readonly<Record<string, string>> = {
-  blue: '47, 132, 255',
-  green: '46, 214, 82',
-  orange: '255, 145, 28',
-  red: '255, 48, 56',
-  white: '238, 248, 255',
-  yellow: '255, 221, 48',
-};
 
 const TINKERCAD_MODEL_UNIT_MM = 0.254;
 const TINKERCAD_MODEL_TO_WORLD = TINKERCAD_MODEL_UNIT_MM * WORLD_UNITS_PER_MM;
@@ -53,6 +46,7 @@ interface Props {
   readonly selected?: boolean;
   readonly selectionOffset?: number;
   readonly simulationRunning?: boolean;
+  readonly onSwitchActuate?: (() => void) | undefined;
 }
 
 const SEGMENT_BOXES: Readonly<Record<SevenSegmentId, readonly [number, number, number, number]>> = {
@@ -77,6 +71,7 @@ export function ProductionComponentVisual({
   selected = false,
   selectionOffset = 2,
   simulationRunning = false,
+  onSwitchActuate,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const ledColour = String(properties['ledColour'] ?? 'red');
@@ -84,7 +79,10 @@ export function ProductionComponentVisual({
     entry.key === 'led-5mm' && simulationRunning
       ? Math.round(Math.min(100, Math.max(0, effectiveBrightness ?? 0)))
       : 0;
-  const ledIsLit = entry.key === 'led-5mm' && visualState === 'lit' && ledBrightness > 0;
+  const ledIsLit =
+    entry.key === 'led-5mm' &&
+    (visualState === 'lit' || visualState === 'overcurrent') &&
+    ledBrightness > 0;
   const ledRuntimeState =
     entry.key !== 'led-5mm'
       ? undefined
@@ -95,6 +93,37 @@ export function ProductionComponentVisual({
           : visualState === 'off'
             ? 'off'
             : 'fault';
+  const rgbRed =
+    entry.key === 'rgb-led' && simulationRunning
+      ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['red'] ?? 0)))
+      : 0;
+  const rgbGreen =
+    entry.key === 'rgb-led' && simulationRunning
+      ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['green'] ?? 0)))
+      : 0;
+  const rgbBlue =
+    entry.key === 'rgb-led' && simulationRunning
+      ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.['blue'] ?? 0)))
+      : 0;
+  const rgbBrightness = Math.max(rgbRed, rgbGreen, rgbBlue);
+  const rgbState = rgbLedState(
+    rgbRed,
+    rgbGreen,
+    rgbBlue,
+    String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
+  );
+  const rgbColour = rgbLedColour(rgbState);
+  const rgbDisplayColour = rgbLedDisplayColour(rgbState);
+  const rgbDisplayOpacity = rgbLedVisualOpacity(rgbState);
+  const rgbFaultState = entry.key === 'rgb-led' && visualState === 'burned' ? 'burned' : undefined;
+  const rgbIsLit =
+    entry.key === 'rgb-led' && simulationRunning && rgbBrightness > 0 && rgbFaultState !== 'burned';
+  const rgbRuntimeState =
+    entry.key !== 'rgb-led'
+      ? undefined
+      : !simulationRunning
+        ? 'stopped'
+        : (rgbFaultState ?? (rgbIsLit ? 'lit' : 'off'));
   const visualComponent: SchematicComponent =
     entry.key === 'led-5mm' && effectiveBrightness !== undefined
       ? {
@@ -138,8 +167,12 @@ export function ProductionComponentVisual({
   return (
     <svg
       className={`workbench-production-visual${
-        entry.key === 'led-5mm' ? ` workbench-led-visual${ledIsLit ? ' is-lit' : ''}` : ''
-      }`}
+        entry.key === 'led-5mm'
+          ? ` workbench-led-visual${ledIsLit ? ' is-lit' : ''}${
+              visualState === 'reverse' ? ' is-reverse' : ''
+            }`
+          : ''
+      }${entry.key === 'rgb-led' ? ` workbench-rgb-led-visual${rgbIsLit ? ' is-lit' : ''}` : ''}`}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -147,15 +180,13 @@ export function ProductionComponentVisual({
       data-led-colour={entry.key === 'led-5mm' ? ledColour : undefined}
       data-led-brightness={entry.key === 'led-5mm' ? ledBrightness : undefined}
       data-led-runtime-state={ledRuntimeState}
+      data-rgb-red={entry.key === 'rgb-led' ? Math.round(rgbRed) : undefined}
+      data-rgb-green={entry.key === 'rgb-led' ? Math.round(rgbGreen) : undefined}
+      data-rgb-blue={entry.key === 'rgb-led' ? Math.round(rgbBlue) : undefined}
+      data-rgb-colour={entry.key === 'rgb-led' ? rgbColour : undefined}
+      data-rgb-runtime-state={rgbRuntimeState}
       style={
-        ledIsLit
-          ? ({
-              '--workbench-led-glow': `rgba(${LED_GLOW_RGB[ledColour] ?? LED_GLOW_RGB['red']}, ${(
-                0.28 +
-                (ledBrightness / 100) * 0.62
-              ).toFixed(3)})`,
-            } as CSSProperties)
-          : undefined
+        rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
       }
       aria-hidden="true"
     >
@@ -469,7 +500,19 @@ export function ProductionComponentVisual({
               />
             </g>
           ) : null}
-          <g transform="translate(0 -10)">
+          <g
+            data-testid="spdt-actuator"
+            transform="translate(0 -10)"
+            onPointerDown={
+              onSwitchActuate
+                ? (event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    onSwitchActuate();
+                  }
+                : undefined
+            }
+          >
             <rect x="-14" y="-5" width="28" height="10" rx="1" fill="#565656" />
             <rect x="-9.5" y="-3.75" width="19" height="7.5" fill="#222222" />
             <g transform={visualState === 'on' ? undefined : 'translate(-10 0)'} stroke="#afafaf">
@@ -492,28 +535,13 @@ export function ProductionComponentVisual({
       {entry.key === 'rgb-led' ? (
         <ellipse
           data-testid="rgb-led-mixture"
+          className="workbench-rgb-led-mixture"
           cx={width * 0.5}
           cy={height * 0.36}
           rx={width * 0.24}
           ry={height * 0.27}
-          fill={rgbLedColour(
-            rgbLedState(
-              simulationRunning ? Number(result?.branchBrightness?.['red'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['green'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['blue'] ?? 0) : 0,
-              String(properties['commonMode'] ?? 'common-cathode') as RgbCommonMode,
-            ),
-          )}
-          opacity={
-            (Math.max(
-              simulationRunning ? Number(result?.branchBrightness?.['red'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['green'] ?? 0) : 0,
-              simulationRunning ? Number(result?.branchBrightness?.['blue'] ?? 0) : 0,
-            ) /
-              100) *
-            0.72
-          }
-          style={{ mixBlendMode: 'screen' }}
+          fill={rgbDisplayColour}
+          opacity={rgbIsLit ? rgbDisplayOpacity : 0}
         />
       ) : null}
 

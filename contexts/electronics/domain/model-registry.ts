@@ -10,6 +10,7 @@ export type ElectricalModelId =
   | 'spdt-switch'
   | 'potentiometer'
   | 'diode'
+  | 'npn-transistor'
   | 'incandescent-lamp'
   | 'breadboard-connectivity'
   | 'ideal-wire';
@@ -110,6 +111,13 @@ const MODELS: Readonly<Record<ComponentKind, ElectricalModelDescriptor>> = {
     topology: 'two-terminal',
     requiredTerminals: ['a', 'b'],
   },
+  transistor: {
+    id: 'npn-transistor',
+    kind: 'transistor',
+    support: 'supported',
+    topology: 'three-terminal',
+    requiredTerminals: ['base', 'collector', 'emitter'],
+  },
   lamp: {
     id: 'incandescent-lamp',
     kind: 'lamp',
@@ -155,6 +163,7 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
   if (component.kind === 'source') return ['BAT-', 'BAT+'];
   if (component.kind === 'resistor') return ['lead-1', 'lead-2'];
   if (component.kind === 'led' || component.kind === 'diode') return ['anode', 'cathode'];
+  if (component.kind === 'transistor') return ['base', 'collector', 'emitter'];
   if (component.kind === 'rgb-led') return ['red', 'common', 'green', 'blue'];
   if (component.kind === 'seven-segment') return MODELS['seven-segment'].requiredTerminals;
   if (component.kind === 'button') return ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'];

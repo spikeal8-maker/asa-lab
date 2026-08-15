@@ -13,7 +13,6 @@ export type PreviewKey =
   | 'coin-cell'
   | 'battery-aa'
   | 'breadboard'
-  | 'microbit'
   | 'vibration-motor'
   | 'arduino'
   | 'servo'

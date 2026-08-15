@@ -1,0 +1,2557 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="992"
+   height="741"
+   viewBox="0 0 992 741"
+   version="1.1"
+   id="svg309"
+   sodipodi:docname="arduino_uno_pure_vector_checked.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview
+     id="namedview309"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.4966262"
+     inkscape:cx="495.78179"
+     inkscape:cy="370.5"
+     inkscape:window-width="2160"
+     inkscape:window-height="1360"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="mounting-holes" />
+  <title
+     id="title1">Arduino UNO — pure editable vector reconstruction</title>
+  <desc
+     id="desc1">Pure SVG vector. No raster images, no external assets. Text is converted to paths in the production file.</desc>
+  <defs
+     id="defs2">
+    <clipPath
+       id="capClip1">
+      <circle
+         cx="310"
+         cy="594"
+         r="31"
+         id="circle1" />
+    </clipPath>
+    <clipPath
+       id="capClip2">
+      <circle
+         cx="405"
+         cy="594"
+         r="31"
+         id="circle2" />
+    </clipPath>
+    <path
+       id="b28"
+       d="M399 -425Q242 -199 172.0 26.0Q102 251 102 531Q102 810 172.0 1034.5Q242 1259 399 1484H680Q522 1256 450.5 1030.0Q379 804 379 530Q379 257 450.0 32.5Q521 -192 680 -425Z" />
+    <path
+       id="b29"
+       d="M2 -425Q162 -191 232.5 32.5Q303 256 303 530Q303 805 231.0 1031.5Q159 1258 2 1484H283Q441 1257 510.5 1032.0Q580 807 580 531Q580 253 510.5 28.0Q441 -197 283 -425Z" />
+    <path
+       id="b2e"
+       d="M139 0V305H428V0Z" />
+    <path
+       id="b30"
+       d="M1055 705Q1055 348 932.5 164.0Q810 -20 565 -20Q81 -20 81 705Q81 958 134.0 1118.0Q187 1278 293.0 1354.0Q399 1430 573 1430Q823 1430 939.0 1249.0Q1055 1068 1055 705ZM773 705Q773 900 754.0 1008.0Q735 1116 693.0 1163.0Q651 1210 571 1210Q486 1210 442.5 1162.5Q399 1115 380.5 1007.5Q362 900 362 705Q362 512 381.5 403.5Q401 295 443.5 248.0Q486 201 567 201Q647 201 690.5 250.5Q734 300 753.5 409.0Q773 518 773 705Z" />
+    <path
+       id="b31"
+       d="M129 0V209H478V1170L140 959V1180L493 1409H759V209H1082V0Z" />
+    <path
+       id="b32"
+       d="M71 0V195Q126 316 227.5 431.0Q329 546 483 671Q631 791 690.5 869.0Q750 947 750 1022Q750 1206 565 1206Q475 1206 427.5 1157.5Q380 1109 366 1012L83 1028Q107 1224 229.5 1327.0Q352 1430 563 1430Q791 1430 913.0 1326.0Q1035 1222 1035 1034Q1035 935 996.0 855.0Q957 775 896.0 707.5Q835 640 760.5 581.0Q686 522 616.0 466.0Q546 410 488.5 353.0Q431 296 403 231H1057V0Z" />
+    <path
+       id="b33"
+       d="M1065 391Q1065 193 935.0 85.0Q805 -23 565 -23Q338 -23 204.0 81.5Q70 186 47 383L333 408Q360 205 564 205Q665 205 721.0 255.0Q777 305 777 408Q777 502 709.0 552.0Q641 602 507 602H409V829H501Q622 829 683.0 878.5Q744 928 744 1020Q744 1107 695.5 1156.5Q647 1206 554 1206Q467 1206 413.5 1158.0Q360 1110 352 1022L71 1042Q93 1224 222.0 1327.0Q351 1430 559 1430Q780 1430 904.5 1330.5Q1029 1231 1029 1055Q1029 923 951.5 838.0Q874 753 728 725V721Q890 702 977.5 614.5Q1065 527 1065 391Z" />
+    <path
+       id="b34"
+       d="M940 287V0H672V287H31V498L626 1409H940V496H1128V287ZM672 957Q672 1011 675.5 1074.0Q679 1137 681 1155Q655 1099 587 993L260 496H672Z" />
+    <path
+       id="b35"
+       d="M1082 469Q1082 245 942.5 112.5Q803 -20 560 -20Q348 -20 220.5 75.5Q93 171 63 352L344 375Q366 285 422.0 244.0Q478 203 563 203Q668 203 730.5 270.0Q793 337 793 463Q793 574 734.0 640.5Q675 707 569 707Q452 707 378 616H104L153 1409H1000V1200H408L385 844Q487 934 640 934Q841 934 961.5 809.0Q1082 684 1082 469Z" />
+    <path
+       id="b36"
+       d="M1065 461Q1065 236 939.0 108.0Q813 -20 591 -20Q342 -20 208.5 154.5Q75 329 75 672Q75 1049 210.5 1239.5Q346 1430 598 1430Q777 1430 880.5 1351.0Q984 1272 1027 1106L762 1069Q724 1208 592 1208Q479 1208 414.5 1095.0Q350 982 350 752Q395 827 475.0 867.0Q555 907 656 907Q845 907 955.0 787.0Q1065 667 1065 461ZM783 453Q783 573 727.5 636.5Q672 700 575 700Q482 700 426.0 640.5Q370 581 370 483Q370 360 428.5 279.5Q487 199 582.0 199.0Q677 199 730.0 266.5Q783 334 783 453Z" />
+    <path
+       id="b37"
+       d="M1049 1186Q954 1036 869.5 895.0Q785 754 722.0 611.5Q659 469 622.5 318.5Q586 168 586 0H293Q293 176 339.0 340.5Q385 505 472.0 675.5Q559 846 788 1178H88V1409H1049Z" />
+    <path
+       id="b38"
+       d="M1076 397Q1076 199 945.0 89.5Q814 -20 571 -20Q330 -20 197.5 89.0Q65 198 65 395Q65 530 143.0 622.5Q221 715 352 737V741Q238 766 168.0 854.0Q98 942 98 1057Q98 1230 220.5 1330.0Q343 1430 567 1430Q796 1430 918.5 1332.5Q1041 1235 1041 1055Q1041 940 971.5 853.0Q902 766 785 743V739Q921 717 998.5 627.5Q1076 538 1076 397ZM785 420Q785 641 565 641Q463 641 408.5 583.0Q354 525 354 416Q354 292 408.0 235.0Q462 178 573 178Q682 178 733.5 235.0Q785 292 785 420ZM752 1040Q752 1140 706.0 1186.5Q660 1233 567 1233Q385 1233 385 1040Q385 838 569 838Q661 838 706.5 885.0Q752 932 752 1040Z" />
+    <path
+       id="b39"
+       d="M1063 727Q1063 352 926.0 166.0Q789 -20 537 -20Q351 -20 245.5 59.5Q140 139 96 311L360 348Q399 201 540 201Q658 201 721.5 314.0Q785 427 787 649Q749 574 662.5 531.5Q576 489 476 489Q290 489 180.5 615.5Q71 742 71 958Q71 1180 199.5 1305.0Q328 1430 563 1430Q816 1430 939.5 1254.5Q1063 1079 1063 727ZM766 924Q766 1055 708.5 1132.5Q651 1210 556 1210Q463 1210 409.5 1142.5Q356 1075 356 956Q356 839 409.0 768.5Q462 698 557 698Q647 698 706.5 759.5Q766 821 766 924Z" />
+    <path
+       id="b41"
+       d="M1133 0 1008 360H471L346 0H51L565 1409H913L1425 0ZM942 582 803 987 739 1192Q723 1134 709.0 1088.0Q695 1042 537 582Z" />
+    <path
+       id="b44"
+       d="M1393 715Q1393 497 1307.5 334.5Q1222 172 1065.5 86.0Q909 0 707 0H137V1409H647Q1003 1409 1198.0 1229.5Q1393 1050 1393 715ZM1096 715Q1096 942 978.0 1061.5Q860 1181 641 1181H432V228H682Q872 228 984.0 359.0Q1096 490 1096 715Z" />
+    <path
+       id="b45"
+       d="M137 0V1409H1245V1181H432V827H1184V599H432V228H1286V0Z" />
+    <path
+       id="b46"
+       d="M432 1181V745H1153V517H432V0H137V1409H1176V1181Z" />
+    <path
+       id="b47"
+       d="M806 211Q921 211 1029.0 244.5Q1137 278 1196 330V525H852V743H1466V225Q1354 110 1174.5 45.0Q995 -20 798 -20Q454 -20 269.0 170.5Q84 361 84 711Q84 1059 270.0 1244.5Q456 1430 805 1430Q1301 1430 1436 1063L1164 981Q1120 1088 1026.0 1143.0Q932 1198 805 1198Q597 1198 489.0 1072.0Q381 946 381 711Q381 472 492.5 341.5Q604 211 806 211Z" />
+    <path
+       id="b49"
+       d="M137 0V1409H432V0Z" />
+    <path
+       id="b4c"
+       d="M137 0V1409H432V228H1188V0Z" />
+    <path
+       id="b4d"
+       d="M1307 0V854Q1307 883 1307.5 912.0Q1308 941 1317 1161Q1246 892 1212 786L958 0H748L494 786L387 1161Q399 929 399 854V0H137V1409H532L784 621L854 356L917 582L1176 1409H1569V0Z" />
+    <path
+       id="b4e"
+       d="M995 0 381 1085Q399 927 399 831V0H137V1409H474L1097 315Q1079 466 1079 590V1409H1341V0Z" />
+    <path
+       id="b4f"
+       d="M1507 711Q1507 491 1420.0 324.0Q1333 157 1171.0 68.5Q1009 -20 793 -20Q461 -20 272.5 175.5Q84 371 84 711Q84 1050 272.0 1240.0Q460 1430 795.0 1430.0Q1130 1430 1318.5 1238.0Q1507 1046 1507 711ZM1206 711Q1206 939 1098.0 1068.5Q990 1198 795 1198Q597 1198 489.0 1069.5Q381 941 381 711Q381 479 491.5 345.5Q602 212 793 212Q991 212 1098.5 342.0Q1206 472 1206 711Z" />
+    <path
+       id="b50"
+       d="M1296 963Q1296 827 1234.0 720.0Q1172 613 1056.5 554.5Q941 496 782 496H432V0H137V1409H770Q1023 1409 1159.5 1292.5Q1296 1176 1296 963ZM999 958Q999 1180 737 1180H432V723H745Q867 723 933.0 783.5Q999 844 999 958Z" />
+    <path
+       id="b52"
+       d="M1105 0 778 535H432V0H137V1409H841Q1093 1409 1230.0 1300.5Q1367 1192 1367 989Q1367 841 1283.0 733.5Q1199 626 1056 592L1437 0ZM1070 977Q1070 1180 810 1180H432V764H818Q942 764 1006.0 820.0Q1070 876 1070 977Z" />
+    <path
+       id="b53"
+       d="M1286 406Q1286 199 1132.5 89.5Q979 -20 682 -20Q411 -20 257.0 76.0Q103 172 59 367L344 414Q373 302 457.0 251.5Q541 201 690 201Q999 201 999 389Q999 449 963.5 488.0Q928 527 863.5 553.0Q799 579 616 616Q458 653 396.0 675.5Q334 698 284.0 728.5Q234 759 199.0 802.0Q164 845 144.5 903.0Q125 961 125 1036Q125 1227 268.5 1328.5Q412 1430 686 1430Q948 1430 1079.5 1348.0Q1211 1266 1249 1077L963 1038Q941 1129 873.5 1175.0Q806 1221 680 1221Q412 1221 412 1053Q412 998 440.5 963.0Q469 928 525.0 903.0Q581 878 752 842Q955 799 1042.5 762.5Q1130 726 1181.0 677.5Q1232 629 1259.0 561.5Q1286 494 1286 406Z" />
+    <path
+       id="b54"
+       d="M773 1181V0H478V1181H23V1409H1229V1181Z" />
+    <path
+       id="b55"
+       d="M723 -20Q432 -20 277.5 122.0Q123 264 123 528V1409H418V551Q418 384 497.5 297.5Q577 211 731 211Q889 211 974.0 301.5Q1059 392 1059 561V1409H1354V543Q1354 275 1188.5 127.5Q1023 -20 723 -20Z" />
+    <path
+       id="b56"
+       d="M834 0H535L14 1409H322L612 504Q640 415 686 238L709 325Q739 445 758 504L1047 1409H1352Z" />
+    <path
+       id="b57"
+       d="M1567 0H1217L1026 815Q991 959 967 1116Q943 985 928.0 916.5Q913 848 715 0H365L2 1409H301L505 499L551 279Q579 418 605.5 544.5Q632 671 805 1409H1135L1313 659Q1334 575 1384 279L1409 395L1462 625L1632 1409H1931Z" />
+    <path
+       id="b58"
+       d="M1038 0 684 561 330 0H18L506 741L59 1409H371L684 911L997 1409H1307L879 741L1348 0Z" />
+    <path
+       id="b69"
+       d="M143 0V1082H424V0ZM143 1277V1484H424V1277Z" />
+    <path
+       id="b6e"
+       d="M844 0V607Q844 892 651 892Q549 892 486.5 804.5Q424 717 424 580V0H143V840Q143 927 140.5 982.5Q138 1038 135 1082H403Q406 1063 411.0 980.5Q416 898 416 867H420Q477 991 563.0 1047.0Q649 1103 768 1103Q940 1103 1032.0 997.0Q1124 891 1124 687V0Z" />
+    <path
+       id="b7e"
+       d="M852 516Q777 516 704.5 537.0Q632 558 557 584Q422 631 336 631Q265 631 205.5 609.5Q146 588 81 543V756Q194 840 352 840Q457 840 594 793Q726 747 776.0 735.0Q826 723 871 723Q1005 723 1119 815V596Q1055 552 996.5 534.0Q938 516 852 516Z" />
+    <path
+       id="b2190"
+       d="M641 497Q698 430 760 300H688Q561 449 418 522V558Q561 631 688 780H760Q698 650 641 583H1630V497Z" />
+    <path
+       id="b2192"
+       d="M1407 583Q1350 650 1288 780H1360Q1487 631 1630 558V522Q1487 449 1360 300H1288Q1350 430 1407 497H418V583Z" />
+    <path
+       id="r2e"
+       d="M187 0V219H382V0Z" />
+    <path
+       id="r30"
+       d="M1059 705Q1059 352 934.5 166.0Q810 -20 567.0 -20.0Q324 -20 202.0 165.0Q80 350 80 705Q80 1068 198.5 1249.0Q317 1430 573 1430Q822 1430 940.5 1247.0Q1059 1064 1059 705ZM876 705Q876 1010 805.5 1147.0Q735 1284 573 1284Q407 1284 334.5 1149.0Q262 1014 262 705Q262 405 335.5 266.0Q409 127 569 127Q728 127 802.0 269.0Q876 411 876 705Z" />
+    <path
+       id="r31"
+       d="M156 0V153H515V1237L197 1010V1180L530 1409H696V153H1039V0Z" />
+    <path
+       id="r36"
+       d="M1049 461Q1049 238 928.0 109.0Q807 -20 594 -20Q356 -20 230.0 157.0Q104 334 104 672Q104 1038 235.0 1234.0Q366 1430 608 1430Q927 1430 1010 1143L838 1112Q785 1284 606 1284Q452 1284 367.5 1140.5Q283 997 283 725Q332 816 421.0 863.5Q510 911 625 911Q820 911 934.5 789.0Q1049 667 1049 461ZM866 453Q866 606 791.0 689.0Q716 772 582 772Q456 772 378.5 698.5Q301 625 301 496Q301 333 381.5 229.0Q462 125 588 125Q718 125 792.0 212.5Q866 300 866 453Z" />
+    <path
+       id="r47"
+       d="M103 711Q103 1054 287.0 1242.0Q471 1430 804 1430Q1038 1430 1184.0 1351.0Q1330 1272 1409 1098L1227 1044Q1167 1164 1061.5 1219.0Q956 1274 799 1274Q555 1274 426.0 1126.5Q297 979 297 711Q297 444 434.0 289.5Q571 135 813 135Q951 135 1070.5 177.0Q1190 219 1264 291V545H843V705H1440V219Q1328 105 1165.5 42.5Q1003 -20 813 -20Q592 -20 432.0 68.0Q272 156 187.5 321.5Q103 487 103 711Z" />
+    <path
+       id="r4b"
+       d="M1106 0 543 680 359 540V0H168V1409H359V703L1038 1409H1263L663 797L1343 0Z" />
+    <path
+       id="r4e"
+       d="M1082 0 328 1200 333 1103 338 936V0H168V1409H390L1152 201Q1140 397 1140 485V1409H1312V0Z" />
+    <path
+       id="r4f"
+       d="M1495 711Q1495 490 1410.5 324.0Q1326 158 1168.0 69.0Q1010 -20 795 -20Q578 -20 420.5 68.0Q263 156 180.0 322.5Q97 489 97 711Q97 1049 282.0 1239.5Q467 1430 797 1430Q1012 1430 1170.0 1344.5Q1328 1259 1411.5 1096.0Q1495 933 1495 711ZM1300 711Q1300 974 1168.5 1124.0Q1037 1274 797 1274Q555 1274 423.0 1126.0Q291 978 291 711Q291 446 424.5 290.5Q558 135 795 135Q1039 135 1169.5 285.5Q1300 436 1300 711Z" />
+    <path
+       id="r50"
+       d="M1258 985Q1258 785 1127.5 667.0Q997 549 773 549H359V0H168V1409H761Q998 1409 1128.0 1298.0Q1258 1187 1258 985ZM1066 983Q1066 1256 738 1256H359V700H746Q1066 700 1066 983Z" />
+    <path
+       id="r53"
+       d="M1272 389Q1272 194 1119.5 87.0Q967 -20 690 -20Q175 -20 93 338L278 375Q310 248 414.0 188.5Q518 129 697 129Q882 129 982.5 192.5Q1083 256 1083 379Q1083 448 1051.5 491.0Q1020 534 963.0 562.0Q906 590 827.0 609.0Q748 628 652 650Q485 687 398.5 724.0Q312 761 262.0 806.5Q212 852 185.5 913.0Q159 974 159 1053Q159 1234 297.5 1332.0Q436 1430 694 1430Q934 1430 1061.0 1356.5Q1188 1283 1239 1106L1051 1073Q1020 1185 933.0 1235.5Q846 1286 692 1286Q523 1286 434.0 1230.0Q345 1174 345 1063Q345 998 379.5 955.5Q414 913 479.0 883.5Q544 854 738 811Q803 796 867.5 780.5Q932 765 991.0 743.5Q1050 722 1101.5 693.0Q1153 664 1191.0 622.0Q1229 580 1250.5 523.0Q1272 466 1272 389Z" />
+    <path
+       id="r55"
+       d="M731 -20Q558 -20 429.0 43.0Q300 106 229.0 226.0Q158 346 158 512V1409H349V528Q349 335 447.0 235.0Q545 135 730 135Q920 135 1025.5 238.5Q1131 342 1131 541V1409H1321V530Q1321 359 1248.5 235.0Q1176 111 1043.5 45.5Q911 -20 731 -20Z" />
+  </defs>
+  <path
+     id="pcb"
+     d="M112 31H910q10 0 16 10l3 8v145l32 35v409l-32 33v17q0 14-15 14H112q-13 0-13-13V44q0-13 13-13z"
+     fill="#316E99" />
+  <g
+     id="mounting-holes">
+    <circle
+       cx="291"
+       cy="65"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="circle3" />
+    <circle
+       cx="931"
+       cy="256"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="circle4" />
+    <circle
+       cx="931"
+       cy="608"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="circle5" />
+    <circle
+       cx="275"
+       cy="671"
+       r="20"
+       fill="#F4F5F6"
+       stroke="#8E8449"
+       stroke-width="3"
+       id="circle6" />
+    <circle
+       cx="143"
+       cy="179"
+       r="22"
+       fill="#DDDDDD"
+       id="circle7" />
+    <circle
+       cx="142"
+       cy="330"
+       r="22"
+       fill="#dddddd"
+       id="circle7-8" />
+    <circle
+       cx="143"
+       cy="306"
+       r="22"
+       fill="#DDDDDD"
+       id="circle8" />
+  </g>
+  <g
+     transform="translate(317 48)"
+     id="g39">
+    <rect
+       width="325"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="rect8" />
+    <g
+       transform="translate(7 4)"
+       id="g11">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect9" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path9" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path10" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path11" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="g14">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect11" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path12" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path13" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path14" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="g17">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect14" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path15" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path16" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path17" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="g20">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect17" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path18" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path19" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path20" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="g23">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect20" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path21" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path22" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path23" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="g26">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect23" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path24" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path25" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path26" />
+    </g>
+    <g
+       transform="translate(199 4)"
+       id="g29">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect26" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path27" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path28" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path29" />
+    </g>
+    <g
+       transform="translate(231 4)"
+       id="g32">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect29" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path30" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path31" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path32" />
+    </g>
+    <g
+       transform="translate(263 4)"
+       id="g35">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect32" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path33" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path34" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path35" />
+    </g>
+    <g
+       transform="translate(295 4)"
+       id="g38">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect35" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path36" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path37" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path38" />
+    </g>
+  </g>
+  <g
+     transform="translate(655 48)"
+     id="g64">
+    <rect
+       width="261"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="rect39" />
+    <g
+       transform="translate(7 4)"
+       id="g42">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect40" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path40" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path41" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path42" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="g45">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect42" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path43" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path44" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path45" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="g48">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect45" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path46" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path47" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path48" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="g51">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect48" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path49" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path50" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path51" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="g54">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect51" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path52" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path53" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path54" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="g57">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect54" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path55" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path56" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path57" />
+    </g>
+    <g
+       transform="translate(199 4)"
+       id="g60">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect57" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path58" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path59" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path60" />
+    </g>
+    <g
+       transform="translate(231 4)"
+       id="g63">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect60" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path61" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path62" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path63" />
+    </g>
+  </g>
+  <g
+     id="reset-button"
+     transform="translate(-3.3408476,-6.6816952)">
+    <rect
+       x="136"
+       y="60"
+       width="86"
+       height="84"
+       rx="7"
+       fill="#224d6b"
+       id="rect64" />
+    <rect
+       x="136"
+       y="54"
+       width="86"
+       height="84"
+       rx="7"
+       fill="#dddddd"
+       id="rect65" />
+    <rect
+       x="129"
+       y="61"
+       width="7"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="rect66" />
+    <rect
+       x="129"
+       y="88"
+       width="7"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="rect67" />
+    <rect
+       x="129.34085"
+       y="114.68169"
+       width="7"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="rect67-9" />
+    <rect
+       x="222"
+       y="61"
+       width="8"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="rect68" />
+    <rect
+       x="222"
+       y="111"
+       width="8"
+       height="20"
+       rx="2"
+       fill="#eaeaea"
+       id="rect69" />
+    <circle
+       cx="179"
+       cy="99"
+       r="23"
+       fill="#9a9a9a"
+       id="circle69" />
+    <circle
+       cx="179"
+       cy="95"
+       r="21"
+       fill="#b15f4b"
+       id="circle70" />
+    <circle
+       cx="179"
+       cy="95"
+       r="19"
+       fill="#a0442e"
+       id="circle71" />
+    <path
+       d="m 164,85 a 18,18 0 0 1 26,-7"
+       fill="none"
+       stroke="#bf7968"
+       stroke-width="2"
+       stroke-linecap="round"
+       opacity="0.65"
+       id="path71" />
+  </g>
+  <g
+     id="usb-socket">
+    <rect
+       x="18"
+       y="183"
+       width="209"
+       height="150"
+       rx="4"
+       fill="#A3A3A3"
+       id="rect71" />
+    <rect
+       x="18"
+       y="177"
+       width="209"
+       height="151"
+       rx="4"
+       fill="#DDDDDD"
+       stroke="#C1C1C1"
+       stroke-width="1"
+       id="rect72" />
+    <path
+       d="M18 327h209v5q0 2-3 2H21q-3 0-3-2z"
+       fill="#A3A3A3"
+       id="path72" />
+    <line
+       x1="219"
+       y1="228"
+       x2="219"
+       y2="276"
+       stroke="#A8A8A8"
+       stroke-width="3"
+       id="line72" />
+  </g>
+  <g
+     id="usb-interface">
+    <rect
+       x="309"
+       y="237"
+       width="68"
+       height="71"
+       rx="4"
+       fill="#3C4042"
+       id="rect73" />
+    <g
+       id="g75">
+      <g
+         transform="translate(394 254) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="g74">
+        <use
+           href="#b54"
+           id="use73" />
+        <use
+           href="#b58"
+           x="1251"
+           id="use74" />
+      </g>
+    </g>
+    <g
+       id="g77">
+      <g
+         transform="translate(394 284) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="g76">
+        <use
+           href="#b52"
+           id="use75" />
+        <use
+           href="#b58"
+           x="1479"
+           id="use76" />
+      </g>
+    </g>
+    <g
+       id="g80">
+      <rect
+         x="430"
+         y="239"
+         width="41"
+         height="15"
+         fill="#C5C8CA"
+         id="rect77" />
+      <rect
+         x="443"
+         y="239"
+         width="15"
+         height="15"
+         fill="#EAEAEA"
+         id="rect78" />
+      <rect
+         x="430"
+         y="270"
+         width="41"
+         height="15"
+         fill="#C5C8CA"
+         id="rect79" />
+      <rect
+         x="443"
+         y="270"
+         width="15"
+         height="15"
+         fill="#EAEAEA"
+         id="rect80" />
+    </g>
+    <g
+       id="g82">
+      <g
+         transform="translate(410 192) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="g81">
+        <use
+           href="#b4c"
+           id="use80" />
+      </g>
+    </g>
+    <rect
+       x="429"
+       y="178"
+       width="42"
+       height="15"
+       fill="#C5C8CA"
+       id="rect82" />
+    <rect
+       x="443"
+       y="178"
+       width="16"
+       height="15"
+       fill="#EAEAEA"
+       id="rect83" />
+    <rect
+       x="830"
+       y="238"
+       width="42"
+       height="15"
+       fill="#C5C8CA"
+       id="rect84" />
+    <rect
+       x="843"
+       y="238"
+       width="17"
+       height="15"
+       fill="#EAEAEA"
+       id="rect85" />
+    <g
+       id="g87">
+      <g
+         transform="translate(875 252) scale(0.01 -0.009766)"
+         fill="#F4F5F6"
+         id="g86">
+        <use
+           href="#b4f"
+           id="use85" />
+        <use
+           href="#b4e"
+           x="1593"
+           id="use86" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="arduino-logo"
+     fill="none"
+     stroke="#f4f5f6"
+     stroke-width="10"
+     transform="translate(-1.336339)">
+    <circle
+       cx="535"
+       cy="213"
+       r="31"
+       id="circle87" />
+    <circle
+       cx="606"
+       cy="213"
+       r="31"
+       id="circle88" />
+    <path
+       d="m 557,192 c 13,14 14,28 28,42 m -28,0 c 13,-14 14,-28 28,-42"
+       stroke-linecap="round"
+       id="path88" />
+  </g>
+  <rect
+     x="524"
+     y="209"
+     width="22"
+     height="8"
+     fill="#F4F5F6"
+     id="rect88" />
+  <rect
+     x="602"
+     y="201"
+     width="8"
+     height="24"
+     fill="#F4F5F6"
+     id="rect89" />
+  <rect
+     x="594"
+     y="209"
+     width="24"
+     height="8"
+     fill="#F4F5F6"
+     id="rect90" />
+  <g
+     id="g97">
+    <g
+       transform="translate(501 278) scale(0.014 -0.014160)"
+       fill="#F4F5F6"
+       id="g96">
+      <use
+         href="#b41"
+         id="use90" />
+      <use
+         href="#b52"
+         x="1479"
+         id="use91" />
+      <use
+         href="#b44"
+         x="2958"
+         id="use92" />
+      <use
+         href="#b55"
+         x="4437"
+         id="use93" />
+      <use
+         href="#b49"
+         x="5916"
+         id="use94" />
+      <use
+         href="#b4e"
+         x="6485"
+         id="use95" />
+      <use
+         href="#b4f"
+         x="7964"
+         id="use96" />
+    </g>
+  </g>
+  <rect
+     x="667"
+     y="180"
+     width="148"
+     height="69"
+     rx="34.5"
+     fill="none"
+     stroke="#F4F5F6"
+     stroke-width="4"
+     stroke-dasharray="1 6"
+     stroke-linecap="round"
+     id="rect97" />
+  <g
+     id="g100">
+    <g
+       transform="translate(685 234) scale(0.026 -0.025879)"
+       fill="#F4F5F6"
+       id="g99">
+      <use
+         href="#r55"
+         id="use97" />
+      <use
+         href="#r4e"
+         x="1479"
+         id="use98" />
+      <use
+         href="#r4f"
+         x="2958"
+         id="use99" />
+    </g>
+  </g>
+  <line
+     x1="451"
+     y1="160"
+     x2="906"
+     y2="160"
+     stroke="#F4F5F6"
+     stroke-width="3"
+     id="line100" />
+  <g
+     id="g113">
+    <g
+       transform="translate(626 151) scale(0.013 -0.012695)"
+       fill="#F4F5F6"
+       id="g112">
+      <use
+         href="#b44"
+         id="use100" />
+      <use
+         href="#b49"
+         x="1479"
+         id="use101" />
+      <use
+         href="#b47"
+         x="2048"
+         id="use102" />
+      <use
+         href="#b49"
+         x="3641"
+         id="use103" />
+      <use
+         href="#b54"
+         x="4210"
+         id="use104" />
+      <use
+         href="#b41"
+         x="5461"
+         id="use105" />
+      <use
+         href="#b4c"
+         x="6788"
+         id="use106" />
+      <use
+         href="#b28"
+         x="8571"
+         id="use107" />
+      <use
+         href="#b50"
+         x="9253"
+         id="use108" />
+      <use
+         href="#b57"
+         x="10619"
+         id="use109" />
+      <use
+         href="#b4d"
+         x="12552"
+         id="use110" />
+      <use
+         href="#b7e"
+         x="14258"
+         id="use111" />
+      <use
+         href="#b29"
+         x="15454"
+         id="use112" />
+    </g>
+  </g>
+  <g
+     id="g155"
+     transform="translate(4.00902,-8.01802)">
+    <g
+       transform="rotate(-90,278.63514,-128.12514)"
+       id="g117">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g116">
+        <use
+           href="#b41"
+           id="use113" />
+        <use
+           href="#b52"
+           x="1479"
+           id="use114" />
+        <use
+           href="#b45"
+           x="2958"
+           id="use115" />
+        <use
+           href="#b46"
+           x="4324"
+           id="use116" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,289.63003,-149.14003)"
+       id="g120">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g119">
+        <use
+           href="#b47"
+           id="use117" />
+        <use
+           href="#b4e"
+           x="1593"
+           id="use118" />
+        <use
+           href="#b44"
+           x="3072"
+           id="use119" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,294.53538,-176.20538)"
+       id="g122">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g121">
+        <use
+           href="#b31"
+           id="use120" />
+        <use
+           href="#b33"
+           x="1139"
+           id="use121" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,310.60769,-192.35769)"
+       id="g124">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g123">
+        <use
+           href="#b31"
+           id="use122" />
+        <use
+           href="#b32"
+           x="1139"
+           id="use123" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,332.37015,-202.39015)"
+       id="g127">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g126">
+        <use
+           href="#b7e"
+           id="use124" />
+        <use
+           href="#b31"
+           x="1196"
+           id="use125" />
+        <use
+           href="#b31"
+           x="2335"
+           id="use126" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,348.24003,-218.53003)"
+       id="g130">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g129">
+        <use
+           href="#b7e"
+           id="use127" />
+        <use
+           href="#b31"
+           x="1196"
+           id="use128" />
+        <use
+           href="#b30"
+           x="2335"
+           id="use129" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,358.58503,-240.18503)"
+       id="g132">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g131">
+        <use
+           href="#b7e"
+           id="use130" />
+        <use
+           href="#b39"
+           x="1196"
+           id="use131" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,368.59003,-262.18003)"
+       id="g134">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g133">
+        <use
+           href="#b38"
+           id="use132" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,392.56515,-286.19515)"
+       id="g136">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g135">
+        <use
+           href="#b37"
+           id="use134" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,414.59503,-296.17503)"
+       id="g138">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g137">
+        <use
+           href="#b7e"
+           id="use136" />
+        <use
+           href="#b36"
+           x="1196"
+           id="use137" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,430.57749,-311.98749)"
+       id="g140">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g139">
+        <use
+           href="#b7e"
+           id="use138" />
+        <use
+           href="#b35"
+           x="1196"
+           id="use139" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,440.67515,-334.08515)"
+       id="g142">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g141">
+        <use
+           href="#b34"
+           id="use140" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,462.58038,-344.16038)"
+       id="g144">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g143">
+        <use
+           href="#b7e"
+           id="use142" />
+        <use
+           href="#b33"
+           x="1196"
+           id="use143" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,472.62269,-366.34269)"
+       id="g146">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g145">
+        <use
+           href="#b32"
+           id="use144" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,511.73015,-359.03015)"
+       id="g150">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g149">
+        <use
+           href="#b54"
+           id="use146" />
+        <use
+           href="#b58"
+           x="1251"
+           id="use147" />
+        <use
+           href="#b2192"
+           x="2617"
+           id="use148" />
+        <use
+           href="#b31"
+           x="4665"
+           id="use149" />
+      </g>
+    </g>
+    <g
+       transform="rotate(-90,529.31003,-373.46003)"
+       id="g154">
+      <g
+         transform="scale(0.01,-0.009766)"
+         fill="#f4f5f6"
+         id="g153">
+        <use
+           href="#b52"
+           id="use150" />
+        <use
+           href="#b58"
+           x="1479"
+           id="use151" />
+        <use
+           href="#b2190"
+           x="2845"
+           id="use152" />
+        <use
+           href="#b30"
+           x="4893"
+           id="use153" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="crystal">
+    <rect
+       x="254"
+       y="345"
+       width="154"
+       height="61"
+       rx="30.5"
+       fill="#B8BEC2"
+       id="rect155" />
+    <rect
+       x="260"
+       y="351"
+       width="142"
+       height="49"
+       rx="24.5"
+       fill="#DDDDDD"
+       stroke="#C9CED1"
+       stroke-width="3"
+       id="rect156" />
+    <g
+       id="g166">
+      <g
+         transform="translate(286 384) scale(0.008 -0.008301)"
+         fill="#F4F5F6"
+         id="g165">
+        <use
+           href="#r53"
+           id="use156" />
+        <use
+           href="#r50"
+           x="1366"
+           id="use157" />
+        <use
+           href="#r4b"
+           x="2732"
+           id="use158" />
+        <use
+           href="#r31"
+           x="4098"
+           id="use159" />
+        <use
+           href="#r36"
+           x="5237"
+           id="use160" />
+        <use
+           href="#r2e"
+           x="6376"
+           id="use161" />
+        <use
+           href="#r30"
+           x="6945"
+           id="use162" />
+        <use
+           href="#r30"
+           x="8084"
+           id="use163" />
+        <use
+           href="#r30"
+           x="9223"
+           id="use164" />
+        <use
+           href="#r47"
+           x="10362"
+           id="use165" />
+      </g>
+    </g>
+  </g>
+  <g
+     id="smd-components">
+    <rect
+       x="314"
+       y="433"
+       width="40"
+       height="42"
+       rx="3"
+       fill="#3C4042"
+       id="rect166" />
+    <rect
+       x="166"
+       y="447"
+       width="44"
+       height="86"
+       rx="4"
+       fill="#3C4042"
+       id="rect167" />
+    <rect
+       x="146"
+       y="469"
+       width="21"
+       height="41"
+       rx="3"
+       fill="#EAEAEA"
+       stroke="#C1C1C1"
+       stroke-width="2"
+       id="rect168" />
+    <rect
+       x="210"
+       y="457"
+       width="23"
+       height="17"
+       rx="3"
+       fill="#C1C1C1"
+       id="rect169" />
+    <rect
+       x="211"
+       y="461"
+       width="16"
+       height="9"
+       fill="#EAEAEA"
+       id="rect170" />
+    <rect
+       x="210"
+       y="482"
+       width="23"
+       height="17"
+       rx="3"
+       fill="#C1C1C1"
+       id="rect171" />
+    <rect
+       x="211"
+       y="486"
+       width="16"
+       height="9"
+       fill="#EAEAEA"
+       id="rect172" />
+    <rect
+       x="210"
+       y="507"
+       width="23"
+       height="17"
+       rx="3"
+       fill="#C1C1C1"
+       id="rect173" />
+    <rect
+       x="211"
+       y="511"
+       width="16"
+       height="9"
+       fill="#EAEAEA"
+       id="rect174" />
+    <rect
+       x="362"
+       y="501"
+       width="21"
+       height="40"
+       rx="3"
+       fill="#303638"
+       id="rect175" />
+    <path
+       d="M351 507h11v7h-11zm0 13h11v7h-11zm0 13h11v7h-11zm32-26h11v7h-11zm0 13h11v7h-11zm0 13h11v7h-11z"
+       fill="#C1C1C1"
+       id="path175" />
+  </g>
+  <g
+     id="capacitors">
+    <ellipse
+       cx="310"
+       cy="611"
+       rx="38"
+       ry="42"
+       fill="#224D6B"
+       id="ellipse175" />
+    <circle
+       cx="310"
+       cy="598"
+       r="38"
+       fill="#C1C1C1"
+       id="circle175" />
+    <circle
+       cx="310"
+       cy="594"
+       r="31"
+       fill="#DDDDDD"
+       id="circle176" />
+    <rect
+       x="279"
+       y="612"
+       width="62"
+       height="20"
+       fill="#515151"
+       clip-path="url(#capClip1)"
+       id="rect176" />
+    <ellipse
+       cx="405"
+       cy="611"
+       rx="38"
+       ry="42"
+       fill="#224D6B"
+       id="ellipse176" />
+    <circle
+       cx="405"
+       cy="598"
+       r="38"
+       fill="#C1C1C1"
+       id="circle177" />
+    <circle
+       cx="405"
+       cy="594"
+       r="31"
+       fill="#DDDDDD"
+       id="circle178" />
+    <rect
+       x="374"
+       y="612"
+       width="62"
+       height="20"
+       fill="#515151"
+       clip-path="url(#capClip2)"
+       id="rect178" />
+  </g>
+  <g
+     id="dc-jack"
+     transform="translate(0,2.0045086)">
+    <rect
+       x="99"
+       y="566"
+       width="142"
+       height="120"
+       rx="9"
+       fill="#224d6b"
+       id="rect179" />
+    <rect
+       x="65"
+       y="552"
+       width="175"
+       height="118"
+       rx="8"
+       fill="#252728"
+       id="rect180" />
+    <rect
+       x="65"
+       y="552"
+       width="44"
+       height="101"
+       rx="6"
+       fill="#3c4042"
+       id="rect181" />
+    <path
+       d="m 65,653 h 44 v 11 q 0,6 -6,6 H 71 q -6,0 -6,-6 z"
+       fill="#252728"
+       id="path181" />
+    <path
+       d="m 106,559 h 112 q 22,0 22,22 v 48 q 0,22 -22,22 h -72 q -40,0 -40,-40 z"
+       fill="#3c4042"
+       id="path183" />
+    <line
+       x1="225"
+       y1="562"
+       x2="225"
+       y2="648"
+       stroke="#717171"
+       stroke-width="3"
+       opacity="0.85"
+       id="line183" />
+  </g>
+  <g
+     id="atmega328p">
+    <rect
+       x="447"
+       y="444"
+       width="470"
+       height="118"
+       rx="6"
+       fill="#292C2D"
+       id="rect183" />
+    <rect
+       x="451"
+       y="458"
+       width="462"
+       height="92"
+       rx="5"
+       fill="#3C4042"
+       id="rect184" />
+    <rect
+       x="464"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect185" />
+    <rect
+       x="464"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect186" />
+    <rect
+       x="496"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect187" />
+    <rect
+       x="496"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect188" />
+    <rect
+       x="528"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect189" />
+    <rect
+       x="528"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect190" />
+    <rect
+       x="560"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect191" />
+    <rect
+       x="560"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect192" />
+    <rect
+       x="592"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect193" />
+    <rect
+       x="592"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect194" />
+    <rect
+       x="624"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect195" />
+    <rect
+       x="624"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect196" />
+    <rect
+       x="656"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect197" />
+    <rect
+       x="656"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect198" />
+    <rect
+       x="688"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect199" />
+    <rect
+       x="688"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect200" />
+    <rect
+       x="720"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect201" />
+    <rect
+       x="720"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect202" />
+    <rect
+       x="752"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect203" />
+    <rect
+       x="752"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect204" />
+    <rect
+       x="784"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect205" />
+    <rect
+       x="784"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect206" />
+    <rect
+       x="816"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect207" />
+    <rect
+       x="816"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect208" />
+    <rect
+       x="848"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect209" />
+    <rect
+       x="848"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect210" />
+    <rect
+       x="880"
+       y="450"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect211" />
+    <rect
+       x="880"
+       y="548"
+       width="20"
+       height="10"
+       rx="3"
+       fill="#D5D7D8"
+       id="rect212" />
+    <circle
+       cx="514"
+       cy="501"
+       r="13"
+       fill="#292C2D"
+       id="circle212" />
+    <circle
+       cx="850"
+       cy="501"
+       r="13"
+       fill="#292C2D"
+       id="circle213" />
+  </g>
+  <g
+     transform="translate(432 655)"
+     id="g238">
+    <rect
+       width="261"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="rect213" />
+    <g
+       transform="translate(7 4)"
+       id="g216">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect214" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path214" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path215" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path216" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="g219">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect216" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path217" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path218" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path219" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="g222">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect219" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path220" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path221" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path222" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="g225">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect222" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path223" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path224" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path225" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="g228">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect225" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path226" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path227" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path228" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="g231">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect228" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path229" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path230" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path231" />
+    </g>
+    <g
+       transform="translate(199 4)"
+       id="g234">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect231" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path232" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path233" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path234" />
+    </g>
+    <g
+       transform="translate(231 4)"
+       id="g237">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect234" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path235" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path236" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path237" />
+    </g>
+  </g>
+  <g
+     transform="translate(719 655)"
+     id="g257">
+    <rect
+       width="197"
+       height="32"
+       rx="3"
+       fill="#333333"
+       id="rect238" />
+    <g
+       transform="translate(7 4)"
+       id="g241">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect239" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path239" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path240" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path241" />
+    </g>
+    <g
+       transform="translate(39 4)"
+       id="g244">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect241" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path242" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path243" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path244" />
+    </g>
+    <g
+       transform="translate(71 4)"
+       id="g247">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect244" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path245" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path246" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path247" />
+    </g>
+    <g
+       transform="translate(103 4)"
+       id="g250">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect247" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path248" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path249" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path250" />
+    </g>
+    <g
+       transform="translate(135 4)"
+       id="g253">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect250" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path251" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path252" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path253" />
+    </g>
+    <g
+       transform="translate(167 4)"
+       id="g256">
+      <rect
+         width="26"
+         height="24"
+         rx="2"
+         fill="#252728"
+         id="rect253" />
+      <path
+         d="M4 3h18v15l-5 5H4v-4H1V7h3z"
+         fill="#191919"
+         id="path254" />
+      <path
+         d="M4 3h18l-5 6H7z"
+         fill="#424242"
+         id="path255" />
+      <path
+         d="M22 3v15l-5 5V9z"
+         fill="#262626"
+         id="path256" />
+    </g>
+  </g>
+  <line
+     x1="527"
+     y1="569"
+     x2="684"
+     y2="569"
+     stroke="#F4F5F6"
+     stroke-width="3"
+     id="line257" />
+  <line
+     x1="717"
+     y1="569"
+     x2="906"
+     y2="569"
+     stroke="#F4F5F6"
+     stroke-width="3"
+     id="line258" />
+  <g
+     id="g263">
+    <g
+       transform="translate(594 596) scale(0.012 -0.012207)"
+       fill="#F4F5F6"
+       id="g262">
+      <use
+         href="#b50"
+         id="use258" />
+      <use
+         href="#b4f"
+         x="1366"
+         id="use259" />
+      <use
+         href="#b57"
+         x="2959"
+         id="use260" />
+      <use
+         href="#b45"
+         x="4892"
+         id="use261" />
+      <use
+         href="#b52"
+         x="6258"
+         id="use262" />
+    </g>
+  </g>
+  <g
+     id="g271">
+    <g
+       transform="translate(766 596) scale(0.012 -0.012207)"
+       fill="#F4F5F6"
+       id="g270">
+      <use
+         href="#b41"
+         id="use263" />
+      <use
+         href="#b4e"
+         x="1479"
+         id="use264" />
+      <use
+         href="#b41"
+         x="2958"
+         id="use265" />
+      <use
+         href="#b4c"
+         x="4437"
+         id="use266" />
+      <use
+         href="#b4f"
+         x="5688"
+         id="use267" />
+      <use
+         href="#b47"
+         x="7281"
+         id="use268" />
+      <use
+         href="#b49"
+         x="9443"
+         id="use269" />
+      <use
+         href="#b4e"
+         x="10012"
+         id="use270" />
+    </g>
+  </g>
+  <g
+     id="g309">
+    <g
+       transform="translate(483 642) rotate(-90)"
+       id="g276">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g275">
+        <use
+           href="#b49"
+           id="use271" />
+        <use
+           href="#b4f"
+           x="569"
+           id="use272" />
+        <use
+           href="#b52"
+           x="2162"
+           id="use273" />
+        <use
+           href="#b45"
+           x="3641"
+           id="use274" />
+        <use
+           href="#b46"
+           x="5007"
+           id="use275" />
+      </g>
+    </g>
+    <g
+       transform="translate(515 642) rotate(-90)"
+       id="g281">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g280">
+        <use
+           href="#b52"
+           id="use276" />
+        <use
+           href="#b45"
+           x="1479"
+           id="use277" />
+        <use
+           href="#b53"
+           x="2845"
+           id="use278" />
+        <use
+           href="#b45"
+           x="4211"
+           id="use279" />
+        <use
+           href="#b54"
+           x="5577"
+           id="use280" />
+      </g>
+    </g>
+    <g
+       transform="translate(547 642) rotate(-90)"
+       id="g285">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g284">
+        <use
+           href="#b33"
+           id="use281" />
+        <use
+           href="#b2e"
+           x="1139"
+           id="use282" />
+        <use
+           href="#b33"
+           x="1708"
+           id="use283" />
+        <use
+           href="#b56"
+           x="2847"
+           id="use284" />
+      </g>
+    </g>
+    <g
+       transform="translate(579 642) rotate(-90)"
+       id="g287">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g286">
+        <use
+           href="#b35"
+           id="use285" />
+        <use
+           href="#b56"
+           x="1139"
+           id="use286" />
+      </g>
+    </g>
+    <g
+       transform="translate(611 642) rotate(-90)"
+       id="g290">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g289">
+        <use
+           href="#b47"
+           id="use287" />
+        <use
+           href="#b4e"
+           x="1593"
+           id="use288" />
+        <use
+           href="#b44"
+           x="3072"
+           id="use289" />
+      </g>
+    </g>
+    <g
+       transform="translate(643 642) rotate(-90)"
+       id="g293">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g292">
+        <use
+           href="#b47"
+           id="use290" />
+        <use
+           href="#b4e"
+           x="1593"
+           id="use291" />
+        <use
+           href="#b44"
+           x="3072"
+           id="use292" />
+      </g>
+    </g>
+    <g
+       transform="translate(675 642) rotate(-90)"
+       id="g296">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g295">
+        <use
+           href="#b56"
+           id="use293" />
+        <use
+           href="#b69"
+           x="1366"
+           id="use294" />
+        <use
+           href="#b6e"
+           x="1898"
+           id="use295" />
+      </g>
+    </g>
+    <g
+       transform="translate(739 642) rotate(-90)"
+       id="g298">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g297">
+        <use
+           href="#b41"
+           id="use296" />
+        <use
+           href="#b30"
+           x="1479"
+           id="use297" />
+      </g>
+    </g>
+    <g
+       transform="translate(771 642) rotate(-90)"
+       id="g300">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g299">
+        <use
+           href="#b41"
+           id="use298" />
+        <use
+           href="#b31"
+           x="1479"
+           id="use299" />
+      </g>
+    </g>
+    <g
+       transform="translate(803 642) rotate(-90)"
+       id="g302">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g301">
+        <use
+           href="#b41"
+           id="use300" />
+        <use
+           href="#b32"
+           x="1479"
+           id="use301" />
+      </g>
+    </g>
+    <g
+       transform="translate(835 642) rotate(-90)"
+       id="g304">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g303">
+        <use
+           href="#b41"
+           id="use302" />
+        <use
+           href="#b33"
+           x="1479"
+           id="use303" />
+      </g>
+    </g>
+    <g
+       transform="translate(867 642) rotate(-90)"
+       id="g306">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g305">
+        <use
+           href="#b41"
+           id="use304" />
+        <use
+           href="#b34"
+           x="1479"
+           id="use305" />
+      </g>
+    </g>
+    <g
+       transform="translate(899 642) rotate(-90)"
+       id="g308">
+      <g
+         transform="translate(0 0) scale(0.009 -0.008789)"
+         fill="#F4F5F6"
+         id="g307">
+        <use
+           href="#b41"
+           id="use306" />
+        <use
+           href="#b35"
+           x="1479"
+           id="use307" />
+      </g>
+    </g>
+  </g>
+  <metadata
+     id="metadata309">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Arduino UNO — pure editable vector reconstruction</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>

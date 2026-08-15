@@ -31,13 +31,14 @@ function componentHelp(kind: string): string {
     resistor:
       'Сопротивление ограничивает ток. Значение можно вводить в Ω, kΩ или другой выбранной единице; полосы на корпусе обновляются автоматически.',
     led: 'Цвет выбирается до запуска. Яркость, ток и перегрузка рассчитываются электрической схемой.',
-    'rgb-led':
-      'Каналы R, G и B рассчитываются отдельно относительно общего анода или общего катода.',
+    'rgb-led': 'Каналы R, G и B рассчитываются отдельно относительно общего катода.',
     'seven-segment': 'Сегменты A–G и DP светятся только от тока через реальные выводы индикатора.',
     button: 'Четырёхконтактная кнопка замыкает пары клемм только пока она удерживается.',
     switch: 'SPDT соединяет общий вывод с одной из двух клемм.',
     potentiometer: 'Положение движка делит полное сопротивление на два плеча.',
     diode: 'Диод проводит ток от анода к катоду после достижения прямого падения напряжения.',
+    transistor:
+      'NPN-транзистор управляет током коллектора током базы. Модель различает отсечку, активный режим и насыщение.',
     lamp: 'Яркость лампы рассчитывается по электрической мощности на нити.',
     breadboard: 'Отверстия макетной платы соединены внутренними группами с шагом 2,54 мм.',
   };
@@ -81,19 +82,6 @@ export function WorkbenchSidebars({
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
-  const selectedDiagnostics = c.selectedComponent
-    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
-    : [];
-  const ledStateDiagnostic = [
-    'led_burnout',
-    'led_overcurrent',
-    'led_near_limit',
-    'reverse_polarity',
-    'open_circuit',
-    'dangling_terminal',
-  ]
-    .map((code) => selectedDiagnostics.find((diagnostic) => diagnostic.code === code))
-    .find((diagnostic) => diagnostic !== undefined);
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -180,7 +168,28 @@ export function WorkbenchSidebars({
                     // pointer and lands where it is put.
                     onPointerDown={(event) => {
                       if (!family.enabled || event.button !== 0) return;
-                      c.beginFamilyPlacement(family.familyId);
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      c.beginFamilyPlacement(family.familyId, {
+                        pointerId: event.pointerId,
+                        clientX: event.clientX,
+                        clientY: event.clientY,
+                      });
+                      event.preventDefault();
+                    }}
+                    onPointerMove={(event) =>
+                      c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY)
+                    }
+                    onPointerUp={(event) => {
+                      c.finishFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                    }}
+                    onPointerCancel={(event) => {
+                      c.cancelFamilyPlacement(event.pointerId);
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
                     }}
                     data-family-id={family.familyId}
                     data-catalog-tier={family.catalogTier}
@@ -324,13 +333,18 @@ export function WorkbenchSidebars({
                           ? resistanceDisplayValue(c.selectedComponent.value, resistanceUnit)
                           : c.selectedComponent.value
                       }
-                      onChange={(event) =>
-                        c.updateSelectedValue(
-                          resistanceComponent
-                            ? resistanceValueInOhms(Number(event.target.value), resistanceUnit)
-                            : Number(event.target.value),
-                        )
-                      }
+                      onChange={(event) => {
+                        const displayValue = event.target.valueAsNumber;
+                        if (!Number.isFinite(displayValue)) return;
+                        if (resistanceComponent) {
+                          c.updateSelectedResistanceValue(
+                            resistanceValueInOhms(displayValue, resistanceUnit),
+                            resistanceUnit,
+                          );
+                        } else {
+                          c.updateSelectedValue(displayValue);
+                        }
+                      }}
                     />
                     {resistanceComponent ? (
                       <select
@@ -419,62 +433,82 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedEntry.key === 'led-5mm' ? (
+              {c.selectedComponent.kind === 'transistor' ? (
                 <fieldset className="workbench-state-controls">
-                  <legend>Состояние LED</legend>
+                  <legend>NPN-транзистор</legend>
                   <label>
-                    <span>Цвет</span>
-                    <select
-                      value={String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')}
+                    <span>Коэффициент усиления hFE</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      value={Number(
+                        c.selectedComponent.stateProperties?.['currentGain'] ??
+                          c.selectedComponent.value,
+                      )}
                       onChange={(event) =>
                         c.setSelectedProperties(
-                          { ledColour: event.target.value },
-                          'Цвет LED изменён.',
+                          { currentGain: Number(event.target.value) },
+                          'Коэффициент усиления транзистора изменён.',
                         )
                       }
-                    >
-                      {LED_COLOUR_OPTIONS.map((colour) => (
-                        <option key={colour.value} value={colour.value}>
-                          {colour.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </label>
                   <div className="workbench-calculated-property">
-                    <span>Расчётная яркость</span>
-                    <output>{c.componentLedBrightness(c.selectedComponent)}%</output>
-                    <small>Определяется током, напряжением и сопротивлением цепи.</small>
+                    <span>Рабочая область</span>
+                    <output>
+                      {measurement?.operatingRegion === 'saturation'
+                        ? 'Насыщение'
+                        : measurement?.operatingRegion === 'active'
+                          ? 'Активный режим'
+                          : 'Отсечка'}
+                    </output>
+                    <small>VBE 0,7 В · VCE(sat) 0,2 В</small>
                   </div>
                 </fieldset>
               ) : null}
 
+              {c.selectedEntry.key === 'led-5mm' ? (
+                <label>
+                  <span>цвет</span>
+                  <select
+                    aria-label="Цвет светодиода"
+                    value={String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')}
+                    onChange={(event) =>
+                      c.setSelectedProperties(
+                        { ledColour: event.target.value },
+                        'Цвет LED изменён.',
+                      )
+                    }
+                  >
+                    {LED_COLOUR_OPTIONS.map((colour) => (
+                      <option key={colour.value} value={colour.value}>
+                        {colour.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
               {c.selectedEntry.key === 'rgb-led' ? (
-                <fieldset className="workbench-state-controls">
-                  <legend>RGB-светодиод</legend>
-                  <label>
-                    <span>Общий вывод</span>
-                    <select
-                      value={String(
-                        c.selectedComponent.stateProperties?.['commonMode'] ?? 'common-cathode',
-                      )}
-                      onChange={(event) =>
-                        c.setSelectedProperties({ commonMode: event.target.value })
-                      }
-                    >
-                      <option value="common-cathode">Общий катод</option>
-                      <option value="common-anode">Общий анод</option>
-                    </select>
-                  </label>
-                  {(['red', 'green', 'blue'] as const).map((channel) => (
-                    <div className="workbench-calculated-property" key={channel}>
-                      <span>{channel.toUpperCase()}</span>
-                      <output>
-                        {measurement?.branchBrightness?.[channel]?.toFixed(0) ?? '0'}%
-                      </output>
-                      <small>{formatCurrent(measurement?.branchCurrents?.[channel] ?? 0)}</small>
-                    </div>
-                  ))}
-                </fieldset>
+                <label>
+                  <span>Разводка выводов</span>
+                  <select
+                    aria-label="Разводка выводов RGB-светодиода"
+                    value={String(c.selectedComponent.stateProperties?.['pinLayout'] ?? 'RCBG')}
+                    onChange={(event) =>
+                      c.setSelectedProperties({
+                        pinLayout: event.target.value,
+                        commonMode: 'common-cathode',
+                      })
+                    }
+                  >
+                    <option value="RCBG">RCBG</option>
+                    <option value="RCGB">RCGB</option>
+                    <option value="BRCG">BRCG</option>
+                  </select>
+                </label>
               ) : null}
 
               {c.selectedEntry.key === 'seven-segment-display' ? (
@@ -513,69 +547,34 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              <dl className="workbench-terminal-list" aria-label="Подключение выводов">
-                {Object.entries(c.selectedEntry.terminals)
-                  .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
-                  .map(([terminal, spec]) => {
-                    const connected =
-                      c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0;
-                    const voltage = measurement?.terminalVoltages[terminal];
-                    return (
-                      <div key={terminal}>
-                        <dt>{spec?.label ?? terminal}</dt>
-                        <dd
-                          className={`workbench-terminal-status${connected ? ' connected' : ''}`}
-                          title={c.terminalConnectionLabel(c.selectedComponent!.id, terminal)}
-                        >
-                          {connected ? 'Подключён' : 'Свободен'}
-                          {c.simulationRunning && voltage !== undefined
-                            ? ` · ${voltage.toFixed(3)} В`
-                            : ''}
-                        </dd>
-                      </div>
-                    );
-                  })}
-              </dl>
-
-              {c.selectedEntry.key === 'led-5mm' ? (
-                <div
-                  className={`workbench-led-electrical-state${
-                    c.simulationRunning && (measurement?.brightness ?? 0) > 0 ? ' lit' : ''
-                  }${measurement?.stressState ? ` ${measurement.stressState}` : ''}`}
-                  data-testid="led-electrical-state"
-                >
-                  <strong>
-                    {c.simulationRunning
-                      ? measurement?.stressState === 'burned'
-                        ? 'Светодиод перегорел'
-                        : measurement?.stressState === 'overcurrent'
-                          ? 'Опасная перегрузка по току'
-                          : measurement?.stressState === 'warning'
-                            ? 'Ток близок к пределу'
-                            : (measurement?.brightness ?? 0) > 0
-                              ? `Светится: ${measurement?.brightness?.toFixed(0) ?? '0'}%`
-                              : 'Не светится'
-                      : 'Моделирование остановлено'}
-                  </strong>
-                  {c.simulationRunning && measurement?.currentUtilizationPercent !== undefined ? (
-                    <output>
-                      Нагрузка относительно номинального тока:{' '}
-                      {measurement.currentUtilizationPercent.toFixed(0)}%
-                    </output>
-                  ) : null}
-                  <small>
-                    {ledStateDiagnostic
-                      ? `${ledStateDiagnostic.message} ${ledStateDiagnostic.suggestedAction ?? ''}`
-                      : !c.simulationRunning
-                        ? 'До запуска LED не излучает свет. Выбранный цвет сохраняется как цвет корпуса.'
-                        : (measurement?.brightness ?? 0) > 0
-                          ? 'Яркость рассчитана по току, напряжению и сопротивлению этой цепи.'
-                          : 'Ток ниже порога свечения выбранного цвета. Проверьте напряжение, сопротивление и замкнутость цепи.'}
-                  </small>
-                </div>
+              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) ? (
+                <dl className="workbench-terminal-list" aria-label="Подключение выводов">
+                  {Object.entries(c.selectedEntry.terminals)
+                    .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
+                    .map(([terminal, spec]) => {
+                      const connected =
+                        c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0;
+                      const voltage = measurement?.terminalVoltages[terminal];
+                      return (
+                        <div key={terminal}>
+                          <dt>{spec?.label ?? terminal}</dt>
+                          <dd
+                            className={`workbench-terminal-status${connected ? ' connected' : ''}`}
+                            title={c.terminalConnectionLabel(c.selectedComponent!.id, terminal)}
+                          >
+                            {connected ? 'Подключён' : 'Свободен'}
+                            {c.simulationRunning && voltage !== undefined
+                              ? ` · ${voltage.toFixed(3)} В`
+                              : ''}
+                          </dd>
+                        </div>
+                      );
+                    })}
+                </dl>
               ) : null}
 
-              {Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
+              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
+              Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">
                   <strong>Отверстия макетки</strong>
                   {Object.entries(c.selectedComponent.holeBindings ?? {}).map(
@@ -588,14 +587,34 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {c.simulationRunning && measurement ? (
+              {c.simulationRunning &&
+              measurement &&
+              !['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) ? (
                 <dl className="workbench-measurements">
+                  {c.selectedComponent.kind === 'transistor' ? (
+                    <>
+                      <div>
+                        <dt>Ток базы</dt>
+                        <dd>{formatCurrent(measurement.baseCurrent ?? 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Ток коллектора</dt>
+                        <dd>{formatCurrent(measurement.collectorCurrent ?? 0)}</dd>
+                      </div>
+                      <div>
+                        <dt>Ток эмиттера</dt>
+                        <dd>{formatCurrent(measurement.emitterCurrent ?? 0)}</dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {c.selectedComponent.kind !== 'transistor' ? (
+                    <div>
+                      <dt>Ток</dt>
+                      <dd>{formatCurrent(measurement.current)}</dd>
+                    </div>
+                  ) : null}
                   <div>
-                    <dt>Ток</dt>
-                    <dd>{formatCurrent(measurement.current)}</dd>
-                  </div>
-                  <div>
-                    <dt>Падение</dt>
+                    <dt>{c.selectedComponent.kind === 'transistor' ? 'VCE' : 'Падение'}</dt>
                     <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
                   </div>
                   {measurement.power !== undefined ? (

@@ -21,19 +21,16 @@ function runtimePath(asset: string): string {
 beforeAll(() => {
   configureProductionLibrary(
     JSON.parse(
-      readFileSync(
-        resolve(publicRoot, 'assets/electronics/owner-catalog/manifest.json'),
-        'utf8',
-      ),
+      readFileSync(resolve(publicRoot, 'assets/electronics/owner-catalog/manifest.json'), 'utf8'),
     ) as OwnerCatalogManifest,
   );
 });
 
 describe('Electronics owner SVG foundation', () => {
   it('keeps owner evidence and source manifests intact', () => {
-    expect(
-      existsSync(resolve(publicRoot, 'assets/electronics/owner-supplied/manifest.json')),
-    ).toBe(true);
+    expect(existsSync(resolve(publicRoot, 'assets/electronics/owner-supplied/manifest.json'))).toBe(
+      true,
+    );
     expect(existsSync(resolve(publicRoot, 'assets/electronics/owner-audit'))).toBe(true);
   });
 
@@ -41,7 +38,9 @@ describe('Electronics owner SVG foundation', () => {
     const itemsWithOwnerArt = ownerCatalogItems().filter((item) => item.asset);
     expect(itemsWithOwnerArt.length).toBeGreaterThan(20);
     for (const item of itemsWithOwnerArt) {
-      expect(item.asset, item.key).toMatch(/^\/assets\/electronics\/owner-audit\/.*\.svg$/);
+      expect(item.asset, item.key).toMatch(
+        /^\/assets\/electronics\/(owner-audit|owner-approved)\/.*\.svg$/,
+      );
       expect(item.asset, item.key).not.toContain('/production/');
       expect(item.asset, item.key).not.toContain('/source-reference/');
       const path = runtimePath(item.asset);
@@ -61,9 +60,10 @@ describe('Electronics owner SVG foundation', () => {
 
     const led = catalog.find((item) => item.key === 'led-5mm');
     expect(led?.physicalSizeMm).toEqual({ width: 4.8381, height: 8.0635 });
-    expect(
-      (led?.terminals.anode?.xMm ?? 0) - (led?.terminals.cathode?.xMm ?? 0),
-    ).toBeCloseTo(2.54, 4);
+    expect((led?.terminals.anode?.xMm ?? 0) - (led?.terminals.cathode?.xMm ?? 0)).toBeCloseTo(
+      2.54,
+      4,
+    );
 
     const button = catalog.find((item) => item.key === 'button-tactile-6mm');
     expect(button?.physicalSizeMm).toEqual({ width: 10, height: 10 });
@@ -90,6 +90,20 @@ describe('Electronics owner SVG foundation', () => {
       (potentiometer?.terminals['terminal-2']?.xMm ?? 0) -
         (potentiometer?.terminals.wiper?.xMm ?? 0),
     ).toBeCloseTo(2.54, 4);
+
+    const transistor = catalog.find((item) => item.key === 'transistor-npn');
+    expect(transistor?.assetFit).toBe('meet');
+    expect(transistor?.viewBox).toEqual({ x: 0, y: 0, width: 437, height: 492 });
+    expect(transistor?.terminals).toMatchObject({
+      base: { xMm: 4.1932, yMm: 9.8739 },
+      collector: { xMm: 2.3114, yMm: 9.8977 },
+      emitter: { xMm: 6.0751, yMm: 9.8977 },
+    });
+    expect(transistor?.footprint?.pinOffsetsMm).toEqual([
+      [0, 0],
+      [-2.54, 0],
+      [2.54, 0],
+    ]);
 
     const batteryOne = catalog.find((item) => item.key === 'battery-holder-aa-1');
     expect(batteryOne?.physicalSizeMm).toEqual({ width: 20, height: 60.2 });
@@ -122,8 +136,13 @@ describe('Electronics owner SVG foundation', () => {
         // wire met the very tip of the metal — where the rounded corner is
         // already curving away — and read as not quite touching the contact.
         const ownerY = 10 + Number(ownerFreeEnd[3]) / 2;
+        const ownerScale = Math.min(
+          item.physicalSizeMm.width / item.viewBox.width,
+          item.physicalSizeMm.height / item.viewBox.height,
+        );
+        const verticalInset = (item.physicalSizeMm.height - item.viewBox.height * ownerScale) / 2;
         expect(pin?.yMm, `${item.key}:${pinId}:wire-y`).toBeCloseTo(
-          ownerY * (item.physicalSizeMm.height / item.viewBox.height),
+          verticalInset + ownerY * ownerScale,
           3,
         );
       }
@@ -170,6 +189,20 @@ describe('Electronics owner SVG foundation', () => {
     expect(visualAsset(led!, component, 'reverse')).toBe(
       '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg',
     );
+    expect(
+      visualAsset(
+        led!,
+        {
+          ...component,
+          stateProperties: {
+            ...component.stateProperties,
+            ledColour: 'blue',
+            ledBrightness: 60,
+          },
+        },
+        'overcurrent',
+      ),
+    ).toBe('/assets/electronics/owner-audit/components/led/blue/led_blue_i060.svg');
     expect(visualAsset(led!, component, 'burned')).toBe(
       '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg',
     );
@@ -195,21 +228,16 @@ describe('Electronics owner SVG foundation', () => {
   });
 
   it('keeps known missing components missing instead of substituting a traced PNG', () => {
-    for (const componentId of [
-      'battery-1.5v',
-      'battery-3v',
-      'battery-6v',
-      'microbit',
-      'vibration-motor',
-    ]) {
+    for (const componentId of ['battery-1.5v', 'battery-3v', 'battery-6v', 'vibration-motor']) {
       expect(ownerCatalogItems().find((item) => item.key === componentId)?.asset).toBe('');
     }
+    expect(ownerCatalogItems().some((item) => item.key === 'microbit')).toBe(false);
   });
 
   it('removes the two scripts that generated and replaced runtime artwork', () => {
     expect(existsSync(resolve(repositoryRoot, 'tools/vectorize_owner_references.py'))).toBe(false);
-    expect(existsSync(resolve(repositoryRoot, 'tools/build_electronics_production_assets.py'))).toBe(
-      false,
-    );
+    expect(
+      existsSync(resolve(repositoryRoot, 'tools/build_electronics_production_assets.py')),
+    ).toBe(false);
   });
 });

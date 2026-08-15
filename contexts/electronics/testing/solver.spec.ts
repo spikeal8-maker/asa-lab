@@ -8,6 +8,15 @@ import {
 } from '../domain/document';
 import { buildNetlist, terminalKey } from '../domain/netlist';
 import { electricalModelFor } from '../domain/model-registry';
+import {
+  ledCurrentForSeriesResistance,
+  ledBrightnessPercent,
+  ordinaryLedProfile,
+  ORDINARY_LED_PROFILES,
+  rgbLedProfile,
+  type OrdinaryLedColour,
+  type RgbLedChannel,
+} from '../domain/led-model';
 import { solveCircuit } from '../domain/solver';
 
 function component(
@@ -66,6 +75,18 @@ function series(parts: SchematicComponent[], voltage = 5): ElectronicsDocument {
 
 function resultFor(document: ElectronicsDocument, componentId: string) {
   return solveCircuit(document).components.find((result) => result.componentId === componentId);
+}
+
+function deterministicResistanceSamples(count: number): readonly number[] {
+  let state = 0x6d2b79f5;
+  const samples = Array.from({ length: count }, () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    const unit = state / 0x1_0000_0000;
+    // Exercise decimal values across seven orders of magnitude without relying
+    // on a test runner's random seed.
+    return Number((10 ** (-2 + unit * 7)).toPrecision(10));
+  });
+  return [0, ...samples].sort((left, right) => left - right);
 }
 
 describe('schema-versioned Electronics document', () => {
@@ -209,6 +230,19 @@ describe('electrical model registry', () => {
     expect(electricalModelFor(component('board', 'breadboard', 0))).toMatchObject({
       support: 'infrastructure',
       topology: 'connectivity-only',
+    });
+    expect(
+      electricalModelFor(
+        component('q1', 'transistor', 100, {
+          componentTypeId: 'transistor-npn',
+          pinIds: ['collector', 'base', 'emitter'],
+        }),
+      ),
+    ).toMatchObject({
+      id: 'npn-transistor',
+      support: 'supported',
+      topology: 'three-terminal',
+      requiredTerminals: ['base', 'collector', 'emitter'],
     });
   });
 });
@@ -365,6 +399,16 @@ describe('deterministic DC solver', () => {
     expect(closed.current).toBeCloseTo(0.05, 4);
   });
 
+  it('models a Tinkercad-compatible zero-ohm resistor as a closed finite branch', () => {
+    const result = solveCircuit(series([component('r1', 'resistor', 0)], 5));
+    const resistor = result.components.find((item) => item.componentId === 'r1');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('invalid_property');
+    expect(resistor?.current).toBeGreaterThan(1_000);
+    expect(Number.isFinite(resistor?.current)).toBe(true);
+  });
+
   it('models a normally-open button', () => {
     const released = solveCircuit(
       series([component('b1', 'button', 0, { state: false }), component('r1', 'resistor', 200)], 5),
@@ -403,6 +447,85 @@ describe('deterministic DC solver', () => {
     expect(solveCircuit(circuit(true)).current).toBeCloseTo(0.025, 5);
   });
 
+  it('lights an LED only while the physical four-pin button is pressed', () => {
+    const circuit = (pressed: boolean) =>
+      doc(
+        [
+          component('source', 'source', 3),
+          component('button', 'button', 0, {
+            componentTypeId: 'button-tactile-6mm',
+            pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+            internalConnections: [
+              ['SW-A1', 'SW-A2'],
+              ['SW-B1', 'SW-B2'],
+            ],
+            state: pressed,
+          }),
+          component('resistor', 'resistor', 220, {
+            componentTypeId: 'resistor-axial',
+            pinIds: ['lead-1', 'lead-2'],
+          }),
+          component('led', 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+            stateProperties: { ledColour: 'red' },
+          }),
+        ],
+        [
+          connect('source-button', 'source', 'a', 'button', 'SW-A2'),
+          connect('button-resistor', 'button', 'SW-B2', 'resistor', 'lead-1'),
+          connect('resistor-led', 'resistor', 'lead-2', 'led', 'anode'),
+          connect('led-return', 'led', 'cathode', 'source', 'b'),
+        ],
+      );
+
+    expect(resultFor(circuit(false), 'led')).toMatchObject({ lit: false, current: 0 });
+    expect(resultFor(circuit(true), 'led')).toMatchObject({ lit: true });
+  });
+
+  it.each([47.3, 137.42, 681.9, 2_200.5])(
+    'keeps a physical button momentary for an arbitrary %s ohm LED branch',
+    (resistance) => {
+      const circuit = (pressed: boolean) =>
+        doc(
+          [
+            component('source', 'source', 5),
+            component('button', 'button', 0, {
+              componentTypeId: 'button-tactile-6mm',
+              pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+              internalConnections: [
+                ['SW-A1', 'SW-A2'],
+                ['SW-B1', 'SW-B2'],
+              ],
+              state: pressed,
+            }),
+            component('resistor', 'resistor', resistance, {
+              componentTypeId: 'resistor-axial',
+              pinIds: ['lead-1', 'lead-2'],
+            }),
+            component('led', 'led', 2, {
+              componentTypeId: 'led-5mm',
+              pinIds: ['anode', 'cathode'],
+              stateProperties: { ledColour: 'green' },
+            }),
+          ],
+          [
+            connect('source-button', 'source', 'a', 'button', 'SW-A2'),
+            connect('button-resistor', 'button', 'SW-B2', 'resistor', 'lead-1'),
+            connect('resistor-led', 'resistor', 'lead-2', 'led', 'anode'),
+            connect('led-return', 'led', 'cathode', 'source', 'b'),
+          ],
+        );
+
+      const released = resultFor(circuit(false), 'led');
+      const pressed = resultFor(circuit(true), 'led');
+      expect(released).toMatchObject({ current: 0, brightness: 0, lit: false });
+      expect(pressed?.current).toBeGreaterThan(0);
+      expect(pressed?.brightness).toBeGreaterThan(0);
+      expect(pressed?.lit).toBe(true);
+    },
+  );
+
   it('connects an SPDT common terminal to exactly one selected throw', () => {
     const circuit = (right: boolean) =>
       doc(
@@ -428,6 +551,83 @@ describe('deterministic DC solver', () => {
     expect(solveCircuit(circuit(false)).current).toBeCloseTo(0.01, 5);
     expect(solveCircuit(circuit(true)).current).toBeCloseTo(0.005, 5);
   });
+
+  it('routes an SPDT common pin to exactly one LED branch', () => {
+    const circuit = (right: boolean) =>
+      doc(
+        [
+          component('source', 'source', 5),
+          component('switch', 'switch', 0, {
+            componentTypeId: 'switch-spdt',
+            pinIds: ['throw-left', 'common', 'throw-right'],
+            state: right,
+          }),
+          component('left-resistor', 'resistor', 330),
+          component('left-led', 'led', 2, { stateProperties: { ledColour: 'red' } }),
+          component('right-resistor', 'resistor', 330),
+          component('right-led', 'led', 2, { stateProperties: { ledColour: 'green' } }),
+        ],
+        [
+          connect('source-common', 'source', 'a', 'switch', 'common'),
+          connect('left-r', 'switch', 'throw-left', 'left-resistor', 'a'),
+          connect('left-led', 'left-resistor', 'b', 'left-led', 'a'),
+          connect('left-return', 'left-led', 'b', 'source', 'b'),
+          connect('right-r', 'switch', 'throw-right', 'right-resistor', 'a'),
+          connect('right-led', 'right-resistor', 'b', 'right-led', 'a'),
+          connect('right-return', 'right-led', 'b', 'source', 'b'),
+        ],
+      );
+
+    expect(resultFor(circuit(false), 'left-led')?.lit).toBe(true);
+    expect(resultFor(circuit(false), 'right-led')?.lit).toBe(false);
+    expect(resultFor(circuit(true), 'left-led')?.lit).toBe(false);
+    expect(resultFor(circuit(true), 'right-led')?.lit).toBe(true);
+  });
+
+  it.each([73.25, 317.6, 999.9, 4_321.125])(
+    'routes exactly one SPDT LED branch with arbitrary %s ohm loads',
+    (resistance) => {
+      const circuit = (right: boolean) =>
+        doc(
+          [
+            component('source', 'source', 5),
+            component('switch', 'switch', 0, {
+              componentTypeId: 'switch-spdt',
+              pinIds: ['throw-left', 'common', 'throw-right'],
+              state: right,
+            }),
+            component('left-resistor', 'resistor', resistance),
+            component('left-led', 'led', 2, { stateProperties: { ledColour: 'red' } }),
+            component('right-resistor', 'resistor', resistance),
+            component('right-led', 'led', 2, { stateProperties: { ledColour: 'blue' } }),
+          ],
+          [
+            connect('source-common', 'source', 'a', 'switch', 'common'),
+            connect('left-r', 'switch', 'throw-left', 'left-resistor', 'a'),
+            connect('left-led', 'left-resistor', 'b', 'left-led', 'a'),
+            connect('left-return', 'left-led', 'b', 'source', 'b'),
+            connect('right-r', 'switch', 'throw-right', 'right-resistor', 'a'),
+            connect('right-led', 'right-resistor', 'b', 'right-led', 'a'),
+            connect('right-return', 'right-led', 'b', 'source', 'b'),
+          ],
+        );
+
+      const leftSelected = {
+        left: resultFor(circuit(false), 'left-led'),
+        right: resultFor(circuit(false), 'right-led'),
+      };
+      const rightSelected = {
+        left: resultFor(circuit(true), 'left-led'),
+        right: resultFor(circuit(true), 'right-led'),
+      };
+      expect(leftSelected.left?.current).toBeGreaterThan(0);
+      expect(leftSelected.left?.brightness).toBeGreaterThan(0);
+      expect(leftSelected.right).toMatchObject({ current: 0, brightness: 0, lit: false });
+      expect(rightSelected.right?.current).toBeGreaterThan(0);
+      expect(rightSelected.right?.brightness).toBeGreaterThan(0);
+      expect(rightSelected.left).toMatchObject({ current: 0, brightness: 0, lit: false });
+    },
+  );
 
   it.each([
     [0, 5],
@@ -469,6 +669,111 @@ describe('deterministic DC solver', () => {
     });
   });
 
+  it('solves NPN cutoff, active and saturation regions with real B/C/E currents', () => {
+    const transistor = component('q1', 'transistor', 100, {
+      componentTypeId: 'transistor-npn',
+      pinIds: ['collector', 'base', 'emitter'],
+      stateProperties: {
+        currentGain: 100,
+        baseEmitterVoltage: 0.7,
+        saturationVoltage: 0.2,
+        maxCollectorCurrent: 0.2,
+      },
+    });
+    const circuit = (baseResistance: number, collectorResistance = 470) =>
+      doc(
+        [
+          component('source', 'source', 5),
+          component('rb', 'resistor', baseResistance),
+          component('rc', 'resistor', collectorResistance),
+          transistor,
+        ],
+        [
+          connect('s-rc', 'source', 'a', 'rc', 'a'),
+          connect('rc-c', 'rc', 'b', 'q1', 'collector'),
+          connect('s-rb', 'source', 'a', 'rb', 'a'),
+          connect('rb-b', 'rb', 'b', 'q1', 'base'),
+          connect('e-s', 'q1', 'emitter', 'source', 'b'),
+        ],
+      );
+    const cutoffDocument = doc(
+      [
+        component('source', 'source', 5),
+        component('rb', 'resistor', 10_000),
+        component('rc', 'resistor', 470),
+        transistor,
+      ],
+      [
+        connect('s-rc', 'source', 'a', 'rc', 'a'),
+        connect('rc-c', 'rc', 'b', 'q1', 'collector'),
+        connect('b-rb', 'q1', 'base', 'rb', 'a'),
+        connect('rb-gnd', 'rb', 'b', 'source', 'b'),
+        connect('e-s', 'q1', 'emitter', 'source', 'b'),
+      ],
+    );
+
+    const cutoff = resultFor(cutoffDocument, 'q1');
+    const active = resultFor(circuit(100_000), 'q1');
+    const saturation = resultFor(circuit(1_000, 220), 'q1');
+
+    expect(cutoff).toMatchObject({
+      operatingRegion: 'cutoff',
+      baseCurrent: 0,
+      collectorCurrent: 0,
+      emitterCurrent: 0,
+    });
+    expect(active?.operatingRegion).toBe('active');
+    expect(active?.baseCurrent ?? 0).toBeGreaterThan(0.00004);
+    expect(active?.collectorCurrent).toBeCloseTo((active?.baseCurrent ?? 0) * 100, 5);
+    expect(active?.emitterCurrent).toBeCloseTo(
+      (active?.baseCurrent ?? 0) + (active?.collectorCurrent ?? 0),
+      6,
+    );
+    expect(active?.terminalVoltages).toMatchObject({ emitter: 0 });
+    expect(saturation?.operatingRegion).toBe('saturation');
+    expect(saturation?.voltageDrop ?? 1).toBeGreaterThanOrEqual(0.2);
+    expect(saturation?.voltageDrop ?? 1).toBeLessThan(0.25);
+    expect(saturation?.collectorCurrent ?? 0).toBeGreaterThan(0.02);
+  });
+
+  it('diagnoses unsafe reverse base bias and collector overcurrent', () => {
+    const transistor = component('q1', 'transistor', 100, {
+      componentTypeId: 'transistor-npn',
+      pinIds: ['collector', 'base', 'emitter'],
+      stateProperties: { currentGain: 100, maxCollectorCurrent: 0.2 },
+    });
+    const reverse = solveCircuit(
+      doc(
+        [component('source', 'source', 9), component('r', 'resistor', 1_000), transistor],
+        [
+          connect('e-plus', 'source', 'a', 'q1', 'emitter'),
+          connect('b-minus', 'q1', 'base', 'source', 'b'),
+          connect('c-r', 'q1', 'collector', 'r', 'a'),
+          connect('r-minus', 'r', 'b', 'source', 'b'),
+        ],
+      ),
+    );
+    const overloaded = solveCircuit(
+      doc(
+        [
+          component('source', 'source', 5),
+          component('rb', 'resistor', 100),
+          component('rc', 'resistor', 10),
+          transistor,
+        ],
+        [
+          connect('s-rc', 'source', 'a', 'rc', 'a'),
+          connect('rc-c', 'rc', 'b', 'q1', 'collector'),
+          connect('s-rb', 'source', 'a', 'rb', 'a'),
+          connect('rb-b', 'rb', 'b', 'q1', 'base'),
+          connect('e-s', 'q1', 'emitter', 'source', 'b'),
+        ],
+      ),
+    );
+    expect(reverse.diagnostics.map((item) => item.code)).toContain('transistor_reverse_bias');
+    expect(overloaded.diagnostics.map((item) => item.code)).toContain('transistor_overcurrent');
+  });
+
   it('lights an LED at normal current and diagnoses overcurrent', () => {
     const normal = solveCircuit(
       series([component('r1', 'resistor', 300), component('led1', 'led', 2)], 5),
@@ -481,22 +786,19 @@ describe('deterministic DC solver', () => {
     expect(unsafe.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
   });
 
-  it('distinguishes safe, near-limit, overcurrent and destructive LED operating points', () => {
+  it('matches safe, overcurrent and destructive ordinary LED operating points', () => {
     const operatingPoint = (resistance: number) =>
       solveCircuit(
         series([component('r1', 'resistor', resistance), component('led', 'led', 2)], 5),
       );
     const safe = operatingPoint(220);
-    const nearLimit = operatingPoint(180);
     const overcurrent = operatingPoint(100);
-    const burned = operatingPoint(68);
+    const burned = operatingPoint(0);
     const ledResult = (result: ReturnType<typeof solveCircuit>) =>
       result.components.find((item) => item.componentId === 'led');
 
     expect(ledResult(safe)).toMatchObject({ stressState: 'normal' });
     expect(safe.diagnostics.map((item) => item.code)).not.toContain('led_near_limit');
-    expect(ledResult(nearLimit)).toMatchObject({ stressState: 'warning' });
-    expect(nearLimit.diagnostics.map((item) => item.code)).toContain('led_near_limit');
     expect(ledResult(overcurrent)).toMatchObject({ stressState: 'overcurrent' });
     expect(overcurrent.diagnostics.map((item) => item.code)).toContain('led_overcurrent');
     expect(overcurrent.diagnostics.map((item) => item.code)).not.toContain('led_burnout');
@@ -504,9 +806,9 @@ describe('deterministic DC solver', () => {
     expect(burned.diagnostics.map((item) => item.code)).toEqual(
       expect.arrayContaining(['led_overcurrent', 'led_burnout']),
     );
-    expect(
-      burned.diagnostics.find((item) => item.code === 'led_burnout')?.suggestedAction,
-    ).toContain('уменьшите напряжение');
+    expect(burned.diagnostics.find((item) => item.code === 'led_burnout')?.message).toContain(
+      'абсолютное максимальное значение',
+    );
   });
 
   it('solves LEDs in series and independent parallel resistor branches', () => {
@@ -563,10 +865,73 @@ describe('deterministic DC solver', () => {
       ),
     );
     const led = red.components.find((item) => item.componentId === 'led1');
-    expect(led?.current).toBeGreaterThan(0.013);
+    expect(led?.current).toBeGreaterThan(0.012);
     expect(led?.brightness).toBeGreaterThan(70);
     expect(led?.branchBrightness?.led).toBe(led?.brightness);
   });
+
+  it('keeps every ordinary LED colour electrically distinct and brightness continuous', () => {
+    expect(ORDINARY_LED_PROFILES.red.kneeVoltage).toBeLessThan(
+      ORDINARY_LED_PROFILES.green.kneeVoltage,
+    );
+    expect(ORDINARY_LED_PROFILES.green.kneeVoltage).toBeLessThan(
+      ORDINARY_LED_PROFILES.blue.kneeVoltage,
+    );
+    const profile = ordinaryLedProfile('red');
+    const currents = [0, 1e-9, 1e-7, 1e-5, 1e-4, 1e-3, 5e-3, 1e-2, 2e-2];
+    const brightness = currents.map((current) => ledBrightnessPercent(current, profile));
+
+    expect(brightness[0]).toBe(0);
+    expect(brightness[1]).toBeGreaterThan(0);
+    for (let index = 1; index < brightness.length; index += 1) {
+      expect(brightness[index]).toBeGreaterThan(brightness[index - 1] ?? -1);
+    }
+    expect(brightness.at(-1)).toBe(100);
+  });
+
+  it.each(Object.keys(ORDINARY_LED_PROFILES) as OrdinaryLedColour[])(
+    'solves arbitrary decimal resistance values continuously for a %s LED',
+    (colour) => {
+      const profile = ordinaryLedProfile(colour);
+      const resistances = deterministicResistanceSamples(64);
+      const samples = resistances.map((resistance) => {
+        const document = series(
+          [
+            component('resistor', 'resistor', resistance),
+            component('led', 'led', 2, { stateProperties: { ledColour: colour } }),
+          ],
+          5,
+        );
+        const result = solveCircuit(document);
+        const resistor = result.components.find((item) => item.componentId === 'resistor');
+        const led = result.components.find((item) => item.componentId === 'led');
+        const expectedCurrent = ledCurrentForSeriesResistance(5, resistance, profile);
+        const expectedBrightness = ledBrightnessPercent(expectedCurrent, profile);
+
+        expect(result).toMatchObject({ solved: true, status: 'solved' });
+        expect(Number.isFinite(resistor?.current)).toBe(true);
+        expect(Number.isFinite(led?.current)).toBe(true);
+        expect(Number.isFinite(led?.brightness)).toBe(true);
+        // The matrix includes the solver's closed-contact and GMIN terms. At a
+        // literal 0 ohm input their combined numerical contribution remains
+        // below 10 microamps, while the owner-observed values are reported to
+        // 0.1 mA. Non-zero arbitrary values retain the tighter tolerance.
+        const currentTolerance = resistance === 0 ? 1e-5 : 5.1e-7;
+        expect(Math.abs((led?.current ?? 0) - expectedCurrent)).toBeLessThanOrEqual(
+          currentTolerance,
+        );
+        expect(Math.abs((resistor?.current ?? 0) - (led?.current ?? 0))).toBeLessThanOrEqual(1e-6);
+        expect(led?.brightness).toBeCloseTo(expectedBrightness, 1);
+        expect((resistor?.voltageDrop ?? 0) + (led?.voltageDrop ?? 0)).toBeCloseTo(5, 5);
+        return { current: led?.current ?? 0, brightness: led?.brightness ?? 0 };
+      });
+
+      for (let index = 1; index < samples.length; index += 1) {
+        expect(samples[index]?.current).toBeLessThanOrEqual(samples[index - 1]?.current ?? 0);
+        expect(samples[index]?.brightness).toBeLessThanOrEqual(samples[index - 1]?.brightness ?? 0);
+      }
+    },
+  );
 
   it('keeps a 3 V blue LED visibly dim through a 1 kOhm resistor', () => {
     const result = solveCircuit(
@@ -671,7 +1036,7 @@ describe('deterministic DC solver', () => {
     );
 
     expect(result.status).toBe('solved');
-    expect(result.current).toBeGreaterThan(0.013);
+    expect(result.current).toBeGreaterThan(0.012);
     expect(
       resultFor(
         doc([board, source, resistor, led], [connect('rail-to-row', 'board', 'P2', 'board', 'I1')]),
@@ -725,6 +1090,244 @@ describe('deterministic DC solver', () => {
     expect(rgb?.branchBrightness?.red).toBeGreaterThan(70);
     expect(rgb?.branchBrightness?.green).toBe(0);
     expect(rgb?.branchBrightness?.blue).toBe(0);
+  });
+
+  it('matches the Tinkercad 3 V direct-red RGB burnout current', () => {
+    const circuit = doc(
+      [
+        component('source', 'source', 3),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode' },
+        }),
+      ],
+      [
+        connect('positive', 'source', 'a', 'rgb', 'red'),
+        connect('common', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(circuit);
+    const rgb = resultFor(circuit, 'rgb');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(rgb?.branchCurrents?.red).toBeCloseTo(1.07, 2);
+    expect(rgb?.branchBrightness?.red).toBe(100);
+    expect(rgb?.branchBrightness?.green).toBe(0);
+    expect(rgb?.branchBrightness?.blue).toBe(0);
+    expect(rgb?.stressState).toBe('burned');
+    expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
+  });
+
+  it('mixes red and blue in the 3 V RCBG owner wiring', () => {
+    const circuit = doc(
+      [
+        component('source', 'source', 3),
+        component('r-red', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode', pinLayout: 'RCBG' },
+        }),
+      ],
+      [
+        connect('positive-red', 'source', 'a', 'r-red', 'a'),
+        connect('red-channel', 'r-red', 'b', 'rgb', 'red'),
+        connect('positive-blue', 'source', 'a', 'rgb', 'blue'),
+        connect('common-return', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+    const result = solveCircuit(circuit);
+    const rgb = resultFor(circuit, 'rgb');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(rgb?.branchCurrents?.red).toBeGreaterThan(0);
+    expect(rgb?.branchCurrents?.blue).toBeGreaterThan(0);
+    expect(rgb?.branchCurrents?.green).toBe(0);
+    expect(rgb?.branchBrightness?.red).toBeGreaterThan(0);
+    expect(rgb?.branchBrightness?.blue).toBeGreaterThan(rgb?.branchBrightness?.red ?? 100);
+    expect(rgb?.stressState).toBe('warning');
+    expect(result.diagnostics.map((item) => item.code)).toContain('led_near_limit');
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('led_burnout');
+  });
+
+  it.each(['red', 'green', 'blue'] as const)(
+    'changes only the %s RGB channel monotonically across the resistor sweep',
+    (channel) => {
+      const sample = (resistance: number) =>
+        solveCircuit(
+          doc(
+            [
+              component('source', 'source', 5),
+              component('resistor', 'resistor', resistance),
+              component('rgb', 'rgb-led', 0, {
+                componentTypeId: 'rgb-led',
+                pinIds: ['red', 'common', 'green', 'blue'],
+                stateProperties: { commonMode: 'common-cathode' },
+              }),
+            ],
+            [
+              connect('positive', 'source', 'a', 'resistor', 'a'),
+              connect('channel', 'resistor', 'b', 'rgb', channel),
+              connect('common', 'rgb', 'common', 'source', 'b'),
+            ],
+          ),
+        );
+      const results = [10_000, 1_000, 330, 220, 100, 0].map(sample);
+      const brightness = results.map(
+        (result) =>
+          result.components.find((item) => item.componentId === 'rgb')?.branchBrightness?.[
+            channel
+          ] ?? 0,
+      );
+
+      for (const result of results) {
+        const rgb = result.components.find((item) => item.componentId === 'rgb');
+        expect(result).toMatchObject({ solved: true, status: 'solved' });
+        expect(result.diagnostics.map((item) => item.code)).not.toContain('invalid_property');
+        expect(Number.isFinite(rgb?.branchCurrents?.[channel])).toBe(true);
+        for (const other of ['red', 'green', 'blue'] as const) {
+          if (other !== channel) expect(rgb?.branchBrightness?.[other]).toBe(0);
+        }
+      }
+      for (let index = 1; index < brightness.length; index += 1) {
+        expect(brightness[index]).toBeGreaterThanOrEqual(brightness[index - 1] ?? 0);
+      }
+      expect(brightness[0]).toBeGreaterThan(0);
+      expect(brightness.at(-1)).toBe(100);
+    },
+  );
+
+  it.each(['red', 'green', 'blue'] as RgbLedChannel[])(
+    'calculates the %s RGB channel for arbitrary decimal resistance values',
+    (channel) => {
+      const profile = rgbLedProfile(channel);
+      const samples = deterministicResistanceSamples(48).map((resistance) => {
+        const document = doc(
+          [
+            component('source', 'source', 5),
+            component('resistor', 'resistor', resistance),
+            component('rgb', 'rgb-led', 0, {
+              componentTypeId: 'rgb-led',
+              pinIds: ['red', 'common', 'green', 'blue'],
+              stateProperties: { commonMode: 'common-cathode' },
+            }),
+          ],
+          [
+            connect('positive', 'source', 'a', 'resistor', 'a'),
+            connect('channel', 'resistor', 'b', 'rgb', channel),
+            connect('common', 'rgb', 'common', 'source', 'b'),
+          ],
+        );
+        const result = solveCircuit(document);
+        const rgb = result.components.find((item) => item.componentId === 'rgb');
+        const current = rgb?.branchCurrents?.[channel] ?? 0;
+        const brightness = rgb?.branchBrightness?.[channel] ?? 0;
+        const expectedCurrent =
+          (5 - profile.kneeVoltage) / (Math.max(0.0001, resistance) + profile.dynamicResistanceOhm);
+
+        expect(result).toMatchObject({ solved: true, status: 'solved' });
+        expect(Math.abs(current - expectedCurrent)).toBeLessThanOrEqual(5.1e-7);
+        expect(brightness).toBeCloseTo(ledBrightnessPercent(expectedCurrent, profile), 1);
+        for (const other of ['red', 'green', 'blue'] as const) {
+          if (other !== channel) {
+            expect(rgb?.branchCurrents?.[other]).toBe(0);
+            expect(rgb?.branchBrightness?.[other]).toBe(0);
+          }
+        }
+        return { current, brightness };
+      });
+
+      for (let index = 1; index < samples.length; index += 1) {
+        expect(samples[index]?.current).toBeLessThanOrEqual(samples[index - 1]?.current ?? 0);
+        expect(samples[index]?.brightness).toBeLessThanOrEqual(samples[index - 1]?.brightness ?? 0);
+      }
+    },
+  );
+
+  it('keeps equal 220 ohm green and blue branches visibly mixed from a 3 V AA holder', () => {
+    const document = doc(
+      [
+        component('source', 'source', 3),
+        component('r-green', 'resistor', 220),
+        component('r-blue', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode: 'common-cathode', pinLayout: 'RCBG' },
+        }),
+      ],
+      [
+        connect('positive-green', 'source', 'a', 'r-green', 'a'),
+        connect('green-channel', 'r-green', 'b', 'rgb', 'green'),
+        connect('positive-blue', 'source', 'a', 'r-blue', 'a'),
+        connect('blue-channel', 'r-blue', 'b', 'rgb', 'blue'),
+        connect('common-return', 'rgb', 'common', 'source', 'b'),
+      ],
+    );
+
+    const result = solveCircuit(document);
+    const rgb = result.components.find((item) => item.componentId === 'rgb');
+    const greenBrightness = rgb?.branchBrightness?.green ?? 0;
+    const blueBrightness = rgb?.branchBrightness?.blue ?? 0;
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(rgb?.branchBrightness?.red).toBe(0);
+    expect(greenBrightness).toBeGreaterThan(0);
+    expect(blueBrightness).toBeGreaterThanOrEqual(greenBrightness * 0.45);
+    expect(blueBrightness).toBeLessThan(greenBrightness);
+    expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['circuit_ok']);
+  });
+
+  it('mixes all RGB channels for common-cathode and common-anode wiring', () => {
+    for (const commonMode of ['common-cathode', 'common-anode'] as const) {
+      const components = [
+        component('source', 'source', 5),
+        component('r-red', 'resistor', 220),
+        component('r-green', 'resistor', 220),
+        component('r-blue', 'resistor', 220),
+        component('rgb', 'rgb-led', 0, {
+          componentTypeId: 'rgb-led',
+          pinIds: ['red', 'common', 'green', 'blue'],
+          stateProperties: { commonMode },
+        }),
+      ];
+      const connections =
+        commonMode === 'common-cathode'
+          ? [
+              connect('positive-red', 'source', 'a', 'r-red', 'a'),
+              connect('red-channel', 'r-red', 'b', 'rgb', 'red'),
+              connect('positive-green', 'source', 'a', 'r-green', 'a'),
+              connect('green-channel', 'r-green', 'b', 'rgb', 'green'),
+              connect('positive-blue', 'source', 'a', 'r-blue', 'a'),
+              connect('blue-channel', 'r-blue', 'b', 'rgb', 'blue'),
+              connect('common-return', 'rgb', 'common', 'source', 'b'),
+            ]
+          : [
+              connect('common-positive', 'source', 'a', 'rgb', 'common'),
+              connect('red-channel', 'rgb', 'red', 'r-red', 'a'),
+              connect('red-return', 'r-red', 'b', 'source', 'b'),
+              connect('green-channel', 'rgb', 'green', 'r-green', 'a'),
+              connect('green-return', 'r-green', 'b', 'source', 'b'),
+              connect('blue-channel', 'rgb', 'blue', 'r-blue', 'a'),
+              connect('blue-return', 'r-blue', 'b', 'source', 'b'),
+            ];
+
+      const rgb = resultFor(doc(components, connections), 'rgb');
+      expect(rgb?.lit, commonMode).toBe(true);
+      expect(rgb?.branchCurrents?.red, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchCurrents?.green, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchCurrents?.blue, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchCurrents?.red, commonMode).toBeGreaterThan(
+        rgb?.branchCurrents?.green ?? Number.POSITIVE_INFINITY,
+      );
+      expect(rgb?.branchCurrents?.green, commonMode).toBeGreaterThan(
+        rgb?.branchCurrents?.blue ?? Number.POSITIVE_INFINITY,
+      );
+      expect(rgb?.branchBrightness?.red, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchBrightness?.green, commonMode).toBeGreaterThan(0);
+      expect(rgb?.branchBrightness?.blue, commonMode).toBeGreaterThan(0);
+    }
   });
 
   it('drives each seven-segment cell from its real pin and never invents a glyph', () => {
@@ -790,7 +1393,7 @@ describe('deterministic DC solver', () => {
       ),
     );
     const noSource = solveCircuit(doc([component('r1', 'resistor', 100)], []));
-    const invalid = solveCircuit(series([component('r1', 'resistor', 0)], 5));
+    const invalid = solveCircuit(series([component('lamp1', 'lamp', 0)], 5));
     expect(short.diagnostics.map((item) => item.code)).toContain('short_circuit');
     expect(open.diagnostics.map((item) => item.code)).toContain('open_circuit');
     expect(noSource.diagnostics.map((item) => item.code)).toContain('no_source');

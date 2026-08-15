@@ -63,7 +63,7 @@
     "outerFilesClassified": 2225,
     "nestedFilesClassified": 800,
     "exactOwnerSvgFiles": 650,
-    "componentPositions": 35,
+    "componentPositions": 34,
     "microbitMatchesAcrossOuterAndNested": 0,
     "vibrationMotorMatchesAcrossOuterAndNested": 0,
     "microbit": "missing_after_full_scan",
@@ -72,9 +72,9 @@
   "ownerApprovedReferenceAssets": [
     {
       "componentId": "arduino-uno",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/arduino-uno.svg",
-      "sha256": "0817b47bc7026fa99ada9d43aaedc7f11bcc5d162012d42971859dead42920b1",
+      "sourceArchive": "owner-direct-svg-20260810",
+      "sourceFile": "arduino_uno_pure_vector_checked.svg",
+      "sha256": "c4bba011bb122735bf8e1d23d266e2c545e2575c5f17c650294ad0015117027d",
       "ownerDecision": "approved_exact_owner_svg_for_runtime"
     },
     {
@@ -17034,12 +17034,13 @@
         "type": "static",
         "state": "static"
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+      "simulationSupport": "visual_and_contacts_only",
+      "blockReason": "Отрисовка и 31 контакт доступны; электрическая модель Arduino ещё не реализована",
+      "catalogTier": "core",
+      "ownerApproval": {
+        "source": "direct_owner_file",
+        "artTrusted": true,
+        "approvedAt": "2026-08-10"
       },
       "isDefaultVariant": true,
       "displayName": "Электролитический конденсатор",
@@ -27916,47 +27917,6 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "microbit",
-      "familyId": "microbit",
-      "familyLabelRu": "micro:bit",
-      "familyLabelEn": "micro:bit",
-      "variantId": "microbit",
-      "variantLabelRu": "micro:bit",
-      "variantLabelEn": "micro:bit",
-      "category": "controllers",
-      "subcategoryId": "boards",
-      "catalogOrder": 11,
-      "appearsInBasic": true,
-      "searchAliases": ["microbit", "micro:bit", "micro:bit"],
-      "displayNameEn": "micro:bit",
-      "provenance": "missing_owner_source",
-      "physicalWidthMm": null,
-      "physicalHeightMm": null,
-      "viewBox": null,
-      "pins": [],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [],
-      "stateContract": null,
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG не найден после полного сканирования архивов и вложенных ZIP",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
-      },
-      "isDefaultVariant": true,
-      "displayName": "micro:bit",
-      "sourceOwnerArchive": null,
-      "sourceOwnerPath": null,
-      "sourceSha256": null,
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "missing_owner_source"
-    },
-    {
       "componentId": "arduino-uno",
       "familyId": "arduino-uno",
       "familyLabelRu": "Arduino Uno",
@@ -27970,227 +27930,227 @@
       "appearsInBasic": true,
       "searchAliases": ["arduino-uno", "Arduino Uno", "Uno"],
       "displayNameEn": "arduino-uno",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 138.942,
-      "physicalHeightMm": 68.164,
-      "viewBox": [0, 0, 138.942, 68.164],
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 78.74,
+      "physicalHeightMm": 58.816875,
+      "viewBox": [0, 0, 992, 741],
       "pins": [
         {
           "id": "a0",
-          "xMm": 115.3804,
-          "yMm": 60.5346,
-          "electricalRole": "a0",
-          "toleranceMm": 0.0
+          "xMm": 58.6581,
+          "yMm": 53.2606,
+          "electricalRole": "analog-input",
+          "toleranceMm": 0.25
         },
         {
           "id": "a1",
-          "xMm": 117.9331,
-          "yMm": 60.5346,
-          "electricalRole": "a1",
-          "toleranceMm": 0.0
+          "xMm": 61.1981,
+          "yMm": 53.2606,
+          "electricalRole": "analog-input",
+          "toleranceMm": 0.25
         },
         {
           "id": "a2",
-          "xMm": 120.413,
-          "yMm": 60.5346,
-          "electricalRole": "a2",
-          "toleranceMm": 0.0
+          "xMm": 63.7381,
+          "yMm": 53.2606,
+          "electricalRole": "analog-input",
+          "toleranceMm": 0.25
         },
         {
           "id": "a3",
-          "xMm": 123.0023,
-          "yMm": 60.5346,
-          "electricalRole": "a3",
-          "toleranceMm": 0.0
+          "xMm": 66.2781,
+          "yMm": 53.2606,
+          "electricalRole": "analog-input",
+          "toleranceMm": 0.25
         },
         {
           "id": "a4",
-          "xMm": 125.5187,
-          "yMm": 60.5346,
-          "electricalRole": "a4",
-          "toleranceMm": 0.0
+          "xMm": 68.8181,
+          "yMm": 53.2606,
+          "electricalRole": "analog-input",
+          "toleranceMm": 0.25
         },
         {
           "id": "a5",
-          "xMm": 128.0715,
-          "yMm": 60.5711,
-          "electricalRole": "a5",
-          "toleranceMm": 0.0
+          "xMm": 71.3581,
+          "yMm": 53.2606,
+          "electricalRole": "analog-input",
+          "toleranceMm": 0.25
         },
         {
           "id": "aref",
-          "xMm": 88.3895,
-          "yMm": 12.1789,
-          "electricalRole": "aref",
-          "toleranceMm": 0.0
+          "xMm": 31.8294,
+          "yMm": 5.08,
+          "electricalRole": "analog-reference",
+          "toleranceMm": 0.25
         },
         {
           "id": "d0",
-          "xMm": 127.9836,
-          "yMm": 12.23,
-          "electricalRole": "d0",
-          "toleranceMm": 0.0
+          "xMm": 71.3581,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d1",
-          "xMm": 125.533,
-          "yMm": 12.2044,
-          "electricalRole": "d1",
-          "toleranceMm": 0.0
+          "xMm": 68.8181,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d10",
-          "xMm": 101.0515,
-          "yMm": 12.2299,
-          "electricalRole": "d10",
-          "toleranceMm": 0.0
+          "xMm": 44.5294,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d11",
-          "xMm": 98.6007,
-          "yMm": 12.2299,
-          "electricalRole": "d11",
-          "toleranceMm": 0.0
+          "xMm": 41.9894,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d12",
-          "xMm": 95.997,
-          "yMm": 12.1789,
-          "electricalRole": "d12",
-          "toleranceMm": 0.0
+          "xMm": 39.4494,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d13",
-          "xMm": 93.4441,
-          "yMm": 12.1534,
-          "electricalRole": "d13",
-          "toleranceMm": 0.0
+          "xMm": 36.9094,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d2",
-          "xMm": 123.0056,
-          "yMm": 12.281,
-          "electricalRole": "d2",
-          "toleranceMm": 0.0
+          "xMm": 66.2781,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d3",
-          "xMm": 120.4784,
-          "yMm": 12.2044,
-          "electricalRole": "d3",
-          "toleranceMm": 0.0
+          "xMm": 63.7381,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d4",
-          "xMm": 117.8745,
-          "yMm": 12.2555,
-          "electricalRole": "d4",
-          "toleranceMm": 0.0
+          "xMm": 61.1981,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d5",
-          "xMm": 115.3217,
-          "yMm": 12.2044,
-          "electricalRole": "d5",
-          "toleranceMm": 0.0
+          "xMm": 58.6581,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d6",
-          "xMm": 112.7944,
-          "yMm": 12.23,
-          "electricalRole": "d6",
-          "toleranceMm": 0.0
+          "xMm": 56.1181,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d7",
-          "xMm": 110.2672,
-          "yMm": 12.1789,
-          "electricalRole": "d7",
-          "toleranceMm": 0.0
+          "xMm": 53.5781,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d8",
-          "xMm": 106.1827,
-          "yMm": 12.2299,
-          "electricalRole": "d8",
-          "toleranceMm": 0.0
+          "xMm": 49.6094,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "d9",
-          "xMm": 103.6553,
-          "yMm": 12.1534,
-          "electricalRole": "d9",
-          "toleranceMm": 0.0
+          "xMm": 47.0694,
+          "yMm": 5.08,
+          "electricalRole": "digital-io",
+          "toleranceMm": 0.25
         },
         {
           "id": "gnd-top",
-          "xMm": 90.8913,
-          "yMm": 12.1789,
-          "electricalRole": "gnd-top",
-          "toleranceMm": 0.0
+          "xMm": 34.3694,
+          "yMm": 5.08,
+          "electricalRole": "ground",
+          "toleranceMm": 0.25
         },
         {
           "id": "ioref",
-          "xMm": 94.9503,
-          "yMm": 60.5036,
-          "electricalRole": "ioref",
-          "toleranceMm": 0.0
+          "xMm": 38.4175,
+          "yMm": 53.2606,
+          "electricalRole": "io-reference",
+          "toleranceMm": 0.25
         },
         {
           "id": "power-3v3",
-          "xMm": 100.1836,
-          "yMm": 60.5036,
+          "xMm": 43.4975,
+          "yMm": 53.2606,
           "electricalRole": "power-3v3",
-          "toleranceMm": 0.0
+          "toleranceMm": 0.25
         },
         {
           "id": "power-5v",
-          "xMm": 102.6342,
-          "yMm": 60.5801,
+          "xMm": 46.0375,
+          "yMm": 53.2606,
           "electricalRole": "power-5v",
-          "toleranceMm": 0.0
+          "toleranceMm": 0.25
         },
         {
           "id": "power-gnd-1",
-          "xMm": 105.1614,
-          "yMm": 60.5036,
-          "electricalRole": "power-gnd-1",
-          "toleranceMm": 0.0
+          "xMm": 48.5775,
+          "yMm": 53.2606,
+          "electricalRole": "ground",
+          "toleranceMm": 0.25
         },
         {
           "id": "power-gnd-2",
-          "xMm": 107.6632,
-          "yMm": 60.5291,
-          "electricalRole": "power-gnd-2",
-          "toleranceMm": 0.0
+          "xMm": 51.1175,
+          "yMm": 53.2606,
+          "electricalRole": "ground",
+          "toleranceMm": 0.25
         },
         {
           "id": "reset",
-          "xMm": 97.5797,
-          "yMm": 60.5291,
+          "xMm": 40.9575,
+          "yMm": 53.2606,
           "electricalRole": "reset",
-          "toleranceMm": 0.0
+          "toleranceMm": 0.25
         },
         {
           "id": "scl",
-          "xMm": 83.3349,
-          "yMm": 12.2555,
-          "electricalRole": "scl",
-          "toleranceMm": 0.0
+          "xMm": 26.7494,
+          "yMm": 5.08,
+          "electricalRole": "i2c-clock",
+          "toleranceMm": 0.25
         },
         {
           "id": "sda",
-          "xMm": 85.8367,
-          "yMm": 12.1789,
-          "electricalRole": "sda",
-          "toleranceMm": 0.0
+          "xMm": 29.2894,
+          "yMm": 5.08,
+          "electricalRole": "i2c-data",
+          "toleranceMm": 0.25
         },
         {
           "id": "vin",
-          "xMm": 110.165,
-          "yMm": 60.5291,
-          "electricalRole": "vin",
-          "toleranceMm": 0.0
+          "xMm": 53.6575,
+          "yMm": 53.2606,
+          "electricalRole": "power-input",
+          "toleranceMm": 0.25
         }
       ],
       "footprint": null,
@@ -28216,13 +28176,13 @@
       },
       "isDefaultVariant": true,
       "displayName": "Arduino Uno",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/arduino-uno.svg",
-      "sourceSha256": "0817b47bc7026fa99ada9d43aaedc7f11bcc5d162012d42971859dead42920b1",
-      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/arduino-uno.svg",
-      "runtimeSha256": "0817b47bc7026fa99ada9d43aaedc7f11bcc5d162012d42971859dead42920b1",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "sourceOwnerArchive": "owner-direct-svg-20260810",
+      "sourceOwnerPath": "arduino_uno_pure_vector_checked.svg",
+      "sourceSha256": "c4bba011bb122735bf8e1d23d266e2c545e2575c5f17c650294ad0015117027d",
+      "runtimePath": "/assets/electronics/owner-approved/arduino-uno.svg",
+      "runtimeSha256": "c4bba011bb122735bf8e1d23d266e2c545e2575c5f17c650294ad0015117027d",
+      "status": "enabled",
+      "previousInventoryClassification": "replaced_by_direct_owner_svg"
     },
     {
       "componentId": "vibration-motor",
@@ -28426,14 +28386,14 @@
         {
           "id": "BAT-",
           "xMm": 8.7279,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 11.2721,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28501,14 +28461,14 @@
         {
           "id": "BAT-",
           "xMm": 15.8657,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 18.4099,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28576,14 +28536,14 @@
         {
           "id": "BAT-",
           "xMm": 23.0035,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 25.5477,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28651,14 +28611,14 @@
         {
           "id": "BAT-",
           "xMm": 30.1413,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 32.6855,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28775,14 +28735,14 @@
         {
           "id": "BAT-",
           "xMm": 44.417,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 46.9611,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -28850,14 +28810,14 @@
         {
           "id": "BAT-",
           "xMm": 58.6926,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "negative",
           "toleranceMm": 0.0
         },
         {
           "id": "BAT+",
           "xMm": 61.2367,
-          "yMm": 1.1604,
+          "yMm": 1.4604,
           "electricalRole": "positive",
           "toleranceMm": 0.0
         }
@@ -29732,37 +29692,44 @@
       "category": "semiconductors",
       "subcategoryId": "transistors",
       "catalogOrder": 27,
-      "appearsInBasic": false,
+      "appearsInBasic": true,
       "searchAliases": ["transistor-npn", "NPN-транзистор", "NPN transistor"],
       "displayNameEn": "NPN transistor",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 8.267,
       "physicalHeightMm": 13.333,
-      "viewBox": [0, 0, 8.267, 13.333],
+      "viewBox": [0, 0, 437, 492],
       "pins": [
         {
           "id": "base",
           "xMm": 4.1932,
-          "yMm": 11.2611,
+          "yMm": 9.8739,
           "electricalRole": "base",
           "toleranceMm": 0.0
         },
         {
           "id": "collector",
           "xMm": 2.3114,
-          "yMm": 11.2952,
+          "yMm": 9.8977,
           "electricalRole": "collector",
           "toleranceMm": 0.0
         },
         {
           "id": "emitter",
           "xMm": 6.0751,
-          "yMm": 11.2952,
+          "yMm": 9.8977,
           "electricalRole": "emitter",
           "toleranceMm": 0.0
         }
       ],
-      "footprint": null,
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [-2.54, 0],
+          [2.54, 0]
+        ]
+      },
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -29776,9 +29743,9 @@
         "type": "static",
         "state": "static"
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "npn_piecewise_linear_dc",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
@@ -29790,7 +29757,7 @@
       "sourceSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
       "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/transistor-npn.svg",
       "runtimeSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
-      "status": "disabled_missing_model",
+      "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
     {

@@ -27,19 +27,24 @@ describe('owner SVG runtime catalog adapter', () => {
 
     for (const item of productionCatalog()) {
       expect(item.catalogStatus, item.key).toBe('enabled');
-      expect(item.provenance, item.key).toBe('exact_owner_svg');
+      expect(item.provenance, item.key).toBe(
+        item.key === 'arduino-uno' ? 'owner_supplied' : 'exact_owner_svg',
+      );
       expect(item.sourceOwnerPath, item.key).not.toBe('');
       expect(item.sourceSha256, item.key).toMatch(/^[0-9a-f]{64}$/);
-      expect(item.runtimePath, item.key).toMatch(/^\/assets\/electronics\/owner-audit\/.*\.svg$/);
+      expect(item.runtimePath, item.key).toMatch(
+        item.key === 'arduino-uno'
+          ? /^\/assets\/electronics\/owner-approved\/.*\.svg$/
+          : /^\/assets\/electronics\/owner-audit\/.*\.svg$/,
+      );
       expect(item.runtimeSha256, item.key).toBe(item.sourceSha256);
     }
 
-    for (const componentId of ['microbit', 'vibration-motor']) {
-      const item = ownerCatalogItems().find((entry) => entry.key === componentId);
-      expect(item?.catalogStatus).toBe('disabled_missing_svg');
-      expect(item?.enabled).toBe(false);
-      expect(item?.asset).toBe('');
-    }
+    expect(ownerCatalogItems().some((entry) => entry.key === 'microbit')).toBe(false);
+    const vibrationMotor = ownerCatalogItems().find((entry) => entry.key === 'vibration-motor');
+    expect(vibrationMotor?.catalogStatus).toBe('disabled_missing_svg');
+    expect(vibrationMotor?.enabled).toBe(false);
+    expect(vibrationMotor?.asset).toBe('');
 
     const substitution = structuredClone(manifest) as unknown as {
       components: Array<{ status: string; runtimeSha256: string }>;

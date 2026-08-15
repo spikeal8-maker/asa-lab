@@ -35,6 +35,12 @@ export type CatalogEntry = ProductionCatalogItem;
 export type ComponentVisualState =
   'default' | 'off' | 'lit' | 'reverse' | 'overcurrent' | 'burned' | 'pressed' | 'on';
 
+const RGB_PIN_LAYOUTS: Readonly<Record<string, readonly string[]>> = {
+  RCBG: ['red', 'common', 'blue', 'green'],
+  RCGB: ['red', 'common', 'green', 'blue'],
+  BRCG: ['blue', 'red', 'common', 'green'],
+};
+
 export interface CatalogVariant {
   readonly variantId: string;
   readonly variantLabel: string;
@@ -83,6 +89,37 @@ export const CATEGORY_OPTIONS: readonly {
 export const CATEGORY_LABELS: Readonly<Record<ComponentCategory, string>> = Object.fromEntries(
   CATEGORY_OPTIONS.map((category) => [category.id, category.label]),
 ) as Readonly<Record<ComponentCategory, string>>;
+
+// Tinkercad's Basic drawer is the visual reference for discoverability. The
+// catalog data and assets still come only from the owner manifest; this list
+// controls presentation order and deliberately omits micro:bit by owner choice.
+const TINKERCAD_BASIC_FAMILY_ORDER = [
+  'resistor',
+  'led',
+  'button',
+  'potentiometer',
+  'capacitor',
+  'spdt-switch',
+  'battery-holder-aa',
+  'breadboard',
+  'arduino-uno',
+  'vibration-motor',
+  'dc-motor',
+  'servo',
+  'transistor-npn',
+  'rgb-led',
+  'diode',
+  'photoresistor',
+  'piezo',
+  'multimeter',
+  'seven-segment',
+  'lamp',
+  'regulated-power-supply',
+  'battery',
+] as const;
+const TINKERCAD_BASIC_FAMILY_INDEX = new Map<string, number>(
+  TINKERCAD_BASIC_FAMILY_ORDER.map((familyId, index) => [familyId, index]),
+);
 
 export function workbenchCatalog(): readonly ComponentFamily[] {
   const ownerItems = ownerCatalogItems();
@@ -138,11 +175,20 @@ export function workbenchCatalog(): readonly ComponentFamily[] {
         blockReason: enabled ? null : blockReasons.join('; '),
       };
     })
-    .sort(
-      (left, right) =>
+    .sort((left, right) => {
+      const leftReferenceOrder = TINKERCAD_BASIC_FAMILY_INDEX.get(left.familyId);
+      const rightReferenceOrder = TINKERCAD_BASIC_FAMILY_INDEX.get(right.familyId);
+      if (leftReferenceOrder !== undefined || rightReferenceOrder !== undefined) {
+        return (
+          (leftReferenceOrder ?? Number.MAX_SAFE_INTEGER) -
+          (rightReferenceOrder ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+      return (
         left.catalogOrder - right.catalogOrder ||
-        left.familyLabel.localeCompare(right.familyLabel, 'ru'),
-    );
+        left.familyLabel.localeCompare(right.familyLabel, 'ru')
+      );
+    });
 }
 
 export function familyById(familyId: string): ComponentFamily | null {
@@ -235,10 +281,11 @@ export function visualAsset(
       Math.max(0, Math.round(Number(component.stateProperties?.['ledBrightness'] ?? 0))),
     );
     const explicitFault = (component.stateProperties?.['ledFault'] ?? 'none') as OrdinaryLedFault;
+    // Tinkercad keeps the selected LED colour visible while the current is
+    // above the recommended 20 mA and presents the warning separately. Do not
+    // replace the emitting bulb with the orange audit asset in that state.
     const fault: OrdinaryLedFault =
-      visualState === 'reverse' || visualState === 'overcurrent' || visualState === 'burned'
-        ? visualState
-        : explicitFault;
+      visualState === 'reverse' || visualState === 'burned' ? visualState : explicitFault;
     // A stopped or electrically-off LED must use the exact 0% owner state. The package
     // still keeps its selected body colour, but no light is emitted until the solver
     // reports current through the LED.
@@ -316,7 +363,25 @@ export function terminalPosition(
     : component
       ? (aliases[component.kind]?.[terminal] ?? terminal)
       : terminal;
-  const spec = entry?.terminals[resolved];
+  let spec = entry?.terminals[resolved];
+  if (entry && component?.kind === 'rgb-led') {
+    const layout = RGB_PIN_LAYOUTS[String(component.stateProperties?.['pinLayout'] ?? 'RCBG')];
+    const slot = layout?.indexOf(resolved) ?? -1;
+    const physicalPins = Object.values(entry.terminals)
+      .filter((pin) => ['red', 'common', 'green', 'blue'].includes(pin.id))
+      .sort((left, right) => left.xMm - right.xMm);
+    if (slot >= 0 && physicalPins[slot]) spec = physicalPins[slot];
+  }
   if (!entry || !spec) return null;
   return componentPointPosition(componentOrType, origin, spec, rotation);
+}
+
+export function physicalTerminalOrder(component: SchematicComponent): readonly string[] {
+  const entry = catalogEntry(component);
+  if (!entry) return component.pinIds ?? [];
+  if (component.kind !== 'rgb-led') return component.pinIds ?? Object.keys(entry.terminals);
+  return (
+    RGB_PIN_LAYOUTS[String(component.stateProperties?.['pinLayout'] ?? 'RCBG')] ??
+    RGB_PIN_LAYOUTS['RCBG']!
+  ).filter((terminal) => entry.terminals[terminal]);
 }

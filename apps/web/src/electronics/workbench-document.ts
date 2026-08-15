@@ -8,6 +8,7 @@ import type {
 import {
   catalogEntry,
   componentPointPosition,
+  physicalTerminalOrder,
   renderedSize,
   terminalPosition,
 } from './component-catalog';
@@ -490,14 +491,91 @@ export function reconnectWireEndpoint(
   };
 }
 
+function hasFlexibleBreadboardLeads(component: SchematicComponent): boolean {
+  return catalogEntry(component)?.familyId === 'battery-holder-aa';
+}
+
+function snapFlexibleLeadsToBreadboard(
+  document: SchematicDocument,
+  component: SchematicComponent,
+): SchematicDocument {
+  const entry = catalogEntry(component);
+  if (!entry) return document;
+  const used = new Set<string>();
+  const bindings: Record<string, { breadboardComponentId: string; holeId: string }> = {};
+
+  for (const terminal of component.pinIds ?? Object.keys(entry.terminals)) {
+    const physicalPoint = terminalPosition(
+      component,
+      component.position,
+      terminal,
+      component.rotation ?? 0,
+    );
+    if (!physicalPoint) continue;
+    let nearest:
+      | {
+          boardId: string;
+          holeId: string;
+          distance: number;
+        }
+      | undefined;
+    for (const boardComponent of document.components.filter((item) => item.kind === 'breadboard')) {
+      const board = productionBreadboard(boardComponent.componentTypeId ?? '');
+      if (!board) continue;
+      for (const hole of board.holes) {
+        const identity = `${boardComponent.id}:${hole.id}`;
+        if (used.has(identity)) continue;
+        const holePoint = componentPointPosition(
+          boardComponent,
+          boardComponent.position,
+          hole,
+          boardComponent.rotation ?? 0,
+        );
+        if (!holePoint) continue;
+        const distance = Math.hypot(holePoint.x - physicalPoint.x, holePoint.y - physicalPoint.y);
+        if (distance <= 30 && (!nearest || distance < nearest.distance)) {
+          nearest = { boardId: boardComponent.id, holeId: hole.id, distance };
+        }
+      }
+    }
+    if (!nearest) continue;
+    bindings[terminal] = {
+      breadboardComponentId: nearest.boardId,
+      holeId: nearest.holeId,
+    };
+    used.add(`${nearest.boardId}:${nearest.holeId}`);
+  }
+
+  const previous = component.holeBindings ?? {};
+  if (
+    Object.keys(previous).length === Object.keys(bindings).length &&
+    Object.entries(bindings).every(
+      ([terminal, binding]) =>
+        previous[terminal]?.breadboardComponentId === binding.breadboardComponentId &&
+        previous[terminal]?.holeId === binding.holeId,
+    )
+  ) {
+    return document;
+  }
+  return {
+    ...document,
+    components: document.components.map((item) =>
+      item.id === component.id ? { ...item, holeBindings: bindings } : item,
+    ),
+  };
+}
+
 export function snapComponentToBreadboard(
   document: SchematicDocument,
   componentId: string,
 ): SchematicDocument {
   const component = document.components.find((item) => item.id === componentId);
   const entry = component ? catalogEntry(component) : null;
+  if (component && hasFlexibleBreadboardLeads(component)) {
+    return snapFlexibleLeadsToBreadboard(document, component);
+  }
   const offsets = entry?.footprint?.pinOffsetsMm;
-  const pinIds = component?.pinIds ?? [];
+  const pinIds = component ? physicalTerminalOrder(component) : [];
   if (
     !component ||
     !entry ||
@@ -639,10 +717,12 @@ export function componentsBoundToBreadboard(
   breadboardComponentId: string,
 ): string[] {
   return document.components
-    .filter((component) =>
-      Object.values(component.holeBindings ?? {}).some(
-        (binding) => binding.breadboardComponentId === breadboardComponentId,
-      ),
+    .filter(
+      (component) =>
+        !hasFlexibleBreadboardLeads(component) &&
+        Object.values(component.holeBindings ?? {}).some(
+          (binding) => binding.breadboardComponentId === breadboardComponentId,
+        ),
     )
     .map((component) => component.id);
 }

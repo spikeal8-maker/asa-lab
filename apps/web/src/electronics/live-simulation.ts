@@ -19,6 +19,17 @@ export function calculateSimulationPreflight(document: SchematicDocument): Solve
   return analyseCircuit(document) as SolveResult;
 }
 
-export function canStartSimulation(result: SolveResult): boolean {
-  return result.solved && result.status === 'solved';
+export function prepareLiveSimulationStart(document: SchematicDocument): {
+  readonly document: SchematicDocument;
+  readonly result: SolveResult;
+} {
+  const runningDocument: SchematicDocument = {
+    ...document,
+    simulation: { ...document.simulation, running: true },
+  };
+  const result = calculateSimulationPreflight(runningDocument);
+  return {
+    document: runningDocument,
+    result,
+  };
 }

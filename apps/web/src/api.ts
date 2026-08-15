@@ -125,6 +125,7 @@ export type ComponentKind =
   | 'switch'
   | 'potentiometer'
   | 'diode'
+  | 'transistor'
   | 'lamp'
   | 'breadboard'
   | 'visual'
@@ -194,6 +195,10 @@ export interface ComponentResult {
   energized?: boolean;
   currentUtilizationPercent?: number;
   stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
+  operatingRegion?: 'cutoff' | 'active' | 'saturation';
+  baseCurrent?: number;
+  collectorCurrent?: number;
+  emitterCurrent?: number;
 }
 
 export interface SolveResult {

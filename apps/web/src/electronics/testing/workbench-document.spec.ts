@@ -4,20 +4,26 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { SchematicDocument } from '../../api';
 import {
   configureProductionLibrary,
+  productionBreadboard,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
+import { componentPointPosition, terminalPosition } from '../component-catalog';
 import {
   addComponentToDocument,
+  componentsBoundToBreadboard,
   connectTerminals,
   duplicateComponentInDocument,
   insertWireVertex,
   mirrorSelectionInDocument,
+  moveComponentInDocument,
   moveWireVertex,
   reconnectWireEndpoint,
   removeWireVertex,
   removeSelectionFromDocument,
   removeSelectedWireBends,
   rotateSelectionInDocument,
+  snapComponentToBreadboard,
+  terminalPositionInDocument,
   updateSelectedWireColor,
   updateSelectionName,
   updateSelectionState,
@@ -68,6 +74,97 @@ function populated(): SchematicDocument {
 }
 
 describe('Electronics M1 editor document operations', () => {
+  it('snaps a newly placed potentiometer on its first drop', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'breadboard-medium',
+      { x: 600, y: 500 },
+      'board',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'potentiometer',
+      { x: 600, y: 500 },
+      'pot',
+    ).document;
+    const boardComponent = document.components.find((item) => item.id === 'board');
+    const potentiometer = document.components.find((item) => item.id === 'pot');
+    const board = productionBreadboard('breadboard-medium');
+    const targetHole = board?.holes.find((hole) => hole.id === 'J8');
+    const targetPoint =
+      boardComponent && targetHole
+        ? componentPointPosition(boardComponent, boardComponent.position, targetHole, 0)
+        : null;
+    const firstPin = potentiometer
+      ? terminalPosition(potentiometer, potentiometer.position, 'terminal-1', 0)
+      : null;
+    expect(targetPoint).not.toBeNull();
+    expect(firstPin).not.toBeNull();
+    if (!potentiometer || !targetPoint || !firstPin) return;
+    document = moveComponentInDocument(document, 'pot', {
+      x: potentiometer.position.x + targetPoint.x - firstPin.x,
+      y: potentiometer.position.y + targetPoint.y - firstPin.y,
+    });
+    document = snapComponentToBreadboard(document, 'pot');
+    expect(document.components.find((item) => item.id === 'pot')?.holeBindings).toEqual({
+      'terminal-1': { breadboardComponentId: 'board', holeId: 'J8' },
+      'terminal-2': { breadboardComponentId: 'board', holeId: 'J10' },
+      wiper: { breadboardComponentId: 'board', holeId: 'J9' },
+    });
+  });
+
+  it('plugs battery lead ends into holes while the battery body stays outside the board group', () => {
+    let document = addComponentToDocument(
+      EMPTY,
+      'breadboard-medium',
+      { x: 600, y: 500 },
+      'board',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'battery-holder-aa-2',
+      { x: 600, y: 500 },
+      'battery',
+    ).document;
+    const boardComponent = document.components.find((item) => item.id === 'board');
+    const battery = document.components.find((item) => item.id === 'battery');
+    const board = productionBreadboard('breadboard-medium');
+    const targetHole = board?.holes.find((hole) => hole.id === 'J8');
+    const targetPoint =
+      boardComponent && targetHole
+        ? componentPointPosition(boardComponent, boardComponent.position, targetHole, 0)
+        : null;
+    const negative = battery ? terminalPosition(battery, battery.position, 'BAT-', 0) : null;
+    expect(targetPoint).not.toBeNull();
+    expect(negative).not.toBeNull();
+    if (!battery || !boardComponent || !targetPoint || !negative) return;
+    const batteryPosition = {
+      x: battery.position.x + targetPoint.x - negative.x,
+      y: battery.position.y + targetPoint.y - negative.y,
+    };
+    document = moveComponentInDocument(document, 'battery', batteryPosition);
+    document = snapComponentToBreadboard(document, 'battery');
+    expect(document.components.find((item) => item.id === 'battery')?.holeBindings).toEqual({
+      'BAT-': { breadboardComponentId: 'board', holeId: 'J8' },
+      'BAT+': { breadboardComponentId: 'board', holeId: 'J9' },
+    });
+    expect(componentsBoundToBreadboard(document, 'board')).not.toContain('battery');
+
+    const before = terminalPositionInDocument(
+      document,
+      document.components.find((item) => item.id === 'battery')!,
+      'BAT-',
+    );
+    document = moveComponentInDocument(document, 'board', {
+      x: boardComponent.position.x + 80,
+      y: boardComponent.position.y + 40,
+    });
+    const movedBattery = document.components.find((item) => item.id === 'battery')!;
+    const after = terminalPositionInDocument(document, movedBattery, 'BAT-');
+    expect(movedBattery.position).toEqual(batteryPosition);
+    expect(after).toEqual(before ? { x: before.x + 80, y: before.y + 40 } : null);
+  });
+
   it('keeps free user points by default and applies 90-degree locking only on demand', () => {
     expect(
       wirePoints({ x: 100, y: 100 }, { x: 300, y: 260 }, [

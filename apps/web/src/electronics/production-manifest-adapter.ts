@@ -4,8 +4,7 @@ import { BREADBOARD_PITCH_MM, WORLD_UNITS_PER_MM } from './production-asset-cont
 
 const OWNER_CATALOG_REVISION =
   typeof __ASA_BUILD_REVISION__ === 'undefined' ? 'development' : __ASA_BUILD_REVISION__;
-export const OWNER_CATALOG_MANIFEST_URL =
-  `/assets/electronics/owner-catalog/manifest.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
+export const OWNER_CATALOG_MANIFEST_URL = `/assets/electronics/owner-catalog/manifest.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
 
 export interface ProductionPin {
   readonly id: string;
@@ -182,14 +181,14 @@ const SIMULATED_TYPES = new Set([
   'potentiometer',
   'diode-do35',
   'diode-do41',
+  'transistor-npn',
   'incandescent-lamp',
   'rgb-led',
   'seven-segment-display',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  resistor:
-    'Ограничивает электрический ток. Цветовые полосы показывают сопротивление и допуск.',
+  resistor: 'Ограничивает электрический ток. Цветовые полосы показывают сопротивление и допуск.',
   led: 'Светится при правильной полярности; яркость рассчитывается по току в цепи.',
   button: 'Моментально замыкает контакты, пока кнопка нажата во время моделирования.',
   potentiometer: 'Регулируемый резистор: положение ручки изменяет положение движка.',
@@ -197,7 +196,6 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'spdt-switch': 'Переключает общий контакт между левым и правым выводами.',
   battery: 'Источник постоянного напряжения для питания схемы.',
   breadboard: 'Макетная плата для сборки цепей без пайки. Отверстия соединены группами.',
-  microbit: 'Учебная микроконтроллерная плата micro:bit.',
   'arduino-uno': 'Микроконтроллерная плата Arduino Uno.',
   'vibration-motor': 'Миниатюрный двигатель, создающий вибрацию.',
   'dc-motor': 'Двигатель постоянного тока с управлением скоростью и направлением.',
@@ -224,6 +222,7 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (componentId === 'switch-spdt') return 'switch';
   if (componentId === 'potentiometer') return 'potentiometer';
   if (componentId.startsWith('diode-')) return 'diode';
+  if (componentId === 'transistor-npn') return 'transistor';
   if (componentId === 'incandescent-lamp') return 'lamp';
   if (componentId.startsWith('breadboard-')) return 'breadboard';
   return 'visual';
@@ -245,7 +244,6 @@ function preview(componentId: string, kind: Exclude<ComponentKind, 'wire'>): Pre
   if (componentId === 'servo-motor') return 'servo';
   if (componentId === 'dc-motor') return 'motor';
   if (componentId === 'vibration-motor') return 'vibration-motor';
-  if (componentId === 'microbit') return 'microbit';
   if (componentId === 'transistor-npn') return 'transistor';
   if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId === 'rgb-led') return 'rgb-led';
@@ -266,7 +264,11 @@ function defaults(componentId: string): {
     return { value: cells * 1.5, unit: 'В', properties: { cells } };
   }
   if (componentId === 'resistor-axial')
-    return { value: 220, unit: 'Ом', properties: { tolerancePercent: 5 } };
+    return {
+      value: 220,
+      unit: 'Ом',
+      properties: { tolerancePercent: 5, resistanceUnit: 'Ω' },
+    };
   if (componentId === 'led-5mm')
     return {
       value: 2,
@@ -277,7 +279,13 @@ function defaults(componentId: string): {
     return {
       value: 0,
       unit: '',
-      properties: { red: 0, green: 0, blue: 0, commonMode: 'common-cathode' },
+      properties: {
+        red: 0,
+        green: 0,
+        blue: 0,
+        commonMode: 'common-cathode',
+        pinLayout: 'RCBG',
+      },
     };
   if (componentId === 'seven-segment-display')
     return {
@@ -290,14 +298,43 @@ function defaults(componentId: string): {
   if (componentId === 'switch-spdt')
     return { value: 0, unit: '', state: false, properties: { selectedThrow: 'left' } };
   if (componentId === 'potentiometer')
-    return { value: 1_000, unit: 'Ом', wiperPosition: 0.5, properties: {} };
+    return {
+      value: 1_000,
+      unit: 'Ом',
+      wiperPosition: 0.5,
+      properties: { resistanceUnit: 'kΩ' },
+    };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
+  if (componentId === 'transistor-npn')
+    return {
+      value: 100,
+      unit: 'hFE',
+      properties: {
+        currentGain: 100,
+        baseEmitterVoltage: 0.7,
+        saturationVoltage: 0.2,
+        maxCollectorCurrent: 0.2,
+      },
+    };
   if (componentId === 'incandescent-lamp')
-    return { value: 24, unit: 'Ом', properties: { lampLevel: 'off' } };
+    return {
+      value: 24,
+      unit: 'Ом',
+      properties: { lampLevel: 'off', resistanceUnit: 'Ω' },
+    };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }
 
 function pinLabel(componentId: string, pinId: string): string {
+  if (componentId === 'rgb-led') {
+    const rgbLabels: Readonly<Record<string, string>> = {
+      red: 'Красный',
+      common: 'Катод',
+      blue: 'Синий',
+      green: 'Зеленый',
+    };
+    return rgbLabels[pinId] ?? pinId;
+  }
   const labels: Readonly<Record<string, string>> = {
     'BAT+': 'Положительный',
     'BAT-': 'Отрицательный',
@@ -322,6 +359,42 @@ function pinLabel(componentId: string, pinId: string): string {
     red: 'R',
     green: 'G',
     blue: 'B',
+    base: 'B',
+    collector: 'C',
+    emitter: 'E',
+  };
+  const arduinoLabels: Readonly<Record<string, string>> = {
+    a0: 'A0',
+    a1: 'A1',
+    a2: 'A2',
+    a3: 'A3',
+    a4: 'A4',
+    a5: 'A5',
+    aref: 'AREF',
+    d0: 'D0 / RX',
+    d1: 'D1 / TX',
+    d2: 'D2',
+    d3: 'D3 ~',
+    d4: 'D4',
+    d5: 'D5 ~',
+    d6: 'D6 ~',
+    d7: 'D7',
+    d8: 'D8',
+    d9: 'D9 ~',
+    d10: 'D10 ~',
+    d11: 'D11 ~',
+    d12: 'D12',
+    d13: 'D13',
+    'gnd-top': 'GND',
+    ioref: 'IOREF',
+    'power-3v3': '3.3V',
+    'power-5v': '5V',
+    'power-gnd-1': 'GND',
+    'power-gnd-2': 'GND',
+    reset: 'RESET',
+    scl: 'SCL',
+    sda: 'SDA',
+    vin: 'VIN',
   };
   const sevenSegmentLabels: Readonly<Record<string, string>> = {
     // Standard 10-pin single-digit display viewed from the front.
@@ -337,6 +410,7 @@ function pinLabel(componentId: string, pinId: string): string {
     'bottom-5': 'DP',
   };
   if (componentId.startsWith('breadboard-')) return pinId;
+  if (componentId === 'arduino-uno') return arduinoLabels[pinId] ?? pinId;
   if (componentId === 'seven-segment-display') return sevenSegmentLabels[pinId] ?? pinId;
   return labels[pinId] ?? pinId;
 }
@@ -348,10 +422,14 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
     }
     return;
   }
+  const runtimePrefix =
+    item.provenance === 'owner_supplied'
+      ? '/assets/electronics/owner-approved/'
+      : '/assets/electronics/owner-audit/';
   if (
-    item.provenance !== 'exact_owner_svg' ||
+    !['exact_owner_svg', 'owner_supplied'].includes(item.provenance) ||
     !item.sourceOwnerPath ||
-    !item.runtimePath?.startsWith('/assets/electronics/owner-audit/') ||
+    !item.runtimePath?.startsWith(runtimePrefix) ||
     !item.runtimePath.endsWith('.svg') ||
     item.sourceSha256 === null ||
     item.runtimeSha256 !== item.sourceSha256
@@ -387,10 +465,7 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
         throw new Error('owner catalog rejected LED polarity: anode must be right of cathode');
       }
     }
-    if (
-      item.footprint?.pinOffsetsMm &&
-      item.footprint.pinOffsetsMm.length !== item.pins.length
-    ) {
+    if (item.footprint?.pinOffsetsMm && item.footprint.pinOffsetsMm.length !== item.pins.length) {
       throw new Error(`owner catalog rejected incomplete footprint: ${item.componentId}`);
     }
   }
