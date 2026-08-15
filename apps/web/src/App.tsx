@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ClassroomPage } from './pages/ClassroomPage';
+import { TeacherInvitePage } from './pages/TeacherInvitePage';
 import { AccountPage } from './pages/AccountPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
@@ -36,11 +37,6 @@ type SessionState =
   | { kind: 'anonymous' }
   | { kind: 'authenticated'; session: SessionPayload }
   | { kind: 'error' };
-
-type ClassroomSwitchState =
-  | { kind: 'idle' }
-  | { kind: 'switching'; workspaceTitle: string }
-  | { kind: 'error'; message: string };
 
 type PublicView =
   | { kind: 'entry' }
@@ -71,8 +67,11 @@ export function App(): JSX.Element {
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
   );
+  const [pendingTeacherInvite, setPendingTeacherInvite] = useState<string | null>(() => {
+    const initial = creatorViewFromLocation(window.location);
+    return initial.kind === 'teacher-invite' ? initial.token : null;
+  });
   const [shellCreating, setShellCreating] = useState(false);
-  const [classroomSwitch, setClassroomSwitch] = useState<ClassroomSwitchState>({ kind: 'idle' });
   const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
 
   const setView = useCallback((next: CreatorPortalView) => {
@@ -107,7 +106,9 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const sync = (): void => {
-      setViewState(creatorViewFromLocation(window.location));
+      const nextView = creatorViewFromLocation(window.location);
+      setViewState(nextView);
+      if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
       setPublicViewState(publicViewFromHash());
     };
     window.addEventListener('popstate', sync);
@@ -163,8 +164,34 @@ export function App(): JSX.Element {
   if (session.kind === 'anonymous') {
     const signedIn = (payload: SessionPayload): void => {
       setSession({ kind: 'authenticated', session: payload });
+      if (pendingTeacherInvite) {
+        setView({ kind: 'teacher-invite', token: pendingTeacherInvite });
+        return;
+      }
       setView(view.kind === 'editor' ? view : { kind: 'home' });
     };
+
+    if (view.kind === 'teacher-invite' && publicView.kind === 'entry') {
+      return (
+        <TeacherInvitePage
+          token={view.token}
+          authenticated={false}
+          onSignIn={() => {
+            setPendingTeacherInvite(view.token);
+            setPublicView({ kind: 'sign-in' });
+          }}
+          onRegister={() => {
+            setPendingTeacherInvite(view.token);
+            setPublicView({ kind: 'sign-up' });
+          }}
+          onBack={() => {
+            setPendingTeacherInvite(null);
+            setView({ kind: 'home' });
+            setPublicView({ kind: 'entry' });
+          }}
+        />
+      );
+    }
 
     if (publicView.kind === 'sign-up') {
       return (
@@ -211,11 +238,6 @@ export function App(): JSX.Element {
       entry.capability === 'educator' &&
       (entry.state === 'verified' || entry.state === 'provisional'),
   );
-  const classroomWorkspaces = session.session.workspaces.filter(
-    (workspace) =>
-      workspace.kind === 'organization' &&
-      ['owner', 'educator', 'school_admin'].includes(workspace.role),
-  );
   const canTeachHere = canUseClasses(
     session.session.navigation,
     session.session.activeWorkspace.kind,
@@ -236,44 +258,14 @@ export function App(): JSX.Element {
 
   const active = sectionForView(view, hasTeachingCapability);
 
-  const switchToClassroomWorkspace = async (workspaceId: string, workspaceTitle: string) => {
-    if (workspaceId === session.session.activeWorkspace.workspaceId) return;
-    setClassroomSwitch({ kind: 'switching', workspaceTitle });
-    const switched = await api.switchWorkspace(workspaceId);
-    const refreshed = switched.ok ? await api.me() : null;
-    if (
-      refreshed?.ok &&
-      refreshed.data.authenticated &&
-      refreshed.data.activeWorkspace.workspaceId === workspaceId
-    ) {
-      setSession({ kind: 'authenticated', session: refreshed.data });
-      setClassroomSwitch({ kind: 'idle' });
-      setView({ kind: 'classrooms' });
-      return;
-    }
-    setClassroomSwitch({
-      kind: 'error',
-      message: 'Не удалось открыть школу. Обновите страницу и повторите.',
-    });
-  };
-
   const navigate = (section: CreatorPortalSection): void => {
     if (section === 'home') setView({ kind: 'home' });
     else if (section === 'projects') setView({ kind: 'my-projects' });
     else if (section === 'learning') setView({ kind: 'learning' });
     else if (section === 'collections') setView({ kind: 'collections' });
     else if (section === 'challenges') setView({ kind: 'challenges' });
-    else if (section === 'classes') {
-      setView({ kind: 'classrooms' });
-      const onlyWorkspace = classroomWorkspaces.length === 1 ? classroomWorkspaces[0] : undefined;
-      if (
-        hasTeachingCapability &&
-        session.session.activeWorkspace.kind !== 'organization' &&
-        onlyWorkspace
-      ) {
-        void switchToClassroomWorkspace(onlyWorkspace.workspaceId, onlyWorkspace.title);
-      }
-    } else if (section === 'help') setView({ kind: 'help' });
+    else if (section === 'classes') setView({ kind: 'classrooms' });
+    else if (section === 'help') setView({ kind: 'help' });
     else {
       setAccountPanel('profile');
       setView({ kind: 'account' });
@@ -357,66 +349,6 @@ export function App(): JSX.Element {
           }
         />
       ) : null}
-      {hasTeachingCapability &&
-      !canManageClasses &&
-      (view.kind === 'classrooms' ||
-        view.kind === 'classroom' ||
-        view.kind === 'classroom-projects') ? (
-        <main className="portal-content" id="main-content" tabIndex={-1}>
-          <section className="creator-access-message">
-            <p className="portal-eyebrow">Классы</p>
-            <h1>
-              {classroomSwitch.kind === 'switching'
-                ? `Открываем классы «${classroomSwitch.workspaceTitle}»`
-                : classroomWorkspaces.length > 0
-                  ? 'Выберите школу'
-                  : 'Создайте свою школу'}
-            </h1>
-            {classroomWorkspaces.length > 0 ? (
-              <>
-                <p>
-                  Выберите школу, чтобы открыть её классы, учеников и задания. Личные проекты при
-                  этом сохранятся.
-                </p>
-                {classroomWorkspaces.map((workspace) => (
-                  <button
-                    key={workspace.workspaceId}
-                    type="button"
-                    className="btn-secondary"
-                    disabled={classroomSwitch.kind === 'switching'}
-                    onClick={() =>
-                      void switchToClassroomWorkspace(workspace.workspaceId, workspace.title)
-                    }
-                  >
-                    {classroomSwitch.kind === 'switching'
-                      ? 'Открываем…'
-                      : `Перейти к классам: ${workspace.title}`}
-                  </button>
-                ))}
-              </>
-            ) : (
-              <p>
-                Назовите школу — вы сразу станете её администратором и сможете создать первый класс.
-              </p>
-            )}
-            {classroomSwitch.kind === 'error' ? (
-              <p className="notice-error" role="alert">
-                {classroomSwitch.message}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setAccountPanel('school');
-                setView({ kind: 'account' });
-              }}
-            >
-              {classroomWorkspaces.length > 0 ? 'Управление школами' : 'Создать школу'}
-            </button>
-          </section>
-        </main>
-      ) : null}
       {!hasTeachingCapability &&
       (view.kind === 'classrooms' ||
         view.kind === 'classroom' ||
@@ -425,7 +357,7 @@ export function App(): JSX.Element {
           <section className="creator-access-message">
             <p className="portal-eyebrow">Классы</p>
             <h1>Хотите вести занятия?</h1>
-            <p>Выберите роль «Педагог» в профиле, затем создайте свою школу и первый класс.</p>
+            <p>Выберите роль «Педагог» в профиле — после этого можно сразу создать первый класс.</p>
             <button
               type="button"
               className="btn-secondary"
@@ -438,6 +370,28 @@ export function App(): JSX.Element {
             </button>
           </section>
         </main>
+      ) : null}
+      {view.kind === 'teacher-invite' ? (
+        <TeacherInvitePage
+          token={view.token}
+          authenticated
+          onAccepted={(classroom) => {
+            setPendingTeacherInvite(null);
+            setView({
+              kind: 'classroom',
+              classroomId: classroom.id,
+              classroomTitle: classroom.title,
+            });
+          }}
+          onBack={() => {
+            setPendingTeacherInvite(null);
+            setView({ kind: 'classrooms' });
+          }}
+          onOpenProfile={() => {
+            setAccountPanel('profile');
+            setView({ kind: 'account' });
+          }}
+        />
       ) : null}
       {view.kind === 'account' ? (
         <AccountPage

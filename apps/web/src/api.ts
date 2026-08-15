@@ -74,7 +74,34 @@ export interface Classroom {
   joinCodeVersion: number | null;
   joinCodeStatus: 'active' | 'revoked' | null;
   joinCode: string | null;
+  teacherRole: 'owner' | 'co_teacher';
+  workspaceKind: 'personal' | 'organization';
+  workspaceTitle: string;
   createdAt: string;
+}
+
+export interface ClassroomTeacher {
+  accountId: string;
+  displayName: string;
+  avatarDataUrl: string | null;
+  role: 'owner' | 'co_teacher';
+  joinedAt: string;
+}
+
+export interface ClassroomTeacherInvitation {
+  id: string;
+  status: 'pending' | 'accepted' | 'expired';
+  expiresAt: string;
+  createdAt: string;
+  invitePath?: string;
+}
+
+export interface ClassroomTeacherInvitationPreview {
+  classroomId: string;
+  classroomTitle: string;
+  ownerDisplayName: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
 }
 
 export interface ClassroomStudentSeat {
@@ -499,6 +526,34 @@ export const api = {
     call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}/join-code`, {
       method: 'DELETE',
     }),
+  listClassroomTeachers: (classroomId: string) =>
+    call<{ items: ClassroomTeacher[]; invitations: ClassroomTeacherInvitation[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/teachers`,
+    ),
+  createClassroomTeacherInvitation: (classroomId: string) =>
+    call<{ invitation: ClassroomTeacherInvitation & { invitePath: string } }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/teacher-invitations`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+  revokeClassroomTeacherInvitation: (classroomId: string, invitationId: string) =>
+    call<{ revoked: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/teacher-invitations/${encodeURIComponent(invitationId)}`,
+      { method: 'DELETE' },
+    ),
+  removeClassroomTeacher: (classroomId: string, teacherAccountId: string) =>
+    call<{ removed: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/teachers/${encodeURIComponent(teacherAccountId)}`,
+      { method: 'DELETE' },
+    ),
+  resolveClassroomTeacherInvitation: (token: string) =>
+    call<{ invitation: ClassroomTeacherInvitationPreview }>(
+      `/api/classroom-teacher-invitations/${encodeURIComponent(token)}`,
+    ),
+  acceptClassroomTeacherInvitation: (token: string) =>
+    call<{ classroom: { id: string; title: string; role: 'co_teacher' } }>(
+      `/api/classroom-teacher-invitations/${encodeURIComponent(token)}/accept`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
   resolveClassroomCode: (code: string) =>
     call<{
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };

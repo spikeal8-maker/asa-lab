@@ -29,6 +29,7 @@ export class CreateClassroomUseCase {
   constructor(private readonly repository: ClassroomRepositoryPort) {}
 
   async execute(input: {
+    accountId: string;
     tenantId: string;
     classroomId: string;
     schoolId: string;
@@ -56,6 +57,7 @@ export class CreateClassroomUseCase {
     const title = input.title.trim();
     const topicKeys = [...input.topicKeys].sort();
     const result = await this.repository.createWithOwner({
+      accountId: input.accountId,
       tenantId: input.tenantId,
       classroomId: input.classroomId,
       schoolId: input.schoolId,

@@ -53,7 +53,14 @@ export function DashboardPage({
     window.requestAnimationFrame(() => createButtonRef.current?.focus({ preventScroll: true }));
   }
 
-  const visibleItems = list.kind === 'ready' && roleView === 'teaching' ? list.items : [];
+  const visibleItems =
+    list.kind !== 'ready'
+      ? []
+      : roleView === 'teaching'
+        ? list.items.filter((item) => item.teacherRole === 'owner')
+        : roleView === 'coteaching'
+          ? list.items.filter((item) => item.teacherRole === 'co_teacher')
+          : [];
   const allSelected = visibleItems.length > 0 && selected.size === visibleItems.length;
 
   function toggleAll(): void {
@@ -135,7 +142,7 @@ export function DashboardPage({
         </button>
       </section>
 
-      {list.kind === 'loading' && roleView === 'teaching' ? (
+      {list.kind === 'loading' ? (
         <section className="classroom-list loading" role="status" aria-label="Загрузка классов">
           <div />
           <div />
@@ -150,7 +157,7 @@ export function DashboardPage({
           </button>
         </div>
       ) : null}
-      {list.kind === 'ready' && roleView === 'teaching' && list.items.length === 0 ? (
+      {list.kind === 'ready' && roleView === 'teaching' && visibleItems.length === 0 ? (
         <section className="portal-empty">
           <span className="portal-empty-icon">
             <ClassesIcon />
@@ -162,7 +169,7 @@ export function DashboardPage({
           </button>
         </section>
       ) : null}
-      {list.kind === 'ready' && roleView !== 'teaching' ? (
+      {list.kind === 'ready' && roleView !== 'teaching' && visibleItems.length === 0 ? (
         <section className="classroom-tab-empty">
           <span aria-hidden="true">
             <ClassesIcon />
@@ -177,9 +184,9 @@ export function DashboardPage({
           </p>
         </section>
       ) : null}
-      {list.kind === 'ready' && roleView === 'teaching' && list.items.length > 0 ? (
+      {list.kind === 'ready' && visibleItems.length > 0 ? (
         <ul className="classroom-list" data-testid="classroom-grid" aria-label="Мои классы">
-          {list.items.map((classroom) => (
+          {visibleItems.map((classroom) => (
             <li key={classroom.id} className="classroom-list-row" data-testid="classroom-card">
               <label className="classroom-row-select">
                 <input
@@ -197,6 +204,9 @@ export function DashboardPage({
                 {classroom.title}
               </button>
               <span className="classroom-row-students">Ученики: {classroom.studentCount}</span>
+              <span className="classroom-row-scope">
+                {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
+              </span>
               <span className="classroom-row-date">
                 <small>Дата создания</small>
                 {formatClassroomDate(classroom.createdAt)}

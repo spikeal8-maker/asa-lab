@@ -102,6 +102,16 @@ describe('Creator Portal routing', () => {
     expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
   });
 
+  it('keeps a co-teacher invitation token through sign-in and refresh navigation', () => {
+    const view: CreatorPortalView = {
+      kind: 'teacher-invite',
+      token: 'teacher_invitation-token-123456',
+    };
+
+    expect(creatorViewToHash(view)).toBe('#/teacher-invite/teacher_invitation-token-123456');
+    expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+  });
+
   it('uses Home for the public root and unknown routes', () => {
     expect(creatorViewFromHash('#/')).toEqual({ kind: 'home' });
     expect(creatorViewFromHash('#/not-a-real-route')).toEqual({ kind: 'home' });
