@@ -51,6 +51,33 @@ The module owns its rule, learning, bot and safe-interaction data. Project Core
 remains subject-neutral. Child-to-child free-form chat, direct messages, public
 profiles and unrestricted public matchmaking are prohibited.
 
+## Pilot readiness lane
+
+A cross-cutting lane under `PHASE-PILOT`, added after load measurement showed
+that throughput is not the constraint and abuse resistance is. Sign-in hashing
+ran synchronously, so a single client sending 38 requests per second stopped the
+whole process; nothing about that was visible from outside, because the API had
+no metrics and no request log.
+
+These tasks stay `planned` until the owner promotes one. Only the first two have
+code; the rest are recorded so the queue reflects what is known, not to claim
+progress.
+
+```text
+TASK-PERF-BASELINE-001    measurement tooling and recorded availability budget
+TASK-AUTH-HARDENING-001   non-blocking hashing, attempt ceilings, no timing disclosure
+TASK-OBSERVABILITY-001    runtime metrics, request log, readiness that separates busy from broken
+TASK-WEB-BOOTSTRAP-001    render without the Electronics catalog and split the catalog
+TASK-ASSET-DELIVERY-001   compression and immutable caching scoped to hashed filenames
+TASK-E2E-GATE-001         repair the drifted specs and place them in the gate
+TASK-SCALE-PREP-001       pool guards, covering indexes, chunk split, multi-instance readiness
+```
+
+The budget lives in [`../testing/performance-budget.json`](../testing/performance-budget.json)
+and is enforced by `pnpm perf:runtime:check`. Its thresholds come from the school
+scenario — 300 learners signing in over 30 seconds is 10 sign-ins per second —
+rather than from whatever the current build happens to score.
+
 ## Quality gate
 
 See [`QUALITY_MAP.md`](QUALITY_MAP.md) and

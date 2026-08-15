@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import { createApiApp } from '../../apps/api/src/app.factory.js';
+import {
+  LOGIN_PER_ADDRESS,
+  LOGIN_PER_IDENTIFIER,
+  LOGIN_WINDOW_MS,
+  REGISTER_PER_ADDRESS,
+  REGISTER_WINDOW_MS,
+} from '../../apps/api/src/auth.controller.js';
 import { FixedWindowRateLimiter } from '../../apps/api/src/rate-limit.js';
 
 const WEB_ORIGIN = 'http://127.0.0.1:4610';
@@ -54,29 +61,43 @@ describe('sign-in abuse ceiling', () => {
     expect(blocked.json().error.retryAfterSeconds).toBeGreaterThan(0);
   }, 30_000);
 
-  it('keeps registration behind a ceiling as well', async () => {
+  it('does not punish a whole class for sharing one address', async () => {
     const fastify = await signInApp();
 
+    // A class signs in from one NAT address. Every learner uses their own
+    // identifier, so nothing here looks like guessing — and nothing may be
+    // refused. Getting this wrong locks out the room, not the attacker.
     const statuses: number[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      const response = await fastify.inject({
-        method: 'POST',
-        url: '/api/auth/register',
-        headers: { host: '127.0.0.1:4611', origin: WEB_ORIGIN, 'content-type': 'application/json' },
-        payload: {
-          email: `person-${i}@example.test`,
-          password: 'Long-enough-password-1',
-          username: `person${i}`,
-          displayName: `Person ${i}`,
-          birthDate: '1990-01-01',
-          country: 'RU',
-        },
-      });
-      statuses.push(response.statusCode);
+    for (let seat = 0; seat < 30; seat += 1) {
+      statuses.push((await attempt(fastify, `learner-${seat}@school.test`)).statusCode);
     }
 
-    expect(statuses.filter((status) => status === 429).length).toBeGreaterThan(0);
-  }, 30_000);
+    expect(statuses.every((status) => status === 401)).toBe(true);
+  }, 60_000);
+});
+
+describe('ceilings are sized for a school, not a single household', () => {
+  it('lets a full class sign in and retry from one address', () => {
+    const CLASS_SIZE = 30;
+    const RETRIES_PER_LEARNER = 4;
+    expect(LOGIN_PER_ADDRESS).toBeGreaterThanOrEqual(CLASS_SIZE * RETRIES_PER_LEARNER);
+  });
+
+  it('still stops guessing at one identifier long before that', () => {
+    expect(LOGIN_PER_IDENTIFIER).toBeLessThan(LOGIN_PER_ADDRESS / 4);
+  });
+
+  it('lets a staff room register without tripping the ceiling', () => {
+    expect(REGISTER_PER_ADDRESS).toBeGreaterThanOrEqual(30);
+  });
+
+  it('keeps the worst case a client can buy down to a slice of one thread', () => {
+    const HASH_COST_MS = 27;
+    const loginCpuShare = (LOGIN_PER_ADDRESS * HASH_COST_MS) / LOGIN_WINDOW_MS;
+    const registerCpuShare = (REGISTER_PER_ADDRESS * HASH_COST_MS) / REGISTER_WINDOW_MS;
+    expect(loginCpuShare).toBeLessThan(0.05);
+    expect(registerCpuShare).toBeLessThan(0.05);
+  });
 });
 
 describe('rate limiter housekeeping', () => {

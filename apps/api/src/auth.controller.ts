@@ -23,14 +23,22 @@ import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 
-// Password hashing costs tens of milliseconds of thread-pool time per attempt.
-// Without a ceiling one client can spend the whole runtime on failed guesses,
-// so both endpoints are limited by client address and login also by identifier.
-const LOGIN_WINDOW_MS = 5 * 60 * 1000;
-const LOGIN_PER_ADDRESS = 20;
-const LOGIN_PER_IDENTIFIER = 10;
-const REGISTER_WINDOW_MS = 60 * 60 * 1000;
-const REGISTER_PER_ADDRESS = 5;
+// Password hashing costs tens of milliseconds of thread-pool time per attempt,
+// so an endpoint without a ceiling lets one client spend the whole runtime on
+// failed guesses.
+//
+// The two ceilings do different jobs, and conflating them locks out schools. A
+// class sits behind one NAT address: thirty learners signing in at the start of
+// a lesson are indistinguishable from one client hammering the endpoint. So the
+// per-address ceiling is deliberately generous — it only caps CPU, and at these
+// values a single attacker still cannot buy more than a few percent of one
+// hashing thread. Guessing is stopped by the per-identifier ceiling instead,
+// which is unaffected by how many people share an address.
+export const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+export const LOGIN_PER_ADDRESS = 120;
+export const LOGIN_PER_IDENTIFIER = 10;
+export const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+export const REGISTER_PER_ADDRESS = 60;
 
 interface PublicUser {
   id: string;

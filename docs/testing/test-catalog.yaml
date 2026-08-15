@@ -718,3 +718,14 @@ tests:
     timeout_seconds: 300
     owner: platform-architecture
     artifacts: [console-report]
+
+  - id: TST-OBS-001
+    title: Runtime metrics, request log and readiness that separates busy from broken
+    suite: integration
+    level: repository
+    phase_available: PHASE-1
+    required_for: [TASK-OBSERVABILITY-001]
+    command: pnpm vitest run apps/api/src/health.spec.ts
+    timeout_seconds: 120
+    owner: platform-architecture
+    artifacts: [console-report]

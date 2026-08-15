@@ -8,8 +8,22 @@ import type { FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import pg from 'pg';
+import type { RuntimeMetrics } from '@asa-lab/observability';
 import { AppModule } from './app.module.js';
+import { TOKENS } from './tokens.js';
 import { isAllowedMutationOrigin, resolveCanonicalWebOrigin } from './origin-policy.js';
+
+/**
+ * An API with no request log and no metrics is indistinguishable from a healthy
+ * one while it is failing. Logging stays on by default and quiet under the test
+ * runner; the line carries technical fields only — no query string, no body, no
+ * headers — because identifiers travel in those.
+ */
+function shouldLogRequests(explicit: boolean | undefined): boolean {
+  if (explicit !== undefined) return explicit;
+  if (process.env['VITEST'] !== undefined) return false;
+  return process.env['ASA_HTTP_LOG'] !== '0';
+}
 
 export interface ApiFactoryOptions {
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
@@ -18,6 +32,8 @@ export interface ApiFactoryOptions {
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
   readonly allowedWebOrigin?: string;
+  /** One structured line per response. Defaults on, off under the test runner. */
+  readonly logRequests?: boolean;
 }
 
 function defaultPool(): pg.Pool | null {
@@ -48,6 +64,31 @@ export async function createApiApp(
   // deliberate boundary cast lets the canonical plugin types apply.
   const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
   await fastify.register(fastifyCookie);
+
+  const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
+  const logRequests = shouldLogRequests(options.logRequests);
+
+  fastify.addHook('onRequest', async () => {
+    metrics.requestStarted();
+  });
+
+  fastify.addHook('onResponse', async (request, reply) => {
+    const durationMs = Math.round(reply.elapsedTime);
+    metrics.requestFinished(reply.statusCode, durationMs);
+    if (logRequests) {
+      const path = (request.raw.url ?? '/').split('?')[0];
+      process.stdout.write(
+        `${JSON.stringify({
+          time: new Date().toISOString(),
+          requestId: request.id,
+          method: request.method,
+          path,
+          status: reply.statusCode,
+          durationMs,
+        })}\n`,
+      );
+    }
+  });
 
   fastify.addHook('onRequest', async (request, reply) => {
     void reply.header('x-request-id', request.id);
@@ -90,13 +131,14 @@ export async function createApiApp(
     });
   }
 
-  if (pool) {
-    // The runtime launcher owns SIGINT/SIGTERM. Registering Nest shutdown hooks
-    // here as well would call app.close twice for the same signal.
-    fastify.addHook('onClose', async () => {
-      await pool.end();
-    });
-  }
+  // The runtime launcher owns SIGINT/SIGTERM. Registering Nest shutdown hooks
+  // here as well would call app.close twice for the same signal.
+  fastify.addHook('onClose', async () => {
+    // The event-loop histogram keeps a timer alive; leaving it running would
+    // hold the process open after a graceful stop.
+    metrics.stop();
+    if (pool) await pool.end();
+  });
 
   await app.init();
   return app;

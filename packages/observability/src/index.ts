@@ -6,6 +6,13 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 
 export const PACKAGE_NAME = '@asa-lab/observability';
 
+export {
+  createRuntimeMetrics,
+  type PoolStats,
+  type RuntimeMetrics,
+  type RuntimeMetricsSnapshot,
+} from './runtime-metrics.js';
+
 /**
  * Technical request context. It intentionally carries only technical
  * identifiers and never child PII, project content or open student codes.

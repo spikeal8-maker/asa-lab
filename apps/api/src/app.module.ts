@@ -51,6 +51,7 @@ import {
   ClassroomTeacherInvitationsController,
   ClassroomTeachersController,
 } from './classroom-teachers.controller.js';
+import { createRuntimeMetrics } from '@asa-lab/observability';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
@@ -146,6 +147,7 @@ export class AppModule {
       ],
       providers: [
         { provide: TOKENS.pool, useValue: pool },
+        { provide: TOKENS.runtimeMetrics, useValue: createRuntimeMetrics() },
         { provide: TOKENS.moduleRegistry, useValue: moduleRegistry },
         { provide: TOKENS.chessLiveRepository, useValue: chessLiveRepository },
         { provide: TOKENS.chessLiveService, useValue: chessLiveService },
