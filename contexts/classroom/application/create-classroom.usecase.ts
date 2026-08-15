@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
-import { isValidClassroomTitle, type Classroom } from '../domain/classroom.js';
+import {
+  areValidTopicKeys,
+  isClassroomAgeBand,
+  isValidClassroomTitle,
+  type Classroom,
+} from '../domain/classroom.js';
 import type { ClassroomRepositoryPort } from './ports.js';
 
 export type CreateClassroomResult =
@@ -9,8 +14,15 @@ export type CreateClassroomResult =
 
 /** Fingerprint of the normalized payload: a retry with the same key must carry
  * the same intent, otherwise the request is rejected as a conflict. */
-export function classroomRequestFingerprint(title: string): string {
-  return createHash('sha256').update(JSON.stringify({ title })).digest('hex');
+export function classroomRequestFingerprint(
+  title: string,
+  ageBand = 'mixed',
+  topicKeys: readonly string[] = [],
+  safeModeDefault = true,
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify({ title, ageBand, topicKeys: [...topicKeys].sort(), safeModeDefault }))
+    .digest('hex');
 }
 
 export class CreateClassroomUseCase {
@@ -18,24 +30,49 @@ export class CreateClassroomUseCase {
 
   async execute(input: {
     tenantId: string;
+    classroomId: string;
     schoolId: string;
     academicPeriodId: string;
     teacherId: string;
     title: unknown;
+    ageBand: unknown;
+    topicKeys: unknown;
+    safeModeDefault: unknown;
+    joinCodeHash: string;
     idempotencyKey: string;
   }): Promise<CreateClassroomResult> {
     if (!isValidClassroomTitle(input.title)) {
       return { ok: false, code: 'validation_error', message: 'title must be 1..255 characters' };
     }
+    if (!isClassroomAgeBand(input.ageBand)) {
+      return { ok: false, code: 'validation_error', message: 'invalid age band' };
+    }
+    if (!areValidTopicKeys(input.topicKeys)) {
+      return { ok: false, code: 'validation_error', message: 'invalid classroom topics' };
+    }
+    if (typeof input.safeModeDefault !== 'boolean') {
+      return { ok: false, code: 'validation_error', message: 'safe mode must be boolean' };
+    }
     const title = input.title.trim();
+    const topicKeys = [...input.topicKeys].sort();
     const result = await this.repository.createWithOwner({
       tenantId: input.tenantId,
+      classroomId: input.classroomId,
       schoolId: input.schoolId,
       academicPeriodId: input.academicPeriodId,
       teacherId: input.teacherId,
       title,
+      ageBand: input.ageBand,
+      topicKeys,
+      safeModeDefault: input.safeModeDefault,
+      joinCodeHash: input.joinCodeHash,
       idempotencyKey: input.idempotencyKey,
-      requestFingerprint: classroomRequestFingerprint(title),
+      requestFingerprint: classroomRequestFingerprint(
+        title,
+        input.ageBand,
+        topicKeys,
+        input.safeModeDefault,
+      ),
     });
     if (result.kind === 'conflict') {
       return {

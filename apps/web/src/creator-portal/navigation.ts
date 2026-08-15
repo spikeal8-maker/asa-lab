@@ -10,6 +10,7 @@ export type CreatorPortalView =
   | { kind: 'collections' }
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
+  | { kind: 'classroom'; classroomId: string; classroomTitle: string }
   | { kind: 'help' }
   | { kind: 'account' }
   | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string }
@@ -34,7 +35,10 @@ export type CreatorHomeState = 'loading' | 'error' | 'empty' | 'ready';
 
 const PORTAL_ROUTES: ReadonlyArray<{
   readonly path: string;
-  readonly view: Exclude<CreatorPortalView, { kind: 'editor' } | { kind: 'classroom-projects' }>;
+  readonly view: Exclude<
+    CreatorPortalView,
+    { kind: 'editor' } | { kind: 'classroom' } | { kind: 'classroom-projects' }
+  >;
 }> = [
   { path: '/home', view: { kind: 'home' } },
   { path: '/projects', view: { kind: 'my-projects' } },
@@ -85,7 +89,11 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
-  if (view.kind === 'classrooms' || view.kind === 'classroom-projects') {
+  if (
+    view.kind === 'classrooms' ||
+    view.kind === 'classroom' ||
+    view.kind === 'classroom-projects'
+  ) {
     return 'classes';
   }
   return 'projects';
@@ -94,6 +102,9 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
 export function creatorViewToHash(view: CreatorPortalView): string {
   const simpleRoute = PORTAL_ROUTES.find((route) => route.view.kind === view.kind);
   if (simpleRoute) return `#${simpleRoute.path}`;
+  if (view.kind === 'classroom') {
+    return `#/classrooms/${view.classroomId}?title=${encodeURIComponent(view.classroomTitle)}`;
+  }
   if (view.kind === 'classroom-projects') {
     return `#/classrooms/${view.classroomId}/projects?title=${encodeURIComponent(view.classroomTitle)}`;
   }
@@ -180,6 +191,14 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     return {
       kind: 'classroom-projects',
       classroomId: classProjects[1] as string,
+      classroomTitle: title,
+    };
+  }
+  const classWorkspace = /^\/classrooms\/([^/]+)$/.exec(path ?? '');
+  if (classWorkspace) {
+    return {
+      kind: 'classroom',
+      classroomId: classWorkspace[1] as string,
       classroomTitle: title,
     };
   }

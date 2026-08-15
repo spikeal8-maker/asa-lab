@@ -65,6 +65,109 @@ describe('auth', () => {
 });
 
 describe('classrooms', () => {
+  it('supports a full teacher roster and email-free StudentSeat sign-in', async () => {
+    const teacher = await seedTeacher(admin, 'api-classroom-roster');
+    const token = await login(teacher);
+    const created = await inject(app, {
+      method: 'POST',
+      url: '/api/classrooms',
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': `classroom-roster-${Date.now()}` },
+      payload: {
+        title: '7Б Инженеры',
+        ageBand: '11-12',
+        topicKeys: ['electronics', '3d'],
+        safeModeDefault: true,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().classroom).toMatchObject({
+      title: '7Б Инженеры',
+      ageBand: '11-12',
+      safeModeDefault: true,
+      studentCount: 0,
+    });
+    expect(created.json().classroom.joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
+    const classroomId = created.json().classroom.id as string;
+    const code = created.json().classroom.joinCode as string;
+
+    const added = await inject(app, {
+      method: 'POST',
+      url: `/api/classrooms/${classroomId}/seats`,
+      cookies: { asa_session: token },
+      payload: { displayLabel: 'Алина К.', loginHandle: 'alina-k', safeMode: true },
+    });
+    expect(added.statusCode).toBe(201);
+    expect(added.json().student).toMatchObject({
+      displayLabel: 'Алина К.',
+      loginHandle: 'alina-k',
+      status: 'issued',
+      safeMode: true,
+    });
+    const seatId = added.json().student.id as string;
+
+    const roster = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classroomId}/roster`,
+      cookies: { asa_session: token },
+    });
+    expect(roster.statusCode).toBe(200);
+    expect(roster.json().items).toHaveLength(1);
+
+    const resolved = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/resolve',
+      payload: { code: code.toLowerCase().replaceAll(' ', '-') },
+    });
+    expect(resolved.statusCode).toBe(200);
+    expect(resolved.json().classroom).toMatchObject({
+      id: classroomId,
+      title: '7Б Инженеры',
+      safeMode: true,
+    });
+
+    const signedIn = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code, loginHandle: 'alina-k' },
+    });
+    expect(signedIn.statusCode).toBe(200);
+    expect(signedIn.json()).toMatchObject({
+      authenticated: true,
+      student: { seatId, displayName: 'Алина К.', safeMode: true },
+      classroom: { id: classroomId, title: '7Б Инженеры' },
+    });
+    const studentCookie = signedIn.cookies.find((cookie) => cookie.name === 'asa_student_session');
+    expect(studentCookie?.httpOnly).toBe(true);
+
+    const studentMe = await inject(app, {
+      method: 'GET',
+      url: '/api/class-join/me',
+      cookies: { asa_student_session: studentCookie?.value ?? '' },
+    });
+    expect(studentMe.json().student.displayName).toBe('Алина К.');
+
+    const suspended = await inject(app, {
+      method: 'PATCH',
+      url: `/api/classrooms/${classroomId}/seats/${seatId}`,
+      cookies: { asa_session: token },
+      payload: {
+        displayLabel: 'Алина К.',
+        loginHandle: 'alina-k',
+        safeMode: true,
+        status: 'suspended',
+      },
+    });
+    expect(suspended.statusCode).toBe(200);
+
+    const revokedSession = await inject(app, {
+      method: 'GET',
+      url: '/api/class-join/me',
+      cookies: { asa_student_session: studentCookie?.value ?? '' },
+    });
+    expect(revokedSession.json()).toEqual({ authenticated: false });
+  });
+
   it('creates a classroom atomically with owner membership and one audit event', async () => {
     const teacher = await seedTeacher(admin, 'api-create');
     const token = await login(teacher);

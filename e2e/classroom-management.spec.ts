@@ -1,0 +1,90 @@
+import { expect, test, type Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import pg from 'pg';
+import { collectBrowserFailures } from './browser-failures';
+import { loginWithOrganization } from './organization-login';
+import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+
+const evidenceDir = 'e2e/artifacts/classroom-management';
+
+let admin: pg.Pool;
+let teacher: SeededTeacher;
+
+async function openClassrooms(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+}
+
+test.beforeAll(async () => {
+  admin = e2eAdminPool();
+  teacher = await seedTeacher(admin, 'classroom-management');
+  mkdirSync(evidenceDir, { recursive: true });
+});
+
+test.afterAll(async () => {
+  await admin.end();
+});
+
+test('teacher creates a class, issues a StudentSeat and controls learner access', async ({
+  browser,
+  page,
+}) => {
+  const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await loginWithOrganization(page, teacher);
+  await openClassrooms(page);
+
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
+  const createDialog = page.getByRole('dialog', { name: 'Создать класс' });
+  await createDialog.getByLabel('Название класса').fill('5Б Makers');
+  await createDialog.getByLabel('Возраст учеников').selectOption('11-12');
+  await createDialog.getByLabel('Электроника').check();
+  await createDialog.getByRole('button', { name: 'Создать', exact: true }).click();
+
+  const classCard = page.getByTestId('classroom-card').filter({ hasText: '5Б Makers' });
+  await expect(classCard).toContainText('Ученики: 0');
+  await classCard.getByRole('button', { name: '5Б Makers' }).click();
+
+  await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
+  const joinCode = (await page.locator('.classroom-code-card > strong').innerText()).trim();
+  expect(joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
+
+  await page.getByRole('button', { name: 'Добавить ученика' }).click();
+  const studentDialog = page.getByRole('dialog');
+  await studentDialog.getByLabel('Имя в списке класса').fill('Алина К.');
+  await studentDialog.getByLabel('Имя для входа').fill('alina-k');
+  await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
+
+  const studentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
+  await expect(studentRow).toContainText('alina-k');
+  await expect(studentRow).toContainText('Ещё не входил');
+  await page.screenshot({ path: `${evidenceDir}/teacher-roster.png`, fullPage: true });
+
+  const studentContext = await browser.newContext();
+  const studentPage = await studentContext.newPage();
+  const studentFailures = collectBrowserFailures(studentPage, {
+    allowAnonymousSessionProbe: true,
+  });
+  await studentPage.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
+  await expect(studentPage.getByRole('heading', { name: 'Введите код класса' })).toBeVisible();
+  await studentPage.getByRole('button', { name: 'Продолжить' }).click();
+  await expect(studentPage.getByText('5Б Makers', { exact: true })).toBeVisible();
+  await studentPage.getByLabel('Имя для входа').fill('alina-k');
+  await studentPage.getByRole('button', { name: 'Войти в класс' }).click();
+  await expect(studentPage.getByRole('heading', { name: 'Здравствуйте, Алина К.' })).toBeVisible();
+  await expect(studentPage.getByText('Безопасный режим включён')).toBeVisible();
+  await studentPage.screenshot({ path: `${evidenceDir}/student-home.png`, fullPage: true });
+
+  await page.reload();
+  const activeStudentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
+  await expect(activeStudentRow).not.toContainText('Ещё не входил');
+  await page.getByLabel('Действия: Алина К.').click();
+  await page.getByRole('button', { name: 'Приостановить доступ' }).click();
+  await expect(page.getByText('Доступ приостановлен')).toBeVisible();
+
+  await studentPage.reload();
+  await expect(studentPage.getByRole('heading', { name: 'Введите код класса' })).toBeVisible();
+
+  teacherFailures.assertEmpty();
+  studentFailures.assertEmpty();
+  await studentContext.close();
+});

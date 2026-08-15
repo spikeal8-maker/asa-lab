@@ -1,11 +1,16 @@
-import type { Classroom } from '../domain/classroom.js';
+import type { Classroom, ClassroomAgeBand } from '../domain/classroom.js';
 
 export interface CreateClassroomInput {
   readonly tenantId: string;
+  readonly classroomId: string;
   readonly schoolId: string;
   readonly academicPeriodId: string;
   readonly teacherId: string;
   readonly title: string;
+  readonly ageBand: ClassroomAgeBand;
+  readonly topicKeys: readonly string[];
+  readonly safeModeDefault: boolean;
+  readonly joinCodeHash: string;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
 }

@@ -1,4 +1,17 @@
-export { isValidClassroomTitle, type Classroom } from './domain/classroom.js';
+export {
+  CLASSROOM_AGE_BANDS,
+  areValidTopicKeys,
+  isClassroomAgeBand,
+  isValidClassroomTitle,
+  type Classroom,
+  type ClassroomAgeBand,
+} from './domain/classroom.js';
+export {
+  classroomCodeFor,
+  classroomCodeHash,
+  formatClassroomCode,
+  normalizeClassroomCode,
+} from './domain/classroom-code.js';
 export type {
   ClassroomRepositoryPort,
   CreateClassroomInput,

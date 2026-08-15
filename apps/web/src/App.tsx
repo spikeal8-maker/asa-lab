@@ -8,6 +8,7 @@ import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ClassroomPage } from './pages/ClassroomPage';
 import { AccountPage } from './pages/AccountPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
@@ -329,7 +330,20 @@ export function App(): JSX.Element {
       {view.kind === 'classrooms' && canManageClasses ? (
         <DashboardPage
           onOpenProjects={(classroomId, classroomTitle) =>
-            setView({ kind: 'classroom-projects', classroomId, classroomTitle })
+            setView({ kind: 'classroom', classroomId, classroomTitle })
+          }
+        />
+      ) : null}
+      {view.kind === 'classroom' && canManageClasses ? (
+        <ClassroomPage
+          classroomId={view.classroomId}
+          onBack={() => setView({ kind: 'classrooms' })}
+          onOpenProjects={(classroomTitle) =>
+            setView({
+              kind: 'classroom-projects',
+              classroomId: view.classroomId,
+              classroomTitle,
+            })
           }
         />
       ) : null}
@@ -345,7 +359,9 @@ export function App(): JSX.Element {
       ) : null}
       {hasTeachingCapability &&
       !canManageClasses &&
-      (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
+      (view.kind === 'classrooms' ||
+        view.kind === 'classroom' ||
+        view.kind === 'classroom-projects') ? (
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
             <p className="portal-eyebrow">Классы</p>
@@ -402,7 +418,9 @@ export function App(): JSX.Element {
         </main>
       ) : null}
       {!hasTeachingCapability &&
-      (view.kind === 'classrooms' || view.kind === 'classroom-projects') ? (
+      (view.kind === 'classrooms' ||
+        view.kind === 'classroom' ||
+        view.kind === 'classroom-projects') ? (
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
             <p className="portal-eyebrow">Классы</p>

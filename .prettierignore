@@ -3,6 +3,7 @@ dist
 build
 out-tsc
 .nx
+.codex-worktrees
 coverage
 reports
 pnpm-lock.yaml

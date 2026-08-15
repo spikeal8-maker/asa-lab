@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { isValidClassroomTitle } from '../domain/classroom';
 import {
+  classroomCodeFor,
+  classroomCodeHash,
+  formatClassroomCode,
+  normalizeClassroomCode,
+} from '../domain/classroom-code';
+import {
   CreateClassroomUseCase,
   classroomRequestFingerprint,
 } from '../application/create-classroom.usecase';
@@ -18,6 +24,19 @@ describe('classroom domain', () => {
     expect(classroomRequestFingerprint('A')).toBe(classroomRequestFingerprint('A'));
     expect(classroomRequestFingerprint('A')).not.toBe(classroomRequestFingerprint('B'));
   });
+
+  it('normalizes classroom codes without depending on spaces or case', () => {
+    expect(normalizeClassroomCode('abc-def 234')).toBe('ABCDEF234');
+    expect(formatClassroomCode('abcdef234')).toBe('ABC DEF 234');
+    expect(classroomCodeHash('ABC DEF 234')).toBe(classroomCodeHash('abcdef234'));
+  });
+
+  it('derives stable versioned classroom codes from server-only material', () => {
+    const first = classroomCodeFor('classroom-1', 1, 'secret');
+    expect(first).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
+    expect(classroomCodeFor('classroom-1', 1, 'secret')).toBe(first);
+    expect(classroomCodeFor('classroom-1', 2, 'secret')).not.toBe(first);
+  });
 });
 
 function fakeRepo(): { port: ClassroomRepositoryPort; calls: CreateClassroomInput[] } {
@@ -31,7 +50,18 @@ function fakeRepo(): { port: ClassroomRepositoryPort; calls: CreateClassroomInpu
       }
       return {
         kind: previous ? 'existing' : 'created',
-        classroom: { id: 'c-1', title: input.title, status: 'active', createdAt: 'now' },
+        classroom: {
+          id: 'c-1',
+          title: input.title,
+          status: 'active',
+          ageBand: input.ageBand,
+          topicKeys: input.topicKeys,
+          safeModeDefault: input.safeModeDefault,
+          studentCount: 0,
+          joinCodeVersion: 1,
+          joinCodeStatus: 'active',
+          createdAt: 'now',
+        },
       };
     },
     listForTeacher: async () => [],
@@ -42,10 +72,15 @@ function fakeRepo(): { port: ClassroomRepositoryPort; calls: CreateClassroomInpu
 describe('create classroom use case', () => {
   const base = {
     tenantId: 't1',
+    classroomId: 'c-1',
     schoolId: 's1',
     academicPeriodId: 'p1',
     teacherId: 'u1',
     idempotencyKey: 'k',
+    ageBand: 'mixed',
+    topicKeys: [] as string[],
+    safeModeDefault: true,
+    joinCodeHash: 'hash',
   };
 
   it('trims the title and passes the server-derived context plus fingerprint', async () => {

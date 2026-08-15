@@ -247,6 +247,156 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classroomId}:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomWorkspace
+      summary: Open an owner-authorized classroom workspace
+      responses:
+        '200':
+          description: Classroom workspace header and safety state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [classroom]
+                properties:
+                  classroom: { $ref: '#/components/schemas/Classroom' }
+        '404':
+          description: Classroom is unavailable to the educator
+  /api/classrooms/{classroomId}/roster:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomRoster
+      summary: List teacher-authorized StudentSeats without exposing passwords
+      responses:
+        '200':
+          description: Classroom roster
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ClassroomStudentSeat' }
+  /api/classrooms/{classroomId}/seats:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: postClassroomStudentSeat
+      summary: Create an email-free StudentSeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateStudentSeatRequest' }
+      responses:
+        '201':
+          description: StudentSeat created and its assigned handle returned
+  /api/classrooms/{classroomId}/seats/batch:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: postClassroomStudentSeatsBatch
+      summary: Create 1 to 100 StudentSeats with deterministic per-row results
+      responses:
+        '200': { description: Batch result }
+  /api/classrooms/{classroomId}/seats/{seatId}:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: seatId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: patchClassroomStudentSeat
+      summary: Rename, protect, suspend or reactivate a StudentSeat
+      responses:
+        '200': { description: Updated StudentSeat }
+    delete:
+      operationId: deleteClassroomStudentSeat
+      summary: Remove a StudentSeat and revoke its active sessions
+      responses:
+        '200': { description: StudentSeat removed }
+  /api/classrooms/{classroomId}/policies:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: patchClassroomPolicy
+      summary: Change the class-wide Safe Mode policy
+      responses:
+        '200': { description: Classroom policy updated }
+  /api/classrooms/{classroomId}/join-code/rotate:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: rotateClassroomJoinCode
+      summary: Revoke the previous code and issue a new deterministic code
+      responses:
+        '200': { description: New class code issued }
+  /api/classrooms/{classroomId}/join-code:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: revokeClassroomJoinCode
+      summary: Close new StudentSeat sign-in for the classroom
+      responses:
+        '200': { description: Class code revoked }
+  /api/class-join/resolve:
+    post:
+      operationId: resolveClassroomJoinCode
+      summary: Resolve a normalized class code without roster enumeration
+      responses:
+        '200': { description: Minimal class identity preview }
+        '404': { description: Generic class-not-found response }
+  /api/class-join/studentseat:
+    post:
+      operationId: signInClassroomStudentSeat
+      summary: Sign in with class code and teacher-assigned handle, without email
+      responses:
+        '200': { description: HttpOnly StudentSeat session created }
+        '401': { description: Generic invalid class credentials response }
+        '429': { description: Attempt limit reached }
+  /api/class-join/me:
+    get:
+      operationId: getClassroomStudentSession
+      summary: Resolve the current StudentSeat session
+      responses:
+        '200': { description: StudentSeat session state }
+  /api/class-join/logout:
+    post:
+      operationId: logoutClassroomStudentSeat
+      summary: Revoke the current StudentSeat session
+      responses:
+        '200': { description: Session revoked }
   /api/projects:
     get:
       operationId: getProjects
@@ -704,16 +854,38 @@ components:
     CreateClassroomRequest:
       type: object
       additionalProperties: false
-      required: [title]
+      required: [title, ageBand, topicKeys, safeModeDefault]
       properties:
         title:
           type: string
           minLength: 1
           maxLength: 255
+        ageBand:
+          type: string
+          enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
+        topicKeys:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            pattern: '^[a-z0-9-]{1,32}$'
+        safeModeDefault:
+          type: boolean
     Classroom:
       type: object
       additionalProperties: false
-      required: [id, title, status, createdAt]
+      required:
+        - id
+        - title
+        - status
+        - ageBand
+        - topicKeys
+        - safeModeDefault
+        - studentCount
+        - joinCodeVersion
+        - joinCodeStatus
+        - joinCode
+        - createdAt
       properties:
         id:
           type: string
@@ -722,8 +894,55 @@ components:
           type: string
         status:
           type: string
+        ageBand:
+          type: string
+          enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
+        topicKeys:
+          type: array
+          items: { type: string }
+        safeModeDefault:
+          type: boolean
+        studentCount:
+          type: integer
+          minimum: 0
+        joinCodeVersion:
+          type: [integer, 'null']
+        joinCodeStatus:
+          type: [string, 'null']
+          enum: [active, revoked, null]
+        joinCode:
+          type: [string, 'null']
+          pattern: '^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$'
         createdAt:
           type: string
+          format: date-time
+    CreateStudentSeatRequest:
+      type: object
+      additionalProperties: false
+      required: [displayLabel, safeMode]
+      properties:
+        displayLabel: { type: string, minLength: 1, maxLength: 120 }
+        loginHandle:
+          type: string
+          pattern: '^[a-z0-9._-]{3,32}$'
+        safeMode: { type: boolean }
+    ClassroomStudentSeat:
+      type: object
+      additionalProperties: false
+      required: [id, displayLabel, loginHandle, safeMode, status, lastActiveAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        displayLabel: { type: string }
+        loginHandle: { type: string }
+        safeMode: { type: boolean }
+        status:
+          type: string
+          enum: [issued, active, suspended]
+        lastActiveAt:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
     ClassroomEnvelope:
       type: object
       additionalProperties: false
