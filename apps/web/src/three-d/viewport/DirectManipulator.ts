@@ -14,6 +14,12 @@ export interface DirectManipulationEntry {
   readonly node: ThreeDNode;
 }
 
+export interface DirectManipulationCommit {
+  readonly nodeId: string;
+  readonly transform: ThreeDTransform;
+  readonly dimensions?: ThreeDDimensions;
+}
+
 interface OrbitLike {
   enabled: boolean;
 }
@@ -25,6 +31,7 @@ interface DirectManipulatorCallbacks {
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
   ) => void;
+  readonly onCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
 }
 
 type RotationAxis = 'x' | 'y' | 'z';
@@ -62,6 +69,11 @@ interface DragState {
   /** Keeps the exact visual handle point under an off-centre pointer grab. */
   readonly pointerGrabOffset: THREE.Vector3;
   readonly floorPositionY: number;
+  readonly moveEntries: readonly {
+    readonly nodeId: string;
+    readonly entry: DirectManipulationEntry;
+    readonly startPosition: THREE.Vector3;
+  }[];
   moved: boolean;
   currentAngleDegrees: number;
 }
@@ -233,6 +245,8 @@ export class DirectManipulator {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly outline: THREE.LineSegments;
+  private readonly multiOutlineRoot = new THREE.Group();
+  private readonly multiOutlines: THREE.LineSegments[] = [];
   private readonly centreMarker: THREE.Mesh;
   private readonly handleRoot = new THREE.Group();
   private readonly handles = new Map<string, HandleVisual>();
@@ -280,7 +294,9 @@ export class DirectManipulator {
     this.outline.name = 'ASA selected-object outline';
     this.outline.renderOrder = 50;
     this.outline.visible = false;
-    this.scene.add(this.outline);
+    this.multiOutlineRoot.name = 'ASA multi-selection object outlines';
+    this.multiOutlineRoot.visible = false;
+    this.scene.add(this.outline, this.multiOutlineRoot);
 
     this.centreMarker = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -432,6 +448,7 @@ export class DirectManipulator {
       this.outline.position.copy(center);
       this.outline.quaternion.identity();
       this.outline.scale.copy(size).multiplyScalar(1.003);
+      this.updateMultiOutlines(selectedEntries);
       this.centreMarker.visible = false;
       this.handleRoot.visible = false;
       this.rotationRing.visible = false;
@@ -440,6 +457,7 @@ export class DirectManipulator {
       return;
     }
     const entry = this.selectedEntry();
+    this.hideMultiOutlines();
     if (!entry || !entry.object.visible) {
       this.outline.visible = false;
       this.centreMarker.visible = false;
@@ -549,6 +567,40 @@ export class DirectManipulator {
     this.updateRotationRingTransform(entry);
     this.publishHandlePositions(entry);
     this.updateLabelPositions();
+  }
+
+  private updateMultiOutlines(entries: readonly DirectManipulationEntry[]): void {
+    while (this.multiOutlines.length < entries.length) {
+      const outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+        new THREE.LineBasicMaterial({
+          color: '#007fa8',
+          depthTest: false,
+          transparent: true,
+          opacity: 1,
+          toneMapped: false,
+        }),
+      );
+      outline.renderOrder = 51;
+      this.multiOutlineRoot.add(outline);
+      this.multiOutlines.push(outline);
+    }
+    this.multiOutlineRoot.visible = true;
+    this.multiOutlines.forEach((outline, index) => {
+      const entry = entries[index];
+      outline.visible = Boolean(entry);
+      if (!entry) return;
+      outline.position.copy(entry.object.position);
+      outline.quaternion.copy(entry.object.quaternion);
+      outline.scale.copy(this.effectiveDimensions(entry)).multiplyScalar(1.008);
+    });
+  }
+
+  private hideMultiOutlines(): void {
+    this.multiOutlineRoot.visible = false;
+    this.multiOutlines.forEach((outline) => {
+      outline.visible = false;
+    });
   }
 
   private publishHandlePositions(entry: DirectManipulationEntry | null): void {
@@ -743,7 +795,8 @@ export class DirectManipulator {
         this.applySelection([hit.nodeId], true);
         return;
       }
-      if (this.selectedId !== hit.nodeId || this.selectedIds.length !== 1) {
+      const alreadySelected = this.selectedIds.includes(hit.nodeId);
+      if (!alreadySelected) {
         this.applySelection([hit.nodeId], false);
       }
       if (!hit.entry.node.locked) {
@@ -876,6 +929,16 @@ export class DirectManipulator {
       ? mathematicalHandlePoint.clone().sub(startPoint)
       : new THREE.Vector3();
     const bounds = new THREE.Box3().setFromObject(object);
+    const moveEntries =
+      descriptor.kind === 'move' && this.selectedIds.includes(nodeId)
+        ? this.selectedEntries()
+            .filter((selected) => !selected.node.locked)
+            .map((selected) => ({
+              nodeId: selected.node.id,
+              entry: selected,
+              startPosition: selected.object.position.clone(),
+            }))
+        : [{ nodeId, entry, startPosition: startPosition.clone() }];
     const startRotationVector =
       descriptor.kind === 'rotate'
         ? startPoint
@@ -902,12 +965,14 @@ export class DirectManipulator {
       startRotationVector,
       pointerGrabOffset,
       floorPositionY: startPosition.y - bounds.min.y,
+      moveEntries,
       moved: false,
       currentAngleDegrees: 0,
     };
     this.orbit.enabled = false;
     this.finishMarquee(false);
     this.container.dataset['manipulating'] = descriptor.kind;
+    this.container.dataset['manipulationCount'] = String(moveEntries.length);
     this.canvas.setPointerCapture(event.pointerId);
     this.canvas.style.cursor = 'default';
     if (descriptor.kind !== 'move') this.setHoveredHandle(descriptor.id);
@@ -934,11 +999,14 @@ export class DirectManipulator {
     const object = drag.entry.object;
 
     if (drag.descriptor.kind === 'move') {
-      object.position.set(
-        snapToStep(drag.startPosition.x + delta.x, this.gridSnap),
-        drag.startPosition.y,
-        snapToStep(drag.startPosition.z + delta.z, this.gridSnap),
-      );
+      drag.moveEntries.forEach((moving) => {
+        moving.entry.object.position.set(
+          snapToStep(moving.startPosition.x + delta.x, this.gridSnap),
+          moving.startPosition.y,
+          snapToStep(moving.startPosition.z + delta.z, this.gridSnap),
+        );
+        moving.entry.object.updateMatrixWorld(true);
+      });
     } else if (drag.descriptor.kind === 'resize') {
       const inverse = drag.startQuaternion.clone().invert();
       const localPointer = point
@@ -1006,6 +1074,11 @@ export class DirectManipulator {
   }
 
   private transformChanged(drag: DragState): boolean {
+    if (drag.descriptor.kind === 'move') {
+      return drag.moveEntries.some(
+        (moving) => moving.entry.object.position.distanceToSquared(moving.startPosition) > 0.000001,
+      );
+    }
     const object = drag.entry.object;
     return (
       object.position.distanceToSquared(drag.startPosition) > 0.000001 ||
@@ -1022,8 +1095,18 @@ export class DirectManipulator {
     this.drag = null;
     this.orbit.enabled = true;
     delete this.container.dataset['manipulating'];
+    delete this.container.dataset['manipulationCount'];
     this.canvas.style.cursor = 'default';
     if (drag.moved) {
+      if (drag.descriptor.kind === 'move' && drag.moveEntries.length > 1) {
+        this.callbacks.onCommitMany(
+          drag.moveEntries.map((moving) => this.createCommit(moving.nodeId, moving.entry.object)),
+        );
+        this.clearDimensionVisuals();
+        this.setHoveredHandle(null);
+        this.update();
+        return;
+      }
       let dimensions: ThreeDDimensions | undefined;
       if (drag.descriptor.kind === 'resize' || drag.descriptor.kind === 'height') {
         const effective = this.effectiveDimensions(drag.entry);
@@ -1042,10 +1125,19 @@ export class DirectManipulator {
   }
 
   private commitEntry(nodeId: string, object: THREE.Object3D, dimensions?: ThreeDDimensions): void {
+    const commit = this.createCommit(nodeId, object, dimensions);
+    this.callbacks.onCommit(commit.nodeId, commit.transform, commit.dimensions);
+  }
+
+  private createCommit(
+    nodeId: string,
+    object: THREE.Object3D,
+    dimensions?: ThreeDDimensions,
+  ): DirectManipulationCommit {
     const toDegrees = 180 / Math.PI;
-    this.callbacks.onCommit(
+    return {
       nodeId,
-      {
+      transform: {
         position: {
           x: round(object.position.x, 3),
           y: round(object.position.y, 3),
@@ -1062,8 +1154,8 @@ export class DirectManipulator {
           z: Math.max(0.0025, round(Math.abs(object.scale.z), 4)),
         },
       },
-      dimensions,
-    );
+      ...(dimensions ? { dimensions } : {}),
+    };
   }
 
   private setHoveredHandle(handleId: string | null): void {
@@ -1371,12 +1463,14 @@ export class DirectManipulator {
     disposeGraph(this.rotationRing);
     disposeGraph(this.dimensionRoot);
     disposeGraph(this.outline);
+    disposeGraph(this.multiOutlineRoot);
     disposeGraph(this.centreMarker);
     this.scene.remove(
       this.handleRoot,
       this.rotationRing,
       this.dimensionRoot,
       this.outline,
+      this.multiOutlineRoot,
       this.centreMarker,
     );
     this.handles.clear();

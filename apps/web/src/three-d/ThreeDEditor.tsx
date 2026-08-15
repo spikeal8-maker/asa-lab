@@ -379,6 +379,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             selectedIds={controller.selectedIds}
             onSelect={controller.setSelectedId}
             onTransformCommit={controller.commitTransform}
+            onTransformCommitMany={controller.commitTransforms}
             onDropPrimitive={controller.addPrimitive}
             activePlacement={draggedPlacement}
           />
@@ -431,6 +432,49 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
               execute={controller.execute}
               onClose={() => controller.setSelectedId(null)}
             />
+          )}
+
+          {controller.selectedNodes.length > 1 && !controller.selectedGroupId && (
+            <section
+              className="asa3d-multi-selection-panel"
+              aria-label="Выбрано несколько объектов"
+              data-testid="asa3d-multi-selection-panel"
+              data-selection-count={controller.selectedNodes.length}
+            >
+              <div>
+                <strong>Выбрано: {objectCountLabel(controller.selectedNodes.length)}</strong>
+                <span>Перетаскивание двигает весь набор</span>
+              </div>
+              <div className="asa3d-multi-selection-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  aria-label="Сгруппировать выбранные объекты"
+                  onClick={() => controller.groupSelected('union')}
+                  disabled={controller.selectedNodes.filter((node) => !node.locked).length < 2}
+                >
+                  <GroupIcon />
+                  <span>Сгруппировать</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Выровнять выбранные объекты"
+                  aria-pressed={alignmentOpen}
+                  onClick={() => setAlignmentOpen((open) => !open)}
+                >
+                  <AlignIcon />
+                  <span>Выровнять</span>
+                </button>
+                <button
+                  type="button"
+                  className="close"
+                  aria-label="Снять выделение"
+                  onClick={() => controller.setSelectedId(null)}
+                >
+                  ×
+                </button>
+              </div>
+            </section>
           )}
 
           {controller.selectedNodes.length > 0 &&

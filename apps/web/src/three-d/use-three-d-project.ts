@@ -26,6 +26,7 @@ import {
 } from '@asa-lab/three-d';
 import { api, type ProjectVersion } from '../api';
 import { clearLocalThreeDDraft, readLocalThreeDDraft, writeLocalThreeDDraft } from './local-draft';
+import type { DirectManipulationCommit } from './viewport/DirectManipulator';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -72,6 +73,7 @@ export interface ThreeDProjectController {
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
   ) => void;
+  readonly commitTransforms: (commits: readonly DirectManipulationCommit[]) => void;
   readonly undo: () => void;
   readonly redo: () => void;
   readonly createCheckpoint: () => Promise<void>;
@@ -624,6 +626,31 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     [execute],
   );
 
+  const commitTransforms = useCallback(
+    (commits: readonly DirectManipulationCommit[]): void => {
+      const document = historyRef.current?.present;
+      if (!document || commits.length === 0) return;
+      const changes = new Map(commits.map((commit) => [commit.nodeId, commit]));
+      const nodes = document.nodes.flatMap((node) => {
+        const commit = changes.get(node.id);
+        if (!commit || node.locked) return [];
+        return [
+          {
+            ...node,
+            dimensions: commit.dimensions ? { ...commit.dimensions } : node.dimensions,
+            transform: {
+              position: { ...commit.transform.position },
+              rotation: { ...commit.transform.rotation },
+              scale: { ...commit.transform.scale },
+            },
+          },
+        ];
+      });
+      if (nodes.length > 0) execute({ type: 'replace-nodes', nodes });
+    },
+    [execute],
+  );
+
   const undo = useCallback((): void => {
     const current = historyRef.current;
     if (!current) return;
@@ -769,6 +796,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     alignSelected,
     setRulerOriginFromSelection,
     commitTransform,
+    commitTransforms,
     undo,
     redo,
     createCheckpoint,

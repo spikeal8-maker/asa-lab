@@ -223,9 +223,22 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.click(holeCentre.x, holeCentre.y);
   await page.keyboard.up('Shift');
   await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-selected-node-ids', /,/);
+  const multiSelectionPanel = page.getByTestId('asa3d-multi-selection-panel');
+  await expect(multiSelectionPanel).toBeVisible();
+  await expect(multiSelectionPanel).toHaveAttribute('data-selection-count', '2');
+  await expect(multiSelectionPanel).toContainText('Выбрано: 2 объекта');
+
+  await page.mouse.move(holeCentre.x, holeCentre.y);
+  await page.mouse.down();
+  await page.mouse.move(holeCentre.x + 16, holeCentre.y + 12, { steps: 4 });
+  await expect(viewport).toHaveAttribute('data-manipulating', 'move');
+  await expect(viewport).toHaveAttribute('data-manipulation-count', '2');
+  await page.mouse.up();
+  await expect(multiSelectionPanel).toBeVisible();
+
   const groupButton = page.getByRole('button', { name: 'Сгруппировать (Ctrl+G)' });
   await expect(groupButton).toBeEnabled();
-  await groupButton.click();
+  await page.getByRole('button', { name: 'Сгруппировать выбранные объекты' }).click();
   await expect(page.getByText(/Булева группа · 2/)).toBeVisible();
   await expect(page.getByLabel('Булева операция')).toHaveValue('difference');
   await page.getByLabel('Булева операция').selectOption('difference');

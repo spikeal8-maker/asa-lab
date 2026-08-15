@@ -8,6 +8,7 @@ import {
   type ThreeDTransform,
 } from '@asa-lab/three-d';
 import { SceneRuntime } from './SceneRuntime';
+import type { DirectManipulationCommit } from './DirectManipulator';
 
 export interface ThreeViewportHandle {
   readonly setView: (view: 'home' | 'top' | 'front' | 'right') => void;
@@ -24,6 +25,7 @@ interface ThreeViewportProps {
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
   ) => void;
+  readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onDropPrimitive: (
     primitive: PrimitiveKind,
     position: { x: number; z: number },
@@ -62,6 +64,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
             onSelect: (nodeId, additive) => propsRef.current.onSelect(nodeId, additive),
             onTransformCommit: (nodeId, transform, dimensions) =>
               propsRef.current.onTransformCommit(nodeId, transform, dimensions),
+            onTransformCommitMany: (commits) => propsRef.current.onTransformCommitMany(commits),
             onWebGlError: setWebGlError,
           });
           runtimeRef.current.setDocument(propsRef.current.document, propsRef.current.selectedIds);

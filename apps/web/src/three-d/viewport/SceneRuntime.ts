@@ -9,7 +9,11 @@ import type {
   ThreeDTransform,
 } from '@asa-lab/three-d';
 import { createThreeDNode } from '@asa-lab/three-d';
-import { DirectManipulator, type DirectManipulationEntry } from './DirectManipulator';
+import {
+  DirectManipulator,
+  type DirectManipulationCommit,
+  type DirectManipulationEntry,
+} from './DirectManipulator';
 import { createBooleanMesh } from './csg';
 import { createNodeObject, disposeObject } from './geometry';
 
@@ -20,6 +24,7 @@ export interface SceneRuntimeCallbacks {
     transform: ThreeDTransform,
     dimensions?: ThreeDDimensions,
   ) => void;
+  readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onWebGlError: (message: string) => void;
 }
 
@@ -200,6 +205,7 @@ export class SceneRuntime {
       {
         onSelect: callbacks.onSelect,
         onCommit: callbacks.onTransformCommit,
+        onCommitMany: callbacks.onTransformCommitMany,
       },
     );
 
