@@ -27,6 +27,9 @@ export function CreateClassroomModal({
   onCreated: (classroom: Classroom, created: boolean) => void;
 }): JSX.Element {
   const [title, setTitle] = useState('');
+  const [ageBand, setAgeBand] = useState<Classroom['ageBand']>('mixed');
+  const [topicKeys, setTopicKeys] = useState<string[]>([]);
+  const [safeModeDefault, setSafeModeDefault] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -104,7 +107,10 @@ export function CreateClassroomModal({
     }
 
     setBusy(true);
-    const result = await api.createClassroom(trimmed, idempotencyKey);
+    const result = await api.createClassroom(
+      { title: trimmed, ageBand, topicKeys, safeModeDefault },
+      idempotencyKey,
+    );
     setBusy(false);
     if (result.ok) {
       onCreated(result.data.classroom, result.data.created);
@@ -157,6 +163,58 @@ export function CreateClassroomModal({
             aria-describedby={error ? errorId : undefined}
             onChange={(event) => setTitle(event.target.value)}
           />
+          <label htmlFor="classroom-age-band">Возраст учеников</label>
+          <select
+            id="classroom-age-band"
+            value={ageBand}
+            disabled={busy}
+            onChange={(event) => setAgeBand(event.target.value as Classroom['ageBand'])}
+          >
+            <option value="mixed">Разный возраст</option>
+            <option value="6-8">6–8 лет</option>
+            <option value="9-10">9–10 лет</option>
+            <option value="11-12">11–12 лет</option>
+            <option value="13-15">13–15 лет</option>
+            <option value="16-18">16–18 лет</option>
+          </select>
+          <fieldset className="classroom-topic-fieldset">
+            <legend>Направления</legend>
+            {[
+              ['electronics', 'Электроника'],
+              ['3d', '3D-моделирование'],
+              ['chess', 'Шахматы'],
+              ['checkers', 'Шашки'],
+              ['robotics', 'Робототехника'],
+            ].map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={topicKeys.includes(key as string)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setTopicKeys((current) =>
+                      event.target.checked
+                        ? [...current, key as string]
+                        : current.filter((entry) => entry !== key),
+                    )
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+          <label className="classroom-safe-mode-field">
+            <input
+              type="checkbox"
+              checked={safeModeDefault}
+              disabled={busy}
+              onChange={(event) => setSafeModeDefault(event.target.checked)}
+            />
+            <span>
+              <strong>Безопасный режим</strong>
+              <small>Проекты учеников закрыты от публичной публикации. Рекомендуется.</small>
+            </span>
+          </label>
           {error ? (
             <p id={errorId} className="form-error" role="alert">
               {error}

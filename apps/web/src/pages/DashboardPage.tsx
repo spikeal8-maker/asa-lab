@@ -196,7 +196,7 @@ export function DashboardPage({
               >
                 {classroom.title}
               </button>
-              <span className="classroom-row-students">Ученики: —</span>
+              <span className="classroom-row-students">Ученики: {classroom.studentCount}</span>
               <span className="classroom-row-date">
                 <small>Дата создания</small>
                 {formatClassroomDate(classroom.createdAt)}

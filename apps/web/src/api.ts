@@ -67,7 +67,31 @@ export interface Classroom {
   id: string;
   title: string;
   status: string;
+  ageBand: '6-8' | '9-10' | '11-12' | '13-15' | '16-18' | 'mixed';
+  topicKeys: string[];
+  safeModeDefault: boolean;
+  studentCount: number;
+  joinCodeVersion: number | null;
+  joinCodeStatus: 'active' | 'revoked' | null;
+  joinCode: string | null;
   createdAt: string;
+}
+
+export interface ClassroomStudentSeat {
+  id: string;
+  displayLabel: string;
+  loginHandle: string;
+  safeMode: boolean;
+  status: 'issued' | 'active' | 'suspended';
+  lastActiveAt: string | null;
+  createdAt: string;
+}
+
+export interface ClassroomStudentSession {
+  authenticated: true;
+  student: { seatId: string; displayName: string; safeMode: boolean };
+  classroom: { id: string; title: string; teacherDisplayName: string };
+  expiresAt: string;
 }
 
 export type ProjectScope = 'personal' | 'classroom';
@@ -413,6 +437,81 @@ export const api = {
     }),
   listModules: () => call<{ items: ModuleSummary[] }>('/api/modules'),
   listClassrooms: () => call<{ items: Classroom[]; meta: { total: number } }>('/api/classrooms'),
+  getClassroom: (classroomId: string) =>
+    call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}`),
+  listClassroomRoster: (classroomId: string) =>
+    call<{ items: ClassroomStudentSeat[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/roster`,
+    ),
+  addClassroomSeat: (
+    classroomId: string,
+    input: { displayLabel: string; loginHandle?: string; safeMode: boolean },
+  ) =>
+    call<{ student: ClassroomStudentSeat }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  addClassroomSeatsBatch: (
+    classroomId: string,
+    students: Array<{ displayLabel: string; loginHandle?: string; safeMode: boolean }>,
+  ) =>
+    call<{
+      results: Array<{
+        index: number;
+        ok: boolean;
+        student?: ClassroomStudentSeat;
+        message?: string;
+      }>;
+      created: number;
+    }>(`/api/classrooms/${encodeURIComponent(classroomId)}/seats/batch`, {
+      method: 'POST',
+      body: JSON.stringify({ students }),
+    }),
+  updateClassroomSeat: (classroomId: string, seat: ClassroomStudentSeat) =>
+    call<{ student: ClassroomStudentSeat }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seat.id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          displayLabel: seat.displayLabel,
+          loginHandle: seat.loginHandle,
+          safeMode: seat.safeMode,
+          status: seat.status,
+        }),
+      },
+    ),
+  removeClassroomSeat: (classroomId: string, seatId: string) =>
+    call<{ removed: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
+      { method: 'DELETE' },
+    ),
+  updateClassroomPolicy: (classroomId: string, safeModeDefault: boolean) =>
+    call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}/policies`, {
+      method: 'PATCH',
+      body: JSON.stringify({ safeModeDefault }),
+    }),
+  rotateClassroomJoinCode: (classroomId: string) =>
+    call<{ classroom: Classroom }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/join-code/rotate`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+  revokeClassroomJoinCode: (classroomId: string) =>
+    call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}/join-code`, {
+      method: 'DELETE',
+    }),
+  resolveClassroomCode: (code: string) =>
+    call<{
+      classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
+    }>('/api/class-join/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
+  signInClassroomSeat: (code: string, loginHandle: string) =>
+    call<ClassroomStudentSession>('/api/class-join/studentseat', {
+      method: 'POST',
+      body: JSON.stringify({ code, loginHandle }),
+    }),
+  classroomStudentMe: () =>
+    call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
+  classroomStudentLogout: () =>
+    call<{ ok: true }>('/api/class-join/logout', { method: 'POST', body: JSON.stringify({}) }),
   listProjects: (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);
@@ -557,10 +656,18 @@ export const api = {
       `/api/checkers/projects/${encodeURIComponent(projectId)}/feedback`,
       { method: 'POST', body: JSON.stringify({ studentId, feedbackId }) },
     ),
-  createClassroom: (title: string, idempotencyKey: string) =>
+  createClassroom: (
+    input: {
+      title: string;
+      ageBand: Classroom['ageBand'];
+      topicKeys: string[];
+      safeModeDefault: boolean;
+    },
+    idempotencyKey: string,
+  ) =>
     call<{ classroom: Classroom; created: boolean }>('/api/classrooms', {
       method: 'POST',
       headers: { 'idempotency-key': idempotencyKey },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify(input),
     }),
 };

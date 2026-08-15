@@ -1,4 +1,5 @@
 .git
+.codex-worktrees
 .github
 .nx
 .pnpm-store
