@@ -132,9 +132,6 @@ export function CheckersTeacherDashboard({
       <main className="checkers-teacher" id="main-content" tabIndex={-1}>
         <header className="checkers-teacher-heading">
           <div>
-            <button type="button" className="checkers-link-button" onClick={onBack}>
-              ← К списку классов
-            </button>
             <span className="checkers-kicker">ASA Шашки · педагог</span>
             <h1>{model.classroomTitle}</h1>
             <p>Задания, активность и доказательства по каждому шашечному понятию.</p>
@@ -153,9 +150,6 @@ export function CheckersTeacherDashboard({
               onClick={onCreateEvent}
             >
               Создать матч класса
-            </button>
-            <button type="button" className="checkers-primary-action" onClick={onCreateAssignment}>
-              Создать задание
             </button>
           </div>
         </header>
@@ -191,9 +185,6 @@ export function CheckersTeacherDashboard({
               <span className="checkers-home-eyebrow">Работа класса</span>
               <h2 id="teacher-assignments-title">Задания</h2>
             </div>
-            <button type="button" className="checkers-link-button" onClick={onCreateAssignment}>
-              Новое задание
-            </button>
           </div>
           <div className="checkers-assignment-table-wrap">
             <table className="checkers-teacher-table">

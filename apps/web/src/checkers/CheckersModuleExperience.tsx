@@ -1447,7 +1447,12 @@ export function CheckersModuleExperience(props: CheckersModuleExperienceProps): 
               ? lastMove.path.join(lastMove.capturedIds.length > 0 ? ':' : '-')
               : null;
             return last
-              ? `${last.sourceId}${notation ? `, ход ${notation}` : ''}, ${last.score}%, подсказка ${last.hintLevel}`
+              ? `${
+                  CHECKERS_STARTER_PUZZLES.find((puzzle) => puzzle.id === last.sourceId)?.title ??
+                  (last.kind === 'game-demonstration' ? 'Учебная партия' : 'Позиция педагога')
+                }${notation ? ` · ход ${notation}` : ''} · результат ${last.score}% · ${
+                  last.hintLevel === 0 ? 'без подсказок' : `подсказок: ${last.hintLevel}`
+                }`
               : 'пока нет';
           })()}
           onClose={() => setFeedbackStudentId(null)}

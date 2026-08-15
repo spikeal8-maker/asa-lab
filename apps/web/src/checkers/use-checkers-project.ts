@@ -161,6 +161,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   const [botPlayerSide, setBotPlayerSide] = useState<'light' | 'dark'>('light');
   const saveTimer = useRef<number | null>(null);
   const botTask = useRef(0);
+  const documentVersion = useRef(0);
   const saveQueue = useRef<CheckersSaveQueue | null>(null);
   saveQueue.current ??= createCheckersSaveQueue();
 
@@ -213,6 +214,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         })),
       },
     };
+    documentVersion.current += 1;
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
     setDocument(normalized);
@@ -250,6 +252,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
 
   const persist = useCallback(
     async (next: CheckersProjectDocument, quiet = false): Promise<boolean> => {
+      const versionAtStart = documentVersion.current;
       setSaveStatus('saving');
       const studentState = project?.scope === 'classroom' && !canManageClassroom;
       let savedDocument: unknown;
@@ -282,6 +285,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
         setNotice('Сервер вернул некорректный документ шашек.');
         return false;
       }
+      if (documentVersion.current !== versionAtStart) return true;
       setDocument(parsed.value);
       setAnalysis(savedAnalysis);
       setSaveStatus('saved');
@@ -316,6 +320,7 @@ export function useCheckersProject(projectId: string, user: PublicUser) {
   }, [projectId]);
 
   const commit = useCallback((next: CheckersProjectDocument, message?: string) => {
+    documentVersion.current += 1;
     setDocument(next);
     setSaveStatus('dirty');
     if (message) setNotice(message);

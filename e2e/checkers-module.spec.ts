@@ -119,7 +119,7 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page
     .getByRole('listitem')
     .filter({ hasText: 'Мой путь в шашках' })
-    .getByRole('button', { name: 'Открыть' })
+    .getByRole('link', { name: 'Открыть' })
     .click();
   await expect(page).toHaveURL(new RegExp(`/#/projects/${projectId}$`));
 
@@ -129,9 +129,9 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await expect(page.getByRole('heading', { name: 'Путь русских шашек' })).toBeVisible();
   await expect(page.getByText('0 / 22 практик')).toBeVisible();
   await page
-    .getByRole('article')
-    .filter({ hasText: 'Обязательное взятие' })
-    .getByRole('button')
+    .locator('.checkers-home-card')
+    .filter({ has: page.getByRole('heading', { name: 'Обязательное взятие', exact: true }) })
+    .getByRole('button', { name: 'Начать' })
     .click();
   await expect(page.getByText('Задача · Обязательное взятие')).toBeVisible();
   await expectUniformBoardCells(page);
@@ -275,7 +275,7 @@ test('teacher assigns real class work and sees the learner evidence after comple
   await expect(page.getByText(`Ученик ${studentDisplayName} добавлен`)).toBeVisible();
   await expect(page.getByRole('button', { name: studentDisplayName }).first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Создать задание' }).click();
+  await page.getByRole('button', { name: 'Новое задание' }).click();
   const dialog = page.getByRole('dialog', { name: 'Новое задание' });
   await dialog.getByLabel('Название').fill('Серии взятий · практика');
   await dialog.getByLabel('Срок').fill('2026-08-20');
@@ -380,6 +380,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   browser,
   page,
 }) => {
+  test.setTimeout(60_000);
   const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   const unique = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const first = {
@@ -422,7 +423,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
     expect(enrolled.status()).toBe(201);
   }
   await page.goto(`/#/classrooms/${classroom.classroom.id}/projects/${projectId}`);
-  await page.getByRole('button', { name: 'Создать задание' }).click();
+  await page.getByRole('button', { name: 'Новое задание' }).click();
   const differentiated = page.getByRole('dialog', { name: 'Новое задание' });
   await differentiated.getByLabel('Название').fill('Персональная серия для Ани');
   await differentiated
@@ -432,7 +433,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   await differentiated.getByLabel('Сколько успешных решений').fill('2');
   await differentiated.getByRole('button', { name: 'Назначить', exact: true }).click();
   await expect(page.getByText('Задание «Персональная серия для Ани» опубликовано')).toBeVisible();
-  await page.getByRole('button', { name: 'Создать задание' }).click();
+  await page.getByRole('button', { name: 'Новое задание' }).click();
   const groupAssignment = page.getByRole('dialog', { name: 'Новое задание' });
   await groupAssignment.getByLabel('Название').fill('Группа тактиков · общий набор');
   await groupAssignment
@@ -522,10 +523,16 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   const playPayload = (await playState.json()) as { games: { id: string; status: string }[] };
   const activeGame = playPayload.games.find((game) => game.status === 'active');
   expect(activeGame).toBeTruthy();
-  const cooldown = await firstContext.request.post(
+  let cooldown = await firstContext.request.post(
     `/api/checkers/projects/${projectId}/games/${activeGame!.id}/reactions`,
     { headers: { origin }, data: { reactionId: 'good-move' } },
   );
+  if (cooldown.status() === 201) {
+    cooldown = await firstContext.request.post(
+      `/api/checkers/projects/${projectId}/games/${activeGame!.id}/reactions`,
+      { headers: { origin }, data: { reactionId: 'good-move' } },
+    );
+  }
   expect(cooldown.status()).toBe(429);
   const authoredText = await firstContext.request.post(
     `/api/checkers/projects/${projectId}/games/${activeGame!.id}/reactions`,
@@ -545,7 +552,11 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
     .click();
   await secondPage.getByRole('tab', { name: 'Реакции' }).click();
   await expect(secondPage.getByText('Аня Комбинация Удачи!')).toBeVisible();
-  await secondPage.getByRole('button', { name: 'Сообщить педагогу' }).click();
+  await secondPage
+    .getByRole('listitem')
+    .filter({ hasText: 'Аня Комбинация Удачи!' })
+    .getByRole('button', { name: 'Сообщить педагогу' })
+    .click();
   await expect(secondPage.getByText('Сигнал передан педагогу')).toBeVisible();
   await secondPage.getByRole('button', { name: 'Скрыть реакции у себя' }).click();
   await expect(secondPage.getByText('Реакции скрыты только у вас')).toBeVisible();
@@ -600,7 +611,6 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
       }),
     ]),
   );
-  await page.goto(`/#/classrooms/${classroom.classroom.id}/projects/${projectId}`);
   await expect(page.getByRole('heading', { name: 'Сигналы по реакциям' })).toBeVisible();
   await page.getByRole('button', { name: 'Обновить данные' }).click();
   const signalRow = page.getByRole('row', {

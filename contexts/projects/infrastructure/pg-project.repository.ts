@@ -48,8 +48,7 @@ const ACCESS_SQL = `(
   OR (p.project_scope = 'classroom' AND EXISTS (
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
-           AND m.account_id = (SELECT principal.account_id FROM principals principal WHERE principal.id = $3)
-           AND m.member_role IN ('owner', 'co_teacher')))
+           AND $4::uuid IS NOT NULL AND m.user_id = $4))
 )`;
 
 const EDIT_ACCESS_SQL = `(
@@ -59,7 +58,7 @@ const EDIT_ACCESS_SQL = `(
   OR (p.project_scope = 'classroom' AND EXISTS (
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
-           AND m.account_id = (SELECT principal.account_id FROM principals principal WHERE principal.id = $3)
+           AND $4::uuid IS NOT NULL AND m.user_id = $4
            AND m.member_role IN ('owner', 'co_teacher')))
 )`;
 
