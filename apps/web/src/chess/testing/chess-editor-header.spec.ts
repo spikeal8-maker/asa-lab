@@ -49,13 +49,37 @@ describe('Chess editor header adapter', () => {
         userDisplayName: 'Иван',
       }),
     );
-    const newButton = html.match(/<button[^>]*>\s*<span>Новая<\/span><\/button>/)?.[0] ?? '';
-    const versionButton = html.match(/<button[^>]*>\s*<span>Версия<\/span><\/button>/)?.[0] ?? '';
-    const saveButton = html.match(/<button[^>]*>\s*<span>Сохранить<\/span><\/button>/)?.[0] ?? '';
+    const newButton = html.match(/<button[^>]*>.*?Новая<\/span><\/button>/)?.[0] ?? '';
+    const versionButton = html.match(/<button[^>]*>.*?Версия<\/span><\/button>/)?.[0] ?? '';
+    const saveButton = html.match(/<button[^>]*>.*?Сохранить<\/span><\/button>/)?.[0] ?? '';
 
     expect(newButton).not.toContain('disabled');
     expect(versionButton).toContain('disabled=""');
     expect(saveButton).toContain('disabled=""');
+  });
+
+  it('keeps Chess Home available at narrow widths through a compact always-visible action', () => {
+    const html = renderToStaticMarkup(
+      createElement(ChessEditorHeader, {
+        projectTitle: 'Проект',
+        persistedProjectTitle: 'Проект',
+        onProjectTitleChange: vi.fn(),
+        onProjectTitleCommit: vi.fn(),
+        saveStatus: 'saved',
+        statusDetail: 'Партия',
+        busy: false,
+        onBack: vi.fn(),
+        onHome: vi.fn(),
+        onNewGame: vi.fn(),
+        onCheckpoint: vi.fn(),
+        onSave: vi.fn(),
+        userDisplayName: 'Иван',
+      }),
+    );
+
+    expect(html).toMatch(/data-item-id="chess-home"[^>]*data-visibility="always"/);
+    expect(html).toContain('editor-header-item-icon');
+    expect(html).toContain('>Главная</span>');
   });
 
   it('builds stable two-letter avatars from display-name primitives', () => {

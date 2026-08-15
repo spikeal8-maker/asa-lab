@@ -55,7 +55,8 @@ export function ChessEditorHeader({
           {
             id: 'chess-home',
             label: 'Главная',
-            visibility: 'wide' as const,
+            icon: <span aria-hidden="true">⌂</span>,
+            visibility: 'always' as const,
             onActivate: onHome,
           },
         ]

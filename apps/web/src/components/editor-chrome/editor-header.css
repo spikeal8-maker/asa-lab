@@ -283,6 +283,21 @@
     font-size: 12px;
   }
 
+  .editor-header-item[data-item-id='chess-home'] {
+    width: 34px;
+    padding: 0;
+  }
+
+  .editor-header-item[data-item-id='chess-home'] .editor-header-item-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .editor-header-avatar {
     width: 34px;
     height: 34px;

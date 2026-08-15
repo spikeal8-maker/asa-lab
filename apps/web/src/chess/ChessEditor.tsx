@@ -145,10 +145,12 @@ function MoveList({ moves }: { moves: readonly { san: string; uci: string }[] })
 
 function NewGameSetup({
   embedded,
+  busy = false,
   onCancel,
   onStart,
 }: {
   embedded: boolean;
+  busy?: boolean;
   onCancel?: () => void;
   onStart(options: ProfiledChessGameOptions): void;
 }) {
@@ -294,6 +296,7 @@ function NewGameSetup({
         <button
           type="button"
           className="primary-button"
+          disabled={busy}
           onClick={() => {
             onStart({
               mode,
@@ -482,10 +485,12 @@ export function ChessEditor({
           </header>
           <NewGameSetup
             embedded
+            busy={controller.busy}
             {...(onHome ? { onCancel: onHome } : {})}
             onStart={(options) => {
-              controller.startGame(options);
-              onGameStarted?.();
+              void controller.startGameAndSave(options).then((saved) => {
+                if (saved) onGameStarted?.();
+              });
             }}
           />
         </div>

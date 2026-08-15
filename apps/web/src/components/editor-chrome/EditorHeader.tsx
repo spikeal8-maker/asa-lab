@@ -72,6 +72,7 @@ function EditorHeaderButton({ item }: { readonly item: EditorHeaderItem }): JSX.
     <button
       type="button"
       className={itemClassName(item)}
+      data-item-id={item.id}
       data-visibility={item.visibility ?? 'always'}
       aria-pressed={item.selected}
       disabled={item.disabled ?? false}
@@ -82,7 +83,7 @@ function EditorHeaderButton({ item }: { readonly item: EditorHeaderItem }): JSX.
           {item.icon}
         </span>
       ) : null}
-      <span>{item.label}</span>
+      <span className="editor-header-item-label">{item.label}</span>
     </button>
   );
 }

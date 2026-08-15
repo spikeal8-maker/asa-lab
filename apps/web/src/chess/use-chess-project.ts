@@ -302,18 +302,36 @@ export function useChessProject(projectId: string) {
   }
 
   function startGame(options: ProfiledChessGameOptions): void {
+    const next = prepareGame(options);
+    commit(next, gameStartMessage(options));
+  }
+
+  function prepareGame(options: ProfiledChessGameOptions): ChessDocument {
     let next = createChessGameDocument(options);
     if (document) next = { ...next, learning: document.learning };
     if (next.mode === 'computer' && next.bot) {
       const profile = resolveAsaBotProfile(options.botProfileId, next.bot.level);
       next = applyAsaBotProfile(next, profile);
     }
-    commit(
-      next,
-      options.mode === 'analysis'
-        ? 'Открыта доска анализа.'
-        : `Начата новая партия ${Math.round((options.initialMs ?? 600000) / 60000)}+${Math.round((options.incrementMs ?? 5000) / 1000)}.`,
-    );
+    return next;
+  }
+
+  function gameStartMessage(options: ProfiledChessGameOptions): string {
+    return options.mode === 'analysis'
+      ? 'Открыта доска анализа.'
+      : `Начата новая партия ${Math.round((options.initialMs ?? 600000) / 60000)}+${Math.round((options.incrementMs ?? 5000) / 1000)}.`;
+  }
+
+  async function startGameAndSave(options: ProfiledChessGameOptions): Promise<boolean> {
+    if (busy) return false;
+    const next = prepareGame(options);
+    setBusy(true);
+    commit(next, gameStartMessage(options));
+    try {
+      return await persist(next);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function undo(): void {
@@ -452,6 +470,7 @@ export function useChessProject(projectId: string) {
     choosePromotion,
     cancelPromotion: () => setPromotion(null),
     startGame,
+    startGameAndSave,
     undo,
     reset,
     flip,
