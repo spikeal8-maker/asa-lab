@@ -34,7 +34,7 @@ function sessionCookie(response: {
 
 async function register(label: string): Promise<RegisteredAccount> {
   const suffix = unique(label);
-  const username = suffix.replaceAll('-', '_').slice(0, 36);
+  const username = `user_${crypto.randomUUID().replaceAll('-', '').slice(0, 30)}`;
   const password = `Safe-${suffix}-Password`;
   const response = await inject(app, {
     method: 'POST',

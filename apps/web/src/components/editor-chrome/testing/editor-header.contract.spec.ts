@@ -82,8 +82,12 @@ describe('neutral editor header contract', () => {
 
     expect(html).toContain('editor-header-title-readonly');
     expect(html).toContain('Только чтение');
-    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span>Первое<\/span>/);
-    expect(html).toMatch(/disabled=""[^>]*>\s*<span>Сохранить<\/span>/);
+    expect(html).toMatch(
+      /aria-pressed="true"[^>]*>\s*<span class="editor-header-item-label">Первое<\/span>/,
+    );
+    expect(html).toMatch(
+      /disabled=""[^>]*>\s*<span class="editor-header-item-label">Сохранить<\/span>/,
+    );
   });
 
   it('maps Enter to commit and Escape to persisted-title cancellation', () => {
