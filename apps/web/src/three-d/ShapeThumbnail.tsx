@@ -20,6 +20,11 @@ interface ProjectedTriangle {
   readonly points: readonly [ProjectedPoint, ProjectedPoint, ProjectedPoint];
 }
 
+interface ProjectedLine {
+  readonly from: ProjectedPoint;
+  readonly to: ProjectedPoint;
+}
+
 const WIDTH = 92;
 const HEIGHT = 70;
 const KEY_POSITION = new THREE.Vector3(-3.2, 5.5, 4.2);
@@ -99,6 +104,37 @@ function collectTriangles(
   return triangles.sort((left, right) => right.depth - left.depth);
 }
 
+function collectHardEdges(
+  geometry: THREE.BufferGeometry,
+  camera: THREE.OrthographicCamera,
+  modelMatrix: THREE.Matrix4,
+): ProjectedLine[] {
+  const edgeGeometry = new THREE.EdgesGeometry(geometry, 24);
+  const positions = edgeGeometry.getAttribute('position');
+  const lines: ProjectedLine[] = [];
+  if (positions instanceof THREE.BufferAttribute) {
+    for (let index = 0; index + 1 < positions.count; index += 2) {
+      const from = new THREE.Vector3()
+        .fromBufferAttribute(positions, index)
+        .applyMatrix4(modelMatrix);
+      const to = new THREE.Vector3()
+        .fromBufferAttribute(positions, index + 1)
+        .applyMatrix4(modelMatrix);
+      lines.push({ from: projectPoint(from, camera), to: projectPoint(to, camera) });
+    }
+  }
+  edgeGeometry.dispose();
+  return lines;
+}
+
+function drawTrianglePath(context: CanvasRenderingContext2D, triangle: ProjectedTriangle): void {
+  context.beginPath();
+  context.moveTo(triangle.points[0].x, triangle.points[0].y);
+  context.lineTo(triangle.points[1].x, triangle.points[1].y);
+  context.lineTo(triangle.points[2].x, triangle.points[2].y);
+  context.closePath();
+}
+
 function drawShadow(context: CanvasRenderingContext2D): void {
   context.save();
   context.filter = 'blur(3px)';
@@ -147,6 +183,7 @@ function renderThumbnail(
   const modelMatrix = previewModelMatrix(primitive);
   const geometry = createPrimitiveGeometryForKind(primitive, 48);
   const triangles = collectTriangles(geometry, camera, modelMatrix, color);
+  const hardEdges = collectHardEdges(geometry, camera, modelMatrix);
   const stripeCanvas = globalThis.document.createElement('canvas');
   stripeCanvas.width = 12;
   stripeCanvas.height = 12;
@@ -164,16 +201,31 @@ function renderThumbnail(
     stripeContext.stroke();
   }
   const stripePattern = context.createPattern(stripeCanvas, 'repeat');
+  // Paint a dark underlay first. The second fill covers its inner half, leaving
+  // a clean silhouette around the finished thumbnail instead of a soft blur.
+  context.strokeStyle = operation === 'hole' ? '#5d6b72' : '#1b272d';
+  context.fillStyle = context.strokeStyle;
+  context.lineWidth = 2.1;
+  for (const triangle of triangles) {
+    drawTrianglePath(context, triangle);
+    context.fill();
+    context.stroke();
+  }
+
   for (const triangle of triangles) {
     context.fillStyle = operation === 'hole' && stripePattern ? stripePattern : triangle.color;
-    context.strokeStyle = operation === 'hole' ? '#7f8c94' : triangle.color;
-    context.lineWidth = 0.65;
-    context.beginPath();
-    context.moveTo(triangle.points[0].x, triangle.points[0].y);
-    context.lineTo(triangle.points[1].x, triangle.points[1].y);
-    context.lineTo(triangle.points[2].x, triangle.points[2].y);
-    context.closePath();
+    context.strokeStyle = operation === 'hole' ? '#8a969d' : triangle.color;
+    context.lineWidth = 0.45;
+    drawTrianglePath(context, triangle);
     context.fill();
+    context.stroke();
+  }
+  context.strokeStyle = operation === 'hole' ? '#56656d' : '#17242a';
+  context.lineWidth = 1.05;
+  for (const edge of hardEdges) {
+    context.beginPath();
+    context.moveTo(edge.from.x, edge.from.y);
+    context.lineTo(edge.to.x, edge.to.y);
     context.stroke();
   }
   geometry.dispose();

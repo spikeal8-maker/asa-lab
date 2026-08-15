@@ -455,9 +455,9 @@ button.asa3d-save-recovery {
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #f7f8fa;
-  border-left: 1px solid var(--asa3d-line);
-  box-shadow: -2px 0 7px rgba(37, 58, 71, 0.05);
+  background: #f3f5f6;
+  border-left: 1px solid #c4ced3;
+  box-shadow: -1px 0 0 rgba(40, 55, 63, 0.08);
 }
 
 .asa3d-library-category {
@@ -745,6 +745,8 @@ button.asa3d-save-recovery {
   gap: 8px;
   height: 72px;
   padding: 8px 10px;
+  background: #f7f8f9;
+  border-bottom: 1px solid #d4dce0;
 }
 
 .asa3d-library-tools button {
@@ -754,7 +756,7 @@ button.asa3d-save-recovery {
   padding: 0;
   color: #0793bc;
   background: #fff;
-  border: 1px solid #e4e8eb;
+  border: 1px solid #d5dde1;
   border-radius: 4px;
 }
 
@@ -762,7 +764,8 @@ button.asa3d-save-recovery {
 .asa3d-library-tools button.active {
   color: #02779e;
   background: #effafd;
-  border-color: #9ed7e5;
+  border-color: #61bdd3;
+  box-shadow: inset 0 0 0 1px #b9e4ed;
 }
 
 .asa3d-library-tools svg {
@@ -780,7 +783,7 @@ button.asa3d-save-recovery {
   color: #526672;
   font-size: 13px;
   background: #fff;
-  border: 1px solid #dce2e5;
+  border: 1px solid #c8d2d7;
   border-radius: 3px;
 }
 
@@ -845,6 +848,7 @@ button.asa3d-save-recovery {
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   padding: 0 9px 12px;
+  background: #f3f5f6;
 }
 
 .asa3d-shape-card {
@@ -857,14 +861,14 @@ button.asa3d-save-recovery {
   padding: 5px 2px 7px;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #edf0f2;
+  border: 1px solid #dce3e6;
   border-radius: 3px;
 }
 
 .asa3d-shape-card:hover {
   transform: translateY(-1px);
   border-color: #a8d9e4;
-  box-shadow: 0 4px 10px rgba(42, 91, 111, 0.1);
+  box-shadow: 0 2px 5px rgba(35, 63, 74, 0.14);
 }
 
 .asa3d-hole-card {
@@ -994,10 +998,10 @@ button.asa3d-save-recovery {
   max-height: calc(100% - 90px);
   overflow: auto;
   padding: 0;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid #d3dce1;
-  border-radius: 10px;
-  box-shadow: 0 14px 38px rgba(28, 53, 69, 0.18);
+  background: #fff;
+  border: 1px solid #bfcbd1;
+  border-radius: 7px;
+  box-shadow: 0 3px 10px rgba(27, 47, 58, 0.2);
 }
 
 .asa3d-inspector button {
@@ -1013,7 +1017,8 @@ button.asa3d-save-recovery {
   gap: 4px;
   min-height: 56px;
   padding: 6px 8px;
-  border-bottom: 1px solid #e4eaed;
+  background: #fbfcfc;
+  border-bottom: 1px solid #d5dde1;
 }
 
 .asa3d-inspector-title {
@@ -1127,8 +1132,8 @@ button.asa3d-save-recovery {
   font-size: 12px;
   font-weight: 700;
   text-align: left;
-  background: #f7f9fa;
-  border: 1px solid #dbe3e7;
+  background: #f5f7f8;
+  border: 1px solid #cdd7dc;
   border-radius: 5px;
 }
 
@@ -1136,7 +1141,7 @@ button.asa3d-save-recovery {
   color: #1f667d;
   background: #ebf8fb;
   border-color: #44b3cc;
-  box-shadow: inset 0 0 0 1px rgba(68, 179, 204, 0.18);
+  box-shadow: inset 0 0 0 1px #9cd6e2;
 }
 
 .asa3d-operation-picker i {
@@ -1266,8 +1271,8 @@ button.asa3d-save-recovery {
   padding: 0 7px;
   color: #314652;
   font-size: 12px;
-  background: #f7f9fa;
-  border: 1px solid #dbe2e6;
+  background: #fff;
+  border: 1px solid #cbd5da;
   border-radius: 5px;
 }
 
@@ -1313,8 +1318,8 @@ button.asa3d-save-recovery {
   padding: 5px 7px;
   color: #536773;
   font-size: 11px;
-  background: #f4f7f8;
-  border: 1px solid #d9e0e4;
+  background: #f3f6f7;
+  border: 1px solid #cbd5da;
   border-radius: 5px;
 }
 

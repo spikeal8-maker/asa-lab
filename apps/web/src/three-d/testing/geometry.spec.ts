@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createThreeDNode, type PrimitiveKind } from '@asa-lab/three-d';
 import {
+  MODEL_EDGE_NAME,
+  MODEL_SILHOUETTE_NAME,
   createNodeObject,
   createPrimitiveGeometry,
   createPrimitiveGeometryForKind,
@@ -19,6 +21,20 @@ describe('ASA 3D primitive geometry', () => {
     const mesh = object.children[0];
     expect(mesh).toBeInstanceOf(THREE.Mesh);
     expect(mesh?.scale.toArray()).toEqual([31.5, 7.25, 18]);
+    disposeObject(object);
+  });
+
+  it('adds crisp CAD edges and a silhouette without changing printable geometry', () => {
+    const object = createNodeObject(createThreeDNode('box', 'outlined-box'));
+    const mesh = object.children[0] as THREE.Mesh;
+    const hardEdges = mesh.getObjectByName(MODEL_EDGE_NAME);
+    const silhouette = mesh.getObjectByName(MODEL_SILHOUETTE_NAME);
+
+    expect(hardEdges).toBeInstanceOf(THREE.LineSegments);
+    expect(silhouette).toBeInstanceOf(THREE.Mesh);
+    expect(hardEdges?.userData['modelOutline']).toBe(true);
+    expect(silhouette?.userData['modelOutline']).toBe(true);
+    expect(mesh.geometry.getAttribute('position').count).toBe(24);
     disposeObject(object);
   });
 

@@ -2,6 +2,78 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
 
+const MODEL_EDGE_COLOR = '#17242a';
+const MODEL_EDGE_THRESHOLD_DEGREES = 24;
+const MODEL_SILHOUETTE_WIDTH_MM = 0.22;
+
+export const MODEL_EDGE_NAME = 'ASA model hard edges';
+export const MODEL_SILHOUETTE_NAME = 'ASA model silhouette';
+
+/**
+ * Gives every viewport shape the same readable visual hierarchy as a simple CAD
+ * model: a dark outside silhouette plus crisp lines on real hard edges. These
+ * helpers are children of the mesh so they follow every transform without
+ * changing the saved geometry or the printable/exported model.
+ */
+export function addModelOutlines(
+  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>,
+  operation: ThreeDNode['operation'] = 'solid',
+): void {
+  if (operation === 'solid') {
+    const silhouette = new THREE.Mesh(
+      mesh.geometry.clone(),
+      new THREE.ShaderMaterial({
+        uniforms: {
+          outlineWidth: { value: MODEL_SILHOUETTE_WIDTH_MM },
+          outlineColor: { value: new THREE.Color(MODEL_EDGE_COLOR) },
+          outlineOpacity: { value: 0.82 },
+        },
+        vertexShader: `
+          uniform float outlineWidth;
+          void main() {
+            vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+            vec3 viewNormal = normalize(normalMatrix * normal);
+            viewPosition.xyz += viewNormal * outlineWidth;
+            gl_Position = projectionMatrix * viewPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 outlineColor;
+          uniform float outlineOpacity;
+          void main() {
+            gl_FragColor = vec4(outlineColor, outlineOpacity);
+          }
+        `,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    silhouette.name = MODEL_SILHOUETTE_NAME;
+    silhouette.renderOrder = 2;
+    silhouette.raycast = () => {};
+    silhouette.userData['modelOutline'] = true;
+    mesh.add(silhouette);
+  }
+
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry, MODEL_EDGE_THRESHOLD_DEGREES),
+    new THREE.LineBasicMaterial({
+      color: operation === 'hole' ? '#526169' : MODEL_EDGE_COLOR,
+      transparent: true,
+      opacity: operation === 'hole' ? 0.62 : 0.78,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  edges.name = MODEL_EDGE_NAME;
+  edges.renderOrder = 4;
+  edges.raycast = () => {};
+  edges.userData['modelOutline'] = true;
+  mesh.add(edges);
+}
+
 function wedgeGeometry(): THREE.BufferGeometry {
   const vertices = new Float32Array([
     -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5,
@@ -241,6 +313,7 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   mesh.scale.set(node.dimensions.width, node.dimensions.height, node.dimensions.depth);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  addModelOutlines(mesh, node.operation);
   group.add(mesh);
   applyNodeTransform(group, node);
   group.visible = node.visible;
@@ -263,10 +336,20 @@ export function applyNodeTransform(group: THREE.Group, node: ThreeDNode): void {
 }
 
 export function disposeObject(object: THREE.Object3D): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
   object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    child.geometry.dispose();
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
-    else child.material.dispose();
+    const renderable = child as THREE.Object3D & {
+      geometry?: THREE.BufferGeometry;
+      material?: THREE.Material | THREE.Material[];
+    };
+    if (renderable.geometry) geometries.add(renderable.geometry);
+    if (Array.isArray(renderable.material)) {
+      renderable.material.forEach((material) => materials.add(material));
+    } else if (renderable.material) {
+      materials.add(renderable.material);
+    }
   });
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
 }
