@@ -12,6 +12,10 @@ const productionVisualSource = readFileSync(
   'utf8',
 );
 const previewSource = readFileSync(resolve(electronicsRoot, 'component-preview.tsx'), 'utf8');
+const controllerModuleSource = readFileSync(
+  resolve(electronicsRoot, 'use-electronics-workbench.ts'),
+  'utf8',
+);
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
@@ -194,6 +198,10 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(stageSource).toContain('c.startSegmentDrag(event, wireId, segmentIndex)');
     expect(stageSource).toContain('c.addWireVertexAt(event, wireId)');
+    expect(controllerModuleSource).toContain('lastSegmentPressRef');
+    expect(controllerModuleSource).toContain('lastVertexPressRef');
+    expect(controllerModuleSource).toContain('insertWireVertex(document, wireId, toWorld(event))');
+    expect(controllerModuleSource).toContain('removeWireVertexAt(wireId, vertexIndex)');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
