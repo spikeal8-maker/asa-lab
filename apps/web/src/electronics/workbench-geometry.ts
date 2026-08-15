@@ -99,6 +99,66 @@ export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): 
   return point;
 }
 
+/** Keep a dragged segment parallel to the segment the user grabbed.
+ *
+ * Horizontal and vertical segments move only across their own axis. An
+ * intentionally diagonal segment moves along its perpendicular, so dragging
+ * never changes its angle while it is in the user's hand.
+ */
+export function wireSegmentParallelDelta(start: Point, end: Point, pointerDelta: Point): Point {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (Math.abs(dx) >= Math.abs(dy) * 4) return { x: 0, y: pointerDelta.y };
+  if (Math.abs(dy) >= Math.abs(dx) * 4) return { x: pointerDelta.x, y: 0 };
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return pointerDelta;
+  const perpendicular = { x: -dy / length, y: dx / length };
+  const distance = pointerDelta.x * perpendicular.x + pointerDelta.y * perpendicular.y;
+  return {
+    x: perpendicular.x * distance,
+    y: perpendicular.y * distance,
+  };
+}
+
+/** Move one route segment while keeping both terminal anchors fixed.
+ *
+ * When the segment touches a terminal, a neighbouring bend is created. This is
+ * the same physical gesture as pulling a straight length of insulated wire
+ * sideways while its ends remain plugged in.
+ */
+export function moveWireSegmentVertices(
+  from: Point,
+  to: Point,
+  vertices: readonly Point[],
+  segmentIndex: number,
+  pointerDelta: Point,
+): Point[] | null {
+  const route = wirePoints(from, to, vertices);
+  if (segmentIndex < 0 || segmentIndex >= route.length - 1) return null;
+  const start = route[segmentIndex] as Point;
+  const end = route[segmentIndex + 1] as Point;
+  const delta = wireSegmentParallelDelta(start, end, pointerDelta);
+  if (Math.abs(delta.x) < 0.5 && Math.abs(delta.y) < 0.5) return null;
+
+  const shiftedStart = {
+    x: Math.round(start.x + delta.x),
+    y: Math.round(start.y + delta.y),
+  };
+  const shiftedEnd = {
+    x: Math.round(end.x + delta.x),
+    y: Math.round(end.y + delta.y),
+  };
+  let next = vertices.map((point) => ({ ...point }));
+  const startIsTerminal = segmentIndex === 0;
+  const endIsTerminal = segmentIndex + 1 === route.length - 1;
+
+  if (!startIsTerminal) next[segmentIndex - 1] = shiftedStart;
+  if (!endIsTerminal) next[segmentIndex] = shiftedEnd;
+  if (startIsTerminal) next = [shiftedStart, ...next];
+  if (endIsTerminal) next = [...next, shiftedEnd];
+  return next.length <= 48 ? next : null;
+}
+
 export function completeOrthogonalRoute(
   start: Point,
   target: Point,

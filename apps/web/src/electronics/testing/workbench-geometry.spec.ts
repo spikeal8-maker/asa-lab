@@ -3,7 +3,10 @@ import {
   clientToWorld,
   freeWirePoint,
   lockOrthogonalPoint,
+  magneticWirePoint,
+  moveWireSegmentVertices,
   viewportViewBox,
+  wireSegmentParallelDelta,
   type Point,
   type Viewport,
 } from '../workbench-geometry';
@@ -81,5 +84,52 @@ describe('what the canvas is allowed to move', () => {
     const locked = lockOrthogonalPoint(anchor, { x: 187, y: 104 });
     expect(locked.y).toBe(anchor.y);
     expect(locked.x % 10).toBe(0);
+  });
+
+  it('magnetically holds a nearly horizontal or vertical draft without moving a free diagonal', () => {
+    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 220, y: 106 }, 10)).toEqual({
+      x: 220,
+      y: 100,
+    });
+    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 94, y: 220 }, 10)).toEqual({
+      x: 100,
+      y: 220,
+    });
+    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 220, y: 140 }, 10)).toEqual({
+      x: 220,
+      y: 140,
+    });
+  });
+
+  it('moves a whole wire segment parallel and creates bends beside fixed terminals', () => {
+    expect(wireSegmentParallelDelta({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 20, y: 30 })).toEqual({
+      x: 0,
+      y: 30,
+    });
+    expect(wireSegmentParallelDelta({ x: 20, y: 0 }, { x: 20, y: 100 }, { x: 30, y: 20 })).toEqual({
+      x: 30,
+      y: 0,
+    });
+    expect(
+      moveWireSegmentVertices({ x: 0, y: 0 }, { x: 100, y: 0 }, [], 0, { x: 20, y: 30 }),
+    ).toEqual([
+      { x: 0, y: 30 },
+      { x: 100, y: 30 },
+    ]);
+    expect(
+      moveWireSegmentVertices(
+        { x: 0, y: 0 },
+        { x: 100, y: 100 },
+        [
+          { x: 50, y: 0 },
+          { x: 50, y: 100 },
+        ],
+        1,
+        { x: 30, y: 20 },
+      ),
+    ).toEqual([
+      { x: 80, y: 0 },
+      { x: 80, y: 100 },
+    ]);
   });
 });

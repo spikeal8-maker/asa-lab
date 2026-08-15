@@ -600,6 +600,21 @@
   pointer-events: stroke;
   cursor: pointer;
 }
+.workbench-wire-segment-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+}
+.workbench-wire-segment-hit.horizontal {
+  cursor: ns-resize;
+}
+.workbench-wire-segment-hit.vertical {
+  cursor: ew-resize;
+}
+.workbench-canvas.wiring .workbench-wire-segment-hit {
+  cursor: crosshair;
+}
 .workbench-wire-selection {
   fill: none;
   stroke: #18a4df;

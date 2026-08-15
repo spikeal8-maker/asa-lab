@@ -163,6 +163,7 @@ export function WorkbenchStage({
       {
         wire,
         selected,
+        points: wirePoints(displayedFrom, displayedTo, wire.vertices),
         path: roundedWirePath(wirePoints(displayedFrom, displayedTo, wire.vertices)),
       },
     ];
@@ -212,11 +213,37 @@ export function WorkbenchStage({
               vectorEffect="non-scaling-stroke"
               onClick={(event) => {
                 event.stopPropagation();
+                if (c.pendingTerminal) return;
                 c.setSelection({ kind: 'wire', id: wire.id });
               }}
               onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
             />
           ))}
+          {routedWires.flatMap(({ wire, points }) =>
+            points.slice(0, -1).map((start, segmentIndex) => {
+              const end = points[segmentIndex + 1];
+              if (!end) return null;
+              const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+              return (
+                <path
+                  key={`${wire.id}-segment-${segmentIndex}`}
+                  data-testid="wire-segment"
+                  data-wire-id={wire.id}
+                  data-wire-segment-index={segmentIndex}
+                  className={`workbench-wire-segment-hit ${horizontal ? 'horizontal' : 'vertical'}`}
+                  d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`}
+                  vectorEffect="non-scaling-stroke"
+                  onPointerDown={(event) => c.startSegmentDrag(event, wire.id, segmentIndex)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (c.pendingTerminal) return;
+                    c.setSelection({ kind: 'wire', id: wire.id, segmentIndex });
+                  }}
+                  onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
+                />
+              );
+            }),
+          )}
         </g>
         {orderedComponents
           .filter((component) => component.kind !== 'wire')

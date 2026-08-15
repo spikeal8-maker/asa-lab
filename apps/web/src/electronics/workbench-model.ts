@@ -36,7 +36,7 @@ export type WorkbenchView = 'breadboard' | 'schematic' | 'bom';
 
 export type Selection =
   | { kind: 'component'; id: string; ids: string[] }
-  | { kind: 'wire'; id: string; vertexIndex?: number }
+  | { kind: 'wire'; id: string; vertexIndex?: number; segmentIndex?: number }
   | null;
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 
@@ -90,6 +90,15 @@ export interface VertexDrag {
   pointerId: number;
   wireId: string;
   vertexIndex: number;
+}
+
+export interface SegmentDrag {
+  pointerId: number;
+  wireId: string;
+  segmentIndex: number;
+  startPointer: Point;
+  startedDocument: SchematicDocument;
+  moved: boolean;
 }
 
 export interface EndpointDrag {

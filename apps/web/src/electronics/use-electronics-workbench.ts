@@ -29,6 +29,7 @@ import {
   freeWirePoint,
   lockOrthogonalBend,
   lockOrthogonalPoint,
+  magneticWirePoint,
   viewportViewBox,
   type Point,
   type Viewport,
@@ -42,6 +43,7 @@ import {
   insertWireVertex,
   moveComponentInDocument,
   moveComponentsInDocument,
+  moveWireSegment,
   moveWireVertex,
   mirrorSelectionInDocument,
   reconnectWireEndpoint,
@@ -72,8 +74,10 @@ import {
   type ComponentDrag,
   type EndpointDrag,
   type MarqueeDrag,
+  MAGNET_SCREEN_UNITS,
   type PanDrag,
   type PotentiometerDrag,
+  type SegmentDrag,
   type Selection,
   type TerminalRef,
   type VertexDrag,
@@ -154,6 +158,7 @@ export function useElectronicsWorkbench(projectId: string) {
   // deliberately not being updated for each frame of it.
   const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
+  const segmentDragRef = useRef<SegmentDrag | null>(null);
   const endpointDragRef = useRef<EndpointDrag | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
   const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
@@ -713,6 +718,13 @@ export function useElectronicsWorkbench(projectId: string) {
     return freePoint;
   }
 
+  function wireDraftPoint(anchor: Point, point: Point, forceOrthogonal: boolean): Point {
+    const freePoint = freeWirePoint(point);
+    return forceOrthogonal
+      ? lockOrthogonalPoint(anchor, freePoint)
+      : magneticWirePoint(anchor, freePoint, MAGNET_SCREEN_UNITS / viewport.zoom);
+  }
+
   function startComponentDrag(
     event: PointerEvent<SVGGElement>,
     component: SchematicComponent,
@@ -833,14 +845,17 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function startPan(event: PointerEvent<SVGSVGElement>): void {
-    const onEmptyCanvas = (event.target as Element).classList.contains('workbench-grid-hit');
-    if (event.button === 0 && pendingTerminal && onEmptyCanvas) {
+    const target = event.target as Element;
+    const onEmptyCanvas = target.classList.contains('workbench-grid-hit');
+    const onExistingWire =
+      target.classList.contains('workbench-wire-hit') ||
+      target.classList.contains('workbench-wire-segment-hit');
+    if (event.button === 0 && pendingTerminal && (onEmptyCanvas || onExistingWire)) {
       const rawPoint = toWorld(event);
       setWireDraftVertices((current) => {
         if (current.length >= 48 || !pendingStart) return current;
         const anchor = current[current.length - 1] ?? pendingStart;
-        const point =
-          orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, rawPoint) : rawPoint;
+        const point = wireDraftPoint(anchor, rawPoint, orthogonalWireMode || event.shiftKey);
         setWirePreviewEnd(point);
         return [...current, point];
       });
@@ -918,15 +933,30 @@ export function useElectronicsWorkbench(projectId: string) {
       );
       return;
     }
+    const segmentDrag = segmentDragRef.current;
+    if (segmentDrag?.pointerId === event.pointerId) {
+      const pointerDelta = {
+        x: world.x - segmentDrag.startPointer.x,
+        y: world.y - segmentDrag.startPointer.y,
+      };
+      if (Math.hypot(pointerDelta.x, pointerDelta.y) >= 0.5) segmentDrag.moved = true;
+      setDocument(
+        moveWireSegment(
+          segmentDrag.startedDocument,
+          segmentDrag.wireId,
+          segmentDrag.segmentIndex,
+          pointerDelta,
+        ),
+      );
+      return;
+    }
     if (marquee?.pointerId === event.pointerId) {
       setMarquee({ ...marquee, current: world });
       return;
     }
     if (pendingTerminal && pendingStart) {
       const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? pendingStart;
-      setWirePreviewEnd(
-        orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, world) : world,
-      );
+      setWirePreviewEnd(wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey));
     } else if (reconnectEndpoint) {
       setWirePreviewEnd(world);
     }
@@ -1027,6 +1057,14 @@ export function useElectronicsWorkbench(projectId: string) {
       if (document) pushHistory(document);
       setNotice('Изгиб провода перемещён.');
     }
+    const segmentDrag = segmentDragRef.current;
+    if (segmentDrag?.pointerId === event.pointerId) {
+      segmentDragRef.current = null;
+      if (segmentDrag.moved && document) {
+        pushHistory(document);
+        setNotice('Отрезок провода перемещён параллельно.');
+      }
+    }
     if (marquee?.pointerId === event.pointerId && document) {
       const left = Math.min(marquee.start.x, marquee.current.x);
       const right = Math.max(marquee.start.x, marquee.current.x);
@@ -1103,6 +1141,26 @@ export function useElectronicsWorkbench(projectId: string) {
     if (simulationRunning) return;
     vertexDragRef.current = { pointerId: event.pointerId, wireId, vertexIndex };
     setSelection({ kind: 'wire', id: wireId, vertexIndex });
+    stageRef.current?.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  function startSegmentDrag(
+    event: PointerEvent<SVGPathElement>,
+    wireId: string,
+    segmentIndex: number,
+  ): void {
+    if (simulationRunning || pendingTerminal || !document || event.detail > 1) return;
+    segmentDragRef.current = {
+      pointerId: event.pointerId,
+      wireId,
+      segmentIndex,
+      startPointer: toWorld(event),
+      startedDocument: document,
+      moved: false,
+    };
+    setSelection({ kind: 'wire', id: wireId, segmentIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
     event.stopPropagation();
     event.preventDefault();
@@ -1478,6 +1536,7 @@ export function useElectronicsWorkbench(projectId: string) {
     startPotentiometerControl,
     selectComponent,
     startVertexDrag,
+    startSegmentDrag,
     startEndpointDrag,
     addWireVertexAt,
     startPan,

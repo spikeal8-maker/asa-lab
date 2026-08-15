@@ -187,6 +187,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-testid="wire-vertex"');
     expect(stageSource).toContain('data-testid="wire-hit"');
     expect(stageSource).toContain('data-testid="wire-endpoint"');
+    expect(stageSource).toContain('data-testid="wire-segment"');
+    expect(stageSource).toContain('c.startSegmentDrag(event, wire.id, segmentIndex)');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
@@ -214,11 +216,16 @@ describe('owner-reference Electronics presentation contract', () => {
     // nearer; the anchor changed mid-drag and the point jumped between axes, so a
     // wire could not be laid deliberately alongside another one. Squaring a bend
     // is available on request — Shift, or the 90° mode — and only then.
-    expect(controllerSource).not.toContain('magneticWirePoint');
+    const vertexPointLogic = controllerSource.slice(
+      controllerSource.indexOf('function wireVertexDragPoint'),
+      controllerSource.indexOf('function wireDraftPoint'),
+    );
+    expect(vertexPointLogic).not.toContain('magneticWirePoint');
+    expect(controllerSource).toContain('magneticWirePoint(anchor, freePoint');
     expect(controllerSource).toContain('lockOrthogonalBend');
     expect(controllerSource).toContain('orthogonalWireMode || event.shiftKey');
     expect(controllerSource).toContain(
-      'orthogonalWireMode || event.shiftKey ? lockOrthogonalPoint(anchor, world) : world',
+      'wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey)',
     );
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");

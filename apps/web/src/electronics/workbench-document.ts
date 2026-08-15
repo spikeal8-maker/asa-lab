@@ -14,7 +14,7 @@ import {
 } from './component-catalog';
 import { PIN_ANCHOR_TOLERANCE_MM, WORLD_UNITS_PER_MM } from './production-asset-contracts';
 import { productionBreadboard } from './production-manifest-adapter';
-import { snap, wirePoints, type Point } from './workbench-geometry';
+import { moveWireSegmentVertices, snap, wirePoints, type Point } from './workbench-geometry';
 import type { Selection, TerminalRef } from './workbench-model';
 
 function internalConnectionsForType(componentTypeId: string): [string, string][] {
@@ -398,6 +398,39 @@ export function moveWireVertex(
         ),
       };
     }),
+  };
+}
+
+export function moveWireSegment(
+  document: SchematicDocument,
+  wireId: string,
+  segmentIndex: number,
+  pointerDelta: Point,
+): SchematicDocument {
+  const wire = document.connections.find((item) => item.id === wireId);
+  if (!wire) return document;
+  const fromComponent = document.components.find((item) => item.id === wire.from.componentId);
+  const toComponent = document.components.find((item) => item.id === wire.to.componentId);
+  const from = fromComponent
+    ? terminalPositionInDocument(document, fromComponent, wire.from.terminal)
+    : null;
+  const to = toComponent
+    ? terminalPositionInDocument(document, toComponent, wire.to.terminal)
+    : null;
+  if (!from || !to) return document;
+  const vertices = moveWireSegmentVertices(
+    from,
+    to,
+    wire.vertices ?? [],
+    segmentIndex,
+    pointerDelta,
+  );
+  if (!vertices || vertices === wire.vertices) return document;
+  return {
+    ...document,
+    connections: document.connections.map((item) =>
+      item.id === wireId ? { ...item, vertices } : item,
+    ),
   };
 }
 
