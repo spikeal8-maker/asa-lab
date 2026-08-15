@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { api, type ModuleSummary, type Project, type SessionPayload } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
+import { PortalLink } from '../components/PortalLink';
 import { PlusIcon } from '../electronics/workbench-icons';
-import { creatorHomeState } from '../creator-portal/navigation';
+import { creatorHomeState, creatorViewToHref } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
 const PROJECTS_PER_MODULE = 4;
@@ -37,7 +38,7 @@ export function CreatorHomePage({
   onNavigate: (
     section: 'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help',
   ) => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
@@ -199,7 +200,16 @@ export function CreatorHomePage({
                 <ul className="creator-module-grid">
                   {visibleProjects.map((project) => (
                     <li className="creator-dashboard-project" key={project.id}>
-                      <button type="button" onClick={() => onOpenProject(project.id)}>
+                      <PortalLink
+                        className="creator-dashboard-project-link"
+                        href={creatorViewToHref({
+                          kind: 'editor',
+                          projectId: project.id,
+                          moduleKey: project.moduleKey,
+                          returnTo: { kind: 'home' },
+                        })}
+                        onNavigate={() => onOpenProject(project.id, project.moduleKey)}
+                      >
                         <span className="creator-dashboard-project-preview">
                           <span className="creator-preview-orbit" aria-hidden="true" />
                           <ModuleGlyph module={module} size={78} />
@@ -212,7 +222,7 @@ export function CreatorHomePage({
                             <small aria-hidden="true">•••</small>
                           </span>
                         </span>
-                      </button>
+                      </PortalLink>
                     </li>
                   ))}
                   {visibleProjects.length < PROJECTS_PER_MODULE ? (
@@ -244,7 +254,7 @@ export function CreatorHomePage({
           onCreated={(project) => {
             setCreating(false);
             setCreatingModule(undefined);
-            onOpenProject(project.id);
+            onOpenProject(project.id, project.moduleKey);
           }}
         />
       ) : null}

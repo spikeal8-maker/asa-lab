@@ -16,6 +16,7 @@ export type CreatorPortalView =
   | {
       kind: 'editor';
       projectId: string;
+      moduleKey?: string;
       returnTo:
         | { kind: 'home' }
         | { kind: 'my-projects' }
@@ -104,6 +105,20 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   return `#/${returnPath}/${view.projectId}`;
 }
 
+/**
+ * Browser-native destination for a Portal view. Electronics is the first
+ * subject editor with a canonical path URL; other modules retain their stable
+ * hash routes until their own migration is completed.
+ */
+export function creatorViewToHref(view: CreatorPortalView): string {
+  if (view.kind === 'editor' && view.moduleKey === 'electronics') {
+    return `/projects/${encodeURIComponent(view.projectId)}/electronics/edit?returnTo=${encodeURIComponent(
+      creatorViewToHash(view.returnTo),
+    )}`;
+  }
+  return `/${creatorViewToHash(view)}`;
+}
+
 /** A 3D project is a standalone editor page. Like Tinkercad's editor URLs, the
  * document identity stays canonical while the dashboard return destination is
  * carried separately and survives a refresh. */
@@ -127,6 +142,19 @@ function threeDReturnView(query: string | undefined): CreatorPortalReturnView {
         classroomTitle: new URLSearchParams(nestedQuery ?? '').get('title') ?? 'Класс',
       };
     }
+  }
+  return { kind: 'my-projects' };
+}
+
+function electronicsReturnView(search: string): CreatorPortalReturnView {
+  const requested = new URLSearchParams(search).get('returnTo') ?? '#/projects';
+  const parsed = creatorViewFromHash(requested.replace(/^\//, ''));
+  if (
+    parsed.kind === 'home' ||
+    parsed.kind === 'my-projects' ||
+    parsed.kind === 'classroom-projects'
+  ) {
+    return parsed;
   }
   return { kind: 'my-projects' };
 }
@@ -187,6 +215,26 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     };
   }
   return PORTAL_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'home' };
+}
+
+/** Restore a subject editor from a real browser path or a historical hash. */
+export function creatorViewFromLocation(location: {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+}): CreatorPortalView {
+  const electronicsEditor = /^\/projects\/([^/]+)\/electronics\/edit\/?$/.exec(location.pathname);
+  if (electronicsEditor) {
+    const projectId = decodeRouteParameter(electronicsEditor[1] as string);
+    if (!projectId) return { kind: 'my-projects' };
+    return {
+      kind: 'editor',
+      projectId,
+      moduleKey: 'electronics',
+      returnTo: electronicsReturnView(location.search),
+    };
+  }
+  return creatorViewFromHash(location.hash);
 }
 
 export function recentProjects(projects: readonly Project[], limit = 4): readonly Project[] {

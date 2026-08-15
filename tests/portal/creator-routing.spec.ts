@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   creatorViewFromHash,
+  creatorViewFromLocation,
   creatorViewToHash,
+  creatorViewToHref,
   threeDEditorHash,
   type CreatorPortalView,
 } from '../../apps/web/src/creator-portal/navigation';
@@ -50,6 +52,38 @@ describe('Creator Portal routing', () => {
     expect(creatorViewFromHash(projects)).toEqual({
       kind: 'editor',
       projectId: '3d-project-two',
+      returnTo: { kind: 'my-projects' },
+    });
+  });
+
+  it('gives Electronics a browser-native URL that restores after a direct reload', () => {
+    const href = creatorViewToHref({
+      kind: 'editor',
+      projectId: 'electronics project/one',
+      moduleKey: 'electronics',
+      returnTo: { kind: 'home' },
+    });
+
+    expect(href).toBe('/projects/electronics%20project%2Fone/electronics/edit?returnTo=%23%2Fhome');
+    const url = new URL(href, 'http://localhost:4610');
+    expect(creatorViewFromLocation(url)).toEqual({
+      kind: 'editor',
+      projectId: 'electronics project/one',
+      moduleKey: 'electronics',
+      returnTo: { kind: 'home' },
+    });
+  });
+
+  it('keeps historical project hashes readable during the Electronics migration', () => {
+    expect(
+      creatorViewFromLocation({
+        pathname: '/',
+        search: '',
+        hash: '#/projects/legacy-electronics',
+      }),
+    ).toEqual({
+      kind: 'editor',
+      projectId: 'legacy-electronics',
       returnTo: { kind: 'my-projects' },
     });
   });

@@ -118,6 +118,8 @@
     color-mix(in srgb, var(--module-accent, #168fc8) 11%, white),
     #f8fafc 62%
   );
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .project-module-preview:disabled {
@@ -185,6 +187,7 @@
 .project-card-actions .btn-secondary,
 .project-card-actions .btn-ghost {
   margin: 0;
+  text-decoration: none;
 }
 
 .project-card-menu {

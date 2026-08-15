@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type Project } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
+import { PortalLink } from '../components/PortalLink';
+import { creatorViewToHref } from '../creator-portal/navigation';
 import { CircuitIcon, PlusIcon } from '../electronics/workbench-icons';
 
 export function ProjectsPage({
@@ -12,7 +14,7 @@ export function ProjectsPage({
   classroomId: string;
   classroomTitle: string;
   onBack: () => void;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [items, setItems] = useState<Project[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -73,32 +75,40 @@ export function ProjectsPage({
       ) : null}
       {items && items.length > 0 ? (
         <ul className="project-gallery" data-testid="project-grid">
-          {items.map((project) => (
-            <li key={project.id} className="project-gallery-card" data-testid="project-card">
-              <button
-                type="button"
-                className="project-preview"
-                onClick={() => onOpenProject(project.id)}
-              >
-                <span className="project-preview-grid">
-                  <CircuitIcon />
-                </span>
-              </button>
-              <div className="project-card-meta">
-                <div>
-                  <h2>{project.title}</h2>
-                  <p>Электроника · {classroomTitle}</p>
-                </div>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => onOpenProject(project.id)}
+          {items.map((project) => {
+            const editorHref = creatorViewToHref({
+              kind: 'editor',
+              projectId: project.id,
+              moduleKey: project.moduleKey,
+              returnTo: { kind: 'classroom-projects', classroomId, classroomTitle },
+            });
+            return (
+              <li key={project.id} className="project-gallery-card" data-testid="project-card">
+                <PortalLink
+                  className="project-preview"
+                  href={editorHref}
+                  onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                 >
-                  Открыть
-                </button>
-              </div>
-            </li>
-          ))}
+                  <span className="project-preview-grid">
+                    <CircuitIcon />
+                  </span>
+                </PortalLink>
+                <div className="project-card-meta">
+                  <div>
+                    <h2>{project.title}</h2>
+                    <p>Электроника · {classroomTitle}</p>
+                  </div>
+                  <PortalLink
+                    className="btn-secondary"
+                    href={editorHref}
+                    onNavigate={() => onOpenProject(project.id, project.moduleKey)}
+                  >
+                    Открыть
+                  </PortalLink>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 
@@ -109,7 +119,7 @@ export function ProjectsPage({
           onClose={() => setCreating(false)}
           onCreated={(project) => {
             setCreating(false);
-            onOpenProject(project.id);
+            onOpenProject(project.id, project.moduleKey);
           }}
         />
       ) : null}

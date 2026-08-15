@@ -13,6 +13,7 @@ interface ModuleEditorProps {
 }
 
 interface ModuleEditorHostProps extends ModuleEditorProps {
+  onModuleResolved?: (projectId: string, moduleKey: string) => void;
   returnTo: CreatorPortalReturnView;
 }
 
@@ -45,6 +46,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
         return;
       }
       const moduleKey = result.data.project.moduleKey;
+      props.onModuleResolved?.(props.projectId, moduleKey);
       const canonicalHash =
         moduleKey === 'three-d'
           ? threeDEditorHash(props.projectId, props.returnTo)
@@ -62,7 +64,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     return () => {
       active = false;
     };
-  }, [props.projectId, props.returnTo]);
+  }, [props.onModuleResolved, props.projectId, props.returnTo]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;

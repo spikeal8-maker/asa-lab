@@ -8,6 +8,8 @@ import {
 } from 'react';
 import { api, type ModuleSummary, type Project, type ProjectStatus } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
+import { PortalLink } from '../components/PortalLink';
+import { creatorViewToHref } from '../creator-portal/navigation';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
 
@@ -33,7 +35,7 @@ const STATUS_TABS: ReadonlyArray<{ value: ProjectStatus; label: string }> = [
 export function MyProjectsPage({
   onOpenProject,
 }: {
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [items, setItems] = useState<Project[] | null>(null);
   const [modules, setModules] = useState<ModuleSummary[] | null>(null);
@@ -284,23 +286,39 @@ export function MyProjectsPage({
           {visibleItems.map((project) => {
             const module = modulesByKey.get(project.moduleKey);
             const style = { '--module-accent': moduleAccent(project.moduleKey) } as CSSProperties;
+            const editorHref = creatorViewToHref({
+              kind: 'editor',
+              projectId: project.id,
+              moduleKey: project.moduleKey,
+              returnTo: { kind: 'my-projects' },
+            });
+            const preview = (
+              <>
+                {module ? (
+                  <ModuleGlyph module={module} size={64} />
+                ) : (
+                  <span aria-hidden="true">?</span>
+                )}
+                <span className="project-preview-label">
+                  {module?.displayName ?? project.moduleKey}
+                </span>
+              </>
+            );
             return (
               <li key={project.id} className="project-gallery-card project-hub-card" style={style}>
-                <button
-                  type="button"
-                  className="project-preview project-module-preview"
-                  disabled={statusFilter !== 'active'}
-                  onClick={() => onOpenProject(project.id)}
-                >
-                  {module ? (
-                    <ModuleGlyph module={module} size={64} />
-                  ) : (
-                    <span aria-hidden="true">?</span>
-                  )}
-                  <span className="project-preview-label">
-                    {module?.displayName ?? project.moduleKey}
-                  </span>
-                </button>
+                {statusFilter === 'active' ? (
+                  <PortalLink
+                    className="project-preview project-module-preview"
+                    href={editorHref}
+                    onNavigate={() => onOpenProject(project.id, project.moduleKey)}
+                  >
+                    {preview}
+                  </PortalLink>
+                ) : (
+                  <button type="button" className="project-preview project-module-preview" disabled>
+                    {preview}
+                  </button>
+                )}
                 <div className="project-card-meta project-card-details">
                   {renamingId === project.id ? (
                     <form
@@ -343,13 +361,13 @@ export function MyProjectsPage({
                       <div className="project-card-actions">
                         {statusFilter === 'active' ? (
                           <>
-                            <button
-                              type="button"
+                            <PortalLink
                               className="btn-secondary"
-                              onClick={() => onOpenProject(project.id)}
+                              href={editorHref}
+                              onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                             >
                               Открыть
-                            </button>
+                            </PortalLink>
                             <details className="project-card-menu">
                               <summary aria-label={`Действия с проектом ${project.title}`}>
                                 •••
@@ -421,7 +439,7 @@ export function MyProjectsPage({
           onClose={() => setCreating(false)}
           onCreated={(project) => {
             setCreating(false);
-            onOpenProject(project.id);
+            onOpenProject(project.id, project.moduleKey);
           }}
         />
       ) : null}

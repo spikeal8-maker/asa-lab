@@ -244,6 +244,15 @@ label {
   background: transparent;
 }
 
+a.btn-secondary,
+a.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+}
+
 .form-error {
   color: var(--danger);
   margin: 0.75rem 0 0;

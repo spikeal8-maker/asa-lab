@@ -243,6 +243,9 @@
   border-bottom: 1px solid #e1e6eb;
   background: #eef2f5;
   padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
 }
 .project-preview:hover .project-preview-grid {
   transform: scale(1.02);
