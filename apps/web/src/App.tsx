@@ -72,6 +72,7 @@ export function App(): JSX.Element {
   );
   const [shellCreating, setShellCreating] = useState(false);
   const [classroomSwitch, setClassroomSwitch] = useState<ClassroomSwitchState>({ kind: 'idle' });
+  const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
 
   const setView = useCallback((next: CreatorPortalView) => {
     setViewState(next);
@@ -251,7 +252,7 @@ export function App(): JSX.Element {
     }
     setClassroomSwitch({
       kind: 'error',
-      message: 'Не удалось открыть пространство школы. Обновите страницу и повторите.',
+      message: 'Не удалось открыть школу. Обновите страницу и повторите.',
     });
   };
 
@@ -272,7 +273,10 @@ export function App(): JSX.Element {
         void switchToClassroomWorkspace(onlyWorkspace.workspaceId, onlyWorkspace.title);
       }
     } else if (section === 'help') setView({ kind: 'help' });
-    else setView({ kind: 'account' });
+    else {
+      setAccountPanel('profile');
+      setView({ kind: 'account' });
+    }
   };
 
   return (
@@ -348,14 +352,15 @@ export function App(): JSX.Element {
             <h1>
               {classroomSwitch.kind === 'switching'
                 ? `Открываем классы «${classroomSwitch.workspaceTitle}»`
-                : 'Вы вошли как педагог'}
+                : classroomWorkspaces.length > 0
+                  ? 'Выберите школу'
+                  : 'Создайте свою школу'}
             </h1>
-            <p>Подтверждение email для работы с классами не требуется.</p>
             {classroomWorkspaces.length > 0 ? (
               <>
                 <p>
-                  Управление учениками и заданиями находится в пространстве школы. Выберите его —
-                  аккаунт и все личные проекты сохранятся.
+                  Выберите школу, чтобы открыть её классы, учеников и задания. Личные проекты при
+                  этом сохранятся.
                 </p>
                 {classroomWorkspaces.map((workspace) => (
                   <button
@@ -375,8 +380,7 @@ export function App(): JSX.Element {
               </>
             ) : (
               <p>
-                Режим педагога включён, но к аккаунту ещё не подключено пространство школы. Именно
-                школьное пространство, а не подтверждение почты, необходимо для создания классов.
+                Назовите школу — вы сразу станете её администратором и сможете создать первый класс.
               </p>
             )}
             {classroomSwitch.kind === 'error' ? (
@@ -384,8 +388,15 @@ export function App(): JSX.Element {
                 {classroomSwitch.message}
               </p>
             ) : null}
-            <button type="button" className="btn-ghost" onClick={() => navigate('account')}>
-              Открыть настройки аккаунта
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setAccountPanel('school');
+                setView({ kind: 'account' });
+              }}
+            >
+              {classroomWorkspaces.length > 0 ? 'Управление школами' : 'Создать школу'}
             </button>
           </section>
         </main>
@@ -395,13 +406,17 @@ export function App(): JSX.Element {
         <main className="portal-content" id="main-content" tabIndex={-1}>
           <section className="creator-access-message">
             <p className="portal-eyebrow">Классы</p>
-            <h1>Email не блокирует доступ к классам</h1>
-            <p>
-              Проверка почты пока не подключена и не является условием доступа. Чтобы создавать
-              собственные классы, включите режим педагога и подключите пространство школы.
-            </p>
-            <button type="button" className="btn-secondary" onClick={() => navigate('account')}>
-              Открыть настройки аккаунта
+            <h1>Хотите вести занятия?</h1>
+            <p>Выберите роль «Педагог» в профиле, затем создайте свою школу и первый класс.</p>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setAccountPanel('profile');
+                setView({ kind: 'account' });
+              }}
+            >
+              Настроить профиль
             </button>
           </section>
         </main>
@@ -410,6 +425,8 @@ export function App(): JSX.Element {
         <AccountPage
           session={session.session}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
+          onOpenClasses={() => navigate('classes')}
+          initialPanel={accountPanel}
         />
       ) : null}
       {shellCreating ? (

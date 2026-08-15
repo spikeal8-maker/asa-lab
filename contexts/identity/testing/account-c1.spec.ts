@@ -5,6 +5,8 @@ import type {
   AccountProfileRecord,
   AccountSessionRef,
   EducatorAttestation,
+  EducatorModeChange,
+  SchoolWorkspaceRecord,
   SessionV2StorePort,
 } from '../application/account.ports';
 import { hashSessionToken } from '../domain/session-token';
@@ -29,6 +31,8 @@ function directory(
   overrides: {
     profile?: AccountProfileRecord | null;
     attestation?: EducatorAttestation;
+    educatorMode?: EducatorModeChange;
+    school?: SchoolWorkspaceRecord | null;
     usernameTaken?: boolean;
   } = {},
 ): AccountDirectoryPort {
@@ -63,6 +67,23 @@ function directory(
         : { ...PROFILE, username, displayName, bio },
     selfAttestEducator: async () =>
       overrides.attestation ?? { eligible: true, state: 'provisional', created: true },
+    setEducatorMode: async (_accountId, enabled) =>
+      overrides.educatorMode ?? {
+        eligible: true,
+        state: enabled ? 'provisional' : 'revoked',
+        changed: true,
+      },
+    createSchoolWorkspace: async (_accountId, title) =>
+      overrides.school === undefined
+        ? {
+            workspaceId: OTHER_WORKSPACE_ID,
+            tenantId: '7ed1f21a-fb63-4209-84c1-e6555fd46ca6',
+            schoolId: 'a7692a7e-a363-4b49-aac2-bf486960ff2d',
+            userId: '075a93aa-3877-48a4-96fd-3eecc8a7ed36',
+            title,
+            role: 'school_admin',
+          }
+        : overrides.school,
     accountForUser: async () => null,
     legacyActor: async () => null,
   };
@@ -204,6 +225,45 @@ describe('Account C1 management use case', () => {
     await expect(suspended.selfAttestEducator(ACCOUNT_ID)).resolves.toEqual({
       ok: false,
       code: 'grant_unavailable',
+    });
+  });
+
+  it('lets an adult choose educator mode and return to creator mode', async () => {
+    const usecase = new AccountManagementUseCase(directory(), sessionStore());
+    await expect(usecase.setAccountRole(ACCOUNT_ID, 'educator')).resolves.toEqual({
+      ok: true,
+      role: 'educator',
+      state: 'provisional',
+      changed: true,
+    });
+    await expect(usecase.setAccountRole(ACCOUNT_ID, 'creator')).resolves.toEqual({
+      ok: true,
+      role: 'creator',
+      state: 'revoked',
+      changed: true,
+    });
+    await expect(usecase.setAccountRole(ACCOUNT_ID, 'owner')).resolves.toEqual({
+      ok: false,
+      code: 'validation_error',
+    });
+  });
+
+  it('creates a school for an educator and validates its name', async () => {
+    const usecase = new AccountManagementUseCase(directory(), sessionStore());
+    await expect(usecase.createSchoolWorkspace(ACCOUNT_ID, 'Школа №1580')).resolves.toEqual({
+      ok: true,
+      school: {
+        workspaceId: OTHER_WORKSPACE_ID,
+        tenantId: '7ed1f21a-fb63-4209-84c1-e6555fd46ca6',
+        schoolId: 'a7692a7e-a363-4b49-aac2-bf486960ff2d',
+        userId: '075a93aa-3877-48a4-96fd-3eecc8a7ed36',
+        title: 'Школа №1580',
+        role: 'school_admin',
+      },
+    });
+    await expect(usecase.createSchoolWorkspace(ACCOUNT_ID, ' ')).resolves.toEqual({
+      ok: false,
+      code: 'validation_error',
     });
   });
 

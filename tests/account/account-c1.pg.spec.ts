@@ -217,6 +217,71 @@ describe('Account C1 educator capability', () => {
     );
     expect(grant.rowCount).toBe(0);
   });
+
+  it('supports the complete educator, school admin and classroom journey without email verification', async () => {
+    const account = await register('self-service-school');
+
+    const role = await inject(app, {
+      method: 'PUT',
+      url: '/api/account/role',
+      cookies: { asa_session: account.token },
+      payload: { role: 'educator' },
+    });
+    expect(role.statusCode).toBe(200);
+    expect(role.json()).toMatchObject({ role: 'educator', state: 'provisional' });
+
+    const created = await inject(app, {
+      method: 'POST',
+      url: '/api/schools',
+      cookies: { asa_session: account.token },
+      payload: { title: 'Школа самостоятельного педагога' },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().school).toMatchObject({
+      title: 'Школа самостоятельного педагога',
+      role: 'school_admin',
+    });
+    const schoolWorkspaceId = created.json().school.workspaceId as string;
+
+    const switched = await inject(app, {
+      method: 'POST',
+      url: '/api/session/context',
+      cookies: { asa_session: account.token },
+      payload: { workspaceId: schoolWorkspaceId },
+    });
+    expect(switched.statusCode).toBe(201);
+
+    const context = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: account.token },
+    });
+    expect(context.statusCode).toBe(200);
+    expect(context.json()).toMatchObject({
+      authenticated: true,
+      activeWorkspace: { workspaceId: schoolWorkspaceId, kind: 'organization' },
+      navigation: { classes: true, classroomManagement: true },
+    });
+
+    const classroom = await inject(app, {
+      method: 'POST',
+      url: '/api/classrooms',
+      headers: { 'idempotency-key': `self-service-class-${crypto.randomUUID()}` },
+      cookies: { asa_session: account.token },
+      payload: { title: 'Первый класс' },
+    });
+    expect(classroom.statusCode).toBe(201);
+    expect(classroom.json()).toMatchObject({
+      created: true,
+      classroom: { title: 'Первый класс' },
+    });
+
+    const accountRow = await admin.query(
+      `SELECT email_verification_state FROM accounts WHERE id = $1`,
+      [account.accountId],
+    );
+    expect(accountRow.rows[0].email_verification_state).toBe('unverified');
+  });
 });
 
 describe('Account C1 workspace context', () => {

@@ -3,7 +3,6 @@ import { api, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import {
   defaultAvatarForAccount,
-  notifyProfileAvatarChanged,
   PROFILE_AVATAR_CHANGED_EVENT,
 } from '../creator-portal/default-avatars';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
@@ -141,20 +140,6 @@ export function PortalHeader({
     onNavigate(section);
   }
 
-  async function removeAvatar(): Promise<void> {
-    if (busy || !avatarDataUrl) return;
-    setBusy('avatar');
-    setError(null);
-    const result = await api.updateAccountAvatar(null);
-    setBusy(null);
-    if (!result.ok) {
-      setError('Не удалось удалить фотографию профиля.');
-      return;
-    }
-    setAvatarDataUrl(null);
-    notifyProfileAvatarChanged(null);
-  }
-
   async function logout(): Promise<void> {
     if (busy) return;
     setBusy('logout');
@@ -189,8 +174,8 @@ export function PortalHeader({
     }
     setError(
       result.ok
-        ? 'Не удалось обновить рабочее пространство. Обновите страницу и повторите.'
-        : 'Не удалось переключить рабочее пространство. Обновите страницу и повторите.',
+        ? 'Не удалось открыть выбранный аккаунт или школу. Обновите страницу и повторите.'
+        : 'Не удалось переключиться. Обновите страницу и повторите.',
     );
   }
 
@@ -247,7 +232,7 @@ export function PortalHeader({
             </span>
             <span className="portal-user-copy">
               <strong>{session.user.displayName}</strong>
-              <small>{activeWorkspace?.title ?? 'Рабочее пространство'}</small>
+              <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
             </span>
           </summary>
           <div className="portal-account-menu" aria-label="Центр аккаунта">
@@ -341,8 +326,8 @@ export function PortalHeader({
                     <FolderIcon />
                   </span>
                   <span className="portal-account-workspace-copy">
-                    <strong>Рабочее пространство</strong>
-                    <small>{activeWorkspace?.title ?? 'Личное пространство'}</small>
+                    <strong>Аккаунт и школы</strong>
+                    <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
                   </span>
                   <ChevronIcon className="portal-account-chevron" aria-hidden="true" />
                 </summary>
@@ -359,7 +344,15 @@ export function PortalHeader({
                       >
                         <span>
                           <strong>{workspace.title}</strong>
-                          <small>{workspace.kind === 'personal' ? 'Личное' : 'Организация'}</small>
+                          <small>
+                            {workspace.kind === 'personal'
+                              ? 'Личные проекты'
+                              : workspace.role === 'school_admin' || workspace.role === 'owner'
+                                ? 'Администратор школы'
+                                : workspace.role === 'educator'
+                                  ? 'Педагог'
+                                  : 'Школа'}
+                          </small>
                         </span>
                         <span aria-hidden="true">
                           {busy === `workspace:${workspace.workspaceId}` ? '…' : current ? '✓' : ''}
@@ -383,16 +376,6 @@ export function PortalHeader({
                 </span>
                 <span>{busy === 'logout' ? 'Выходим…' : 'Выход'}</span>
               </button>
-              {avatarDataUrl ? (
-                <button
-                  type="button"
-                  className="portal-account-remove-avatar"
-                  disabled={busy !== null}
-                  onClick={() => void removeAvatar()}
-                >
-                  Удалить фотографию
-                </button>
-              ) : null}
             </div>
           </div>
         </details>
@@ -417,7 +400,7 @@ export function PortalHeader({
           </button>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
-            <small>{activeWorkspace?.title ?? 'Рабочее пространство'}</small>
+            <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
           </span>
         </div>
         <nav className="portal-nav">

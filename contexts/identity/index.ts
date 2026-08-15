@@ -37,6 +37,7 @@ export type {
   ActiveContext,
   CapabilityRef,
   EducatorAttestation,
+  EducatorModeChange,
   LinkedAccount,
   LegacyActor,
   PersonalWorkspaceRef,
@@ -44,6 +45,7 @@ export type {
   RegisteredAccount,
   RegistrationConflict,
   SessionV2StorePort,
+  SchoolWorkspaceRecord,
   WorkspaceRef,
 } from './application/account.ports.js';
 export {
@@ -60,6 +62,8 @@ export {
   isValidAvatarDataUrl,
   type AccountProfileView,
   type EducatorAttestationResult,
+  type SetAccountRoleResult,
+  type CreateSchoolWorkspaceResult,
   type UpdateAvatarResult,
   type UpdateProfileResult,
 } from './application/account-management.usecase.js';

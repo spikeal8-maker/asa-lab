@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
@@ -101,6 +102,49 @@ export class AccountC1Controller {
       state: result.state,
       created: result.created,
     };
+  }
+
+  @Put('account/role')
+  async setAccountRole(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['role']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.account.setAccountRole(context.accountId, shape.body['role']);
+    if (!result.ok) {
+      const status =
+        result.code === 'validation_error' ? 400 : result.code === 'underage' ? 403 : 409;
+      const message =
+        result.code === 'underage'
+          ? 'режим педагога доступен только совершеннолетнему пользователю'
+          : result.code === 'validation_error'
+            ? 'выберите роль creator или educator'
+            : 'режим педагога временно недоступен для этого аккаунта';
+      throw new HttpException(error(result.code, message), status);
+    }
+    return result;
+  }
+
+  @Post('schools')
+  async createSchool(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['title']);
+    if (!shape.ok) {
+      throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const result = await this.account.createSchoolWorkspace(context.accountId, shape.body['title']);
+    if (!result.ok) {
+      const message =
+        result.code === 'educator_required'
+          ? 'сначала выберите роль педагога'
+          : 'название школы должно содержать от 2 до 120 символов';
+      throw new HttpException(
+        error(result.code, message),
+        result.code === 'educator_required' ? 403 : 400,
+      );
+    }
+    return result;
   }
 
   @Get('account/profile')

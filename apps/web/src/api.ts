@@ -19,6 +19,15 @@ export interface WorkspaceRef {
   role: string;
 }
 
+export interface SchoolWorkspace {
+  workspaceId: string;
+  tenantId: string;
+  schoolId: string;
+  userId: string;
+  title: string;
+  role: 'school_admin';
+}
+
 export interface SessionPayload {
   authenticated: true;
   user: PublicUser;
@@ -361,6 +370,19 @@ export const api = {
     call<AccountProfile>('/api/account/profile', {
       method: 'PATCH',
       body: JSON.stringify({ username, displayName, bio }),
+    }),
+  setAccountRole: (role: 'creator' | 'educator') =>
+    call<{ role: 'creator' | 'educator'; state: string | null; changed: boolean }>(
+      '/api/account/role',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ role }),
+      },
+    ),
+  createSchool: (title: string) =>
+    call<{ school: SchoolWorkspace }>('/api/schools', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
     }),
   listWorkspaces: () =>
     call<{ items: WorkspaceRef[]; activeWorkspaceId: string }>('/api/workspaces'),

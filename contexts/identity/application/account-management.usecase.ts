@@ -7,6 +7,8 @@ import type {
   AccountSessionRef,
   CapabilityRef,
   EducatorAttestation,
+  EducatorModeChange,
+  SchoolWorkspaceRecord,
   SessionV2StorePort,
   WorkspaceRef,
 } from './account.ports.js';
@@ -41,6 +43,22 @@ export function isValidAvatarDataUrl(value: unknown): value is string | null {
 export type EducatorAttestationResult =
   | { readonly ok: true; readonly state: string; readonly created: boolean }
   | { readonly ok: false; readonly code: 'underage' | 'grant_unavailable' };
+
+export type SetAccountRoleResult =
+  | {
+      readonly ok: true;
+      readonly role: 'creator' | 'educator';
+      readonly state: string | null;
+      readonly changed: boolean;
+    }
+  | {
+      readonly ok: false;
+      readonly code: 'validation_error' | 'underage' | 'grant_unavailable';
+    };
+
+export type CreateSchoolWorkspaceResult =
+  | { readonly ok: true; readonly school: SchoolWorkspaceRecord }
+  | { readonly ok: false; readonly code: 'validation_error' | 'educator_required' };
 
 export class AccountManagementUseCase {
   constructor(
@@ -98,6 +116,32 @@ export class AccountManagementUseCase {
       return { ok: false, code: 'grant_unavailable' };
     }
     return { ok: true, state: result.state, created: result.created };
+  }
+
+  async setAccountRole(accountId: string, role: unknown): Promise<SetAccountRoleResult> {
+    if (role !== 'creator' && role !== 'educator') {
+      return { ok: false, code: 'validation_error' };
+    }
+    const result: EducatorModeChange = await this.accounts.setEducatorMode(
+      accountId,
+      role === 'educator',
+    );
+    if (!result.eligible) return { ok: false, code: 'underage' };
+    if (role === 'educator' && result.state !== 'provisional' && result.state !== 'verified') {
+      return { ok: false, code: 'grant_unavailable' };
+    }
+    return { ok: true, role, state: result.state, changed: result.changed };
+  }
+
+  async createSchoolWorkspace(
+    accountId: string,
+    title: unknown,
+  ): Promise<CreateSchoolWorkspaceResult> {
+    if (typeof title !== 'string' || title.trim().length < 2 || title.trim().length > 120) {
+      return { ok: false, code: 'validation_error' };
+    }
+    const school = await this.accounts.createSchoolWorkspace(accountId, title.trim());
+    return school ? { ok: true, school } : { ok: false, code: 'educator_required' };
   }
 
   async switchContext(

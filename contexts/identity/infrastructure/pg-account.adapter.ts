@@ -4,6 +4,7 @@ import type {
   AccountAvatarRecord,
   AccountProfileRecord,
   EducatorAttestation,
+  EducatorModeChange,
   RegistrationConflict,
   AccountRecord,
   CapabilityRef,
@@ -12,6 +13,7 @@ import type {
   PersonalWorkspaceRef,
   RegisterAccountInput,
   RegisteredAccount,
+  SchoolWorkspaceRecord,
   WorkspaceRef,
 } from '../application/account.ports.js';
 
@@ -177,6 +179,41 @@ export class PgAccountDirectory implements AccountDirectoryPort {
       state: typeof row?.grant_state === 'string' ? row.grant_state : null,
       created: row?.created === true,
     };
+  }
+
+  async setEducatorMode(accountId: string, enabled: boolean): Promise<EducatorModeChange> {
+    const result = await this.pool.query(
+      `SELECT eligible, grant_state, changed FROM auth_set_educator_mode($1, $2)`,
+      [accountId, enabled],
+    );
+    const row = result.rows[0];
+    return {
+      eligible: row?.eligible === true,
+      state: typeof row?.grant_state === 'string' ? row.grant_state : null,
+      changed: row?.changed === true,
+    };
+  }
+
+  async createSchoolWorkspace(
+    accountId: string,
+    title: string,
+  ): Promise<SchoolWorkspaceRecord | null> {
+    const result = await this.pool.query(
+      `SELECT workspace_id, tenant_id, school_id, user_id, title, role
+         FROM auth_create_school_workspace($1, $2)`,
+      [accountId, title],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          workspaceId: row.workspace_id,
+          tenantId: row.tenant_id,
+          schoolId: row.school_id,
+          userId: row.user_id,
+          title: row.title,
+          role: 'school_admin',
+        }
+      : null;
   }
 
   async accountForUser(tenantId: string, userId: string): Promise<LinkedAccount | null> {

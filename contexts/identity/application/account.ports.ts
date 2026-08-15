@@ -56,6 +56,21 @@ export interface EducatorAttestation {
   readonly created: boolean;
 }
 
+export interface EducatorModeChange {
+  readonly eligible: boolean;
+  readonly state: string | null;
+  readonly changed: boolean;
+}
+
+export interface SchoolWorkspaceRecord {
+  readonly workspaceId: string;
+  readonly tenantId: string;
+  readonly schoolId: string;
+  readonly userId: string;
+  readonly title: string;
+  readonly role: 'school_admin';
+}
+
 export interface AccountSessionRef {
   readonly id: string;
   readonly createdAt: string;
@@ -105,6 +120,8 @@ export interface AccountDirectoryPort {
     bio: string,
   ): Promise<AccountProfileRecord | RegistrationConflict | null>;
   selfAttestEducator(accountId: string): Promise<EducatorAttestation>;
+  setEducatorMode(accountId: string, enabled: boolean): Promise<EducatorModeChange>;
+  createSchoolWorkspace(accountId: string, title: string): Promise<SchoolWorkspaceRecord | null>;
   accountForUser(tenantId: string, userId: string): Promise<LinkedAccount | null>;
   legacyActor(accountId: string): Promise<LegacyActor | null>;
 }

@@ -22,17 +22,12 @@ import {
   notifyProfileAvatarChanged,
   type DefaultAvatar,
 } from '../creator-portal/default-avatars';
-import {
-  ClassesIcon,
-  CloseIcon,
-  FolderIcon,
-  InspectIcon,
-  UserIcon,
-} from '../electronics/workbench-icons';
+import { ClassesIcon, CloseIcon, InspectIcon, UserIcon } from '../electronics/workbench-icons';
 
 const USERNAME_PATTERN = String.raw`[a-zA-Z0-9][a-zA-Z0-9._\-]*[a-zA-Z0-9]`;
 
-type SettingsPanel = 'profile' | 'access' | 'workspaces' | 'security';
+type SettingsPanel = 'profile' | 'school' | 'security';
+type AccountRole = 'creator' | 'educator';
 
 const SETTINGS_PANELS: ReadonlyArray<{
   readonly id: SettingsPanel;
@@ -40,8 +35,7 @@ const SETTINGS_PANELS: ReadonlyArray<{
   readonly icon: JSX.Element;
 }> = [
   { id: 'profile', label: 'Профиль', icon: <UserIcon /> },
-  { id: 'access', label: 'Права и классы', icon: <ClassesIcon /> },
-  { id: 'workspaces', label: 'Рабочие пространства', icon: <FolderIcon /> },
+  { id: 'school', label: 'Школа и классы', icon: <ClassesIcon /> },
   { id: 'security', label: 'Учётная запись', icon: <InspectIcon /> },
 ];
 
@@ -52,30 +46,35 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function workspaceKindLabel(kind: string): string {
-  return kind === 'personal' ? 'Личное пространство' : 'Пространство школы';
+function schoolRoleLabel(role: string): string {
+  if (role === 'school_admin' || role === 'owner') return 'Администратор школы';
+  if (role === 'educator') return 'Педагог';
+  if (role === 'student' || role === 'learner') return 'Ученик';
+  return 'Участник школы';
 }
 
-function workspaceRoleLabel(role: string): string {
-  if (role === 'owner') return 'Владелец пространства';
-  if (role === 'educator') return 'Педагог организации';
-  if (role === 'learner') return 'Участник класса';
-  return 'Участник';
-}
-
-function verificationLabel(state: string): string {
-  if (state === 'verified') return 'Email подтверждён';
-  return 'Проверка почты пока не подключена';
+function educatorEnabled(profile: AccountProfile | null): boolean {
+  return Boolean(
+    profile?.capabilities.some(
+      (entry) =>
+        entry.capability === 'educator' &&
+        (entry.state === 'provisional' || entry.state === 'verified'),
+    ),
+  );
 }
 
 export function AccountPage({
   session,
   onSessionChanged,
+  onOpenClasses,
+  initialPanel = 'profile',
 }: {
   session: SessionPayload;
   onSessionChanged: (session: SessionPayload) => void;
+  onOpenClasses: () => void;
+  initialPanel?: SettingsPanel;
 }): JSX.Element {
-  const [panel, setPanel] = useState<SettingsPanel>('profile');
+  const [panel, setPanel] = useState<SettingsPanel>(initialPanel);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
@@ -83,11 +82,16 @@ export function AccountPage({
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
+  const [accountRole, setAccountRole] = useState<AccountRole>('creator');
+  const [schoolTitle, setSchoolTitle] = useState('');
+  const [classroomCount, setClassroomCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => setPanel(initialPanel), [initialPanel]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -106,6 +110,7 @@ export function AccountPage({
     setUsername(profileResult.data.username);
     setDisplayName(profileResult.data.displayName);
     setBio(profileResult.data.bio ?? '');
+    setAccountRole(educatorEnabled(profileResult.data) ? 'educator' : 'creator');
     setSessions(sessionsResult.data.items);
     setAvatarDataUrl(avatarResult.data.avatarDataUrl);
     setLoading(false);
@@ -115,17 +120,30 @@ export function AccountPage({
     void refresh();
   }, [refresh]);
 
-  const educator = useMemo(
-    () => profile?.capabilities.find((entry) => entry.capability === 'educator'),
+  useEffect(() => {
+    if (!session.navigation.classroomManagement) {
+      setClassroomCount(null);
+      return;
+    }
+    let cancelled = false;
+    void api.listClassrooms().then((result) => {
+      if (!cancelled) setClassroomCount(result.ok ? result.data.meta.total : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.activeWorkspace.workspaceId, session.navigation.classroomManagement]);
+
+  const isEducator = educatorEnabled(profile);
+  const schoolWorkspaces = useMemo(
+    () => profile?.workspaces.filter((workspace) => workspace.kind === 'organization') ?? [],
     [profile],
   );
-  const currentWorkspace = profile?.workspaces.find(
+  const activeSchool = schoolWorkspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
   const defaultAvatar = defaultAvatarForAccount(session.user.id);
   const effectiveAvatarUrl = avatarDataUrl ?? defaultAvatar.src;
-  const accountRole = educator ? 'Педагог' : 'Участник';
-  const canManageClasses = session.navigation.classroomManagement;
 
   async function refreshSession(): Promise<boolean> {
     const result = await api.me();
@@ -142,9 +160,24 @@ export function AccountPage({
     setBusyAction('profile');
     setError(null);
     setNotice(null);
+
+    const persistedRole: AccountRole = isEducator ? 'educator' : 'creator';
+    if (accountRole !== persistedRole) {
+      const roleResult = await api.setAccountRole(accountRole);
+      if (!roleResult.ok) {
+        setBusyAction(null);
+        setError(
+          roleResult.error.code === 'underage'
+            ? 'Роль педагога доступна совершеннолетним пользователям.'
+            : roleResult.error.message,
+        );
+        return;
+      }
+    }
+
     const result = await api.updateAccountProfile(username, displayName, bio);
-    setBusyAction(null);
     if (!result.ok) {
+      setBusyAction(null);
       setError(
         result.error.code === 'username_taken'
           ? 'Это имя пользователя уже занято.'
@@ -152,9 +185,14 @@ export function AccountPage({
       );
       return;
     }
-    setProfile(result.data);
-    await refreshSession();
-    setNotice('Профиль сохранён.');
+
+    await Promise.all([refresh(), refreshSession()]);
+    setBusyAction(null);
+    setNotice(
+      accountRole === 'educator' && schoolWorkspaces.length === 0
+        ? 'Роль педагога включена. Теперь создайте школу в разделе «Школа и классы».'
+        : 'Изменения сохранены.',
+    );
   }
 
   async function saveAvatarFile(file: File): Promise<void> {
@@ -202,46 +240,57 @@ export function AccountPage({
     const result = await api.updateAccountAvatar(null);
     setBusyAction(null);
     if (!result.ok) {
-      setError('Не удалось восстановить стандартный аватар.');
+      setError('Не удалось вернуть стандартный аватар.');
       return;
     }
     setAvatarDataUrl(null);
     notifyProfileAvatarChanged(null);
-    setNotice('Восстановлен стандартный аватар ASA Lab.');
+    setNotice('Установлен стандартный аватар ASA Lab.');
   }
 
-  async function switchWorkspace(workspace: WorkspaceRef): Promise<void> {
-    if (workspace.workspaceId === session.activeWorkspace.workspaceId) return;
-    setBusyAction(`workspace:${workspace.workspaceId}`);
+  async function switchSchool(workspace: WorkspaceRef): Promise<boolean> {
+    if (workspace.workspaceId === session.activeWorkspace.workspaceId) return true;
+    setBusyAction(`school:${workspace.workspaceId}`);
     setError(null);
-    setNotice(null);
     const result = await api.switchWorkspace(workspace.workspaceId);
     if (!result.ok || !(await refreshSession())) {
-      setError(result.ok ? 'Не удалось обновить пространство.' : result.error.message);
       setBusyAction(null);
-      return;
+      setError(result.ok ? 'Не удалось открыть школу.' : result.error.message);
+      return false;
     }
     setBusyAction(null);
-    setNotice(`Активно: ${workspace.title}.`);
+    return true;
   }
 
-  async function attestEducator(): Promise<void> {
-    setBusyAction('educator');
+  async function openSchoolClasses(workspace: WorkspaceRef): Promise<void> {
+    if (await switchSchool(workspace)) onOpenClasses();
+  }
+
+  async function createSchool(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setBusyAction('create-school');
     setError(null);
     setNotice(null);
-    const result = await api.selfAttestEducator();
+    const result = await api.createSchool(schoolTitle);
     if (!result.ok) {
+      setBusyAction(null);
       setError(
-        result.error.code === 'underage'
-          ? 'Режим педагога доступен только совершеннолетнему владельцу аккаунта.'
+        result.error.code === 'educator_required'
+          ? 'Сначала выберите роль «Педагог» в профиле.'
           : result.error.message,
       );
-      setBusyAction(null);
       return;
     }
-    await Promise.all([refresh(), refreshSession()]);
+    const switched = await api.switchWorkspace(result.data.school.workspaceId);
+    if (!switched.ok || !(await refreshSession())) {
+      setBusyAction(null);
+      setError('Школа создана, но её не удалось открыть. Обновите страницу.');
+      return;
+    }
+    setSchoolTitle('');
+    await refresh();
     setBusyAction(null);
-    setNotice('Режим педагога включён. Для создания классов выберите пространство школы.');
+    setNotice(`Школа «${result.data.school.title}» создана. Вы её администратор.`);
   }
 
   async function revokeSession(target: AccountSession): Promise<void> {
@@ -286,12 +335,19 @@ export function AccountPage({
     );
   }
 
+  const roleChanged = accountRole !== (isEducator ? 'educator' : 'creator');
+  const profileChanged =
+    username !== profile.username ||
+    displayName !== profile.displayName ||
+    bio !== (profile.bio ?? '') ||
+    roleChanged;
+
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
       <header className="account-heading">
         <p className="portal-eyebrow">Настройки</p>
-        <h1>Профиль и доступ</h1>
-        <p>Здесь меняются только понятные пользователю данные и режимы аккаунта.</p>
+        <h1>Ваш аккаунт</h1>
+        <p>Профиль, роль, школы и безопасность — без технических терминов.</p>
       </header>
 
       <div className="account-settings-shell">
@@ -332,11 +388,11 @@ export function AccountPage({
           {panel === 'profile' ? (
             <section className="account-settings-section" aria-labelledby="profile-settings-title">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Публичный профиль</p>
-                <h2 id="profile-settings-title">Редактировать профиль</h2>
+                <p className="account-card-kicker">Профиль</p>
+                <h2 id="profile-settings-title">Как вас видят другие</h2>
                 <p>
-                  При публикации проекта зрители увидят аватар, отображаемое имя, имя пользователя и
-                  текст «О себе». Email и дата рождения остаются закрытыми.
+                  Эти данные будут показаны рядом с вашими опубликованными проектами и в классах.
+                  Email и дата рождения остаются закрытыми.
                 </p>
               </div>
 
@@ -344,7 +400,7 @@ export function AccountPage({
                 <img src={effectiveAvatarUrl} alt="Текущий аватар" />
                 <div>
                   <strong>Аватар</strong>
-                  <span>Выберите образ ASA Lab или загрузите своё изображение.</span>
+                  <span>Выберите готовый аватар ASA Lab или загрузите своё изображение.</span>
                   <div className="account-avatar-buttons">
                     <button
                       type="button"
@@ -387,7 +443,7 @@ export function AccountPage({
               <form className="account-profile-form" onSubmit={(event) => void saveProfile(event)}>
                 <label>
                   Имя пользователя
-                  <small>Короткое имя для профиля и входа, например @ivan.petrov.</small>
+                  <small>Короткое уникальное имя для профиля, например @ivan.petrov.</small>
                   <input
                     value={username}
                     minLength={3}
@@ -399,7 +455,7 @@ export function AccountPage({
                 </label>
                 <label>
                   Отображаемое имя
-                  <small>Это имя увидят другие пользователи рядом с проектами и в классах.</small>
+                  <small>Это имя увидят другие пользователи в проектах и классах.</small>
                   <input
                     value={displayName}
                     minLength={2}
@@ -409,11 +465,17 @@ export function AccountPage({
                   />
                 </label>
                 <label>
-                  Роль аккаунта
+                  Кто вы в ASA Lab
                   <small>
-                    Роль определяется подтверждёнными возможностями и не меняется вручную.
+                    Педагог может создавать школы и классы. Автор работает с личными проектами.
                   </small>
-                  <input value={accountRole} disabled />
+                  <select
+                    value={accountRole}
+                    onChange={(event) => setAccountRole(event.target.value as AccountRole)}
+                  >
+                    <option value="creator">Автор проектов</option>
+                    <option value="educator">Педагог</option>
+                  </select>
                 </label>
                 <label>
                   О себе
@@ -430,136 +492,125 @@ export function AccountPage({
                 <button
                   type="submit"
                   className="btn-primary account-action"
-                  disabled={
-                    busyAction !== null ||
-                    (username === profile.username &&
-                      displayName === profile.displayName &&
-                      bio === (profile.bio ?? ''))
-                  }
+                  disabled={busyAction !== null || !profileChanged}
                 >
-                  {busyAction === 'profile' ? 'Сохраняем…' : 'Сохранить профиль'}
+                  {busyAction === 'profile' ? 'Сохраняем…' : 'Сохранить изменения'}
                 </button>
               </form>
             </section>
           ) : null}
 
-          {panel === 'access' ? (
-            <section className="account-settings-section" aria-labelledby="access-settings-title">
+          {panel === 'school' ? (
+            <section className="account-settings-section" aria-labelledby="school-settings-title">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Роли и возможности</p>
-                <h2 id="access-settings-title">Кто и что может делать</h2>
-                <p>Личный профиль, педагог и управление школой — это разные уровни доступа.</p>
-              </div>
-
-              <div className="account-access-list">
-                <article className="ready">
-                  <span>1</span>
-                  <div>
-                    <h3>Личный аккаунт</h3>
-                    <p>Создание личных проектов и открытие раздела классов.</p>
-                  </div>
-                  <strong>Активен</strong>
-                </article>
-                <article className="ready">
-                  <span>2</span>
-                  <div>
-                    <h3>Доступ к классам</h3>
-                    <p>
-                      Подтверждение email сейчас не требуется. Ученик входит по коду класса, а
-                      педагог управляет классами в пространстве школы.
-                    </p>
-                  </div>
-                  <strong>Письмо не требуется</strong>
-                </article>
-                <article className={educator ? 'ready' : ''}>
-                  <span>3</span>
-                  <div>
-                    <h3>Педагог</h3>
-                    <p>Совершеннолетний пользователь включает режим педагога в своём аккаунте.</p>
-                  </div>
-                  {educator ? (
-                    <strong>Включён</strong>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      disabled={busyAction !== null}
-                      onClick={() => void attestEducator()}
-                    >
-                      Включить
-                    </button>
-                  )}
-                </article>
-                <article className={canManageClasses ? 'ready' : ''}>
-                  <span>4</span>
-                  <div>
-                    <h3>Владелец класса</h3>
-                    <p>
-                      Для создания класса нужен режим педагога и пространство учебной организации.
-                    </p>
-                  </div>
-                  <strong>{canManageClasses ? 'Можно создавать' : 'Нужна организация'}</strong>
-                </article>
-                <article className={currentWorkspace?.role === 'owner' ? 'ready' : ''}>
-                  <span>5</span>
-                  <div>
-                    <h3>Администратор или представитель школы</h3>
-                    <p>
-                      Эту роль назначает владелец организации после проверки школы. Самостоятельно
-                      выбрать её в профиле нельзя.
-                    </p>
-                  </div>
-                  <strong>
-                    {currentWorkspace?.role === 'owner' ? 'Владелец пространства' : 'Не назначено'}
-                  </strong>
-                </article>
-              </div>
-            </section>
-          ) : null}
-
-          {panel === 'workspaces' ? (
-            <section
-              className="account-settings-section"
-              aria-labelledby="workspace-settings-title"
-            >
-              <div className="account-section-heading">
-                <p className="account-card-kicker">Контекст работы</p>
-                <h2 id="workspace-settings-title">Рабочие пространства</h2>
+                <p className="account-card-kicker">Для педагога</p>
+                <h2 id="school-settings-title">Школа и классы</h2>
                 <p>
-                  Личное пространство хранит ваши проекты. Пространство школы открывает назначенные
-                  организацией роли и классы.
+                  Создайте школу с любым названием. Вы сразу станете её администратором и сможете
+                  создавать классы, приглашать учеников и выдавать задания.
                 </p>
               </div>
-              <ul className="account-workspace-list account-workspace-settings-list">
-                {profile.workspaces.map((workspace) => {
-                  const active = workspace.workspaceId === session.activeWorkspace.workspaceId;
-                  return (
-                    <li key={workspace.workspaceId} className={active ? 'active' : undefined}>
-                      <div>
-                        <strong>{workspace.title}</strong>
-                        <span>{workspaceKindLabel(workspace.kind)}</span>
-                        <small>{workspaceRoleLabel(workspace.role)}</small>
+
+              {!isEducator ? (
+                <div className="account-school-empty">
+                  <ClassesIcon />
+                  <div>
+                    <h3>Включите роль педагога</h3>
+                    <p>Откройте «Профиль», выберите «Педагог» и сохраните изменения.</p>
+                  </div>
+                  <button type="button" className="btn-primary" onClick={() => setPanel('profile')}>
+                    Перейти в профиль
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {activeSchool ? (
+                    <div className="account-school-dashboard">
+                      <div className="account-school-dashboard-heading">
+                        <div>
+                          <span>Текущая школа</span>
+                          <h3>{activeSchool.title}</h3>
+                        </div>
+                        <strong>{schoolRoleLabel(activeSchool.role)}</strong>
                       </div>
-                      <button
-                        type="button"
-                        className={active ? 'account-current' : 'btn-secondary'}
-                        disabled={active || busyAction !== null}
-                        onClick={() => void switchWorkspace(workspace)}
-                      >
-                        {active
-                          ? 'Используется сейчас'
-                          : busyAction === `workspace:${workspace.workspaceId}`
-                            ? 'Переключаем…'
-                            : 'Переключиться'}
+                      <div className="account-school-metrics">
+                        <div>
+                          <strong>{classroomCount ?? '—'}</strong>
+                          <span>Классы</span>
+                        </div>
+                        <div>
+                          <strong>Активна</strong>
+                          <span>Школа</span>
+                        </div>
+                        <div>
+                          <strong>Полный</strong>
+                          <span>Доступ администратора</span>
+                        </div>
+                      </div>
+                      <button type="button" className="btn-primary" onClick={onOpenClasses}>
+                        Управлять классами
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              <p className="account-section-note">
-                Роль в пространстве школы назначает организация. Смена пространства не выдаёт новых
-                прав автоматически.
-              </p>
+                    </div>
+                  ) : null}
+
+                  {schoolWorkspaces.length > 0 ? (
+                    <div className="account-school-list">
+                      <h3>Мои школы</h3>
+                      {schoolWorkspaces.map((workspace) => {
+                        const active = workspace.workspaceId === activeSchool?.workspaceId;
+                        return (
+                          <article key={workspace.workspaceId} className={active ? 'active' : ''}>
+                            <div>
+                              <strong>{workspace.title}</strong>
+                              <span>{schoolRoleLabel(workspace.role)}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className={active ? 'btn-primary' : 'btn-secondary'}
+                              disabled={busyAction !== null}
+                              onClick={() => void openSchoolClasses(workspace)}
+                            >
+                              {busyAction === `school:${workspace.workspaceId}`
+                                ? 'Открываем…'
+                                : 'Открыть классы'}
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <form
+                    className="account-create-school"
+                    onSubmit={(event) => void createSchool(event)}
+                  >
+                    <div>
+                      <h3>
+                        {schoolWorkspaces.length > 0 ? 'Создать ещё одну школу' : 'Создать школу'}
+                      </h3>
+                      <p>Подтверждение почты сейчас не требуется.</p>
+                    </div>
+                    <label>
+                      Название школы
+                      <input
+                        value={schoolTitle}
+                        minLength={2}
+                        maxLength={120}
+                        required
+                        placeholder="Например: Школа №1580"
+                        onChange={(event) => setSchoolTitle(event.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={busyAction !== null || schoolTitle.trim().length < 2}
+                    >
+                      {busyAction === 'create-school' ? 'Создаём…' : 'Создать школу'}
+                    </button>
+                  </form>
+                </>
+              )}
             </section>
           ) : null}
 
@@ -568,17 +619,14 @@ export function AccountPage({
               <div className="account-section-heading">
                 <p className="account-card-kicker">Учётная запись</p>
                 <h2 id="security-settings-title">Email и активные входы</h2>
-                <p>Закрытые данные и устройства, на которых открыт ASA Lab.</p>
+                <p>Закрытые данные аккаунта и устройства, на которых открыт ASA Lab.</p>
               </div>
 
               <div className="account-private-facts">
                 <div>
                   <span>Email</span>
                   <strong>{profile.email}</strong>
-                  <small>
-                    {verificationLabel(profile.emailVerificationState)}. Это не ограничивает проекты
-                    и классы.
-                  </small>
+                  <small>Подтверждение появится позже и сейчас ничего не ограничивает.</small>
                 </div>
                 <div>
                   <span>Дата рождения</span>
@@ -649,7 +697,7 @@ export function AccountPage({
               <div>
                 <p className="account-card-kicker">Библиотека ASA Lab</p>
                 <h2 id="avatar-dialog-title">Выберите аватар</h2>
-                <p>Стандартные изображения безопасны для профиля и классов.</p>
+                <p>Готовые изображения или собственная фотография.</p>
               </div>
               <button
                 type="button"
