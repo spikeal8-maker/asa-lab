@@ -328,16 +328,20 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByLabel('Поворот Y, градусов')).toHaveValue('0');
 
   const movable = await directHandlePoint(page, 'resize-height');
+  const moveStartX = await page.getByLabel('Положение X, мм').inputValue();
+  const moveStartZ = await page.getByLabel('Положение Z, мм').inputValue();
   await page.mouse.move(movable.centre.x, movable.centre.y);
   await page.mouse.down();
   await page.mouse.move(movable.centre.x + 42, movable.centre.y + 18, { steps: 8 });
   await page.mouse.up();
   const movedX = Number(await page.getByLabel('Положение X, мм').inputValue());
   const movedZ = Number(await page.getByLabel('Положение Z, мм').inputValue());
-  expect(Math.abs(movedX) + Math.abs(movedZ)).toBeGreaterThan(0);
+  expect(
+    Math.abs(movedX - Number(moveStartX)) + Math.abs(movedZ - Number(moveStartZ)),
+  ).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
-  await expect(page.getByLabel('Положение X, мм')).toHaveValue('0');
-  await expect(page.getByLabel('Положение Z, мм')).toHaveValue('0');
+  await expect(page.getByLabel('Положение X, мм')).toHaveValue(moveStartX);
+  await expect(page.getByLabel('Положение Z, мм')).toHaveValue(moveStartZ);
 
   await page.getByLabel('Ширина, мм').fill('42');
   await page.getByLabel('Глубина, мм').fill('28');
