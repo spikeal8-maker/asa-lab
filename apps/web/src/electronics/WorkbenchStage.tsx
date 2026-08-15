@@ -3,7 +3,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
   catalogEntry,
@@ -147,7 +147,7 @@ export function WorkbenchStage({
 
   function isRepeatedClick(
     previous: { x: number; y: number; at: number } | null,
-    event: ReactMouseEvent<SVGElement>,
+    event: ReactPointerEvent<SVGElement>,
   ): boolean {
     if (!previous) return false;
     return (
@@ -156,8 +156,8 @@ export function WorkbenchStage({
     );
   }
 
-  function handleWireClick(
-    event: ReactMouseEvent<SVGPathElement>,
+  function handleWirePointerDown(
+    event: ReactPointerEvent<SVGPathElement>,
     wireId: string,
     segmentIndex?: number,
   ): void {
@@ -176,12 +176,13 @@ export function WorkbenchStage({
       y: event.clientY,
       at: Date.now(),
     };
-    c.setSelection(
-      segmentIndex === undefined
-        ? { kind: 'wire', id: wireId }
-        : { kind: 'wire', id: wireId, segmentIndex },
-    );
+    if (segmentIndex === undefined) {
+      c.setSelection({ kind: 'wire', id: wireId });
+      return;
+    }
+    c.startSegmentDrag(event, wireId, segmentIndex);
   }
+
   const orderedComponents = [
     ...document.components.filter((component) => component.kind === 'breadboard'),
     ...document.components.filter((component) => component.kind !== 'breadboard'),
@@ -268,7 +269,8 @@ export function WorkbenchStage({
               className="workbench-wire-hit"
               d={path}
               vectorEffect="non-scaling-stroke"
-              onClick={(event) => handleWireClick(event, wire.id)}
+              onPointerDown={(event) => handleWirePointerDown(event, wire.id)}
+              onClick={(event) => event.stopPropagation()}
             />
           ))}
           {routedWires.flatMap(({ wire, points }) =>
@@ -285,8 +287,8 @@ export function WorkbenchStage({
                   className={`workbench-wire-segment-hit ${horizontal ? 'horizontal' : 'vertical'}`}
                   d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`}
                   vectorEffect="non-scaling-stroke"
-                  onPointerDown={(event) => c.startSegmentDrag(event, wire.id, segmentIndex)}
-                  onClick={(event) => handleWireClick(event, wire.id, segmentIndex)}
+                  onPointerDown={(event) => handleWirePointerDown(event, wire.id, segmentIndex)}
+                  onClick={(event) => event.stopPropagation()}
                 />
               );
             }),
@@ -709,7 +711,8 @@ export function WorkbenchStage({
                         data-testid="wire-vertex"
                         data-wire-id={wire.id}
                         data-wire-vertex-index={index}
-                        onClick={(event) => {
+                        onClick={(event) => event.stopPropagation()}
+                        onPointerDown={(event) => {
                           event.stopPropagation();
                           const previous = lastVertexClick.current;
                           const repeated =
@@ -728,13 +731,6 @@ export function WorkbenchStage({
                             y: event.clientY,
                             at: Date.now(),
                           };
-                          c.setSelection({ kind: 'wire', id: wire.id, vertexIndex: index });
-                        }}
-                        onPointerDown={(event) => {
-                          if (event.detail > 1) {
-                            event.stopPropagation();
-                            return;
-                          }
                           c.startVertexDrag(event, wire.id, index);
                         }}
                         onKeyDown={(event) => {

@@ -1186,7 +1186,10 @@ export function useElectronicsWorkbench(projectId: string) {
     event.preventDefault();
   }
 
-  function addWireVertexAt(event: MouseEvent<SVGPathElement>, wireId: string): void {
+  function addWireVertexAt(
+    event: MouseEvent<SVGPathElement> | PointerEvent<SVGPathElement>,
+    wireId: string,
+  ): void {
     if (!document) return;
     const next = insertWireVertex(document, wireId, toWorld(event));
     if (next === document) return;
