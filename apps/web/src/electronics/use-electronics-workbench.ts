@@ -596,6 +596,11 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     if (!pendingTerminal) {
+      // Starting a new wire is a new interaction. A previously selected wire
+      // must stop showing its outline, endpoints and bend handles immediately;
+      // otherwise the old controls remain visible underneath the live draft and
+      // the editor appears to be editing two wires at once.
+      setSelection(null);
       setPendingTerminal({ componentId, terminal });
       setWireDraftVertices([]);
       const sourceComponent = document.components.find((item) => item.id === componentId);

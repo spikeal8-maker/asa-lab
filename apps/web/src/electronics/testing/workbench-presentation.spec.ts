@@ -222,6 +222,14 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
+    const newWireStart = controllerSource.slice(
+      controllerSource.indexOf('if (!pendingTerminal) {'),
+      controllerSource.indexOf('if (pendingTerminal.componentId'),
+    );
+    expect(newWireStart).toContain('setSelection(null);');
+    expect(newWireStart.indexOf('setSelection(null);')).toBeLessThan(
+      newWireStart.indexOf('setPendingTerminal({ componentId, terminal });'),
+    );
 
     // A running simulation is a circuit under power: it can be operated, not
     // rebuilt. Components used to stay draggable while it ran, so the board could
