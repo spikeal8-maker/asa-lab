@@ -1143,7 +1143,6 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelection({ kind: 'wire', id: wireId, vertexIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
     event.stopPropagation();
-    event.preventDefault();
   }
 
   function startSegmentDrag(
@@ -1163,7 +1162,6 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelection({ kind: 'wire', id: wireId, segmentIndex });
     stageRef.current?.setPointerCapture(event.pointerId);
     event.stopPropagation();
-    event.preventDefault();
   }
 
   function removeWireVertexAt(wireId: string, vertexIndex: number): void {
