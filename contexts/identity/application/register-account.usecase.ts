@@ -1,4 +1,4 @@
-import { hashPassword } from '../domain/password.js';
+import { hashPasswordAsync } from '../domain/password.js';
 import {
   AGE_POLICY_VERSION,
   isEligibleAdult,
@@ -93,7 +93,7 @@ export class RegisterAccountUseCase {
     const token = createSessionToken();
     const registered = await this.accounts.register({
       email,
-      passwordHash: hashPassword(input.password),
+      passwordHash: await hashPasswordAsync(input.password),
       username,
       displayName:
         typeof input.displayName === 'string' && input.displayName.trim().length > 0

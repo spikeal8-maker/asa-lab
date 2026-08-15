@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "budget_version": "2026.08.16-1",
+  "source_of_truth": "docs/testing/performance-budget.json",
+  "note": "Thresholds are derived from the school scenario, not from whatever the current build happens to score. Absolute numbers depend on the machine, so every threshold keeps margin over the requirement and stays under the measured result on ordinary developer hardware.",
+  "runtime": {
+    "note": "Requirement: 300 learners signing in over 30 seconds is 10 sign-ins per second. The floor keeps six times that. Event-loop and file-read ceilings exist because password hashing shares the libuv pool with static file serving: an API that answers health checks while the site does not load is not available.",
+    "loginsPerSecondMin": 60,
+    "eventLoopLagP99MsMax": 100,
+    "fileReadP99MsMax": 250,
+    "measured": {
+      "date": "2026-08-16",
+      "machine": "16 cores, Windows, client on the same host",
+      "before": { "loginsPerSecond": 37, "eventLoopLagP99Ms": 2988, "fileReadP99Ms": 3008 },
+      "after": { "loginsPerSecond": 159, "eventLoopLagP99Ms": 0, "fileReadP99Ms": 0 }
+    }
+  },
+  "web": {
+    "note": "Measured against the built SPA with an emulated network. Time to interface is the moment the sign-in control is usable, not first paint.",
+    "pageWeightKbMax": 400,
+    "timeToInterfaceMsMax": { "mbps10": 1200, "mbps1_6": 4000 },
+    "mainChunkKbMax": 300,
+    "measured": {
+      "date": "2026-08-15",
+      "before": { "pageWeightKb": 1824, "timeToInterfaceMs": { "mbps10": 2240, "mbps1_6": 9990 }, "mainChunkKb": 682 }
+    }
+  }
+}

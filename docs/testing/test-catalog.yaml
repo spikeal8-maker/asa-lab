@@ -685,3 +685,36 @@ tests:
     timeout_seconds: 1800
     owner: three-d
     artifacts: [playwright-report, three-d-desktop.png, three-d-tablet.png, three-d-mobile.png, browser-failure-report]
+
+  - id: TST-SEC-RATELIMIT-001
+    title: Sign-in and registration answer 429 once a client exceeds the attempt ceiling
+    suite: security
+    level: repository
+    phase_available: PHASE-1
+    required_for: [TASK-AUTH-HARDENING-001]
+    command: pnpm test:security
+    timeout_seconds: 120
+    owner: identity
+    artifacts: [console-report]
+
+  - id: TST-SEC-ENUM-001
+    title: Refusal time does not disclose whether an identifier is registered
+    suite: security
+    level: repository
+    phase_available: PHASE-1
+    required_for: [TASK-AUTH-HARDENING-001]
+    command: pnpm test:security
+    timeout_seconds: 120
+    owner: identity
+    artifacts: [console-report]
+
+  - id: TST-LOAD-001
+    title: A burst of sign-ins leaves the event loop and file serving responsive
+    suite: load
+    level: repository
+    phase_available: PHASE-1
+    required_for: [TASK-PERF-BASELINE-001, TASK-AUTH-HARDENING-001]
+    command: pnpm perf:runtime:check
+    timeout_seconds: 300
+    owner: platform-architecture
+    artifacts: [console-report]

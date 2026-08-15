@@ -115,6 +115,13 @@ nodes:
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
+  - {id: TASK-PERF-BASELINE-001, label: Performance Baseline, kind: task, layer: delivery, status: planned, summary: "Measurement tooling and recorded availability budget.", phase: PHASE-PILOT}
+  - {id: TASK-AUTH-HARDENING-001, label: Auth Availability, kind: task, layer: delivery, status: planned, summary: "Non-blocking password hashing, attempt ceilings and no timing disclosure.", phase: PHASE-PILOT}
+  - {id: TASK-OBSERVABILITY-001, label: Runtime Observability, kind: task, layer: delivery, status: planned, summary: "Metrics, request log and readiness that separates busy from broken.", phase: PHASE-PILOT}
+  - {id: TASK-WEB-BOOTSTRAP-001, label: Non-blocking Bootstrap, kind: task, layer: delivery, status: planned, summary: "Render without the Electronics catalog and split the catalog itself.", phase: PHASE-PILOT}
+  - {id: TASK-ASSET-DELIVERY-001, label: Asset Delivery, kind: task, layer: delivery, status: planned, summary: "Compression and immutable caching scoped to hashed filenames.", phase: PHASE-PILOT}
+  - {id: TASK-E2E-GATE-001, label: Browser Gate, kind: task, layer: delivery, status: planned, summary: "Repair the drifted specs, smoke set on push, full set on pull request.", phase: PHASE-PILOT}
+  - {id: TASK-SCALE-PREP-001, label: Scale Preparation, kind: task, layer: delivery, status: planned, summary: "Pool guards, covering indexes, chunk split and multi-instance readiness.", phase: PHASE-PILOT}
 
 edges:
   - {from: ASA, to: PLANE-EXPERIENCE, type: contains}
@@ -219,6 +226,13 @@ edges:
   - {from: TASK-R3, to: PHASE-R3, type: implements}
   - {from: TASK-R4, to: PHASE-R4, type: implements}
   - {from: TASK-SEAT, to: PHASE-PILOT, type: implements}
+  - {from: TASK-PERF-BASELINE-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-AUTH-HARDENING-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-OBSERVABILITY-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-WEB-BOOTSTRAP-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-ASSET-DELIVERY-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-E2E-GATE-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-SCALE-PREP-001, to: PHASE-PILOT, type: implements}
   - {from: PHASE-0, to: PHASE-1, type: next}
   - {from: PHASE-1, to: PHASE-R2, type: next}
   - {from: PHASE-R2, to: PHASE-R3, type: next}

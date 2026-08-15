@@ -1,4 +1,10 @@
-export { hashPassword, verifyPassword } from './domain/password.js';
+export {
+  hashPassword,
+  verifyPassword,
+  hashPasswordAsync,
+  verifyPasswordAsync,
+  verifyAgainstDecoy,
+} from './domain/password.js';
 export { createSessionToken, hashSessionToken } from './domain/session-token.js';
 export { isValidEmail, isValidWorkspace, normalizeEmail } from './domain/validation.js';
 export type {

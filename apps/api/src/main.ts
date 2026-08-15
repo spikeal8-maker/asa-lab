@@ -28,6 +28,12 @@ export async function startApi(options: StartApiOptions = {}): Promise<ApiRuntim
     throw new Error('APP_DATABASE_URL is required; the API refuses to start without it');
   }
 
+  // Password hashing and static file reads share the libuv pool. The default of
+  // four threads leaves file serving stalled behind a burst of sign-ins; eight
+  // measured best here, while more threads than cores traded file latency for
+  // event-loop latency. Password hashing separately takes at most half.
+  process.env['UV_THREADPOOL_SIZE'] ??= '8';
+
   const runtimeOptions = {
     host: options.host ?? process.env['API_HOST'] ?? '127.0.0.1',
     port: options.port ?? Number.parseInt(process.env['API_PORT'] ?? '4611', 10),

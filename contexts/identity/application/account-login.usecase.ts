@@ -1,4 +1,4 @@
-import { verifyPassword } from '../domain/password.js';
+import { verifyAgainstDecoy, verifyPasswordAsync } from '../domain/password.js';
 import { createSessionToken, hashSessionToken } from '../domain/session-token.js';
 import { isValidEmail, normalizeEmail } from '../domain/validation.js';
 import { isValidUsername } from '../domain/account-policy.js';
@@ -39,7 +39,13 @@ export class AccountLoginUseCase {
     const account = looksLikeEmail
       ? await this.accounts.findByEmail(normalizeEmail(identifier))
       : await this.accounts.findByUsername(identifier.toLowerCase());
-    if (account === null || !verifyPassword(input.password, account.passwordHash)) {
+    // A missing account still pays for a hash, so response time does not reveal
+    // whether the identifier belongs to anybody.
+    if (account === null) {
+      await verifyAgainstDecoy(input.password);
+      return { ok: false, code: 'invalid_credentials' };
+    }
+    if (!(await verifyPasswordAsync(input.password, account.passwordHash))) {
       return { ok: false, code: 'invalid_credentials' };
     }
     const personal = await this.accounts.personalWorkspace(account.id);

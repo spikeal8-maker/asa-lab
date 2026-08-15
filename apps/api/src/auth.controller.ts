@@ -21,6 +21,16 @@ import type {
 } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import { FixedWindowRateLimiter } from './rate-limit.js';
+
+// Password hashing costs tens of milliseconds of thread-pool time per attempt.
+// Without a ceiling one client can spend the whole runtime on failed guesses,
+// so both endpoints are limited by client address and login also by identifier.
+const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+const LOGIN_PER_ADDRESS = 20;
+const LOGIN_PER_IDENTIFIER = 10;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+const REGISTER_PER_ADDRESS = 5;
 
 interface PublicUser {
   id: string;
@@ -69,6 +79,19 @@ function summarizeUserAgent(value: string | undefined): string | undefined {
 
 @Controller('api/auth')
 export class AuthController {
+  private readonly loginByAddress = new FixedWindowRateLimiter({
+    limit: LOGIN_PER_ADDRESS,
+    windowMs: LOGIN_WINDOW_MS,
+  });
+  private readonly loginByIdentifier = new FixedWindowRateLimiter({
+    limit: LOGIN_PER_IDENTIFIER,
+    windowMs: LOGIN_WINDOW_MS,
+  });
+  private readonly registerByAddress = new FixedWindowRateLimiter({
+    limit: REGISTER_PER_ADDRESS,
+    windowMs: REGISTER_WINDOW_MS,
+  });
+
   constructor(
     @Inject(TOKENS.loginUseCase) private readonly legacyLoginUseCase: LoginUseCase,
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
@@ -127,6 +150,22 @@ export class AuthController {
     };
   }
 
+  private enforce(limiter: FixedWindowRateLimiter, key: string): void {
+    const decision = limiter.consume(key);
+    if (!decision.allowed) {
+      throw new HttpException(
+        {
+          error: {
+            code: 'too_many_attempts',
+            message: 'Слишком много попыток. Подождите несколько минут.',
+            retryAfterSeconds: decision.retryAfterSeconds,
+          },
+        },
+        429,
+      );
+    }
+  }
+
   private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) {
@@ -139,8 +178,10 @@ export class AuthController {
   @HttpCode(201)
   async register(
     @Body() rawBody: unknown,
+    @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
+    this.enforce(this.registerByAddress, request.ip || 'unknown');
     const shape = checkBodyShape(rawBody, [
       'email',
       'password',
@@ -195,9 +236,14 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
+    this.enforce(this.loginByAddress, request.ip || 'unknown');
     const shape = checkBodyShape(rawBody, ['workspace', 'identifier', 'email', 'password']);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    const identifier = shape.body['identifier'] ?? shape.body['email'];
+    if (typeof identifier === 'string' && identifier.length > 0) {
+      this.enforce(this.loginByIdentifier, identifier.trim().toLowerCase());
     }
     const token =
       shape.body['workspace'] === undefined

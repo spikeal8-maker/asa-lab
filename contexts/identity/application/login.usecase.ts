@@ -1,4 +1,4 @@
-import { verifyPassword } from '../domain/password.js';
+import { verifyAgainstDecoy, verifyPasswordAsync } from '../domain/password.js';
 import { createSessionToken, hashSessionToken } from '../domain/session-token.js';
 import { isValidEmail, isValidWorkspace, normalizeEmail } from '../domain/validation.js';
 import type {
@@ -49,7 +49,13 @@ export class LoginUseCase {
       return { ok: false, code: 'invalid_credentials' };
     }
     const user = await this.users.findActiveTeacherByEmail(tenantId, email);
-    if (user === null || !verifyPassword(input.password, user.passwordHash)) {
+    // A missing user still pays for a hash, so response time does not reveal
+    // whether the address belongs to anybody in this workspace.
+    if (user === null) {
+      await verifyAgainstDecoy(input.password);
+      return { ok: false, code: 'invalid_credentials' };
+    }
+    if (!(await verifyPasswordAsync(input.password, user.passwordHash))) {
       return { ok: false, code: 'invalid_credentials' };
     }
     const token = createSessionToken();
