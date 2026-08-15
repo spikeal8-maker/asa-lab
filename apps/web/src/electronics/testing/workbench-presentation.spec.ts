@@ -183,12 +183,13 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.zoomBy(1.18)');
     expect(stageSource).toContain('c.zoomBy(0.85)');
     expect(stageSource).toContain('Math.round(c.viewport.zoom * 100)');
-    expect(stageSource).toContain('onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}');
     expect(stageSource).toContain('data-testid="wire-vertex"');
     expect(stageSource).toContain('data-testid="wire-hit"');
     expect(stageSource).toContain('data-testid="wire-endpoint"');
     expect(stageSource).toContain('data-testid="wire-segment"');
     expect(stageSource).toContain('c.startSegmentDrag(event, wire.id, segmentIndex)');
+    expect(stageSource).toContain('if (event.detail >= 2)');
+    expect(stageSource).toContain('c.addWireVertexAt(event, wire.id)');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');

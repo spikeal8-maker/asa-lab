@@ -214,9 +214,12 @@ export function WorkbenchStage({
               onClick={(event) => {
                 event.stopPropagation();
                 if (c.pendingTerminal) return;
+                if (event.detail >= 2) {
+                  c.addWireVertexAt(event, wire.id);
+                  return;
+                }
                 c.setSelection({ kind: 'wire', id: wire.id });
               }}
-              onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
             />
           ))}
           {routedWires.flatMap(({ wire, points }) =>
@@ -237,9 +240,12 @@ export function WorkbenchStage({
                   onClick={(event) => {
                     event.stopPropagation();
                     if (c.pendingTerminal) return;
+                    if (event.detail >= 2) {
+                      c.addWireVertexAt(event, wire.id);
+                      return;
+                    }
                     c.setSelection({ kind: 'wire', id: wire.id, segmentIndex });
                   }}
-                  onDoubleClick={(event) => c.addWireVertexAt(event, wire.id)}
                 />
               );
             }),
