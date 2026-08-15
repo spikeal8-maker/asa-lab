@@ -456,7 +456,10 @@ tests:
     artifacts: [console-report]
 
   - id: TST-E2E-ELECTRONICS-SLICE-001
-    title: Create save reload and checkpoint project
+    # The original slice spec added parts by clicking buttons named after
+    # components. That palette is gone — placement is a pointer gesture now —
+    # so the browser evidence for this task is the converged simulation journey.
+    title: Place, wire, simulate and reload a circuit in the workbench
     suite: e2e
     level: system
     phase_available: PHASE-3

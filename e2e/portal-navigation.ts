@@ -27,3 +27,28 @@ export async function openPortalSection(page: Page, label: string): Promise<void
   await expect(portalSection(page, label)).toBeVisible();
   await portalSection(page, label).click();
 }
+
+/**
+ * Account actions live in a disclosure that closes on navigation, and workspace
+ * switching sits in a nested group inside it. Both have to be reopened every
+ * time, which is easy to forget and reads as a mysterious timeout when omitted.
+ */
+export function accountMenu(page: Page) {
+  return page.locator('.portal-account-menu');
+}
+
+export async function openAccountMenu(page: Page): Promise<void> {
+  await page.locator('.portal-account > summary').click();
+  await expect(accountMenu(page)).toBeVisible();
+}
+
+export async function openAccountSettings(page: Page): Promise<void> {
+  await openAccountMenu(page);
+  await accountMenu(page).getByRole('button', { name: 'Настройки', exact: true }).click();
+}
+
+export async function switchWorkspace(page: Page, title: string | RegExp): Promise<void> {
+  await openAccountMenu(page);
+  await page.locator('.portal-account-workspaces > summary').click();
+  await page.locator('.portal-account-workspace-list button').filter({ hasText: title }).click();
+}

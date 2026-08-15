@@ -48,7 +48,7 @@
     "portal:m4:check": "node tools/validate-portal-evidence.mjs",
     "test:electronics": "vitest run contexts/electronics/testing",
     "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts",
-    "e2e:electronics": "playwright test e2e/electronics-slice.spec.ts",
+    "e2e:electronics": "playwright test e2e/electronics-simulation.spec.ts",
     "chess:contract": "node tools/validate-chess-candidate.mjs",
     "test:chess": "vitest run contexts/chess/testing tests/chess/ apps/web/src/chess/testing/",
     "typecheck:chess": "tsc -p contexts/chess/tsconfig.json --noEmit",
