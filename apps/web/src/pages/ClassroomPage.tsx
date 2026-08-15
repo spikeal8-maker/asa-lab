@@ -1,12 +1,27 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { api, type Classroom, type ClassroomStudentSeat } from '../api';
+import {
+  api,
+  type Classroom,
+  type ClassroomStudentSeat,
+  type ClassroomTeacher,
+  type ClassroomTeacherInvitation,
+} from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
+import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 
 type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
 type PageState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; classroom: Classroom; students: ClassroomStudentSeat[] };
+type TeacherTeamState =
+  | { kind: 'idle' | 'loading' }
+  | { kind: 'error'; message: string }
+  | {
+      kind: 'ready';
+      teachers: ClassroomTeacher[];
+      invitations: ClassroomTeacherInvitation[];
+    };
 
 const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
   { id: 'students', label: 'Учащиеся' },
@@ -21,6 +36,15 @@ function lastActive(value: string | null): string {
   return new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function invitationExpiry(value: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
@@ -240,6 +264,8 @@ export function ClassroomPage({
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [teacherTeam, setTeacherTeam] = useState<TeacherTeamState>({ kind: 'idle' });
+  const [teacherInviteLink, setTeacherInviteLink] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const [classroom, roster] = await Promise.all([
@@ -254,6 +280,32 @@ export function ClassroomPage({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    setTeacherTeam({ kind: 'idle' });
+    setTeacherInviteLink(null);
+  }, [classroomId]);
+
+  const reloadTeacherTeam = useCallback(async () => {
+    setTeacherTeam({ kind: 'loading' });
+    const result = await api.listClassroomTeachers(classroomId);
+    if (result.ok) {
+      setTeacherTeam({
+        kind: 'ready',
+        teachers: result.data.items,
+        invitations: result.data.invitations,
+      });
+    } else {
+      setTeacherTeam({
+        kind: 'error',
+        message: result.error.message || 'Не удалось загрузить преподавателей класса.',
+      });
+    }
+  }, [classroomId]);
+
+  useEffect(() => {
+    if (tab === 'teachers' && teacherTeam.kind === 'idle') void reloadTeacherTeam();
+  }, [reloadTeacherTeam, tab, teacherTeam.kind]);
 
   async function copy(value: string, message: string): Promise<void> {
     await navigator.clipboard.writeText(value);
@@ -304,7 +356,11 @@ export function ClassroomPage({
       </button>
       <header className="classroom-workspace-header">
         <div>
-          <span className="portal-eyebrow">Класс</span>
+          <span className="portal-eyebrow">
+            {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
+            {' · '}
+            {classroom.teacherRole === 'owner' ? 'Основной преподаватель' : 'Коллега-преподаватель'}
+          </span>
           <h1>{classroom.title}</h1>
           <p>
             {classroom.studentCount} учеников · возраст{' '}
@@ -564,12 +620,195 @@ export function ClassroomPage({
         </section>
       ) : null}
       {tab === 'teachers' ? (
-        <section className="classroom-tab-panel">
-          <h2>Коллеги-преподаватели</h2>
-          <p>
-            Совместное преподавание будет включено после появления серверных приглашений и отдельных
-            прав доступа.
-          </p>
+        <section className="classroom-tab-panel classroom-teacher-panel">
+          <div className="classroom-teacher-heading">
+            <div>
+              <span className="portal-eyebrow">Команда класса</span>
+              <h2>Коллеги-преподаватели</h2>
+              <p>
+                Коллеги могут вместе с вами вести учеников, настраивать безопасный режим и работать
+                с проектами этого класса.
+              </p>
+            </div>
+            {classroom.teacherRole === 'owner' ? (
+              <button
+                type="button"
+                className="portal-create-button"
+                disabled={busy === 'teacher-invite'}
+                onClick={async () => {
+                  setBusy('teacher-invite');
+                  const result = await api.createClassroomTeacherInvitation(classroomId);
+                  setBusy(null);
+                  if (!result.ok) {
+                    setTeacherTeam({
+                      kind: 'error',
+                      message: result.error.message || 'Не удалось создать приглашение.',
+                    });
+                    return;
+                  }
+                  const link = new URL(result.data.invitation.invitePath, window.location.origin)
+                    .href;
+                  setTeacherInviteLink(link);
+                  setNotice('Ссылка для коллеги создана и действует 7 дней.');
+                  await reloadTeacherTeam();
+                }}
+              >
+                <PlusIcon /> Пригласить коллегу
+              </button>
+            ) : null}
+          </div>
+
+          {classroom.teacherRole === 'co_teacher' ? (
+            <div className="classroom-teacher-role-note">
+              <strong>Вы — коллега-преподаватель</strong>
+              <span>
+                Вы можете вести этот класс наравне с основным преподавателем. Состав команды и
+                приглашения изменяет владелец класса.
+              </span>
+            </div>
+          ) : null}
+
+          {teacherInviteLink ? (
+            <div className="classroom-teacher-invite-link" role="status">
+              <div>
+                <strong>Ссылка для приглашения</strong>
+                <span>
+                  Отправьте её одному преподавателю. Ссылка перестанет работать после принятия.
+                </span>
+              </div>
+              <div>
+                <input
+                  value={teacherInviteLink}
+                  readOnly
+                  aria-label="Ссылка для приглашения преподавателя"
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => void copy(teacherInviteLink, 'Ссылка для коллеги скопирована.')}
+                >
+                  Копировать
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {teacherTeam.kind === 'loading' || teacherTeam.kind === 'idle' ? (
+            <div className="classroom-teacher-loading" role="status">
+              Загружаем команду класса…
+            </div>
+          ) : null}
+          {teacherTeam.kind === 'error' ? (
+            <div className="classroom-teacher-error" role="alert">
+              <p>{teacherTeam.message}</p>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void reloadTeacherTeam()}
+              >
+                Повторить
+              </button>
+            </div>
+          ) : null}
+          {teacherTeam.kind === 'ready' ? (
+            <>
+              <div className="classroom-teacher-list" aria-label="Преподаватели класса">
+                {teacherTeam.teachers.map((teacher) => (
+                  <article className="classroom-teacher-card" key={teacher.accountId}>
+                    <span className="classroom-teacher-avatar" aria-hidden="true">
+                      <img
+                        src={
+                          teacher.avatarDataUrl ?? defaultAvatarForAccount(teacher.accountId).src
+                        }
+                        alt=""
+                      />
+                    </span>
+                    <div>
+                      <strong>{teacher.displayName}</strong>
+                      <span>
+                        {teacher.role === 'owner'
+                          ? 'Основной преподаватель'
+                          : 'Коллега-преподаватель'}
+                      </span>
+                    </div>
+                    <em className={teacher.role === 'owner' ? 'owner' : undefined}>
+                      {teacher.role === 'owner' ? 'Владелец' : 'Совместный доступ'}
+                    </em>
+                    {classroom.teacherRole === 'owner' && teacher.role === 'co_teacher' ? (
+                      <button
+                        type="button"
+                        className="classroom-teacher-remove"
+                        disabled={busy === `teacher:${teacher.accountId}`}
+                        onClick={async () => {
+                          if (
+                            !window.confirm(`Закрыть ${teacher.displayName} доступ к этому классу?`)
+                          )
+                            return;
+                          setBusy(`teacher:${teacher.accountId}`);
+                          const result = await api.removeClassroomTeacher(
+                            classroomId,
+                            teacher.accountId,
+                          );
+                          setBusy(null);
+                          if (result.ok) {
+                            setNotice(`${teacher.displayName} больше не имеет доступа к классу.`);
+                            await reloadTeacherTeam();
+                          } else {
+                            setTeacherTeam({ kind: 'error', message: result.error.message });
+                          }
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+
+              {classroom.teacherRole === 'owner' && teacherTeam.invitations.length > 0 ? (
+                <div className="classroom-teacher-pending">
+                  <h3>Ожидают принятия</h3>
+                  {teacherTeam.invitations.map((invitation) => (
+                    <div key={invitation.id}>
+                      <span>
+                        <strong>Приглашение для коллеги</strong>
+                        <small>Действует до {invitationExpiry(invitation.expiresAt)}</small>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        disabled={busy === `invitation:${invitation.id}`}
+                        onClick={async () => {
+                          setBusy(`invitation:${invitation.id}`);
+                          const result = await api.revokeClassroomTeacherInvitation(
+                            classroomId,
+                            invitation.id,
+                          );
+                          setBusy(null);
+                          if (result.ok) {
+                            setTeacherInviteLink(null);
+                            setNotice('Приглашение отозвано.');
+                            await reloadTeacherTeam();
+                          } else {
+                            setTeacherTeam({ kind: 'error', message: result.error.message });
+                          }
+                        }}
+                      >
+                        Отозвать
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {classroom.teacherRole === 'owner' && teacherTeam.teachers.length === 1 ? (
+                <div className="classroom-teacher-empty">
+                  <strong>Вы пока ведёте класс самостоятельно</strong>
+                  <span>Пригласите до пяти коллег по защищённой ссылке.</span>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
 

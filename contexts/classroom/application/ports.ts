@@ -1,6 +1,7 @@
 import type { Classroom, ClassroomAgeBand } from '../domain/classroom.js';
 
 export interface CreateClassroomInput {
+  readonly accountId: string;
   readonly tenantId: string;
   readonly classroomId: string;
   readonly schoolId: string;
@@ -25,5 +26,5 @@ export interface ClassroomRepositoryPort {
    * with the same idempotency key and the same request fingerprint returns the
    * existing classroom; the same key with a different fingerprint conflicts. */
   createWithOwner(input: CreateClassroomInput): Promise<CreateWithOwnerResult>;
-  listForTeacher(tenantId: string, teacherId: string): Promise<Classroom[]>;
+  listForAccount(accountId: string): Promise<Classroom[]>;
 }

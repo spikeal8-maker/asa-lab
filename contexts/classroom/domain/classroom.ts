@@ -8,6 +8,9 @@ export interface Classroom {
   readonly studentCount: number;
   readonly joinCodeVersion: number | null;
   readonly joinCodeStatus: 'active' | 'revoked' | null;
+  readonly teacherRole: 'owner' | 'co_teacher';
+  readonly workspaceKind: 'personal' | 'organization';
+  readonly workspaceTitle: string;
   readonly createdAt: string;
 }
 

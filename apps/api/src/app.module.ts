@@ -47,6 +47,10 @@ import { CheckersClassroomController } from './checkers-classroom.controller.js'
 import { ChessLiveController } from './chess-live.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { ClassroomJoinController } from './classroom-join.controller.js';
+import {
+  ClassroomTeacherInvitationsController,
+  ClassroomTeachersController,
+} from './classroom-teachers.controller.js';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
@@ -132,6 +136,8 @@ export class AppModule {
         AccountC1Controller,
         ClassroomsController,
         ClassroomJoinController,
+        ClassroomTeachersController,
+        ClassroomTeacherInvitationsController,
         ModulesController,
         ProjectsController,
         CheckersClassroomController,

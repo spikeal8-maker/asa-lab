@@ -174,7 +174,7 @@ paths:
   /api/classrooms:
     get:
       operationId: getClassrooms
-      summary: List classrooms owned by the session teacher
+      summary: List personal, organization and co-taught classrooms for the educator account
       responses:
         '200':
           description: Classroom collection
@@ -190,7 +190,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: postClassrooms
-      summary: Create a classroom (atomic with owner membership and audit event)
+      summary: Create a class immediately; a school workspace is optional
       parameters:
         - name: Idempotency-Key
           in: header
@@ -242,7 +242,7 @@ paths:
         '409':
           description: >-
             Explicit conflict: idempotency_conflict (same key, different
-            payload), no_school_assigned or no_active_period.
+            payload), or an unavailable personal teaching context.
           content:
             application/json:
               schema:
@@ -255,7 +255,7 @@ paths:
         schema: { type: string, format: uuid }
     get:
       operationId: getClassroomWorkspace
-      summary: Open an owner-authorized classroom workspace
+      summary: Open an owner- or co-teacher-authorized classroom workspace
       responses:
         '200':
           description: Classroom workspace header and safety state
@@ -370,6 +370,108 @@ paths:
       summary: Close new StudentSeat sign-in for the classroom
       responses:
         '200': { description: Class code revoked }
+  /api/classrooms/{classroomId}/teachers:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getClassroomTeachers
+      summary: List the primary teacher, co-teachers and pending owner invitations
+      responses:
+        '200':
+          description: Teaching team visible to every teacher in the class
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClassroomTeacherTeam' }
+        '404': { description: Classroom is unavailable to the educator }
+  /api/classrooms/{classroomId}/teacher-invitations:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: createClassroomTeacherInvitation
+      summary: Create a single-use seven-day co-teacher invitation link
+      responses:
+        '201':
+          description: Invitation link created by the primary teacher
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invitation]
+                properties:
+                  invitation: { $ref: '#/components/schemas/ClassroomTeacherInvitationWithPath' }
+        '403': { description: Only the primary teacher can invite colleagues }
+        '409': { description: The five co-teacher and pending-invitation slots are full }
+  /api/classrooms/{classroomId}/teacher-invitations/{invitationId}:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: invitationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: revokeClassroomTeacherInvitation
+      summary: Revoke an unused co-teacher invitation
+      responses:
+        '200': { description: Invitation revoked }
+        '404': { description: Pending invitation not found }
+  /api/classrooms/{classroomId}/teachers/{teacherAccountId}:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: teacherAccountId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: removeClassroomCoTeacher
+      summary: Remove a co-teacher without deleting their account or projects
+      responses:
+        '200': { description: Co-teacher access removed }
+        '404': { description: Co-teacher not found }
+  /api/classroom-teacher-invitations/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string, minLength: 24, maxLength: 128 }
+    get:
+      operationId: resolveClassroomTeacherInvitation
+      summary: Resolve the minimal public preview for a co-teacher invitation
+      responses:
+        '200':
+          description: Invitation preview
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invitation]
+                properties:
+                  invitation: { $ref: '#/components/schemas/ClassroomTeacherInvitationPreview' }
+        '404': { description: Invitation not found }
+  /api/classroom-teacher-invitations/{token}/accept:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string, minLength: 24, maxLength: 128 }
+    post:
+      operationId: acceptClassroomTeacherInvitation
+      summary: Accept a single-use invitation as an educator account
+      responses:
+        '200': { description: Co-teacher membership created }
+        '403': { description: The signed-in account is not an educator }
+        '410': { description: Invitation expired, was revoked or was already used }
   /api/class-join/resolve:
     post:
       operationId: resolveClassroomJoinCode
@@ -885,6 +987,9 @@ components:
         - joinCodeVersion
         - joinCodeStatus
         - joinCode
+        - teacherRole
+        - workspaceKind
+        - workspaceTitle
         - createdAt
       properties:
         id:
@@ -913,9 +1018,70 @@ components:
         joinCode:
           type: [string, 'null']
           pattern: '^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$'
+        teacherRole:
+          type: string
+          enum: [owner, co_teacher]
+        workspaceKind:
+          type: string
+          enum: [personal, organization]
+        workspaceTitle:
+          type: string
         createdAt:
           type: string
           format: date-time
+    ClassroomTeacher:
+      type: object
+      additionalProperties: false
+      required: [accountId, displayName, avatarDataUrl, role, joinedAt]
+      properties:
+        accountId: { type: string, format: uuid }
+        displayName: { type: string }
+        avatarDataUrl: { type: [string, 'null'] }
+        role:
+          type: string
+          enum: [owner, co_teacher]
+        joinedAt: { type: string, format: date-time }
+    ClassroomTeacherInvitation:
+      type: object
+      additionalProperties: false
+      required: [id, status, expiresAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [pending, accepted, expired]
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    ClassroomTeacherInvitationWithPath:
+      allOf:
+        - $ref: '#/components/schemas/ClassroomTeacherInvitation'
+        - type: object
+          required: [invitePath]
+          properties:
+            invitePath: { type: string }
+    ClassroomTeacherInvitationPreview:
+      type: object
+      additionalProperties: false
+      required: [classroomId, classroomTitle, ownerDisplayName, status, expiresAt]
+      properties:
+        classroomId: { type: string, format: uuid }
+        classroomTitle: { type: string }
+        ownerDisplayName: { type: string }
+        status:
+          type: string
+          enum: [pending, accepted, revoked, expired]
+        expiresAt: { type: string, format: date-time }
+    ClassroomTeacherTeam:
+      type: object
+      additionalProperties: false
+      required: [items, invitations]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ClassroomTeacher' }
+        invitations:
+          type: array
+          items: { $ref: '#/components/schemas/ClassroomTeacherInvitation' }
     CreateStudentSeatRequest:
       type: object
       additionalProperties: false

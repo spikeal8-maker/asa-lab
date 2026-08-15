@@ -60,17 +60,21 @@ function fakeRepo(): { port: ClassroomRepositoryPort; calls: CreateClassroomInpu
           studentCount: 0,
           joinCodeVersion: 1,
           joinCodeStatus: 'active',
+          teacherRole: 'owner',
+          workspaceKind: 'personal',
+          workspaceTitle: 'Личные классы',
           createdAt: 'now',
         },
       };
     },
-    listForTeacher: async () => [],
+    listForAccount: async () => [],
   };
   return { port, calls };
 }
 
 describe('create classroom use case', () => {
   const base = {
+    accountId: 'a1',
     tenantId: 't1',
     classroomId: 'c-1',
     schoolId: 's1',

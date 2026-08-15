@@ -17,6 +17,9 @@ interface ClassroomRow {
   student_count?: number | string | null;
   join_code_version?: number | string | null;
   join_code_status?: 'active' | 'revoked' | null;
+  teacher_role?: 'owner' | 'co_teacher' | null;
+  workspace_kind?: 'personal' | 'organization' | null;
+  workspace_title?: string | null;
   created_at: string;
   request_fingerprint?: string | null;
 }
@@ -35,6 +38,9 @@ function toClassroom(row: ClassroomRow): Classroom {
         ? null
         : Number(row.join_code_version),
     joinCodeStatus: row.join_code_status ?? null,
+    teacherRole: row.teacher_role ?? 'owner',
+    workspaceKind: row.workspace_kind ?? 'organization',
+    workspaceTitle: row.workspace_title ?? 'Школа',
     createdAt: String(row.created_at),
   };
 }
@@ -109,9 +115,10 @@ export class PgClassroomRepository implements ClassroomRepositoryPort {
         [input.tenantId, classroom.id, input.joinCodeHash],
       );
       await client.query(
-        `INSERT INTO classroom_memberships (tenant_id, classroom_id, user_id, member_role)
-         VALUES ($1, $2, $3, 'owner')`,
-        [input.tenantId, classroom.id, input.teacherId],
+        `INSERT INTO classroom_memberships
+           (tenant_id, classroom_id, user_id, account_id, member_role)
+         VALUES ($1, $2, $3, $4, 'owner')`,
+        [input.tenantId, classroom.id, input.teacherId, input.accountId],
       );
       await client.query(
         `INSERT INTO audit_events (tenant_id, actor_user_id, entity_type, entity_id, action, payload_json)
@@ -122,32 +129,14 @@ export class PgClassroomRepository implements ClassroomRepositoryPort {
     });
   }
 
-  async listForTeacher(tenantId: string, teacherId: string): Promise<Classroom[]> {
-    return withTenantContext(this.pool, tenantId, async (client) => {
-      const result = await client.query(
-        `SELECT c.id, c.title, c.status, c.age_band, c.topic_keys, c.safe_mode_default,
-                c.created_at, jc.version AS join_code_version,
-                jc.status AS join_code_status,
-                count(s.id) FILTER (WHERE s.status <> 'removed') AS student_count
-           FROM classrooms c
-           JOIN classroom_memberships m
-             ON m.tenant_id = c.tenant_id AND m.classroom_id = c.id
-           LEFT JOIN LATERAL (
-             SELECT code.version, code.status
-               FROM classroom_join_codes code
-              WHERE code.tenant_id = c.tenant_id AND code.classroom_id = c.id
-              ORDER BY code.version DESC
-              LIMIT 1
-           ) jc ON true
-           LEFT JOIN classroom_student_seats s
-             ON s.tenant_id = c.tenant_id AND s.classroom_id = c.id
-          WHERE c.tenant_id = $1 AND m.user_id = $2 AND m.member_role = 'owner'
-            AND c.status = 'active'
-          GROUP BY c.id, jc.version, jc.status
-          ORDER BY c.created_at DESC`,
-        [tenantId, teacherId],
-      );
-      return (result.rows as ClassroomRow[]).map(toClassroom);
-    });
+  async listForAccount(accountId: string): Promise<Classroom[]> {
+    const result = await this.pool.query(
+      `SELECT id, title, status, age_band, topic_keys, safe_mode_default,
+              created_at, join_code_version, join_code_status, student_count,
+              teacher_role, workspace_kind, workspace_title
+         FROM classroom_list_for_account($1)`,
+      [accountId],
+    );
+    return (result.rows as ClassroomRow[]).map(toClassroom);
   }
 }

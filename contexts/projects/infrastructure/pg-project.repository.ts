@@ -45,56 +45,64 @@ const ACCESS_SQL = `(
   (p.project_scope = 'personal'
      AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $3)
           OR ($4::uuid IS NOT NULL AND p.created_by = $4)))
-  OR (p.project_scope = 'classroom' AND $4::uuid IS NOT NULL AND EXISTS (
+  OR (p.project_scope = 'classroom' AND EXISTS (
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
-           AND m.user_id = $4))
+           AND m.account_id = (SELECT principal.account_id FROM principals principal WHERE principal.id = $3)
+           AND m.member_role IN ('owner', 'co_teacher')))
 )`;
 
-const OWNER_ACCESS_SQL = `(
+const EDIT_ACCESS_SQL = `(
   (p.project_scope = 'personal'
      AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $3)
           OR ($4::uuid IS NOT NULL AND p.created_by = $4)))
-  OR (p.project_scope = 'classroom' AND $4::uuid IS NOT NULL AND EXISTS (
+  OR (p.project_scope = 'classroom' AND EXISTS (
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
-           AND m.user_id = $4 AND m.member_role = 'owner'))
+           AND m.account_id = (SELECT principal.account_id FROM principals principal WHERE principal.id = $3)
+           AND m.member_role IN ('owner', 'co_teacher')))
 )`;
+
+interface ResolvedProjectContext {
+  readonly tenantId: string;
+  readonly userId: string | null;
+}
 
 export class PgProjectRepository implements ProjectRepositoryPort {
   constructor(private readonly pool: pg.Pool) {}
 
-  private async projectTenant(
-    activeTenantId: string,
+  private async projectContext(
+    _activeTenantId: string,
     projectId: string,
     actor: ProjectActor,
-  ): Promise<string | null> {
-    if (actor.userId !== null) return activeTenantId;
+  ): Promise<ResolvedProjectContext | null> {
+    void _activeTenantId;
     const result = await this.pool.query(
-      `SELECT project_tenant_for_principal($1, $2) AS tenant_id`,
+      `SELECT tenant_id, user_id FROM project_context_for_principal($1, $2)`,
       [actor.principalId, projectId],
     );
-    return (result.rows[0]?.tenant_id as string | null | undefined) ?? null;
+    const row = result.rows[0] as { tenant_id: string; user_id: string | null } | undefined;
+    return row ? { tenantId: row.tenant_id, userId: row.user_id } : null;
   }
 
   async createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult> {
     const { principalId, userId } = input.actor;
-    return withTenantContext(this.pool, input.tenantId, async (client) => {
-      if (input.scope === 'classroom') {
-        if (userId === null) return { kind: 'classroom_not_found' };
-        const owned = await client.query(
-          `SELECT 1
-             FROM classrooms c
-             JOIN classroom_memberships m
-               ON m.tenant_id = c.tenant_id AND m.classroom_id = c.id
-            WHERE c.tenant_id = $1 AND c.id = $2
-              AND m.user_id = $3 AND m.member_role = 'owner'`,
-          [input.tenantId, input.classroomId, userId],
-        );
-        if (owned.rows.length === 0) return { kind: 'classroom_not_found' };
-      }
+    let projectTenantId = input.tenantId;
+    let projectUserId = userId;
+    if (input.scope === 'classroom') {
+      const access = await this.pool.query(
+        `SELECT tenant_id, user_id
+           FROM classroom_project_context_for_principal($1, $2)`,
+        [principalId, input.classroomId],
+      );
+      const row = access.rows[0] as { tenant_id: string; user_id: string } | undefined;
+      if (!row) return { kind: 'classroom_not_found' };
+      projectTenantId = row.tenant_id;
+      projectUserId = row.user_id;
+    }
+    return withTenantContext(this.pool, projectTenantId, async (client) => {
       const conflictTarget =
-        userId === null
+        projectUserId === null
           ? `(tenant_id, owner_principal_id, idempotency_key)
              WHERE idempotency_key IS NOT NULL AND owner_principal_id IS NOT NULL`
           : `(tenant_id, created_by, idempotency_key)
@@ -107,12 +115,12 @@ export class PgProjectRepository implements ProjectRepositoryPort {
          ON CONFLICT ${conflictTarget} DO NOTHING
          RETURNING id, project_scope, classroom_id, module_key, title, status, created_at`,
         [
-          input.tenantId,
+          projectTenantId,
           input.scope,
           input.classroomId,
           input.moduleKey,
           input.title,
-          userId,
+          projectUserId,
           principalId,
           input.idempotencyKey,
           input.requestFingerprint,
@@ -126,7 +134,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             WHERE tenant_id = $1 AND idempotency_key = $2
               AND ((owner_principal_id IS NOT NULL AND owner_principal_id = $3)
                    OR ($4::uuid IS NOT NULL AND created_by = $4))`,
-          [input.tenantId, input.idempotencyKey, principalId, userId],
+          [projectTenantId, input.idempotencyKey, principalId, projectUserId],
         );
         const row = existing.rows[0] as ProjectRow | undefined;
         if (!row || row.request_fingerprint !== input.requestFingerprint) {
@@ -139,15 +147,21 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         `INSERT INTO project_drafts
            (project_id, tenant_id, document_json, updated_by, updated_by_principal_id)
          VALUES ($1,$2,$3,$4,$5)`,
-        [project.id, input.tenantId, JSON.stringify(input.initialDocument), userId, principalId],
+        [
+          project.id,
+          projectTenantId,
+          JSON.stringify(input.initialDocument),
+          projectUserId,
+          principalId,
+        ],
       );
       await client.query(
         `INSERT INTO audit_events
            (tenant_id, actor_user_id, entity_type, entity_id, action, payload_json)
          VALUES ($1,$2,'project',$3,'project.created',$4)`,
         [
-          input.tenantId,
-          userId,
+          projectTenantId,
+          projectUserId,
           project.id,
           JSON.stringify({
             title: project.title,
@@ -168,8 +182,30 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     filter: ProjectListFilter,
   ): Promise<Project[]> {
     const status = filter.status ?? 'active';
+    if (filter.scope === 'classroom' && filter.classroomId) {
+      const access = await this.pool.query(
+        `SELECT tenant_id, user_id
+           FROM classroom_project_context_for_principal($1, $2)`,
+        [actor.principalId, filter.classroomId],
+      );
+      const row = access.rows[0] as { tenant_id: string; user_id: string } | undefined;
+      if (!row) return [];
+      return withTenantContext(this.pool, row.tenant_id, async (client) => {
+        const result = await client.query(
+          `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
+                  d.updated_at
+             FROM projects p
+             JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+            WHERE p.tenant_id=$1 AND p.project_scope='classroom'
+              AND p.classroom_id=$2 AND p.status=$3
+            ORDER BY d.updated_at DESC`,
+          [row.tenant_id, filter.classroomId, status],
+        );
+        return (result.rows as ProjectRow[]).map(toProject);
+      });
+    }
     if (actor.userId === null) {
-      if (filter.scope === 'classroom' || filter.classroomId) return [];
+      if (filter.scope === 'classroom') return [];
       return withTenantContext(this.pool, tenantId, async (client) => {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
@@ -199,22 +235,6 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         );
         return (result.rows as ProjectRow[]).map(toProject);
       }
-      if (filter.scope === 'classroom' && filter.classroomId) {
-        const result = await client.query(
-          `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
-                  d.updated_at
-             FROM projects p
-             JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
-             JOIN classroom_memberships m
-               ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
-            WHERE p.tenant_id=$1 AND p.project_scope='classroom'
-              AND p.classroom_id=$2 AND m.user_id=$3
-              AND p.status=$4
-            ORDER BY d.updated_at DESC`,
-          [tenantId, filter.classroomId, actor.userId, status],
-        );
-        return (result.rows as ProjectRow[]).map(toProject);
-      }
       const result = await client.query(
         `SELECT DISTINCT
                 p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
@@ -241,16 +261,16 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     projectId: string,
     actor: ProjectActor,
   ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null> {
-    const actualTenantId = await this.projectTenant(tenantId, projectId, actor);
-    if (actualTenantId === null) return null;
-    return withTenantContext(this.pool, actualTenantId, async (client) => {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
       const found = await client.query(
         `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
                 d.document_json,d.revision,d.updated_at
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
           WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}`,
-        [actualTenantId, projectId, actor.principalId, actor.userId],
+        [access.tenantId, projectId, actor.principalId, access.userId],
       );
       const row = found.rows[0];
       if (!row) return null;
@@ -259,7 +279,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
            FROM project_versions
           WHERE tenant_id=$1 AND project_id=$2
           ORDER BY version_no DESC`,
-        [actualTenantId, projectId],
+        [access.tenantId, projectId],
       );
       return {
         project: toProject(row as ProjectRow),
@@ -294,14 +314,14 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     actor: ProjectActor,
     title: string,
   ): Promise<Project | null> {
-    const actualTenantId = await this.projectTenant(tenantId, projectId, actor);
-    if (actualTenantId === null) return null;
-    return withTenantContext(this.pool, actualTenantId, async (client) => {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
       const updated = await client.query(
         `UPDATE projects p SET title=$5
-          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${OWNER_ACCESS_SQL}
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
           RETURNING id,project_scope,classroom_id,module_key,title,status,created_at`,
-        [actualTenantId, projectId, actor.principalId, actor.userId, title],
+        [access.tenantId, projectId, actor.principalId, access.userId, title],
       );
       const row = updated.rows[0] as ProjectRow | undefined;
       if (!row) return null;
@@ -310,7 +330,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             SET updated_at=now()
           WHERE tenant_id=$1 AND project_id=$2
           RETURNING updated_at`,
-        [actualTenantId, projectId],
+        [access.tenantId, projectId],
       );
       const updatedAt = activity.rows[0]?.updated_at;
       if (updatedAt !== undefined) row.updated_at = String(updatedAt);
@@ -319,8 +339,8 @@ export class PgProjectRepository implements ProjectRepositoryPort {
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
          VALUES ($1,$2,'project',$3,'project.renamed',$4)`,
         [
-          actualTenantId,
-          actor.userId,
+          access.tenantId,
+          access.userId,
           projectId,
           JSON.stringify({ title, actorPrincipalId: actor.principalId }),
         ],
@@ -330,9 +350,9 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   }
 
   async saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null> {
-    const actualTenantId = await this.projectTenant(input.tenantId, input.projectId, input.actor);
-    if (actualTenantId === null) return null;
-    return withTenantContext(this.pool, actualTenantId, async (client) => {
+    const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
       const updated = await client.query(
         `UPDATE project_drafts d
             SET document_json=$5, revision=revision+1, updated_at=now(),
@@ -341,13 +361,13 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           WHERE d.tenant_id=$1 AND d.project_id=$2
             AND p.tenant_id=d.tenant_id AND p.id=d.project_id
             AND p.status <> 'trashed'
-            AND ${OWNER_ACCESS_SQL}
+            AND ${EDIT_ACCESS_SQL}
           RETURNING d.project_id,d.document_json,d.revision,d.updated_at`,
         [
-          actualTenantId,
+          access.tenantId,
           input.projectId,
           input.actor.principalId,
-          input.actor.userId,
+          access.userId,
           JSON.stringify(input.document),
         ],
       );
@@ -369,24 +389,24 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     actor: ProjectActor,
     status: ProjectStatus,
   ): Promise<Project | null> {
-    const actualTenantId = await this.projectTenant(tenantId, projectId, actor);
-    if (actualTenantId === null) return null;
-    return withTenantContext(this.pool, actualTenantId, async (client) => {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
       const updated = await client.query(
         `UPDATE projects p SET status=$5
-          WHERE p.tenant_id=$1 AND p.id=$2 AND ${OWNER_ACCESS_SQL}
+          WHERE p.tenant_id=$1 AND p.id=$2 AND ${EDIT_ACCESS_SQL}
             AND (($5 = 'archived' AND p.status = 'active')
               OR ($5 = 'trashed' AND p.status IN ('active', 'archived'))
               OR ($5 = 'active' AND p.status IN ('archived', 'trashed')))
           RETURNING id,project_scope,classroom_id,module_key,title,status,created_at`,
-        [actualTenantId, projectId, actor.principalId, actor.userId, status],
+        [access.tenantId, projectId, actor.principalId, access.userId, status],
       );
       const row = updated.rows[0] as ProjectRow | undefined;
       if (!row) return null;
       const activity = await client.query(
         `UPDATE project_drafts SET updated_at=now()
           WHERE tenant_id=$1 AND project_id=$2 RETURNING updated_at`,
-        [actualTenantId, projectId],
+        [access.tenantId, projectId],
       );
       if (activity.rows[0]?.updated_at !== undefined) {
         row.updated_at = String(activity.rows[0].updated_at);
@@ -396,8 +416,8 @@ export class PgProjectRepository implements ProjectRepositoryPort {
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
          VALUES ($1,$2,'project',$3,'project.status_changed',$4)`,
         [
-          actualTenantId,
-          actor.userId,
+          access.tenantId,
+          access.userId,
           projectId,
           JSON.stringify({ status, actorPrincipalId: actor.principalId }),
         ],
@@ -412,16 +432,16 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     actor: ProjectActor,
     label: string | null,
   ): Promise<ProjectVersion | null> {
-    const actualTenantId = await this.projectTenant(tenantId, projectId, actor);
-    if (actualTenantId === null) return null;
-    return withTenantContext(this.pool, actualTenantId, async (client) => {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
       const draft = await client.query(
         `SELECT d.document_json
            FROM project_drafts d
            JOIN projects p ON p.tenant_id=d.tenant_id AND p.id=d.project_id
-          WHERE d.tenant_id=$1 AND d.project_id=$2 AND p.status <> 'trashed' AND ${OWNER_ACCESS_SQL}
+          WHERE d.tenant_id=$1 AND d.project_id=$2 AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
           FOR UPDATE OF d`,
-        [actualTenantId, projectId, actor.principalId, actor.userId],
+        [access.tenantId, projectId, actor.principalId, access.userId],
       );
       if (draft.rows.length === 0) return null;
       const inserted = await client.query(
@@ -433,11 +453,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           WHERE tenant_id=$1 AND project_id=$2
          RETURNING id,project_id,version_no,label,created_at`,
         [
-          actualTenantId,
+          access.tenantId,
           projectId,
           JSON.stringify(draft.rows[0].document_json),
           label,
-          actor.userId,
+          access.userId,
           actor.principalId,
         ],
       );
@@ -446,15 +466,15 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         `UPDATE project_drafts
             SET updated_at=now()
           WHERE tenant_id=$1 AND project_id=$2`,
-        [actualTenantId, projectId],
+        [access.tenantId, projectId],
       );
       await client.query(
         `INSERT INTO audit_events
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
          VALUES ($1,$2,'project',$3,'project.checkpoint_created',$4)`,
         [
-          actualTenantId,
-          actor.userId,
+          access.tenantId,
+          access.userId,
           projectId,
           JSON.stringify({
             versionNo: row.version_no,

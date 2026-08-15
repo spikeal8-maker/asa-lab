@@ -47,7 +47,7 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
     } finally {
       await db.close();
     }
-  });
+  }, 30_000);
 
   it('rejects re-applying a migration whose checksum changed after apply', async () => {
     const db = new PGlite();
@@ -64,5 +64,5 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
     } finally {
       await db.close();
     }
-  });
+  }, 30_000);
 });

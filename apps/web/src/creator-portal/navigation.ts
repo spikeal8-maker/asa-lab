@@ -11,6 +11,7 @@ export type CreatorPortalView =
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
   | { kind: 'classroom'; classroomId: string; classroomTitle: string }
+  | { kind: 'teacher-invite'; token: string }
   | { kind: 'help' }
   | { kind: 'account' }
   | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string }
@@ -37,7 +38,10 @@ const PORTAL_ROUTES: ReadonlyArray<{
   readonly path: string;
   readonly view: Exclude<
     CreatorPortalView,
-    { kind: 'editor' } | { kind: 'classroom' } | { kind: 'classroom-projects' }
+    | { kind: 'editor' }
+    | { kind: 'classroom' }
+    | { kind: 'classroom-projects' }
+    | { kind: 'teacher-invite' }
   >;
 }> = [
   { path: '/home', view: { kind: 'home' } },
@@ -76,9 +80,10 @@ export function portalNavigation(canTeach: boolean): readonly PortalNavigationIt
 
 export function canUseClasses(
   navigation: { readonly classes: boolean },
-  activeWorkspaceKind: string,
+  _activeWorkspaceKind: string,
 ): boolean {
-  return navigation.classes && activeWorkspaceKind === 'organization';
+  void _activeWorkspaceKind;
+  return navigation.classes;
 }
 
 export function sectionForView(view: CreatorPortalView, canTeach: boolean): CreatorPortalSection {
@@ -92,7 +97,8 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (
     view.kind === 'classrooms' ||
     view.kind === 'classroom' ||
-    view.kind === 'classroom-projects'
+    view.kind === 'classroom-projects' ||
+    view.kind === 'teacher-invite'
   ) {
     return 'classes';
   }
@@ -107,6 +113,9 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   }
   if (view.kind === 'classroom-projects') {
     return `#/classrooms/${view.classroomId}/projects?title=${encodeURIComponent(view.classroomTitle)}`;
+  }
+  if (view.kind === 'teacher-invite') {
+    return `#/teacher-invite/${encodeURIComponent(view.token)}`;
   }
   if (view.kind !== 'editor') return '#/home';
   if (view.returnTo.kind === 'classroom-projects') {
@@ -174,6 +183,11 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   const raw = hash.replace(/^#/, '');
   const [path, query] = raw.split('?');
   const title = new URLSearchParams(query ?? '').get('title') ?? 'Класс';
+  const teacherInvite = /^\/teacher-invite\/([^/]+)$/.exec(path ?? '');
+  if (teacherInvite) {
+    const token = decodeRouteParameter(teacherInvite[1] as string);
+    return token ? { kind: 'teacher-invite', token } : { kind: 'home' };
+  }
   const classEditor = /^\/classrooms\/([^/]+)\/projects\/([^/]+)$/.exec(path ?? '');
   if (classEditor) {
     return {

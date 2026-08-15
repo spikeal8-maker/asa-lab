@@ -43,6 +43,16 @@ interface ClassroomSummaryRow {
   join_code_version: number | string | null;
   join_code_status: 'active' | 'revoked' | null;
   student_count: number | string;
+  teacher_role: 'owner' | 'co_teacher';
+  workspace_kind: 'personal' | 'organization';
+  workspace_title: string;
+}
+
+interface ClassroomCreationContext {
+  tenantId: string;
+  schoolId: string;
+  academicPeriodId: string;
+  userId: string;
 }
 
 interface StudentSeatRow {
@@ -85,6 +95,9 @@ function summaryView(row: ClassroomSummaryRow) {
     studentCount: Number(row.student_count),
     joinCodeVersion,
     joinCodeStatus: row.join_code_status,
+    teacherRole: row.teacher_role,
+    workspaceKind: row.workspace_kind,
+    workspaceTitle: row.workspace_title,
     createdAt: iso(row.created_at),
   });
 }
@@ -130,19 +143,63 @@ export class ClassroomsController {
     return context;
   }
 
-  private async requireEducator(
-    request: FastifyRequest,
-  ): Promise<ActiveContext & { userId: string }> {
+  private async requireEducator(request: FastifyRequest): Promise<ActiveContext> {
     const context = await this.requireContext(request);
     const capabilities = await this.accounts.capabilities(context.accountId);
     const educator = capabilities.find((entry) => entry.capability === 'educator');
     if (!educator || (educator.state !== 'verified' && educator.state !== 'provisional')) {
       throw new HttpException(error('educator_required', 'Классы доступны педагогам.'), 403);
     }
-    if (context.userId === null || context.workspaceKind !== 'organization') {
-      throw new HttpException(error('school_required', 'Откройте пространство своей школы.'), 403);
+    return context;
+  }
+
+  private async creationContext(context: ActiveContext): Promise<ClassroomCreationContext> {
+    if (context.workspaceKind === 'organization') {
+      const teaching = await this.teachingContext.execute(context.tenantId, context.schoolId);
+      if (!teaching.ok) {
+        throw new HttpException(
+          error(
+            teaching.code,
+            teaching.code === 'no_active_period'
+              ? 'В школе нет активного учебного периода.'
+              : 'В этом пространстве не выбрана школа.',
+          ),
+          409,
+        );
+      }
+      if (!context.userId) {
+        throw new HttpException(
+          error('no_school_assigned', 'В этом пространстве не выбрана школа.'),
+          409,
+        );
+      }
+      return {
+        tenantId: context.tenantId,
+        schoolId: teaching.context.schoolId,
+        academicPeriodId: teaching.context.academicPeriodId,
+        userId: context.userId,
+      };
     }
-    return { ...context, userId: context.userId };
+    const result = await this.requirePool().query(
+      `SELECT tenant_id, school_id, academic_period_id, user_id
+         FROM classroom_ensure_personal_teacher($1)`,
+      [context.accountId],
+    );
+    const row = result.rows[0] as
+      | { tenant_id: string; school_id: string; academic_period_id: string; user_id: string }
+      | undefined;
+    if (!row) {
+      throw new HttpException(
+        error('teaching_context_unavailable', 'Не удалось подготовить личные классы.'),
+        409,
+      );
+    }
+    return {
+      tenantId: row.tenant_id,
+      schoolId: row.school_id,
+      academicPeriodId: row.academic_period_id,
+      userId: row.user_id,
+    };
   }
 
   private requireUuid(value: string, label: string): void {
@@ -151,13 +208,14 @@ export class ClassroomsController {
     }
   }
 
-  private async summary(context: ActiveContext & { userId: string }, classroomId: string) {
+  private async summary(context: ActiveContext, classroomId: string) {
     this.requireUuid(classroomId, 'classroom');
     const result = await this.requirePool().query(
       `SELECT id, title, status, age_band, topic_keys, safe_mode_default,
-              created_at, join_code_version, join_code_status, student_count
-         FROM classroom_teacher_summary($1, $2, $3)`,
-      [context.tenantId, context.userId, classroomId],
+              created_at, join_code_version, join_code_status, student_count,
+              teacher_role, workspace_kind, workspace_title
+         FROM classroom_management_summary($1, $2)`,
+      [context.accountId, classroomId],
     );
     const row = result.rows[0] as ClassroomSummaryRow | undefined;
     if (!row) throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
@@ -167,7 +225,7 @@ export class ClassroomsController {
   @Get()
   async list(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
-    const items = await this.listUseCase.execute(context.tenantId, context.userId);
+    const items = await this.listUseCase.execute(context.accountId);
     return { items: items.map(classroomView), meta: { total: items.length } };
   }
 
@@ -193,21 +251,19 @@ export class ClassroomsController {
     if (!keyCheck.ok) {
       throw new HttpException(error('invalid_idempotency_key', keyCheck.message), 400);
     }
-    const teaching = await this.teachingContext.execute(context.tenantId, context.schoolId);
-    if (!teaching.ok) {
-      throw new HttpException(error(teaching.code, 'Сначала создайте школу и откройте её.'), 409);
-    }
+    const teaching = await this.creationContext(context);
     const classroomId = randomUUID();
     const ageBand = shape.body['ageBand'] ?? 'mixed';
     const topicKeys = shape.body['topicKeys'] ?? [];
     const safeModeDefault = shape.body['safeModeDefault'] ?? true;
     const joinCode = classroomCodeFor(classroomId, 1, classroomCodeSecret());
     const result = await this.createUseCase.execute({
-      tenantId: context.tenantId,
+      accountId: context.accountId,
+      tenantId: teaching.tenantId,
       classroomId,
-      schoolId: teaching.context.schoolId,
-      academicPeriodId: teaching.context.academicPeriodId,
-      teacherId: context.userId,
+      schoolId: teaching.schoolId,
+      academicPeriodId: teaching.academicPeriodId,
+      teacherId: teaching.userId,
       title: shape.body['title'],
       ageBand,
       topicKeys,
@@ -222,7 +278,7 @@ export class ClassroomsController {
       );
     }
     reply.code(result.created ? 201 : 200);
-    return { classroom: classroomView(result.classroom), created: result.created };
+    return { classroom: await this.summary(context, result.classroom.id), created: result.created };
   }
 
   @Get(':classroomId/roster')
@@ -231,8 +287,8 @@ export class ClassroomsController {
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
       `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
-         FROM classroom_teacher_roster($1, $2, $3)`,
-      [context.tenantId, context.userId, classroomId],
+         FROM classroom_management_roster($1, $2)`,
+      [context.accountId, classroomId],
     );
     return { items: (result.rows as StudentSeatRow[]).map(seatView) };
   }
@@ -270,8 +326,8 @@ export class ClassroomsController {
     try {
       const result = await this.requirePool().query(
         `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
-           FROM classroom_teacher_add_seat($1, $2, $3, $4, $5, $6)`,
-        [context.tenantId, context.userId, classroomId, displayLabel.trim(), loginHandle, safeMode],
+           FROM classroom_management_add_seat($1, $2, $3, $4, $5)`,
+        [context.accountId, classroomId, displayLabel.trim(), loginHandle, safeMode],
       );
       reply.code(201);
       return { student: seatView(result.rows[0] as StudentSeatRow) };
@@ -334,15 +390,8 @@ export class ClassroomsController {
       try {
         const inserted = await this.requirePool().query(
           `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
-             FROM classroom_teacher_add_seat($1, $2, $3, $4, $5, $6)`,
-          [
-            context.tenantId,
-            context.userId,
-            classroomId,
-            displayLabel.trim(),
-            loginHandle,
-            safeMode,
-          ],
+             FROM classroom_management_add_seat($1, $2, $3, $4, $5)`,
+          [context.accountId, classroomId, displayLabel.trim(), loginHandle, safeMode],
         );
         results.push({ index, ok: true, student: seatView(inserted.rows[0] as StudentSeatRow) });
       } catch (failure) {
@@ -390,10 +439,9 @@ export class ClassroomsController {
     try {
       const result = await this.requirePool().query(
         `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
-           FROM classroom_teacher_update_seat($1, $2, $3, $4, $5, $6, $7, $8)`,
+           FROM classroom_management_update_seat($1, $2, $3, $4, $5, $6, $7)`,
         [
-          context.tenantId,
-          context.userId,
+          context.accountId,
           classroomId,
           seatId,
           displayLabel.trim(),
@@ -422,8 +470,8 @@ export class ClassroomsController {
     this.requireUuid(classroomId, 'classroom');
     this.requireUuid(seatId, 'student seat');
     const result = await this.requirePool().query(
-      `SELECT classroom_teacher_remove_seat($1, $2, $3, $4) AS removed`,
-      [context.tenantId, context.userId, classroomId, seatId],
+      `SELECT classroom_management_remove_seat($1, $2, $3) AS removed`,
+      [context.accountId, classroomId, seatId],
     );
     if (result.rows[0]?.removed !== true) {
       throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
@@ -444,9 +492,8 @@ export class ClassroomsController {
     if (!shape.ok || typeof safeModeDefault !== 'boolean') {
       throw new HttpException(error('validation_error', 'Safe Mode must be boolean.'), 400);
     }
-    await this.requirePool().query(`SELECT classroom_teacher_update_policy($1, $2, $3, $4)`, [
-      context.tenantId,
-      context.userId,
+    await this.requirePool().query(`SELECT classroom_management_update_policy($1, $2, $3)`, [
+      context.accountId,
       classroomId,
       safeModeDefault,
     ]);
@@ -459,10 +506,12 @@ export class ClassroomsController {
     const current = await this.summary(context, classroomId);
     const version = (current.joinCodeVersion ?? 0) + 1;
     const joinCode = classroomCodeFor(classroomId, version, classroomCodeSecret());
-    await this.requirePool().query(
-      `SELECT classroom_teacher_rotate_join_code($1, $2, $3, $4, $5)`,
-      [context.tenantId, context.userId, classroomId, classroomCodeHash(joinCode), version],
-    );
+    await this.requirePool().query(`SELECT classroom_management_rotate_join_code($1, $2, $3, $4)`, [
+      context.accountId,
+      classroomId,
+      classroomCodeHash(joinCode),
+      version,
+    ]);
     return { classroom: await this.summary(context, classroomId) };
   }
 
@@ -470,9 +519,8 @@ export class ClassroomsController {
   async revokeJoinCode(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    await this.requirePool().query(`SELECT classroom_teacher_revoke_join_code($1, $2, $3)`, [
-      context.tenantId,
-      context.userId,
+    await this.requirePool().query(`SELECT classroom_management_revoke_join_code($1, $2)`, [
+      context.accountId,
       classroomId,
     ]);
     return { classroom: await this.summary(context, classroomId) };

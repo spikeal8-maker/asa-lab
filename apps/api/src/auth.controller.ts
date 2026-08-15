@@ -121,9 +121,8 @@ export class AuthController {
         kind: context.workspaceKind,
       },
       navigation: {
-        classes: educator && context.workspaceKind === 'organization',
-        classroomManagement:
-          educator && context.workspaceKind === 'organization' && context.userId !== null,
+        classes: educator,
+        classroomManagement: educator,
       },
     };
   }
