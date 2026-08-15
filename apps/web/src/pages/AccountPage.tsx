@@ -142,6 +142,8 @@ export function AccountPage({
   const activeSchool = schoolWorkspaces.find(
     (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
   );
+  const activeSchoolIsAdmin =
+    activeSchool?.role === 'school_admin' || activeSchool?.role === 'owner';
   const defaultAvatar = defaultAvatarForAccount(session.user.id);
   const effectiveAvatarUrl = avatarDataUrl ?? defaultAvatar.src;
 
@@ -528,7 +530,9 @@ export function AccountPage({
                     <div className="account-school-dashboard">
                       <div className="account-school-dashboard-heading">
                         <div>
-                          <span>Текущая школа</span>
+                          <span>
+                            {activeSchoolIsAdmin ? 'Администрирование школы' : 'Текущая школа'}
+                          </span>
                           <h3>{activeSchool.title}</h3>
                         </div>
                         <strong>{schoolRoleLabel(activeSchool.role)}</strong>
@@ -543,8 +547,10 @@ export function AccountPage({
                           <span>Школа</span>
                         </div>
                         <div>
-                          <strong>Полный</strong>
-                          <span>Доступ администратора</span>
+                          <strong>{activeSchoolIsAdmin ? 'Полный' : 'Педагог'}</strong>
+                          <span>
+                            {activeSchoolIsAdmin ? 'Доступ администратора' : 'Роль в школе'}
+                          </span>
                         </div>
                       </div>
                       <button type="button" className="btn-primary" onClick={onOpenClasses}>
