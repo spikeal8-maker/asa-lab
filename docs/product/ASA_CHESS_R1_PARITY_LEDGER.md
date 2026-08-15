@@ -25,7 +25,7 @@ owner_accepted
 | ID | Scenario or contract | Priority | Acceptance | Current status |
 | --- | --- | --- | --- | --- |
 | P0-01 | Dated feature ledger | MUST P0 | Every row has source, release, issue, test, evidence and status | functional |
-| P0-02 | Parallel agent work | MUST P0, ASA | Separate worktree/branch/scope per writer; one integration lease; no overlapping file ownership | production_proven |
+| P0-02 | Parallel agent work | MUST P0, ASA | Direct-main writers inspect the tree, preserve unrelated edits and stage only owned changes | production_proven |
 | P0-03 | Chess isolation | MUST P0, ASA | `moduleKey=chess`; no imports from Electronics, 3D or Checkers; shared core imports no Chess | functional |
 | P0-04 | Checkers isolation | MUST P0, ASA | `moduleKey=checkers`; no Checkers types or mode switches in Chess documents/APIs | functional |
 | P0-05 | Electronics-family header | MUST P0, ASA | 48 px header + optional 48 px toolbar; ASA mark, title, save state, named modes and avatar | functional |
@@ -33,9 +33,11 @@ owner_accepted
 | P0-07 | Shared-core and data safety | MUST P0, ASA | No Chess fields in shared core; cross-tenant access denied; sibling smoke journeys pass | foundation |
 | P0-08 | One R1 focused gate | MUST P0 | Same command locally, in CI and owner evidence; evidence uses `NX_SKIP_NX_CACHE=true` | functional |
 
-The former Chess `min-height: 64px` gap is closed in PR #103: Chess now uses the
-neutral 48 px ASA editor header. Electronics retains its existing 48 px primary row
-and separate 48 px toolbar without product-file changes in this slice.
+The former Chess `min-height: 64px` gap was closed in PR #103: Chess uses the neutral
+48 px ASA editor header. On 2026-08-15 the Chess shell additionally gained independent
+reloadable Bots setup, a mobile-width Home contract, a roving keyboard grid and a
+pinned self-hosted OFL piece font. These are UI-quality foundations, not evidence of
+full Chess.com feature parity.
 
 ## R1 engine
 
@@ -95,8 +97,8 @@ extension, not as proven exact Chess.com parity.
 | ID | Required evidence |
 | --- | --- |
 | R1-E2E-01 | Desktop 1440×900: bot → game over → Review → Retry → drill → lesson |
-| R1-E2E-02 | Mobile 360×800: same journey without inaccessible controls or horizontal overflow |
-| R1-E2E-03 | Keyboard-only: start, moves, Review navigation, Retry and drill with visible focus |
+| R1-E2E-02 | Mobile 390×844: Home, board and learning pages have no horizontal document overflow |
+| R1-E2E-03 | Keyboard-only: the board has one tab stop and arrows move focus by visual square; remaining full journey is still required |
 | R1-E2E-04 | Zero unexpected console errors, HTTP 5xx and illegal engine moves |
 | R1-E2E-05 | Reload at every transition restores the exact saved version |
 | R1-E2E-06 | Electronics, 3D and generic Project smoke gates remain green |

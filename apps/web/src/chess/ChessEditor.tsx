@@ -27,6 +27,8 @@ interface ChessEditorProps {
   onBack: () => void;
   onHome?: () => void;
   startNewGame?: boolean;
+  setupPage?: boolean;
+  onGameStarted?: () => void;
   initialPanelTab?: ChessPanelTab;
   onPanelTabChange?: (tab: ChessPanelTab) => void;
   user: PublicUser;
@@ -141,11 +143,13 @@ function MoveList({ moves }: { moves: readonly { san: string; uci: string }[] })
   );
 }
 
-export function NewGameDialog({
-  onClose,
+function NewGameSetup({
+  embedded,
+  onCancel,
   onStart,
 }: {
-  onClose(): void;
+  embedded: boolean;
+  onCancel?: () => void;
   onStart(options: ProfiledChessGameOptions): void;
 }) {
   const [mode, setMode] = useState<ChessMode>('computer');
@@ -156,24 +160,28 @@ export function NewGameDialog({
   const selectedProfile =
     ASA_BOT_PROFILES.find((profile) => profile.id === botProfileId) ?? ASA_BOT_PROFILES[0]!;
   const profileSummary = botProfileUiSummary(selectedProfile);
+  const titleId = embedded ? 'chess-bot-page-title' : 'new-chess-game-title';
   return (
-    <div className="asa-chess-dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="asa-chess-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-chess-game-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="asa-chess-dialog-head">
-          <div>
-            <span className="eyebrow">ASA Chess</span>
-            <h2 id="new-chess-game-title">Новая партия или позиция</h2>
-          </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть">
+    <section
+      className={embedded ? 'asa-chess-new-game-panel' : 'asa-chess-dialog'}
+      {...(!embedded ? { role: 'dialog', 'aria-modal': true } : {})}
+      aria-labelledby={titleId}
+      onMouseDown={!embedded ? (event) => event.stopPropagation() : undefined}
+    >
+      <div className="asa-chess-dialog-head">
+        <div>
+          <span className="eyebrow">{embedded ? 'Независимая страница' : 'ASA Chess'}</span>
+          <h2 id={titleId}>
+            {embedded ? 'Выберите соперника и начните партию' : 'Новая партия или позиция'}
+          </h2>
+        </div>
+        {!embedded && onCancel && (
+          <button type="button" className="icon-button" onClick={onCancel} aria-label="Закрыть">
             ×
           </button>
-        </div>
+        )}
+      </div>
+      {!embedded && (
         <fieldset className="asa-chess-choice-grid">
           <legend>Режим</legend>
           {(
@@ -196,110 +204,132 @@ export function NewGameDialog({
             </label>
           ))}
         </fieldset>
-        {mode !== 'analysis' && (
-          <fieldset className="asa-chess-time-options">
-            <legend>Контроль времени</legend>
-            {TIME_PRESETS.map((value, index) => (
-              <button
-                type="button"
-                key={value.label}
-                className={timeIndex === index ? 'selected' : ''}
-                onClick={() => setTimeIndex(index)}
-              >
-                {value.label}
-              </button>
-            ))}
+      )}
+      {mode !== 'analysis' && (
+        <fieldset className="asa-chess-time-options">
+          <legend>Контроль времени</legend>
+          {TIME_PRESETS.map((value, index) => (
+            <button
+              type="button"
+              key={value.label}
+              className={timeIndex === index ? 'selected' : ''}
+              onClick={() => setTimeIndex(index)}
+            >
+              {value.label}
+            </button>
+          ))}
+        </fieldset>
+      )}
+      {mode === 'computer' && (
+        <div className="asa-chess-bot-setup">
+          <fieldset>
+            <legend>Играть</legend>
+            <div className="asa-chess-segmented">
+              {(['white', 'black'] as const).map((color) => (
+                <button
+                  type="button"
+                  key={color}
+                  className={playerColor === color ? 'selected' : ''}
+                  onClick={() => setPlayerColor(color)}
+                >
+                  {color === 'white' ? 'Белыми' : 'Чёрными'}
+                </button>
+              ))}
+            </div>
           </fieldset>
-        )}
-        {mode === 'computer' && (
-          <div className="asa-chess-bot-setup">
-            <fieldset>
-              <legend>Играть</legend>
-              <div className="asa-chess-segmented">
-                {(['white', 'black'] as const).map((color) => (
-                  <button
-                    type="button"
-                    key={color}
-                    className={playerColor === color ? 'selected' : ''}
-                    onClick={() => setPlayerColor(color)}
-                  >
-                    {color === 'white' ? 'Белыми' : 'Чёрными'}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <fieldset className="asa-chess-bot-profile-picker">
-              <legend>Профиль соперника</legend>
-              <div className="asa-chess-bot-profile-grid">
-                {ASA_BOT_PROFILES.map((profile) => (
-                  <label
-                    key={profile.id}
-                    className={profile.id === selectedProfile.id ? 'selected' : ''}
-                  >
-                    <input
-                      type="radio"
-                      name="asa-bot-profile"
-                      value={profile.id}
-                      checked={profile.id === selectedProfile.id}
-                      onChange={() => setBotProfileId(profile.id)}
-                    />
-                    <strong>{profile.displayName}</strong>
-                    <small>Движок {profile.engine.level}/3</small>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <section className="asa-chess-bot-profile-detail" aria-live="polite">
+          <fieldset className="asa-chess-bot-profile-picker">
+            <legend>Профиль соперника</legend>
+            <div className="asa-chess-bot-profile-grid">
+              {ASA_BOT_PROFILES.map((profile) => (
+                <label
+                  key={profile.id}
+                  className={profile.id === selectedProfile.id ? 'selected' : ''}
+                >
+                  <input
+                    type="radio"
+                    name="asa-bot-profile"
+                    value={profile.id}
+                    checked={profile.id === selectedProfile.id}
+                    onChange={() => setBotProfileId(profile.id)}
+                  />
+                  <strong>{profile.displayName}</strong>
+                  <small>Движок {profile.engine.level}/3</small>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <section className="asa-chess-bot-profile-detail" aria-live="polite">
+            <div>
+              <span>Выбранный соперник</span>
+              <strong>{selectedProfile.displayName}</strong>
+            </div>
+            <dl>
               <div>
-                <span>Выбранный соперник</span>
-                <strong>{selectedProfile.displayName}</strong>
+                <dt>Уровень</dt>
+                <dd>{profileSummary.levelLabel}</dd>
               </div>
-              <dl>
-                <div>
-                  <dt>Уровень</dt>
-                  <dd>{profileSummary.levelLabel}</dd>
-                </div>
-                <div>
-                  <dt>Стиль (проект)</dt>
-                  <dd>{profileSummary.styleLabel}</dd>
-                </div>
-                <div>
-                  <dt>Помощь (не включена)</dt>
-                  <dd>{profileSummary.assistanceLabel}</dd>
-                </div>
-                <div>
-                  <dt>Вызов (не включён)</dt>
-                  <dd>{profileSummary.challengeLabel}</dd>
-                </div>
-              </dl>
-              <p>{profileSummary.calibrationNote}</p>
-            </section>
-          </div>
-        )}
-        <div className="asa-chess-dialog-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
-            Отмена
-          </button>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => {
-              onStart({
-                mode,
-                playerColor,
-                botLevel: selectedProfile.engine.level,
-                botProfileId: selectedProfile.id,
-                ...(mode === 'analysis'
-                  ? {}
-                  : { initialMs: preset.initialMs, incrementMs: preset.incrementMs }),
-              });
-              onClose();
-            }}
-          >
-            {mode === 'analysis' ? 'Открыть анализ' : 'Начать партию'}
-          </button>
+              <div>
+                <dt>Стиль (проект)</dt>
+                <dd>{profileSummary.styleLabel}</dd>
+              </div>
+              <div>
+                <dt>Помощь (не включена)</dt>
+                <dd>{profileSummary.assistanceLabel}</dd>
+              </div>
+              <div>
+                <dt>Вызов (не включён)</dt>
+                <dd>{profileSummary.challengeLabel}</dd>
+              </div>
+            </dl>
+            <p>{profileSummary.calibrationNote}</p>
+          </section>
         </div>
-      </section>
+      )}
+      <div className="asa-chess-dialog-actions">
+        {onCancel && (
+          <button type="button" className="secondary-button" onClick={onCancel}>
+            {embedded ? 'Вернуться на главную' : 'Отмена'}
+          </button>
+        )}
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => {
+            onStart({
+              mode,
+              playerColor,
+              botLevel: selectedProfile.engine.level,
+              botProfileId: selectedProfile.id,
+              ...(mode === 'analysis'
+                ? {}
+                : { initialMs: preset.initialMs, incrementMs: preset.incrementMs }),
+            });
+          }}
+        >
+          {mode === 'analysis' ? 'Открыть анализ' : 'Начать партию'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function NewGameDialog({
+  onClose,
+  onStart,
+}: {
+  onClose(): void;
+  onStart(options: ProfiledChessGameOptions): void;
+}) {
+  return (
+    <div className="asa-chess-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <NewGameSetup
+        embedded={false}
+        onCancel={onClose}
+        onStart={(options) => {
+          onStart(options);
+          onClose();
+        }}
+      />
     </div>
   );
 }
@@ -377,6 +407,8 @@ export function ChessEditor({
   onBack,
   onHome,
   startNewGame = false,
+  setupPage = false,
+  onGameStarted,
   initialPanelTab = 'game',
   onPanelTabChange,
   user,
@@ -423,6 +455,43 @@ export function ChessEditor({
 
   const document = controller.document;
   const position = controller.position;
+
+  if (setupPage) {
+    return (
+      <main className="asa-chess-shell asa-chess-bot-page">
+        <ChessEditorHeader
+          projectTitle={controller.projectTitle}
+          persistedProjectTitle={controller.project.title}
+          onProjectTitleChange={controller.setProjectTitle}
+          onProjectTitleCommit={controller.renameProject}
+          saveStatus={controller.saveStatus}
+          statusDetail="Выбор соперника"
+          busy={controller.busy}
+          onBack={onBack}
+          onHome={onHome}
+          onNewGame={() => undefined}
+          onCheckpoint={() => void controller.checkpoint()}
+          onSave={() => void controller.saveNow()}
+          userDisplayName={user.displayName}
+        />
+        <div className="asa-chess-bot-page-body">
+          <header>
+            <span className="eyebrow">ASA Chess · Боты</span>
+            <h1>Игра с ASA Bot</h1>
+            <p>Выберите контроль времени, цвет и одного из 12 оригинальных соперников ASA.</p>
+          </header>
+          <NewGameSetup
+            embedded
+            {...(onHome ? { onCancel: onHome } : {})}
+            onStart={(options) => {
+              controller.startGame(options);
+              onGameStarted?.();
+            }}
+          />
+        </div>
+      </main>
+    );
+  }
   const topColor = opposite(document.orientation);
   const bottomColor = document.orientation;
   const botColor = document.bot?.color ?? null;

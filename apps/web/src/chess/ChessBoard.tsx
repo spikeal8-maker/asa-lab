@@ -9,6 +9,7 @@ import {
   type ChessPosition,
   type Square,
 } from '@asa-lab/chess';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { PIECE_SYMBOL, squareAccessibleLabel } from './chess-ui';
 
 interface ChessBoardProps {
@@ -40,6 +41,42 @@ export function ChessBoard({
 }: ChessBoardProps) {
   const files = orientation === 'white' ? FILES : [...FILES].reverse();
   const ranks = orientation === 'white' ? [...RANKS].reverse() : RANKS;
+  const [focusedSquare, setFocusedSquare] = useState<Square>(
+    selectedSquare ?? (orientation === 'white' ? 'a1' : 'h8'),
+  );
+  const squareRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    if (selectedSquare) setFocusedSquare(selectedSquare);
+  }, [selectedSquare]);
+
+  function moveGridFocus(event: KeyboardEvent<HTMLButtonElement>, square: Square): void {
+    const currentFileIndex = files.indexOf(square[0] as (typeof FILES)[number]);
+    const currentRankIndex = ranks.indexOf(Number(square[1]) as (typeof RANKS)[number]);
+    let nextFileIndex = currentFileIndex;
+    let nextRankIndex = currentRankIndex;
+
+    if (event.key === 'ArrowLeft') nextFileIndex -= 1;
+    else if (event.key === 'ArrowRight') nextFileIndex += 1;
+    else if (event.key === 'ArrowUp') nextRankIndex -= 1;
+    else if (event.key === 'ArrowDown') nextRankIndex += 1;
+    else if (event.key === 'Home') nextFileIndex = 0;
+    else if (event.key === 'End') nextFileIndex = files.length - 1;
+    else return;
+
+    event.preventDefault();
+    if (
+      nextFileIndex < 0 ||
+      nextFileIndex >= files.length ||
+      nextRankIndex < 0 ||
+      nextRankIndex >= ranks.length
+    ) {
+      return;
+    }
+    const nextSquare = squareName(files[nextFileIndex]!, ranks[nextRankIndex]!);
+    setFocusedSquare(nextSquare);
+    squareRefs.current[nextSquare]?.focus();
+  }
   const legalTargets = new Set(
     legalMoves.filter((move) => move.from === selectedSquare).map((move) => move.to),
   );
@@ -61,6 +98,8 @@ export function ChessBoard({
       aria-label={`Шахматная доска, ходят ${position.turn === 'white' ? 'белые' : 'чёрные'}`}
       data-testid={testId}
       data-board-renderer="asa-grid-v2"
+      data-piece-set="noto-symbols-2-v25"
+      data-keyboard-model="roving-grid"
     >
       {ranks.flatMap((rank, rankIndex) =>
         files.map((file, fileIndex) => {
@@ -96,6 +135,12 @@ export function ChessBoard({
               data-square={square}
               data-piece={piece ? `${piece.color}-${piece.type}` : 'empty'}
               disabled={disabled}
+              tabIndex={disabled ? -1 : focusedSquare === square ? 0 : -1}
+              ref={(node) => {
+                squareRefs.current[square] = node;
+              }}
+              onFocus={() => setFocusedSquare(square)}
+              onKeyDown={(event) => moveGridFocus(event, square)}
               draggable={canDrag}
               onDragStart={(event) => {
                 if (!canDrag) {

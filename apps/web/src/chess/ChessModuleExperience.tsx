@@ -105,12 +105,22 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
       />
     );
   }
+  if (route.page === 'bots') {
+    return (
+      <ChessEditor
+        key="bots"
+        {...props}
+        setupPage
+        onGameStarted={() => navigate('play', 'game')}
+        onHome={() => navigate('home')}
+      />
+    );
+  }
   return (
     <ChessEditor
       key={route.page}
       {...props}
       initialPanelTab={route.panelTab}
-      startNewGame={route.page === 'bots'}
       onPanelTabChange={(panelTab) => navigate('play', panelTab)}
       onHome={() => navigate('home')}
     />

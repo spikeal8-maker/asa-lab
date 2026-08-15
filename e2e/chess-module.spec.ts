@@ -8,6 +8,8 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+test.describe.configure({ timeout: 60_000 });
+
 async function login(page: Page): Promise<void> {
   await loginWithOrganization(page, teacher);
 }
@@ -49,6 +51,12 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
   await login(page);
   await createChessProject(page, 'Испанская партия — анализ');
 
+  const board = page.getByTestId('asa-chess-board');
+  await expect(board.locator('[tabindex="0"]')).toHaveCount(1);
+  await board.locator('[data-square="a1"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(board.locator('[data-square="b1"]')).toBeFocused();
+
   await clickMove(page, 'e2', 'e4');
   await clickMove(page, 'e7', 'e5');
   await clickMove(page, 'g1', 'f3');
@@ -81,6 +89,24 @@ test('teacher creates, plays, reloads and versions an ASA Chess project', async 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await page.screenshot({ path: 'e2e/artifacts/chess-analysis-mobile.png', fullPage: true });
+
+  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/home$/);
+  await expect(page.getByRole('heading', { name: /Добро пожаловать/ })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
+  for (const testId of ['asa-chess-home-position', 'asa-chess-home-puzzle']) {
+    const box = await page.getByTestId(testId).boundingBox();
+    expect(box).not.toBeNull();
+    expect(Math.abs((box?.width ?? 0) - (box?.height ?? 0))).toBeLessThan(1);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
+  }
+  await page.screenshot({ path: 'e2e/artifacts/chess-home-mobile.png', fullPage: true });
   failures.assertEmpty();
 });
 
@@ -88,11 +114,18 @@ test('ASA Bot makes a legal persisted reply', async ({ page }) => {
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await login(page);
   await createChessProject(page, 'Партия против ASA Bot');
-  await page.getByRole('button', { name: 'Новая', exact: true }).click();
-  await page.getByText('Против ASA Bot', { exact: true }).click();
+  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await page.getByRole('button', { name: 'Боты', exact: true }).click();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/bots$/);
+  await expect(page.locator('.asa-chess-bot-page')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Игра с ASA Bot' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('asa-chess-board')).toHaveCount(0);
   await page.getByText('Росток ASA', { exact: true }).click();
   await expect(page.getByText('Профиль не откалиброван по серии партий.')).toBeVisible();
   await page.getByRole('button', { name: 'Начать партию' }).click();
+  await expect(page).toHaveURL(/#\/chess\/[^/?#]+\/play\/game$/);
+  await expect(page.getByTestId('asa-chess-board')).toBeVisible();
   await expect(page.getByLabel('Профиль соперника')).toContainText('Росток ASA');
   await clickMove(page, 'e2', 'e4');
   await expect(page.getByText(/Росток ASA:/)).toBeVisible({ timeout: 15_000 });

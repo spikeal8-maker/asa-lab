@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'ASA Chess Symbols';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/assets/chess/fonts/noto-sans-symbols-2-v25-symbols.woff2') format('woff2');
+}
+
 :root {
   --chess-ink: #102a43;
   --chess-ink-soft: #294d68;
@@ -45,7 +53,8 @@
 .asa-chess-header button,
 .asa-chess-board-actions button,
 .asa-chess-panel button,
-.asa-chess-dialog button {
+.asa-chess-dialog button,
+.asa-chess-new-game-panel button {
   font: inherit;
 }
 
@@ -83,6 +92,7 @@
 .asa-chess-board-actions button:focus-visible,
 .asa-chess-panel button:focus-visible,
 .asa-chess-dialog button:focus-visible,
+.asa-chess-new-game-panel button:focus-visible,
 .asa-chess-square:focus-visible,
 .asa-chess-header input:focus-visible,
 .asa-chess-dialog textarea:focus-visible {
@@ -232,6 +242,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
+  font-family: 'ASA Chess Symbols';
   font-size: 31px;
   line-height: 1;
 }
@@ -392,13 +403,16 @@
 
 .asa-chess-piece-glyph {
   display: block;
-  font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', serif;
+  width: 100%;
+  height: 100%;
+  font-family: 'ASA Chess Symbols';
   font-size: clamp(24px, 6.8vw, 73px);
-  font-size: 9.75cqi;
-  line-height: 1;
+  font-size: 9.5cqi;
+  line-height: 10.15cqi;
+  text-align: center;
   font-synthesis: none;
   text-rendering: geometricPrecision;
-  transform: translateY(-0.18cqi);
+  transform: translateY(-0.08cqi);
   transform-origin: center;
   transition: transform 100ms ease;
   filter: drop-shadow(0 2px 1px rgba(15, 30, 39, 0.26));
@@ -417,7 +431,7 @@
 
 .asa-chess-square:hover .asa-chess-piece-glyph,
 .asa-chess-square:focus-visible .asa-chess-piece-glyph {
-  transform: translateY(-0.18cqi) scale(1.04);
+  transform: translateY(-0.08cqi) scale(1.04);
 }
 
 .asa-chess-coordinate {
@@ -778,6 +792,7 @@
 }
 
 .asa-chess-dialog,
+.asa-chess-new-game-panel,
 .asa-chess-promotion {
   width: min(100%, 620px);
   max-height: min(90vh, 760px);
@@ -798,12 +813,15 @@
 }
 
 .asa-chess-dialog h2,
+.asa-chess-new-game-panel h2,
 .asa-chess-promotion h2 {
   margin: 2px 0 0;
   color: var(--chess-ink);
 }
 
-.asa-chess-dialog .eyebrow {
+.asa-chess-dialog .eyebrow,
+.asa-chess-new-game-panel .eyebrow,
+.asa-chess-bot-page-body > header .eyebrow {
   color: var(--chess-cyan-strong);
   font-size: 11px;
   font-weight: 800;
@@ -999,8 +1017,46 @@
 }
 
 .asa-chess-promotion > div button span {
-  font-family: 'Segoe UI Symbol', serif;
+  font-family: 'ASA Chess Symbols';
   font-size: 48px;
+}
+
+.asa-chess-bot-page {
+  min-width: 0;
+}
+
+.asa-chess-bot-page-body {
+  width: min(100%, 1040px);
+  min-width: 0;
+  margin: 0 auto;
+  padding: clamp(18px, 4vw, 46px);
+}
+
+.asa-chess-bot-page-body > header {
+  margin-bottom: 18px;
+}
+
+.asa-chess-bot-page-body > header h1 {
+  margin: 5px 0;
+  color: var(--chess-ink);
+  font-size: clamp(28px, 4vw, 44px);
+}
+
+.asa-chess-bot-page-body > header p {
+  margin: 0;
+  color: #5f7380;
+}
+
+.asa-chess-new-game-panel {
+  width: 100%;
+  max-height: none;
+  border: 1px solid var(--chess-line);
+  box-shadow: 0 14px 40px rgba(16, 42, 67, 0.13);
+}
+
+.asa-chess-new-game-panel .asa-chess-bot-profile-grid {
+  max-height: none;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .asa-chess-loading {
@@ -1184,6 +1240,19 @@
 
   .asa-chess-bot-profile-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .asa-chess-bot-page-body {
+    padding: 12px 8px 24px;
+  }
+
+  .asa-chess-new-game-panel .asa-chess-bot-profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .asa-chess-new-game-panel .asa-chess-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .asa-chess-promotion > div {

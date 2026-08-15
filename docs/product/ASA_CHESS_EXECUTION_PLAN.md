@@ -2,10 +2,9 @@
 
 **Programme Issue:** [#65](https://github.com/spikeal8-maker/asa-lab/issues/65)
 **P0 Issue:** [#97](https://github.com/spikeal8-maker/asa-lab/issues/97)
-**Status:** active R1 foundation in Draft PR
-[#103](https://github.com/spikeal8-maker/asa-lab/pull/103); scoped parallel execution
-was activated by merged governance PR
-[#104](https://github.com/spikeal8-maker/asa-lab/pull/104).
+**Status:** active direct-main quality hardening. The R1 foundation from
+[#103](https://github.com/spikeal8-maker/asa-lab/pull/103) is merged; current work
+follows the repository-wide `direct_main` policy without reviving historical leases.
 
 ## 1. Product outcome
 
@@ -24,23 +23,32 @@ play a calibrated ASA bot
 → receive a relevant lesson recommendation
 ```
 
-## 2. Parallel-work rule
+## 2. Direct-main coordination rule
 
-Chess planning and implementation use a dedicated checkout, branch and schema 1.1
-lane. Checkers remains the primary lane and shared integration owner. Chess must not
-touch the Checkers, Electronics or 3D product paths, their uncommitted files or their
-execution leases.
+Chess planning and implementation now land in `main`. Historical lane, branch and
+integration-owner fields remain audit records, not write locks. Chess must still keep
+its domain, routes, assets and tests independent from Checkers, Electronics and 3D,
+and must never overwrite their uncommitted work.
 
-Parallel work is safe only when all of the following remain true:
+Parallel direct-main work is safe only when all of the following remain true:
 
-- each writer has a distinct Git worktree and branch;
-- file ownership and required scope do not overlap;
-- `docs/execution/current.yaml` names every executable lane, its lease and its exact
-  non-overlapping path scope;
-- product branches cannot edit `current.yaml`, even when their lane owns shared
-  integration;
+- every writer inspects the working tree before writing and stages only its own files;
+- overlapping uncommitted edits stop integration until their owner resolves them;
+- shared files change only when required for one complete result and receive focused
+  regression coverage;
 - no task edits another module's subject document, route state, database tables or assets;
-- integration occurs through reviewed PRs after each lane's focused gates.
+- the exact main SHA is tested before publication and before replacing the persistent web/API.
+
+## 2.1 Visible board and navigation checkpoint — 2026-08-15
+
+- Chess home, play, online, puzzles, learning, bots and review use independent reloadable
+  hashes under `#/chess/:projectId/...`;
+- the Bots address renders a standalone setup page rather than a modal over the board;
+- mobile Chess Home is constrained to the viewport and its board previews remain square;
+- the interactive board uses one roving keyboard tab stop with arrow-key navigation;
+- chess pieces use a pinned, self-hosted Noto Sans Symbols 2 subset with OFL provenance,
+  so Docker and desktop render the same glyph metrics;
+- the focused test command includes domain, shared Chess UI and web Chess UI suites.
 
 ## 3. Module ownership
 
@@ -107,10 +115,10 @@ P0 is governance and evidence scope. It does not change product behaviour.
 
 - the plan and ledger are published in GitHub and linked from #65 and #97;
 - Electronics and 3D behaviour remain unchanged;
-- the current 3D checkout remains untouched;
+- unrelated 3D, Electronics, Checkers and Classroom work remains untouched;
 - planned tests are clearly labelled `PLANNED`, not reported as executed;
-- governance PR #104 records the Chess lane without displacing Checkers;
-- `pnpm control-plane:check` passes with both PR heads and all path scopes verified.
+- the historical activation/merge records remain valid in governance history;
+- `pnpm control-plane:check` passes in direct-main mode with no blocking item.
 
 ## 6. R1 — Chess Learning Beta task graph
 

@@ -1,4 +1,6 @@
 .asa-chess-home-shell {
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
   display: grid;
   grid-template-rows: 48px 1fr;
@@ -13,12 +15,14 @@
 }
 
 .asa-chess-home-body {
+  min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
 }
 
 .asa-chess-home-sidebar {
+  min-width: 0;
   position: sticky;
   top: 48px;
   height: calc(100vh - 48px);
@@ -152,6 +156,15 @@
   width: min(100%, 1380px);
   margin: 0 auto;
   padding: 24px clamp(18px, 3vw, 42px) 44px;
+}
+
+.asa-chess-home-content *,
+.asa-chess-home-card,
+.asa-chess-home-hero-grid,
+.asa-chess-home-feature-grid,
+.asa-chess-home-lower-grid {
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .asa-chess-home-welcome {
@@ -504,6 +517,12 @@
 }
 
 @media (max-width: 760px) {
+  .asa-chess-home-shell,
+  .asa-chess-home-body,
+  .asa-chess-home-content {
+    max-width: 100%;
+  }
+
   .asa-chess-home-body {
     display: block;
   }
@@ -517,6 +536,7 @@
     display: block;
     padding: 7px;
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
   }
 
   .asa-chess-home-brand,
@@ -527,6 +547,7 @@
 
   .asa-chess-home-sidebar nav {
     width: max-content;
+    max-width: none;
     display: flex;
     gap: 4px;
   }
@@ -568,11 +589,11 @@
   }
 
   .asa-chess-home-mini-board {
-    max-width: 330px;
+    width: min(100%, 330px);
   }
 
   .asa-chess-home-puzzle-board {
-    max-width: 250px;
+    width: min(100%, 250px);
   }
 
   .asa-chess-home-feature {
@@ -581,6 +602,16 @@
 }
 
 @media (max-width: 470px) {
+  .asa-chess-home-content {
+    padding-inline: 8px;
+  }
+
+  .asa-chess-home-welcome {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
   .asa-chess-home-welcome h1 {
     font-size: 25px;
   }
@@ -599,6 +630,22 @@
   .asa-chess-home-activity,
   .asa-chess-home-stats {
     padding: 13px;
+  }
+
+  .asa-chess-home-play-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .asa-chess-home-play-actions .is-primary {
+    grid-column: auto;
+  }
+
+  .asa-chess-home-mini-board {
+    width: min(100%, 300px);
+  }
+
+  .asa-chess-home-puzzle-board {
+    width: min(100%, 220px);
   }
 
   .asa-chess-home-activity > header {

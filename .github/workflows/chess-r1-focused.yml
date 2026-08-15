@@ -1,6 +1,24 @@
 name: Chess R1 Focused
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'contexts/chess/**'
+      - 'contexts/chess-live/**'
+      - 'apps/api/src/chess-live.controller.ts'
+      - 'apps/api/src/chess-live.controller.spec.ts'
+      - 'apps/web/src/chess/**'
+      - 'apps/web/public/assets/chess/**'
+      - 'e2e/chess-module.spec.ts'
+      - 'e2e/chess-live.spec.ts'
+      - 'tests/chess/**'
+      - 'tests/chess-live/**'
+      - 'docs/product/ASA_CHESS_*.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/chess-r1-focused.yml'
   pull_request:
     paths:
       - 'contexts/chess/**'
@@ -8,6 +26,7 @@ on:
       - 'apps/api/src/chess-live.controller.ts'
       - 'apps/api/src/chess-live.controller.spec.ts'
       - 'apps/web/src/chess/**'
+      - 'apps/web/public/assets/chess/**'
       - 'apps/web/src/components/editor-chrome/**'
       - 'e2e/chess-module.spec.ts'
       - 'e2e/chess-live.spec.ts'
