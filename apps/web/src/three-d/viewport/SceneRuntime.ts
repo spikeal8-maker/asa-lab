@@ -15,7 +15,7 @@ import {
   type DirectManipulationEntry,
 } from './DirectManipulator';
 import { createBooleanMesh } from './csg';
-import { createNodeObject, disposeObject } from './geometry';
+import { addModelOutlines, createNodeObject, disposeObject } from './geometry';
 
 export interface SceneRuntimeCallbacks {
   readonly onSelect: (nodeId: string | null, additive: boolean) => void;
@@ -335,6 +335,7 @@ export class SceneRuntime {
         rendered = fallback.children.length > 0 ? fallback : null;
       }
       if (!rendered) continue;
+      if (rendered instanceof THREE.Mesh) addModelOutlines(rendered, 'solid');
       const entryId = `group:${groupId}`;
       const bounds = new THREE.Box3().setFromObject(rendered);
       const size = bounds.getSize(new THREE.Vector3());
