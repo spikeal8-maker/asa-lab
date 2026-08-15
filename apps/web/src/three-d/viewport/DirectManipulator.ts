@@ -1292,7 +1292,9 @@ export class DirectManipulator {
   private clearDimensionVisuals(): void {
     disposeGraph(this.dimensionRoot);
     this.dimensionRoot.clear();
-    this.overlay.replaceChildren();
+    // Measurement labels are transient, but the marquee is a permanent child
+    // used for every future box-selection gesture.
+    this.overlay.replaceChildren(this.selectionBox);
     this.labelAnchors = [];
   }
 
