@@ -17,6 +17,7 @@ import { SelectionTools } from './SelectionTools';
 import { AlignIcon, CubeIcon, GroupIcon, HoleIcon, HomeIcon, UngroupIcon } from './three-d-icons';
 import { useThreeDProject } from './use-three-d-project';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
+import { registerProjectSnapshotSource, startProjectSnapshots } from '../modules/project-snapshot';
 import './three-d.css';
 
 interface ThreeDEditorProps {
@@ -88,6 +89,20 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
     readonly primitive: PrimitiveKind;
     readonly operation: ShapeOperation;
   } | null>(null);
+
+  // The card picture for this project comes from the viewport itself. Project
+  // Core owns the schedule and the encoding; the editor only says how to draw.
+  useEffect(() => {
+    const release = registerProjectSnapshotSource(
+      projectId,
+      () => viewportRef.current?.captureFrame() ?? null,
+    );
+    const stop = startProjectSnapshots(projectId);
+    return () => {
+      stop();
+      release();
+    };
+  }, [projectId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {

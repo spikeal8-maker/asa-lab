@@ -151,6 +151,12 @@ describe('runtime role hardening', () => {
       'project_drafts:INSERT',
       'project_drafts:SELECT',
       'project_drafts:UPDATE',
+      // Card pictures: written and overwritten by the editor that took them,
+      // read back for delivery. No DELETE — a snapshot is replaced, never
+      // removed, and the runtime role must not be able to remove one.
+      'project_snapshots:INSERT',
+      'project_snapshots:SELECT',
+      'project_snapshots:UPDATE',
       'project_versions:INSERT',
       'project_versions:SELECT',
       'projects:INSERT',

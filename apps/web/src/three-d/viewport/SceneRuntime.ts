@@ -710,6 +710,32 @@ export class SceneRuntime {
     this.orbit.update();
   }
 
+  /**
+   * The canvas holding a freshly drawn frame of the whole scene, for the
+   * project card.
+   *
+   * Two things make this different from simply handing back the canvas. The
+   * drawing buffer is not preserved — turning that on would cost every frame of
+   * every session for a picture taken once a minute — so the frame is rendered
+   * here and the caller must read it before yielding. And the learner's own
+   * camera may be zoomed into a corner, which says nothing on a card, so the
+   * scene is framed first and the camera put back afterwards.
+   */
+  captureFrame(): HTMLCanvasElement {
+    const position = this.camera.position.clone();
+    const target = this.orbit.target.clone();
+    try {
+      this.fitToScene();
+      this.orbit.update();
+      this.renderer.render(this.scene, this.camera);
+    } finally {
+      this.camera.position.copy(position);
+      this.orbit.target.copy(target);
+      this.orbit.update();
+    }
+    return this.renderer.domElement;
+  }
+
   dispose(): void {
     window.cancelAnimationFrame(this.animationFrame);
     this.resizeObserver.disconnect();

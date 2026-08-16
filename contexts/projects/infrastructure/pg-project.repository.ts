@@ -9,6 +9,7 @@ import type {
   ProjectStatus,
   ProjectVersion,
 } from '../domain/project.js';
+import type { ProjectSnapshot, ProjectSnapshotBytes, SnapshotFormat } from '../domain/snapshot.js';
 import type {
   CreateProjectInput,
   CreateProjectResult,
@@ -16,11 +17,33 @@ import type {
   ProjectListFilter,
   ProjectRepositoryPort,
   SaveDraftInput,
+  SaveSnapshotInput,
 } from '../application/ports.js';
+
+interface SnapshotRow {
+  project_id: string;
+  content_type: SnapshotFormat;
+  width: number;
+  height: number;
+  source_revision: number | string;
+  captured_at: string;
+}
+
+function toSnapshot(row: SnapshotRow): ProjectSnapshot {
+  return {
+    projectId: row.project_id,
+    contentType: row.content_type,
+    width: Number(row.width),
+    height: Number(row.height),
+    sourceRevision: Number(row.source_revision),
+    capturedAt: String(row.captured_at),
+  };
+}
 
 interface PreviewRow {
   preview_json?: ModulePreviewDescriptor | null;
   preview_digest?: string | null;
+  snapshot_revision?: number | string | null;
 }
 
 interface ProjectRow extends PreviewRow {
@@ -49,6 +72,7 @@ function toPreview(row: PreviewRow): ProjectPreview | null {
 }
 
 function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(row)): Project {
+  const revision = row.snapshot_revision;
   return {
     id: row.id,
     scope: row.project_scope,
@@ -59,6 +83,7 @@ function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(r
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at ?? row.created_at),
     preview,
+    snapshotRevision: revision === null || revision === undefined ? null : Number(revision),
   };
 }
 
@@ -218,9 +243,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       return withTenantContext(this.pool, row.tenant_id, async (client) => {
         const result = await client.query(
           `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
-                  d.updated_at,d.preview_json,d.preview_digest
+                  d.updated_at,d.preview_json,d.preview_digest,s.source_revision AS snapshot_revision
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+             LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
             WHERE p.tenant_id=$1 AND p.project_scope='classroom'
               AND p.classroom_id=$2 AND p.status=$3
             ORDER BY d.updated_at DESC`,
@@ -234,9 +260,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       return withTenantContext(this.pool, tenantId, async (client) => {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
-                  p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest
+                  p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest,
+                  s.source_revision AS snapshot_revision
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+             LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
             WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
               AND p.project_scope='personal' AND p.status=$3
             ORDER BY d.updated_at DESC`,
@@ -249,9 +277,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       if (filter.scope === 'personal') {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
-                  p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest
+                  p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest,
+                  s.source_revision AS snapshot_revision
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+             LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
             WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = $4
               AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $2)
                    OR p.created_by = $3)
@@ -263,9 +293,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       const result = await client.query(
         `SELECT DISTINCT
                 p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
-                d.updated_at,d.preview_json,d.preview_digest
+                d.updated_at,d.preview_json,d.preview_digest,s.source_revision AS snapshot_revision
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+           LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
            LEFT JOIN classroom_memberships m
              ON m.tenant_id=p.tenant_id AND m.classroom_id=p.classroom_id
             AND m.user_id=$3
@@ -526,6 +557,66 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         label: row.label ?? null,
         createdAt: String(row.created_at),
       };
+    });
+  }
+
+  async saveSnapshot(input: SaveSnapshotInput): Promise<ProjectSnapshot | null> {
+    const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
+      // The revision is read from the draft inside the same statement rather
+      // than accepted from the client: it is what tells a cached card whether
+      // it is still current, so naming it must not be the uploader's choice.
+      const saved = await client.query(
+        `INSERT INTO project_snapshots
+           (project_id, tenant_id, image, content_type, width, height,
+            source_revision, captured_by, captured_by_principal_id)
+         SELECT p.id, p.tenant_id, $5::bytea, $6::varchar, $7::integer, $8::integer,
+                d.revision, $4::uuid, $3::uuid
+           FROM projects p
+           JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
+         ON CONFLICT (project_id) DO UPDATE
+            SET image=EXCLUDED.image, content_type=EXCLUDED.content_type,
+                width=EXCLUDED.width, height=EXCLUDED.height,
+                source_revision=EXCLUDED.source_revision, captured_at=now(),
+                captured_by=EXCLUDED.captured_by,
+                captured_by_principal_id=EXCLUDED.captured_by_principal_id
+         RETURNING project_id, content_type, width, height, source_revision, captured_at`,
+        [
+          access.tenantId,
+          input.projectId,
+          input.actor.principalId,
+          access.userId,
+          Buffer.from(input.image.bytes),
+          input.image.contentType,
+          input.image.width,
+          input.image.height,
+        ],
+      );
+      const row = saved.rows[0] as SnapshotRow | undefined;
+      return row ? toSnapshot(row) : null;
+    });
+  }
+
+  async loadSnapshot(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<ProjectSnapshotBytes | null> {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
+      const found = await client.query(
+        `SELECT s.project_id, s.image, s.content_type, s.width, s.height,
+                s.source_revision, s.captured_at
+           FROM project_snapshots s
+           JOIN projects p ON p.tenant_id=s.tenant_id AND p.id=s.project_id
+          WHERE s.tenant_id=$1 AND s.project_id=$2 AND ${ACCESS_SQL}`,
+        [access.tenantId, projectId, actor.principalId, access.userId],
+      );
+      const row = found.rows[0] as (SnapshotRow & { image: Buffer }) | undefined;
+      return row ? { ...toSnapshot(row), bytes: new Uint8Array(row.image) } : null;
     });
   }
 }

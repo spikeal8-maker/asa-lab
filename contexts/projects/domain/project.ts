@@ -28,6 +28,12 @@ export interface Project {
   readonly updatedAt: string;
   /** Null while the project is empty, or on drafts saved before previews. */
   readonly preview: ProjectPreview | null;
+  /**
+   * The draft revision the stored snapshot was taken from, or null when the
+   * editor has never captured one. A card uses it to build a delivery URL that
+   * changes with the work, so the image behind it can be cached forever.
+   */
+  readonly snapshotRevision: number | null;
 }
 
 export interface ProjectDraft {

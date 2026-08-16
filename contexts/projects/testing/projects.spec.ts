@@ -12,8 +12,10 @@ import {
   DuplicateProjectUseCase,
   ListProjectsUseCase,
   OpenProjectUseCase,
+  ReadProjectSnapshotUseCase,
   RenameProjectUseCase,
   SaveDraftUseCase,
+  SaveProjectSnapshotUseCase,
   projectRequestFingerprint,
 } from '../application/project.usecases';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
@@ -23,6 +25,7 @@ import type {
   ProjectDocumentValidation,
   ProjectRepositoryPort,
   SaveDraftInput,
+  SaveSnapshotInput,
 } from '../application/ports';
 
 const personalProject: Project = {
@@ -53,6 +56,7 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
 } {
   const creates: CreateProjectInput[] = [];
   const saves: SaveDraftInput[] = [];
+  const snapshots: SaveSnapshotInput[] = [];
   const port: ProjectRepositoryPort = {
     createWithDraft: async (input) => {
       creates.push(input);
@@ -99,9 +103,33 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
       label: null,
       createdAt: 'now',
     }),
+    saveSnapshot: async (input) => {
+      snapshots.push(input);
+      return {
+        projectId: 'p1',
+        contentType: input.image.contentType,
+        width: input.image.width,
+        height: input.image.height,
+        // The repository takes the revision from the draft, never the caller.
+        sourceRevision: 4,
+        capturedAt: 'now',
+      };
+    },
+    loadSnapshot: async () => null,
     ...overrides,
   };
-  return { port, creates, saves };
+  return { port, creates, saves, snapshots };
+}
+
+/** A PNG header is enough for the validator; the pixels are not inspected. */
+function pngDataUrl(width = 320, height = 200, totalBytes = 128): string {
+  const bytes = new Uint8Array(totalBytes);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  bytes.set([0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52], 8);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(16, width, false);
+  view.setUint32(20, height, false);
+  return `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`;
 }
 
 function catalog(
@@ -401,6 +429,90 @@ describe('list, rename, draft and checkpoint', () => {
         label: undefined,
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });
+  });
+});
+
+describe('project snapshots', () => {
+  const actor = { principalId: 'principal:1', userId: 'u1' };
+  const input = { tenantId: 't1', projectId: 'p1', actor };
+
+  it('stores a picture the editor captured', async () => {
+    const { port, snapshots } = repo();
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      imageDataUrl: pngDataUrl(320, 200),
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(snapshots[0]?.image).toMatchObject({
+      contentType: 'image/png',
+      width: 320,
+      height: 200,
+    });
+  });
+
+  /**
+   * The revision decides whether a cached card is current, so it is read from
+   * the draft the server holds. A caller that could name it could pin a card to
+   * a picture of work that is no longer there.
+   */
+  it('reports the revision the server chose, not one the caller supplied', async () => {
+    const { port } = repo();
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      imageDataUrl: pngDataUrl(),
+    });
+    expect(result).toMatchObject({ ok: true, value: { sourceRevision: 4 } });
+  });
+
+  it('refuses an SVG dressed as a snapshot', async () => {
+    const { port, snapshots } = repo();
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>').toString('base64');
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      imageDataUrl: `data:image/svg+xml;base64,${svg}`,
+    });
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(snapshots).toHaveLength(0);
+  });
+
+  /**
+   * A base64 decoder skips characters outside its alphabet, so bytes that pass
+   * a lenient decode are not the bytes that were validated. The charset is
+   * checked before anything is decoded.
+   */
+  it('refuses a payload whose media type lies about its bytes', async () => {
+    const { port, snapshots } = repo();
+    const html = Buffer.from('<!doctype html><script>alert(1)</script>').toString('base64');
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      imageDataUrl: `data:image/png;base64,${html}`,
+    });
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+    expect(snapshots).toHaveLength(0);
+  });
+
+  it('refuses a remote URL in place of an image', async () => {
+    const { port } = repo();
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      imageDataUrl: 'https://example.invalid/picture.png',
+    });
+    expect(result).toMatchObject({ ok: false, code: 'validation_error' });
+  });
+
+  it('reports a missing project rather than inventing one', async () => {
+    const { port } = repo({ saveSnapshot: async () => null });
+    const result = await new SaveProjectSnapshotUseCase(port).execute({
+      ...input,
+      imageDataUrl: pngDataUrl(),
+    });
+    expect(result).toMatchObject({ ok: false, code: 'project_not_found' });
+  });
+
+  it('reports no snapshot for a project that has never been photographed', async () => {
+    const { port } = repo();
+    const result = await new ReadProjectSnapshotUseCase(port).execute('t1', 'p1', actor);
+    expect(result).toMatchObject({ ok: false, code: 'project_not_found' });
   });
 });
 

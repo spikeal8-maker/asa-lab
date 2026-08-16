@@ -23,8 +23,10 @@ import type {
   ListProjectsUseCase,
   OpenProjectUseCase,
   ProjectErrorCode,
+  ReadProjectSnapshotUseCase,
   RenameProjectUseCase,
   SaveDraftUseCase,
+  SaveProjectSnapshotUseCase,
 } from '@asa-lab/projects';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -57,6 +59,10 @@ export class ProjectsController {
     @Inject(TOKENS.saveDraftUseCase) private readonly saveUseCase: SaveDraftUseCase,
     @Inject(TOKENS.createCheckpointUseCase)
     private readonly checkpointUseCase: CreateCheckpointUseCase,
+    @Inject(TOKENS.saveProjectSnapshotUseCase)
+    private readonly saveSnapshotUseCase: SaveProjectSnapshotUseCase,
+    @Inject(TOKENS.readProjectSnapshotUseCase)
+    private readonly readSnapshotUseCase: ReadProjectSnapshotUseCase,
   ) {}
 
   private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
@@ -249,6 +255,71 @@ export class ProjectsController {
       draft: result.value,
       result: this.analyse(opened.value.project.moduleKey, result.value.document),
     };
+  }
+
+  /**
+   * The picture the editor captured of its own canvas.
+   *
+   * A snapshot is a convenience, never a condition of keeping work: an editor
+   * fires this on its own schedule and a rejection must not read as "your
+   * project failed to save". The response carries the revision the server
+   * actually stored it against, which is what the card uses to cache it.
+   */
+  @Put(':projectId/snapshot')
+  async saveSnapshot(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+  ): Promise<{ snapshot: unknown }> {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['imageDataUrl']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.saveSnapshotUseCase.execute({
+      tenantId: context.tenantId,
+      projectId,
+      actor: ProjectsController.actorOf(context),
+      imageDataUrl: shape.body['imageDataUrl'],
+    });
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    return { snapshot: result.value };
+  }
+
+  /**
+   * Delivery for a project card. The URL a card builds carries the revision the
+   * snapshot was taken from, so a stored image is immutable for that URL and
+   * may be cached indefinitely; new work produces a new URL. The response is
+   * pinned to the format read out of the image itself and is declared
+   * non-sniffable and script-free, because these bytes were uploaded by one
+   * learner and are displayed to their class.
+   */
+  @Get(':projectId/snapshot')
+  async readSnapshot(
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+    @Param('projectId') projectId: string,
+    @Query('rev') rev: string | undefined,
+  ): Promise<void> {
+    const context = await this.requireContext(request);
+    const result = await this.readSnapshotUseCase.execute(
+      context.tenantId,
+      projectId,
+      ProjectsController.actorOf(context),
+    );
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    const snapshot = result.value;
+    const addressesThisRevision = rev !== undefined && rev === String(snapshot.sourceRevision);
+    void reply
+      .header('Content-Type', snapshot.contentType)
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Content-Security-Policy', "default-src 'none'; sandbox")
+      .header('Cross-Origin-Resource-Policy', 'same-origin')
+      .header(
+        'Cache-Control',
+        addressesThisRevision
+          ? 'private, max-age=31536000, immutable'
+          : 'private, no-cache, must-revalidate',
+      )
+      .send(Buffer.from(snapshot.bytes));
   }
 
   @Post(':projectId/checkpoints')

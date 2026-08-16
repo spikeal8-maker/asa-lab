@@ -12,6 +12,12 @@ import {
   type ProjectStatus,
   type ProjectVersion,
 } from '../domain/project.js';
+import {
+  decodeSnapshotDataUrl,
+  validateSnapshotImage,
+  type ProjectSnapshot,
+  type ProjectSnapshotBytes,
+} from '../domain/snapshot.js';
 import type {
   ModuleCatalogPort,
   ProjectActor,
@@ -329,6 +335,54 @@ export class SaveDraftUseCase {
     return draft === null
       ? fail('project_not_found', 'project not found')
       : { ok: true, value: draft };
+  }
+}
+
+/**
+ * The picture the editor captured of its own canvas.
+ *
+ * Validation happens here rather than at the edge because these bytes outlive
+ * the request: they are stored and later served to classmates and teachers.
+ * What a caller claims about them — a content type, a file name, a size — is
+ * ignored; only what the container itself says is believed.
+ */
+export class SaveProjectSnapshotUseCase {
+  constructor(private readonly repository: ProjectRepositoryPort) {}
+
+  async execute(input: {
+    tenantId: string;
+    projectId: string;
+    actor: ProjectActor;
+    imageDataUrl: unknown;
+  }): Promise<UseCaseResult<ProjectSnapshot>> {
+    const decoded = decodeSnapshotDataUrl(input.imageDataUrl);
+    if (!decoded.ok) return fail('validation_error', decoded.message);
+    const validation = validateSnapshotImage(decoded.bytes);
+    if (!validation.ok) return fail('validation_error', validation.message);
+    const saved = await this.repository.saveSnapshot({
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actor: input.actor,
+      image: validation.image,
+    });
+    return saved === null
+      ? fail('project_not_found', 'project not found')
+      : { ok: true, value: saved };
+  }
+}
+
+export class ReadProjectSnapshotUseCase {
+  constructor(private readonly repository: ProjectRepositoryPort) {}
+
+  async execute(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<UseCaseResult<ProjectSnapshotBytes>> {
+    const found = await this.repository.loadSnapshot(tenantId, projectId, actor);
+    return found === null
+      ? fail('project_not_found', 'project has no snapshot')
+      : { ok: true, value: found };
   }
 }
 

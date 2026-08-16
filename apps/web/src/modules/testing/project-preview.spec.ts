@@ -29,6 +29,7 @@ function project(overrides: Partial<Project> = {}): Project {
       digest: 'abcd1234',
       descriptor: { kind: 'schematic', summary: '3 компонентов', figure: FIGURE },
     },
+    snapshotRevision: null,
     ...overrides,
   };
 }
@@ -135,6 +136,34 @@ describe('ProjectPreview', () => {
     const html = render(broken);
     expect(html).not.toContain('NaN');
     expect(html.match(/<circle/g)).toHaveLength(1);
+  });
+});
+
+describe('ProjectPreview with a captured snapshot', () => {
+  /**
+   * Once an editor has photographed the project, that picture outranks the
+   * computed figure: it is what the learner actually saw on screen.
+   */
+  it('prefers the editor snapshot over the computed figure', () => {
+    const html = render(project({ snapshotRevision: 7 }));
+    expect(html).toContain('data-testid="project-preview-snapshot"');
+    expect(html).not.toContain('data-testid="project-preview-figure"');
+  });
+
+  it('addresses the snapshot by revision so a card can be cached', () => {
+    expect(render(project({ snapshotRevision: 7 }))).toContain(
+      'src="/api/projects/p1/snapshot?rev=7"',
+    );
+  });
+
+  it('loads snapshots lazily, because a list can hold dozens of cards', () => {
+    expect(render(project({ snapshotRevision: 7 }))).toContain('loading="lazy"');
+  });
+
+  it('names the project on the image for screen readers', () => {
+    expect(render(project({ snapshotRevision: 7 }))).toContain(
+      'alt="Светодиод: electronics, 3 компонентов"',
+    );
   });
 });
 

@@ -11,7 +11,8 @@
  * inside its viewBox, and the box is letterboxed to keep the drawing
  * undistorted, so painting the box would put blank margins around every square
  * picture instead of letting the tile show through. */
-.project-preview-figure {
+.project-preview-figure,
+.project-preview-snapshot {
   z-index: 1;
   display: block;
   box-sizing: border-box;
@@ -20,14 +21,24 @@
   filter: drop-shadow(0 3px 8px rgba(24, 48, 64, 0.16));
 }
 
+/* A snapshot is a photograph of a working area whose proportions are the
+ * learner's window, not the card's. It is contained rather than cropped so the
+ * whole of what they built stays visible. */
+.project-preview-snapshot {
+  object-fit: contain;
+  border-radius: 6px;
+}
+
 /* Classroom projects: the whole tile is the picture. */
-.project-preview > .project-preview-figure {
+.project-preview > .project-preview-figure,
+.project-preview > .project-preview-snapshot {
   width: min(100%, 264px);
   height: 152px;
 }
 
 /* My projects: the picture shares the tile with the module label under it. */
-.project-module-preview > .project-preview-figure {
+.project-module-preview > .project-preview-figure,
+.project-module-preview > .project-preview-snapshot {
   width: min(100%, 236px);
   height: 118px;
 }
@@ -35,7 +46,8 @@
 /* Creator home: smaller tiles, four to a module row. */
 /* The surface has a heavier shadow tuned for a bare glyph floating on the
  * gradient; a full picture reads better with the same shadow as everywhere. */
-.creator-dashboard-project-preview > .project-preview-figure {
+.creator-dashboard-project-preview > .project-preview-figure,
+.creator-dashboard-project-preview > .project-preview-snapshot {
   width: min(100%, 196px);
   height: 122px;
   filter: drop-shadow(0 3px 8px rgba(24, 48, 64, 0.16));

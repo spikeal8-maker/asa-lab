@@ -132,6 +132,25 @@ export interface ProjectPreview {
   descriptor: ModulePreviewDescriptor;
 }
 
+export interface ProjectSnapshotInfo {
+  projectId: string;
+  contentType: string;
+  width: number;
+  height: number;
+  sourceRevision: number;
+  capturedAt: string;
+}
+
+/**
+ * Where a card fetches the editor's picture. The revision is part of the URL,
+ * so the image behind any one address never changes and the browser may keep
+ * it; new work produces a new address.
+ */
+export function projectSnapshotUrl(project: Project): string | null {
+  if (project.snapshotRevision === null) return null;
+  return `/api/projects/${encodeURIComponent(project.id)}/snapshot?rev=${project.snapshotRevision}`;
+}
+
 export interface Project {
   id: string;
   scope: ProjectScope;
@@ -142,6 +161,8 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   preview: ProjectPreview | null;
+  /** Null until an editor has captured a picture of this project. */
+  snapshotRevision: number | null;
 }
 
 export interface ModuleSummary {
@@ -625,6 +646,24 @@ export const api = {
     call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
       { method: 'PUT', body: JSON.stringify({ document }) },
+    ),
+  /**
+   * Uploads the editor's picture of the project. `keepalive` lets a capture
+   * taken while the page is closing still leave the browser; it caps the body
+   * at roughly 64 KB, which the caller enforces before getting here.
+   */
+  saveProjectSnapshot: (
+    projectId: string,
+    imageDataUrl: string,
+    options: { unloading?: boolean } = {},
+  ) =>
+    call<{ snapshot: ProjectSnapshotInfo }>(
+      `/api/projects/${encodeURIComponent(projectId)}/snapshot`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ imageDataUrl }),
+        ...(options.unloading === true ? { keepalive: true } : {}),
+      },
     ),
   createCheckpoint: (projectId: string, label?: string) =>
     call<{ version: ProjectVersion }>(

@@ -10,6 +10,17 @@ export {
   type ProjectStatus,
   type ProjectVersion,
 } from './domain/project.js';
+export {
+  validateSnapshotImage,
+  SNAPSHOT_MAX_BYTES,
+  SNAPSHOT_MAX_EDGE,
+  SNAPSHOT_MIN_BYTES,
+  SNAPSHOT_MIN_EDGE,
+  type ProjectSnapshot,
+  type ProjectSnapshotBytes,
+  type SnapshotFormat,
+  type SnapshotImage,
+} from './domain/snapshot.js';
 export type {
   CreatableProjectModule,
   CreateProjectInput,
@@ -21,6 +32,7 @@ export type {
   ProjectModule,
   ProjectRepositoryPort,
   SaveDraftInput,
+  SaveSnapshotInput,
 } from './application/ports.js';
 export {
   ChangeProjectStatusUseCase,
@@ -29,8 +41,10 @@ export {
   DuplicateProjectUseCase,
   ListProjectsUseCase,
   OpenProjectUseCase,
+  ReadProjectSnapshotUseCase,
   RenameProjectUseCase,
   SaveDraftUseCase,
+  SaveProjectSnapshotUseCase,
   projectRequestFingerprint,
   type ProjectErrorCode,
   type UseCaseResult,

@@ -27,8 +27,10 @@ import {
   ListProjectsUseCase,
   OpenProjectUseCase,
   PgProjectRepository,
+  ReadProjectSnapshotUseCase,
   RenameProjectUseCase,
   SaveDraftUseCase,
+  SaveProjectSnapshotUseCase,
   type CreatableProjectModule,
   type ModuleCatalogPort,
   type ProjectModule,
@@ -239,6 +241,14 @@ export class AppModule {
         {
           provide: TOKENS.createCheckpointUseCase,
           useFactory: () => new CreateCheckpointUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.saveProjectSnapshotUseCase,
+          useFactory: () => new SaveProjectSnapshotUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.readProjectSnapshotUseCase,
+          useFactory: () => new ReadProjectSnapshotUseCase(projectRepository()),
         },
         {
           provide: TOKENS.listClassroomsUseCase,

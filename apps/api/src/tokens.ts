@@ -21,6 +21,8 @@ export const TOKENS = {
   duplicateProjectUseCase: 'DUPLICATE_PROJECT_USECASE',
   saveDraftUseCase: 'SAVE_DRAFT_USECASE',
   createCheckpointUseCase: 'CREATE_CHECKPOINT_USECASE',
+  saveProjectSnapshotUseCase: 'SAVE_PROJECT_SNAPSHOT_USECASE',
+  readProjectSnapshotUseCase: 'READ_PROJECT_SNAPSHOT_USECASE',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

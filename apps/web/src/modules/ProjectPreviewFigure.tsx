@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ModulePreviewFigure, ModulePreviewShape } from '@asa-lab/module-sdk';
-import type { ModuleSummary, Project } from '../api';
+import { projectSnapshotUrl, type ModuleSummary, type Project } from '../api';
 import './project-preview.css';
 
 /**
@@ -135,10 +135,18 @@ export function ProjectPreviewFigure({
 }
 
 /**
- * The picture for a project card, or the module glyph when there is nothing to
- * draw: a project created a minute ago, a draft saved before previews existed,
- * or a document a module chose not to illustrate. All three are ordinary, so
- * the fallback is the normal card rather than an error state.
+ * The picture for a project card, in the order of how much it says about the
+ * work:
+ *
+ *  1. the snapshot the editor took of its own canvas — what the learner saw;
+ *  2. the figure the module computed from the document — always current, but a
+ *     diagram of the work rather than a view of it;
+ *  3. the module glyph, for a project nobody has opened yet.
+ *
+ * All three are ordinary states, not errors. The snapshot is missing for every
+ * project until an editor has been open long enough to take one, and Tinkercad
+ * — which has only the snapshot — leaves those cards blank; here the computed
+ * figure covers the gap.
  */
 export function ProjectPreview({
   project,
@@ -150,11 +158,29 @@ export function ProjectPreview({
   fallback: ReactNode;
 }): JSX.Element {
   const descriptor = project.preview?.descriptor;
-  const figure = descriptor?.figure;
-  if (!figure || !isDrawableFigure(figure)) return <>{fallback}</>;
   const subject = module?.displayName ?? project.moduleKey;
   const label = descriptor?.summary
     ? `${project.title}: ${subject}, ${descriptor.summary}`
     : `${project.title}: ${subject}`;
+
+  const snapshot = projectSnapshotUrl(project);
+  if (snapshot !== null) {
+    return (
+      <img
+        className="project-preview-snapshot"
+        src={snapshot}
+        alt={label}
+        // Below the fold a project list can hold dozens of cards; each image is
+        // a separate request and only the visible ones are worth making.
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        data-testid="project-preview-snapshot"
+      />
+    );
+  }
+
+  const figure = descriptor?.figure;
+  if (!figure || !isDrawableFigure(figure)) return <>{fallback}</>;
   return <ProjectPreviewFigure figure={figure} label={label} />;
 }

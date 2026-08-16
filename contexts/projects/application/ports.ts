@@ -7,6 +7,7 @@ import type {
   ProjectStatus,
   ProjectVersion,
 } from '../domain/project.js';
+import type { ProjectSnapshot, ProjectSnapshotBytes, SnapshotImage } from '../domain/snapshot.js';
 
 export interface ProjectActor {
   readonly principalId: string;
@@ -44,6 +45,13 @@ export interface SaveDraftInput {
   readonly actor: ProjectActor;
   readonly document: unknown;
   readonly preview: ProjectPreview | null;
+}
+
+export interface SaveSnapshotInput {
+  readonly tenantId: string;
+  readonly projectId: string;
+  readonly actor: ProjectActor;
+  readonly image: SnapshotImage;
 }
 
 export type ProjectDocumentValidation =
@@ -102,4 +110,15 @@ export interface ProjectRepositoryPort {
     actor: ProjectActor,
     label: string | null,
   ): Promise<ProjectVersion | null>;
+  /**
+   * Stores the picture against the draft revision the server currently holds.
+   * The revision is never taken from the caller: it is what decides whether a
+   * cached card is still valid, so a client must not be able to name it.
+   */
+  saveSnapshot(input: SaveSnapshotInput): Promise<ProjectSnapshot | null>;
+  loadSnapshot(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<ProjectSnapshotBytes | null>;
 }

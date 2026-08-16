@@ -565,4 +565,150 @@ describe('authorization and validation', () => {
     });
     expect(noKey.statusCode).toBe(400);
   });
+
+  /**
+   * The picture an editor takes of itself, over the real API and the
+   * RLS-constrained runtime role. These bytes are uploaded by one learner and
+   * delivered to their class, so what the server accepts and what it puts in
+   * the response headers are both part of the contract.
+   */
+  describe('project snapshots', () => {
+    function pngDataUrl(width = 320, height = 200): string {
+      const bytes = new Uint8Array(160);
+      bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      bytes.set([0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52], 8);
+      const view = new DataView(bytes.buffer);
+      view.setUint32(16, width, false);
+      view.setUint32(20, height, false);
+      return `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`;
+    }
+
+    async function saveSnapshot(token: string, projectId: string, imageDataUrl: string) {
+      return inject(app, {
+        method: 'PUT',
+        url: `/api/projects/${projectId}/snapshot`,
+        cookies: { asa_session: token },
+        payload: { imageDataUrl },
+      });
+    }
+
+    it('stores a snapshot and reports the draft revision it belongs to', async () => {
+      const token = await registerPersonalAccount('snapshot');
+      const created = await createProject(token, { title: 'Схема со снимком', scope: 'personal' });
+      const projectId = created.body.project.id;
+
+      const saved = await saveSnapshot(token, projectId, pngDataUrl());
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json().snapshot).toMatchObject({
+        contentType: 'image/png',
+        width: 320,
+        height: 200,
+        sourceRevision: 1,
+      });
+    });
+
+    it('moves the revision forward when the work changes', async () => {
+      const token = await registerPersonalAccount('snapshot-rev');
+      const created = await createProject(token, { title: 'Схема', scope: 'personal' });
+      const projectId = created.body.project.id;
+
+      await inject(app, {
+        method: 'PUT',
+        url: `/api/projects/${projectId}/draft`,
+        cookies: { asa_session: token },
+        payload: { document: seriesDocument() },
+      });
+      const saved = await saveSnapshot(token, projectId, pngDataUrl());
+      expect(saved.json().snapshot.sourceRevision).toBe(2);
+    });
+
+    it('lists the snapshot revision so a card can build a cacheable URL', async () => {
+      const token = await registerPersonalAccount('snapshot-list');
+      const created = await createProject(token, { title: 'Схема в списке', scope: 'personal' });
+      const projectId = created.body.project.id;
+      await saveSnapshot(token, projectId, pngDataUrl());
+
+      const list = await inject(app, {
+        method: 'GET',
+        url: '/api/projects?scope=personal',
+        cookies: { asa_session: token },
+      });
+      const item = list.json().items.find((entry: { id: string }) => entry.id === projectId);
+      expect(item.snapshotRevision).toBe(1);
+    });
+
+    it('serves the bytes as a non-sniffable image and caches only the exact revision', async () => {
+      const token = await registerPersonalAccount('snapshot-read');
+      const created = await createProject(token, { title: 'Схема', scope: 'personal' });
+      const projectId = created.body.project.id;
+      await saveSnapshot(token, projectId, pngDataUrl());
+
+      const current = await inject(app, {
+        method: 'GET',
+        url: `/api/projects/${projectId}/snapshot?rev=1`,
+        cookies: { asa_session: token },
+      });
+      expect(current.statusCode).toBe(200);
+      expect(current.headers['content-type']).toBe('image/png');
+      expect(current.headers['x-content-type-options']).toBe('nosniff');
+      expect(current.headers['cache-control']).toContain('immutable');
+      expect(current.rawPayload.subarray(0, 8)).toEqual(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      );
+
+      // A URL that does not name this revision may be pointing at older work,
+      // so the answer is still given but must not be kept.
+      const stale = await inject(app, {
+        method: 'GET',
+        url: `/api/projects/${projectId}/snapshot?rev=99`,
+        cookies: { asa_session: token },
+      });
+      expect(stale.statusCode).toBe(200);
+      expect(stale.headers['cache-control']).toContain('no-cache');
+    });
+
+    it('refuses an SVG and anything that is not really an image', async () => {
+      const token = await registerPersonalAccount('snapshot-refuse');
+      const created = await createProject(token, { title: 'Схема', scope: 'personal' });
+      const projectId = created.body.project.id;
+
+      const svg = Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("//x")</script></svg>',
+      ).toString('base64');
+      const asSvg = await saveSnapshot(token, projectId, `data:image/svg+xml;base64,${svg}`);
+      expect(asSvg.statusCode).toBe(400);
+
+      const mislabelled = await saveSnapshot(token, projectId, `data:image/png;base64,${svg}`);
+      expect(mislabelled.statusCode).toBe(400);
+    });
+
+    it('keeps a snapshot inside the project it belongs to', async () => {
+      const owner = await registerPersonalAccount('snapshot-owner');
+      const created = await createProject(owner, { title: 'Чужая схема', scope: 'personal' });
+      const projectId = created.body.project.id;
+      await saveSnapshot(owner, projectId, pngDataUrl());
+
+      const stranger = await registerPersonalAccount('snapshot-stranger');
+      const read = await inject(app, {
+        method: 'GET',
+        url: `/api/projects/${projectId}/snapshot?rev=1`,
+        cookies: { asa_session: stranger },
+      });
+      expect(read.statusCode).toBe(404);
+
+      const write = await saveSnapshot(stranger, projectId, pngDataUrl());
+      expect(write.statusCode).toBe(404);
+    });
+
+    it('reports no snapshot for a project nobody has photographed', async () => {
+      const token = await registerPersonalAccount('snapshot-absent');
+      const created = await createProject(token, { title: 'Без снимка', scope: 'personal' });
+      const read = await inject(app, {
+        method: 'GET',
+        url: `/api/projects/${created.body.project.id}/snapshot`,
+        cookies: { asa_session: token },
+      });
+      expect(read.statusCode).toBe(404);
+    });
+  });
 });

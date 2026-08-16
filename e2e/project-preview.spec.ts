@@ -203,6 +203,47 @@ test('project cards show a picture of the work for every module', async ({ page 
   await page.screenshot({ path: `${EVIDENCE_DIR}/02-creator-home.png`, fullPage: true });
   await openPortalSection(page, 'Проекты');
 
+  /**
+   * The snapshot path, end to end and in a real browser: the 3D editor renders
+   * its own scene, Core encodes and uploads it, the list reports the revision
+   * it was stored against, and the card shows the photograph instead of the
+   * computed figure.
+   *
+   * The capture is provoked through its own trigger — the page becoming
+   * hidden, which is what happens when a learner switches tab or closes a lid.
+   * Waiting out the settling delay and the slow timer instead would test the
+   * clock rather than the picture.
+   */
+  await page.goto(`/#/3d/${scene.id}?returnTo=%2Fprojects`);
+  const viewport = page.getByTestId('asa3d-viewport');
+  await expect(viewport).toBeVisible({ timeout: 20_000 });
+  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true', { timeout: 20_000 });
+
+  const uploaded = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/projects/${scene.id}/snapshot`) &&
+      response.request().method() === 'PUT',
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect((await uploaded).status(), 'the 3D editor must photograph its own scene').toBe(200);
+
+  const stored = await request.get(`/api/projects/${scene.id}/snapshot`, { headers: { origin } });
+  expect(stored.status()).toBe(200);
+  expect(stored.headers()['content-type']).toMatch(/^image\/(png|webp)$/);
+  expect(stored.headers()['x-content-type-options']).toBe('nosniff');
+  const bytes = await stored.body();
+  expect(bytes.byteLength).toBeGreaterThan(1000);
+
+  await page.goto('/#/projects');
+  const photographed = cardFor(page, scene.title).getByTestId('project-preview-snapshot');
+  await expect(photographed).toBeVisible();
+  await expect(photographed).toHaveAttribute('loading', 'lazy');
+  await expect(cardFor(page, scene.title).getByTestId('project-preview-figure')).toHaveCount(0);
+  await page.screenshot({ path: `${EVIDENCE_DIR}/03-snapshot-card.png`, fullPage: true });
+
   /** A brand-new circuit has nothing to draw and falls back to the glyph. */
   const empty = await createProject(
     request,

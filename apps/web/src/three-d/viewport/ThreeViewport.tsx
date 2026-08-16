@@ -14,6 +14,12 @@ export interface ThreeViewportHandle {
   readonly setView: (view: 'home' | 'top' | 'front' | 'right') => void;
   readonly zoom: (direction: 1 | -1) => void;
   readonly fit: () => void;
+  /**
+   * A canvas holding a frame of the whole scene, for the project card. The
+   * frame is drawn during this call and the drawing buffer is not preserved,
+   * so the caller must read the canvas before yielding to the browser.
+   */
+  readonly captureFrame: () => HTMLCanvasElement | null;
 }
 
 interface ThreeViewportProps {
@@ -118,6 +124,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         setView: (view) => runtimeRef.current?.setView(view),
         zoom: (direction) => runtimeRef.current?.zoom(direction),
         fit: () => runtimeRef.current?.fitToScene(),
+        captureFrame: () => runtimeRef.current?.captureFrame() ?? null,
       }),
       [],
     );
