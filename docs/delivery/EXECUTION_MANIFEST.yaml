@@ -329,7 +329,7 @@ tasks:
       - lazy_loading_accessibility_and_responsive_layouts
       - desktop_tablet_mobile_browser_evidence
     non_goals: [Chess changes, Electronics changes, 3D changes, shared Chess Checkers subject engine, free-form child chat, direct messages, public child profiles, unrestricted public matchmaking, ads, loot boxes, international 10x10 rules in M1, generic Classroom rewrite, Project Core subject conditionals]
-    read: [AGENTS.md, docs/product/CHECKERS_EDUCATION_MARKET_ANALYSIS.md, docs/product/MODULE_PLATFORM_SPEC.md, docs/product/PRODUCT_BLUEPRINT.md, https://github.com/spikeal8-maker/asa-lab/issues/98]
+    read: [AGENTS.md, docs/delivery/CHECKERS_EXECUTION_PLAN.md, docs/product/CHECKERS_EDUCATION_MARKET_ANALYSIS.md, docs/product/MODULE_PLATFORM_SPEC.md, docs/product/PRODUCT_BLUEPRINT.md, https://github.com/spikeal8-maker/asa-lab/issues/98]
     test_profiles: []
     task_tests: [TST-CHECKERS-M1-RULES-001, TST-CHECKERS-M1-PROJECT-001, TST-CHECKERS-M1-LEARNING-001, TST-CHECKERS-M1-BOTS-001, TST-CHECKERS-M1-CLASS-SAFETY-001, TST-CHECKERS-M1-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R11, APP-WEB, APP-API, CTX-CLASSROOM, CTX-PROJECTS, CTX-SAFETY, SDK-MODULE, MOD-CHECKERS]

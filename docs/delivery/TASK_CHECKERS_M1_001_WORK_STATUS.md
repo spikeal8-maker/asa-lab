@@ -4,6 +4,8 @@ State source: `docs/execution/current.yaml`
 
 Programme source: `docs/delivery/EXECUTION_MANIFEST.yaml`
 
+Execution plan: `docs/delivery/CHECKERS_EXECUTION_PLAN.md`
+
 Owner scope: Issue #98
 
 Current PR: #101
