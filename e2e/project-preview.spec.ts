@@ -237,6 +237,26 @@ test('project cards show a picture of the work for every module', async ({ page 
   const bytes = await stored.body();
   expect(bytes.byteLength).toBeGreaterThan(1000);
 
+  /**
+   * The same path for a stage drawn in SVG rather than WebGL. This one has to
+   * carry its own paint and its own component artwork into the picture, because
+   * a serialised SVG neither sees the page stylesheet nor fetches anything.
+   */
+  await page.goto(`/#/home/${circuit.id}`);
+  await expect(page.locator('.workbench-canvas')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('schematic-component').first()).toBeVisible({ timeout: 30_000 });
+
+  const circuitUploaded = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/projects/${circuit.id}/snapshot`) &&
+      response.request().method() === 'PUT',
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect((await circuitUploaded).status(), 'the workbench must photograph its stage').toBe(200);
+
   await page.goto('/#/projects');
   const photographed = cardFor(page, scene.title).getByTestId('project-preview-snapshot');
   await expect(photographed).toBeVisible();

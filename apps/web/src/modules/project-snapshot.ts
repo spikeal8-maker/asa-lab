@@ -30,7 +30,13 @@ const REPEAT_CAPTURE_MS = 60_000;
  */
 const KEEPALIVE_LIMIT_BYTES = 60_000;
 
-export type SnapshotSource = () => HTMLCanvasElement | null;
+/**
+ * A source may answer synchronously or not. A WebGL editor must be synchronous,
+ * because its drawing buffer is gone by the next turn; an editor that has to
+ * rasterise an SVG first returns a promise, and the canvas it resolves with is
+ * an ordinary one that keeps its contents.
+ */
+export type SnapshotSource = () => HTMLCanvasElement | null | Promise<HTMLCanvasElement | null>;
 
 const sources = new Map<string, SnapshotSource>();
 const lastSent = new Map<string, string>();
@@ -80,18 +86,20 @@ export function encodeSnapshot(canvas: HTMLCanvasElement): string | null {
   return encoded.startsWith('data:image/') ? encoded : null;
 }
 
-export function captureProjectSnapshot(projectId: string): string | null {
+export async function captureProjectSnapshot(projectId: string): Promise<string | null> {
   const source = sources.get(projectId);
   if (!source) return null;
-  let canvas: HTMLCanvasElement | null;
   try {
-    canvas = source();
+    // A synchronous source is encoded in this same turn: awaiting a plain value
+    // would still yield, and a WebGL drawing buffer does not survive that.
+    const produced = source();
+    const canvas = produced instanceof Promise ? await produced : produced;
+    return canvas ? encodeSnapshot(canvas) : null;
   } catch {
     // An editor mid-teardown, a lost WebGL context, a module bug: none of them
     // are worth interrupting the learner over.
     return null;
   }
-  return canvas ? encodeSnapshot(canvas) : null;
 }
 
 /**
@@ -102,7 +110,7 @@ export async function sendProjectSnapshot(
   projectId: string,
   options: { unloading?: boolean } = {},
 ): Promise<boolean> {
-  const image = captureProjectSnapshot(projectId);
+  const image = await captureProjectSnapshot(projectId);
   if (!image || lastSent.get(projectId) === image) return false;
   if (options.unloading === true && image.length > KEEPALIVE_LIMIT_BYTES) return false;
   // Recorded before the request completes: a failure is not worth retrying on

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { PublicUser, SchematicComponent, SchematicDocument } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
@@ -17,6 +17,12 @@ import {
   type ElectronicsWorkbenchController,
 } from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
+import {
+  registerProjectSnapshotSource,
+  startProjectSnapshots,
+  SNAPSHOT_WIDTH,
+} from '../modules/project-snapshot';
+import { rasteriseSvgStage } from '../modules/svg-snapshot';
 
 function SchematicSymbol({ component }: { component: SchematicComponent }): JSX.Element {
   const commonLabel = (
@@ -356,6 +362,23 @@ export function SchematicEditor({
   const [shareOpen, setShareOpen] = useState(false);
   const notesStorageKey = `asa-lab:electronics-notes:${projectId}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(notesStorageKey) ?? '');
+
+  // The card picture is the stage as the learner sees it, rasterised from the
+  // live SVG. Project Core owns the size, the format and the schedule.
+  useEffect(() => {
+    const release = registerProjectSnapshotSource(projectId, () => {
+      const stage = controller.stageRef.current;
+      if (!stage) return null;
+      return rasteriseSvgStage(stage, SNAPSHOT_WIDTH, {
+        contentSelector: '[data-testid="schematic-component"],[data-testid="wire-segment"]',
+      });
+    });
+    const stop = startProjectSnapshots(projectId);
+    return () => {
+      stop();
+      release();
+    };
+  }, [controller.stageRef, projectId]);
   function updateNotes(value: string): void {
     setNotes(value);
     localStorage.setItem(notesStorageKey, value);
