@@ -40,6 +40,12 @@ reports/*.txt
 npm-debug.log*
 pnpm-debug.log*
 
+# Google Drive sync conflicts. The checkout lives inside a synced folder, so a
+# conflict drops "name (1).ext" copies of sources, build output and Nx cache
+# beside the originals. They are never part of the project.
+.drive-conflicts/
+* (1).*
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -69,7 +69,7 @@
     "test:three-d": "vitest run contexts/three-d/testing apps/web/src/three-d/testing apps/api/src/three-d.controller.spec.ts",
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "control-plane:check": "python tools/validate_control_plane.py",
-    "gate:governance": "bash tools/gate-governance.sh",
+    "gate:governance": "node tools/run-governance-gate.mjs",
     "gate:code": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm contracts:check && pnpm compose:check && pnpm security:secrets && pnpm license:check && pnpm security:dependencies && pnpm build",
     "gate:data": "pnpm db:migrate:check && pnpm test && pnpm test:rls",
     "gate:repository": "pnpm gate:governance && pnpm gate:code && pnpm gate:data",

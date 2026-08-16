@@ -61,6 +61,10 @@ IGNORE_DIRS = {
     ".nx",
     "coverage",
     "reports",
+    # The checkout lives in a synced folder; a Google Drive conflict drops
+    # "name (1).ext" copies of sources and build output here. They are not
+    # first-party code and broke this gate for days when they last appeared.
+    ".drive-conflicts",
     "__pycache__",
 }
 
