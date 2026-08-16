@@ -166,8 +166,10 @@
   border: 0;
   background: #fff;
   color: #2f404a;
-  font-size: 14px;
-  font-weight: 760;
+  /* Same size as the two navigation bars: this menu is the third way around
+   * the product and reading it should not feel like reading fine print. */
+  font-size: 16px;
+  font-weight: 700;
   text-align: left;
 }
 
@@ -185,9 +187,8 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .portal-account-item-icon svg {
-  width: 24px;
-  height: 24px;
-  stroke-width: 1.8;
+  width: 22px;
+  height: 22px;
 }
 
 .portal-account-item-meta {

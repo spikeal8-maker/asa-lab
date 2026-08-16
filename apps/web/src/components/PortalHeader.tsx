@@ -7,30 +7,36 @@ import {
 } from '../creator-portal/default-avatars';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 import {
-  ClassesIcon,
   ChevronIcon,
   CloseIcon,
   CollapseIcon,
-  CommentIcon,
   ExpandIcon,
-  FolderIcon,
-  InspectIcon,
-  ListIcon,
   PlusIcon,
   SearchIcon,
 } from '../electronics/workbench-icons';
-import { GridIcon, HomeIcon, RulerIcon } from '../three-d/three-d-icons';
+import {
+  BellGlyph,
+  ChallengesGlyph,
+  ClassesGlyph,
+  CollectionsGlyph,
+  HelpGlyph,
+  HomeGlyph,
+  LearningGlyph,
+  ProjectsGlyph,
+  SchoolGlyph,
+  SettingsGlyph,
+} from './portal-icons';
 
 export type PortalSection = CreatorPortalSection;
 
 function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
-  if (section === 'home') return <HomeIcon />;
-  if (section === 'classes') return <ClassesIcon />;
-  if (section === 'projects') return <GridIcon />;
-  if (section === 'collections') return <FolderIcon />;
-  if (section === 'learning') return <ListIcon />;
-  if (section === 'challenges') return <RulerIcon />;
-  return <CommentIcon />;
+  if (section === 'home') return <HomeGlyph />;
+  if (section === 'classes') return <ClassesGlyph />;
+  if (section === 'projects') return <ProjectsGlyph />;
+  if (section === 'collections') return <CollectionsGlyph />;
+  if (section === 'learning') return <LearningGlyph />;
+  if (section === 'challenges') return <ChallengesGlyph />;
+  return <HelpGlyph />;
 }
 
 function AvatarVisual({
@@ -280,7 +286,7 @@ export function PortalHeader({
                 onClick={() => navigateFromAccount('projects')}
               >
                 <span className="portal-account-item-icon" aria-hidden="true">
-                  <GridIcon />
+                  <ProjectsGlyph />
                 </span>
                 <span>Мои проекты</span>
               </button>
@@ -289,7 +295,7 @@ export function PortalHeader({
                 aria-label="Уведомления: новых нет"
               >
                 <span className="portal-account-item-icon" aria-hidden="true">
-                  <CommentIcon />
+                  <BellGlyph />
                 </span>
                 <span>Уведомления</span>
                 <span className="portal-account-item-meta">Нет новых</span>
@@ -300,7 +306,7 @@ export function PortalHeader({
                 onClick={() => navigateFromAccount('account')}
               >
                 <span className="portal-account-item-icon" aria-hidden="true">
-                  <InspectIcon />
+                  <SettingsGlyph />
                 </span>
                 <span>Настройки</span>
               </button>
@@ -313,7 +319,7 @@ export function PortalHeader({
                 onClick={() => navigateFromAccount('classes')}
               >
                 <span className="portal-account-item-icon" aria-hidden="true">
-                  <ClassesIcon />
+                  <ClassesGlyph />
                 </span>
                 <span>Мои классы</span>
               </button>
@@ -323,7 +329,7 @@ export function PortalHeader({
               <details className="portal-account-workspaces">
                 <summary className="portal-account-item">
                   <span className="portal-account-item-icon" aria-hidden="true">
-                    <FolderIcon />
+                    <SchoolGlyph />
                   </span>
                   <span className="portal-account-workspace-copy">
                     <strong>Аккаунт и школы</strong>

@@ -84,15 +84,19 @@
   justify-content: center;
 }
 
+/* 16px at weight 700 is the size the reference product uses for both bars, and
+ * it is the size a room reads from the back. The bars were a step smaller. */
 .portal-global-nav button {
   padding: 0 15px;
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
   color: rgba(255, 255, 255, 0.94);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 24px;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .portal-global-nav button:hover {
@@ -319,8 +323,9 @@
   border: 2px solid transparent;
   border-radius: 25px;
   color: #455d6c;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 20px;
   text-align: left;
 }
 
@@ -343,14 +348,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  width: 28px;
+  width: 30px;
   color: currentColor;
 }
 
 .portal-sidebar .portal-nav-glyph svg {
-  width: 21px;
-  height: 21px;
-  stroke-width: 1.75;
+  width: 22px;
+  height: 22px;
 }
 
 .portal-sidebar-footer {
