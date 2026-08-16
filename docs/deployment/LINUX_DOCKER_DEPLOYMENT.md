@@ -6,17 +6,15 @@ it does not run the Vite development server.
 
 ## Host and checkout
 
-Install a current Docker Engine with the Compose plugin, Git and Corepack. Keep
-the checkout on a local Linux filesystem.
+Install a current Docker Engine with the Compose plugin and Git. Keep the
+checkout on a local Linux filesystem. Node.js, Corepack and PostgreSQL are not
+required on the host for a Docker deployment.
 
 ```bash
 git clone https://github.com/spikeal8-maker/asa-lab.git
 cd asa-lab
-git checkout assistant/docker-linux-bootstrap
-corepack enable
-corepack prepare pnpm@9.15.9 --activate
-pnpm install --frozen-lockfile
-pnpm compose:check
+docker version
+docker compose version
 ```
 
 ## Staging environment
@@ -40,9 +38,13 @@ cp .env.docker.example .env
 chmod 600 .env
 ```
 
+For a local single-computer installation, use [`QUICK_START.md`](QUICK_START.md)
+instead; its helper generates consistent private credentials automatically.
+
 ## Deploy
 
 ```bash
+export ASA_BUILD_REVISION="$(git rev-parse HEAD)"
 docker compose -f compose.yaml -f compose.staging.yaml config --quiet
 docker compose -f compose.yaml -f compose.staging.yaml build
 docker compose -f compose.yaml -f compose.staging.yaml up -d

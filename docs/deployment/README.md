@@ -1,7 +1,18 @@
-# ASA Lab deployment bootstrap
+# ASA Lab deployment
 
-Canonical infrastructure task: `TASK-DOCKER-LINUX-001` / Issue #69.
+The supported runtime is a Linux-container Compose stack. It runs through
+Docker Desktop on Windows 11 and through Docker Engine on a regular Linux host.
 
-This directory is populated only from branch `assistant/docker-linux-bootstrap`, based on `assistant/chess-online-core`.
+Start with [`QUICK_START.md`](QUICK_START.md). It provides one-command Windows
+and Linux/WSL2 startup, generates private local credentials and waits for the
+real application readiness endpoint.
 
-The deployment target is Linux containers, developed on Windows 11 through WSL2 and portable to a regular Linux Docker host. Product capability work is out of scope.
+Operator references:
+
+- [`LINUX_DOCKER_DEPLOYMENT.md`](LINUX_DOCKER_DEPLOYMENT.md) — staging and TLS boundary;
+- [`WINDOWS11_WSL2_DOCKER.md`](WINDOWS11_WSL2_DOCKER.md) — WSL2 development option;
+- [`DOCKER_BACKUP_RESTORE.md`](DOCKER_BACKUP_RESTORE.md) — guarded backup and restore;
+- [`DOCKER_TROUBLESHOOTING.md`](DOCKER_TROUBLESHOOTING.md) — diagnostics and safe cleanup.
+
+Historical infrastructure task state remains in the delivery/governance
+documents. Deployment instructions always target the current `main` branch.

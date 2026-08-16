@@ -1,7 +1,8 @@
 # Windows 11, WSL2 and Docker Desktop
 
-This is the supported local-development path for `TASK-DOCKER-LINUX-001`. All
-containers are Linux containers. Keep the repository in the WSL filesystem,
+All containers are Linux containers. The shortest Windows path runs directly
+from PowerShell and is documented in [`QUICK_START.md`](QUICK_START.md). For
+frequent development inside Ubuntu, keep the repository in the WSL filesystem,
 for example `/home/<user>/work/asa-lab`; do not use `/mnt/c`, OneDrive or
 another synchronized Windows directory.
 
@@ -11,7 +12,8 @@ another synchronized Windows directory.
 - Ubuntu 24.04 installed in WSL.
 - Docker Desktop using the Linux container engine, with WSL integration enabled
   for the Ubuntu distribution.
-- Git, Node.js 22 and Corepack available inside Ubuntu.
+- Git available inside Ubuntu. Node.js 22 and Corepack are needed only for
+  development and tests outside Docker.
 
 From PowerShell, confirm the distribution and Docker engine:
 
@@ -29,15 +31,14 @@ mkdir -p ~/work
 cd ~/work
 git clone https://github.com/spikeal8-maker/asa-lab.git
 cd asa-lab
-git checkout assistant/docker-linux-bootstrap
-corepack enable
-corepack prepare pnpm@9.15.9 --activate
-pnpm install --frozen-lockfile
+./tools/asa-lab.sh doctor
 ```
 
 ## Private local configuration
 
-Create the ignored local environment file and replace every placeholder secret:
+The `doctor` command above creates an ignored `.env` with consistent generated
+credentials. To manage credentials manually instead, remove the generated file,
+copy the template and replace every placeholder secret:
 
 ```bash
 cp .env.docker.example .env
@@ -55,11 +56,8 @@ Never commit `.env`.
 ## Start the development profile
 
 ```bash
-pnpm compose:check
-docker compose config --quiet
-bash tools/docker-up.sh dev
-docker compose -f compose.yaml -f compose.dev.yaml ps
-bash tools/docker-healthcheck.sh
+./tools/asa-lab.sh up
+./tools/asa-lab.sh status
 ```
 
 Open <http://localhost:4610> in a Windows browser. Web forwards `/api` and

@@ -1,6 +1,8 @@
 # Docker troubleshooting
 
-Use commands from the repository root inside WSL2 or Linux.
+Quick-start installations should begin with `tools/asa-lab.ps1 status` / `logs`
+on Windows or `./tools/asa-lab.sh status` / `logs` on Linux and WSL2. The
+lower-level commands below are for detailed operator diagnostics.
 
 ## Start with current state
 

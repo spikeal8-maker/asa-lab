@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // TST-DEPENDENCY-001: real dependency gate.
 // 1) Writes the full locked inventory (direct + transitive) as an artifact.
-// 2) Runs `pnpm audit --json` and fails on any high/critical advisory;
+// 2) Runs `corepack pnpm audit --json` and fails on any high/critical advisory;
 //    an unreachable registry yields BLOCKED (78), never PASS.
 // 3) Enforces a license allowlist over every installed package (transitive
 //    included); forbidden or unknown licenses fail the gate.
@@ -42,9 +42,13 @@ const ALLOWED_LICENSES = new Set([
 ]);
 
 function run(args) {
-  return spawnSync('pnpm', args, {
+  const isWindows = process.platform === 'win32';
+  const command = isWindows ? (process.env.ComSpec ?? 'cmd.exe') : 'corepack';
+  const commandArgs = isWindows
+    ? ['/d', '/s', '/c', 'corepack', 'pnpm', ...args]
+    : ['pnpm', ...args];
+  return spawnSync(command, commandArgs, {
     encoding: 'utf8',
-    shell: process.platform === 'win32',
     maxBuffer: 64 * 1024 * 1024,
   });
 }

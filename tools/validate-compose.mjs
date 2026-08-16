@@ -21,6 +21,9 @@ const REQUIRED_FILES = [
   'docker/api-entrypoint.sh',
   'docker/migrate-entrypoint.sh',
   'docker/web/Caddyfile',
+  'tools/asa-lab.sh',
+  'tools/asa-lab.ps1',
+  'docs/deployment/QUICK_START.md',
 ];
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
 const EXPECTED_PORTS = {
@@ -33,6 +36,69 @@ const errors = [];
 
 for (const path of REQUIRED_FILES) {
   if (!existsSync(path)) errors.push(`missing required Docker file: ${path}`);
+}
+
+const portableDeploymentFiles = [
+  'README.md',
+  'docs/deployment/README.md',
+  'docs/deployment/QUICK_START.md',
+  'docs/deployment/LINUX_DOCKER_DEPLOYMENT.md',
+  'docs/deployment/WINDOWS11_WSL2_DOCKER.md',
+];
+for (const path of portableDeploymentFiles) {
+  if (!existsSync(path)) continue;
+  const source = readFileSync(path, 'utf8');
+  if (source.includes('git checkout assistant/docker-linux-bootstrap')) {
+    errors.push(
+      `${path}: deployment must target current main, not the historical bootstrap branch`,
+    );
+  }
+}
+
+const quickStart = existsSync('docs/deployment/QUICK_START.md')
+  ? readFileSync('docs/deployment/QUICK_START.md', 'utf8')
+  : '';
+for (const marker of ['tools/asa-lab.sh up', 'tools\\asa-lab.ps1 up', 'Node.js, pnpm']) {
+  if (quickStart && !quickStart.includes(marker)) {
+    errors.push(`docs/deployment/QUICK_START.md: missing portability marker ${marker}`);
+  }
+}
+
+const shellBootstrap = existsSync('tools/asa-lab.sh')
+  ? readFileSync('tools/asa-lab.sh', 'utf8')
+  : '';
+const powershellBootstrap = existsSync('tools/asa-lab.ps1')
+  ? readFileSync('tools/asa-lab.ps1', 'utf8')
+  : '';
+for (const [path, source] of [
+  ['tools/asa-lab.sh', shellBootstrap],
+  ['tools/asa-lab.ps1', powershellBootstrap],
+]) {
+  for (const marker of [
+    'compose.yaml',
+    'compose.dev.yaml',
+    'health/ready',
+    'ASA_SEED_TEACHER_PASSWORD',
+  ]) {
+    if (source && !source.includes(marker)) {
+      errors.push(`${path}: missing bootstrap marker ${marker}`);
+    }
+  }
+}
+
+if (existsSync('package.json')) {
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
+  if (packageJson.packageManager !== 'pnpm@9.15.9') {
+    errors.push('package.json: packageManager must pin pnpm@9.15.9');
+  }
+  if (packageJson.engines?.pnpm !== '9.15.9') {
+    errors.push('package.json: engines.pnpm must match the pinned package manager');
+  }
+  for (const [name, command] of Object.entries(packageJson.scripts ?? {})) {
+    if (name.startsWith('gate:') && /(^|&&\s+)pnpm\b/.test(command)) {
+      errors.push(`${name}: nested pnpm calls must go through Corepack`);
+    }
+  }
 }
 
 if (!existsSync(BASE_PATH)) {
