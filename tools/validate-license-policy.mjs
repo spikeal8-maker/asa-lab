@@ -21,6 +21,13 @@ function requireText(path, source, expected) {
   }
 }
 
+function forbidText(path, source, forbidden) {
+  if (source.includes(forbidden)) {
+    console.error(`FAIL: ${path} must not contain ${JSON.stringify(forbidden)}`);
+    failures += 1;
+  }
+}
+
 const license = read('LICENSE');
 const licensing = read('LICENSING.md');
 const trademarks = read('TRADEMARKS.md');
@@ -112,6 +119,15 @@ requireText(
   'ref: ${{ github.event.repository.default_branch }}',
 );
 requireText('.github/workflows/cla.yml', claWorkflow, 'CLA acceptance');
+requireText('.github/workflows/cla.yml', claWorkflow, 'concurrency:');
+requireText(
+  '.github/workflows/cla.yml',
+  claWorkflow,
+  'group: cla-${{ github.event.pull_request.number }}',
+);
+requireText('.github/workflows/cla.yml', claWorkflow, 'cancel-in-progress: true');
+forbidText('.github/workflows/cla.yml', claWorkflow, 'statuses: write');
+forbidText('.github/workflows/cla.yml', claWorkflow, 'repos/$REPOSITORY/statuses/$HEAD_SHA');
 requireText('tools/validate-pr-cla.mjs', claValidator, 'PR_AUTHOR_ASSOCIATION');
 requireText('tools/validate-pr-cla.mjs', claValidator, '--self-test');
 requireText('apps/web/src/pages/PublicEntryPage.tsx', entryPage, 'Исходный код · AGPL-3.0');
