@@ -7,32 +7,36 @@
  * inside one has nothing to resolve against.
  */
 
+/* The element itself stays transparent: a figure paints its own background
+ * inside its viewBox, and the box is letterboxed to keep the drawing
+ * undistorted, so painting the box would put blank margins around every square
+ * picture instead of letting the tile show through. */
 .project-preview-figure {
   z-index: 1;
   display: block;
   box-sizing: border-box;
   max-width: 100%;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(24, 48, 64, 0.1);
+  background: transparent;
+  filter: drop-shadow(0 3px 8px rgba(24, 48, 64, 0.16));
 }
 
 /* Classroom projects: the whole tile is the picture. */
 .project-preview > .project-preview-figure {
   width: min(100%, 264px);
-  height: 156px;
+  height: 152px;
 }
 
 /* My projects: the picture shares the tile with the module label under it. */
 .project-module-preview > .project-preview-figure {
-  width: min(100%, 232px);
-  height: 112px;
+  width: min(100%, 236px);
+  height: 118px;
 }
 
 /* Creator home: smaller tiles, four to a module row. */
+/* The surface has a heavier shadow tuned for a bare glyph floating on the
+ * gradient; a full picture reads better with the same shadow as everywhere. */
 .creator-dashboard-project-preview > .project-preview-figure {
   width: min(100%, 196px);
-  height: 118px;
-  /* The surface adds a glow to bare glyphs; a full picture does not need it. */
-  filter: none;
+  height: 122px;
+  filter: drop-shadow(0 3px 8px rgba(24, 48, 64, 0.16));
 }

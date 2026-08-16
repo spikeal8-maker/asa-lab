@@ -12,8 +12,14 @@ import {
 } from './domain/document.js';
 import { analyseCircuit, type SimulationResult } from './domain/simulation.js';
 
-const PREVIEW_PART = 16;
-const PREVIEW_PADDING = 12;
+/**
+ * A part's footprint in document units. Positions are stored in world units of
+ * five per millimetre, so this is roughly a 9 mm package — close enough to the
+ * real components that the spacing in a preview matches the spacing a learner
+ * laid out, without the module having to know the parts catalogue.
+ */
+const PREVIEW_PART = 44;
+const PREVIEW_PADDING = 22;
 
 /**
  * The circuit as it is laid out: a block per component where the learner put
@@ -52,7 +58,7 @@ function electronicsPreviewFigure(payload: ElectronicsDocument): ModulePreviewFi
       x2: to.x,
       y2: to.y,
       stroke: connection.color ?? '#c2453f',
-      width: 2,
+      width: 5,
     });
   }
 
@@ -64,7 +70,7 @@ function electronicsPreviewFigure(payload: ElectronicsDocument): ModulePreviewFi
       y: component.position.y - minY,
       width: PREVIEW_PART,
       height: PREVIEW_PART,
-      radius: 3,
+      radius: 6,
       fill: '#3f6f8f',
       stroke: '#22475c',
     });
@@ -72,7 +78,7 @@ function electronicsPreviewFigure(payload: ElectronicsDocument): ModulePreviewFi
 
   return {
     viewBox: { width, height },
-    background: '#f4f6f7',
+    background: '#e8edf1',
     shapes: shapes.slice(0, MODULE_PREVIEW_SHAPE_LIMIT),
   };
 }
