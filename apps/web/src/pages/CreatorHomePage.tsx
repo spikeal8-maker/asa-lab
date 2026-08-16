@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { api, type ModuleSummary, type Project, type SessionPayload } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
-import { PortalLink } from '../components/PortalLink';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { creatorHomeState, creatorViewToHref } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
-import { ProjectPreview } from '../modules/ProjectPreviewFigure';
+import { ProjectCard } from '../modules/ProjectCard';
 
 const PROJECTS_PER_MODULE = 4;
 const HOME_MODULE_ORDER = ['three-d', 'electronics', 'chess'] as const;
@@ -76,6 +75,26 @@ export function CreatorHomePage({
       loadSequence.current += 1;
     };
   }, [load]);
+
+  // The card menu offers the actions that are a single decision. Renaming needs
+  // a field and a confirmation, so it stays where a project is managed rather
+  // than glanced at.
+  const [busyProject, setBusyProject] = useState<string | null>(null);
+
+  async function runProjectAction(
+    project: Project,
+    action: () => Promise<{ readonly ok: boolean; readonly error?: { readonly message: string } }>,
+    failure: string,
+  ): Promise<void> {
+    setBusyProject(project.id);
+    const result = await action();
+    setBusyProject(null);
+    if (!result.ok) {
+      setError(result.error?.message || failure);
+      return;
+    }
+    await load();
+  }
 
   const activeModules = useMemo(
     () =>
@@ -198,42 +217,67 @@ export function CreatorHomePage({
                   )}
                 </div>
 
-                <ul className="creator-module-grid">
+                <ul className="project-card-grid">
                   {visibleProjects.map((project) => (
-                    <li className="creator-dashboard-project" key={project.id}>
-                      <PortalLink
-                        className="creator-dashboard-project-link"
-                        href={creatorViewToHref({
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      module={module}
+                      timeLabel={formatRelativeDate(project.updatedAt)}
+                      footerLabel="Личный проект"
+                      open={{
+                        href: creatorViewToHref({
                           kind: 'editor',
                           projectId: project.id,
                           moduleKey: project.moduleKey,
                           returnTo: { kind: 'home' },
-                        })}
-                        onNavigate={() => onOpenProject(project.id, project.moduleKey)}
-                      >
-                        <span className="creator-dashboard-project-preview">
-                          <span className="creator-preview-orbit" aria-hidden="true" />
-                          <ProjectPreview
-                            project={project}
-                            module={module}
-                            fallback={<ModuleGlyph module={module} size={78} />}
-                          />
-                        </span>
-                        <span className="creator-dashboard-project-meta">
-                          <strong>{project.title}</strong>
-                          <small>{formatRelativeDate(project.updatedAt)}</small>
-                          <span>
-                            <small>Личный проект</small>
-                            <small aria-hidden="true">•••</small>
-                          </span>
-                        </span>
-                      </PortalLink>
-                    </li>
+                        }),
+                        onNavigate: () => onOpenProject(project.id, project.moduleKey),
+                      }}
+                      menuItems={[
+                        {
+                          label: 'Дублировать',
+                          disabled: busyProject === project.id,
+                          onSelect: () =>
+                            void runProjectAction(
+                              project,
+                              () =>
+                                api.duplicateProject(
+                                  project.id,
+                                  `${project.title} — копия`,
+                                  crypto.randomUUID(),
+                                ),
+                              'Не удалось дублировать проект.',
+                            ),
+                        },
+                        {
+                          label: 'Архивировать',
+                          disabled: busyProject === project.id,
+                          onSelect: () =>
+                            void runProjectAction(
+                              project,
+                              () => api.changeProjectStatus(project.id, 'archived'),
+                              'Не удалось архивировать проект.',
+                            ),
+                        },
+                        {
+                          label: 'В корзину',
+                          danger: true,
+                          disabled: busyProject === project.id,
+                          onSelect: () =>
+                            void runProjectAction(
+                              project,
+                              () => api.changeProjectStatus(project.id, 'trashed'),
+                              'Не удалось переместить проект в корзину.',
+                            ),
+                        },
+                      ]}
+                    />
                   ))}
                   {visibleProjects.length < PROJECTS_PER_MODULE ? (
-                    <li className="creator-dashboard-project create-project">
+                    <li className="project-card is-new">
                       <button type="button" onClick={() => openCreate(module.moduleKey)}>
-                        <span className="creator-dashboard-create-icon" aria-hidden="true">
+                        <span className="project-card-new-icon" aria-hidden="true">
                           <PlusIcon />
                         </span>
                         <strong>Новый проект</strong>

@@ -1,0 +1,404 @@
+/* Project cards.
+ *
+ * Proportions follow one rule: the picture is the card. Roughly seven tenths of
+ * the height is the work itself and the rest is the few facts a learner needs
+ * to tell two projects apart — title, when it changed, whose it is. Everything
+ * that acts on the project lives over the picture and appears on hover or
+ * keyboard focus, so a resting page of cards reads as a page of work.
+ */
+
+.project-card-grid {
+  display: grid;
+  /* Cards keep a readable size and the row count follows the window, so the
+   * same markup works from a phone to a classroom projector. */
+  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe5ea;
+  border-radius: 8px;
+  background: #fff;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.project-card:hover,
+.project-card:focus-within {
+  border-color: #c3ced6;
+  box-shadow: 0 6px 18px rgba(26, 48, 62, 0.1);
+}
+
+/* ── The picture ─────────────────────────────────────────────────────────── */
+
+.project-card-frame {
+  position: relative;
+  /* A fixed shape means a row of cards lines up whatever each project looks
+   * like, and the grid does not reflow as pictures load. */
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-bottom: 1px solid #e8edf1;
+  background: #fff;
+}
+
+/* The picture goes edge to edge. A photograph carries its own ground and a
+ * figure paints one, so any inset here would read as a frame around the work
+ * rather than as breathing room. */
+.project-card-surface {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--module-accent, #0877b3);
+  text-decoration: none;
+}
+
+.project-card-surface > .project-preview-snapshot,
+.project-card-surface > .project-preview-figure {
+  width: 100%;
+  height: 100%;
+  filter: none;
+}
+
+/* The module glyph is not a picture of the work — it is what a card shows
+ * before there is one — so it keeps the margins a symbol needs. */
+.project-card-glyph {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.project-card-unknown {
+  color: #98a6ae;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+/* ── Actions over the picture ────────────────────────────────────────────── */
+
+.project-card-hover {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  background: linear-gradient(to top, rgba(19, 38, 50, 0.5), rgba(19, 38, 50, 0));
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.14s ease,
+    visibility 0.14s ease;
+}
+
+.project-card:hover .project-card-hover,
+.project-card:focus-within .project-card-hover {
+  opacity: 1;
+  visibility: visible;
+}
+
+.project-card-primary {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #0e7bb8;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.project-card-primary:hover:not(:disabled) {
+  background: #0b6699;
+}
+
+.project-card-primary:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.project-card-tools {
+  position: relative;
+}
+
+.project-card-tools > summary {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #2b3e49;
+  cursor: pointer;
+  list-style: none;
+}
+
+.project-card-tools > summary::-webkit-details-marker {
+  display: none;
+}
+
+.project-card-tools > summary:hover {
+  background: #fff;
+}
+
+.project-card-tools > summary svg {
+  width: 17px;
+  height: 17px;
+}
+
+.project-card-tools > div {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 3;
+  display: grid;
+  min-width: 176px;
+  padding: 5px;
+  border: 1px solid #dfe5ea;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(23, 45, 59, 0.18);
+}
+
+.project-card-tools > div button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #23343d;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-card-tools > div button:hover:not(:disabled) {
+  background: #eef4f8;
+}
+
+.project-card-tools > div button.danger {
+  color: #b0322c;
+}
+
+.project-card-tools > div button.danger:hover:not(:disabled) {
+  background: #fcecea;
+}
+
+.project-card-tools > div button:disabled {
+  color: #9aa7ae;
+  cursor: default;
+}
+
+/* ── The few facts under the picture ─────────────────────────────────────── */
+
+.project-card-body {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px 11px;
+}
+
+.project-card-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: #1c2b33;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.project-card-title a:hover {
+  text-decoration: underline;
+}
+
+.project-card-time,
+.project-card-footer {
+  margin: 0;
+  color: #6d7d86;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.project-card-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.project-card-footer > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card-subject {
+  flex: none;
+  max-width: 52%;
+  color: var(--module-accent, #0877b3);
+  font-weight: 600;
+}
+
+/* ── Renaming in place ───────────────────────────────────────────────────── */
+
+.project-card-rename {
+  display: grid;
+  gap: 7px;
+}
+
+.project-card-rename input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #c3ced6;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.project-card-rename-actions {
+  display: flex;
+  gap: 7px;
+}
+
+/* ── One project per row ─────────────────────────────────────────────────── */
+
+/* The list view trades the gallery for density: the same card turned on its
+ * side, so a teacher scanning thirty projects reads titles down one column
+ * while still seeing what each one is. */
+.project-card-grid.list {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.project-card-grid.list .project-card {
+  flex-direction: row;
+}
+
+.project-card-grid.list .project-card-frame {
+  flex: none;
+  width: 168px;
+  border-right: 1px solid #e8edf1;
+  border-bottom: 0;
+}
+
+.project-card-grid.list .project-card-body {
+  flex: 1;
+  align-content: center;
+  min-width: 0;
+}
+
+/* ── Adding a project ────────────────────────────────────────────────────── */
+
+.project-card.is-new {
+  border-style: dashed;
+  border-color: #cfd9e0;
+  background: #fbfcfd;
+}
+
+.project-card.is-new > button {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 100%;
+  min-height: 210px;
+  padding: 16px;
+  border: 0;
+  background: none;
+  color: #53686f;
+  font: inherit;
+  cursor: pointer;
+}
+
+.project-card.is-new > button:hover {
+  color: var(--module-accent, #0877b3);
+  background: color-mix(in srgb, var(--module-accent, #0877b3) 5%, white);
+}
+
+.project-card-new-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #cfd9e0;
+  border-radius: 999px;
+}
+
+.project-card.is-new strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.project-card.is-new small {
+  color: #75858d;
+  font-size: 12px;
+}
+
+/* On a touch screen there is no hover, so the actions are always visible. */
+@media (hover: none) {
+  .project-card-hover {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-card,
+  .project-card-hover {
+    transition: none;
+  }
+}
+
+/* A row layout needs a row to live in. Below this the list view falls back to a
+ * single column of ordinary cards rather than a picture squeezed to a stripe. */
+@media (max-width: 640px) {
+  .project-card-grid.list .project-card {
+    flex-direction: column;
+  }
+
+  .project-card-grid.list .project-card-frame {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid #e8edf1;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .project-card-body {
+    padding: 8px 10px 10px;
+  }
+
+  .project-card-title {
+    font-size: 13px;
+  }
+}

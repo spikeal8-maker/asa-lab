@@ -1,18 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type FormEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { api, type ModuleSummary, type Project, type ProjectStatus } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
-import { PortalLink } from '../components/PortalLink';
 import { creatorViewToHref } from '../creator-portal/navigation';
 import { PlusIcon } from '../electronics/workbench-icons';
-import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
-import { ProjectPreview } from '../modules/ProjectPreviewFigure';
+import { ProjectCard } from '../modules/ProjectCard';
 
 type SortMode = 'recent' | 'oldest' | 'title';
 type LayoutMode = 'grid' | 'list';
@@ -280,161 +271,104 @@ export function MyProjectsPage({
       ) : null}
 
       {visibleItems.length > 0 ? (
-        <ul
-          className={`project-gallery project-hub-grid ${layout}`}
-          data-testid="personal-project-grid"
-        >
+        <ul className={`project-card-grid ${layout}`} data-testid="personal-project-grid">
           {visibleItems.map((project) => {
             const module = modulesByKey.get(project.moduleKey);
-            const style = { '--module-accent': moduleAccent(project.moduleKey) } as CSSProperties;
             const editorHref = creatorViewToHref({
               kind: 'editor',
               projectId: project.id,
               moduleKey: project.moduleKey,
               returnTo: { kind: 'my-projects' },
             });
-            const preview = (
-              <>
-                <ProjectPreview
-                  project={project}
-                  module={module}
-                  fallback={
-                    module ? (
-                      <ModuleGlyph module={module} size={64} />
-                    ) : (
-                      <span aria-hidden="true">?</span>
-                    )
-                  }
-                />
-                <span className="project-preview-label">
-                  {module?.displayName ?? project.moduleKey}
-                </span>
-              </>
-            );
+            const busy = actionBusy === project.id;
+            const active = statusFilter === 'active';
             return (
-              <li key={project.id} className="project-gallery-card project-hub-card" style={style}>
-                {statusFilter === 'active' ? (
-                  <PortalLink
-                    className="project-preview project-module-preview"
-                    href={editorHref}
-                    onNavigate={() => onOpenProject(project.id, project.moduleKey)}
-                  >
-                    {preview}
-                  </PortalLink>
-                ) : (
-                  <button type="button" className="project-preview project-module-preview" disabled>
-                    {preview}
-                  </button>
-                )}
-                <div className="project-card-meta project-card-details">
-                  {renamingId === project.id ? (
-                    <form
-                      className="project-rename-form"
-                      onSubmit={(event) => void rename(event, project.id)}
-                    >
-                      <label className="sr-only" htmlFor={`rename-${project.id}`}>
-                        Новое название проекта
-                      </label>
-                      <input
-                        id={`rename-${project.id}`}
-                        value={renameValue}
-                        maxLength={255}
-                        autoFocus
-                        onChange={(event) => setRenameValue(event.target.value)}
-                      />
-                      <div className="project-card-actions">
-                        <button type="submit" className="btn-secondary" disabled={renameBusy}>
-                          Сохранить
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => setRenamingId(null)}
+              <ProjectCard
+                key={project.id}
+                project={project}
+                module={module}
+                timeLabel={`Изменён ${formatDate(project.updatedAt)}`}
+                footerLabel="Приватный"
+                {...(active
+                  ? {
+                      open: {
+                        href: editorHref,
+                        onNavigate: () => onOpenProject(project.id, project.moduleKey),
+                      },
+                    }
+                  : {
+                      primaryAction: {
+                        label: 'Восстановить',
+                        disabled: busy,
+                        onSelect: () => void changeStatus(project, 'active'),
+                      },
+                    })}
+                menuItems={
+                  active
+                    ? [
+                        { label: 'Переименовать', onSelect: () => beginRename(project) },
+                        {
+                          label: 'Дублировать',
+                          disabled: busy,
+                          onSelect: () => void duplicate(project),
+                        },
+                        {
+                          label: 'Архивировать',
+                          disabled: busy,
+                          onSelect: () => void changeStatus(project, 'archived'),
+                        },
+                        {
+                          label: 'В корзину',
+                          danger: true,
+                          disabled: busy,
+                          onSelect: () => void changeStatus(project, 'trashed'),
+                        },
+                      ]
+                    : statusFilter === 'archived'
+                      ? [
+                          {
+                            label: 'В корзину',
+                            danger: true,
+                            disabled: busy,
+                            onSelect: () => void changeStatus(project, 'trashed'),
+                          },
+                        ]
+                      : []
+                }
+                {...(renamingId === project.id
+                  ? {
+                      editing: (
+                        <form
+                          className="project-card-rename"
+                          onSubmit={(event) => void rename(event, project.id)}
                         >
-                          Отмена
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <div>
-                        <div className="project-card-badges">
-                          <span className="project-visibility-badge">Приватный</span>
-                          <span>{module?.displayName ?? project.moduleKey}</span>
-                        </div>
-                        <h2>{project.title}</h2>
-                        <p>Изменён {formatDate(project.updatedAt)}</p>
-                      </div>
-                      <div className="project-card-actions">
-                        {statusFilter === 'active' ? (
-                          <>
-                            <PortalLink
-                              className="btn-secondary"
-                              href={editorHref}
-                              onNavigate={() => onOpenProject(project.id, project.moduleKey)}
-                            >
-                              Открыть
-                            </PortalLink>
-                            <details className="project-card-menu">
-                              <summary aria-label={`Действия с проектом ${project.title}`}>
-                                •••
-                              </summary>
-                              <div>
-                                <button type="button" onClick={() => beginRename(project)}>
-                                  Переименовать
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={actionBusy === project.id}
-                                  onClick={() => void duplicate(project)}
-                                >
-                                  Дублировать
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={actionBusy === project.id}
-                                  onClick={() => void changeStatus(project, 'archived')}
-                                >
-                                  Архивировать
-                                </button>
-                                <button
-                                  type="button"
-                                  className="danger"
-                                  disabled={actionBusy === project.id}
-                                  onClick={() => void changeStatus(project, 'trashed')}
-                                >
-                                  В корзину
-                                </button>
-                              </div>
-                            </details>
-                          </>
-                        ) : (
-                          <>
+                          <label className="sr-only" htmlFor={`rename-${project.id}`}>
+                            Новое название проекта
+                          </label>
+                          <input
+                            id={`rename-${project.id}`}
+                            value={renameValue}
+                            maxLength={255}
+                            autoFocus
+                            onChange={(event) => setRenameValue(event.target.value)}
+                          />
+                          <div className="project-card-rename-actions">
+                            <button type="submit" className="btn-secondary" disabled={renameBusy}>
+                              Сохранить
+                            </button>
                             <button
                               type="button"
-                              className="btn-secondary"
-                              disabled={actionBusy === project.id}
-                              onClick={() => void changeStatus(project, 'active')}
+                              className="btn-ghost"
+                              onClick={() => setRenamingId(null)}
                             >
-                              Восстановить
+                              Отмена
                             </button>
-                            {statusFilter === 'archived' ? (
-                              <button
-                                type="button"
-                                className="btn-ghost"
-                                disabled={actionBusy === project.id}
-                                onClick={() => void changeStatus(project, 'trashed')}
-                              >
-                                В корзину
-                              </button>
-                            ) : null}
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </li>
+                          </div>
+                        </form>
+                      ),
+                    }
+                  : {})}
+              />
             );
           })}
         </ul>

@@ -56,7 +56,7 @@ async function editDraft(
 }
 
 function cardFor(page: Page, title: string) {
-  return page.locator('.project-hub-card').filter({
+  return page.getByTestId('project-card').filter({
     has: page.getByRole('heading', { name: title, exact: true }),
   });
 }
@@ -199,6 +199,32 @@ test('project cards show a picture of the work for every module', async ({ page 
   }
 
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-project-cards.png`, fullPage: true });
+
+  /**
+   * The actions belong to the picture, not to a permanent strip under it. They
+   * have to be reachable by pointer and by keyboard, and invisible otherwise —
+   * a page of cards should read as a page of work.
+   */
+  const chessCard = cardFor(page, chess.title);
+  const edit = chessCard.getByRole('link', { name: 'Изменить' });
+  await expect(edit).toBeHidden();
+  await chessCard.hover();
+  await expect(edit).toBeVisible();
+  await page.screenshot({ path: `${EVIDENCE_DIR}/04-card-hover.png`, fullPage: true });
+
+  await chessCard.locator('summary').focus();
+  await expect(edit, 'keyboard focus must reveal the same actions').toBeVisible();
+
+  /** Cards reflow rather than overflow: a phone is a real classroom device. */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(cardFor(page, chess.title)).toBeVisible();
+  const overflow = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+  }));
+  expect(overflow.document).toBeLessThanOrEqual(overflow.viewport);
+  await page.screenshot({ path: `${EVIDENCE_DIR}/05-project-cards-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
   await openPortalSection(page, 'Главная');
   await page.screenshot({ path: `${EVIDENCE_DIR}/02-creator-home.png`, fullPage: true });
   await openPortalSection(page, 'Проекты');

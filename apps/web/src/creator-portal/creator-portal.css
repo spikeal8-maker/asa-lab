@@ -901,6 +901,13 @@
     display: none;
   }
 
+  /* The sidebar becomes a single row of tabs. Everything that belongs to a
+   * column — the profile block, the help link pinned to the bottom — has no
+   * bottom to sit at here, and was landing on top of the navigation. */
+  .portal-sidebar-footer {
+    display: none;
+  }
+
   .portal-sidebar .portal-nav {
     flex: none;
     flex-direction: row;

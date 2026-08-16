@@ -1,10 +1,23 @@
 import { mkdirSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { collectBrowserFailures } from './browser-failures';
 import { openPortalSection } from './portal-navigation';
 
 const EVIDENCE_DIR =
   process.env['ASA_OWNER_EVIDENCE_DIR'] ?? 'e2e/artifacts/project-hub/r3b-project-lifecycle';
+
+/**
+ * Reveals a card's actions and opens its menu. The menu is a <details>, and
+ * clicking the summary of an open one closes it, so opening is conditional.
+ */
+async function openCardMenu(card: Locator): Promise<void> {
+  await card.hover();
+  const menu = card.locator('details');
+  if (!(await menu.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await menu.locator('> summary').click();
+  }
+  await expect(menu).toHaveAttribute('open', '');
+}
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const dimensions = await page.evaluate(() => ({
@@ -44,29 +57,33 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
 
   await openPortalSection(page, 'Проекты');
   await expect(page).toHaveURL(/#\/projects$/);
-  const original = page.locator('.project-hub-card').filter({
+  const original = page.getByTestId('project-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник', exact: true }),
   });
   await expect(original).toBeVisible();
-  await original.locator('summary').click();
+  // The card actions live over the picture and appear on hover, as they do for a learner.
+  await openCardMenu(original);
   await original.getByRole('button', { name: 'Дублировать' }).click();
   await expect(page.getByText('Умный светильник — копия', { exact: true })).toBeVisible();
 
+  // The list re-rendered around the new copy, so the menu has to be reopened.
+  await openCardMenu(original);
   await original.getByRole('button', { name: 'Архивировать' }).click();
   await expect(original).toHaveCount(0);
   await page.getByRole('tab', { name: 'Архив' }).click();
-  const archived = page.locator('.project-hub-card').filter({
+  const archived = page.getByTestId('project-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник', exact: true }),
   });
   await expect(archived).toBeVisible();
+  await archived.hover();
   await archived.getByRole('button', { name: 'Восстановить' }).click();
   await expect(archived).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Проекты' }).click();
-  const copy = page.locator('.project-hub-card').filter({
+  const copy = page.getByTestId('project-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник — копия', exact: true }),
   });
-  await copy.locator('summary').click();
+  await openCardMenu(copy);
   await copy.getByRole('button', { name: 'В корзину' }).click();
   await expect(copy).toHaveCount(0);
   await page.getByRole('tab', { name: 'Корзина' }).click();

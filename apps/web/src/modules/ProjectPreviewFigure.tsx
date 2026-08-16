@@ -111,6 +111,10 @@ export function ProjectPreviewFigure({
     <svg
       className="project-preview-figure"
       viewBox={`0 0 ${figure.viewBox.width} ${figure.viewBox.height}`}
+      // The drawing is letterboxed inside its box, so the ground is painted on
+      // the element as well as inside the viewBox. Without it the figure sits
+      // in a visible rectangle of its own instead of filling the preview.
+      {...(background === undefined ? {} : { style: { background } })}
       // The card is a fixed rectangle and a figure is whatever shape the work
       // happens to be, so the drawing is centred and never distorted to fit.
       preserveAspectRatio="xMidYMid meet"
