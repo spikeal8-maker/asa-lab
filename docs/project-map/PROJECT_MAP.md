@@ -74,9 +74,29 @@ TASK-SCALE-PREP-001       pool guards, covering indexes, chunk split, multi-inst
 ```
 
 The budget lives in [`../testing/performance-budget.json`](../testing/performance-budget.json)
-and is enforced by `pnpm perf:runtime:check`. Its thresholds come from the school
-scenario — 300 learners signing in over 30 seconds is 10 sign-ins per second —
-rather than from whatever the current build happens to score.
+and is enforced by `pnpm perf:runtime:check` and `pnpm perf:web:check`. Its
+thresholds come from the school scenario — 300 learners signing in over 30
+seconds is 10 sign-ins per second — rather than from whatever the current build
+happens to score.
+
+### Covering indexes: examined, nothing to add
+
+Thirty-eight foreign keys have no index whose leading columns match them, which
+reads like an obvious gap. It is not one here, and the check is recorded so the
+question does not get reopened from the same list:
+
+- every hot read is already served. Classroom access goes through
+  `(tenant_id, classroom_id, user_id)`, which is a unique index; the live chess
+  poll goes through `(tenant_id, game_id, sequence)`; checkers reads go through
+  the primary key. The uncovered keys are for lookups the product never makes;
+- `audit_events` is written and never read by the application, so an index on it
+  would cost writes and return nothing;
+- the usual second argument — cascading deletes scanning children — does not
+  apply either: there is no `DELETE` anywhere in the application and no
+  `ON DELETE CASCADE` in any migration.
+
+Indexes slow writes and take space. They are added when a query needs one, with
+the query named.
 
 ## Quality gate
 

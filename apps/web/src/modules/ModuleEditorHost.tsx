@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { api, type PublicUser } from '../api';
-import { ChessModuleExperience } from '../chess/ChessModuleExperience';
+import { loadChessEditor } from '../chess/load-chess-editor';
 import { chessRouteFromHash, chessRouteToHash } from '../chess/chess-navigation';
 import { loadCheckersEditor } from '../checkers/load-checkers-editor';
 import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-portal/navigation';
@@ -20,7 +20,7 @@ interface ModuleEditorHostProps extends ModuleEditorProps {
 
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
   electronics: lazy(loadSchematicEditor),
-  chess: ChessModuleExperience,
+  chess: lazy(loadChessEditor),
   checkers: lazy(loadCheckersEditor),
   'three-d': lazy(() =>
     import('../three-d/ThreeDEditor').then((module) => ({ default: module.ThreeDEditor })),

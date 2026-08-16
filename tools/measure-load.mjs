@@ -9,7 +9,7 @@
 // Needs a running instance serving the built SPA and Playwright's chromium.
 // Absolute timings depend on the machine, so thresholds keep margin; the point
 // is to catch a regression, not to certify a number.
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
@@ -88,7 +88,25 @@ async function measureTimeToInterface(profile) {
   return elapsed;
 }
 
+/**
+ * The entry chunk, measured uncompressed from the build. Transferred size is
+ * what a visitor pays for on the wire, but the entry chunk is also what the
+ * browser must parse and execute before anything is interactive, and that cost
+ * does not compress.
+ */
+async function mainChunkKb() {
+  const assets = resolve(root, 'apps/web/dist/assets');
+  const entries = await readdir(assets);
+  const main = entries.filter((name) => /^index-[^/]+\.js$/.test(name));
+  if (main.length === 0) return null;
+  const sizes = await Promise.all(
+    main.map(async (name) => (await stat(resolve(assets, name))).size),
+  );
+  return Math.round(Math.max(...sizes) / 1024);
+}
+
 const weight = await measureWeight();
+const entryChunkKb = await mainChunkKb();
 const timings = {};
 for (const profile of PROFILES) {
   timings[profile.key] = await measureTimeToInterface(profile);
@@ -103,6 +121,9 @@ for (const entry of weight.heaviest) {
 for (const profile of PROFILES) {
   console.log(`  до интерфейса, ${profile.label}: ${timings[profile.key]} мс`);
 }
+if (entryChunkKb !== null) {
+  console.log(`  главный чанк (без сжатия): ${entryChunkKb} КБ`);
+}
 
 if (!check) process.exit(0);
 
@@ -115,6 +136,9 @@ const rules = [
     limit: budget.timeToInterfaceMsMax[profile.key],
     unit: ' мс',
   })),
+  ...(entryChunkKb === null
+    ? []
+    : [{ label: 'главный чанк', value: entryChunkKb, limit: budget.mainChunkKbMax, unit: ' КБ' }]),
 ];
 
 let failed = false;

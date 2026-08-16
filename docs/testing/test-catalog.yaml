@@ -754,3 +754,14 @@ tests:
     timeout_seconds: 600
     owner: platform-architecture
     artifacts: [console-report]
+
+  - id: TST-SCALE-001
+    title: Pool bounds every wait and the entry chunk stays within budget
+    suite: load
+    level: repository
+    phase_available: PHASE-1
+    required_for: [TASK-SCALE-PREP-001]
+    command: pnpm vitest run apps/api/src/pool-settings.spec.ts
+    timeout_seconds: 120
+    owner: platform-architecture
+    artifacts: [console-report]

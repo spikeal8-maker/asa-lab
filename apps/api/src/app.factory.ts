@@ -61,9 +61,39 @@ export interface ApiFactoryOptions {
   readonly logRequests?: boolean;
 }
 
+function positiveInteger(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer, got: ${raw}`);
+  }
+  return value;
+}
+
+/**
+ * Ten connections is measured, not guessed: at fifty the same tenant workload
+ * ran slower and with a far worse tail, because the contention moves into
+ * PostgreSQL. It is configurable so a different deployment can be measured
+ * rather than argued about, and the default stays where the evidence is.
+ *
+ * The timeouts matter more than the size. Without them a single slow statement
+ * holds its connection indefinitely and every caller behind it waits with no
+ * upper bound, so a slow query becomes an outage instead of a slow response.
+ */
+export function poolSettings(): pg.PoolConfig {
+  return {
+    max: positiveInteger('ASA_DB_POOL_MAX', 10),
+    connectionTimeoutMillis: positiveInteger('ASA_DB_CONNECTION_TIMEOUT_MS', 5_000),
+    idleTimeoutMillis: positiveInteger('ASA_DB_IDLE_TIMEOUT_MS', 30_000),
+    statement_timeout: positiveInteger('ASA_DB_STATEMENT_TIMEOUT_MS', 15_000),
+    query_timeout: positiveInteger('ASA_DB_QUERY_TIMEOUT_MS', 15_000),
+  };
+}
+
 function defaultPool(): pg.Pool | null {
   const url = process.env['APP_DATABASE_URL'];
-  return url ? new pg.Pool({ connectionString: url, max: 10 }) : null;
+  return url ? new pg.Pool({ connectionString: url, ...poolSettings() }) : null;
 }
 
 function defaultWebOrigin(): string {
