@@ -50,12 +50,147 @@ export type ModuleValidationResult<TPayload> =
     }
   | { readonly ok: false; readonly diagnostics: readonly ModuleDiagnostic[] };
 
+/**
+ * A preview drawn by Project Core without knowing the subject.
+ *
+ * The obvious implementation — let each module render its own thumbnail — puts
+ * subject code back into the project list, and the list is the one screen every
+ * visitor loads. So a module describes its preview in primitives instead, and
+ * Core draws them. Electronics says "these rectangles and these lines"; chess
+ * says "this grid and these discs"; Core does not know which is which.
+ *
+ * Coordinates are in the descriptor's own viewBox space, so a module picks
+ * whatever units suit it and Core scales the result to the card.
+ */
+export type ModulePreviewShape =
+  | {
+      readonly shape: 'rect';
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+      readonly fill?: string;
+      readonly stroke?: string;
+      readonly radius?: number;
+    }
+  | {
+      readonly shape: 'circle';
+      readonly cx: number;
+      readonly cy: number;
+      readonly r: number;
+      readonly fill?: string;
+      readonly stroke?: string;
+    }
+  | {
+      readonly shape: 'line';
+      readonly x1: number;
+      readonly y1: number;
+      readonly x2: number;
+      readonly y2: number;
+      readonly stroke: string;
+      readonly width?: number;
+    };
+
+export interface ModulePreviewFigure {
+  readonly viewBox: { readonly width: number; readonly height: number };
+  readonly background?: string;
+  readonly shapes: readonly ModulePreviewShape[];
+}
+
 export interface ModulePreviewDescriptor {
   readonly kind: ModulePreviewKind;
   readonly digest?: string;
   readonly inlineData?: string;
   readonly artifactRef?: string;
   readonly summary?: string;
+  /** Neutral drawing for the project card. Absent means "nothing to draw yet". */
+  readonly figure?: ModulePreviewFigure;
+}
+
+/** How many shapes Core will draw. A preview is a thumbnail, not a document. */
+export const MODULE_PREVIEW_SHAPE_LIMIT = 240;
+
+export interface BoardPreviewPiece {
+  /** Zero-based column from the left. */
+  readonly file: number;
+  /** Zero-based row from the top. */
+  readonly rank: number;
+  readonly fill: string;
+  readonly stroke?: string;
+  /** Drawn as a smaller inner disc: a crowned piece, a marker, a highlight. */
+  readonly crowned?: boolean;
+}
+
+export interface BoardPreviewOptions {
+  readonly size: number;
+  readonly light: string;
+  readonly dark: string;
+  readonly pieces: readonly BoardPreviewPiece[];
+}
+
+/**
+ * A square board with discs on it. Chess and checkers both need exactly this
+ * and cannot import each other, so it lives here rather than being written
+ * twice with two sets of rounding bugs.
+ */
+export function boardPreviewFigure(options: BoardPreviewOptions): ModulePreviewFigure {
+  const cell = 12;
+  const extent = options.size * cell;
+  const shapes: ModulePreviewShape[] = [];
+
+  for (let rank = 0; rank < options.size; rank += 1) {
+    for (let file = 0; file < options.size; file += 1) {
+      shapes.push({
+        shape: 'rect',
+        x: file * cell,
+        y: rank * cell,
+        width: cell,
+        height: cell,
+        fill: (file + rank) % 2 === 0 ? options.light : options.dark,
+      });
+    }
+  }
+
+  for (const piece of options.pieces) {
+    if (piece.file < 0 || piece.file >= options.size) continue;
+    if (piece.rank < 0 || piece.rank >= options.size) continue;
+    const cx = piece.file * cell + cell / 2;
+    const cy = piece.rank * cell + cell / 2;
+    shapes.push({
+      shape: 'circle',
+      cx,
+      cy,
+      r: cell * 0.36,
+      fill: piece.fill,
+      ...(piece.stroke ? { stroke: piece.stroke } : {}),
+    });
+    if (piece.crowned === true) {
+      shapes.push({ shape: 'circle', cx, cy, r: cell * 0.16, fill: piece.stroke ?? options.dark });
+    }
+  }
+
+  return { viewBox: { width: extent, height: extent }, background: options.light, shapes };
+}
+
+/**
+ * A stable fingerprint of a preview. The parity gate asks that the same version
+ * always produces the same preview; comparing digests is how that is checked
+ * without comparing pictures.
+ */
+export function previewDigest(descriptor: ModulePreviewDescriptor): string {
+  const canonical = JSON.stringify([
+    descriptor.kind,
+    descriptor.summary ?? null,
+    descriptor.figure
+      ? [descriptor.figure.viewBox, descriptor.figure.background ?? null, descriptor.figure.shapes]
+      : null,
+  ]);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < canonical.length; index += 1) {
+    hash ^= canonical.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
 }
 
 export interface ModuleProviderV1<TPayload = unknown, TAnalysis = unknown> {
