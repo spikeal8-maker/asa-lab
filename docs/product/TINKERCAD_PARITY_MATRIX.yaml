@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-matrix_version: 2026.08.16-1
+matrix_version: 2026.08.16-2
 product:
   id: asa-lab
   reference: tinkercad
@@ -77,17 +77,17 @@ capabilities:
     target_release: P1
     status: partial
     depends_on: [PARITY-PROJECT-HUB, PARITY-PREVIEW]
-    current_evidence: [e2e-project-hub, api-projects-status]
-    gap: Duplicate, archive, trash and restore work. Visibility and publish actions are missing because the whole visibility model is a P2 capability that does not exist yet.
+    current_evidence: [e2e-project-hub, e2e-project-preview, api-projects-status]
+    gap: Duplicate, archive, trash and restore work, and a card now shows the project rather than its module icon. Visibility and publish actions are missing because the whole visibility model is a P2 capability that does not exist yet.
     gate: Card supports open, rename, duplicate, share, publish/unpublish and archive according to grants.
 
   - id: PARITY-PREVIEW
     name: Deterministic project previews
     target_release: P1
-    status: absent
+    status: partial
     depends_on: [PARITY-MODULE-CONTRACT, PARITY-SAVE-VERSIONS]
-    current_evidence: []
-    gap: No project preview at all. previewKind in the module registry describes a chooser tile, not a rendered project preview, and there is no provider contract or digest linkage.
+    current_evidence: [e2e-project-preview, unit-module-preview, unit-project-preview-component]
+    gap: Cards on every project surface show a stored figure, and all four modules produce one — a schematic for circuits, a board for chess and checkers, a plan view for 3D scenes. Each is drawn by Project Core from neutral primitives, is byte-identical for the same document, and carries a digest. What is missing is the second half of the gate: nothing but a card consumes a preview, because the gallery and publication surfaces a viewer would see are P2 and do not exist yet.
     gate: Same version produces the same safe preview for cards and viewers.
 
   - id: PARITY-EDITOR-SHELL

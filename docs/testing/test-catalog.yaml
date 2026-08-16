@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-catalog_version: 2026.07.30-1
+catalog_version: 2026.08.16-1
 source_of_truth: docs/testing/test-catalog.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 suites:
@@ -765,3 +765,47 @@ tests:
     timeout_seconds: 120
     owner: platform-architecture
     artifacts: [console-report]
+
+  - id: TST-PREVIEW-001
+    title: Every module draws a bounded, deterministic project preview
+    suite: contracts
+    level: product
+    phase_available: PHASE-1
+    required_for: [TASK-PROJECT-PREVIEW-001]
+    command: pnpm vitest run tests/modules packages/module-sdk/src/preview.spec.ts
+    timeout_seconds: 120
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-PREVIEW-002
+    title: Project Core stores a preview on save and never fails a save for one
+    suite: integration
+    level: product
+    phase_available: PHASE-1
+    required_for: [TASK-PROJECT-PREVIEW-001]
+    command: pnpm vitest run contexts/projects/testing
+    timeout_seconds: 120
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-PREVIEW-003
+    title: A card renders only literal colours and finite coordinates
+    suite: security
+    level: product
+    phase_available: PHASE-1
+    required_for: [TASK-PROJECT-PREVIEW-001]
+    command: pnpm vitest run apps/web/src/modules/testing
+    timeout_seconds: 120
+    owner: platform-architecture
+    artifacts: [console-report]
+
+  - id: TST-PREVIEW-004
+    title: Project cards show a different picture per module in a real browser
+    suite: e2e
+    level: product
+    phase_available: PHASE-1
+    required_for: [TASK-PROJECT-PREVIEW-001]
+    command: pnpm playwright test e2e/project-preview.spec.ts
+    timeout_seconds: 300
+    owner: platform-architecture
+    artifacts: [console-report, screenshots]

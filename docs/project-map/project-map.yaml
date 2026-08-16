@@ -122,6 +122,7 @@ nodes:
   - {id: TASK-ASSET-DELIVERY-001, label: Asset Delivery, kind: task, layer: delivery, status: planned, summary: "Compression and immutable caching scoped to hashed filenames.", phase: PHASE-PILOT}
   - {id: TASK-E2E-GATE-001, label: Browser Gate, kind: task, layer: delivery, status: planned, summary: "Repair the drifted specs, smoke set on push, full set on pull request.", phase: PHASE-PILOT}
   - {id: TASK-SCALE-PREP-001, label: Scale Preparation, kind: task, layer: delivery, status: planned, summary: "Pool guards, covering indexes, chunk split and multi-instance readiness.", phase: PHASE-PILOT}
+  - {id: TASK-PROJECT-PREVIEW-001, label: Project Previews, kind: task, layer: delivery, status: done, summary: "Modules describe a neutral figure, Core stores it on save and draws every project card.", phase: PHASE-PILOT}
 
 edges:
   - {from: ASA, to: PLANE-EXPERIENCE, type: contains}
@@ -233,6 +234,7 @@ edges:
   - {from: TASK-ASSET-DELIVERY-001, to: PHASE-PILOT, type: implements}
   - {from: TASK-E2E-GATE-001, to: PHASE-PILOT, type: implements}
   - {from: TASK-SCALE-PREP-001, to: PHASE-PILOT, type: implements}
+  - {from: TASK-PROJECT-PREVIEW-001, to: PHASE-PILOT, type: implements}
   - {from: PHASE-0, to: PHASE-1, type: next}
   - {from: PHASE-1, to: PHASE-R2, type: next}
   - {from: PHASE-R2, to: PHASE-R3, type: next}
