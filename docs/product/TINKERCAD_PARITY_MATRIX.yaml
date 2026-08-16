@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-matrix_version: 2026.07.27-1
+matrix_version: 2026.08.16-1
 product:
   id: asa-lab
   reference: tinkercad
@@ -48,28 +48,28 @@ capabilities:
   - id: PARITY-ADULT-AUTH
     name: Adult account and teacher login
     target_release: P1
-    status: partial
+    status: parity_pass
     depends_on: []
-    current_evidence: [teacher-login]
-    gap: Public creator profile and general creator onboarding are not complete.
+    current_evidence: [e2e-account-c1, api-auth, api-account-sessions]
+    gap: None. Registration with an age gate, sign-in, role choice, school creation and session management are covered by the account journey.
     gate: Adult user signs in and reaches My Projects.
 
   - id: PARITY-PROJECT-HUB
     name: My Projects hub
     target_release: P1
-    status: partial
+    status: parity_pass
     depends_on: [PARITY-ADULT-AUTH]
-    current_evidence: [project-core-foundation, redesign-pr-35]
-    gap: Main branch is still not confirmed as project-first across all modules.
+    current_evidence: [e2e-project-hub, api-projects]
+    gap: None. All four subject modules go through Project Core, and duplicate, archive, trash and restore are covered by a browser journey.
     gate: Personal and classroom projects appear in one module-aware hub with filters and actions.
 
   - id: PARITY-MODULE-CHOOSER
     name: Create project module chooser
     target_release: P1
-    status: partial
+    status: parity_pass
     depends_on: [PARITY-PROJECT-HUB, PARITY-MODULE-CONTRACT]
-    current_evidence: [electronics-choice]
-    gap: Only Electronics is active and no stable registry drives the chooser.
+    current_evidence: [api-modules-registry, web-create-project-modal]
+    gap: None. The registry drives the chooser; Electronics, Chess, Checkers and ASA 3D are selectable.
     gate: Active and future modules are rendered from Module Registry without hard-coded Core switches.
 
   - id: PARITY-PROJECT-CARDS
@@ -77,44 +77,44 @@ capabilities:
     target_release: P1
     status: partial
     depends_on: [PARITY-PROJECT-HUB, PARITY-PREVIEW]
-    current_evidence: [basic-project-card]
-    gap: Visibility, publish, duplicate, archive and module preview actions are incomplete.
+    current_evidence: [e2e-project-hub, api-projects-status]
+    gap: Duplicate, archive, trash and restore work. Visibility and publish actions are missing because the whole visibility model is a P2 capability that does not exist yet.
     gate: Card supports open, rename, duplicate, share, publish/unpublish and archive according to grants.
 
   - id: PARITY-PREVIEW
     name: Deterministic project previews
     target_release: P1
-    status: partial
+    status: absent
     depends_on: [PARITY-MODULE-CONTRACT, PARITY-SAVE-VERSIONS]
-    current_evidence: [electronics-screenshot]
-    gap: Preview provider contract and digest linkage are not implemented generally.
+    current_evidence: []
+    gap: No project preview at all. previewKind in the module registry describes a chooser tile, not a rendered project preview, and there is no provider contract or digest linkage.
     gate: Same version produces the same safe preview for cards and viewers.
 
   - id: PARITY-EDITOR-SHELL
     name: Shared editor shell
     target_release: P1
-    status: in_review
+    status: parity_pass
     depends_on: [PARITY-MODULE-CONTRACT, PARITY-SAVE-VERSIONS]
-    current_evidence: [pr-35-electronics-workbench]
-    gap: Electronics workbench exists, but shell neutrality across modules is unproven.
+    current_evidence: [web-module-editor-host, editor-header-contract, e2e-chess, e2e-checkers, e2e-three-d]
+    gap: None. One host mounts four modules as lazy chunks behind a shared header contract and a common error boundary.
     gate: Shared project name, save state, versions, share/publish affordances and return navigation wrap every active module.
 
   - id: PARITY-SAVE-VERSIONS
     name: Autosave and immutable versions
     target_release: P1
-    status: partial
+    status: parity_pass
     depends_on: [PARITY-ADULT-AUTH]
-    current_evidence: [project-draft, project-version, checkpoint]
-    gap: Optimistic concurrency, digest and generic preview linkage remain incomplete.
+    current_evidence: [api-projects-draft, api-projects-checkpoints, e2e-chess, e2e-three-d]
+    gap: None. Drafts autosave and immutable versions are created and reloaded; the chess and 3D journeys assert a named version after reload.
     gate: Draft survives reload and a version is immutable and addressable.
 
   - id: PARITY-MODULE-CONTRACT
     name: Universal Module Registry and provider contract
     target_release: P1
-    status: partial
+    status: parity_pass
     depends_on: []
-    current_evidence: [module-specification]
-    gap: Runtime implementation is electronics-specific.
+    current_evidence: [packages-module-sdk, boundaries-gate]
+    gap: None. Four isolated contexts implement the SDK contract and the boundary gate proves the core does not import subject code.
     gate: At least three different modules use one Core lifecycle without module-specific Core branches.
 
   - id: PARITY-VISIBILITY
@@ -123,7 +123,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-SAVE-VERSIONS, PARITY-SAFE-MODE]
     current_evidence: []
-    gap: private, class, organization, unlisted and public states do not exist.
+    gap: The projects table has no visibility column and no endpoint sets one.
     gate: Server enforces all visibility levels and assignment publication lock.
 
   - id: PARITY-SHARE-LINK
@@ -132,7 +132,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-VISIBILITY]
     current_evidence: []
-    gap: No tokenized version-safe share link.
+    gap: No share-link storage or endpoint.
     gate: Owner creates and revokes a view/copy link to an exact version.
 
   - id: PARITY-PUBLISH
@@ -141,7 +141,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-VISIBILITY, PARITY-PREVIEW, PARITY-MODERATION]
     current_evidence: []
-    gap: No published revision or moderation state.
+    gap: No publish state or endpoint.
     gate: A validated immutable version becomes public without exposing the draft.
 
   - id: PARITY-PUBLIC-PAGE
@@ -150,7 +150,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLISH, PARITY-MODULE-CONTRACT]
     current_evidence: []
-    gap: No public viewer, metadata, attribution or related projects.
+    gap: No public route; every project route requires a session.
     gate: Anonymous visitor opens a published version and cannot mutate the original.
 
   - id: PARITY-REMIX
@@ -159,7 +159,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLIC-PAGE, PARITY-PROJECT-HUB]
     current_evidence: []
-    gap: No fork lineage.
+    gap: Duplicate exists for one's own project, but there is no lineage record and no copy of somebody else's work.
     gate: Registered user copies a published version into a personal project with attribution.
 
   - id: PARITY-PROFILE
@@ -168,7 +168,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLISH]
     current_evidence: []
-    gap: No public portfolio or privacy-aware profile.
+    gap: An account settings page exists, but there is no public creator profile or portfolio.
     gate: Allowed user profile shows published projects; child profile remains private by default.
 
   - id: PARITY-EXPLORE
@@ -177,7 +177,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLISH, PARITY-MODERATION]
     current_evidence: []
-    gap: No public feed, filters, search or curated collections.
+    gap: No gallery, no search.
     gate: Only eligible published projects appear in recent/popular/featured module feeds.
 
   - id: PARITY-LIKES
@@ -186,7 +186,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLIC-PAGE, PARITY-SAFE-MODE]
     current_evidence: []
-    gap: No reaction model.
+    gap: No likes.
     gate: Eligible user can like/unlike once; Safe Mode policy is enforced.
 
   - id: PARITY-BOOKMARKS
@@ -195,7 +195,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLIC-PAGE]
     current_evidence: []
-    gap: No saved project collections.
+    gap: A Collections destination exists in the portal navigation and reports that there is nothing saved; no storage behind it.
     gate: User saves public projects to private collections without changing originals.
 
   - id: PARITY-PUBLIC-COMMENTS
@@ -204,7 +204,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLIC-PAGE, PARITY-MODERATION, PARITY-SAFE-MODE]
     current_evidence: []
-    gap: No public comment model separated from teacher feedback.
+    gap: No public comments.
     gate: Policy-eligible users comment; StudentSeat cannot; moderation and rate limits work.
 
   - id: PARITY-REPORTS
@@ -213,7 +213,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-PUBLIC-PAGE, PARITY-MODERATION]
     current_evidence: []
-    gap: No report workflow.
+    gap: Checkers has a reaction report path inside a class; there is no platform-wide content report.
     gate: Report creates a moderation case and audit trail.
 
   - id: PARITY-MODERATION
@@ -221,53 +221,53 @@ capabilities:
     target_release: P2
     status: absent
     depends_on: [PARITY-SAFE-MODE]
-    current_evidence: [audit-foundation]
-    gap: No publication decision or report queue.
+    current_evidence: []
+    gap: Nothing is publishable, so there is nothing to moderate.
     gate: Publish, restrict, unpublish and restore decisions are audited.
 
   - id: PARITY-CLASSROOM
     name: Classroom lifecycle
     target_release: P4
-    status: partial
+    status: parity_pass
     depends_on: [PARITY-ADULT-AUTH]
-    current_evidence: [create-classroom, list-classrooms]
-    gap: Roster, class code, co-teachers and class workspace are incomplete.
+    current_evidence: [e2e-classroom-management, api-classrooms, e2e-teacher-portal]
+    gap: None. Create, roster, policies and join-code rotation are covered by a browser journey.
     gate: Teacher creates class, adds students/co-teacher and opens complete class sections.
 
   - id: PARITY-STUDENT-SEAT
     name: Student seat without email
     target_release: P4
-    status: absent
+    status: parity_pass
     depends_on: [PARITY-CLASSROOM, PARITY-SAFE-MODE]
-    current_evidence: []
-    gap: No class-code/nickname/credential flow.
+    current_evidence: [e2e-classroom-management, api-classroom-seats]
+    gap: None. Seats are issued individually and in batches, and learner access is controlled without an email address.
     gate: Student joins without registration and sees only permitted work.
 
   - id: PARITY-JOIN-CLASS
     name: Join class by code or link
     target_release: P4
-    status: absent
+    status: parity_pass
     depends_on: [PARITY-CLASSROOM, PARITY-STUDENT-SEAT]
-    current_evidence: []
-    gap: No join surface.
+    current_evidence: [api-class-join, web-entry-join]
+    gap: None. A learner resolves a class code from the entry screen and receives a seat session.
     gate: Existing account or StudentSeat joins a teacher-moderated class.
 
   - id: PARITY-CO-TEACHER
     name: Co-teacher moderation
     target_release: P4
-    status: absent
+    status: parity_pass
     depends_on: [PARITY-CLASSROOM]
-    current_evidence: []
-    gap: No grant-driven co-teacher access.
+    current_evidence: [api-classroom-teachers, pg-personal-classroom-coteacher]
+    gap: None. Invitations, acceptance and removal are covered, including a personal class shared with an invited educator.
     gate: Owner invites co-teacher with explicit grants and audit.
 
   - id: PARITY-STUDENT-WORK
     name: Teacher visibility of student work
     target_release: P4
-    status: absent
+    status: partial
     depends_on: [PARITY-STUDENT-SEAT, PARITY-PROJECT-HUB]
-    current_evidence: []
-    gap: No student-project gallery or read-only current draft viewer.
+    current_evidence: [e2e-checkers, api-checkers-classroom]
+    gap: A teacher sees learner evidence in Checkers only. There is no module-neutral view of student work.
     gate: Teacher filters students/projects, opens current draft and exact versions without silently editing.
 
   - id: PARITY-CLASS-ACTIVITY
@@ -276,7 +276,7 @@ capabilities:
     status: absent
     depends_on: [PARITY-CLASSROOM, PARITY-STUDENT-WORK]
     current_evidence: []
-    gap: No activity stream.
+    gap: Audit events are written but never read; there is no activity feed surface.
     gate: Teacher sees project opened/saved/submitted/reviewed events without payload leakage.
 
   - id: PARITY-SAFE-MODE
@@ -284,8 +284,8 @@ capabilities:
     target_release: P4
     status: partial
     depends_on: [PARITY-CLASSROOM]
-    current_evidence: [privacy-specification, private-by-default-capability]
-    gap: Runtime policies for public sharing and social actions are missing.
+    current_evidence: [e2e-checkers, api-classroom-policies]
+    gap: Checkers has predefined reactions, mute and teacher signals, and classrooms carry policies. Safe Mode is not enforced as a platform-wide state across modules.
     gate: StudentSeat cannot publish or publicly communicate; teacher policies are enforced and audited.
 
   - id: PARITY-ACTIVITY
@@ -294,43 +294,43 @@ capabilities:
     status: absent
     depends_on: [PARITY-PROJECT-HUB, PARITY-MODULE-CONTRACT]
     current_evidence: []
-    gap: No immutable activity version from a teacher project.
+    gap: No activity or starter-project concept separate from a project.
     gate: Teacher selects a personal project and publishes a reusable starter activity.
 
   - id: PARITY-ASSIGNMENT
     name: Assign to class/group/student
     target_release: P5
-    status: absent
+    status: partial
     depends_on: [PARITY-ACTIVITY, PARITY-CLASSROOM]
-    current_evidence: []
-    gap: No assignment state or audience.
+    current_evidence: [e2e-checkers]
+    gap: Checkers assigns class work and the learner receives it. Assignment is module-specific, with no generic assignment to class, group or student.
     gate: Teacher assigns an exact activity version with dates and attempt policy.
 
   - id: PARITY-PROGRESS
     name: Assignment progress monitoring
     target_release: P5
-    status: absent
+    status: partial
     depends_on: [PARITY-ASSIGNMENT, PARITY-STUDENT-WORK]
-    current_evidence: []
-    gap: No opened/in-progress/submitted matrix.
+    current_evidence: [e2e-checkers, api-checkers-classroom]
+    gap: A Checkers teacher sees per-student state after completion. There is no cross-module progress view.
     gate: Teacher sees status and last activity for each student.
 
   - id: PARITY-SUBMISSION
     name: Immutable submission attempts
     target_release: P5
-    status: absent
+    status: partial
     depends_on: [PARITY-ASSIGNMENT, PARITY-SAVE-VERSIONS]
-    current_evidence: []
-    gap: Checkpoints exist but are not submissions.
+    current_evidence: [api-checkers-state]
+    gap: Checkers keeps a revisioned student document. Attempts are not immutable and are not modelled as submissions.
     gate: Student submits exact version and later attempts do not mutate it.
 
   - id: PARITY-EDU-COMMENTS
     name: Educational feedback and anchors
     target_release: P5
-    status: absent
+    status: partial
     depends_on: [PARITY-SUBMISSION, PARITY-MODULE-CONTRACT]
-    current_evidence: [comment-specification]
-    gap: No runtime comment threads or anchors.
+    current_evidence: [api-checkers-feedback]
+    gap: Checkers stores teacher feedback per student. Feedback is not anchored to a position or step and exists in one module only.
     gate: Teacher leaves general and module-anchored feedback on exact version.
 
   - id: PARITY-REVIEW
@@ -338,8 +338,8 @@ capabilities:
     target_release: P5
     status: absent
     depends_on: [PARITY-SUBMISSION, PARITY-EDU-COMMENTS]
-    current_evidence: [review-specification]
-    gap: No review queue or decision state.
+    current_evidence: []
+    gap: No request-changes or accept cycle.
     gate: Teacher requests changes, receives resubmission and accepts final version.
 
   - id: PARITY-GRADE
@@ -347,8 +347,8 @@ capabilities:
     target_release: P5
     status: absent
     depends_on: [PARITY-REVIEW]
-    current_evidence: [assessment-specification]
-    gap: No runtime gradebook.
+    current_evidence: []
+    gap: No grade or rubric.
     gate: Audited grade references exact submission evidence.
 
   - id: PARITY-BADGE
@@ -356,8 +356,8 @@ capabilities:
     target_release: P5
     status: absent
     depends_on: [PARITY-REVIEW]
-    current_evidence: [badge-specification]
-    gap: No runtime badge awards.
+    current_evidence: []
+    gap: No badge.
     gate: Teacher awards badge and student sees it on dashboard.
 
 releases:
