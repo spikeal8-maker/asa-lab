@@ -70,7 +70,7 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
   await openCardMenu(original);
   await original.getByRole('button', { name: 'Архивировать' }).click();
   await expect(original).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Архив' }).click();
+  await page.getByRole('button', { name: 'Архив' }).click();
   const archived = page.getByTestId('project-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник', exact: true }),
   });
@@ -79,18 +79,19 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
   await archived.getByRole('button', { name: 'Восстановить' }).click();
   await expect(archived).toHaveCount(0);
 
-  await page.getByRole('tab', { name: 'Проекты' }).click();
+  // Archive and trash are toggles: pressing the active one returns to the workshop.
+  await page.getByRole('button', { name: 'Архив' }).click();
   const copy = page.getByTestId('project-card').filter({
     has: page.getByRole('heading', { name: 'Умный светильник — копия', exact: true }),
   });
   await openCardMenu(copy);
   await copy.getByRole('button', { name: 'В корзину' }).click();
   await expect(copy).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Корзина' }).click();
+  await page.getByRole('button', { name: 'Корзина' }).click();
   await expect(page.getByText('Умный светильник — копия', { exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.getByRole('tab', { name: 'Проекты' }).click();
+  await page.getByRole('button', { name: 'Корзина' }).click();
   await expect(page.getByText('Умный светильник', { exact: true })).toBeVisible();
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-project-hub-desktop.png`, fullPage: true });
 

@@ -67,7 +67,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   // A new account lands on the creator home, not on the projects list.
   await expect(
-    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+    page.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
   ).toBeVisible();
 
   const context = page.context();
@@ -108,7 +108,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await secondPage.getByLabel('Пароль').fill(password);
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
   await expect(
-    secondPage.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+    secondPage.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
   ).toBeVisible();
   secondFailures.assertEmpty();
 

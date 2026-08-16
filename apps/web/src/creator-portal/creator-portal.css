@@ -433,8 +433,9 @@
 .creator-dashboard-banner {
   display: grid;
   grid-template-columns: 40% 60%;
-  height: 226px;
-  min-height: 0;
+  /* A minimum rather than a fixed height: the banner says what the place is
+   * for, and text that grows must not be cut off by its own frame. */
+  min-height: 226px;
   overflow: hidden;
   border: 1px solid #e0e5e9;
   border-radius: 7px;
@@ -537,14 +538,34 @@
   line-height: 1.45;
 }
 
+.creator-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .creator-banner-action {
   min-height: 38px;
   padding: 0 17px;
   border: 2px solid #0877b3;
   border-radius: 20px;
+  background: #0877b3;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* The three ways in are not equally likely, so only the first one is filled. */
+.creator-banner-action.secondary {
   background: #fff;
   color: #0877b3;
-  font-weight: 750;
+}
+
+.creator-banner-action:hover {
+  border-color: #06618f;
+  background: #06618f;
+  color: #fff;
 }
 
 .creator-banner-action:hover {
@@ -877,6 +898,11 @@
     top: 82px;
     bottom: auto;
     width: 100%;
+    /* The row of tabs is wider than a phone and scrolls inside itself. Without
+     * these bounds the shell column sizes to that content instead, and the whole
+     * page slides sideways. */
+    min-width: 0;
+    max-width: 100vw;
     height: 48px;
     padding: 0 8px;
     overflow-x: auto;

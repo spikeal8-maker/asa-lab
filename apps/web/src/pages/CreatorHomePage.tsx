@@ -36,7 +36,8 @@ export function CreatorHomePage({
   session: SessionPayload;
   canTeach: boolean;
   onNavigate: (
-    section: 'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help',
+    section:
+      'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help' | 'account',
   ) => void;
   onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
@@ -149,17 +150,44 @@ export function CreatorHomePage({
             </span>
           ))}
         </div>
+        {/*
+          The banner answers "what is this place for", which is the one thing a
+          first visit needs and the one thing a decorative strip cannot say. The
+          three answers are the three ways ASA Lab is used, and each is a button
+          rather than a claim.
+        */}
         <div className="creator-dashboard-banner-copy">
           <p className="creator-dashboard-context">{activeWorkspace}</p>
-          <h1 id="creator-banner-title">Проектируйте и обучайте в ASA Lab</h1>
-          <p>Создавайте модели, схемы и учебные проекты в одном рабочем пространстве.</p>
-          <button
-            type="button"
-            className="creator-banner-action"
-            onClick={() => onNavigate(canTeach ? 'classes' : 'learning')}
-          >
-            {canTeach ? 'Открыть классы' : 'Перейти к обучению'}
-          </button>
+          <h1 id="creator-banner-title">Проектируйте сами, ведите класс, подключите школу</h1>
+          <p>
+            Модели, схемы, шахматы и шашки — в одном месте. Класс может открыть любой взрослый:
+            ученикам не нужны свои аккаунты. Школа добавляет общее пространство и коллег-учителей.
+          </p>
+          {/*
+            Creating a project already has its button in the header, so the
+            banner offers only the two things a person cannot otherwise find:
+            where classes live and how a school is connected. Managing a class
+            stays behind the educator capability, so that door is only shown to
+            someone who can walk through it.
+          */}
+          <div className="creator-banner-actions">
+            {canTeach ? (
+              <button
+                type="button"
+                className="creator-banner-action"
+                onClick={() => onNavigate('classes')}
+              >
+                Открыть классы
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`creator-banner-action${canTeach ? ' secondary' : ''}`}
+              onClick={() => onNavigate('account')}
+            >
+              Подключить школу
+            </button>
+          </div>
         </div>
       </section>
 

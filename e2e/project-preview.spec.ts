@@ -218,11 +218,36 @@ test('project cards show a picture of the work for every module', async ({ page 
   /** Cards reflow rather than overflow: a phone is a real classroom device. */
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(cardFor(page, chess.title)).toBeVisible();
-  const overflow = await page.evaluate(() => ({
-    viewport: window.innerWidth,
-    document: document.documentElement.scrollWidth,
-  }));
-  expect(overflow.document).toBeLessThanOrEqual(overflow.viewport);
+  const overflow = await page.evaluate(() => {
+    // Naming the offender turns "the page is 1029 wide" into something a
+    // developer can act on without opening a browser.
+    const guilty = [...document.querySelectorAll<HTMLElement>('body *')]
+      .filter((element) => {
+        if (element.getBoundingClientRect().width <= window.innerWidth + 1) return false;
+        // Content inside a horizontal scroller is meant to be wider than its
+        // box; it is the box that must fit.
+        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+          const overflow = getComputedStyle(parent).overflowX;
+          if (overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden') return false;
+        }
+        return true;
+      })
+      .slice(0, 6)
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()}.${element.className || '(no class)'}` +
+          `@${Math.round(element.getBoundingClientRect().width)}`,
+      );
+    return {
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      guilty,
+    };
+  });
+  expect(
+    overflow.document,
+    `page is wider than the viewport; widest elements: ${overflow.guilty.join(', ')}`,
+  ).toBeLessThanOrEqual(overflow.viewport);
   await page.screenshot({ path: `${EVIDENCE_DIR}/05-project-cards-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1440, height: 900 });
   await openPortalSection(page, 'Главная');

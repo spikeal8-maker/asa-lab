@@ -31,21 +31,31 @@ export interface ProjectCardOpen {
   readonly onNavigate: () => void;
 }
 
+/**
+ * The gear is built from a ring and eight teeth rather than one traced outline.
+ * At 17 pixels a hand-written gear path collapses into a blob; a ring with
+ * repeated teeth stays a gear at any size, and the hole is punched with an
+ * even-odd fill so it shows whatever is behind the button.
+ */
+const GEAR_TEETH = [0, 45, 90, 135, 180, 225, 270, 315];
+
 function SettingsIcon(): JSX.Element {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+      {GEAR_TEETH.map((angle) => (
+        <rect
+          key={angle}
+          x="10.75"
+          y="1.9"
+          width="2.5"
+          height="5"
+          rx="1"
+          transform={`rotate(${angle} 12 12)`}
+        />
+      ))}
       <path
-        d="M12 15.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      />
-      <path
-        d="M19.4 13a7.5 7.5 0 0 0 0-2l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-1.7-1l-.3-2.1h-3.6l-.3 2.1c-.6.2-1.2.6-1.7 1l-2-.8-1.8 3.1L7.6 11a7.5 7.5 0 0 0 0 2l-1.7 1.3 1.8 3.1 2-.8c.5.4 1.1.8 1.7 1l.3 2.1h3.6l.3-2.1c.6-.2 1.2-.6 1.7-1l2 .8 1.8-3.1L19.4 13Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
+        fillRule="evenodd"
+        d="M12 5.1a6.9 6.9 0 1 0 0 13.8 6.9 6.9 0 0 0 0-13.8Zm0 4.25a2.65 2.65 0 1 1 0 5.3 2.65 2.65 0 0 1 0-5.3Z"
       />
     </svg>
   );

@@ -105,7 +105,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
 
   await expect(page).toHaveURL(/#\/home$/);
   await expect(
-    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+    page.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Электроника' })).toBeVisible();
   // Personal classes are open to every signed-in account, so the destination
@@ -157,7 +157,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await page.goBack();
   await expect(
-    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+    page.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
   ).toBeVisible();
 
   await page
@@ -170,7 +170,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.goBack();
   await expect(
-    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+    page.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
   ).toBeVisible();
 
   await openPortalSection(page, 'Проекты');
@@ -222,7 +222,7 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/home');
   await expect(
-    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+    page.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: `${EVIDENCE_DIR}/07-creator-home-mobile.png`, fullPage: true });

@@ -18,8 +18,8 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
-const STATUS_TABS: ReadonlyArray<{ value: ProjectStatus; label: string }> = [
-  { value: 'active', label: 'Проекты' },
+/** Where a project can be instead of in the workshop. */
+const STATUS_PLACES: ReadonlyArray<{ value: ProjectStatus; label: string }> = [
   { value: 'archived', label: 'Архив' },
   { value: 'trashed', label: 'Корзина' },
 ];
@@ -68,6 +68,19 @@ export function MyProjectsPage({
 
   const modulesByKey = useMemo(
     () => new Map((modules ?? []).map((module) => [module.moduleKey, module])),
+    [modules],
+  );
+
+  /**
+   * Only environments a project can actually be in. The registry also lists
+   * what is coming later, and a tab that can never hold anything is a dead end
+   * on the one page that is supposed to be a person's own work.
+   */
+  const filterModules = useMemo(
+    () =>
+      (modules ?? [])
+        .filter((module) => module.availability === 'active' && module.creatable)
+        .sort((left, right) => left.displayName.localeCompare(right.displayName, 'ru')),
     [modules],
   );
 
@@ -143,77 +156,95 @@ export function MyProjectsPage({
       <section className="portal-hero project-hub-heading">
         <div>
           <h1>Мои проекты</h1>
-          <p>Все ваши проекты, версии и рабочие среды в одном месте.</p>
         </div>
-        <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
-          <PlusIcon /> Создать
-        </button>
+        <div className="project-hub-heading-tools">
+          <label className="project-search">
+            <span className="sr-only">Поиск проектов</span>
+            <input
+              type="search"
+              placeholder="Поиск"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+          <button type="button" className="portal-create-button" onClick={() => setCreating(true)}>
+            <PlusIcon /> Создать
+          </button>
+        </div>
       </section>
 
-      <div className="project-status-tabs" role="tablist" aria-label="Состояние проектов">
-        {STATUS_TABS.map((tab) => (
+      {/*
+        The first choice a person makes here is which kind of work they are
+        looking for, so the environments lead. Archive and trash are places a
+        project ends up rather than kinds of project, and they sit apart on the
+        right with the controls that change how the same set is displayed.
+      */}
+      <section className="project-toolbar" aria-label="Фильтры проектов">
+        <div className="project-kind-tabs" role="tablist" aria-label="Среда проекта">
           <button
             type="button"
             role="tab"
-            key={tab.value}
-            aria-selected={statusFilter === tab.value}
-            className={statusFilter === tab.value ? 'active' : undefined}
-            onClick={() => setStatusFilter(tab.value)}
+            aria-selected={moduleFilter === 'all'}
+            className={moduleFilter === 'all' ? 'active' : undefined}
+            onClick={() => setModuleFilter('all')}
           >
-            {tab.label}
+            Все
           </button>
-        ))}
-      </div>
+          {filterModules.map((module) => (
+            <button
+              type="button"
+              role="tab"
+              key={module.moduleKey}
+              aria-selected={moduleFilter === module.moduleKey}
+              className={moduleFilter === module.moduleKey ? 'active' : undefined}
+              onClick={() => setModuleFilter(module.moduleKey)}
+            >
+              {module.displayName}
+            </button>
+          ))}
+        </div>
 
-      <section className="project-hub-toolbar" aria-label="Фильтры проектов">
-        <label className="project-search">
-          <span className="sr-only">Поиск проектов</span>
-          <input
-            type="search"
-            placeholder="Поиск проектов"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
-        <label>
-          <span className="sr-only">Среда проекта</span>
-          <select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
-            <option value="all">Все среды</option>
-            {modules?.map((module) => (
-              <option key={module.moduleKey} value={module.moduleKey}>
-                {module.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="sr-only">Сортировка проектов</span>
-          <select
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as SortMode)}
-          >
-            <option value="recent">Сначала недавние</option>
-            <option value="oldest">Сначала старые</option>
-            <option value="title">По названию</option>
-          </select>
-        </label>
-        <div className="project-layout-toggle" aria-label="Вид проектов">
-          <button
-            type="button"
-            className={layout === 'grid' ? 'active' : undefined}
-            aria-label="Сетка"
-            onClick={() => setLayout('grid')}
-          >
-            ▦
-          </button>
-          <button
-            type="button"
-            className={layout === 'list' ? 'active' : undefined}
-            aria-label="Список"
-            onClick={() => setLayout('list')}
-          >
-            ☷
-          </button>
+        <div className="project-toolbar-tools">
+          {STATUS_PLACES.map((place) => (
+            <button
+              type="button"
+              key={place.value}
+              className={`project-place${statusFilter === place.value ? ' active' : ''}`}
+              aria-pressed={statusFilter === place.value}
+              onClick={() => setStatusFilter(statusFilter === place.value ? 'active' : place.value)}
+            >
+              {place.label}
+            </button>
+          ))}
+          <label>
+            <span className="sr-only">Сортировка проектов</span>
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+            >
+              <option value="recent">Отредактировано</option>
+              <option value="oldest">Сначала старые</option>
+              <option value="title">По названию</option>
+            </select>
+          </label>
+          <div className="project-layout-toggle" aria-label="Вид проектов">
+            <button
+              type="button"
+              className={layout === 'grid' ? 'active' : undefined}
+              aria-label="Сетка"
+              onClick={() => setLayout('grid')}
+            >
+              ▦
+            </button>
+            <button
+              type="button"
+              className={layout === 'list' ? 'active' : undefined}
+              aria-label="Список"
+              onClick={() => setLayout('list')}
+            >
+              ☷
+            </button>
+          </div>
         </div>
       </section>
 
