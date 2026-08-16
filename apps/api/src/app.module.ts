@@ -111,6 +111,9 @@ export class AppModule {
     const toProjectModule = (entry: RegisteredModule): ProjectModule => ({
       moduleKey: entry.manifest.moduleKey,
       validateDocument: (value) => validationMessage(entry, value),
+      // Project Core hands back the document it just validated, so the provider
+      // sees its own payload type and the validation never runs twice.
+      describePreview: (document) => entry.provider?.createPreview(document) ?? null,
     });
     const projectModules: ModuleCatalogPort = {
       get: (moduleKey) => {

@@ -12,6 +12,7 @@ import { PortalLink } from '../components/PortalLink';
 import { creatorViewToHref } from '../creator-portal/navigation';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
+import { ProjectPreview } from '../modules/ProjectPreviewFigure';
 
 type SortMode = 'recent' | 'oldest' | 'title';
 type LayoutMode = 'grid' | 'list';
@@ -294,11 +295,17 @@ export function MyProjectsPage({
             });
             const preview = (
               <>
-                {module ? (
-                  <ModuleGlyph module={module} size={64} />
-                ) : (
-                  <span aria-hidden="true">?</span>
-                )}
+                <ProjectPreview
+                  project={project}
+                  module={module}
+                  fallback={
+                    module ? (
+                      <ModuleGlyph module={module} size={64} />
+                    ) : (
+                      <span aria-hidden="true">?</span>
+                    )
+                  }
+                />
                 <span className="project-preview-label">
                   {module?.displayName ?? project.moduleKey}
                 </span>

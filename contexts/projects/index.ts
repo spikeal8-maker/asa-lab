@@ -5,6 +5,7 @@ export {
   isValidProjectTitle,
   type Project,
   type ProjectDraft,
+  type ProjectPreview,
   type ProjectScope,
   type ProjectStatus,
   type ProjectVersion,

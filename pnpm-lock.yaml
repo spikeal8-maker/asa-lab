@@ -212,6 +212,9 @@ importers:
       '@asa-lab/electronics':
         specifier: workspace:*
         version: link:../../contexts/electronics
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
       '@asa-lab/three-d':
         specifier: workspace:*
         version: link:../../contexts/three-d
@@ -275,6 +278,9 @@ importers:
       '@asa-lab/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@asa-lab/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
 
   contexts/three-d:
     dependencies:

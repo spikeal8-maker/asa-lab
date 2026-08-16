@@ -5,6 +5,7 @@ import { PortalLink } from '../components/PortalLink';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { creatorHomeState, creatorViewToHref } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
+import { ProjectPreview } from '../modules/ProjectPreviewFigure';
 
 const PROJECTS_PER_MODULE = 4;
 const HOME_MODULE_ORDER = ['three-d', 'electronics', 'chess'] as const;
@@ -212,7 +213,11 @@ export function CreatorHomePage({
                       >
                         <span className="creator-dashboard-project-preview">
                           <span className="creator-preview-orbit" aria-hidden="true" />
-                          <ModuleGlyph module={module} size={78} />
+                          <ProjectPreview
+                            project={project}
+                            module={module}
+                            fallback={<ModuleGlyph module={module} size={78} />}
+                          />
                         </span>
                         <span className="creator-dashboard-project-meta">
                           <strong>{project.title}</strong>

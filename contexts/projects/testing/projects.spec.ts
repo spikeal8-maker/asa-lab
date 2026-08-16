@@ -16,11 +16,13 @@ import {
   SaveDraftUseCase,
   projectRequestFingerprint,
 } from '../application/project.usecases';
+import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type {
   CreateProjectInput,
   ModuleCatalogPort,
   ProjectDocumentValidation,
   ProjectRepositoryPort,
+  SaveDraftInput,
 } from '../application/ports';
 
 const personalProject: Project = {
@@ -32,13 +34,25 @@ const personalProject: Project = {
   status: 'active',
   createdAt: 'now',
   updatedAt: 'now',
+  preview: null,
+};
+
+const CIRCUIT_PREVIEW: ModulePreviewDescriptor = {
+  kind: 'schematic',
+  summary: '1 компонентов · 0 соединений',
+  figure: {
+    viewBox: { width: 40, height: 40 },
+    shapes: [{ shape: 'rect', x: 12, y: 12, width: 16, height: 16, fill: '#3f6f8f' }],
+  },
 };
 
 function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
   port: ProjectRepositoryPort;
   creates: CreateProjectInput[];
+  saves: SaveDraftInput[];
 } {
   const creates: CreateProjectInput[] = [];
+  const saves: SaveDraftInput[] = [];
   const port: ProjectRepositoryPort = {
     createWithDraft: async (input) => {
       creates.push(input);
@@ -59,6 +73,7 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
         document: { schemaVersion: 1, components: [], connections: [] },
         revision: 1,
         updatedAt: 'now',
+        preview: { digest: 'aaaaaaaa', descriptor: CIRCUIT_PREVIEW },
       },
       versions: [],
     }),
@@ -67,7 +82,16 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
       ...personalProject,
       status,
     }),
-    saveDraft: async () => ({ projectId: 'p1', document: {}, revision: 2, updatedAt: 'now' }),
+    saveDraft: async (input) => {
+      saves.push(input);
+      return {
+        projectId: 'p1',
+        document: {},
+        revision: 2,
+        updatedAt: 'now',
+        preview: input.preview,
+      };
+    },
     createCheckpoint: async () => ({
       id: 'v1',
       projectId: 'p1',
@@ -77,7 +101,7 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
     }),
     ...overrides,
   };
-  return { port, creates };
+  return { port, creates, saves };
 }
 
 function catalog(
@@ -86,11 +110,13 @@ function catalog(
     ok: true,
     document: value,
   }),
+  describePreview: (document: unknown) => ModulePreviewDescriptor | null = () => CIRCUIT_PREVIEW,
 ): ModuleCatalogPort {
   const module = {
     moduleKey: 'electronics',
     createEmptyProject: () => emptyDocument,
     validateDocument,
+    describePreview,
   };
   return {
     get: (moduleKey) => (moduleKey === 'electronics' ? module : null),
@@ -375,5 +401,80 @@ describe('list, rename, draft and checkpoint', () => {
         label: undefined,
       }),
     ).toMatchObject({ ok: false, code: 'project_not_found' });
+  });
+});
+
+describe('project previews', () => {
+  const actor = { principalId: 'principal:1', userId: 'u1' };
+
+  it('stores the preview of the starting document when a project is created', async () => {
+    const { port, creates } = repo();
+    await new CreateProjectUseCase(port, catalog()).execute(personalInput);
+    expect(creates[0]?.initialPreview?.descriptor).toEqual(CIRCUIT_PREVIEW);
+  });
+
+  it('fingerprints the preview so a card can tell whether it is current', async () => {
+    const { port, creates } = repo();
+    await new CreateProjectUseCase(port, catalog()).execute(personalInput);
+    expect(creates[0]?.initialPreview?.digest).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it('redraws the preview on every save', async () => {
+    const { port, saves } = repo();
+    await new SaveDraftUseCase(port, catalog()).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor,
+      document: { schemaVersion: 1, components: [], connections: [] },
+    });
+    expect(saves[0]?.preview?.descriptor).toEqual(CIRCUIT_PREVIEW);
+  });
+
+  /**
+   * The preview is decoration; the document is the learner's work. A module bug
+   * in preview code must never turn a save into an error, so the save proceeds
+   * with no picture rather than failing.
+   */
+  it('saves the document even when the module fails to draw it', async () => {
+    const { port, saves } = repo();
+    const broken = catalog(undefined, undefined, () => {
+      throw new Error('preview blew up');
+    });
+    const result = await new SaveDraftUseCase(port, broken).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor,
+      document: { schemaVersion: 1, components: [], connections: [] },
+    });
+    expect(result.ok).toBe(true);
+    expect(saves[0]?.preview).toBeNull();
+  });
+
+  it('stores no preview when the module has nothing to draw', async () => {
+    const { port, saves } = repo();
+    const empty = catalog(undefined, undefined, () => null);
+    await new SaveDraftUseCase(port, empty).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor,
+      document: { schemaVersion: 1, components: [], connections: [] },
+    });
+    expect(saves[0]?.preview).toBeNull();
+  });
+
+  /** A duplicate carries the same document, so redrawing it is wasted work. */
+  it('carries the source preview into a duplicate', async () => {
+    const { port, creates } = repo();
+    await new DuplicateProjectUseCase(port).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor,
+      title: 'Копия',
+      idempotencyKey: 'dup-1',
+    });
+    expect(creates[0]?.initialPreview).toEqual({
+      digest: 'aaaaaaaa',
+      descriptor: CIRCUIT_PREVIEW,
+    });
   });
 });

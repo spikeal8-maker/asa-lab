@@ -4,6 +4,7 @@ import { CreateProjectModal } from '../components/CreateProjectModal';
 import { PortalLink } from '../components/PortalLink';
 import { creatorViewToHref } from '../creator-portal/navigation';
 import { CircuitIcon, PlusIcon } from '../electronics/workbench-icons';
+import { ProjectPreview } from '../modules/ProjectPreviewFigure';
 
 export function ProjectsPage({
   classroomId,
@@ -89,9 +90,14 @@ export function ProjectsPage({
                   href={editorHref}
                   onNavigate={() => onOpenProject(project.id, project.moduleKey)}
                 >
-                  <span className="project-preview-grid">
-                    <CircuitIcon />
-                  </span>
+                  <ProjectPreview
+                    project={project}
+                    fallback={
+                      <span className="project-preview-grid">
+                        <CircuitIcon />
+                      </span>
+                    }
+                  />
                 </PortalLink>
                 <div className="project-card-meta">
                   <div>

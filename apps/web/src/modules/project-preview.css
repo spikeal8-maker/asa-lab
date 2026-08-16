@@ -1,0 +1,38 @@
+/* The picture a subject module drew for a project card.
+ *
+ * Every tile is a fixed rectangle and every figure is whatever shape the work
+ * happens to be, so the SVG box is sized here and `preserveAspectRatio` centres
+ * the drawing inside it. Heights are explicit rather than percentages: the
+ * tiles are grids whose rows size to their content, and a percentage height
+ * inside one has nothing to resolve against.
+ */
+
+.project-preview-figure {
+  z-index: 1;
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(24, 48, 64, 0.1);
+}
+
+/* Classroom projects: the whole tile is the picture. */
+.project-preview > .project-preview-figure {
+  width: min(100%, 264px);
+  height: 156px;
+}
+
+/* My projects: the picture shares the tile with the module label under it. */
+.project-module-preview > .project-preview-figure {
+  width: min(100%, 232px);
+  height: 112px;
+}
+
+/* Creator home: smaller tiles, four to a module row. */
+.creator-dashboard-project-preview > .project-preview-figure {
+  width: min(100%, 196px);
+  height: 118px;
+  /* The surface adds a glow to bare glyphs; a full picture does not need it. */
+  filter: none;
+}

@@ -2,8 +2,20 @@
  * immutable checkpoints. A teacher may own a personal project independently of
  * a class or publish a project inside a class workspace. */
 
+import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+
 export type ProjectScope = 'personal' | 'classroom';
 export type ProjectStatus = 'active' | 'archived' | 'trashed';
+
+/**
+ * What a project card shows. The descriptor comes from the subject module and
+ * Project Core never interprets it — it stores it, hands it to the client, and
+ * compares digests to tell whether a card is still current.
+ */
+export interface ProjectPreview {
+  readonly digest: string;
+  readonly descriptor: ModulePreviewDescriptor;
+}
 
 export interface Project {
   readonly id: string;
@@ -14,6 +26,8 @@ export interface Project {
   readonly status: ProjectStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Null while the project is empty, or on drafts saved before previews. */
+  readonly preview: ProjectPreview | null;
 }
 
 export interface ProjectDraft {
@@ -21,6 +35,7 @@ export interface ProjectDraft {
   readonly document: unknown;
   readonly revision: number;
   readonly updatedAt: string;
+  readonly preview: ProjectPreview | null;
 }
 
 export interface ProjectVersion {

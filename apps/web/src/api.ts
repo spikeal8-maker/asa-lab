@@ -1,6 +1,8 @@
 /** Thin same-origin API client. The session lives in an HttpOnly cookie; the
  * client never sends or stores tenant identifiers. */
 
+import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+
 export interface PublicUser {
   id: string;
   displayName: string;
@@ -124,6 +126,12 @@ export interface ClassroomStudentSession {
 export type ProjectScope = 'personal' | 'classroom';
 export type ProjectStatus = 'active' | 'archived' | 'trashed';
 
+/** The card picture the server drew when the project was last saved. */
+export interface ProjectPreview {
+  digest: string;
+  descriptor: ModulePreviewDescriptor;
+}
+
 export interface Project {
   id: string;
   scope: ProjectScope;
@@ -133,6 +141,7 @@ export interface Project {
   status: ProjectStatus;
   createdAt: string;
   updatedAt: string;
+  preview: ProjectPreview | null;
 }
 
 export interface ModuleSummary {

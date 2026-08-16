@@ -1,8 +1,10 @@
 import type pg from 'pg';
 import { withTenantContext } from '@asa-lab/database';
+import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type {
   Project,
   ProjectDraft,
+  ProjectPreview,
   ProjectScope,
   ProjectStatus,
   ProjectVersion,
@@ -16,7 +18,12 @@ import type {
   SaveDraftInput,
 } from '../application/ports.js';
 
-interface ProjectRow {
+interface PreviewRow {
+  preview_json?: ModulePreviewDescriptor | null;
+  preview_digest?: string | null;
+}
+
+interface ProjectRow extends PreviewRow {
   id: string;
   project_scope: ProjectScope;
   classroom_id: string | null;
@@ -28,7 +35,20 @@ interface ProjectRow {
   request_fingerprint?: string | null;
 }
 
-function toProject(row: ProjectRow): Project {
+/**
+ * Both columns are filled together or not at all, but a row written by an older
+ * build, a restored backup or a partial migration can carry one without the
+ * other. A half-preview is treated as no preview rather than as a card with a
+ * picture nobody can invalidate.
+ */
+function toPreview(row: PreviewRow): ProjectPreview | null {
+  const descriptor = row.preview_json ?? null;
+  const digest = row.preview_digest ?? null;
+  if (descriptor === null || digest === null) return null;
+  return { digest, descriptor };
+}
+
+function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(row)): Project {
   return {
     id: row.id,
     scope: row.project_scope,
@@ -38,6 +58,7 @@ function toProject(row: ProjectRow): Project {
     status: row.status,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at ?? row.created_at),
+    preview,
   };
 }
 
@@ -127,12 +148,14 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       );
       if (inserted.rows.length === 0) {
         const existing = await client.query(
-          `SELECT id, project_scope, classroom_id, module_key, title,
-                  status, created_at, request_fingerprint
-             FROM projects
-            WHERE tenant_id = $1 AND idempotency_key = $2
-              AND ((owner_principal_id IS NOT NULL AND owner_principal_id = $3)
-                   OR ($4::uuid IS NOT NULL AND created_by = $4))`,
+          `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
+                  p.status, p.created_at, p.request_fingerprint,
+                  d.preview_json, d.preview_digest
+             FROM projects p
+             LEFT JOIN project_drafts d ON d.tenant_id = p.tenant_id AND d.project_id = p.id
+            WHERE p.tenant_id = $1 AND p.idempotency_key = $2
+              AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $3)
+                   OR ($4::uuid IS NOT NULL AND p.created_by = $4))`,
           [projectTenantId, input.idempotencyKey, principalId, projectUserId],
         );
         const row = existing.rows[0] as ProjectRow | undefined;
@@ -141,17 +164,20 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         }
         return { kind: 'existing', project: toProject(row) };
       }
-      const project = toProject(inserted.rows[0] as ProjectRow);
+      const project = toProject(inserted.rows[0] as ProjectRow, input.initialPreview);
       await client.query(
         `INSERT INTO project_drafts
-           (project_id, tenant_id, document_json, updated_by, updated_by_principal_id)
-         VALUES ($1,$2,$3,$4,$5)`,
+           (project_id, tenant_id, document_json, updated_by, updated_by_principal_id,
+            preview_json, preview_digest)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
         [
           project.id,
           projectTenantId,
           JSON.stringify(input.initialDocument),
           projectUserId,
           principalId,
+          input.initialPreview ? JSON.stringify(input.initialPreview.descriptor) : null,
+          input.initialPreview?.digest ?? null,
         ],
       );
       await client.query(
@@ -192,7 +218,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       return withTenantContext(this.pool, row.tenant_id, async (client) => {
         const result = await client.query(
           `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
-                  d.updated_at
+                  d.updated_at,d.preview_json,d.preview_digest
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
             WHERE p.tenant_id=$1 AND p.project_scope='classroom'
@@ -200,7 +226,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             ORDER BY d.updated_at DESC`,
           [row.tenant_id, filter.classroomId, status],
         );
-        return (result.rows as ProjectRow[]).map(toProject);
+        return (result.rows as ProjectRow[]).map((row) => toProject(row));
       });
     }
     if (actor.userId === null) {
@@ -208,7 +234,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       return withTenantContext(this.pool, tenantId, async (client) => {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
-                  p.status, p.created_at, d.updated_at
+                  p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
             WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
@@ -216,14 +242,14 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             ORDER BY d.updated_at DESC`,
           [tenantId, actor.principalId, status],
         );
-        return (result.rows as ProjectRow[]).map(toProject);
+        return (result.rows as ProjectRow[]).map((row) => toProject(row));
       });
     }
     return withTenantContext(this.pool, tenantId, async (client) => {
       if (filter.scope === 'personal') {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
-                  p.status, p.created_at, d.updated_at
+                  p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest
              FROM projects p
              JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
             WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = $4
@@ -232,12 +258,12 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             ORDER BY d.updated_at DESC`,
           [tenantId, actor.principalId, actor.userId, status],
         );
-        return (result.rows as ProjectRow[]).map(toProject);
+        return (result.rows as ProjectRow[]).map((row) => toProject(row));
       }
       const result = await client.query(
         `SELECT DISTINCT
                 p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
-                d.updated_at
+                d.updated_at,d.preview_json,d.preview_digest
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
            LEFT JOIN classroom_memberships m
@@ -251,7 +277,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           ORDER BY d.updated_at DESC`,
         [tenantId, actor.principalId, actor.userId, status],
       );
-      return (result.rows as ProjectRow[]).map(toProject);
+      return (result.rows as ProjectRow[]).map((row) => toProject(row));
     });
   }
 
@@ -265,7 +291,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     return withTenantContext(this.pool, access.tenantId, async (client) => {
       const found = await client.query(
         `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
-                d.document_json,d.revision,d.updated_at
+                d.document_json,d.revision,d.updated_at,d.preview_json,d.preview_digest
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
           WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}`,
@@ -287,6 +313,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           document: row.document_json,
           revision: row.revision,
           updatedAt: String(row.updated_at),
+          preview: toPreview(row as PreviewRow),
         },
         versions: versions.rows.map(
           (version: {
@@ -328,11 +355,13 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         `UPDATE project_drafts
             SET updated_at=now()
           WHERE tenant_id=$1 AND project_id=$2
-          RETURNING updated_at`,
+          RETURNING updated_at, preview_json, preview_digest`,
         [access.tenantId, projectId],
       );
-      const updatedAt = activity.rows[0]?.updated_at;
-      if (updatedAt !== undefined) row.updated_at = String(updatedAt);
+      const activityRow = activity.rows[0] as (PreviewRow & { updated_at?: string }) | undefined;
+      if (activityRow?.updated_at !== undefined) row.updated_at = String(activityRow.updated_at);
+      row.preview_json = activityRow?.preview_json ?? null;
+      row.preview_digest = activityRow?.preview_digest ?? null;
       await client.query(
         `INSERT INTO audit_events
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
@@ -355,19 +384,23 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       const updated = await client.query(
         `UPDATE project_drafts d
             SET document_json=$5, revision=revision+1, updated_at=now(),
-                updated_by=$4, updated_by_principal_id=$3
+                updated_by=$4, updated_by_principal_id=$3,
+                preview_json=$6::jsonb, preview_digest=$7
            FROM projects p
           WHERE d.tenant_id=$1 AND d.project_id=$2
             AND p.tenant_id=d.tenant_id AND p.id=d.project_id
             AND p.status <> 'trashed'
             AND ${EDIT_ACCESS_SQL}
-          RETURNING d.project_id,d.document_json,d.revision,d.updated_at`,
+          RETURNING d.project_id,d.document_json,d.revision,d.updated_at,
+                    d.preview_json,d.preview_digest`,
         [
           access.tenantId,
           input.projectId,
           input.actor.principalId,
           access.userId,
           JSON.stringify(input.document),
+          input.preview ? JSON.stringify(input.preview.descriptor) : null,
+          input.preview?.digest ?? null,
         ],
       );
       const row = updated.rows[0];
@@ -377,6 +410,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             document: row.document_json,
             revision: row.revision,
             updatedAt: String(row.updated_at),
+            preview: toPreview(row as PreviewRow),
           }
         : null;
     });
@@ -404,12 +438,16 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       if (!row) return null;
       const activity = await client.query(
         `UPDATE project_drafts SET updated_at=now()
-          WHERE tenant_id=$1 AND project_id=$2 RETURNING updated_at`,
+          WHERE tenant_id=$1 AND project_id=$2
+          RETURNING updated_at, preview_json, preview_digest`,
         [access.tenantId, projectId],
       );
-      if (activity.rows[0]?.updated_at !== undefined) {
-        row.updated_at = String(activity.rows[0].updated_at);
+      const activityRow = activity.rows[0] as (PreviewRow & { updated_at?: string }) | undefined;
+      if (activityRow?.updated_at !== undefined) {
+        row.updated_at = String(activityRow.updated_at);
       }
+      row.preview_json = activityRow?.preview_json ?? null;
+      row.preview_digest = activityRow?.preview_digest ?? null;
       await client.query(
         `INSERT INTO audit_events
            (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)

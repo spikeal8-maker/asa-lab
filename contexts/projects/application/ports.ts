@@ -1,6 +1,8 @@
+import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type {
   Project,
   ProjectDraft,
+  ProjectPreview,
   ProjectScope,
   ProjectStatus,
   ProjectVersion,
@@ -21,6 +23,7 @@ export interface CreateProjectInput {
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
   readonly initialDocument: unknown;
+  readonly initialPreview: ProjectPreview | null;
 }
 
 export type CreateProjectResult =
@@ -40,6 +43,7 @@ export interface SaveDraftInput {
   readonly projectId: string;
   readonly actor: ProjectActor;
   readonly document: unknown;
+  readonly preview: ProjectPreview | null;
 }
 
 export type ProjectDocumentValidation =
@@ -50,6 +54,12 @@ export type ProjectDocumentValidation =
 export interface ProjectModule {
   readonly moduleKey: string;
   validateDocument(value: unknown): ProjectDocumentValidation;
+  /**
+   * The card picture for an already-validated document. Null means the module
+   * has nothing to draw yet, which is not an error — the card shows its title
+   * and summary instead.
+   */
+  describePreview(document: unknown): ModulePreviewDescriptor | null;
 }
 
 export interface CreatableProjectModule extends ProjectModule {

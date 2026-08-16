@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { previewDigest } from '@asa-lab/module-sdk';
 import {
   isProjectScope,
   isProjectStatus,
@@ -6,6 +7,7 @@ import {
   isValidProjectTitle,
   type Project,
   type ProjectDraft,
+  type ProjectPreview,
   type ProjectScope,
   type ProjectStatus,
   type ProjectVersion,
@@ -14,6 +16,7 @@ import type {
   ModuleCatalogPort,
   ProjectActor,
   ProjectListFilter,
+  ProjectModule,
   ProjectRepositoryPort,
 } from './ports.js';
 
@@ -26,6 +29,21 @@ export type UseCaseResult<T> =
 
 function fail<T>(code: ProjectErrorCode, message: string): UseCaseResult<T> {
   return { ok: false, code, message };
+}
+
+/**
+ * Previews are built where the document is written, never where a list is read:
+ * the list is the busiest screen in the product and must not parse a document
+ * per card. A module that throws while describing its own preview must not cost
+ * a learner their save, so the failure degrades to a card without a picture.
+ */
+function previewOf(module: ProjectModule, document: unknown): ProjectPreview | null {
+  try {
+    const descriptor = module.describePreview(document);
+    return descriptor === null ? null : { digest: previewDigest(descriptor), descriptor };
+  } catch {
+    return null;
+  }
 }
 
 export function projectRequestFingerprint(input: {
@@ -78,6 +96,7 @@ export class CreateProjectUseCase {
     }
 
     const title = input.title.trim();
+    const initialDocument = module.createEmptyProject();
     const result = await this.repository.createWithDraft({
       tenantId: input.tenantId,
       scope: input.scope,
@@ -92,7 +111,8 @@ export class CreateProjectUseCase {
         moduleKey: module.moduleKey,
         title,
       }),
-      initialDocument: module.createEmptyProject(),
+      initialDocument,
+      initialPreview: previewOf(module, initialDocument),
     });
 
     if (result.kind === 'conflict') {
@@ -220,6 +240,8 @@ export class DuplicateProjectUseCase {
       idempotencyKey: input.idempotencyKey,
       requestFingerprint,
       initialDocument: source.draft.document,
+      // A copy of the same document is the same picture; no need to redraw it.
+      initialPreview: source.draft.preview,
     });
     if (result.kind === 'conflict') {
       return fail(
@@ -302,6 +324,7 @@ export class SaveDraftUseCase {
       projectId: input.projectId,
       actor: input.actor,
       document: parsed.document,
+      preview: previewOf(module, parsed.document),
     });
     return draft === null
       ? fail('project_not_found', 'project not found')
