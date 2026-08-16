@@ -79,6 +79,13 @@ thresholds come from the school scenario — 300 learners signing in over 30
 seconds is 10 sign-ins per second — rather than from whatever the current build
 happens to score.
 
+Two runtime settings look arbitrary in the code and are not: the pool is capped
+at ten connections, and password hashing is bounded to half the libuv thread
+pool. `node tools/explain-runtime-limits.mjs` reproduces the measurements behind
+both, so they can be re-checked on other hardware rather than taken on trust —
+raising the pool lowers throughput and worsens the tail, and unbounded
+asynchronous hashing frees the event loop while starving static file serving.
+
 ### Covering indexes: examined, nothing to add
 
 Thirty-eight foreign keys have no index whose leading columns match them, which
