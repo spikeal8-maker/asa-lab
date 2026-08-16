@@ -33,7 +33,7 @@
 .classroom-role-tabs button:hover,
 .classroom-role-tabs button.active {
   background: #eef8fc;
-  color: #0879ad;
+  color: #0878ab;
   box-shadow: inset 0 0 0 2px #1888bd;
 }
 
@@ -123,7 +123,7 @@
 }
 
 .classroom-row-title:hover {
-  color: #0879ad;
+  color: #0878ab;
 }
 
 .classroom-row-students,
@@ -333,7 +333,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #0879ad;
+  color: #0878ab;
   font-weight: 700;
 }
 
@@ -434,7 +434,7 @@
 
 .classroom-workspace-tabs button.active {
   border-bottom-color: #0b82ba;
-  color: #0879ad;
+  color: #0878ab;
 }
 
 .classroom-roster-panel,
@@ -745,7 +745,7 @@
   border: 1px solid #c9dbe4;
   border-radius: 6px;
   background: #f6fbfd;
-  color: #0879ad;
+  color: #0878ab;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 

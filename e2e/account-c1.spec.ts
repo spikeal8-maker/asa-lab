@@ -2,6 +2,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
+import {
+  openAccountMenu,
+  openAccountSettings,
+  PERSONAL_WORKSPACE,
+  portalSection,
+  switchWorkspace,
+} from './portal-navigation';
 import { e2eAdminPool } from './seed';
 
 const EVIDENCE_DIR = 'e2e/artifacts/owner-preview/account-c1';
@@ -58,7 +65,10 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
-  await expect(page.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  // A new account lands on the creator home, not on the projects list.
+  await expect(
+    page.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+  ).toBeVisible();
 
   const context = page.context();
   for (const [module, title] of [
@@ -97,7 +107,9 @@ test('owner completes Account C1 and existing project modules remain available',
   await secondPage.getByLabel('Email или имя пользователя').fill(username);
   await secondPage.getByLabel('Пароль').fill(password);
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
-  await expect(secondPage.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+  await expect(
+    secondPage.getByRole('heading', { name: 'Проектируйте и обучайте в ASA Lab' }),
+  ).toBeVisible();
   secondFailures.assertEmpty();
 
   const meResponse = await context.request.get('/api/auth/me');
@@ -119,47 +131,67 @@ test('owner completes Account C1 and existing project modules remain available',
     [accountId, organizationResult.rows[0].id],
   );
 
-  await page.locator('.portal-account > summary').click();
-  await page.getByRole('button', { name: 'Профиль и активные сессии' }).click();
-  await expect(page.getByRole('heading', { name: 'Аккаунт и рабочие пространства' })).toBeVisible();
-  await expect(page.getByText('Owner Preview School')).toBeVisible();
-  await expect(page.getByText('Chrome · Linux')).toBeVisible();
+  // The school above was linked straight in the database, so the page still
+  // holds the profile it loaded before that.
+  await page.reload();
+  // The account shell is reached through "Настройки" now, and its heading is
+  // written for a person rather than for the architecture.
+  await openAccountSettings(page);
+  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  // The shell is tabbed now: schools and sessions live on their own panels
+  // rather than all on one page. The panel names repeat as headings inside the
+  // panels, so the clicks go through the settings navigation.
+  const settingsPanel = (name: string) =>
+    page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
+
+  // Scoped to the panel: the school name also sits in the header's account
+  // menu, which is a closed disclosure, and an unscoped match finds that copy
+  // first and reports it as hidden.
+  const settingsContent = page.locator('.account-settings-content');
+
+  // Name and educator role are one form now, saved together; a membership row
+  // alone does not make an account an educator, and the school panel lists
+  // nothing until the role is on.
+  await page.getByLabel('Отображаемое имя').fill('Owner C1 Ready');
+  await page.getByLabel(/Кто вы в ASA Lab/).selectOption('educator');
+  await page.getByRole('button', { name: 'Сохранить изменения' }).click();
+  await expect(
+    settingsContent.getByText(/Изменения сохранены|Роль педагога включена/),
+  ).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/03-account-profile-desktop.png`,
     fullPage: true,
   });
 
-  await page.getByLabel('Отображаемое имя').fill('Owner C1 Ready');
-  await page.getByRole('button', { name: 'Сохранить профиль' }).click();
-  await expect(page.getByText('Профиль сохранён.')).toBeVisible();
+  await settingsPanel('Школа и классы').click();
+  await expect(settingsContent.getByText('Owner Preview School')).toBeVisible();
+  await settingsPanel('Учётная запись').click();
+  // The session summary carries the platform of whatever machine runs the
+  // browser, so pinning it to Linux made the spec pass only on CI.
+  await expect(settingsContent.getByText(/Chrome · \S+/)).toBeVisible();
+  await settingsPanel('Профиль').click();
 
-  await page.getByRole('button', { name: 'Подтвердить статус педагога' }).click();
-  await expect(page.getByText(/Режим педагога включён/)).toBeVisible();
-
-  const workspaceCard = page
-    .getByRole('heading', { name: 'Рабочие пространства' })
-    .locator('..')
-    .locator('..')
-    .locator('..');
-  await workspaceCard.getByRole('button', { name: 'Переключить' }).click();
-  await expect(page.getByText('Активно: Owner Preview School.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
+  // Switching workspace is done from the account menu now, not from a card on
+  // the account page.
+  await switchWorkspace(page, 'Owner Preview School');
+  await expect(portalSection(page, 'Классы')).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/04-workspace-switched-desktop.png`,
     fullPage: true,
   });
 
-  await workspaceCard.getByRole('button', { name: 'Переключить' }).click();
-  await expect(page.getByText('Активно: Owner Preview.')).toBeVisible();
+  await switchWorkspace(page, PERSONAL_WORKSPACE);
+  await expect(page).toHaveURL(/#\/home$/);
 
-  const sessionCard = page
-    .getByRole('heading', { name: 'Активные сессии' })
-    .locator('..')
-    .locator('..')
-    .locator('..');
-  await sessionCard.getByRole('button', { name: 'Завершить', exact: true }).click();
-  await expect(page.getByText('Выбранная сессия завершена.')).toBeVisible();
-  await expect(page.getByText('Chrome · Linux')).toHaveCount(0);
+  // Closed before the session behind it is ended: once revoked, that page's own
+  // polling answers 401 by design, and leaving it open reports the expected
+  // consequence as an unexpected browser failure.
+  await secondPage.close();
+
+  await openAccountSettings(page);
+  await settingsPanel('Учётная запись').click();
+  await settingsContent.getByRole('button', { name: 'Завершить', exact: true }).first().click();
+  await expect(settingsContent.getByText('Выбранный вход завершён.')).toBeVisible();
   const revokedSession = await secondContext.request.get('/api/auth/me');
   expect(revokedSession.status()).toBe(401);
   await secondContext.close();
@@ -174,7 +206,7 @@ test('owner completes Account C1 and existing project modules remain available',
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   await expectNoHorizontalOverflow(page);
-  await expect(page.getByRole('heading', { name: 'Аккаунт и рабочие пространства' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/06-account-profile-mobile.png`,
     fullPage: true,
@@ -184,8 +216,8 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.goto('/#/projects');
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
   await expect(page.getByText('Account C1 Chess')).toBeVisible();
-  await page.locator('.portal-account > summary').click();
-  await page.getByRole('button', { name: 'Выйти' }).click();
+  await openAccountMenu(page);
+  await page.getByRole('button', { name: 'Выход' }).click();
   await expect(page.getByTestId('entry-sign-in')).toBeVisible();
   await page.getByTestId('entry-sign-in').click();
   await page.getByLabel('Email или имя пользователя').fill(username);

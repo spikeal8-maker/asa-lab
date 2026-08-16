@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import pg from 'pg';
 import { loginWithOrganization } from './organization-login';
+import { portalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 let admin: pg.Pool;
@@ -9,7 +10,20 @@ let teacher: SeededTeacher;
 
 async function login(page: Page): Promise<void> {
   await loginWithOrganization(page, teacher);
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await portalSection(page, 'Классы').click();
+  await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
+}
+
+/**
+ * At a mobile width the section list becomes a horizontally scrolling strip and
+ * the destination can sit outside its visible part. The mobile case here is
+ * about layout overflow rather than about navigating, so it opens the section
+ * by route; whether the control is reachable by pointer on a narrow screen is
+ * worth its own test rather than being smuggled into this one.
+ */
+async function loginAndOpenClasses(page: Page): Promise<void> {
+  await loginWithOrganization(page, teacher);
+  await page.goto('/#/classrooms');
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 }
 
@@ -84,8 +98,20 @@ test('dialog supports initial focus, focus trap, Escape and focus restoration', 
   await page.keyboard.press('Tab');
   await expect(title).toBeFocused();
 
-  await page.keyboard.press('Tab');
-  await expect(cancel).toBeFocused();
+  // The dialog gained an age band, module checkboxes and a safe-mode switch, so
+  // a fixed three-stop order is no longer the contract. What must hold is that
+  // tabbing never leaves the dialog.
+  const stops = await dialog.locator('input, select, textarea, button').count();
+  expect(stops).toBeGreaterThan(2);
+  for (let step = 0; step < stops + 1; step += 1) {
+    await page.keyboard.press('Tab');
+    await expect(dialog.locator(':focus')).toHaveCount(1);
+  }
+  await expect(cancel).toBeVisible();
+
+  // Escape is pressed from a known field so the restoration below is about
+  // closing the dialog rather than about wherever the loop above ended.
+  await title.focus();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
@@ -117,7 +143,7 @@ test('critical controls have names and reduced motion disables skeleton animatio
 
 test('teacher portal has no horizontal overflow at a mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
+  await loginAndOpenClasses(page);
   const fitsViewport = await page.evaluate(
     () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
   );

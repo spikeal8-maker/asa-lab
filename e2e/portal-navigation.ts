@@ -37,9 +37,30 @@ export function accountMenu(page: Page) {
   return page.locator('.portal-account-menu');
 }
 
+/**
+ * Both of these are <details>: clicking the summary of an already-open one
+ * closes it. Opening is therefore conditional, so a helper can be called twice
+ * in a row without the second call undoing the first.
+ */
+async function openDisclosure(page: Page, selector: string): Promise<void> {
+  const details = page.locator(selector);
+  await expect(details).toBeAttached();
+  // The open attribute is the state itself; visibility lags behind it while the
+  // panel animates, and polling visibility raced with that.
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await details.locator('> summary').click();
+  }
+  await expect(details).toHaveAttribute('open', '');
+}
+
 export async function openAccountMenu(page: Page): Promise<void> {
-  await page.locator('.portal-account > summary').click();
+  await openDisclosure(page, '.portal-account');
   await expect(accountMenu(page)).toBeVisible();
+}
+
+async function openWorkspaceGroup(page: Page): Promise<void> {
+  await openDisclosure(page, '.portal-account-workspaces');
+  await expect(page.locator('.portal-account-workspace-list')).toBeVisible();
 }
 
 export async function openAccountSettings(page: Page): Promise<void> {
@@ -49,6 +70,11 @@ export async function openAccountSettings(page: Page): Promise<void> {
 
 export async function switchWorkspace(page: Page, title: string | RegExp): Promise<void> {
   await openAccountMenu(page);
-  await page.locator('.portal-account-workspaces > summary').click();
-  await page.locator('.portal-account-workspace-list button').filter({ hasText: title }).click();
+  await openWorkspaceGroup(page);
+  const entry = page.locator('.portal-account-workspace-list button').filter({ hasText: title });
+  await expect(entry).toBeVisible();
+  await entry.click();
 }
+
+/** Personal space is listed by its own title with this subtitle underneath. */
+export const PERSONAL_WORKSPACE = 'Личные проекты';

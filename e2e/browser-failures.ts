@@ -40,6 +40,16 @@ function serverResponseFailure(status: number, method: string, url: string): str
   return `${status} ${method} ${url}`;
 }
 
+/**
+ * A request the browser cancelled is not a request that failed. Switching
+ * workspace reloads the application, and whatever it had in flight — the
+ * profile, the classroom list — is aborted mid-answer. Reporting that as a
+ * browser failure made the spec fail depending on how fast the machine was.
+ */
+function isCancelledByNavigation(request: Request): boolean {
+  return request.failure()?.errorText === 'net::ERR_ABORTED';
+}
+
 function isAnonymousSessionProbe(message: ConsoleMessage): boolean {
   if (message.text() !== anonymousSessionConsoleText) return false;
   try {
@@ -72,7 +82,10 @@ export function collectBrowserFailures(
     consoleErrors.push(consoleFailure(message));
   });
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  page.on('requestfailed', (request) => failedRequests.push(requestFailure(request)));
+  page.on('requestfailed', (request) => {
+    if (isCancelledByNavigation(request)) return;
+    failedRequests.push(requestFailure(request));
+  });
   page.on('response', (response) => {
     if (response.status() >= 500) {
       httpServerErrors.push(

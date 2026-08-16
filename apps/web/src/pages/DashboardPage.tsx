@@ -34,6 +34,7 @@ export function DashboardPage({
   const [roleView, setRoleView] = useState<ClassroomRoleView>('teaching');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const createButtonRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
 
   const reload = useCallback(async () => {
     setList({ kind: 'loading' });
@@ -48,9 +49,35 @@ export function DashboardPage({
     void reload();
   }, [reload]);
 
+  /**
+   * Focus returns to the control the dialog was opened from. Two buttons open
+   * it — the one in the header and the one in the empty state — and sending
+   * focus to a fixed one moved a keyboard user somewhere they never were.
+   */
+  function openModal(event: { currentTarget: HTMLButtonElement }): void {
+    openerRef.current = event.currentTarget;
+    setNotice(null);
+    setModalOpen(true);
+  }
+
+  /**
+   * Dismissing the dialog returns focus to the control it was opened from.
+   * Creating a class is different: the first class removes the empty state, so
+   * the control that opened the dialog is about to leave the page even though
+   * it is still there at this moment. Focus goes to the button that survives.
+   */
+  function restoreFocus(target: 'opener' | 'header'): void {
+    window.requestAnimationFrame(() => {
+      const opener = openerRef.current;
+      const element =
+        target === 'opener' && opener?.isConnected === true ? opener : createButtonRef.current;
+      element?.focus({ preventScroll: true });
+    });
+  }
+
   function closeModal(): void {
     setModalOpen(false);
-    window.requestAnimationFrame(() => createButtonRef.current?.focus({ preventScroll: true }));
+    restoreFocus('opener');
   }
 
   const visibleItems =
@@ -123,10 +150,7 @@ export function DashboardPage({
           ref={createButtonRef}
           type="button"
           className="portal-create-button"
-          onClick={() => {
-            setNotice(null);
-            setModalOpen(true);
-          }}
+          onClick={openModal}
         >
           <PlusIcon /> Создать новый класс
         </button>
@@ -164,7 +188,7 @@ export function DashboardPage({
           </span>
           <h2>Создайте первый класс</h2>
           <p>Классы нужны для учеников, заданий и проверки. Личные проекты доступны отдельно.</p>
-          <button type="button" className="portal-create-button" onClick={() => setModalOpen(true)}>
+          <button type="button" className="portal-create-button" onClick={openModal}>
             <PlusIcon /> Создать класс
           </button>
         </section>
@@ -244,9 +268,7 @@ export function DashboardPage({
                 ? `Класс «${classroom.title}» создан.`
                 : `Класс «${classroom.title}» уже существует.`,
             );
-            window.requestAnimationFrame(() =>
-              createButtonRef.current?.focus({ preventScroll: true }),
-            );
+            restoreFocus('header');
             void reload();
           }}
         />

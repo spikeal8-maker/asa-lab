@@ -189,7 +189,10 @@ test('two teachers create and play one server-authoritative direct challenge', a
       `/api/chess/live/games/${encodeURIComponent(accepted.game.gameId)}/moves`,
       {
         headers: {
-          origin: 'http://web:8080',
+          // The canonical origin differs between the Docker stack and a local
+          // run; a hardcoded one is refused by the origin guard with 403 before
+          // the request ever reaches validation, which hides what is tested.
+          origin: new URL(session.firstPage.url()).origin,
           'idempotency-key': `forged:${Date.now()}`,
         },
         data: {

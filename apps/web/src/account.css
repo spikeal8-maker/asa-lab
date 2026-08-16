@@ -110,7 +110,7 @@
   height: 18px;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: #0879b7;
+  background: #0877b3;
   color: #fff;
 }
 
@@ -731,7 +731,7 @@ button.portal-account-identity:hover:not(:disabled) {
 .account-settings-navigation button.active {
   border-color: #148fc3;
   background: #fff;
-  color: #0879b7;
+  color: #0877b3;
 }
 
 .account-settings-navigation button span {
@@ -818,7 +818,7 @@ button.portal-account-identity:hover:not(:disabled) {
   padding: 7px 4px;
   border: 0;
   background: transparent;
-  color: #0879b7;
+  color: #0877b3;
   font-size: 12px;
   font-weight: 700;
 }

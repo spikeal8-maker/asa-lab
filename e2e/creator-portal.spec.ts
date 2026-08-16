@@ -8,6 +8,7 @@ import {
   openAccountMenu,
   openAccountSettings,
   openPortalSection,
+  PERSONAL_WORKSPACE,
   portalSection,
   switchWorkspace,
 } from './portal-navigation';
@@ -348,7 +349,7 @@ test('educator navigation follows server capability and active workspace scope',
     fullPage: true,
   });
 
-  await switchWorkspace(page, 'Личное');
+  await switchWorkspace(page, PERSONAL_WORKSPACE);
   await expect(page).toHaveURL(/#\/home$/);
   await expect(page.getByTestId('creator-recent-projects')).toContainText(
     'Только личное пространство',
@@ -362,12 +363,19 @@ test('educator navigation follows server capability and active workspace scope',
 
   await switchWorkspace(page, 'R2 Creator School');
   await expect(page).toHaveURL(/#\/home$/);
-  await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Классы подключены' })).toBeVisible();
+  await openPortalSection(page, 'Классы');
+  // In a school workspace an educator manages classes, so the empty state
+  // offers to create one. The old "Классы подключены" banner is gone.
+  await expect(page.getByRole('heading', { name: 'Создайте первый класс' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Создать класс' }).first()).toBeVisible();
+
+  // Checked before signing out: a projects request started while the session
+  // was alive can land after it ends and answer 401, which is the request
+  // racing the sign-out rather than anything wrong with the page.
+  failures.assertEmpty();
 
   await openAccountMenu(page);
-  await accountMenu(page).getByRole('button', { name: 'Выйти' }).click();
+  await accountMenu(page).getByRole('button', { name: 'Выход' }).click();
   await loginWithOrganization(page, teacher);
   await expect(page.getByRole('button', { name: 'Классы', exact: true })).toBeVisible();
   const authorizedSession = await page.context().request.get('/api/auth/me');
@@ -383,6 +391,4 @@ test('educator navigation follows server capability and active workspace scope',
     path: `${EVIDENCE_DIR}/09-educator-classes-desktop.png`,
     fullPage: true,
   });
-
-  failures.assertEmpty();
 });

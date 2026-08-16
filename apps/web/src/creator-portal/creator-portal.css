@@ -4,7 +4,7 @@
   min-height: 82px;
   padding: 0 24px;
   border-bottom-color: #076b98;
-  background: #0879b7;
+  background: #0877b3;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset;
 }
 
@@ -264,7 +264,7 @@
   height: 24px;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: #0879b7;
+  background: #0877b3;
   color: #fff;
   box-shadow: 0 2px 7px rgba(25, 58, 76, 0.22);
 }
@@ -330,7 +330,7 @@
 }
 
 .portal-sidebar .portal-nav-item.active {
-  border-color: #0879b7;
+  border-color: #0877b3;
   background: #fff;
   color: #0878aa;
 }
@@ -396,7 +396,7 @@
 }
 
 .portal-sidebar-collapse:hover {
-  color: #0879b7;
+  color: #0877b3;
   background: #f2f9fc;
 }
 
@@ -481,7 +481,7 @@
   height: 96px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.94);
-  color: var(--module-accent, #0879b7);
+  color: var(--module-accent, #0877b3);
   box-shadow: 0 20px 40px rgba(0, 31, 51, 0.25);
   transform: rotate(-7deg);
 }
@@ -513,7 +513,7 @@
 
 .creator-dashboard-context {
   margin: 0 0 7px;
-  color: #0879b7;
+  color: #0877b3;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.07em;
@@ -540,10 +540,10 @@
 .creator-banner-action {
   min-height: 38px;
   padding: 0 17px;
-  border: 2px solid #0879b7;
+  border: 2px solid #0877b3;
   border-radius: 20px;
   background: #fff;
-  color: #0879b7;
+  color: #0877b3;
   font-weight: 750;
 }
 
@@ -569,7 +569,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: var(--module-accent, #0879b7);
+  color: var(--module-accent, #0877b3);
   font-size: 18px;
   font-weight: 750;
 }
@@ -591,7 +591,7 @@
 }
 
 .creator-module-heading button:hover {
-  color: #0879b7;
+  color: #0877b3;
 }
 
 .creator-module-heading button span {
@@ -618,7 +618,7 @@
 }
 
 .creator-dashboard-project:hover {
-  border-color: color-mix(in srgb, var(--module-accent, #0879b7) 58%, #d5dde2);
+  border-color: color-mix(in srgb, var(--module-accent, #0877b3) 58%, #d5dde2);
   box-shadow: 0 5px 16px rgba(32, 55, 68, 0.12);
   transform: translateY(-1px);
 }
@@ -651,7 +651,7 @@
   background:
     radial-gradient(circle at 76% 18%, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
     linear-gradient(145deg, color-mix(in srgb, var(--module-accent) 15%, white), #f8fafb 64%);
-  color: var(--module-accent, #0879b7);
+  color: var(--module-accent, #0877b3);
 }
 
 .creator-preview-orbit {
@@ -718,8 +718,8 @@
 }
 
 .creator-dashboard-project.create-project > button:hover {
-  color: var(--module-accent, #0879b7);
-  background: color-mix(in srgb, var(--module-accent, #0879b7) 5%, white);
+  color: var(--module-accent, #0877b3);
+  background: color-mix(in srgb, var(--module-accent, #0877b3) 5%, white);
 }
 
 .creator-dashboard-create-icon {

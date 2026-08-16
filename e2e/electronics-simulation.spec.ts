@@ -905,7 +905,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     fullPage: true,
   });
 
-  await expect(page.locator('.editor-host-save-state')).toContainText('Все изменения сохранены', {
+  await expect(page.locator('.workbench-save-state')).toContainText('Все изменения сохранены', {
     timeout: 15_000,
   });
   const checkpoint = await page.context().request.post(`/api/projects/${projectId}/checkpoints`, {

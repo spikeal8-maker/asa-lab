@@ -119,7 +119,7 @@ test('logout failure keeps the authenticated dashboard visible', async ({ page }
   });
 
   await page.locator('.portal-account > summary').click();
-  await page.getByRole('button', { name: 'Выйти' }).click();
+  await page.getByRole('button', { name: 'Выход' }).click();
   await expect(page.getByRole('alert')).toContainText('Не удалось выйти.');
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
 });

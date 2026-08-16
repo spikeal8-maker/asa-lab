@@ -57,7 +57,9 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   const card = page.getByTestId('classroom-card').filter({ hasText: '8А Робототехника' });
   await expect(card).toBeVisible();
   await expect(page.getByText('Класс «8А Робототехника» создан.')).toBeVisible();
-  await expect(createButton).toBeFocused();
+  // The empty-state button the dialog was opened from is gone once a class
+  // exists, so focus returns to the create control that remains.
+  await expect(page.getByRole('button', { name: 'Создать новый класс' })).toBeFocused();
 
   mkdirSync('e2e/artifacts', { recursive: true });
   await page.setViewportSize({ width: 1366, height: 768 });
@@ -82,7 +84,7 @@ test('teacher logs in, creates a classroom and it survives reload', async ({ pag
   await page.setViewportSize({ width: 1280, height: 800 });
 
   await page.locator('.portal-account > summary').click();
-  await page.getByRole('button', { name: 'Выйти' }).click();
+  await page.getByRole('button', { name: 'Выход' }).click();
   await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
   failures.assertEmpty();
 });
