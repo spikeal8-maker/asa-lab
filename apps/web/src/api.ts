@@ -104,6 +104,8 @@ export interface ClassroomAssignment {
   dueAt: string | null;
   status: 'open' | 'closed';
   createdAt: string;
+  /** One of the ten a class is given rather than one the teacher wrote. */
+  isDemo: boolean;
   seatCount: number;
   startedCount: number;
   submittedCount: number;
@@ -693,6 +695,11 @@ export const api = {
     call<{ ok: true }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/status`,
       { method: 'POST', body: JSON.stringify({ status }) },
+    ),
+  deleteClassroomAssignment: (classroomId: string, assignmentId: string) =>
+    call<{ removed: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}`,
+      { method: 'DELETE' },
     ),
   classroomAssignmentProgress: (classroomId: string, assignmentId: string) =>
     call<{ items: ClassroomAssignmentProgress[] }>(

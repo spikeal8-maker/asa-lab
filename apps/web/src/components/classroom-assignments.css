@@ -27,7 +27,7 @@
 
 .assignment-list > li {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.7fr) minmax(0, 1.1fr) auto auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.6fr) minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
@@ -220,9 +220,33 @@
   font-size: 13px;
 }
 
+.seat-assignment-brief {
+  margin-top: 8px;
+}
+
+.seat-assignment-brief > summary {
+  color: #0a6f9c;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.seat-assignment-brief > summary::-webkit-details-marker {
+  display: none;
+}
+
+.seat-assignment-brief > summary::before {
+  content: '▸ ';
+}
+
+.seat-assignment-brief[open] > summary::before {
+  content: '▾ ';
+}
+
 .seat-assignment-body p {
   margin: 8px 0 0;
-  color: #3d5462;
+  color: #2a363e;
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -244,4 +268,41 @@
     flex: 1 1 auto;
     justify-content: center;
   }
+}
+
+/* The ten a class is given, marked so a teacher knows which they wrote. */
+.assignment-demo-note {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #cfe3ec;
+  border-radius: 10px;
+  background: #f4fafd;
+  color: #2a363e;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.assignment-title em.is-demo {
+  background: #e2f0f8;
+  color: #0a6f9c;
+}
+
+.assignment-remove {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #a53034;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.assignment-remove:hover:not(:disabled) {
+  background: #fff0f0;
+}
+
+.assignment-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

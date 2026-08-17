@@ -276,51 +276,81 @@ export function ClassroomAssignments({
           <p>Выдайте первое — ученики увидят его на своей главной странице.</p>
         </div>
       ) : (
-        <ul className="assignment-list" data-testid="assignment-list">
-          {items.map((assignment) => (
-            <li key={assignment.id}>
-              <button
-                type="button"
-                className="assignment-title"
-                onClick={() => setOpen(assignment)}
-              >
-                {assignment.title}
-                {assignment.status === 'closed' ? <em>закрыто</em> : null}
-              </button>
-              <span className="assignment-module">{moduleName(assignment.moduleKey)}</span>
-              <span className="assignment-counts">
-                Работают: {assignment.startedCount} из {assignment.seatCount} · Сдали:{' '}
-                {assignment.submittedCount}
-              </span>
-              <span className="assignment-due">
-                {assignment.dueAt ? `Срок ${time.date(assignment.dueAt)}` : 'Без срока'}
-              </span>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={archived}
-                onClick={async () => {
-                  const next = assignment.status === 'open' ? 'closed' : 'open';
-                  const result = await api.setClassroomAssignmentStatus(
-                    classroomId,
-                    assignment.id,
-                    next,
-                  );
-                  if (result.ok) {
-                    setNotice(
-                      next === 'closed'
-                        ? 'Задание закрыто. Начатые работы останутся у учеников.'
-                        : 'Задание снова открыто.',
+        <>
+          {items.some((entry) => entry.isDemo) ? (
+            <p className="assignment-demo-note">
+              Задания с пометкой «пример» — готовый курс из десяти работ, он есть в каждом классе.
+              Меняйте их под себя или удаляйте: ученики уже видят их у себя.
+            </p>
+          ) : null}
+          <ul className="assignment-list" data-testid="assignment-list">
+            {items.map((assignment) => (
+              <li key={assignment.id}>
+                <button
+                  type="button"
+                  className="assignment-title"
+                  onClick={() => setOpen(assignment)}
+                >
+                  {assignment.title}
+                  {assignment.isDemo ? <em className="is-demo">пример</em> : null}
+                  {assignment.status === 'closed' ? <em>закрыто</em> : null}
+                </button>
+                <span className="assignment-module">{moduleName(assignment.moduleKey)}</span>
+                <span className="assignment-counts">
+                  Работают: {assignment.startedCount} из {assignment.seatCount} · Сдали:{' '}
+                  {assignment.submittedCount}
+                </span>
+                <span className="assignment-due">
+                  {assignment.dueAt ? `Срок ${time.date(assignment.dueAt)}` : 'Без срока'}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={archived}
+                  onClick={async () => {
+                    const next = assignment.status === 'open' ? 'closed' : 'open';
+                    const result = await api.setClassroomAssignmentStatus(
+                      classroomId,
+                      assignment.id,
+                      next,
                     );
-                    await reload();
-                  }
-                }}
-              >
-                {assignment.status === 'open' ? 'Закрыть' : 'Открыть'}
-              </button>
-            </li>
-          ))}
-        </ul>
+                    if (result.ok) {
+                      setNotice(
+                        next === 'closed'
+                          ? 'Задание закрыто. Начатые работы останутся у учеников.'
+                          : 'Задание снова открыто.',
+                      );
+                      await reload();
+                    }
+                  }}
+                >
+                  {assignment.status === 'open' ? 'Закрыть' : 'Открыть'}
+                </button>
+                <button
+                  type="button"
+                  className="assignment-remove"
+                  aria-label={`Удалить задание ${assignment.title}`}
+                  disabled={archived}
+                  onClick={async () => {
+                    if (
+                      !window.confirm(
+                        `Удалить «${assignment.title}»? Работы учеников останутся у них.`,
+                      )
+                    )
+                      return;
+                    const result = await api.deleteClassroomAssignment(classroomId, assignment.id);
+                    if (result.ok) {
+                      setNotice(`Задание «${assignment.title}» удалено.`);
+                      await reload();
+                    }
+                  }}
+                >
+                  Удалить
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {creating ? (

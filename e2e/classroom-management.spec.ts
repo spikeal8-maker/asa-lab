@@ -325,16 +325,19 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(page.getByTestId('assignment-list')).toContainText('Работают: 0 из 1');
 
   // Nobody has opened it, and the register says so by name.
-  await page.getByRole('button', { name: 'Брелок с именем' }).click();
+  await page.locator('.assignment-title', { hasText: 'Брелок с именем' }).click();
   await expect(page.getByTestId('assignment-progress')).toContainText('Не открывал');
   await page.screenshot({ path: `${evidenceDir}/assignment-progress.png`, fullPage: true });
 
   // The learner finds it on their own home page and starts it: the project is
   // made for them in the environment the teacher chose, and opens.
   await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  // One card among the ten a class is given, so the row is the unit, not the list.
   const assignmentCard = studentPage
     .getByTestId('seat-assignments')
+    .locator('li')
     .filter({ hasText: 'Брелок с именем' });
+  await assignmentCard.getByRole('group').getByText('Что нужно сделать').click();
   await expect(assignmentCard).toContainText('Скруглите углы и подпишите имя.');
   await studentPage.screenshot({ path: `${evidenceDir}/student-assignment.png`, fullPage: true });
   await assignmentCard.getByRole('button', { name: 'Начать' }).click();
@@ -349,7 +352,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await page.reload();
   await page.getByRole('button', { name: 'Действия', exact: true }).click();
   await expect(page.getByTestId('assignment-list')).toContainText('Сдали: 1');
-  await page.getByRole('button', { name: 'Брелок с именем' }).click();
+  await page.locator('.assignment-title', { hasText: 'Брелок с именем' }).click();
   await expect(page.getByTestId('assignment-progress')).toContainText('Сдано');
   await expect(
     page.getByTestId('assignment-progress').getByRole('button', { name: 'Открыть работу' }),

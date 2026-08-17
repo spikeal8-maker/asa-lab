@@ -79,7 +79,15 @@ export function SeatAssignments({
                 {assignment.submittedAt ? ` · сдано ${time.dateTime(assignment.submittedAt)}` : ''}
                 {assignment.status === 'closed' ? ' · задание закрыто' : ''}
               </span>
-              {assignment.brief ? <p>{assignment.brief}</p> : null}
+              {/* A class carries ten of these. Printing every brief in full
+                  turns the learner's home page into a wall of text, so the
+                  requirements open when the one being worked on is opened. */}
+              {assignment.brief ? (
+                <details className="seat-assignment-brief">
+                  <summary>Что нужно сделать</summary>
+                  <p>{assignment.brief}</p>
+                </details>
+              ) : null}
             </div>
             <div className="seat-assignment-actions">
               {assignment.projectId ? (

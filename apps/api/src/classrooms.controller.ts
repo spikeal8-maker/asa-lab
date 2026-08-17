@@ -119,6 +119,8 @@ interface AssignmentRow {
   due_at: Date | string | null;
   status: 'open' | 'closed';
   created_at: Date | string;
+  /** Set on the ten tasks every class is given; null on a teacher's own. */
+  demo_key?: string | null;
   seat_count?: number | string;
   started_count?: number | string;
   submitted_count?: number | string;
@@ -197,6 +199,7 @@ function assignmentView(row: AssignmentRow) {
     dueAt: row.due_at ? iso(row.due_at) : null,
     status: row.status,
     createdAt: iso(row.created_at),
+    isDemo: Boolean(row.demo_key),
     // Present on the list, absent on the row returned straight after creating
     // one — a brand-new assignment has nobody in it yet.
     seatCount: row.seat_count === undefined ? 0 : Number(row.seat_count),
@@ -367,6 +370,14 @@ export class ClassroomsController {
         error(result.code, result.message),
         result.code === 'idempotency_conflict' ? 409 : 400,
       );
+    }
+    if (result.created) {
+      // A new class arrives with the ten-task course already in it, so the
+      // assignments tab explains itself instead of being empty. They are
+      // ordinary rows: edit them, or delete the ones you do not want.
+      await this.requirePool().query(`SELECT classroom_assignments_seed_demo($1)`, [
+        result.classroom.id,
+      ]);
     }
     reply.code(result.created ? 201 : 200);
     return { classroom: await this.summary(context, result.classroom.id), created: result.created };
@@ -819,7 +830,7 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, module_key, due_at, status, created_at,
+      `SELECT id, title, brief, module_key, due_at, status, created_at, demo_key,
               seat_count, started_count, submitted_count
          FROM classroom_assignment_list($1, $2)`,
       [context.accountId, classroomId],
@@ -848,6 +859,31 @@ export class ClassroomsController {
       status,
     ]);
     return { ok: true as const };
+  }
+
+  /**
+   * Removing an assignment — including a demo a teacher did not want.
+   *
+   * Work a learner already started is not deleted with it: the link goes, the
+   * project stays theirs. A child's model is not a teacher's to throw away by
+   * tidying a list.
+   */
+  @Delete(':classroomId/assignments/:assignmentId')
+  async deleteAssignment(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const result = await this.requirePool().query(
+      `SELECT classroom_assignment_delete($1, $2, $3) AS removed`,
+      [context.accountId, classroomId, assignmentId],
+    );
+    if ((result.rows[0] as { removed: boolean } | undefined)?.removed !== true) {
+      throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
+    }
+    return { removed: true as const };
   }
 
   /** Every learner against one assignment — including those who never opened it. */
