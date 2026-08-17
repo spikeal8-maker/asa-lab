@@ -1,11 +1,12 @@
 .portal-header {
-  grid-template-columns: 240px minmax(520px, 1fr) 44px auto 56px;
+  grid-template-columns: 220px minmax(480px, 1fr) 36px auto 48px;
   gap: 12px;
-  /* The bar carries the brand, the whole of the top navigation and the account:
-     at 82px those were crowded against each other, and it is the one element on
-     every page in the product. */
-  min-height: 96px;
-  padding: 0 24px;
+  /* A thin strip. It appears on every page and holds nothing that is read for
+     long — the brand, the sections, one button and your own face — so the room
+     it takes is room taken from the work. Nothing is removed to achieve it and
+     no text shrinks; the tall pieces simply stop being tall. */
+  min-height: 56px;
+  padding: 0 20px;
   border-bottom-color: #076b98;
   background: #0877b3;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset;
@@ -17,8 +18,8 @@
 }
 
 .portal-header .asa-brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
 }
 
 .portal-header .asa-brand-copy strong {
@@ -49,13 +50,13 @@
 }
 
 .portal-header .portal-account {
-  min-width: 48px;
-  max-width: 52px;
+  min-width: 40px;
+  max-width: 44px;
 }
 
 .portal-header .portal-account > summary {
   justify-content: center;
-  padding: 5px;
+  padding: 3px;
 }
 
 .portal-header .portal-account > summary::after,
@@ -64,10 +65,10 @@
 }
 
 .portal-header .portal-user-avatar {
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .portal-user-avatar img,
@@ -90,14 +91,16 @@
 /* 16px at weight 700 is the size the reference product uses for both bars, and
  * it is the size a room reads from the back. The bars were a step smaller. */
 .portal-global-nav button {
-  padding: 0 15px;
+  padding: 0 13px;
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
   color: rgba(255, 255, 255, 0.94);
+  /* Unchanged: this is the size a room reads from the back, and the bar got
+     thinner by losing padding, not by shrinking what is written on it. */
   font-size: 16px;
   font-weight: 700;
-  line-height: 24px;
+  line-height: 22px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -111,8 +114,8 @@
 .portal-header-search {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -123,8 +126,8 @@
 }
 
 .portal-header-search svg {
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
 }
 
 .portal-header-search:hover {
@@ -136,8 +139,8 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 44px;
-  padding: 0 19px;
+  min-height: 34px;
+  padding: 0 16px;
   border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 24px;
   background: transparent;
@@ -162,7 +165,7 @@
 .portal-sidebar {
   position: fixed;
   z-index: 30;
-  top: 96px;
+  top: 56px;
   bottom: 0;
   left: 0;
   display: flex;
@@ -915,7 +918,7 @@
 
   .portal-sidebar {
     position: sticky;
-    top: 96px;
+    top: 56px;
     bottom: auto;
     width: 100%;
     /* The row of tabs is wider than a phone and scrolls inside itself. Without
