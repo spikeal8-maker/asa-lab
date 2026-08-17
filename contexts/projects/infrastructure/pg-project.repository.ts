@@ -95,6 +95,8 @@ const ACCESS_SQL = `(
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
            AND $4::uuid IS NOT NULL AND m.user_id = $4))
+  OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
+        SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
 )`;
 
 const EDIT_ACCESS_SQL = `(
@@ -106,6 +108,8 @@ const EDIT_ACCESS_SQL = `(
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
            AND $4::uuid IS NOT NULL AND m.user_id = $4
            AND m.member_role IN ('owner', 'co_teacher')))
+  OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
+        SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
 )`;
 
 interface ResolvedProjectContext {

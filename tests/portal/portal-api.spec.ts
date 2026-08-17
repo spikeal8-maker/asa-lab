@@ -186,17 +186,51 @@ describe('classrooms', () => {
     expect(studentOpened.json().draft.document).toMatchObject({ units: 'mm' });
 
     /**
-     * The work is the learner's own. A teacher of the same class reaches it no
-     * more than anyone else does: nothing in this change opened a door into a
-     * learner's personal projects, and opening one is a decision about privacy
-     * rather than a side effect of letting them create.
+     * The teacher of this class opens the learner's work and may correct it —
+     * an owner decision, matching how the reference product works. The rule is
+     * exactly as wide as that: this teacher, these learners.
      */
-    const teacherSeesStudentWork = await inject(app, {
+    const teacherOpens = await inject(app, {
       method: 'GET',
       url: `/api/projects/${studentProjectId}`,
       cookies: { asa_session: token },
     });
-    expect(teacherSeesStudentWork.statusCode).toBe(404);
+    expect(teacherOpens.statusCode).toBe(200);
+    expect(teacherOpens.json().project).toMatchObject({ title: 'Моя первая модель' });
+
+    const teacherEdits = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${studentProjectId}/draft`,
+      cookies: { asa_session: token },
+      payload: { document: studentOpened.json().draft.document },
+    });
+    expect(teacherEdits.statusCode).toBe(200);
+
+    /**
+     * A teacher of some other class is a stranger to this learner. This is the
+     * assertion that keeps the rule from being "any teacher sees any child".
+     */
+    const stranger = await seedTeacher(admin, 'api-stranger');
+    const strangerToken = await login(stranger);
+    const strangerReads = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${studentProjectId}`,
+      cookies: { asa_session: strangerToken },
+    });
+    expect(strangerReads.statusCode).toBe(404);
+
+    /**
+     * The class keeps a record of what its learners did. Repeated work inside a
+     * short window folds into one entry with a count, because an editor
+     * autosaves while a learner thinks and a feed of identical lines answers
+     * "what did they do" with noise.
+     */
+    const activity = await admin.query(
+      `SELECT action, occurrence_count FROM classroom_activity_events
+        WHERE tenant_id = $1 AND classroom_id = $2 ORDER BY occurred_at`,
+      [teacher.tenantId, classroomId],
+    );
+    expect(activity.rows.map((row) => row.action)).toContain('seat.signed_in');
 
     const suspended = await inject(app, {
       method: 'PATCH',

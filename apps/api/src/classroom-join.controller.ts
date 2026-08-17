@@ -171,7 +171,35 @@ export class ClassroomJoinController {
       secure: process.env['NODE_ENV'] === 'production',
       maxAge: STUDENT_SESSION_HOURS * 60 * 60,
     });
+    await this.recordSeatActivity(row.seat_id, 'seat.signed_in');
     return studentPayload(row);
+  }
+
+  /**
+   * Notes a learner's arrival or departure in their class record. It is written
+   * after the session itself so a failure here can never cost a learner their
+   * sign-in: the record exists to tell a teacher how someone is getting on, and
+   * that is never worth a locked door.
+   */
+  private async recordSeatActivity(seatId: string, action: string): Promise<void> {
+    try {
+      const principal = await this.requirePool().query(
+        `SELECT principal_id, tenant_id, classroom_id FROM student_seat_principal($1)`,
+        [seatId],
+      );
+      const seat = principal.rows[0] as
+        { principal_id: string; tenant_id: string; classroom_id: string } | undefined;
+      if (!seat) return;
+      await this.requirePool().query(`SELECT classroom_activity_record($1,$2,$3,$4,$5,NULL,NULL)`, [
+        seat.tenant_id,
+        seat.classroom_id,
+        seatId,
+        seat.principal_id,
+        action,
+      ]);
+    } catch {
+      // Deliberately silent: see above.
+    }
   }
 
   @Get('me')
@@ -196,9 +224,15 @@ export class ClassroomJoinController {
   ): Promise<{ ok: true }> {
     const token = request.cookies[STUDENT_SESSION_COOKIE];
     if (token) {
+      const active = await this.requirePool().query(
+        `SELECT seat_id FROM classroom_student_session_context($1)`,
+        [hashSessionToken(token)],
+      );
+      const seatId = (active.rows[0] as { seat_id: string } | undefined)?.seat_id;
       await this.requirePool().query(`SELECT classroom_student_session_revoke($1)`, [
         hashSessionToken(token),
       ]);
+      if (seatId) await this.recordSeatActivity(seatId, 'seat.signed_out');
     }
     reply.clearCookie(STUDENT_SESSION_COOKIE, { path: '/' });
     return { ok: true };

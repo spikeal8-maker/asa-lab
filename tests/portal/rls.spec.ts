@@ -141,6 +141,11 @@ describe('runtime role hardening', () => {
       'chess_ratings:INSERT',
       'chess_ratings:SELECT',
       'chess_ratings:UPDATE',
+      // The class record: written as learners work, updated when repeated work
+      // folds into one entry, never removed by the runtime role.
+      'classroom_activity_events:INSERT',
+      'classroom_activity_events:SELECT',
+      'classroom_activity_events:UPDATE',
       'classroom_join_codes:INSERT',
       'classroom_join_codes:SELECT',
       'classroom_memberships:INSERT',
