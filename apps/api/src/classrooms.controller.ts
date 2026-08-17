@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -37,6 +38,17 @@ import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HANDLE_PATTERN = /^[a-z0-9._-]{3,32}$/;
 const SEAT_STATUSES = ['issued', 'active', 'suspended'] as const;
+/** The badge vocabulary, matching the database's own check constraint. */
+const SEAT_AWARDS: readonly string[] = [
+  'first-model',
+  'bright-idea',
+  'careful-work',
+  'precision',
+  'perseverance',
+  'helper',
+  'explorer',
+  'editors-choice',
+];
 
 interface ClassroomSummaryRow {
   id: string;
@@ -864,6 +876,85 @@ export class ClassroomsController {
         badge: row.badge,
       })),
     };
+  }
+
+  /**
+   * A badge for a learner, and the reason behind it.
+   *
+   * The database decides who may give one — a teacher of that learner's class,
+   * nobody else — so the route carries no authority of its own beyond being
+   * signed in as an educator.
+   */
+  @Put(':classroomId/students/:seatId/awards/:awardKey')
+  async setAward(
+    @Req() request: FastifyRequest,
+    @Param('seatId') seatId: string,
+    @Param('awardKey') awardKey: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(seatId, 'seat');
+    if (!SEAT_AWARDS.includes(awardKey)) {
+      throw new HttpException(error('validation_error', 'Неизвестный значок.'), 400);
+    }
+    const shape = checkBodyShape(rawBody, ['granted', 'note']);
+    const granted = shape.ok ? shape.body['granted'] : null;
+    const note = shape.ok ? (shape.body['note'] ?? null) : null;
+    if (typeof granted !== 'boolean' || (note !== null && typeof note !== 'string')) {
+      throw new HttpException(error('validation_error', 'granted must be boolean'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT classroom_seat_award_set($1, $2, $3, $4, $5) AS ok`,
+      [context.principalId, seatId, awardKey, note, granted],
+    );
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('seat_not_found', 'Ученик не найден.'), 404);
+    }
+    return { items: await this.awardsOf(seatId) };
+  }
+
+  @Get(':classroomId/students/:seatId/awards')
+  async listAwards(@Req() request: FastifyRequest, @Param('seatId') seatId: string) {
+    await this.requireEducator(request);
+    this.requireUuid(seatId, 'seat');
+    return { items: await this.awardsOf(seatId) };
+  }
+
+  /** Which badges each learner in the class holds, for the register. */
+  @Get(':classroomId/awards')
+  async classAwards(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
+    const context = await this.requireEducator(request);
+    await this.summary(context, classroomId);
+    const result = await this.requirePool().query(
+      `SELECT seat_id, award_key FROM classroom_seat_award_keys($1, $2)`,
+      [context.accountId, classroomId],
+    );
+    const bySeat: Record<string, string[]> = {};
+    for (const row of result.rows as Array<{ seat_id: string; award_key: string }>) {
+      (bySeat[row.seat_id] ??= []).push(row.award_key);
+    }
+    return { items: bySeat };
+  }
+
+  private async awardsOf(seatId: string) {
+    const result = await this.requirePool().query(
+      `SELECT award_key, note, created_at, awarded_by_display_name
+         FROM classroom_seat_awards_list($1)`,
+      [seatId],
+    );
+    return (
+      result.rows as Array<{
+        award_key: string;
+        note: string | null;
+        created_at: Date | string;
+        awarded_by_display_name: string;
+      }>
+    ).map((row) => ({
+      awardKey: row.award_key,
+      note: row.note,
+      createdAt: iso(row.created_at),
+      awardedBy: row.awarded_by_display_name,
+    }));
   }
 
   @Patch(':classroomId/policies')

@@ -14,6 +14,7 @@ import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
+import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
 import { defaultAvatarForAccount, seatAvatar } from '../creator-portal/default-avatars';
 
@@ -305,6 +306,9 @@ export function ClassroomPage({
   const [sharing, setSharing] = useState(false);
   const [search, setSearch] = useState('');
   const time = useSchoolTime();
+  // Badges for the whole class in one answer, so the register does not ask
+  // thirty times.
+  const [awards, setAwards] = useState<Readonly<Record<string, string[]>>>({});
 
   const reload = useCallback(async () => {
     const [classroom, roster] = await Promise.all([
@@ -319,6 +323,12 @@ export function ClassroomPage({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    void api.classroomAwards(classroomId).then((result) => {
+      if (result.ok) setAwards(result.data.items);
+    });
+  }, [classroomId, openStudent]);
 
   useEffect(() => {
     setTeacherTeam({ kind: 'idle' });
@@ -622,7 +632,10 @@ export function ClassroomPage({
                       loading="lazy"
                     />
                     <span>
-                      <strong>{student.displayLabel}</strong>
+                      <strong>
+                        {student.displayLabel}
+                        <SeatAwardRow keys={awards[student.id] ?? []} size="small" />
+                      </strong>
                       <small>
                         {student.status === 'suspended' ? 'Доступ приостановлен' : 'Место ученика'}
                       </small>

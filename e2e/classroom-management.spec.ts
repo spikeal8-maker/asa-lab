@@ -263,6 +263,29 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await studentPage.screenshot({ path: `${evidenceDir}/student-reads-feedback.png` });
   await note.getByRole('button', { name: 'Понятно' }).click();
 
+  /**
+   * A badge. Not a mark on one model — a fact about the person, with the reason
+   * their teacher wrote, which is the half a child remembers.
+   */
+  await page
+    .getByTestId('seat-award-grid')
+    .getByRole('button', { name: /Помощник/ })
+    .click();
+  const awardDialog = page.getByRole('dialog', { name: 'Причина значка' });
+  await awardDialog.getByLabel('Причина').fill('За помощь соседу с электроникой.');
+  await awardDialog.getByRole('button', { name: 'Выдать значок' }).click();
+  await expect(page.getByTestId('seat-award-grid')).toContainText('За помощь соседу');
+  await page.screenshot({ path: `${evidenceDir}/teacher-awards.png`, fullPage: true });
+
+  // The learner reads it on their own page, with the reason.
+  await studentPage.locator('.portal-account > summary').click();
+  await studentPage.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await expect(studentPage.getByTestId('seat-awards-earned')).toContainText('Помощник');
+  await expect(studentPage.getByTestId('seat-awards-earned')).toContainText(
+    'За помощь соседу с электроникой.',
+  );
+  await studentPage.screenshot({ path: `${evidenceDir}/student-awards.png`, fullPage: true });
+
   await page.getByRole('button', { name: '5Б Makers' }).first().click();
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
 

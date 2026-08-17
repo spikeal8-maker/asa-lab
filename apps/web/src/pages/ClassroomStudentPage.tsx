@@ -11,6 +11,7 @@ import { ProjectCard } from '../modules/ProjectCard';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
+import { SeatAwardPanel, SeatAwardRow } from '../components/SeatAwards';
 import './classroom-student.css';
 
 /**
@@ -176,6 +177,7 @@ export function ClassroomStudentPage({
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
   const [responding, setResponding] = useState<{ id: string; title: string } | null>(null);
   const time = useSchoolTime();
+  const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -268,6 +270,7 @@ export function ClassroomStudentPage({
             {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не заходил'}
           </p>
           <div className="classroom-student-badges">
+            <SeatAwardRow keys={awardKeys} />
             {student.safeMode ? (
               <span className="classroom-student-badge">Безопасный режим</span>
             ) : null}
@@ -332,6 +335,10 @@ export function ClassroomStudentPage({
           </p>
         </section>
       </div>
+
+      {/* What this learner has been noticed for. Below their work, because the
+          work is the evidence and the badge is the conclusion. */}
+      <SeatAwardPanel classroomId={classroomId} seatId={seatId} onChanged={setAwardKeys} />
 
       {responding ? (
         <FeedbackDialog

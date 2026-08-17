@@ -1455,3 +1455,11 @@ button.portal-account-identity:hover:not(:disabled) {
   color: var(--ink-muted);
   font-size: 14px;
 }
+
+/* Two sections in one settings column need air between them; without it the
+ * next heading reads as part of the previous paragraph. */
+.account-settings-content > .account-settings-section + .account-settings-section {
+  margin-top: 34px;
+  padding-top: 28px;
+  border-top: 1px solid #e3e9ed;
+}

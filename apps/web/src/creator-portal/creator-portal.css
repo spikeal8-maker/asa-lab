@@ -1112,3 +1112,24 @@
     justify-self: start;
   }
 }
+
+/* A learner's one setting, offered where they already look at themselves. */
+.portal-sidebar-change-avatar {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0a6f9c;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.portal-sidebar-change-avatar:hover {
+  color: #075c85;
+}
+
+.portal-sidebar.collapsed .portal-sidebar-change-avatar {
+  display: none;
+}

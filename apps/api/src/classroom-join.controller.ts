@@ -340,6 +340,37 @@ export class ClassroomJoinController {
     };
   }
 
+  /**
+   * The badges this learner has been given.
+   *
+   * A badge nobody sees is a row in a table. The learner reads their own — with
+   * the reason their teacher wrote, which is the half that is remembered.
+   */
+  @Get('me/awards')
+  async myAwards(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(
+      `SELECT award_key, note, created_at, awarded_by_display_name
+         FROM classroom_seat_awards_list($1)`,
+      [seat.seat_id],
+    );
+    return {
+      items: (
+        result.rows as Array<{
+          award_key: string;
+          note: string | null;
+          created_at: Date | string;
+          awarded_by_display_name: string;
+        }>
+      ).map((row) => ({
+        awardKey: row.award_key,
+        note: row.note,
+        createdAt: isoDate(row.created_at),
+        awardedBy: row.awarded_by_display_name,
+      })),
+    };
+  }
+
   /** Handing it in, or taking it back to keep working. */
   @Post('me/assignments/:assignmentId/submit')
   @HttpCode(200)

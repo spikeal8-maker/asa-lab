@@ -87,6 +87,14 @@ export interface Classroom {
 
 export type ClassroomStatus = 'active' | 'archived' | 'deleted';
 
+/** A badge a teacher gave a learner, with the reason if one was written. */
+export interface SeatAward {
+  awardKey: string;
+  note: string | null;
+  createdAt: string;
+  awardedBy: string;
+}
+
 /** Work a teacher set for a class, with how far the class has got with it. */
 export interface ClassroomAssignment {
   id: string;
@@ -646,6 +654,25 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
     ),
+  listSeatAwards: (classroomId: string, seatId: string) =>
+    call<{ items: SeatAward[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}/awards`,
+    ),
+  setSeatAward: (
+    classroomId: string,
+    seatId: string,
+    awardKey: string,
+    granted: boolean,
+    note: string | null,
+  ) =>
+    call<{ items: SeatAward[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}/awards/${encodeURIComponent(awardKey)}`,
+      { method: 'PUT', body: JSON.stringify({ granted, note }) },
+    ),
+  classroomAwards: (classroomId: string) =>
+    call<{ items: Record<string, string[]> }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/awards`,
+    ),
   listClassroomAssignments: (classroomId: string) =>
     call<{ items: ClassroomAssignment[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments`,
@@ -672,6 +699,7 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/progress`,
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
+  mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
   startSeatAssignment: (assignmentId: string, projectId: string) =>
     call<{ projectId: string; submittedAt: string | null }>(
       `/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`,

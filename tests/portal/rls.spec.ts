@@ -155,6 +155,9 @@ describe('runtime role hardening', () => {
       'classroom_join_codes:SELECT',
       'classroom_memberships:INSERT',
       'classroom_memberships:SELECT',
+      // Badges: read by the register and by the learner, given and taken back
+      // only through the function that knows whose class this learner is in.
+      'classroom_seat_awards:SELECT',
       'classroom_student_seats:SELECT',
       'classrooms:INSERT',
       'classrooms:SELECT',

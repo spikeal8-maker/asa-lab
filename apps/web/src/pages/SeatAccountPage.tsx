@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { api, type ClassroomStudentSession } from '../api';
+import { useEffect, useState } from 'react';
+import { api, type ClassroomStudentSession, type SeatAward } from '../api';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
+import { awardOf } from '../components/SeatAwards';
+import '../components/seat-awards.css';
 
 /**
  * A learner's own settings.
@@ -23,6 +25,13 @@ export function SeatAccountPage({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [awards, setAwards] = useState<SeatAward[] | null>(null);
+
+  useEffect(() => {
+    void api.mySeatAwards().then((result) => {
+      setAwards(result.ok ? result.data.items : []);
+    });
+  }, []);
 
   async function choose(avatarKey: string | null): Promise<void> {
     setBusy(true);
@@ -104,6 +113,39 @@ export function SeatAccountPage({
             <p className="account-hint">
               Чтобы изменить имя или вход, попросите преподавателя — он делает это в списке класса.
             </p>
+          </section>
+
+          {/* What the teacher has noticed. First on the page after the picture,
+              because it is the reason a child opens this at all. */}
+          <section className="account-settings-section" aria-labelledby="seat-awards-heading">
+            <div className="account-section-heading">
+              <p className="account-card-kicker">Достижения</p>
+              <h2 id="seat-awards-heading">Мои значки</h2>
+              <p>Их выдаёт преподаватель за то, что у вас получилось.</p>
+            </div>
+            {awards === null ? (
+              <p role="status">Загружаем…</p>
+            ) : awards.length === 0 ? (
+              <p className="account-hint">
+                Пока ни одного. Значки появляются за работы, идеи и помощь другим.
+              </p>
+            ) : (
+              <ul className="seat-award-earned" data-testid="seat-awards-earned">
+                {awards.map((award) => {
+                  const meta = awardOf(award.awardKey);
+                  return (
+                    <li key={award.awardKey}>
+                      <i aria-hidden="true">{meta?.glyph ?? '🏅'}</i>
+                      <span>
+                        <strong>{meta?.label ?? award.awardKey}</strong>
+                        {award.note ? <small>{award.note}</small> : null}
+                        <em>{award.awardedBy}</em>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
       </div>

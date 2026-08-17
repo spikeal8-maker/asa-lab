@@ -1,0 +1,167 @@
+/* Badges.
+ *
+ * Big enough to be worth having. A reward drawn at twelve pixels in grey is not
+ * a reward, and the whole point of these is that a child wants one.
+ */
+
+.seat-awards {
+  margin-top: 30px;
+}
+
+.seat-awards h2 {
+  margin: 0 0 6px;
+  color: #273b49;
+  font-size: 20px;
+}
+
+.seat-awards-lead {
+  margin: 0 0 14px;
+  color: var(--ink-muted);
+}
+
+.seat-award-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seat-award-grid button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 14px 14px 13px;
+  border: 1px solid #e1e7eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #2b4250;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.seat-award-grid button:hover:not(:disabled) {
+  border-color: #9fcfe4;
+  background: #f6fbfd;
+}
+
+/* Given: it should look like something happened. */
+.seat-award-grid button.is-given {
+  border-color: #f0c95b;
+  background: linear-gradient(160deg, #fffaeb, #fff5d9);
+}
+
+.seat-award-grid button:disabled {
+  cursor: default;
+}
+
+.seat-award-grid button i {
+  font-size: 26px;
+  font-style: normal;
+  line-height: 1.1;
+}
+
+.seat-award-grid button.is-given i {
+  filter: none;
+}
+
+/* Not yet given reads as an outline of the thing rather than the thing. */
+.seat-award-grid button:not(.is-given) i {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.seat-award-grid strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.seat-award-grid small {
+  color: #5a4a1c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.seat-award-grid em {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+/* The row shown next to a learner wherever they appear. */
+.seat-award-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.seat-award-chip {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff6e0;
+  box-shadow: inset 0 0 0 1px #f0d795;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.seat-award-row.is-small .seat-award-chip {
+  width: 19px;
+  height: 19px;
+  font-size: 11px;
+}
+
+/* The learner's own list: bigger than the teacher's grid, because this is the
+ * page where a child looks at what they have earned. */
+.seat-award-earned {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seat-award-earned li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #f0d795;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #fffaeb, #fff5d9);
+}
+
+.seat-award-earned i {
+  flex: 0 0 auto;
+  font-size: 30px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.seat-award-earned span {
+  display: grid;
+  gap: 2px;
+}
+
+.seat-award-earned strong {
+  color: #2b4250;
+  font-size: 16px;
+}
+
+.seat-award-earned small {
+  color: #5a4a1c;
+  font-size: 14px;
+}
+
+.seat-award-earned em {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-style: normal;
+}
