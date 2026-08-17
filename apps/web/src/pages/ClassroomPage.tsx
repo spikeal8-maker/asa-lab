@@ -276,14 +276,17 @@ function BatchDialog({
 
 export function ClassroomPage({
   classroomId,
+  openSeatId,
   onBack,
   onOpenProjects,
   onOpenProject,
 }: {
   classroomId: string;
+  /** Opens straight into one learner: how a teacher returns from their work. */
+  openSeatId?: string;
   onBack: () => void;
   onOpenProjects: (classroomTitle: string) => void;
-  onOpenProject: (projectId: string, moduleKey: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string, seatId?: string) => void;
 }): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
   const [tab, setTab] = useState<ClassroomTab>('students');
@@ -297,7 +300,7 @@ export function ClassroomPage({
   const [activity, setActivity] = useState<ClassroomActivityEntry[]>([]);
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
-  const [openStudent, setOpenStudent] = useState<string | null>(null);
+  const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
   const [sharing, setSharing] = useState(false);
   const [search, setSearch] = useState('');
   const time = useSchoolTime();
@@ -417,7 +420,7 @@ export function ClassroomPage({
           setOpenStudent(null);
           void reload();
         }}
-        onOpenProject={onOpenProject}
+        onOpenProject={(projectId, moduleKey) => onOpenProject(projectId, moduleKey, openStudent)}
       />
     );
   }

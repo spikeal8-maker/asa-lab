@@ -39,6 +39,7 @@ export function ProjectCard({
   timeLabel,
   footerLabel,
   footerTone,
+  footerAction,
   open,
   primaryLabel = 'Изменить',
   primaryAction,
@@ -55,6 +56,8 @@ export function ProjectCard({
    * legible from across a grid of thirty cards; grey body text is not.
    */
   readonly footerTone?: 'excellent' | 'good' | 'progress' | 'redo' | 'teacher' | undefined;
+  /** Makes the mark a button — used where the verdict has a note behind it. */
+  readonly footerAction?: { readonly label: string; readonly onSelect: () => void } | undefined;
   /** Present while the project can be opened in its editor. */
   readonly open?: ProjectCardOpen | undefined;
   readonly primaryLabel?: string;
@@ -165,9 +168,22 @@ export function ProjectCard({
           </>
         )}
         <p className="project-card-footer">
-          <span className={footerTone ? `project-card-mark tone-${footerTone}` : undefined}>
-            {footerLabel}
-          </span>
+          {/* When the mark leads somewhere — a teacher's note behind a verdict —
+              it is a button. A learner should not have to find a hover menu to
+              read why they got "Нужно доделать". */}
+          {footerAction ? (
+            <button
+              type="button"
+              className={`project-card-mark is-action tone-${footerTone ?? 'teacher'}`}
+              onClick={footerAction.onSelect}
+            >
+              {footerLabel}
+            </button>
+          ) : (
+            <span className={footerTone ? `project-card-mark tone-${footerTone}` : undefined}>
+              {footerLabel}
+            </span>
+          )}
           <span className="project-card-subject">{subject}</span>
         </p>
       </div>

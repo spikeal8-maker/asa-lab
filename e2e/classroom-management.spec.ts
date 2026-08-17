@@ -230,6 +230,39 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(work).toContainText('Хорошо');
   await page.screenshot({ path: `${evidenceDir}/teacher-sees-student.png`, fullPage: true });
 
+  /**
+   * And into the work itself. The owner decided a teacher may open and correct
+   * a learner's model, as the reference product allows; the database widens a
+   * teacher's reach to the seats of their own classes and no further. This is
+   * the part that had never been walked end to end.
+   */
+  await work.hover();
+  await work.getByRole('link', { name: 'Открыть' }).click();
+  await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
+    timeout: 30_000,
+  });
+  await page.screenshot({ path: `${evidenceDir}/teacher-in-student-work.png`, fullPage: true });
+  // Leaving the work returns to the learner it belongs to, not to the teacher's
+  // own project list — which is where this used to land.
+  await page.getByRole('button', { name: 'ASA Lab' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Алина К.', level: 1 })).toBeVisible();
+
+  /**
+   * And the learner reads it. A verdict that only ever appeared on the
+   * teacher's copy of the card was a note to nobody: the badge is now on the
+   * learner's own card, and the reason behind it is one click away.
+   */
+  await studentPage.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+  const ownWork = studentPage.getByTestId('project-card').filter({ hasText: 'Моя модель' });
+  await expect(ownWork).toContainText('Хорошо');
+  // The verdict itself opens the note: no hover menu to discover first.
+  await ownWork.getByRole('button', { name: 'Хорошо' }).click();
+  const note = studentPage.getByRole('dialog', { name: 'Отклик: Моя модель' });
+  await expect(note).toContainText('Добавь отверстие под винт.');
+  await studentPage.screenshot({ path: `${evidenceDir}/student-reads-feedback.png` });
+  await note.getByRole('button', { name: 'Понятно' }).click();
+
   await page.getByRole('button', { name: '5Б Makers' }).first().click();
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
 

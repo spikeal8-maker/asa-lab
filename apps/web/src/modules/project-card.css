@@ -298,6 +298,21 @@
   color: #48519a;
 }
 
+/* The mark that leads to the note. It stays a mark — same size, same colour —
+   and gains only what says it can be pressed. */
+.project-card-mark.is-action {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.project-card-mark.is-action:hover {
+  filter: brightness(0.95);
+  text-decoration: underline;
+}
+
 /* ── Renaming in place ───────────────────────────────────────────────────── */
 
 .project-card-rename {
@@ -436,4 +451,30 @@
   .project-card-title {
     font-size: 13px;
   }
+}
+
+/* The teacher's note, read in full. The card carries the verdict; this carries
+ * the reason, which is the half that actually teaches anything. */
+.feedback-note-mark {
+  display: inline-block;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.feedback-note-comment {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-left: 3px solid #0b82ba;
+  border-radius: 0 8px 8px 0;
+  background: #f2f8fb;
+  color: #2b4250;
+  font-size: 15px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.feedback-note-author {
+  margin: 0;
+  color: #74858f;
+  font-size: 13px;
 }

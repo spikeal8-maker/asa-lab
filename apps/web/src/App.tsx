@@ -398,12 +398,21 @@ export function App(): JSX.Element {
                 classroomTitle,
               })
             }
-            onOpenProject={(projectId, moduleKey) =>
+            {...(view.seatId ? { openSeatId: view.seatId } : {})}
+            /* Leaving a learner's model returns to that learner, not to the
+               teacher's own project list — which is where this used to land,
+               and is nobody's idea of "back". */
+            onOpenProject={(projectId, moduleKey, seatId) =>
               setView({
                 kind: 'editor',
                 projectId,
                 moduleKey,
-                returnTo: { kind: 'my-projects' },
+                returnTo: {
+                  kind: 'classroom',
+                  classroomId: view.classroomId,
+                  classroomTitle: view.classroomTitle,
+                  ...(seatId ? { seatId } : {}),
+                },
               })
             }
           />

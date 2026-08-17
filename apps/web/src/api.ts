@@ -755,6 +755,8 @@ export const api = {
         ...(options.unloading === true ? { keepalive: true } : {}),
       },
     ),
+  myProjectFeedback: () =>
+    call<{ items: Record<string, ProjectFeedback> }>('/api/projects/feedback'),
   projectFeedback: (projectId: string) =>
     call<{ items: ProjectFeedback[] }>(`/api/projects/${encodeURIComponent(projectId)}/feedback`),
   saveProjectFeedback: (projectId: string, input: { badge: string | null; comment: string }) =>

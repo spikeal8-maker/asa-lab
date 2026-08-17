@@ -168,6 +168,20 @@ export class ProjectsController {
     return { project: result.value.project, created: result.value.created };
   }
 
+  /**
+   * What every teacher has said about everything this person made.
+   *
+   * Declared above the parameterised routes so `feedback` is not read as a
+   * project id. A learner asks this once when their projects load, which is how
+   * the mark is on the card the moment the card appears rather than a beat
+   * later, per card.
+   */
+  @Get('feedback')
+  async myFeedback(@Req() request: FastifyRequest): Promise<{ items: unknown }> {
+    const context = await this.requireContext(request);
+    return { items: await this.feedback.mine(context.principalId) };
+  }
+
   @Get(':projectId')
   async open(
     @Req() request: FastifyRequest,

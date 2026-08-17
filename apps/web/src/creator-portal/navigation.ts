@@ -10,7 +10,9 @@ export type CreatorPortalView =
   | { kind: 'collections' }
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
-  | { kind: 'classroom'; classroomId: string; classroomTitle: string }
+  /** `seatId` opens the class already showing one learner, which is where a
+   *  teacher came from when they went into that learner's work. */
+  | { kind: 'classroom'; classroomId: string; classroomTitle: string; seatId?: string }
   | { kind: 'teacher-invite'; token: string }
   | { kind: 'help' }
   | { kind: 'account' }
@@ -22,6 +24,7 @@ export type CreatorPortalView =
       returnTo:
         | { kind: 'home' }
         | { kind: 'my-projects' }
+        | { kind: 'classroom'; classroomId: string; classroomTitle: string; seatId?: string }
         | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
     };
 

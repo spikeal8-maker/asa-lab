@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { api, type ModuleSummary, type Project, type ProjectStatus } from '../api';
+import {
+  api,
+  type ModuleSummary,
+  type Project,
+  type ProjectFeedback,
+  type ProjectStatus,
+} from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
 import { creatorViewToHref } from '../creator-portal/navigation';
 import { PlusIcon } from '../electronics/workbench-icons';
@@ -7,6 +13,64 @@ import { ProjectCard } from '../modules/ProjectCard';
 
 type SortMode = 'recent' | 'oldest' | 'title';
 type LayoutMode = 'grid' | 'list';
+
+/**
+ * The four verdicts, as a learner reads them. The same words their teacher
+ * chose, in the same colours, on their own card — a mark that only existed on
+ * the teacher's screen was a note to nobody.
+ */
+const FEEDBACK_LABELS: Readonly<Record<string, string>> = {
+  excellent: 'Отлично',
+  good: 'Хорошо',
+  progress: 'Есть прогресс',
+  redo: 'Нужно доделать',
+};
+
+function feedbackTone(
+  badge: string | null,
+): 'excellent' | 'good' | 'progress' | 'redo' | 'teacher' | undefined {
+  if (badge === 'excellent' || badge === 'good' || badge === 'progress' || badge === 'redo') {
+    return badge;
+  }
+  // A comment with no badge still deserves to be visible.
+  return 'teacher';
+}
+
+/** What the teacher wrote, in full. The card can only carry the verdict. */
+function FeedbackNote({
+  title,
+  entry,
+  onClose,
+}: {
+  readonly title: string;
+  readonly entry: ProjectFeedback;
+  readonly onClose: () => void;
+}): JSX.Element {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal" role="dialog" aria-modal="true" aria-label={`Отклик: ${title}`}>
+        <h2>Отклик на «{title}»</h2>
+        {entry.badge ? (
+          <p className={`project-card-mark tone-${feedbackTone(entry.badge)} feedback-note-mark`}>
+            {FEEDBACK_LABELS[entry.badge] ?? entry.badge}
+          </p>
+        ) : null}
+        {entry.comment ? <p className="feedback-note-comment">{entry.comment}</p> : null}
+        <p className="feedback-note-author">
+          {entry.author} ·{' '}
+          {new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long', timeStyle: 'short' }).format(
+            new Date(entry.updatedAt),
+          )}
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="btn-primary" autoFocus onClick={onClose}>
+            Понятно
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -42,13 +106,20 @@ export function MyProjectsPage({
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  // What a teacher said, keyed by project. Empty for anyone with no teacher.
+  const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
+  const [reading, setReading] = useState<{ title: string; entry: ProjectFeedback } | null>(null);
 
   const load = useCallback(async () => {
     setItems(null);
     setError(null);
-    const [projectsResult, modulesResult] = await Promise.all([
+    // The teacher's responses arrive with the projects, so a mark is on the card
+    // when the card appears. A response is not required for the page to work: a
+    // learner with no teacher simply has none.
+    const [projectsResult, modulesResult, feedbackResult] = await Promise.all([
       api.listProjects({ scope: 'personal', status: statusFilter }),
       api.listModules(),
+      api.myProjectFeedback(),
     ]);
     if (!projectsResult.ok || !modulesResult.ok) {
       setError(
@@ -60,6 +131,7 @@ export function MyProjectsPage({
     }
     setItems(projectsResult.data.items);
     setModules(modulesResult.data.items);
+    setFeedback(feedbackResult.ok ? feedbackResult.data.items : {});
   }, [statusFilter]);
 
   useEffect(() => {
@@ -313,13 +385,30 @@ export function MyProjectsPage({
             });
             const busy = actionBusy === project.id;
             const active = statusFilter === 'active';
+            // A teacher's verdict belongs on the learner's own card. Until now
+            // it lived only on the teacher's copy: a mark nobody reads.
+            const response = feedback[project.id];
+            const tone = response ? feedbackTone(response.badge) : undefined;
             return (
               <ProjectCard
                 key={project.id}
                 project={project}
                 module={module}
                 timeLabel={`Изменён ${formatDate(project.updatedAt)}`}
-                footerLabel="Приватный"
+                footerLabel={
+                  response
+                    ? (FEEDBACK_LABELS[response.badge ?? ''] ?? 'Есть отклик педагога')
+                    : 'Приватный'
+                }
+                {...(tone ? { footerTone: tone } : {})}
+                {...(response
+                  ? {
+                      footerAction: {
+                        label: 'Отклик педагога',
+                        onSelect: () => setReading({ title: project.title, entry: response }),
+                      },
+                    }
+                  : {})}
                 {...(active
                   ? {
                       open: {
@@ -337,6 +426,15 @@ export function MyProjectsPage({
                 menuItems={
                   active
                     ? [
+                        ...(response
+                          ? [
+                              {
+                                label: 'Отклик педагога',
+                                onSelect: () =>
+                                  setReading({ title: project.title, entry: response }),
+                              },
+                            ]
+                          : []),
                         { label: 'Переименовать', onSelect: () => beginRename(project) },
                         {
                           label: 'Дублировать',
@@ -403,6 +501,14 @@ export function MyProjectsPage({
             );
           })}
         </ul>
+      ) : null}
+
+      {reading ? (
+        <FeedbackNote
+          title={reading.title}
+          entry={reading.entry}
+          onClose={() => setReading(null)}
+        />
       ) : null}
 
       {creating ? (

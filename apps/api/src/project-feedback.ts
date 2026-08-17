@@ -53,6 +53,25 @@ export class ProjectFeedbackService {
     return row ? toEntry(row) : null;
   }
 
+  /**
+   * Everything said about everything this person made, in one answer. A learner
+   * opening their projects should not cost one request per project, and a mark
+   * that only appears after a per-card fetch is a mark that flickers.
+   */
+  async mine(principalId: string): Promise<Record<string, ProjectFeedbackEntry>> {
+    if (!this.pool) return {};
+    const result = await this.pool.query(
+      `SELECT project_id, badge, comment, updated_at, author_display_name
+         FROM project_feedback_for_owner($1)`,
+      [principalId],
+    );
+    const byProject: Record<string, ProjectFeedbackEntry> = {};
+    for (const row of result.rows as Array<FeedbackRow & { project_id: string }>) {
+      byProject[row.project_id] = toEntry(row);
+    }
+    return byProject;
+  }
+
   async list(principalId: string, projectId: string): Promise<ProjectFeedbackEntry[]> {
     if (!this.pool) return [];
     const result = await this.pool.query(
