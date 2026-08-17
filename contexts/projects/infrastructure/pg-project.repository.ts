@@ -117,6 +117,35 @@ interface ResolvedProjectContext {
   readonly userId: string | null;
 }
 
+/**
+ * Notes project work in the record of the class it belongs to.
+ *
+ * Which class that is follows from the project, so the caller passes only who
+ * acted and what they did. A personal project owned by a learner belongs to
+ * their class whoever is working on it, which is what puts a teacher's
+ * correction on the learner's own record. A teacher's own project belongs to no
+ * class and is not recorded.
+ *
+ * A failure here is swallowed: the record exists to tell a teacher how someone
+ * is getting on, and that is never worth failing the work itself.
+ */
+async function recordClassroomActivity(
+  client: { query: (text: string, values: unknown[]) => Promise<unknown> },
+  principalId: string,
+  projectId: string,
+  action: string,
+): Promise<void> {
+  try {
+    await client.query(`SELECT classroom_activity_record_project($1,$2,$3)`, [
+      principalId,
+      projectId,
+      action,
+    ]);
+  } catch {
+    // Deliberately silent: see above.
+  }
+}
+
 export class PgProjectRepository implements ProjectRepositoryPort {
   constructor(private readonly pool: pg.Pool) {}
 
@@ -226,6 +255,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           }),
         ],
       );
+      await recordClassroomActivity(client, principalId, project.id, 'project.created');
       return { kind: 'created', project };
     });
   }
@@ -408,6 +438,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           JSON.stringify({ title, actorPrincipalId: actor.principalId }),
         ],
       );
+      await recordClassroomActivity(client, actor.principalId, projectId, 'project.renamed');
       return toProject(row);
     });
   }
@@ -439,15 +470,20 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         ],
       );
       const row = updated.rows[0];
-      return row
-        ? {
-            projectId: row.project_id,
-            document: row.document_json,
-            revision: row.revision,
-            updatedAt: String(row.updated_at),
-            preview: toPreview(row as PreviewRow),
-          }
-        : null;
+      if (!row) return null;
+      await recordClassroomActivity(
+        client,
+        input.actor.principalId,
+        input.projectId,
+        'project.saved',
+      );
+      return {
+        projectId: row.project_id,
+        document: row.document_json,
+        revision: row.revision,
+        updatedAt: String(row.updated_at),
+        preview: toPreview(row as PreviewRow),
+      };
     });
   }
 
@@ -494,6 +530,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           JSON.stringify({ status, actorPrincipalId: actor.principalId }),
         ],
       );
+      await recordClassroomActivity(client, actor.principalId, projectId, `project.${status}`);
       return toProject(row);
     });
   }
@@ -554,6 +591,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           }),
         ],
       );
+      await recordClassroomActivity(client, actor.principalId, projectId, 'project.checkpoint');
       return {
         id: row.id,
         projectId: row.project_id,

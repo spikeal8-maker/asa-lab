@@ -123,6 +123,43 @@ export interface ClassroomStudentSession {
   expiresAt: string;
 }
 
+/**
+ * One line in a class record. Repeated work on the same project inside a window
+ * arrives as a single entry with a count, so `count` is how many times it
+ * happened and `firstAt`..`at` is the stretch it happened over.
+ */
+export interface ClassroomActivityEntry {
+  id: string;
+  action: string;
+  seatId: string | null;
+  seatLabel: string | null;
+  /** True when a teacher did this to a learner's work rather than the learner. */
+  byTeacher: boolean;
+  projectId: string | null;
+  projectTitle: string | null;
+  count: number;
+  firstAt: string;
+  at: string;
+}
+
+export interface ClassroomStudentWork {
+  id: string;
+  moduleKey: string;
+  title: string;
+  status: ProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+  snapshotRevision: number | null;
+  preview: ProjectPreview | null;
+  lastEditedByTeacher: boolean;
+}
+
+export interface ClassroomStudentDetail {
+  student: ClassroomStudentSeat;
+  projects: ClassroomStudentWork[];
+  activity: ClassroomActivityEntry[];
+}
+
 export type ProjectScope = 'personal' | 'classroom';
 export type ProjectStatus = 'active' | 'archived' | 'trashed';
 
@@ -499,6 +536,16 @@ export const api = {
   listClassroomRoster: (classroomId: string) =>
     call<{ items: ClassroomStudentSeat[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/roster`,
+    ),
+  classroomActivity: (classroomId: string, options: { kind?: 'projects' } = {}) =>
+    call<{ items: ClassroomActivityEntry[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/activity${
+        options.kind ? `?kind=${options.kind}` : ''
+      }`,
+    ),
+  classroomStudent: (classroomId: string, seatId: string) =>
+    call<ClassroomStudentDetail>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}`,
     ),
   addClassroomSeat: (
     classroomId: string,

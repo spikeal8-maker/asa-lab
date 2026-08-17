@@ -366,6 +366,14 @@ export function App(): JSX.Element {
               classroomTitle,
             })
           }
+          onOpenProject={(projectId, moduleKey) =>
+            setView({
+              kind: 'editor',
+              projectId,
+              moduleKey,
+              returnTo: { kind: 'my-projects' },
+            })
+          }
         />
       ) : null}
       {view.kind === 'classroom-projects' && canManageClasses ? (

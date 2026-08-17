@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -63,6 +64,32 @@ interface StudentSeatRow {
   status: 'issued' | 'active' | 'suspended';
   last_active_at: Date | string | null;
   created_at: Date | string;
+}
+
+interface ClassroomActivityRow {
+  id: string;
+  action: string;
+  seat_id: string | null;
+  seat_label: string | null;
+  actor_is_teacher: boolean;
+  project_id: string | null;
+  project_title: string | null;
+  occurrence_count: number | string;
+  first_occurred_at: Date | string;
+  occurred_at: Date | string;
+}
+
+interface SeatProjectRow {
+  id: string;
+  module_key: string;
+  title: string;
+  status: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+  snapshot_revision: number | string | null;
+  preview_json: unknown;
+  preview_digest: string | null;
+  last_editor_was_teacher: boolean;
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -291,6 +318,108 @@ export class ClassroomsController {
       [context.accountId, classroomId],
     );
     return { items: (result.rows as StudentSeatRow[]).map(seatView) };
+  }
+
+  /**
+   * What happened in this class. The database applies the teacher check and the
+   * seat filter, so a caller cannot ask about a learner in someone else's
+   * class by editing the request.
+   */
+  @Get(':classroomId/activity')
+  async activity(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Query('seatId') seatId: string | undefined,
+    @Query('kind') kind: string | undefined,
+  ) {
+    const context = await this.requireEducator(request);
+    const result = await this.requirePool().query(
+      `SELECT id, action, seat_id, seat_label, actor_is_teacher, project_id,
+              project_title, occurrence_count, first_occurred_at, occurred_at
+         FROM classroom_activity_feed($1, $2, $3, 200)`,
+      [context.principalId, classroomId, seatId ?? null],
+    );
+    const rows = result.rows as ClassroomActivityRow[];
+    const projectsOnly = kind === 'projects';
+    return {
+      items: rows
+        .filter((row) => (projectsOnly ? row.project_id !== null : true))
+        .map((row) => ({
+          id: row.id,
+          action: row.action,
+          seatId: row.seat_id,
+          seatLabel: row.seat_label,
+          byTeacher: row.actor_is_teacher === true,
+          projectId: row.project_id,
+          projectTitle: row.project_title,
+          count: Number(row.occurrence_count),
+          firstAt: String(row.first_occurred_at),
+          at: String(row.occurred_at),
+        })),
+    };
+  }
+
+  /** One learner: who they are, what they made, and what they have been doing. */
+  @Get(':classroomId/students/:seatId')
+  async student(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('seatId') seatId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    await this.summary(context, classroomId);
+    const [roster, projects, activity] = await Promise.all([
+      this.requirePool().query(
+        `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
+           FROM classroom_management_roster($1, $2)`,
+        [context.accountId, classroomId],
+      ),
+      this.requirePool().query(
+        `SELECT id, module_key, title, status, created_at, updated_at,
+                snapshot_revision, preview_json, preview_digest, last_editor_was_teacher
+           FROM classroom_seat_projects($1, $2)`,
+        [context.principalId, seatId],
+      ),
+      this.requirePool().query(
+        `SELECT id, action, seat_id, seat_label, actor_is_teacher, project_id,
+                project_title, occurrence_count, first_occurred_at, occurred_at
+           FROM classroom_activity_feed($1, $2, $3, 100)`,
+        [context.principalId, classroomId, seatId],
+      ),
+    ]);
+    const seat = (roster.rows as StudentSeatRow[]).find((row) => row.id === seatId);
+    if (!seat) {
+      throw new HttpException(error('not_found', 'Ученик не найден в этом классе.'), 404);
+    }
+    return {
+      student: seatView(seat),
+      projects: (projects.rows as SeatProjectRow[]).map((row) => ({
+        id: row.id,
+        moduleKey: row.module_key,
+        title: row.title,
+        status: row.status,
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+        snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+        preview:
+          row.preview_json && row.preview_digest
+            ? { digest: row.preview_digest, descriptor: row.preview_json }
+            : null,
+        lastEditedByTeacher: row.last_editor_was_teacher === true,
+      })),
+      activity: (activity.rows as ClassroomActivityRow[]).map((row) => ({
+        id: row.id,
+        action: row.action,
+        seatId: row.seat_id,
+        seatLabel: row.seat_label,
+        byTeacher: row.actor_is_teacher === true,
+        projectId: row.project_id,
+        projectTitle: row.project_title,
+        count: Number(row.occurrence_count),
+        firstAt: String(row.first_occurred_at),
+        at: String(row.occurred_at),
+      })),
+    };
   }
 
   @Post(':classroomId/seats')

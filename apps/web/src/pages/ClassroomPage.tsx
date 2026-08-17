@@ -4,9 +4,12 @@ import {
   type Classroom,
   type ClassroomStudentSeat,
   type ClassroomTeacher,
+  type ClassroomActivityEntry,
   type ClassroomTeacherInvitation,
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
+import { ClassroomActivityList } from '../components/ClassroomActivityList';
+import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 
 type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
@@ -253,10 +256,12 @@ export function ClassroomPage({
   classroomId,
   onBack,
   onOpenProjects,
+  onOpenProject,
 }: {
   classroomId: string;
   onBack: () => void;
   onOpenProjects: (classroomTitle: string) => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
   const [tab, setTab] = useState<ClassroomTab>('students');
@@ -266,6 +271,11 @@ export function ClassroomPage({
   const [notice, setNotice] = useState<string | null>(null);
   const [teacherTeam, setTeacherTeam] = useState<TeacherTeamState>({ kind: 'idle' });
   const [teacherInviteLink, setTeacherInviteLink] = useState<string | null>(null);
+  const [activityKind, setActivityKind] = useState<'all' | 'projects'>('all');
+  const [activity, setActivity] = useState<ClassroomActivityEntry[]>([]);
+  // Which learner is being looked at. A class page and a learner's page are the
+  // same place at two depths, so this is state rather than another route.
+  const [openStudent, setOpenStudent] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const [classroom, roster] = await Promise.all([
@@ -285,6 +295,21 @@ export function ClassroomPage({
     setTeacherTeam({ kind: 'idle' });
     setTeacherInviteLink(null);
   }, [classroomId]);
+
+  // The record is fetched when it is being looked at, and refetched when the
+  // filter changes, so an open class page does not poll a growing table.
+  useEffect(() => {
+    if (tab !== 'moderation') return;
+    let cancelled = false;
+    void api
+      .classroomActivity(classroomId, activityKind === 'projects' ? { kind: 'projects' } : {})
+      .then((result) => {
+        if (!cancelled && result.ok) setActivity(result.data.items);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activityKind, classroomId, tab]);
 
   const reloadTeacherTeam = useCallback(async () => {
     setTeacherTeam({ kind: 'loading' });
@@ -345,6 +370,21 @@ export function ClassroomPage({
     );
 
   const { classroom, students } = page;
+
+  if (openStudent !== null) {
+    return (
+      <ClassroomStudentPage
+        classroomId={classroomId}
+        classroomTitle={classroom.title}
+        seatId={openStudent}
+        onBack={() => {
+          setOpenStudent(null);
+          void reload();
+        }}
+        onOpenProject={onOpenProject}
+      />
+    );
+  }
   const classLink = classroom.joinCode
     ? `${window.location.origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`
     : null;
@@ -514,7 +554,13 @@ export function ClassroomPage({
               </div>
               {students.map((student) => (
                 <div className="classroom-roster-row" role="row" key={student.id}>
-                  <span className="classroom-student-name">
+                  {/* The name is the way in: a register tells you who is here,
+                      and the next thing a teacher wants is how they are doing. */}
+                  <button
+                    type="button"
+                    className="classroom-student-name"
+                    onClick={() => setOpenStudent(student.id)}
+                  >
                     <i>{student.displayLabel.slice(0, 1).toUpperCase()}</i>
                     <span>
                       <strong>{student.displayLabel}</strong>
@@ -522,7 +568,7 @@ export function ClassroomPage({
                         {student.status === 'suspended' ? 'Доступ приостановлен' : 'Место ученика'}
                       </small>
                     </span>
-                  </span>
+                  </button>
                   <button
                     type="button"
                     className="classroom-login-handle"
@@ -615,8 +661,30 @@ export function ClassroomPage({
       ) : null}
       {tab === 'moderation' ? (
         <section className="classroom-tab-panel">
-          <h2>Модерация</h2>
-          <p>Нарушений и материалов, требующих решения, нет.</p>
+          <div className="classroom-activity-heading">
+            <h2>Что происходит в классе</h2>
+            <div className="classroom-activity-filters" role="group" aria-label="Фильтр записей">
+              <button
+                type="button"
+                className={activityKind === 'all' ? 'active' : undefined}
+                onClick={() => setActivityKind('all')}
+              >
+                Все действия
+              </button>
+              <button
+                type="button"
+                className={activityKind === 'projects' ? 'active' : undefined}
+                onClick={() => setActivityKind('projects')}
+              >
+                Проекты
+              </button>
+            </div>
+          </div>
+          <ClassroomActivityList
+            entries={activity}
+            showWho
+            emptyText="Пока ничего не происходило. Записи появятся, когда ученики начнут работать."
+          />
         </section>
       ) : null}
       {tab === 'teachers' ? (

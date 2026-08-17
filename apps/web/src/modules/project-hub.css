@@ -207,3 +207,49 @@
     min-width: 0;
   }
 }
+
+/* The roster name is the way into a learner's page, so it behaves like a
+ * control while still reading as a name. */
+button.classroom-student-name {
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.classroom-student-name:hover strong {
+  color: #0878a9;
+  text-decoration: underline;
+}
+
+.classroom-activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.classroom-activity-filters {
+  display: flex;
+  gap: 6px;
+}
+
+.classroom-activity-filters button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #5d6f7c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.classroom-activity-filters button.active {
+  border-color: #b6cad8;
+  background: #e9f5fa;
+  color: #0878a9;
+}

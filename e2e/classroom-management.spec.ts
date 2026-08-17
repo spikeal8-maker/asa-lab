@@ -109,6 +109,31 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await page.reload();
   const activeStudentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
   await expect(activeStudentRow).not.toContainText('Ещё не входил');
+
+  /**
+   * The teacher walks from the register into the learner: their works, and
+   * what they have been doing. This is the question a teacher arrives with,
+   * and the register alone cannot answer it.
+   */
+  await page.getByRole('button', { name: 'Алина К.' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Алина К.', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Работы · 1' })).toBeVisible();
+  await expect(page.getByTestId('project-card').filter({ hasText: 'Моя модель' })).toBeVisible();
+  await expect(page.getByTestId('classroom-activity')).toContainText('вошёл в класс');
+  await expect(page.getByTestId('classroom-activity')).toContainText('создал «Моя модель»');
+  await page.screenshot({ path: `${evidenceDir}/teacher-sees-student.png`, fullPage: true });
+
+  await page.getByRole('button', { name: '5Б Makers' }).first().click();
+  await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
+
+  // The same record, for the whole class, with the learner named.
+  await page.getByRole('button', { name: 'Модерация' }).click();
+  await expect(page.getByTestId('classroom-activity')).toContainText('Алина К.');
+  await page.getByRole('button', { name: 'Проекты', exact: true }).last().click();
+  await expect(page.getByTestId('classroom-activity')).toContainText('Моя модель');
+  await page.screenshot({ path: `${evidenceDir}/class-activity.png`, fullPage: true });
+
+  await page.getByRole('button', { name: 'Учащиеся' }).click();
   await page.getByLabel('Действия: Алина К.').click();
   await page.getByRole('button', { name: 'Приостановить доступ' }).click();
   await expect(page.getByText('Доступ приостановлен')).toBeVisible();

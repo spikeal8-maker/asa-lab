@@ -231,6 +231,55 @@ describe('classrooms', () => {
       [teacher.tenantId, classroomId],
     );
     expect(activity.rows.map((row) => row.action)).toContain('seat.signed_in');
+    expect(activity.rows.map((row) => row.action)).toContain('project.created');
+
+    /**
+     * The record as a teacher reads it: the learner's own work, and the
+     * teacher's correction attributed to the teacher rather than to the child.
+     */
+    const feed = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classroomId}/activity`,
+      cookies: { asa_session: token },
+    });
+    expect(feed.statusCode).toBe(200);
+    const madeIt = feed
+      .json()
+      .items.find((item: { action: string }) => item.action === 'project.created');
+    expect(madeIt).toMatchObject({
+      seatId,
+      seatLabel: 'Алина К.',
+      byTeacher: false,
+      projectTitle: 'Моя первая модель',
+    });
+    const savedByTeacher = feed
+      .json()
+      .items.find((item: { action: string; byTeacher: boolean }) => item.byTeacher === true);
+    expect(savedByTeacher).toMatchObject({ seatId, action: 'project.saved' });
+
+    /** The learner's page: who they are, what they made, what they did. */
+    const studentPage = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classroomId}/students/${seatId}`,
+      cookies: { asa_session: token },
+    });
+    expect(studentPage.statusCode).toBe(200);
+    expect(studentPage.json().student).toMatchObject({ displayLabel: 'Алина К.' });
+    expect(studentPage.json().projects).toHaveLength(1);
+    expect(studentPage.json().projects[0]).toMatchObject({
+      title: 'Моя первая модель',
+      moduleKey: 'three-d',
+      lastEditedByTeacher: true,
+    });
+    expect(studentPage.json().activity.length).toBeGreaterThan(0);
+
+    /** A teacher of another class cannot read this learner's page. */
+    const strangerPage = await inject(app, {
+      method: 'GET',
+      url: `/api/classrooms/${classroomId}/students/${seatId}`,
+      cookies: { asa_session: strangerToken },
+    });
+    expect(strangerPage.statusCode).toBe(404);
 
     const suspended = await inject(app, {
       method: 'PATCH',

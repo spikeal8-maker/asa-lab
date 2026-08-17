@@ -1,0 +1,116 @@
+/* A learner's page, and the class record it borrows its list from. */
+
+.classroom-student-hero {
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.classroom-student-hero code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #eef3f7;
+  font-size: 13px;
+}
+
+.classroom-student-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.classroom-student-badge {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #e9f5fa;
+  color: #0878a9;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.classroom-student-badge.is-warning {
+  background: #fcecea;
+  color: #b0322c;
+}
+
+.classroom-student-section {
+  margin-bottom: 30px;
+}
+
+.classroom-student-section h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+}
+
+.classroom-student-empty,
+.classroom-activity-empty {
+  margin: 0;
+  color: #64747f;
+  font-size: 14px;
+}
+
+.classroom-student-note {
+  margin: 12px 0 0;
+  color: #7a8894;
+  font-size: 13px;
+}
+
+/* The record reads as a column of moments, so the time is a fixed gutter and
+ * the sentence runs beside it rather than wrapping under a timestamp. */
+.classroom-activity {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.classroom-activity-item {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.classroom-activity-item:nth-child(odd) {
+  background: #f5f8fa;
+}
+
+.classroom-activity-when {
+  color: #7a8894;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.classroom-activity-text {
+  color: #263943;
+}
+
+.classroom-activity-teacher {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e9f5fa;
+  color: #0878a9;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.classroom-activity-count {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eceff2;
+  color: #55666f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .classroom-activity-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
