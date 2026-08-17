@@ -191,8 +191,16 @@
   font-weight: 750;
   box-shadow: 0 5px 14px rgba(22, 143, 200, 0.18);
 }
-.portal-create-button:hover {
+.portal-create-button:hover:not(:disabled) {
   background: #075c85;
+}
+/* A control that cannot act must look like it: an archived class shows the same
+   toolbar, and a button that is bright blue and does nothing reads as a bug. */
+.portal-create-button:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 .portal-create-button svg {
   width: 18px;

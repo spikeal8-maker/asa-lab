@@ -478,7 +478,7 @@ export function ClassroomPage({
 
       {archived ? (
         <p className="classroom-archived-note" role="status">
-          Класс в архиве с {time.date(classroom.archivedAt ?? classroom.createdAt)}. Вход по коду
+          Класс в архиве с {time.date(classroom.archivedAt ?? classroom.createdAt)} — вход по коду
           закрыт, список и работы доступны для чтения.
         </p>
       ) : null}
