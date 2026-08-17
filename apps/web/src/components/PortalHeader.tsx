@@ -313,18 +313,19 @@ export function PortalHeader({
                 <span>Уведомления</span>
                 <span className="portal-account-item-meta">Нет новых</span>
               </div>
-              {seatLearner ? null : (
-                <button
-                  type="button"
-                  className="portal-account-item"
-                  onClick={() => navigateFromAccount('account')}
-                >
-                  <span className="portal-account-item-icon" aria-hidden="true">
-                    <SettingsGlyph />
-                  </span>
-                  <span>Настройки</span>
-                </button>
-              )}
+              {/* A seat has settings too — fewer of them. It owns its picture,
+                  which is the one thing about themselves a learner should not
+                  have to ask a teacher for. */}
+              <button
+                type="button"
+                className="portal-account-item"
+                onClick={() => navigateFromAccount('account')}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <SettingsGlyph />
+                </span>
+                <span>Настройки</span>
+              </button>
             </div>
 
             {seatLearner ? null : (

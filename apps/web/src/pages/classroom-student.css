@@ -10,18 +10,14 @@
 }
 
 .classroom-student-avatar {
-  display: grid;
+  display: block;
   flex: 0 0 auto;
-  place-items: center;
   width: 64px;
   height: 64px;
   margin-top: 4px;
   border-radius: 50%;
-  background: #0d83b4;
-  color: #fff;
-  font-size: 26px;
-  font-style: normal;
-  font-weight: 800;
+  object-fit: cover;
+  background: #e6eef3;
 }
 
 .classroom-student-identity h1 {

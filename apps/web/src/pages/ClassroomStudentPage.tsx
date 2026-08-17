@@ -10,6 +10,7 @@ import {
 import { ProjectCard } from '../modules/ProjectCard';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
+import { seatAvatar } from '../creator-portal/default-avatars';
 import './classroom-student.css';
 
 /**
@@ -252,9 +253,13 @@ export function ClassroomStudentPage({
           teacher arriving here has just clicked a name and should land on the
           same person, not on a form. */}
       <section className="classroom-student-hero">
-        <i className="classroom-student-avatar" aria-hidden="true">
-          {student.displayLabel.slice(0, 1).toUpperCase()}
-        </i>
+        <img
+          className="classroom-student-avatar"
+          src={seatAvatar(student.id, student.avatarKey).src}
+          alt=""
+          width={64}
+          height={64}
+        />
         <div className="classroom-student-identity">
           <p className="portal-eyebrow">Ученик класса</p>
           <h1>{student.displayLabel}</h1>

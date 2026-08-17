@@ -6,12 +6,18 @@ import {
   HttpException,
   Inject,
   Post,
+  Put,
   Req,
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
-import { classroomCodeHash, formatClassroomCode, normalizeClassroomCode } from '@asa-lab/classroom';
+import {
+  classroomCodeHash,
+  formatClassroomCode,
+  isSeatAvatarKey,
+  normalizeClassroomCode,
+} from '@asa-lab/classroom';
 import { createSessionToken, hashSessionToken } from '@asa-lab/identity';
 import { TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
@@ -28,8 +34,12 @@ interface StudentSessionRow {
   display_label: string;
   teacher_display_name: string;
   safe_mode: boolean;
+  avatar_key: string | null;
   expires_at: Date | string;
 }
+
+const SEAT_SESSION_COLUMNS = `seat_id, classroom_id, classroom_title, display_label,
+              teacher_display_name, safe_mode, avatar_key, expires_at`;
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
@@ -42,6 +52,8 @@ function studentPayload(row: StudentSessionRow) {
       seatId: row.seat_id,
       displayName: row.display_label,
       safeMode: row.safe_mode,
+      // Null means nobody has chosen; the client draws one keyed by the seat.
+      avatarKey: row.avatar_key,
     },
     classroom: {
       id: row.classroom_id,
@@ -144,9 +156,7 @@ export class ClassroomJoinController {
     }
     const token = createSessionToken();
     const result = await this.requirePool().query(
-      `SELECT seat_id, classroom_id, classroom_title, display_label,
-              teacher_display_name, safe_mode, expires_at
-         FROM classroom_student_seat_sign_in($1, $2, $3, $4)`,
+      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_seat_sign_in($1, $2, $3, $4)`,
       [
         classroomCodeHash(code),
         loginHandle.trim().toLowerCase(),
@@ -207,13 +217,40 @@ export class ClassroomJoinController {
     const token = request.cookies[STUDENT_SESSION_COOKIE];
     if (!token) return { authenticated: false as const };
     const result = await this.requirePool().query(
-      `SELECT seat_id, classroom_id, classroom_title, display_label,
-              teacher_display_name, safe_mode, expires_at
-         FROM classroom_student_session_context($1)`,
+      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_session_context($1)`,
       [hashSessionToken(token)],
     );
     const row = result.rows[0] as StudentSessionRow | undefined;
     return row ? studentPayload(row) : { authenticated: false as const };
+  }
+
+  /**
+   * A learner choosing their own picture.
+   *
+   * Their teacher can change it too, from the register; both write the same
+   * field. What a seat cannot do is upload an image — the choice is from the
+   * set the product ships with, which is why this takes a name and not a file.
+   */
+  @Put('me/avatar')
+  async setAvatar(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const token = request.cookies[STUDENT_SESSION_COOKIE];
+    if (!token) throw new HttpException(error('unauthorized', 'no active seat session'), 401);
+    const shape = checkBodyShape(rawBody, ['avatarKey']);
+    const avatarKey = shape.ok ? (shape.body['avatarKey'] ?? null) : null;
+    if (!shape.ok || !isSeatAvatarKey(avatarKey)) {
+      throw new HttpException(error('validation_error', 'Неизвестный аватар.'), 400);
+    }
+    const active = await this.requirePool().query(
+      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_session_context($1)`,
+      [hashSessionToken(token)],
+    );
+    const row = active.rows[0] as StudentSessionRow | undefined;
+    if (!row) throw new HttpException(error('unauthorized', 'no active seat session'), 401);
+    await this.requirePool().query(`SELECT classroom_seat_avatar_set($1, $2)`, [
+      row.seat_id,
+      avatarKey,
+    ]);
+    return studentPayload({ ...row, avatar_key: avatarKey });
   }
 
   @Post('logout')

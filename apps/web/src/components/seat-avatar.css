@@ -1,0 +1,94 @@
+/* Choosing a face.
+ *
+ * Sixty-seven pictures is a lot to scroll past in a dialog, so the grid has a
+ * height and scrolls inside itself: the buttons that save and cancel stay where
+ * they were, which is what a dialog is for.
+ */
+
+.seat-avatar-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.seat-avatar-current {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.seat-avatar-current img {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e6eef3;
+}
+
+.seat-avatar-current span {
+  display: grid;
+  gap: 3px;
+}
+
+.seat-avatar-current strong {
+  color: #2a4150;
+}
+
+.seat-avatar-current small {
+  color: #6e7f89;
+}
+
+.seat-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 8px;
+  max-height: 232px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dce4e9;
+  border-radius: 10px;
+  background: #f7f9fa;
+  list-style: none;
+}
+
+.seat-avatar-grid button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.seat-avatar-grid button:hover:not(:disabled) {
+  border-color: #9fcfe4;
+}
+
+.seat-avatar-grid button.is-chosen {
+  border-color: #0b82ba;
+  background: #e4f4fb;
+}
+
+.seat-avatar-grid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e6eef3;
+}
+
+@media (max-width: 560px) {
+  .seat-avatar-current img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .seat-avatar-grid {
+    max-height: 190px;
+  }
+}

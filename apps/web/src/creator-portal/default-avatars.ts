@@ -29,6 +29,21 @@ export function defaultAvatarForAccount(accountId: string): DefaultAvatar {
   return DEFAULT_AVATARS[Math.abs(hash) % DEFAULT_AVATARS.length] as DefaultAvatar;
 }
 
+/**
+ * The picture for a class seat.
+ *
+ * A learner has no profile to upload into, so their picture is a name from this
+ * set — chosen by them or by their teacher. Until somebody chooses, one is
+ * drawn from the seat's own id, which is stable: the same child keeps the same
+ * face across sessions and devices without anything being stored. A class of
+ * thirty therefore looks like thirty people from the first minute rather than
+ * thirty grey letters.
+ */
+export function seatAvatar(seatId: string, avatarKey: string | null | undefined): DefaultAvatar {
+  const chosen = avatarKey ? DEFAULT_AVATARS.find((entry) => entry.id === avatarKey) : undefined;
+  return chosen ?? defaultAvatarForAccount(seatId);
+}
+
 export function notifyProfileAvatarChanged(avatarDataUrl: string | null): void {
   window.dispatchEvent(
     new CustomEvent<string | null>(PROFILE_AVATAR_CHANGED_EVENT, { detail: avatarDataUrl }),

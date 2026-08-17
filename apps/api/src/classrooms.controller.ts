@@ -24,6 +24,7 @@ import {
   classroomCodeHash,
   isClassroomAgeBand,
   isClassroomStatus,
+  isSeatAvatarKey,
   isValidClassroomTitle,
   type Classroom,
   type CreateClassroomUseCase,
@@ -67,6 +68,7 @@ interface StudentSeatRow {
   login_handle: string;
   safe_mode: boolean;
   status: 'issued' | 'active' | 'suspended';
+  avatar_key: string | null;
   last_active_at: Date | string | null;
   created_at: Date | string;
 }
@@ -142,6 +144,10 @@ function seatView(row: StudentSeatRow) {
     loginHandle: row.login_handle,
     safeMode: row.safe_mode,
     status: row.status,
+    // Null means "nobody has chosen"; the client draws one from the built-in
+    // set keyed by the seat, so a class looks like a class from the first
+    // minute without a picture having to be picked thirty times.
+    avatarKey: row.avatar_key,
     lastActiveAt: row.last_active_at ? iso(row.last_active_at) : null,
     createdAt: iso(row.created_at),
   };
@@ -319,7 +325,7 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
+      `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
          FROM classroom_management_roster($1, $2)`,
       [context.accountId, classroomId],
     );
@@ -376,7 +382,7 @@ export class ClassroomsController {
     await this.summary(context, classroomId);
     const [roster, projects, activity] = await Promise.all([
       this.requirePool().query(
-        `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
+        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
            FROM classroom_management_roster($1, $2)`,
         [context.accountId, classroomId],
       ),
@@ -460,7 +466,7 @@ export class ClassroomsController {
     }
     try {
       const result = await this.requirePool().query(
-        `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
+        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
            FROM classroom_management_add_seat($1, $2, $3, $4, $5)`,
         [context.accountId, classroomId, displayLabel.trim(), loginHandle, safeMode],
       );
@@ -524,7 +530,7 @@ export class ClassroomsController {
       }
       try {
         const inserted = await this.requirePool().query(
-          `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
+          `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
              FROM classroom_management_add_seat($1, $2, $3, $4, $5)`,
           [context.accountId, classroomId, displayLabel.trim(), loginHandle, safeMode],
         );
@@ -553,11 +559,18 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
     this.requireUuid(seatId, 'student seat');
-    const shape = checkBodyShape(rawBody, ['displayLabel', 'loginHandle', 'safeMode', 'status']);
+    const shape = checkBodyShape(rawBody, [
+      'displayLabel',
+      'loginHandle',
+      'safeMode',
+      'status',
+      'avatarKey',
+    ]);
     const displayLabel = shape.ok ? shape.body['displayLabel'] : null;
     const loginHandle = shape.ok ? shape.body['loginHandle'] : null;
     const safeMode = shape.ok ? shape.body['safeMode'] : null;
     const status = shape.ok ? shape.body['status'] : null;
+    const avatarKey = shape.ok ? (shape.body['avatarKey'] ?? null) : null;
     if (
       !shape.ok ||
       typeof displayLabel !== 'string' ||
@@ -567,14 +580,15 @@ export class ClassroomsController {
       !HANDLE_PATTERN.test(loginHandle.trim().toLowerCase()) ||
       typeof safeMode !== 'boolean' ||
       typeof status !== 'string' ||
-      !SEAT_STATUSES.includes(status as (typeof SEAT_STATUSES)[number])
+      !SEAT_STATUSES.includes(status as (typeof SEAT_STATUSES)[number]) ||
+      !isSeatAvatarKey(avatarKey)
     ) {
       throw new HttpException(error('validation_error', 'Проверьте настройки ученика.'), 400);
     }
     try {
       const result = await this.requirePool().query(
-        `SELECT id, display_label, login_handle, safe_mode, status, last_active_at, created_at
-           FROM classroom_management_update_seat($1, $2, $3, $4, $5, $6, $7)`,
+        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
+           FROM classroom_management_update_seat($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           context.accountId,
           classroomId,
@@ -583,6 +597,7 @@ export class ClassroomsController {
           loginHandle.trim().toLowerCase(),
           safeMode,
           status,
+          avatarKey,
         ],
       );
       return { student: seatView(result.rows[0] as StudentSeatRow) };

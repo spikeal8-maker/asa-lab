@@ -4,6 +4,7 @@ export {
   areValidTopicKeys,
   isClassroomAgeBand,
   isClassroomStatus,
+  isSeatAvatarKey,
   isValidClassroomTitle,
   type Classroom,
   type ClassroomAgeBand,

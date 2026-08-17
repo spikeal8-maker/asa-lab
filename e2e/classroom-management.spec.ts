@@ -151,9 +151,57 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   ).toBeVisible();
   await studentPage.screenshot({ path: `${evidenceDir}/student-home.png`, fullPage: true });
 
+  /**
+   * A learner's own picture. There is no upload — a class register full of
+   * photographs of children is not a thing to build — so this is a choice from
+   * the set the product ships with, and it is the learner's to make.
+   */
+  await studentPage.locator('.portal-account > summary').click();
+  await studentPage.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await expect(studentPage.getByRole('heading', { name: 'Мой профиль' })).toBeVisible();
+  await studentPage.getByRole('button', { name: 'Аватар 7', exact: true }).click();
+  await expect(studentPage.getByText('Аватар сохранён.')).toBeVisible();
+  await studentPage.screenshot({ path: `${evidenceDir}/student-settings.png`, fullPage: true });
+
   await page.reload();
   const activeStudentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
   await expect(activeStudentRow).not.toContainText('Ещё не входил');
+  // The teacher sees the face the learner chose, not a grey letter.
+  await expect(activeStudentRow.locator('.classroom-seat-avatar')).toHaveAttribute(
+    'src',
+    '/assets/avatars/default/avatar-07.webp',
+  );
+
+  /**
+   * And the register tells the truth about when they were here. This used to be
+   * written once, at sign-in: a child who typed the code at nine and worked
+   * until eleven was reported to their teacher as last seen at nine.
+   *
+   * The seat is refreshed on use, but only when the stored value has gone stale
+   * — a write on every poll would be a write on every keystroke's worth of
+   * traffic. So the clock is wound back and the learner does one more thing.
+   */
+  // By id: earlier runs leave seats with the same login handle in the shared
+  // test database, and a query that matches by name would read someone else's.
+  const seatRow = await admin.query(
+    `SELECT id FROM classroom_student_seats
+      WHERE login_handle = 'alina-k' ORDER BY created_at DESC LIMIT 1`,
+  );
+  const seatId = (seatRow.rows[0] as { id: string }).id;
+  const staleAt = new Date(Date.now() - 30 * 60 * 1000);
+  await admin.query(`UPDATE classroom_student_seats SET last_active_at = $2 WHERE id = $1`, [
+    seatId,
+    staleAt,
+  ]);
+  await studentPage.reload();
+  await expect(studentPage.getByRole('heading', { name: 'Мой профиль' })).toBeVisible();
+  const fresh = await admin.query(
+    `SELECT last_active_at FROM classroom_student_seats WHERE id = $1`,
+    [seatId],
+  );
+  expect((fresh.rows[0] as { last_active_at: Date }).last_active_at.getTime()).toBeGreaterThan(
+    staleAt.getTime(),
+  );
 
   /**
    * The teacher walks from the register into the learner: their works, and

@@ -1421,3 +1421,37 @@ button.portal-account-identity:hover:not(:disabled) {
     flex-direction: column;
   }
 }
+
+/* A class seat's settings reuse the account shell above; these two are the only
+ * things a seat has that an account does not — facts it cannot change, and the
+ * line explaining who can. */
+.seat-account-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 22px;
+  margin: 20px 0 12px;
+  padding: 16px 18px;
+  border: 1px solid #dce4e9;
+  border-radius: 10px;
+  background: #f7f9fa;
+}
+
+.seat-account-facts dt {
+  color: #74858f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.seat-account-facts dd {
+  margin: 3px 0 0;
+  color: #2a4150;
+  font-weight: 600;
+}
+
+.account-hint {
+  margin: 0;
+  color: #6e7f89;
+  font-size: 14px;
+}

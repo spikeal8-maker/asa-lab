@@ -12,6 +12,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ClassroomPage } from './pages/ClassroomPage';
 import { TeacherInvitePage } from './pages/TeacherInvitePage';
 import { AccountPage } from './pages/AccountPage';
+import { SeatAccountPage } from './pages/SeatAccountPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { PortalHeader } from './components/PortalHeader';
@@ -463,13 +464,20 @@ export function App(): JSX.Element {
             }}
           />
         ) : null}
-        {/* A seat has no account to configure, so that page is never reached. */}
+        {/* Settings, in the same shell for both. A seat owns fewer of them:
+            its picture, and not the name its teacher keeps the register by. */}
         {view.kind === 'account' && !isSeatLearner ? (
           <AccountPage
             session={portalSession}
             onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
             onOpenClasses={() => navigate('classes')}
             initialPanel={accountPanel}
+          />
+        ) : null}
+        {view.kind === 'account' && session.kind === 'student' ? (
+          <SeatAccountPage
+            seat={session.session}
+            onSeatChanged={(updated) => setSession({ kind: 'student', session: updated })}
           />
         ) : null}
         {shellCreating ? (

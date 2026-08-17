@@ -47,3 +47,18 @@ export function areValidTopicKeys(value: unknown): value is readonly string[] {
 export function isValidClassroomTitle(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length >= 1 && value.trim().length <= 255;
 }
+
+/**
+ * A learner's picture, named rather than uploaded.
+ *
+ * A seat picks from the set the product ships with. Letting a child put an
+ * arbitrary image on a class register would mean policing photographs of
+ * children, which safe mode exists precisely to avoid; and a name is a dozen
+ * bytes where a data URL is three hundred kilobytes on every roster row.
+ *
+ * Null is a real answer: nobody has chosen, and the client draws one from the
+ * same set keyed by the seat.
+ */
+export function isSeatAvatarKey(value: unknown): value is string | null {
+  return value === null || (typeof value === 'string' && /^asa-avatar-[0-9]{2}$/.test(value));
+}

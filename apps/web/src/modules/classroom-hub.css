@@ -930,8 +930,10 @@ button.classroom-code-chip:hover {
   gap: 10px;
 }
 
-.classroom-student-name > i {
+.classroom-student-name > i,
+.classroom-seat-avatar {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
   width: 38px;
   height: 38px;
@@ -940,6 +942,11 @@ button.classroom-code-chip:hover {
   color: #fff;
   font-style: normal;
   font-weight: 800;
+}
+
+.classroom-seat-avatar {
+  object-fit: cover;
+  background: #e6eef3;
 }
 
 .classroom-student-name > span {
@@ -1023,6 +1030,13 @@ button.classroom-code-chip:hover {
 .classroom-student-dialog > p,
 .classroom-batch-dialog > p {
   color: #6e7e88;
+}
+
+.classroom-seat-avatar-label {
+  display: block;
+  margin-top: 12px;
+  color: #41545f;
+  font-weight: 700;
 }
 
 .classroom-student-dialog select,

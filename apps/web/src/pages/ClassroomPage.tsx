@@ -12,8 +12,9 @@ import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
+import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { useSchoolTime } from '../components/school-time';
-import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
+import { defaultAvatarForAccount, seatAvatar } from '../creator-portal/default-avatars';
 
 type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
 type PageState =
@@ -74,11 +75,13 @@ function StudentDialog({
     displayLabel: string;
     loginHandle: string;
     safeMode: boolean;
+    avatarKey: string | null;
   }) => Promise<string | null>;
 }): JSX.Element {
   const [displayLabel, setDisplayLabel] = useState(student?.displayLabel ?? '');
   const [loginHandle, setLoginHandle] = useState(student?.loginHandle ?? '');
   const [safeMode, setSafeMode] = useState(student?.safeMode ?? true);
+  const [avatarKey, setAvatarKey] = useState<string | null>(student?.avatarKey ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +98,12 @@ function StudentDialog({
       return;
     }
     setBusy(true);
-    const message = await onSaved({ displayLabel: label, loginHandle: handle, safeMode });
+    const message = await onSaved({
+      displayLabel: label,
+      loginHandle: handle,
+      safeMode,
+      avatarKey,
+    });
     setBusy(false);
     if (message) setError(message);
   }
@@ -129,6 +137,20 @@ function StudentDialog({
             placeholder="Можно оставить пустым — создадим автоматически"
             onChange={(event) => setLoginHandle(event.target.value.toLowerCase())}
           />
+          {/* A picture only exists once the seat does: a learner being added has
+              no id to key one from yet, and gets theirs the moment they appear
+              in the register. */}
+          {student ? (
+            <>
+              <span className="classroom-seat-avatar-label">Аватар</span>
+              <SeatAvatarPicker
+                seatId={student.id}
+                value={avatarKey}
+                busy={busy}
+                onChange={setAvatarKey}
+              />
+            </>
+          ) : null}
           <label className="classroom-safe-mode-field">
             <input
               type="checkbox"
@@ -587,7 +609,14 @@ export function ClassroomPage({
                     className="classroom-student-name"
                     onClick={() => setOpenStudent(student.id)}
                   >
-                    <i>{student.displayLabel.slice(0, 1).toUpperCase()}</i>
+                    <img
+                      className="classroom-seat-avatar"
+                      src={seatAvatar(student.id, student.avatarKey).src}
+                      alt=""
+                      width={38}
+                      height={38}
+                      loading="lazy"
+                    />
                     <span>
                       <strong>{student.displayLabel}</strong>
                       <small>

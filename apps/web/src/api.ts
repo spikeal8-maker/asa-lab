@@ -117,13 +117,15 @@ export interface ClassroomStudentSeat {
   loginHandle: string;
   safeMode: boolean;
   status: 'issued' | 'active' | 'suspended';
+  /** Chosen picture, or null while nobody has chosen and one is drawn by seat. */
+  avatarKey: string | null;
   lastActiveAt: string | null;
   createdAt: string;
 }
 
 export interface ClassroomStudentSession {
   authenticated: true;
-  student: { seatId: string; displayName: string; safeMode: boolean };
+  student: { seatId: string; displayName: string; safeMode: boolean; avatarKey: string | null };
   classroom: { id: string; title: string; teacherDisplayName: string };
   expiresAt: string;
 }
@@ -593,9 +595,15 @@ export const api = {
           loginHandle: seat.loginHandle,
           safeMode: seat.safeMode,
           status: seat.status,
+          avatarKey: seat.avatarKey,
         }),
       },
     ),
+  setClassroomSeatAvatar: (avatarKey: string | null) =>
+    call<ClassroomStudentSession>('/api/class-join/me/avatar', {
+      method: 'PUT',
+      body: JSON.stringify({ avatarKey }),
+    }),
   removeClassroomSeat: (classroomId: string, seatId: string) =>
     call<{ removed: true }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
