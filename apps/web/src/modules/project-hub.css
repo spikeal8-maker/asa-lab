@@ -60,7 +60,7 @@
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
-  color: #5d6f7c;
+  color: var(--ink-muted);
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -86,7 +86,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #5d6f7c;
+  color: var(--ink-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -130,7 +130,7 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #607381;
+  color: var(--ink-muted);
   font-size: 18px;
 }
 
@@ -146,7 +146,7 @@
 
 .module-picker-loading {
   margin: 0 0 10px;
-  color: #667786;
+  color: var(--ink-muted);
 }
 
 .module-tile {
@@ -242,7 +242,7 @@ button.classroom-student-name:hover strong {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #5d6f7c;
+  color: var(--ink-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;

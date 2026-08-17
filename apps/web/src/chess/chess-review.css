@@ -150,7 +150,7 @@
 }
 
 .asa-review-counts span {
-  color: #61737d;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -283,7 +283,7 @@
   place-items: center;
   border-radius: 50%;
   background: #edf2f5;
-  color: #556b77;
+  color: var(--ink-muted);
   font-weight: 850;
   font-variant-numeric: tabular-nums;
 }
@@ -330,7 +330,7 @@
   padding: 5px 8px;
   border-radius: 999px;
   background: #f1f4f6;
-  color: #4f6570;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 800;
   text-align: center;
@@ -519,7 +519,7 @@
 
 .asa-review-explanation > p {
   margin: 0;
-  color: #52717f;
+  color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.45;
 }

@@ -77,7 +77,7 @@
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
-  color: #596b7a;
+  color: var(--ink-muted);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -125,13 +125,13 @@
   height: 18px;
 }
 .portal-user-name {
-  color: #4d5f6e;
+  color: var(--ink-muted);
   font-size: 14px;
 }
 .portal-logout {
   border: 0;
   background: transparent;
-  color: #526575;
+  color: var(--ink-muted);
   padding: 7px 9px;
 }
 .portal-logout:hover {
@@ -166,7 +166,7 @@
 .portal-hero p {
   max-width: 670px;
   margin: 9px 0 0;
-  color: #5c6b78;
+  color: var(--ink-muted);
   font-size: 16px;
   line-height: 1.55;
 }
@@ -336,7 +336,7 @@
 .portal-empty p {
   max-width: 540px;
   margin: 0;
-  color: #667786;
+  color: var(--ink-muted);
 }
 .portal-empty-icon {
   display: grid;
@@ -391,7 +391,7 @@
   border: 0;
   border-radius: 50%;
   background: #f0f3f5;
-  color: #4a5d6b;
+  color: var(--ink-muted);
 }
 .project-create-close svg {
   width: 18px;
@@ -469,7 +469,7 @@
   padding: 3px 7px;
   border-radius: 999px;
   background: #e8ebee;
-  color: #65727d;
+  color: var(--ink-muted);
   font-size: 10px;
   font-weight: 750;
 }

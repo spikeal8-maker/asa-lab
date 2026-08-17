@@ -1,7 +1,10 @@
 .portal-header {
-  grid-template-columns: 240px minmax(520px, 1fr) 44px auto 52px;
+  grid-template-columns: 240px minmax(520px, 1fr) 44px auto 56px;
   gap: 12px;
-  min-height: 82px;
+  /* The bar carries the brand, the whole of the top navigation and the account:
+     at 82px those were crowded against each other, and it is the one element on
+     every page in the product. */
+  min-height: 96px;
   padding: 0 24px;
   border-bottom-color: #076b98;
   background: #0877b3;
@@ -159,7 +162,7 @@
 .portal-sidebar {
   position: fixed;
   z-index: 30;
-  top: 82px;
+  top: 96px;
   bottom: 0;
   left: 0;
   display: flex;
@@ -181,7 +184,7 @@
   justify-content: center;
   flex-direction: column;
   gap: 12px;
-  min-height: 150px;
+  min-height: 176px;
   margin: 0 -8px 10px;
   padding: 16px 16px 20px;
   border-bottom: 1px solid #e7ecef;
@@ -225,27 +228,40 @@
   display: none;
 }
 
+/* Your own face, at a size worth looking at.
+ *
+ * For a learner this is the one thing on the page that is theirs, and the
+ * picture they chose is the reason they chose it. The ring is drawn rather than
+ * borrowed from a shadow so it survives a dark picture. */
 .portal-sidebar-avatar {
   position: relative;
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 76px;
+  width: 96px;
+  height: 96px;
   padding: 0;
-  border: 3px solid #fff;
+  border: 0;
   border-radius: 50%;
   color: #fff;
   background: linear-gradient(145deg, #148fc3, #0d587b);
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 850;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(11, 102, 143, 0.18);
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 6px #d9edf7,
+    0 6px 18px rgba(11, 102, 143, 0.22);
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
 }
 
 .portal-sidebar-avatar:hover:not(:disabled) {
+  transform: translateY(-1px);
   box-shadow:
-    0 0 0 3px #dff3fb,
-    0 6px 16px rgba(11, 102, 143, 0.22);
+    0 0 0 3px #fff,
+    0 0 0 6px #7fc7e6,
+    0 8px 22px rgba(11, 102, 143, 0.28);
 }
 
 .portal-sidebar-avatar:focus-visible {
@@ -260,12 +276,12 @@
 
 .portal-avatar-upload-badge {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
+  right: 0;
+  bottom: 0;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border: 2px solid #fff;
   border-radius: 50%;
   background: #0877b3;
@@ -322,7 +338,7 @@
   padding: 0 17px;
   border: 2px solid transparent;
   border-radius: 25px;
-  color: #455d6c;
+  color: var(--ink-muted);
   font-size: 16px;
   font-weight: 700;
   line-height: 20px;
@@ -390,7 +406,7 @@
   border: 1px solid #cdd7dd;
   border-radius: 12px 0 0 12px;
   background: #fff;
-  color: #647681;
+  color: var(--ink-muted);
   font-size: 24px;
   box-shadow: 0 2px 8px rgba(32, 56, 70, 0.08);
 }
@@ -537,7 +553,7 @@
 .creator-dashboard-banner-copy > p:not(.creator-dashboard-context) {
   max-width: 520px;
   margin: 10px 0 19px;
-  color: #586b77;
+  color: var(--ink-muted);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -737,7 +753,7 @@
   justify-content: center;
   flex-direction: column;
   gap: 7px;
-  color: #526773;
+  color: var(--ink-muted);
   background: rgba(255, 255, 255, 0.72);
   text-align: center;
 }
@@ -814,7 +830,7 @@
 
 .creator-resource-heading > p:last-child {
   margin: 10px 0 0;
-  color: #637582;
+  color: var(--ink-muted);
   font-size: 17px;
   line-height: 1.55;
 }
@@ -843,7 +859,7 @@
 
 .creator-resource-card p {
   margin: 12px 0 22px;
-  color: #637582;
+  color: var(--ink-muted);
   line-height: 1.55;
 }
 
@@ -865,7 +881,7 @@
 }
 
 .creator-access-message p {
-  color: #637582;
+  color: var(--ink-muted);
   line-height: 1.55;
 }
 
@@ -899,7 +915,7 @@
 
   .portal-sidebar {
     position: sticky;
-    top: 82px;
+    top: 96px;
     bottom: auto;
     width: 100%;
     /* The row of tabs is wider than a phone and scrolls inside itself. Without

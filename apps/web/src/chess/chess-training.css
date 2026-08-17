@@ -155,7 +155,7 @@
 }
 
 .asa-learning-save {
-  color: #57736a;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -167,7 +167,7 @@
   padding: 5px 8px;
   border-radius: 7px;
   background: #eef3f1;
-  color: #49675f;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 750;
 }
@@ -232,7 +232,7 @@
 
 .asa-puzzle-feedback p {
   margin: 0;
-  color: #506860;
+  color: var(--ink-muted);
   line-height: 1.45;
 }
 
@@ -329,7 +329,7 @@
   padding: 9px;
   border-radius: 8px;
   background: #f4f6f5;
-  color: #6a7874;
+  color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.4;
 }

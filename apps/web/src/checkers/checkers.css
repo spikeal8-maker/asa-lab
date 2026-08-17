@@ -491,7 +491,7 @@
   border: 1px solid #cbd9df;
   border-radius: 9px;
   background: #fff;
-  color: #41606e;
+  color: var(--ink-muted);
   font-weight: 700;
 }
 
@@ -709,7 +709,7 @@
 .checkers-teacher-table thead th,
 .checkers-mastery-table thead th {
   background: #f4f7f8;
-  color: #607484;
+  color: var(--ink-muted);
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -760,7 +760,7 @@
   padding: 0 10px;
   border-radius: 14px;
   background: #edf2f4;
-  color: #526876;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -829,7 +829,7 @@
   padding: 12px 16px;
   border-bottom: 1px solid #e3e9ec;
   background: #fbfcfc;
-  color: #647786;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -1144,7 +1144,7 @@
   border: 1px solid #d4e0e5;
   border-radius: 999px;
   background: rgb(255 255 255 / 82%);
-  color: #466273;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 750;
 }
@@ -1295,7 +1295,7 @@
 .checkers-file-label {
   position: absolute;
   z-index: 2;
-  color: #47606b;
+  color: var(--ink-muted);
   font-size: clamp(9px, 0.8vw, 12px);
   font-weight: 800;
 }
@@ -1322,7 +1322,7 @@
   border: 1px solid #cfdee2;
   border-radius: 14px;
   background: rgb(255 255 255 / 88%);
-  color: #526b79;
+  color: var(--ink-muted);
 }
 
 .checkers-board-help > span {
@@ -1462,7 +1462,7 @@
   width: 100%;
   margin-top: 20px;
   background: transparent;
-  color: #526a78;
+  color: var(--ink-muted);
   text-decoration: underline;
 }
 
@@ -1801,7 +1801,7 @@
   margin-bottom: 5px;
   padding: 3px 8px;
   border-radius: 999px;
-  color: #52636a;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 700;
   background: #edf2f4;
@@ -2167,7 +2167,7 @@
   border: 1px solid #cbd8dd;
   border-radius: 999px;
   background: rgb(255 255 255 / 88%);
-  color: #3d5968;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
@@ -2375,7 +2375,7 @@
     border: 0;
     border-bottom: 3px solid transparent;
     background: transparent;
-    color: #5f7380;
+    color: var(--ink-muted);
     font-weight: 750;
   }
 

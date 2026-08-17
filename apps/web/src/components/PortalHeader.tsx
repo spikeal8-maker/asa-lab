@@ -54,6 +54,7 @@ export function PortalHeader({
   active,
   canTeach,
   seatLearner = false,
+  seatAvatarUrl,
   onNavigate,
   onSessionChanged,
   onLoggedOut,
@@ -62,6 +63,8 @@ export function PortalHeader({
   session: SessionPayload;
   active: PortalSection;
   canTeach: boolean;
+  /** The picture a class seat chose; an account has none and uploads instead. */
+  seatAvatarUrl?: string | undefined;
   /**
    * Signed in with a class seat. The shell is the same one everyone uses; a
    * seat simply has nowhere to go in the places an account owns — a class to
@@ -90,7 +93,17 @@ export function PortalHeader({
       .slice(0, 2)
       .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
       .join('') || 'A';
-  const effectiveAvatarUrl = avatarDataUrl ?? defaultAvatarForAccount(session.user.id).src;
+  /**
+   * Whose face this is.
+   *
+   * An account uploads one. A class seat picks one from the built-in set, and
+   * that choice has to arrive here — this used to fall straight through to the
+   * automatic picture keyed by the seat id, so a learner could change their
+   * avatar, see it change in settings, and watch the header keep the old one
+   * forever. The teacher saw the new one, which made it look like it had worked.
+   */
+  const effectiveAvatarUrl =
+    avatarDataUrl ?? seatAvatarUrl ?? defaultAvatarForAccount(session.user.id).src;
   const navigationItems = portalNavigation(canTeach, { classes: !seatLearner });
   const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');

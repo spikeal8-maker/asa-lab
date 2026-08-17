@@ -74,7 +74,7 @@
 
 .asa-online-card p {
   margin: 0;
-  color: #627680;
+  color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -142,7 +142,7 @@
 .asa-online-time-grid legend,
 .asa-online-color-grid legend {
   grid-column: 1 / -1;
-  color: #617580;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 800;
 }
@@ -214,7 +214,7 @@
 }
 
 .asa-online-code-field span {
-  color: #617580;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 800;
 }
@@ -332,7 +332,7 @@
   max-width: 1180px;
   margin: 0 auto;
   padding: 0 24px 24px;
-  color: #647780;
+  color: var(--ink-muted);
   font-size: 11px;
   text-align: center;
 }
@@ -457,7 +457,7 @@
 
 .asa-online-result span,
 .asa-online-draw-offer span {
-  color: #647780;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 

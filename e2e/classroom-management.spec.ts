@@ -161,6 +161,19 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(studentPage.getByRole('heading', { name: 'Мой профиль' })).toBeVisible();
   await studentPage.getByRole('button', { name: 'Аватар 7', exact: true }).click();
   await expect(studentPage.getByText('Аватар сохранён.')).toBeVisible();
+  /**
+   * And it is their face everywhere they see themselves — the header and the
+   * sidebar, not only the picker. This is the assertion that was missing: the
+   * teacher's copy updated, the learner's own did not, and the feature was
+   * reported as working because nothing looked at this.
+   */
+  const chosen = '/assets/avatars/default/avatar-07.webp';
+  await expect(studentPage.locator('.portal-sidebar-avatar img')).toHaveAttribute('src', chosen);
+  await expect(studentPage.locator('.portal-user-avatar img')).toHaveAttribute('src', chosen);
+  // Still theirs after a reload: the session carries it, not the page state.
+  await studentPage.reload();
+  await expect(studentPage.locator('.portal-sidebar-avatar img')).toHaveAttribute('src', chosen);
+  await expect(studentPage.locator('.portal-user-avatar img')).toHaveAttribute('src', chosen);
   await studentPage.screenshot({ path: `${evidenceDir}/student-settings.png`, fullPage: true });
 
   await page.reload();

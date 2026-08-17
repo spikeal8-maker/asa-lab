@@ -192,7 +192,7 @@
 
 .asa-chess-home-welcome p {
   margin: 0;
-  color: #5f7380;
+  color: var(--ink-muted);
 }
 
 .asa-chess-home-rating {
@@ -244,7 +244,7 @@
 }
 
 .asa-chess-home-card p {
-  color: #5e737f;
+  color: var(--ink-muted);
   line-height: 1.5;
 }
 

@@ -26,7 +26,7 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #5c6972;
+  color: var(--ink-muted);
   font-size: 14px;
 }
 
@@ -133,7 +133,7 @@
 .classroom-sort-menu > summary {
   border: 1px solid transparent;
   background: transparent;
-  color: #536673;
+  color: var(--ink-muted);
   font-weight: 600;
 }
 
@@ -413,7 +413,7 @@
 
 .classroom-topic-fieldset legend {
   padding: 0 6px;
-  color: #425b6a;
+  color: var(--ink-muted);
   font-weight: 700;
 }
 
@@ -556,7 +556,7 @@ button.classroom-code-chip:hover {
   align-items: center;
   gap: 9px;
   padding-bottom: 9px;
-  color: #5c6f7b;
+  color: var(--ink-muted);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -618,7 +618,7 @@ button.classroom-code-chip:hover {
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
-  color: #60727e;
+  color: var(--ink-muted);
   font-weight: 700;
 }
 
@@ -723,7 +723,7 @@ button.classroom-code-chip:hover {
 .classroom-teacher-empty {
   display: grid;
   gap: 4px;
-  color: #4f6876;
+  color: var(--ink-muted);
 }
 
 .classroom-teacher-role-note strong,
@@ -808,7 +808,7 @@ button.classroom-code-chip:hover {
   padding: 5px 9px;
   border-radius: 999px;
   background: #eef6f9;
-  color: #54717f;
+  color: var(--ink-muted);
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
@@ -921,7 +921,7 @@ button.classroom-code-chip:hover {
 .classroom-roster-row {
   min-height: 66px;
   border-top: 1px solid #e7ecef;
-  color: #516773;
+  color: var(--ink-muted);
 }
 
 .classroom-student-name {
@@ -1172,7 +1172,7 @@ button.classroom-code-chip:hover {
 
 .teacher-invite-lead {
   margin: 0;
-  color: #61747f;
+  color: var(--ink-muted);
   font-size: 17px;
   line-height: 1.55;
 }
@@ -1342,7 +1342,7 @@ button.classroom-code-chip:hover {
   .classroom-seat-safe {
     justify-self: start;
     gap: 8px;
-    color: #5c6f7b;
+    color: var(--ink-muted);
   }
 
   .classroom-seat-safe-name {
@@ -1456,6 +1456,6 @@ button.classroom-code-chip:hover {
 .class-qr-loading,
 .class-qr-failed {
   margin: 10px 0 4px;
-  color: #64747f;
+  color: var(--ink-muted);
   font-size: 13px;
 }

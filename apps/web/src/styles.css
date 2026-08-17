@@ -1,23 +1,22 @@
-/* Secondary text, decided once.
+/* Secondary text, decided once — and dark.
  *
- * Dates, captions, the line under a project title — all of it had drifted into
- * a pale blue-grey sitting around 3.9:1 against white, where the readable
- * minimum is 4.5:1. Below the line is below the line: on a classroom laptop in
- * a bright room it is a smudge. And it had been written out by hand a hundred
- * and thirty-seven times in forty slightly different shades, none of which was
- * chosen on purpose.
+ * Dates, captions, the line under a project title had drifted into pale
+ * blue-grey, written out by hand in forty slightly different shades, none of
+ * them chosen on purpose. A first pass moved them to 7.3:1, which passes every
+ * standard and still read as grey to the person who has to look at it all day.
  *
- * One token replaces all of them, at 7.3:1 — comfortably past the strict AAA
- * level rather than scraping the minimum. Hierarchy comes from size and weight,
- * which survive a bad screen and bright sunlight; dimming text to say "this
- * matters less" only makes it harder to read, which is not the same thing.
+ * So this is not a compromise between "readable" and "quiet": it is nearly
+ * black, at about 12:1. Hierarchy is carried entirely by size and weight, which
+ * survive a bad screen, a projector and bright sunlight. Dimming text to say
+ * "this matters less" only makes it harder to read, which was never the same
+ * thing as less important.
  */
 :root {
   --bg: #f4f6fa;
   --surface: #ffffff;
   --text: #17212d;
   --muted: #5b6b7d;
-  --ink-muted: #47575f;
+  --ink-muted: #2a363e;
   --primary: #2456d6;
   --primary-hover: #1c46b3;
   --border: #d8e0ea;

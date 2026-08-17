@@ -156,7 +156,7 @@
 }
 
 .asa-chess-brand small {
-  color: #667782;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -181,7 +181,7 @@
 .asa-chess-save-state {
   font-size: 12px;
   font-weight: 700;
-  color: #61747f;
+  color: var(--ink-muted);
   white-space: nowrap;
 }
 
@@ -508,7 +508,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #526772;
+  color: var(--ink-muted);
   cursor: pointer;
   font-weight: 750;
 }
@@ -545,7 +545,7 @@
 
 .asa-chess-result span,
 .asa-chess-analysis-card small {
-  color: #60737e;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -649,7 +649,7 @@
 
 .asa-chess-active-bot span,
 .asa-chess-bot-profile-detail span {
-  color: #52717b;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -670,7 +670,7 @@
 
 .asa-chess-active-bot dt,
 .asa-chess-bot-profile-detail dt {
-  color: #607781;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -849,7 +849,7 @@
 .asa-chess-bot-setup legend {
   grid-column: 1 / -1;
   margin-bottom: 6px;
-  color: #536974;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 800;
 }
@@ -1044,7 +1044,7 @@
 
 .asa-chess-bot-page-body > header p {
   margin: 0;
-  color: #5f7380;
+  color: var(--ink-muted);
 }
 
 .asa-chess-new-game-panel {

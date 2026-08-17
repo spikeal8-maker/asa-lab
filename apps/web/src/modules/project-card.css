@@ -269,7 +269,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   background: #eef1f3;
-  color: #56666f;
+  color: var(--ink-muted);
   font-weight: 700;
 }
 
@@ -380,7 +380,7 @@
   padding: 16px;
   border: 0;
   background: none;
-  color: #53686f;
+  color: var(--ink-muted);
   font: inherit;
   cursor: pointer;
 }

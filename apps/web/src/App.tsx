@@ -17,6 +17,7 @@ import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
+import { seatAvatar } from './creator-portal/default-avatars';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
@@ -348,6 +349,14 @@ export function App(): JSX.Element {
           session={portalSession}
           active={active}
           seatLearner={isSeatLearner}
+          {...(session.kind === 'student'
+            ? {
+                seatAvatarUrl: seatAvatar(
+                  session.session.student.seatId,
+                  session.session.student.avatarKey,
+                ).src,
+              }
+            : {})}
           canTeach={hasTeachingCapability}
           onNavigate={navigate}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}

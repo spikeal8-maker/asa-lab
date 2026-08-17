@@ -43,7 +43,7 @@
   border: 0;
   border-right: 1px solid #e0e4e8;
   background: transparent;
-  color: #5e6e7b;
+  color: var(--ink-muted);
 }
 .workbench-back:hover {
   background: #f3f6f8;
@@ -212,7 +212,7 @@
   border: 0;
   border-right: 1px solid #e1e5e8;
   background: #fff;
-  color: #526675;
+  color: var(--ink-muted);
 }
 .workbench-tool svg {
   width: 22px;
@@ -350,7 +350,7 @@
 .workbench-results-card li small {
   display: block;
   margin-top: 3px;
-  color: #596d7a;
+  color: var(--ink-muted);
 }
 .workbench-toolbar-divider {
   align-self: center;
@@ -383,7 +383,7 @@
 .workbench-wire-color svg {
   width: 15px;
   margin-left: 8px;
-  color: #657783;
+  color: var(--ink-muted);
 }
 .workbench-pill {
   display: inline-flex;
@@ -394,7 +394,7 @@
   border: 1px solid #dbe1e6;
   border-radius: 3px;
   background: #f8fafb;
-  color: #4a6070;
+  color: var(--ink-muted);
   white-space: nowrap;
 }
 .workbench-pill:hover:not(:disabled) {
@@ -652,7 +652,7 @@
   justify-items: center;
   max-width: 420px;
   text-align: center;
-  color: #657784;
+  color: var(--ink-muted);
   pointer-events: none;
 }
 .workbench-empty-stage svg {
@@ -663,7 +663,7 @@
 }
 .workbench-empty-stage h2 {
   margin: 0;
-  color: #455a69;
+  color: var(--ink-muted);
 }
 .workbench-empty-stage p {
   margin: 8px 0 0;
@@ -689,7 +689,7 @@
   border: 0;
   border-bottom: 1px solid #e1e5e8;
   background: transparent;
-  color: #566a78;
+  color: var(--ink-muted);
 }
 .workbench-stage-controls button:hover {
   background: #eef4f6;
@@ -702,7 +702,7 @@
 .workbench-stage-controls span {
   padding: 7px 5px;
   font-size: 10px;
-  color: #667782;
+  color: var(--ink-muted);
 }
 .workbench-stage-status {
   position: absolute;
@@ -714,7 +714,7 @@
   padding: 6px 10px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.9);
-  color: #61717c;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 .simulation-dot {
@@ -789,7 +789,7 @@
 .workbench-library-heading span {
   margin-bottom: 2px;
   font-size: 11px;
-  color: #60717d;
+  color: var(--ink-muted);
 }
 .workbench-library-heading select {
   width: 100%;
@@ -797,7 +797,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #435867;
+  color: var(--ink-muted);
   font-size: 17px;
   font-weight: 500;
 }
@@ -807,7 +807,7 @@
   border: 0;
   border-left: 1px solid #dfe3e7;
   background: transparent;
-  color: #486071;
+  color: var(--ink-muted);
 }
 .workbench-library-heading svg {
   width: 22px;
@@ -854,7 +854,7 @@
   border: 1px solid #e3e6e9;
   border-radius: 5px;
   background: #f9fafb;
-  color: #536776;
+  color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.2;
   text-align: center;
@@ -954,7 +954,7 @@
   border: 1px solid #d7dee3;
   border-radius: 4px;
   background: #f7f9fa;
-  color: #425967;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 .workbench-variant-options button.selected {
@@ -1051,7 +1051,7 @@
   height: 30px;
   border: 0;
   background: transparent;
-  color: #5d6f7b;
+  color: var(--ink-muted);
 }
 .workbench-inspector-heading svg {
   width: 18px;
@@ -1074,7 +1074,7 @@
 }
 .workbench-production-id {
   margin: 0 0 10px;
-  color: #657784;
+  color: var(--ink-muted);
   font-size: 10px;
   line-height: 1.35;
 }
@@ -1091,7 +1091,7 @@
   min-width: 0;
 }
 .workbench-owner-proof dt {
-  color: #536875;
+  color: var(--ink-muted);
   font-size: 10px;
   font-weight: 700;
 }
@@ -1144,7 +1144,7 @@
   padding: 8px;
   border-radius: 5px;
   background: #eef6f4;
-  color: #3d625b;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 .workbench-simulation-note {
@@ -1188,7 +1188,7 @@
   padding: 3px 0;
 }
 .workbench-measurements dt {
-  color: #63756e;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 .workbench-measurements dd {
@@ -1211,7 +1211,7 @@
   border: 1px solid #d8dfe4;
   border-radius: 3px;
   background: #fff;
-  color: #435966;
+  color: var(--ink-muted);
 }
 .workbench-inspector-actions button:hover {
   background: #f1f5f7;
@@ -1278,7 +1278,7 @@
 }
 .workbench-results-card li {
   display: inline;
-  color: #526672;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 .workbench-results-card li + li::before {
@@ -1855,7 +1855,7 @@
   text-align: left;
 }
 .workbench-bom-card th {
-  color: #60727f;
+  color: var(--ink-muted);
   font-size: 11px;
   text-transform: uppercase;
 }
@@ -1993,7 +1993,7 @@
   border: 1px solid #dfe3e8;
   border-radius: 3px;
   background: transparent;
-  color: #526675;
+  color: var(--ink-muted);
 }
 .workbench-wire-style:disabled {
   opacity: 0.3;
@@ -2093,7 +2093,7 @@
   width: 36px;
   min-height: 27px;
   padding: 7px 2px;
-  color: #60717d;
+  color: var(--ink-muted);
   font-size: 10px;
   text-align: center;
 }
@@ -2203,7 +2203,7 @@
 .workbench-segment-measurements span {
   padding: 5px 3px;
   background: #fff;
-  color: #425866;
+  color: var(--ink-muted);
   font-size: 10px;
   text-align: center;
 }
@@ -2491,7 +2491,7 @@
 .workbench-catalog-grid.list-view .workbench-catalog-copy small {
   display: -webkit-box;
   overflow: hidden;
-  color: #657783;
+  color: var(--ink-muted);
   font-size: 10px;
   line-height: 1.25;
   -webkit-box-orient: vertical;
@@ -2530,7 +2530,7 @@
   grid-column: 1 / -1;
   padding: 5px 7px;
   background: #eef6fa;
-  color: #5d7180;
+  color: var(--ink-muted);
   font-size: 10px;
   line-height: 1.25;
 }
@@ -2564,7 +2564,7 @@
 .workbench-wire-style > svg:last-child {
   width: 14px;
   height: 14px;
-  color: #536877;
+  color: var(--ink-muted);
 }
 .workbench-toolbar-group.right .workbench-pill {
   height: 36px;

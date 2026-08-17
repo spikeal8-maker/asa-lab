@@ -130,7 +130,7 @@
 .asa-puzzle-rating,
 .asa-puzzle-themes span {
   background: #edf5f8;
-  color: #486775;
+  color: var(--ink-muted);
 }
 
 .asa-puzzle-progress span.complete,
@@ -178,7 +178,7 @@
 .asa-online-authority-note {
   border: 1px solid #d7e4ea;
   background: #f5fafc;
-  color: #4c6572;
+  color: var(--ink-muted);
 }
 
 @media (max-width: 1000px) {
