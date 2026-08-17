@@ -21,6 +21,7 @@ interface ClassroomRow {
   workspace_kind?: 'personal' | 'organization' | null;
   workspace_title?: string | null;
   created_at: string;
+  archived_at?: string | Date | null;
   request_fingerprint?: string | null;
 }
 
@@ -42,6 +43,12 @@ function toClassroom(row: ClassroomRow): Classroom {
     workspaceKind: row.workspace_kind ?? 'organization',
     workspaceTitle: row.workspace_title ?? 'Школа',
     createdAt: String(row.created_at),
+    archivedAt:
+      row.archived_at === null || row.archived_at === undefined
+        ? null
+        : row.archived_at instanceof Date
+          ? row.archived_at.toISOString()
+          : String(row.archived_at),
   };
 }
 
@@ -132,7 +139,7 @@ export class PgClassroomRepository implements ClassroomRepositoryPort {
   async listForAccount(accountId: string): Promise<Classroom[]> {
     const result = await this.pool.query(
       `SELECT id, title, status, age_band, topic_keys, safe_mode_default,
-              created_at, join_code_version, join_code_status, student_count,
+              created_at, archived_at, join_code_version, join_code_status, student_count,
               teacher_role, workspace_kind, workspace_title
          FROM classroom_list_for_account($1)`,
       [accountId],

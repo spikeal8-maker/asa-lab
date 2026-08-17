@@ -155,6 +155,26 @@ export class AccountC1Controller {
     return profile;
   }
 
+  /**
+   * The zone every date about this teacher's classes is read in. The browser
+   * posts its own zone with `onlyIfUnset` on the first sign-in; the settings
+   * page posts without it, which is the person deciding.
+   */
+  @Put('account/time-zone')
+  async setTimeZone(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['timeZone', 'onlyIfUnset']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const result = await this.account.setTimeZone(context.accountId, {
+      timeZone: shape.body['timeZone'],
+      onlyIfUnset: shape.body['onlyIfUnset'],
+    });
+    if (!result.ok) {
+      throw new HttpException(error(result.code, 'Неизвестный часовой пояс.'), 400);
+    }
+    return { timeZone: result.timeZone };
+  }
+
   @Get('account/avatar')
   async avatar(@Req() request: FastifyRequest) {
     const context = await this.requireContext(request);

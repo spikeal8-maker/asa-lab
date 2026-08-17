@@ -19,8 +19,12 @@ import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import type { GetTeachingContextUseCase } from '@asa-lab/organization';
 import {
+  areValidTopicKeys,
   classroomCodeFor,
   classroomCodeHash,
+  isClassroomAgeBand,
+  isClassroomStatus,
+  isValidClassroomTitle,
   type Classroom,
   type CreateClassroomUseCase,
   type ListClassroomsUseCase,
@@ -47,6 +51,7 @@ interface ClassroomSummaryRow {
   teacher_role: 'owner' | 'co_teacher';
   workspace_kind: 'personal' | 'organization';
   workspace_title: string;
+  archived_at: Date | string | null;
 }
 
 interface ClassroomCreationContext {
@@ -126,6 +131,7 @@ function summaryView(row: ClassroomSummaryRow) {
     workspaceKind: row.workspace_kind,
     workspaceTitle: row.workspace_title,
     createdAt: iso(row.created_at),
+    archivedAt: row.archived_at ? iso(row.archived_at) : null,
   });
 }
 
@@ -239,7 +245,7 @@ export class ClassroomsController {
     this.requireUuid(classroomId, 'classroom');
     const result = await this.requirePool().query(
       `SELECT id, title, status, age_band, topic_keys, safe_mode_default,
-              created_at, join_code_version, join_code_status, student_count,
+              created_at, archived_at, join_code_version, join_code_status, student_count,
               teacher_role, workspace_kind, workspace_title
          FROM classroom_management_summary($1, $2)`,
       [context.accountId, classroomId],
@@ -606,6 +612,98 @@ export class ClassroomsController {
       throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
     }
     return { removed: true as const };
+  }
+
+  /**
+   * Everything about a class that a teacher can correct without entering it:
+   * the name they typed in a hurry, the age band they picked by accident, the
+   * subjects, and whether safe mode is on. One request, because to the teacher
+   * it is one act — fixing the class.
+   */
+  @Patch(':classroomId')
+  async updateDetails(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    const current = await this.summary(context, classroomId);
+    const shape = checkBodyShape(rawBody, ['title', 'ageBand', 'topicKeys', 'safeModeDefault']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const title = shape.body['title'] ?? current.title;
+    const ageBand = shape.body['ageBand'] ?? current.ageBand;
+    const topicKeys = shape.body['topicKeys'] ?? current.topicKeys;
+    const safeModeDefault = shape.body['safeModeDefault'] ?? current.safeModeDefault;
+    if (!isValidClassroomTitle(title)) {
+      throw new HttpException(error('validation_error', 'Название класса обязательно.'), 400);
+    }
+    if (!isClassroomAgeBand(ageBand)) {
+      throw new HttpException(error('validation_error', 'Неизвестный возраст учеников.'), 400);
+    }
+    if (!areValidTopicKeys(topicKeys)) {
+      throw new HttpException(error('validation_error', 'Неизвестные направления.'), 400);
+    }
+    if (typeof safeModeDefault !== 'boolean') {
+      throw new HttpException(error('validation_error', 'Safe Mode must be boolean.'), 400);
+    }
+    await this.requirePool().query(
+      `SELECT classroom_management_update_details($1, $2, $3, $4, $5, $6)`,
+      [
+        context.accountId,
+        classroomId,
+        title.trim(),
+        ageBand,
+        [...topicKeys].sort(),
+        safeModeDefault,
+      ],
+    );
+    return { classroom: await this.summary(context, classroomId) };
+  }
+
+  /**
+   * Put a class away, bring it back, or remove it.
+   *
+   * Removal keeps the rows: a class holds children's work and a record of who
+   * did what. What the teacher asked for — it is gone from my lists, nobody can
+   * get in — is exactly what the state delivers, and a mistake stays undoable
+   * by someone who can read the audit trail.
+   */
+  @Post(':classroomId/status')
+  async setStatus(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const shape = checkBodyShape(rawBody, ['status']);
+    const status = shape.ok ? shape.body['status'] : null;
+    if (!isClassroomStatus(status)) {
+      throw new HttpException(error('validation_error', 'Неизвестное состояние класса.'), 400);
+    }
+    try {
+      await this.requirePool().query(`SELECT classroom_management_set_status($1, $2, $3)`, [
+        context.accountId,
+        classroomId,
+        status,
+      ]);
+    } catch (cause) {
+      // The database is the authority on who may do this; it answers with one
+      // of two refusals and neither should read as a server fault.
+      const message = cause instanceof Error ? cause.message : '';
+      if (message.includes('owner required')) {
+        throw new HttpException(
+          error('owner_required', 'Удалить класс может только основной преподаватель.'),
+          403,
+        );
+      }
+      if (message.includes('classroom unavailable')) {
+        throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+      }
+      throw cause;
+    }
+    if (status === 'deleted') return { removed: true as const };
+    return { classroom: await this.summary(context, classroomId) };
   }
 
   @Patch(':classroomId/policies')

@@ -1,5 +1,6 @@
 import { hashSessionToken } from '../domain/session-token.js';
 import { isValidDisplayName, isValidUsername } from '../domain/account-policy.js';
+import { isValidTimeZone } from '../domain/validation.js';
 import type {
   AccountDirectoryPort,
   AccountAvatarRecord,
@@ -39,6 +40,10 @@ export function isValidAvatarDataUrl(value: unknown): value is string | null {
       AVATAR_DATA_URL_PATTERN.test(value))
   );
 }
+
+export type SetTimeZoneResult =
+  | { readonly ok: true; readonly timeZone: string | null }
+  | { readonly ok: false; readonly code: 'validation_error' };
 
 export type EducatorAttestationResult =
   | { readonly ok: true; readonly state: string; readonly created: boolean }
@@ -95,6 +100,27 @@ export class AccountManagementUseCase {
     if ('conflict' in updated) return { ok: false, code: 'username_taken' };
     const profile = await this.profile(accountId);
     return profile === null ? { ok: false, code: 'not_found' } : { ok: true, profile };
+  }
+
+  /**
+   * Record where this person keeps time.
+   *
+   * `onlyIfUnset` is how the browser reports itself: the first time an account
+   * signs in anywhere we take the device's zone as a starting guess, and after
+   * that it is a setting the person owns. Without that distinction a teacher
+   * marking work on holiday would silently move their whole register.
+   */
+  async setTimeZone(
+    accountId: string,
+    input: { timeZone: unknown; onlyIfUnset?: unknown },
+  ): Promise<SetTimeZoneResult> {
+    if (!isValidTimeZone(input.timeZone)) return { ok: false, code: 'validation_error' };
+    const timeZone = await this.accounts.setTimeZone(
+      accountId,
+      input.timeZone,
+      input.onlyIfUnset === true,
+    );
+    return { ok: true, timeZone };
   }
 
   async avatar(accountId: string): Promise<AccountAvatarRecord | null> {

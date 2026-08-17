@@ -42,7 +42,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
 
   const classCard = page.getByTestId('classroom-card').filter({ hasText: '5Б Makers' });
   await expect(classCard).toContainText('Ученики: 0');
-  await classCard.getByRole('button', { name: '5Б Makers' }).click();
+  await classCard.locator('.classroom-row-title').click();
 
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();

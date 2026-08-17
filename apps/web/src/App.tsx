@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -15,6 +15,7 @@ import { AccountPage } from './pages/AccountPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { PortalHeader } from './components/PortalHeader';
+import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
@@ -157,6 +158,33 @@ export function App(): JSX.Element {
     void checkSession();
   }, [checkSession]);
 
+  /**
+   * Where this teacher keeps time, asked once.
+   *
+   * The browser is the only thing that knows where the person is sitting, so it
+   * reports its zone the first time an account arrives without one. After that
+   * the answer belongs to the account: a teacher marking work on holiday reads
+   * their own school's times, not the hotel's. `true` is that promise — the
+   * server writes only into an empty setting.
+   */
+  const zoneReported = useRef(false);
+  useEffect(() => {
+    if (session.kind !== 'authenticated' || session.session.timeZone !== null) return;
+    if (zoneReported.current) return;
+    zoneReported.current = true;
+    void api.setAccountTimeZone(deviceTimeZone(), true).then((result) => {
+      if (!result.ok) return;
+      setSession((current) =>
+        current.kind === 'authenticated'
+          ? {
+              kind: 'authenticated',
+              session: { ...current.session, timeZone: result.data.timeZone },
+            }
+          : current,
+      );
+    });
+  }, [session]);
+
   if (session.kind === 'checking') {
     return (
       <div className="page-center" role="status" aria-live="polite">
@@ -274,13 +302,15 @@ export function App(): JSX.Element {
 
   if (view.kind === 'editor') {
     return (
-      <ModuleEditorHost
-        projectId={view.projectId}
-        onBack={() => setView(view.returnTo)}
-        onModuleResolved={handleModuleResolved}
-        returnTo={view.returnTo}
-        user={portalSession.user}
-      />
+      <SchoolTimeProvider timeZone={portalSession.timeZone}>
+        <ModuleEditorHost
+          projectId={view.projectId}
+          onBack={() => setView(view.returnTo)}
+          onModuleResolved={handleModuleResolved}
+          returnTo={view.returnTo}
+          user={portalSession.user}
+        />
+      </SchoolTimeProvider>
     );
   }
 
@@ -301,159 +331,163 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
-      <a
-        className="skip-link"
-        href="#main-content"
-        onClick={(event) => {
-          event.preventDefault();
-          document.getElementById('main-content')?.focus();
-        }}
-      >
-        Перейти к содержанию
-      </a>
-      <PortalHeader
-        session={portalSession}
-        active={active}
-        seatLearner={isSeatLearner}
-        canTeach={hasTeachingCapability}
-        onNavigate={navigate}
-        onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
-        onLoggedOut={() => {
-          setSession({ kind: 'anonymous' });
-          setPublicView({ kind: 'entry' });
-        }}
-        onCreate={() => setShellCreating(true)}
-      />
-      {view.kind === 'home' ? (
-        <CreatorHomePage
+    <SchoolTimeProvider timeZone={portalSession.timeZone}>
+      <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
+        <a
+          className="skip-link"
+          href="#main-content"
+          onClick={(event) => {
+            event.preventDefault();
+            document.getElementById('main-content')?.focus();
+          }}
+        >
+          Перейти к содержанию
+        </a>
+        <PortalHeader
           session={portalSession}
-          canTeach={canTeachHere}
+          active={active}
+          seatLearner={isSeatLearner}
+          canTeach={hasTeachingCapability}
           onNavigate={navigate}
-          onOpenProject={(projectId, moduleKey) =>
-            setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
-          }
-        />
-      ) : null}
-      {view.kind === 'my-projects' ? (
-        <MyProjectsPage
-          onOpenProject={(projectId, moduleKey) =>
-            setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
-          }
-        />
-      ) : null}
-      {view.kind === 'learning' ||
-      view.kind === 'collections' ||
-      view.kind === 'challenges' ||
-      view.kind === 'help' ? (
-        <CreatorResourcePage section={view.kind} onNavigate={navigate} />
-      ) : null}
-      {view.kind === 'classrooms' && canManageClasses ? (
-        <DashboardPage
-          onOpenProjects={(classroomId, classroomTitle) =>
-            setView({ kind: 'classroom', classroomId, classroomTitle })
-          }
-        />
-      ) : null}
-      {view.kind === 'classroom' && canManageClasses ? (
-        <ClassroomPage
-          classroomId={view.classroomId}
-          onBack={() => setView({ kind: 'classrooms' })}
-          onOpenProjects={(classroomTitle) =>
-            setView({
-              kind: 'classroom-projects',
-              classroomId: view.classroomId,
-              classroomTitle,
-            })
-          }
-          onOpenProject={(projectId, moduleKey) =>
-            setView({
-              kind: 'editor',
-              projectId,
-              moduleKey,
-              returnTo: { kind: 'my-projects' },
-            })
-          }
-        />
-      ) : null}
-      {view.kind === 'classroom-projects' && canManageClasses ? (
-        <ProjectsPage
-          classroomId={view.classroomId}
-          classroomTitle={view.classroomTitle}
-          onBack={() => setView({ kind: 'classrooms' })}
-          onOpenProject={(projectId, moduleKey) =>
-            setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
-          }
-        />
-      ) : null}
-      {!hasTeachingCapability &&
-      (view.kind === 'classrooms' ||
-        view.kind === 'classroom' ||
-        view.kind === 'classroom-projects') ? (
-        <main className="portal-content" id="main-content" tabIndex={-1}>
-          <section className="creator-access-message">
-            <p className="portal-eyebrow">Классы</p>
-            <h1>Хотите вести занятия?</h1>
-            <p>Выберите роль «Педагог» в профиле — после этого можно сразу создать первый класс.</p>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setAccountPanel('profile');
-                setView({ kind: 'account' });
-              }}
-            >
-              Настроить профиль
-            </button>
-          </section>
-        </main>
-      ) : null}
-      {view.kind === 'teacher-invite' ? (
-        <TeacherInvitePage
-          token={view.token}
-          authenticated
-          onAccepted={(classroom) => {
-            setPendingTeacherInvite(null);
-            setView({
-              kind: 'classroom',
-              classroomId: classroom.id,
-              classroomTitle: classroom.title,
-            });
-          }}
-          onBack={() => {
-            setPendingTeacherInvite(null);
-            setView({ kind: 'classrooms' });
-          }}
-          onOpenProfile={() => {
-            setAccountPanel('profile');
-            setView({ kind: 'account' });
-          }}
-        />
-      ) : null}
-      {/* A seat has no account to configure, so that page is never reached. */}
-      {view.kind === 'account' && !isSeatLearner ? (
-        <AccountPage
-          session={portalSession}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
-          onOpenClasses={() => navigate('classes')}
-          initialPanel={accountPanel}
-        />
-      ) : null}
-      {shellCreating ? (
-        <CreateProjectModal
-          scope="personal"
-          onClose={() => setShellCreating(false)}
-          onCreated={(project) => {
-            setShellCreating(false);
-            setView({
-              kind: 'editor',
-              projectId: project.id,
-              moduleKey: project.moduleKey,
-              returnTo: { kind: 'my-projects' },
-            });
+          onLoggedOut={() => {
+            setSession({ kind: 'anonymous' });
+            setPublicView({ kind: 'entry' });
           }}
+          onCreate={() => setShellCreating(true)}
         />
-      ) : null}
-    </div>
+        {view.kind === 'home' ? (
+          <CreatorHomePage
+            session={portalSession}
+            canTeach={canTeachHere}
+            onNavigate={navigate}
+            onOpenProject={(projectId, moduleKey) =>
+              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
+            }
+          />
+        ) : null}
+        {view.kind === 'my-projects' ? (
+          <MyProjectsPage
+            onOpenProject={(projectId, moduleKey) =>
+              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
+            }
+          />
+        ) : null}
+        {view.kind === 'learning' ||
+        view.kind === 'collections' ||
+        view.kind === 'challenges' ||
+        view.kind === 'help' ? (
+          <CreatorResourcePage section={view.kind} onNavigate={navigate} />
+        ) : null}
+        {view.kind === 'classrooms' && canManageClasses ? (
+          <DashboardPage
+            onOpenProjects={(classroomId, classroomTitle) =>
+              setView({ kind: 'classroom', classroomId, classroomTitle })
+            }
+          />
+        ) : null}
+        {view.kind === 'classroom' && canManageClasses ? (
+          <ClassroomPage
+            classroomId={view.classroomId}
+            onBack={() => setView({ kind: 'classrooms' })}
+            onOpenProjects={(classroomTitle) =>
+              setView({
+                kind: 'classroom-projects',
+                classroomId: view.classroomId,
+                classroomTitle,
+              })
+            }
+            onOpenProject={(projectId, moduleKey) =>
+              setView({
+                kind: 'editor',
+                projectId,
+                moduleKey,
+                returnTo: { kind: 'my-projects' },
+              })
+            }
+          />
+        ) : null}
+        {view.kind === 'classroom-projects' && canManageClasses ? (
+          <ProjectsPage
+            classroomId={view.classroomId}
+            classroomTitle={view.classroomTitle}
+            onBack={() => setView({ kind: 'classrooms' })}
+            onOpenProject={(projectId, moduleKey) =>
+              setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
+            }
+          />
+        ) : null}
+        {!hasTeachingCapability &&
+        (view.kind === 'classrooms' ||
+          view.kind === 'classroom' ||
+          view.kind === 'classroom-projects') ? (
+          <main className="portal-content" id="main-content" tabIndex={-1}>
+            <section className="creator-access-message">
+              <p className="portal-eyebrow">Классы</p>
+              <h1>Хотите вести занятия?</h1>
+              <p>
+                Выберите роль «Педагог» в профиле — после этого можно сразу создать первый класс.
+              </p>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setAccountPanel('profile');
+                  setView({ kind: 'account' });
+                }}
+              >
+                Настроить профиль
+              </button>
+            </section>
+          </main>
+        ) : null}
+        {view.kind === 'teacher-invite' ? (
+          <TeacherInvitePage
+            token={view.token}
+            authenticated
+            onAccepted={(classroom) => {
+              setPendingTeacherInvite(null);
+              setView({
+                kind: 'classroom',
+                classroomId: classroom.id,
+                classroomTitle: classroom.title,
+              });
+            }}
+            onBack={() => {
+              setPendingTeacherInvite(null);
+              setView({ kind: 'classrooms' });
+            }}
+            onOpenProfile={() => {
+              setAccountPanel('profile');
+              setView({ kind: 'account' });
+            }}
+          />
+        ) : null}
+        {/* A seat has no account to configure, so that page is never reached. */}
+        {view.kind === 'account' && !isSeatLearner ? (
+          <AccountPage
+            session={portalSession}
+            onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
+            onOpenClasses={() => navigate('classes')}
+            initialPanel={accountPanel}
+          />
+        ) : null}
+        {shellCreating ? (
+          <CreateProjectModal
+            scope="personal"
+            onClose={() => setShellCreating(false)}
+            onCreated={(project) => {
+              setShellCreating(false);
+              setView({
+                kind: 'editor',
+                projectId: project.id,
+                moduleKey: project.moduleKey,
+                returnTo: { kind: 'my-projects' },
+              });
+            }}
+          />
+        ) : null}
+      </div>
+    </SchoolTimeProvider>
   );
 }

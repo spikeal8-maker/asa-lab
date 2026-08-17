@@ -108,6 +108,13 @@ export interface AccountDirectoryPort {
   capabilities(accountId: string): Promise<CapabilityRef[]>;
   workspaces(accountId: string): Promise<WorkspaceRef[]>;
   profile(accountId: string): Promise<AccountProfileRecord | null>;
+  /**
+   * Where this person keeps time. Every date a teacher reads about a class is
+   * rendered in it, so that the register says school time whatever device the
+   * teacher happens to be holding.
+   */
+  timeZone(accountId: string): Promise<string | null>;
+  setTimeZone(accountId: string, timeZone: string, onlyIfUnset: boolean): Promise<string | null>;
   avatar(accountId: string): Promise<AccountAvatarRecord | null>;
   updateAvatar(
     accountId: string,

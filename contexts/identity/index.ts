@@ -6,7 +6,12 @@ export {
   verifyAgainstDecoy,
 } from './domain/password.js';
 export { createSessionToken, hashSessionToken } from './domain/session-token.js';
-export { isValidEmail, isValidWorkspace, normalizeEmail } from './domain/validation.js';
+export {
+  isValidEmail,
+  isValidTimeZone,
+  isValidWorkspace,
+  normalizeEmail,
+} from './domain/validation.js';
 export type {
   SessionContext,
   SessionStorePort,

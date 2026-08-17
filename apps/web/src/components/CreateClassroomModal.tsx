@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { api, type Classroom } from '../api';
 import { newClientId } from '../client-id';
+import { ClassroomFields } from './ClassroomFields';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -149,72 +150,21 @@ export function CreateClassroomModal({
       >
         <h2 id="create-classroom-title">Создать класс</h2>
         <form onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="classroom-title">Название класса</label>
-          <input
-            ref={inputRef}
+          <ClassroomFields
+            idPrefix="classroom"
+            draft={{ title, ageBand, topicKeys, safeModeDefault }}
+            busy={busy}
             autoFocus
-            id="classroom-title"
-            name="title"
-            placeholder="8А Робототехника"
-            maxLength={255}
-            value={title}
-            disabled={busy}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? errorId : undefined}
-            onChange={(event) => setTitle(event.target.value)}
+            titleRef={inputRef}
+            invalid={Boolean(error)}
+            describedBy={error ? errorId : undefined}
+            onChange={(next) => {
+              setTitle(next.title);
+              setAgeBand(next.ageBand);
+              setTopicKeys([...next.topicKeys]);
+              setSafeModeDefault(next.safeModeDefault);
+            }}
           />
-          <label htmlFor="classroom-age-band">Возраст учеников</label>
-          <select
-            id="classroom-age-band"
-            value={ageBand}
-            disabled={busy}
-            onChange={(event) => setAgeBand(event.target.value as Classroom['ageBand'])}
-          >
-            <option value="mixed">Разный возраст</option>
-            <option value="6-8">6–8 лет</option>
-            <option value="9-10">9–10 лет</option>
-            <option value="11-12">11–12 лет</option>
-            <option value="13-15">13–15 лет</option>
-            <option value="16-18">16–18 лет</option>
-          </select>
-          <fieldset className="classroom-topic-fieldset">
-            <legend>Направления</legend>
-            {[
-              ['electronics', 'Электроника'],
-              ['3d', '3D-моделирование'],
-              ['chess', 'Шахматы'],
-              ['checkers', 'Шашки'],
-              ['robotics', 'Робототехника'],
-            ].map(([key, label]) => (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={topicKeys.includes(key as string)}
-                  disabled={busy}
-                  onChange={(event) =>
-                    setTopicKeys((current) =>
-                      event.target.checked
-                        ? [...current, key as string]
-                        : current.filter((entry) => entry !== key),
-                    )
-                  }
-                />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-          <label className="classroom-safe-mode-field">
-            <input
-              type="checkbox"
-              checked={safeModeDefault}
-              disabled={busy}
-              onChange={(event) => setSafeModeDefault(event.target.checked)}
-            />
-            <span>
-              <strong>Безопасный режим</strong>
-              <small>Проекты учеников закрыты от публичной публикации. Рекомендуется.</small>
-            </span>
-          </label>
           {error ? (
             <p id={errorId} className="form-error" role="alert">
               {error}

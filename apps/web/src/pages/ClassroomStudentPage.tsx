@@ -9,6 +9,7 @@ import {
 } from '../api';
 import { ProjectCard } from '../modules/ProjectCard';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
+import { useSchoolTime } from '../components/school-time';
 import './classroom-student.css';
 
 /**
@@ -22,18 +23,6 @@ import './classroom-student.css';
  * same works. What the teacher gets that the learner does not is the ability to
  * open one and correct it, and a note on any work a teacher has already touched.
  */
-
-function lastSeen(value: string | null): string {
-  if (!value) return 'ещё не заходил';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'ещё не заходил';
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
 
 /**
  * The verdicts a teacher can give. A fixed set rather than free text: a badge
@@ -185,6 +174,7 @@ export function ClassroomStudentPage({
   // Responses already given, so a teacher revises rather than starts again.
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
   const [responding, setResponding] = useState<{ id: string; title: string } | null>(null);
+  const time = useSchoolTime();
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -270,7 +260,7 @@ export function ClassroomStudentPage({
           <h1>{student.displayLabel}</h1>
           <p>
             Вход: <code>{student.loginHandle}</code> · последний раз{' '}
-            {lastSeen(student.lastActiveAt)}
+            {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не заходил'}
           </p>
           <div className="classroom-student-badges">
             {student.safeMode ? (
@@ -299,10 +289,7 @@ export function ClassroomStudentPage({
                   key={work.id}
                   project={asProject(work)}
                   module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                  timeLabel={`Изменён ${new Intl.DateTimeFormat('ru-RU', {
-                    day: 'numeric',
-                    month: 'short',
-                  }).format(new Date(work.updatedAt))}`}
+                  timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
                   footerLabel={
                     feedback[work.id]?.badge
                       ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')

@@ -23,6 +23,7 @@ import {
   type DefaultAvatar,
 } from '../creator-portal/default-avatars';
 import { ClassesIcon, CloseIcon, InspectIcon, UserIcon } from '../electronics/workbench-icons';
+import { deviceTimeZone, timeZoneLabel } from '../components/school-time';
 
 const USERNAME_PATTERN = String.raw`[a-zA-Z0-9][a-zA-Z0-9._\-]*[a-zA-Z0-9]`;
 
@@ -39,10 +40,12 @@ const SETTINGS_PANELS: ReadonlyArray<{
   { id: 'security', label: 'Учётная запись', icon: <InspectIcon /> },
 ];
 
-function formatDate(value: string): string {
+/** Sign-in history reads in the account's own zone, like everything else. */
+function formatDate(value: string, timeZone: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
     dateStyle: 'medium',
     timeStyle: 'short',
+    timeZone,
   }).format(new Date(value));
 }
 
@@ -90,6 +93,28 @@ export function AccountPage({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
+  const deviceZone = useMemo(() => deviceTimeZone(), []);
+  const [timeZone, setTimeZone] = useState(session.timeZone ?? deviceZone);
+  /**
+   * Every zone this browser knows, with the one in force kept in the list even
+   * if the platform has never heard of it — a teacher must be able to see what
+   * their account is set to before changing it.
+   */
+  const timeZoneOptions = useMemo(() => {
+    let zones: string[];
+    try {
+      zones = [...(Intl.supportedValuesOf?.('timeZone') ?? [])];
+    } catch {
+      zones = [];
+    }
+    if (zones.length === 0) zones = [deviceZone, 'UTC'];
+    const current = session.timeZone ?? deviceZone;
+    return zones.includes(current) ? zones : [current, ...zones];
+  }, [deviceZone, session.timeZone]);
+
+  useEffect(() => {
+    setTimeZone(session.timeZone ?? deviceZone);
+  }, [deviceZone, session.timeZone]);
 
   useEffect(() => setPanel(initialPanel), [initialPanel]);
 
@@ -155,6 +180,26 @@ export function AccountPage({
     }
     onSessionChanged(result.data);
     return true;
+  }
+
+  /**
+   * The teacher deciding, rather than the browser reporting: `false` means
+   * overwrite whatever is stored, which is the point of the control.
+   */
+  async function saveTimeZone(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setBusyAction('time-zone');
+    setError(null);
+    setNotice(null);
+    const result = await api.setAccountTimeZone(timeZone, false);
+    if (!result.ok) {
+      setBusyAction(null);
+      setError(result.error.message || 'Не удалось сохранить часовой пояс.');
+      return;
+    }
+    await refreshSession();
+    setBusyAction(null);
+    setNotice(`Часовой пояс: ${timeZoneLabel(result.data.timeZone ?? timeZone)}.`);
   }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -499,6 +544,37 @@ export function AccountPage({
                   {busyAction === 'profile' ? 'Сохраняем…' : 'Сохранить изменения'}
                 </button>
               </form>
+
+              {/* Its own form because it has its own endpoint, and its own
+                  meaning: this is the clock the register runs on, not a detail
+                  of the public profile. */}
+              <form
+                className="account-profile-form account-time-zone"
+                onSubmit={(event) => void saveTimeZone(event)}
+              >
+                <label>
+                  Часовой пояс
+                  <small>
+                    В нём показываются все даты и время в классах: когда ученик заходил, когда
+                    сохранял работу. Определён по вашему устройству — измените, если преподаёте в
+                    другом поясе.
+                  </small>
+                  <select value={timeZone} onChange={(event) => setTimeZone(event.target.value)}>
+                    {timeZoneOptions.map((zone) => (
+                      <option key={zone} value={zone}>
+                        {timeZoneLabel(zone)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="submit"
+                  className="btn-secondary account-action"
+                  disabled={busyAction !== null || timeZone === (session.timeZone ?? deviceZone)}
+                >
+                  {busyAction === 'time-zone' ? 'Сохраняем…' : 'Сохранить часовой пояс'}
+                </button>
+              </form>
             </section>
           ) : null}
 
@@ -670,8 +746,8 @@ export function AccountPage({
                           <span className="account-session-current">Текущий вход</span>
                         ) : null}
                       </strong>
-                      <span>Последняя активность: {formatDate(entry.lastSeenAt)}</span>
-                      <span>Выполнен вход: {formatDate(entry.createdAt)}</span>
+                      <span>Последняя активность: {formatDate(entry.lastSeenAt, timeZone)}</span>
+                      <span>Выполнен вход: {formatDate(entry.createdAt, timeZone)}</span>
                     </div>
                     {entry.current ? null : (
                       <button

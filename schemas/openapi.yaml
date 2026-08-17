@@ -268,6 +268,75 @@ paths:
                   classroom: { $ref: '#/components/schemas/Classroom' }
         '404':
           description: Classroom is unavailable to the educator
+    patch:
+      operationId: patchClassroomDetails
+      summary: Correct a classroom's name, age band, topics and safe-mode default
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClassroomDetailsRequest' }
+      responses:
+        '200':
+          description: Updated classroom
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [classroom]
+                properties:
+                  classroom: { $ref: '#/components/schemas/Classroom' }
+        '400':
+          description: Validation error
+        '404':
+          description: Classroom is unavailable to the educator
+  /api/classrooms/{classroomId}/status:
+    parameters:
+      - name: classroomId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: postClassroomStatus
+      summary: Archive a classroom, restore it, or remove it from every list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, archived, deleted]
+      responses:
+        '200':
+          description: >-
+            The classroom in its new state, or an acknowledgement that it was
+            removed. Removal keeps the rows: learner work and the audit trail
+            survive, and the class stops being listed or joinable.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    additionalProperties: false
+                    required: [classroom]
+                    properties:
+                      classroom: { $ref: '#/components/schemas/Classroom' }
+                  - type: object
+                    additionalProperties: false
+                    required: [removed]
+                    properties:
+                      removed: { type: boolean, const: true }
+        '400':
+          description: Unknown status
+        '403':
+          description: Only the owning teacher may remove a classroom
+        '404':
+          description: Classroom is unavailable to the educator
   /api/classrooms/{classroomId}/roster:
     parameters:
       - name: classroomId
@@ -848,7 +917,16 @@ components:
       type: object
       additionalProperties: false
       required:
-        [authenticated, user, account, capabilities, workspaces, activeWorkspace, navigation]
+        [
+          authenticated,
+          user,
+          account,
+          capabilities,
+          workspaces,
+          activeWorkspace,
+          navigation,
+          timeZone,
+        ]
       properties:
         authenticated:
           type: boolean
@@ -869,6 +947,12 @@ components:
           $ref: '#/components/schemas/ActiveWorkspace'
         navigation:
           $ref: '#/components/schemas/PortalNavigation'
+        timeZone:
+          description: >-
+            IANA zone the account keeps time in. Every date shown about a class
+            is rendered in it. Null until a browser has reported one.
+          type: [string, 'null']
+          maxLength: 64
     SessionStatusEnvelope:
       oneOf:
         - $ref: '#/components/schemas/UserEnvelope'
@@ -973,6 +1057,28 @@ components:
             pattern: '^[a-z0-9-]{1,32}$'
         safeModeDefault:
           type: boolean
+    ClassroomDetailsRequest:
+      description: >-
+        Every field is optional: a teacher fixing a name should not have to
+        restate the age band. Anything omitted keeps its stored value.
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        ageBand:
+          type: string
+          enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
+        topicKeys:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            pattern: '^[a-z0-9-]{1,32}$'
+        safeModeDefault:
+          type: boolean
     Classroom:
       type: object
       additionalProperties: false
@@ -991,6 +1097,7 @@ components:
         - workspaceKind
         - workspaceTitle
         - createdAt
+        - archivedAt
       properties:
         id:
           type: string
@@ -998,7 +1105,11 @@ components:
         title:
           type: string
         status:
+          description: >-
+            active while the class is running, archived once it is put away.
+            A removed class is never returned.
           type: string
+          enum: [active, archived]
         ageBand:
           type: string
           enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
@@ -1028,6 +1139,10 @@ components:
           type: string
         createdAt:
           type: string
+          format: date-time
+        archivedAt:
+          description: When the class was put away; null while it is running.
+          type: [string, 'null']
           format: date-time
     ClassroomTeacher:
       type: object

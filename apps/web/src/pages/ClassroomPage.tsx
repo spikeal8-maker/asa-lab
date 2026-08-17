@@ -11,6 +11,8 @@ import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
+import { Dropdown } from '../components/Dropdown';
+import { useSchoolTime } from '../components/school-time';
 import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 
 type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
@@ -49,25 +51,6 @@ const learnerPlural = new Intl.PluralRules('ru-RU');
 
 function learnerCount(count: number): string {
   return `${count} ${LEARNER_FORMS[learnerPlural.select(count)]}`;
-}
-
-function lastActive(value: string | null): string {
-  if (!value) return 'Ещё не входил';
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
-
-function invitationExpiry(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
 }
 
 function handleFromLabel(label: string): string {
@@ -295,6 +278,7 @@ export function ClassroomPage({
   const [openStudent, setOpenStudent] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [search, setSearch] = useState('');
+  const time = useSchoolTime();
 
   const reload = useCallback(async () => {
     const [classroom, roster] = await Promise.all([
@@ -418,6 +402,10 @@ export function ClassroomPage({
   const classLink = classroom.joinCode
     ? `${window.location.origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`
     : null;
+  // A class put away opens for reading: last year's register and last year's
+  // work are exactly what a teacher comes back for. Nothing about it changes
+  // until it is brought back into service.
+  const archived = classroom.status === 'archived';
 
   return (
     <main id="main-content" className="portal-content classroom-workspace" tabIndex={-1}>
@@ -440,25 +428,60 @@ export function ClassroomPage({
         {/* The code is a chip and a button, not a panel. It is needed twice a
             lesson and read from across a room, so the place it is read properly
             is the full screen behind "Поделиться" — not a block that competes
-            with the register for the top of every visit. */}
+            with the register for the top of every visit. An archived class has
+            no code to give out; what it has is a way back into service. */}
         <div className="classroom-head-code">
-          {classroom.joinCode ? (
+          {archived ? (
             <button
               type="button"
-              className="classroom-code-chip"
-              title="Скопировать код"
-              onClick={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
+              className="portal-create-button"
+              disabled={busy === 'status'}
+              onClick={async () => {
+                setBusy('status');
+                const result = await api.setClassroomStatus(classroomId, 'active');
+                setBusy(null);
+                if (result.ok) {
+                  setNotice(
+                    'Класс вернулся из архива. Выдайте новый код, чтобы впустить учеников.',
+                  );
+                  await reload();
+                }
+              }}
             >
-              {classroom.joinCode}
+              Вернуть из архива
             </button>
           ) : (
-            <span className="classroom-code-chip is-closed">Вход закрыт</span>
+            <>
+              {classroom.joinCode ? (
+                <button
+                  type="button"
+                  className="classroom-code-chip"
+                  title="Скопировать код"
+                  onClick={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
+                >
+                  {classroom.joinCode}
+                </button>
+              ) : (
+                <span className="classroom-code-chip is-closed">Вход закрыт</span>
+              )}
+              <button
+                type="button"
+                className="portal-create-button"
+                onClick={() => setSharing(true)}
+              >
+                Поделиться классом
+              </button>
+            </>
           )}
-          <button type="button" className="portal-create-button" onClick={() => setSharing(true)}>
-            Поделиться классом
-          </button>
         </div>
       </header>
+
+      {archived ? (
+        <p className="classroom-archived-note" role="status">
+          Класс в архиве с {time.date(classroom.archivedAt ?? classroom.createdAt)}. Вход по коду
+          закрыт, список и работы доступны для чтения.
+        </p>
+      ) : null}
 
       {/* The tabs and the one switch that applies to every learner share a row:
           both are about the class as a whole, and the switch used to be a
@@ -481,7 +504,7 @@ export function ClassroomPage({
           <input
             type="checkbox"
             checked={classroom.safeModeDefault}
-            disabled={busy === 'policy'}
+            disabled={busy === 'policy' || archived}
             onChange={async (event) => {
               setBusy('policy');
               const result = await api.updateClassroomPolicy(classroomId, event.target.checked);
@@ -514,11 +537,17 @@ export function ClassroomPage({
               <button
                 type="button"
                 className="portal-create-button"
+                disabled={archived}
                 onClick={() => setDialog('single')}
               >
                 <PlusIcon /> Добавить ученика
               </button>
-              <button type="button" className="btn-secondary" onClick={() => setDialog('batch')}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={archived}
+                onClick={() => setDialog('batch')}
+              >
                 Добавить списком
               </button>
             </div>
@@ -575,12 +604,14 @@ export function ClassroomPage({
                   >
                     {student.loginHandle}
                   </button>
-                  <span className="classroom-roster-seen">{lastActive(student.lastActiveAt)}</span>
+                  <span className="classroom-roster-seen">
+                    {student.lastActiveAt ? time.dateTime(student.lastActiveAt) : 'Ещё не входил'}
+                  </span>
                   <label className="classroom-seat-safe">
                     <input
                       type="checkbox"
                       checked={student.safeMode}
-                      disabled={Boolean(busy)}
+                      disabled={Boolean(busy) || archived}
                       aria-label={`Безопасный режим: ${student.displayLabel}`}
                       onChange={() =>
                         void updateStudent({ ...student, safeMode: !student.safeMode })
@@ -594,46 +625,73 @@ export function ClassroomPage({
                     </span>
                     <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
                   </label>
-                  <details className="classroom-row-menu">
-                    <summary aria-label={`Действия: ${student.displayLabel}`}>•••</summary>
-                    <div>
-                      <button type="button" onClick={() => setEditing(student)}>
-                        Изменить данные
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void updateStudent({
-                            ...student,
-                            status: student.status === 'suspended' ? 'active' : 'suspended',
-                          })
-                        }
-                      >
-                        {student.status === 'suspended' ? 'Вернуть доступ' : 'Приостановить доступ'}
-                      </button>
-                      <button
-                        type="button"
-                        className="danger"
-                        onClick={async () => {
-                          if (
-                            !window.confirm(
-                              `Удалить ${student.displayLabel} из класса? Его вход будет закрыт.`,
+                  <Dropdown
+                    className="classroom-row-menu"
+                    ariaLabel={`Действия: ${student.displayLabel}`}
+                    label="•••"
+                  >
+                    {(close) => (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            close();
+                            setOpenStudent(student.id);
+                          }}
+                        >
+                          Открыть страницу
+                        </button>
+                        <button
+                          type="button"
+                          disabled={archived}
+                          onClick={() => {
+                            close();
+                            setEditing(student);
+                          }}
+                        >
+                          Изменить данные
+                        </button>
+                        <button
+                          type="button"
+                          disabled={archived}
+                          onClick={() => {
+                            close();
+                            void updateStudent({
+                              ...student,
+                              status: student.status === 'suspended' ? 'active' : 'suspended',
+                            });
+                          }}
+                        >
+                          {student.status === 'suspended'
+                            ? 'Вернуть доступ'
+                            : 'Приостановить доступ'}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          disabled={archived}
+                          onClick={async () => {
+                            close();
+                            if (
+                              !window.confirm(
+                                `Удалить ${student.displayLabel} из класса? Его вход будет закрыт.`,
+                              )
                             )
-                          )
-                            return;
-                          setBusy(`remove:${student.id}`);
-                          const result = await api.removeClassroomSeat(classroomId, student.id);
-                          setBusy(null);
-                          if (result.ok) {
-                            setNotice(`${student.displayLabel} удалён из класса.`);
-                            await reload();
-                          }
-                        }}
-                      >
-                        Удалить из класса
-                      </button>
-                    </div>
-                  </details>
+                              return;
+                            setBusy(`remove:${student.id}`);
+                            const result = await api.removeClassroomSeat(classroomId, student.id);
+                            setBusy(null);
+                            if (result.ok) {
+                              setNotice(`${student.displayLabel} удалён из класса.`);
+                              await reload();
+                            }
+                          }}
+                        >
+                          Удалить из класса
+                        </button>
+                      </>
+                    )}
+                  </Dropdown>
                 </div>
               ))}
             </div>
@@ -844,7 +902,7 @@ export function ClassroomPage({
                     <div key={invitation.id}>
                       <span>
                         <strong>Приглашение для коллеги</strong>
-                        <small>Действует до {invitationExpiry(invitation.expiresAt)}</small>
+                        <small>Действует до {time.longDateTime(invitation.expiresAt)}</small>
                       </span>
                       <button
                         type="button"

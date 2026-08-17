@@ -1,10 +1,13 @@
 export {
   CLASSROOM_AGE_BANDS,
+  CLASSROOM_STATUSES,
   areValidTopicKeys,
   isClassroomAgeBand,
+  isClassroomStatus,
   isValidClassroomTitle,
   type Classroom,
   type ClassroomAgeBand,
+  type ClassroomStatus,
 } from './domain/classroom.js';
 export {
   classroomCodeFor,

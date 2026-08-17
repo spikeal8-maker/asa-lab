@@ -36,5 +36,8 @@ export function studentSessionPayload(seat: ClassroomStudentSession): SessionPay
     ],
     activeWorkspace: { workspaceId: seat.classroom.id, kind: 'organization' },
     navigation: { classes: false, classroomManagement: false },
+    // A seat has no setting of its own; the classroom computer's clock is the
+    // right answer for a child sitting at it.
+    timeZone: null,
   };
 }

@@ -128,6 +128,26 @@ export class PgAccountDirectory implements AccountDirectoryPort {
     return this.toProfile(result.rows[0]);
   }
 
+  async timeZone(accountId: string): Promise<string | null> {
+    const result = await this.pool.query(`SELECT account_time_zone($1) AS time_zone`, [accountId]);
+    const row = result.rows[0] as { time_zone: string | null } | undefined;
+    return row?.time_zone ?? null;
+  }
+
+  async setTimeZone(
+    accountId: string,
+    timeZone: string,
+    onlyIfUnset: boolean,
+  ): Promise<string | null> {
+    const result = await this.pool.query(`SELECT account_time_zone_set($1, $2, $3) AS time_zone`, [
+      accountId,
+      timeZone,
+      onlyIfUnset,
+    ]);
+    const row = result.rows[0] as { time_zone: string | null } | undefined;
+    return row?.time_zone ?? null;
+  }
+
   async avatar(accountId: string): Promise<AccountAvatarRecord | null> {
     const result = await this.pool.query(`SELECT avatar_data_url FROM auth_account_avatar($1)`, [
       accountId,

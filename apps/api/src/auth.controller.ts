@@ -54,6 +54,8 @@ interface SessionPayload {
   workspaces: { workspaceId: string; kind: string; title: string; role: string }[];
   activeWorkspace: { workspaceId: string; kind: string };
   navigation: { classes: boolean; classroomManagement: boolean };
+  /** IANA name, or null until the browser has reported one. */
+  timeZone: string | null;
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -119,9 +121,10 @@ export class AuthController {
   }
 
   private async payload(context: ActiveContext): Promise<SessionPayload> {
-    const [capabilities, workspaces] = await Promise.all([
+    const [capabilities, workspaces, timeZone] = await Promise.all([
       this.accounts.capabilities(context.accountId),
       this.accounts.workspaces(context.accountId),
+      this.accounts.timeZone(context.accountId),
     ]);
     const educator = capabilities.some(
       (entry) =>
@@ -155,6 +158,7 @@ export class AuthController {
         classes: educator,
         classroomManagement: educator,
       },
+      timeZone,
     };
   }
 

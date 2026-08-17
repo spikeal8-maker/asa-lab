@@ -1,4 +1,5 @@
 import type { ClassroomActivityEntry } from '../api';
+import { useSchoolTime } from './school-time';
 
 /**
  * The class record, in words a teacher reads rather than event names.
@@ -21,17 +22,6 @@ const ACTIONS: Readonly<Record<string, string>> = {
   'project.active': 'вернул из архива',
 };
 
-function when(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
 export function ClassroomActivityList({
   entries,
   emptyText,
@@ -42,6 +32,9 @@ export function ClassroomActivityList({
   /** The class feed names the learner; a learner's own page does not repeat it. */
   readonly showWho?: boolean;
 }): JSX.Element {
+  // Times in the record are read in the teacher's own zone, not the device's:
+  // a register consulted from a phone abroad must still say school time.
+  const time = useSchoolTime();
   if (entries.length === 0) {
     return <p className="classroom-activity-empty">{emptyText}</p>;
   }
@@ -50,14 +43,17 @@ export function ClassroomActivityList({
     <ol className="classroom-activity" data-testid="classroom-activity">
       {entries.map((entry) => (
         <li key={entry.id} className="classroom-activity-item">
-          <span className="classroom-activity-when">{when(entry.at)}</span>
+          <span className="classroom-activity-when">{time.dateTime(entry.at)}</span>
           <span className="classroom-activity-text">
             {showWho && entry.seatLabel ? <strong>{entry.seatLabel}</strong> : null}{' '}
             {entry.byTeacher ? <em className="classroom-activity-teacher">педагог</em> : null}{' '}
             {ACTIONS[entry.action] ?? entry.action}
             {entry.projectTitle ? <> «{entry.projectTitle}»</> : null}
             {entry.count > 1 ? (
-              <span className="classroom-activity-count" title={`с ${when(entry.firstAt)}`}>
+              <span
+                className="classroom-activity-count"
+                title={`с ${time.dateTime(entry.firstAt)}`}
+              >
                 ×{entry.count}
               </span>
             ) : null}

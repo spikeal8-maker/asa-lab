@@ -38,6 +38,8 @@ export interface SessionPayload {
   workspaces: WorkspaceRef[];
   activeWorkspace: { workspaceId: string; kind: string };
   navigation: { classes: boolean; classroomManagement: boolean };
+  /** The teacher's own zone; every classroom date is read in it. */
+  timeZone: string | null;
 }
 
 export interface AccountProfile {
@@ -80,7 +82,10 @@ export interface Classroom {
   workspaceKind: 'personal' | 'organization';
   workspaceTitle: string;
   createdAt: string;
+  archivedAt: string | null;
 }
+
+export type ClassroomStatus = 'active' | 'archived' | 'deleted';
 
 export interface ClassroomTeacher {
   accountId: string;
@@ -596,6 +601,29 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
     ),
+  updateClassroom: (
+    classroomId: string,
+    input: {
+      title?: string;
+      ageBand?: Classroom['ageBand'];
+      topicKeys?: string[];
+      safeModeDefault?: boolean;
+    },
+  ) =>
+    call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  setClassroomStatus: (classroomId: string, status: ClassroomStatus) =>
+    call<{ classroom?: Classroom; removed?: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/status`,
+      { method: 'POST', body: JSON.stringify({ status }) },
+    ),
+  setAccountTimeZone: (timeZone: string, onlyIfUnset: boolean) =>
+    call<{ timeZone: string | null }>('/api/account/time-zone', {
+      method: 'PUT',
+      body: JSON.stringify({ timeZone, onlyIfUnset }),
+    }),
   updateClassroomPolicy: (classroomId: string, safeModeDefault: boolean) =>
     call<{ classroom: Classroom }>(`/api/classrooms/${encodeURIComponent(classroomId)}/policies`, {
       method: 'PATCH',
