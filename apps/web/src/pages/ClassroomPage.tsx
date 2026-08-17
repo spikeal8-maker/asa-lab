@@ -10,6 +10,7 @@ import {
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
+import { ClassJoinQr } from '../components/ClassJoinQr';
 import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 
 type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
@@ -276,6 +277,7 @@ export function ClassroomPage({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
 
   const reload = useCallback(async () => {
     const [classroom, roster] = await Promise.all([
@@ -410,6 +412,21 @@ export function ClassroomPage({
         <div className="classroom-code-card">
           <span>Код класса</span>
           <strong>{classroom.joinCode ?? 'Вход закрыт'}</strong>
+          {/* A camera does not mistype a nine-character code, and a primary
+              class with one shared code loses ten minutes to typing it. */}
+          {classroom.joinCode && classLink ? (
+            <button
+              type="button"
+              className="classroom-qr-toggle"
+              aria-expanded={showQr}
+              onClick={() => setShowQr((current) => !current)}
+            >
+              {showQr ? 'Скрыть QR-код' : 'Показать QR-код'}
+            </button>
+          ) : null}
+          {showQr && classLink ? (
+            <ClassJoinQr url={classLink} label={`Ссылка на класс ${classroom.title}`} />
+          ) : null}
           <div>
             {classroom.joinCode ? (
               <>

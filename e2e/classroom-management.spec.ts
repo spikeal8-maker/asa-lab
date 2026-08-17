@@ -48,6 +48,11 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   const joinCode = (await page.locator('.classroom-code-card > strong').innerText()).trim();
   expect(joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
 
+  /** A camera instead of nine characters typed from a whiteboard. */
+  await page.getByRole('button', { name: 'Показать QR-код' }).click();
+  await expect(page.getByTestId('class-join-qr')).toBeVisible();
+  await page.getByRole('button', { name: 'Скрыть QR-код' }).click();
+
   await page.getByRole('button', { name: 'Добавить ученика' }).click();
   const studentDialog = page.getByRole('dialog');
   await studentDialog.getByLabel('Имя в списке класса').fill('Алина К.');
@@ -121,6 +126,20 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(page.getByTestId('project-card').filter({ hasText: 'Моя модель' })).toBeVisible();
   await expect(page.getByTestId('classroom-activity')).toContainText('вошёл в класс');
   await expect(page.getByTestId('classroom-activity')).toContainText('создал «Моя модель»');
+  /**
+   * A response to the work: a badge for the verdict, a comment for the why.
+   * The badge lands on the card, where the learner and the teacher both see it
+   * without opening anything.
+   */
+  const work = page.getByTestId('project-card').filter({ hasText: 'Моя модель' });
+  await work.hover();
+  await work.locator('summary').click();
+  await work.getByRole('button', { name: 'Оценить работу' }).click();
+  const feedbackDialog = page.getByRole('dialog', { name: 'Отклик: Моя модель' });
+  await feedbackDialog.getByRole('button', { name: 'Хорошо' }).click();
+  await feedbackDialog.getByLabel('Комментарий').fill('Добавь отверстие под винт.');
+  await feedbackDialog.getByRole('button', { name: 'Сохранить отклик' }).click();
+  await expect(work).toContainText('Хорошо');
   await page.screenshot({ path: `${evidenceDir}/teacher-sees-student.png`, fullPage: true });
 
   await page.getByRole('button', { name: '5Б Makers' }).first().click();

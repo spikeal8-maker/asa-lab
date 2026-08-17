@@ -1073,3 +1073,33 @@
     font-size: 24px;
   }
 }
+
+/* The join square. Sized so it scans from the back of a classroom when the
+ * page is on a projector, and never wider than the card it sits in. */
+.class-qr {
+  display: block;
+  width: min(100%, 190px);
+  height: auto;
+  margin: 10px 0 4px;
+  border-radius: 8px;
+}
+
+.class-qr-loading,
+.class-qr-failed {
+  margin: 10px 0 4px;
+  color: #64747f;
+  font-size: 13px;
+}
+
+.classroom-qr-toggle {
+  align-self: start;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0878a9;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}

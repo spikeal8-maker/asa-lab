@@ -142,6 +142,13 @@ export interface ClassroomActivityEntry {
   at: string;
 }
 
+export interface ProjectFeedback {
+  badge: string | null;
+  comment: string | null;
+  updatedAt: string;
+  author: string;
+}
+
 export interface ClassroomStudentWork {
   id: string;
   moduleKey: string;
@@ -712,6 +719,13 @@ export const api = {
         ...(options.unloading === true ? { keepalive: true } : {}),
       },
     ),
+  projectFeedback: (projectId: string) =>
+    call<{ items: ProjectFeedback[] }>(`/api/projects/${encodeURIComponent(projectId)}/feedback`),
+  saveProjectFeedback: (projectId: string, input: { badge: string | null; comment: string }) =>
+    call<{ feedback: ProjectFeedback }>(`/api/projects/${encodeURIComponent(projectId)}/feedback`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   createCheckpoint: (projectId: string, label?: string) =>
     call<{ version: ProjectVersion }>(
       `/api/projects/${encodeURIComponent(projectId)}/checkpoints`,

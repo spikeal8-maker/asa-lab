@@ -273,6 +273,49 @@ describe('classrooms', () => {
     });
     expect(studentPage.json().activity.length).toBeGreaterThan(0);
 
+    /**
+     * A teacher's response: a badge for the verdict, a comment for the why.
+     * Who may respond is decided where the data is, so a stranger's attempt
+     * fails even though the request is well formed.
+     */
+    const responded = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${studentProjectId}/feedback`,
+      cookies: { asa_session: token },
+      payload: { badge: 'good', comment: 'Хорошая работа, добавь отверстие.' },
+    });
+    expect(responded.statusCode).toBe(200);
+    expect(responded.json().feedback).toMatchObject({
+      badge: 'good',
+      comment: 'Хорошая работа, добавь отверстие.',
+    });
+
+    const revised = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${studentProjectId}/feedback`,
+      cookies: { asa_session: token },
+      payload: { badge: 'excellent', comment: 'Отлично.' },
+    });
+    expect(revised.statusCode).toBe(200);
+
+    /** Revised, not repeated: a learner reads one verdict per teacher. */
+    const learnerReads = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${studentProjectId}/feedback`,
+      cookies: studentSession,
+    });
+    expect(learnerReads.statusCode).toBe(200);
+    expect(learnerReads.json().items).toHaveLength(1);
+    expect(learnerReads.json().items[0]).toMatchObject({ badge: 'excellent' });
+
+    const emptyResponse = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${studentProjectId}/feedback`,
+      cookies: { asa_session: token },
+      payload: { badge: null, comment: '   ' },
+    });
+    expect(emptyResponse.statusCode).toBe(400);
+
     /** A teacher of another class cannot read this learner's page. */
     const strangerPage = await inject(app, {
       method: 'GET',

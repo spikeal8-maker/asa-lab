@@ -31,6 +31,7 @@ import type {
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE, SeatContextUseCase } from './seat-context.js';
+import { FEEDBACK_BADGES, ProjectFeedbackService } from './project-feedback.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 
 interface ProjectRequestContext {
@@ -71,6 +72,7 @@ export class ProjectsController {
     @Inject(TOKENS.readProjectSnapshotUseCase)
     private readonly readSnapshotUseCase: ReadProjectSnapshotUseCase,
     @Inject(TOKENS.seatContextUseCase) private readonly seatContext: SeatContextUseCase,
+    @Inject(TOKENS.projectFeedbackService) private readonly feedback: ProjectFeedbackService,
   ) {}
 
   /**
@@ -342,6 +344,57 @@ export class ProjectsController {
           : 'private, no-cache, must-revalidate',
       )
       .send(Buffer.from(snapshot.bytes));
+  }
+
+  /**
+   * A teacher's response to a piece of work: a badge, a comment, or both.
+   *
+   * Who may respond is decided in the database, which knows whose learner this
+   * is; a caller cannot leave that check out. Reading is wider than writing —
+   * the learner reads what was said about their own work.
+   */
+  @Put(':projectId/feedback')
+  async saveFeedback(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+  ): Promise<{ feedback: unknown }> {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['badge', 'comment']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const badge = shape.body['badge'];
+    const comment = shape.body['comment'];
+    if (badge !== undefined && badge !== null && !FEEDBACK_BADGES.includes(String(badge))) {
+      throw new HttpException(error('validation_error', 'unknown badge'), 400);
+    }
+    if (comment !== undefined && comment !== null && typeof comment !== 'string') {
+      throw new HttpException(error('validation_error', 'comment must be text'), 400);
+    }
+    if ((badge === undefined || badge === null) && !String(comment ?? '').trim()) {
+      throw new HttpException(
+        error('validation_error', 'Отклик должен содержать значок или комментарий.'),
+        400,
+      );
+    }
+    const saved = await this.feedback.save(
+      context.principalId,
+      projectId,
+      badge === undefined || badge === null ? null : String(badge),
+      typeof comment === 'string' ? comment.slice(0, 1000) : null,
+    );
+    if (!saved) {
+      ProjectsController.reject('project_not_found', 'project not found');
+    }
+    return { feedback: saved };
+  }
+
+  @Get(':projectId/feedback')
+  async readFeedback(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+  ): Promise<{ items: unknown[] }> {
+    const context = await this.requireContext(request);
+    return { items: await this.feedback.list(context.principalId, projectId) };
   }
 
   @Post(':projectId/checkpoints')

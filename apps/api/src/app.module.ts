@@ -60,6 +60,7 @@ import { ProjectsController } from './projects.controller.js';
 import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
+import { ProjectFeedbackService } from './project-feedback.js';
 import { TOKENS } from './tokens.js';
 
 function validationMessage(
@@ -254,6 +255,10 @@ export class AppModule {
         {
           provide: TOKENS.seatContextUseCase,
           useFactory: () => new SeatContextUseCase(pool),
+        },
+        {
+          provide: TOKENS.projectFeedbackService,
+          useFactory: () => new ProjectFeedbackService(pool),
         },
         {
           provide: TOKENS.listClassroomsUseCase,

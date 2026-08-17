@@ -156,6 +156,11 @@ describe('runtime role hardening', () => {
       'project_drafts:INSERT',
       'project_drafts:SELECT',
       'project_drafts:UPDATE',
+      // A teacher's response is revised in place, never repeated and never
+      // removed by the runtime role.
+      'project_feedback:INSERT',
+      'project_feedback:SELECT',
+      'project_feedback:UPDATE',
       // Card pictures: written and overwritten by the editor that took them,
       // read back for delivery. No DELETE — a snapshot is replaced, never
       // removed, and the runtime role must not be able to remove one.

@@ -114,3 +114,34 @@
     gap: 2px;
   }
 }
+
+/* The verdicts, as a row of choices rather than a dropdown: a teacher gives
+ * thirty of these in a lesson and should never open a menu to do it. */
+.feedback-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.feedback-badges button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #cbd6df;
+  border-radius: 999px;
+  background: #fff;
+  color: #465863;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feedback-badges button:hover {
+  border-color: #9fb4c2;
+}
+
+.feedback-badges button.active {
+  border-color: #0e7bb8;
+  background: #0e7bb8;
+  color: #fff;
+}

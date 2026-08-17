@@ -8,6 +8,7 @@
     "@asa-lab/electronics": "workspace:*",
     "@asa-lab/module-sdk": "workspace:*",
     "@asa-lab/three-d": "workspace:*",
+    "qrcode-generator": "^2.0.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "three": "0.185.1"
