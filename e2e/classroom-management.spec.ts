@@ -273,6 +273,52 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(page.getByTestId('classroom-activity')).toContainText('Моя модель');
   await page.screenshot({ path: `${evidenceDir}/class-activity.png`, fullPage: true });
 
+  /**
+   * Work a teacher sets, and what the class does with it. Both halves matter:
+   * the teacher must see who has not opened it, and the learner must be able to
+   * say they are done without a teacher guessing from a timestamp.
+   */
+  await page.getByRole('button', { name: 'Действия', exact: true }).click();
+  await page.getByRole('button', { name: 'Новое задание' }).click();
+  const assignmentDialog = page.getByRole('dialog', { name: 'Новое задание' });
+  await assignmentDialog.getByLabel('Название').fill('Брелок с именем');
+  await assignmentDialog.getByLabel('Среда').selectOption({ label: 'ASA 3D' });
+  await assignmentDialog.getByLabel('Что нужно сделать').fill('Скруглите углы и подпишите имя.');
+  await assignmentDialog.getByRole('button', { name: 'Выдать классу' }).click();
+  await expect(page.getByText('Задание «Брелок с именем» выдано классу.')).toBeVisible();
+  await expect(page.getByTestId('assignment-list')).toContainText('Работают: 0 из 1');
+
+  // Nobody has opened it, and the register says so by name.
+  await page.getByRole('button', { name: 'Брелок с именем' }).click();
+  await expect(page.getByTestId('assignment-progress')).toContainText('Не открывал');
+  await page.screenshot({ path: `${evidenceDir}/assignment-progress.png`, fullPage: true });
+
+  // The learner finds it on their own home page and starts it: the project is
+  // made for them in the environment the teacher chose, and opens.
+  await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  const assignmentCard = studentPage
+    .getByTestId('seat-assignments')
+    .filter({ hasText: 'Брелок с именем' });
+  await expect(assignmentCard).toContainText('Скруглите углы и подпишите имя.');
+  await studentPage.screenshot({ path: `${evidenceDir}/student-assignment.png`, fullPage: true });
+  await assignmentCard.getByRole('button', { name: 'Начать' }).click();
+  await expect(studentPage.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
+
+  // And hands it in.
+  await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  await assignmentCard.getByRole('button', { name: 'Сдать' }).click();
+  await expect(assignmentCard).toContainText('сдано');
+  await expect(assignmentCard.getByRole('button', { name: 'Вернуть в работу' })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Действия', exact: true }).click();
+  await expect(page.getByTestId('assignment-list')).toContainText('Сдали: 1');
+  await page.getByRole('button', { name: 'Брелок с именем' }).click();
+  await expect(page.getByTestId('assignment-progress')).toContainText('Сдано');
+  await expect(
+    page.getByTestId('assignment-progress').getByRole('button', { name: 'Открыть работу' }),
+  ).toBeVisible();
+
   await page.getByRole('button', { name: 'Учащиеся' }).click();
   await page.getByLabel('Действия: Алина К.').click();
   await page.getByRole('button', { name: 'Приостановить доступ' }).click();

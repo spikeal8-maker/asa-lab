@@ -146,6 +146,11 @@ describe('runtime role hardening', () => {
       'classroom_activity_events:INSERT',
       'classroom_activity_events:SELECT',
       'classroom_activity_events:UPDATE',
+      // Work a teacher set, and each learner's copy of it. Read only through
+      // the runtime role: every write goes through a SECURITY DEFINER function
+      // that knows whose class and whose seat it is.
+      'classroom_assignment_work:SELECT',
+      'classroom_assignments:SELECT',
       'classroom_join_codes:INSERT',
       'classroom_join_codes:SELECT',
       'classroom_memberships:INSERT',

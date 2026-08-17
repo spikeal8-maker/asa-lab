@@ -9,6 +9,7 @@ import {
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
+import { ClassroomAssignments } from '../components/ClassroomAssignments';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
@@ -745,13 +746,11 @@ export function ClassroomPage({
         </section>
       ) : null}
       {tab === 'activities' ? (
-        <section className="classroom-tab-panel">
-          <h2>Действия</h2>
-          <p>
-            Здесь появятся задания и учебные активности класса. Сейчас вы можете подготовить проекты
-            во вкладке «Проекты».
-          </p>
-        </section>
+        <ClassroomAssignments
+          classroomId={classroomId}
+          archived={archived}
+          onOpenProject={(projectId, moduleKey) => onOpenProject(projectId, moduleKey)}
+        />
       ) : null}
       {tab === 'moderation' ? (
         <section className="classroom-tab-panel">

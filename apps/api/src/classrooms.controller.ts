@@ -99,6 +99,29 @@ interface SeatProjectRow {
   last_editor_was_teacher: boolean;
 }
 
+interface AssignmentRow {
+  id: string;
+  title: string;
+  brief: string | null;
+  module_key: string;
+  due_at: Date | string | null;
+  status: 'open' | 'closed';
+  created_at: Date | string;
+  seat_count?: number | string;
+  started_count?: number | string;
+  submitted_count?: number | string;
+}
+
+interface AssignmentProgressRow {
+  seat_id: string;
+  display_label: string;
+  avatar_key: string | null;
+  project_id: string | null;
+  started_at: Date | string | null;
+  submitted_at: Date | string | null;
+  badge: string | null;
+}
+
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
 }
@@ -150,6 +173,23 @@ function seatView(row: StudentSeatRow) {
     avatarKey: row.avatar_key,
     lastActiveAt: row.last_active_at ? iso(row.last_active_at) : null,
     createdAt: iso(row.created_at),
+  };
+}
+
+function assignmentView(row: AssignmentRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    brief: row.brief,
+    moduleKey: row.module_key,
+    dueAt: row.due_at ? iso(row.due_at) : null,
+    status: row.status,
+    createdAt: iso(row.created_at),
+    // Present on the list, absent on the row returned straight after creating
+    // one — a brand-new assignment has nobody in it yet.
+    seatCount: row.seat_count === undefined ? 0 : Number(row.seat_count),
+    startedCount: row.started_count === undefined ? 0 : Number(row.started_count),
+    submittedCount: row.submitted_count === undefined ? 0 : Number(row.submitted_count),
   };
 }
 
@@ -719,6 +759,111 @@ export class ClassroomsController {
     }
     if (status === 'deleted') return { removed: true as const };
     return { classroom: await this.summary(context, classroomId) };
+  }
+
+  /**
+   * Work a teacher sets for the class.
+   *
+   * The module is named here rather than left to the learner: a child opening
+   * "make a keyring" should land in the editor it is made in, not in a menu of
+   * environments they have no way to choose between.
+   */
+  @Post(':classroomId/assignments')
+  async createAssignment(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    await this.summary(context, classroomId);
+    const shape = checkBodyShape(rawBody, ['title', 'brief', 'moduleKey', 'dueAt']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const title = shape.body['title'];
+    const brief = shape.body['brief'] ?? null;
+    const moduleKey = shape.body['moduleKey'];
+    const dueAt = shape.body['dueAt'] ?? null;
+    if (!isValidClassroomTitle(title)) {
+      throw new HttpException(error('validation_error', 'Введите название задания.'), 400);
+    }
+    if (typeof moduleKey !== 'string' || !/^[a-z0-9-]{1,64}$/.test(moduleKey)) {
+      throw new HttpException(error('validation_error', 'Выберите среду для задания.'), 400);
+    }
+    if (brief !== null && (typeof brief !== 'string' || brief.length > 4000)) {
+      throw new HttpException(error('validation_error', 'Описание слишком длинное.'), 400);
+    }
+    if (dueAt !== null && (typeof dueAt !== 'string' || Number.isNaN(Date.parse(dueAt)))) {
+      throw new HttpException(error('validation_error', 'Неверный срок сдачи.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT id, title, brief, module_key, due_at, status, created_at
+         FROM classroom_assignment_create($1, $2, $3, $4, $5, $6)`,
+      [context.accountId, classroomId, title.trim(), brief, moduleKey, dueAt],
+    );
+    return { assignment: assignmentView(result.rows[0] as AssignmentRow) };
+  }
+
+  @Get(':classroomId/assignments')
+  async listAssignments(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
+    const context = await this.requireEducator(request);
+    await this.summary(context, classroomId);
+    const result = await this.requirePool().query(
+      `SELECT id, title, brief, module_key, due_at, status, created_at,
+              seat_count, started_count, submitted_count
+         FROM classroom_assignment_list($1, $2)`,
+      [context.accountId, classroomId],
+    );
+    return { items: (result.rows as AssignmentRow[]).map(assignmentView) };
+  }
+
+  @Post(':classroomId/assignments/:assignmentId/status')
+  async setAssignmentStatus(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const shape = checkBodyShape(rawBody, ['status']);
+    const status = shape.ok ? shape.body['status'] : null;
+    if (status !== 'open' && status !== 'closed') {
+      throw new HttpException(error('validation_error', 'Неизвестное состояние задания.'), 400);
+    }
+    await this.requirePool().query(`SELECT classroom_assignment_set_status($1, $2, $3, $4)`, [
+      context.accountId,
+      classroomId,
+      assignmentId,
+      status,
+    ]);
+    return { ok: true as const };
+  }
+
+  /** Every learner against one assignment — including those who never opened it. */
+  @Get(':classroomId/assignments/:assignmentId/progress')
+  async assignmentProgress(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    await this.summary(context, classroomId);
+    const result = await this.requirePool().query(
+      `SELECT seat_id, display_label, avatar_key, project_id, started_at, submitted_at, badge
+         FROM classroom_assignment_progress($1, $2, $3)`,
+      [context.accountId, classroomId, assignmentId],
+    );
+    return {
+      items: (result.rows as AssignmentProgressRow[]).map((row) => ({
+        seatId: row.seat_id,
+        displayLabel: row.display_label,
+        avatarKey: row.avatar_key,
+        projectId: row.project_id,
+        startedAt: row.started_at ? iso(row.started_at) : null,
+        submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
+        badge: row.badge,
+      })),
+    };
   }
 
   @Patch(':classroomId/policies')

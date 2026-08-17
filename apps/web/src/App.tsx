@@ -361,6 +361,7 @@ export function App(): JSX.Element {
           <CreatorHomePage
             session={portalSession}
             canTeach={canTeachHere}
+            seatLearner={isSeatLearner}
             onNavigate={navigate}
             onOpenProject={(projectId, moduleKey) =>
               setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })

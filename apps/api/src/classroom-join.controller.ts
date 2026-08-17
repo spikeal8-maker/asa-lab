@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpException,
   Inject,
+  Param,
   Post,
   Put,
   Req,
@@ -40,6 +41,23 @@ interface StudentSessionRow {
 
 const SEAT_SESSION_COLUMNS = `seat_id, classroom_id, classroom_title, display_label,
               teacher_display_name, safe_mode, avatar_key, expires_at`;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface AssignmentForSeatRow {
+  id: string;
+  title: string;
+  brief: string | null;
+  module_key: string;
+  due_at: Date | string | null;
+  status: 'open' | 'closed';
+  project_id: string | null;
+  submitted_at: Date | string | null;
+}
+
+function isoDate(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
@@ -224,6 +242,19 @@ export class ClassroomJoinController {
     return row ? studentPayload(row) : { authenticated: false as const };
   }
 
+  /** The seat behind the current session, or 401. */
+  private async currentSeat(request: FastifyRequest): Promise<StudentSessionRow> {
+    const token = request.cookies[STUDENT_SESSION_COOKIE];
+    if (!token) throw new HttpException(error('unauthorized', 'no active seat session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_session_context($1)`,
+      [hashSessionToken(token)],
+    );
+    const row = result.rows[0] as StudentSessionRow | undefined;
+    if (!row) throw new HttpException(error('unauthorized', 'no active seat session'), 401);
+    return row;
+  }
+
   /**
    * A learner choosing their own picture.
    *
@@ -233,24 +264,106 @@ export class ClassroomJoinController {
    */
   @Put('me/avatar')
   async setAvatar(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
-    const token = request.cookies[STUDENT_SESSION_COOKIE];
-    if (!token) throw new HttpException(error('unauthorized', 'no active seat session'), 401);
+    const row = await this.currentSeat(request);
     const shape = checkBodyShape(rawBody, ['avatarKey']);
     const avatarKey = shape.ok ? (shape.body['avatarKey'] ?? null) : null;
     if (!shape.ok || !isSeatAvatarKey(avatarKey)) {
       throw new HttpException(error('validation_error', 'Неизвестный аватар.'), 400);
     }
-    const active = await this.requirePool().query(
-      `SELECT ${SEAT_SESSION_COLUMNS} FROM classroom_student_session_context($1)`,
-      [hashSessionToken(token)],
-    );
-    const row = active.rows[0] as StudentSessionRow | undefined;
-    if (!row) throw new HttpException(error('unauthorized', 'no active seat session'), 401);
     await this.requirePool().query(`SELECT classroom_seat_avatar_set($1, $2)`, [
       row.seat_id,
       avatarKey,
     ]);
     return studentPayload({ ...row, avatar_key: avatarKey });
+  }
+
+  /**
+   * What has been set for this learner, and where they are with it.
+   *
+   * Answered from the seat session alone: a learner never names their own seat
+   * to the server, so there is nothing to tamper with.
+   */
+  @Get('me/assignments')
+  async assignments(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(
+      `SELECT id, title, brief, module_key, due_at, status, project_id, submitted_at
+         FROM classroom_assignments_for_seat($1)`,
+      [seat.seat_id],
+    );
+    return {
+      items: (result.rows as AssignmentForSeatRow[]).map((row) => ({
+        id: row.id,
+        title: row.title,
+        brief: row.brief,
+        moduleKey: row.module_key,
+        dueAt: row.due_at ? isoDate(row.due_at) : null,
+        status: row.status,
+        projectId: row.project_id,
+        submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+      })),
+    };
+  }
+
+  /**
+   * Records the project a learner just made as their copy of an assignment.
+   *
+   * The project is created through the ordinary route first, so nothing about
+   * making a project is reimplemented here — this only ties the two together,
+   * and the database refuses any project that is not the learner's own.
+   */
+  @Post('me/assignments/:assignmentId/work')
+  @HttpCode(200)
+  async startAssignment(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const seat = await this.currentSeat(request);
+    const shape = checkBodyShape(rawBody, ['projectId']);
+    const projectId = shape.ok ? shape.body['projectId'] : null;
+    if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) {
+      throw new HttpException(error('validation_error', 'project is invalid'), 400);
+    }
+    if (!UUID_PATTERN.test(assignmentId)) {
+      throw new HttpException(error('validation_error', 'assignment is invalid'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
+      [seat.seat_id, assignmentId, projectId],
+    );
+    const row = result.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
+    if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    return {
+      projectId: row.project_id,
+      submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+    };
+  }
+
+  /** Handing it in, or taking it back to keep working. */
+  @Post('me/assignments/:assignmentId/submit')
+  @HttpCode(200)
+  async submitAssignment(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const seat = await this.currentSeat(request);
+    const shape = checkBodyShape(rawBody, ['submitted']);
+    const submitted = shape.ok ? shape.body['submitted'] : null;
+    if (typeof submitted !== 'boolean' || !UUID_PATTERN.test(assignmentId)) {
+      throw new HttpException(error('validation_error', 'submitted must be boolean'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT project_id, submitted_at FROM classroom_assignment_work_submit($1, $2, $3)`,
+      [seat.seat_id, assignmentId, submitted],
+    );
+    const row = result.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
+    if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    return {
+      projectId: row.project_id,
+      submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+    };
   }
 
   @Post('logout')

@@ -87,6 +87,43 @@ export interface Classroom {
 
 export type ClassroomStatus = 'active' | 'archived' | 'deleted';
 
+/** Work a teacher set for a class, with how far the class has got with it. */
+export interface ClassroomAssignment {
+  id: string;
+  title: string;
+  brief: string | null;
+  moduleKey: string;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  createdAt: string;
+  seatCount: number;
+  startedCount: number;
+  submittedCount: number;
+}
+
+export interface ClassroomAssignmentProgress {
+  seatId: string;
+  displayLabel: string;
+  avatarKey: string | null;
+  /** Null until the learner has opened the assignment. */
+  projectId: string | null;
+  startedAt: string | null;
+  submittedAt: string | null;
+  badge: string | null;
+}
+
+/** The same assignment as the learner sees it: theirs, and where they are. */
+export interface SeatAssignment {
+  id: string;
+  title: string;
+  brief: string | null;
+  moduleKey: string;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  projectId: string | null;
+  submittedAt: string | null;
+}
+
 export interface ClassroomTeacher {
   accountId: string;
   displayName: string;
@@ -608,6 +645,42 @@ export const api = {
     call<{ removed: true }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
+    ),
+  listClassroomAssignments: (classroomId: string) =>
+    call<{ items: ClassroomAssignment[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments`,
+    ),
+  createClassroomAssignment: (
+    classroomId: string,
+    input: { title: string; brief: string | null; moduleKey: string; dueAt: string | null },
+  ) =>
+    call<{ assignment: ClassroomAssignment }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  setClassroomAssignmentStatus: (
+    classroomId: string,
+    assignmentId: string,
+    status: 'open' | 'closed',
+  ) =>
+    call<{ ok: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/status`,
+      { method: 'POST', body: JSON.stringify({ status }) },
+    ),
+  classroomAssignmentProgress: (classroomId: string, assignmentId: string) =>
+    call<{ items: ClassroomAssignmentProgress[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/progress`,
+    ),
+  seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
+  startSeatAssignment: (assignmentId: string, projectId: string) =>
+    call<{ projectId: string; submittedAt: string | null }>(
+      `/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`,
+      { method: 'POST', body: JSON.stringify({ projectId }) },
+    ),
+  submitSeatAssignment: (assignmentId: string, submitted: boolean) =>
+    call<{ projectId: string; submittedAt: string | null }>(
+      `/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/submit`,
+      { method: 'POST', body: JSON.stringify({ submitted }) },
     ),
   updateClassroom: (
     classroomId: string,
