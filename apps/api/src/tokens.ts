@@ -23,6 +23,7 @@ export const TOKENS = {
   createCheckpointUseCase: 'CREATE_CHECKPOINT_USECASE',
   saveProjectSnapshotUseCase: 'SAVE_PROJECT_SNAPSHOT_USECASE',
   readProjectSnapshotUseCase: 'READ_PROJECT_SNAPSHOT_USECASE',
+  seatContextUseCase: 'SEAT_CONTEXT_USECASE',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

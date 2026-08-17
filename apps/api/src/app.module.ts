@@ -59,6 +59,7 @@ import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
 import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
+import { SeatContextUseCase } from './seat-context.js';
 import { TOKENS } from './tokens.js';
 
 function validationMessage(
@@ -249,6 +250,10 @@ export class AppModule {
         {
           provide: TOKENS.readProjectSnapshotUseCase,
           useFactory: () => new ReadProjectSnapshotUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.seatContextUseCase,
+          useFactory: () => new SeatContextUseCase(pool),
         },
         {
           provide: TOKENS.listClassroomsUseCase,

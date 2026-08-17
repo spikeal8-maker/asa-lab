@@ -70,8 +70,40 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(studentPage.getByText('5Б Makers', { exact: true })).toBeVisible();
   await studentPage.getByLabel('Имя для входа').fill('alina-k');
   await studentPage.getByRole('button', { name: 'Войти в класс' }).click();
-  await expect(studentPage.getByRole('heading', { name: 'Здравствуйте, Алина К.' })).toBeVisible();
-  await expect(studentPage.getByText('Безопасный режим включён')).toBeVisible();
+
+  /**
+   * A learner lands in the same portal a teacher uses — same header, same
+   * sidebar, same pages — with the places a seat has no business in absent:
+   * no class to manage, no school to switch to, no account to configure.
+   */
+  await expect(
+    studentPage.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
+  ).toBeVisible();
+  await expect(
+    studentPage.getByRole('button', { name: 'Проекты', exact: true }).first(),
+  ).toBeVisible();
+  await expect(studentPage.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+
+  await studentPage.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+  await expect(studentPage.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
+
+  // The point of the seat: a learner can make something.
+  await studentPage.getByRole('button', { name: 'Создать', exact: true }).first().click();
+  await studentPage.getByLabel('Название проекта').fill('Моя модель');
+  await studentPage.locator('.module-tile').filter({ hasText: 'ASA 3D' }).click();
+  await studentPage.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
+  await expect(studentPage.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
+  await expect(studentPage.getByTestId('asa3d-viewport')).toHaveAttribute(
+    'data-runtime-ready',
+    'true',
+    { timeout: 30_000 },
+  );
+  await studentPage.screenshot({ path: `${evidenceDir}/student-editor.png`, fullPage: true });
+
+  await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  await expect(
+    studentPage.getByTestId('project-card').filter({ hasText: 'Моя модель' }),
+  ).toBeVisible();
   await studentPage.screenshot({ path: `${evidenceDir}/student-home.png`, fullPage: true });
 
   await page.reload();
@@ -81,8 +113,11 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await page.getByRole('button', { name: 'Приостановить доступ' }).click();
   await expect(page.getByText('Доступ приостановлен')).toBeVisible();
 
+  // Suspending the seat ends the session, so the learner is signed out and back
+  // at the front door — the same place any ended session leads to.
   await studentPage.reload();
-  await expect(studentPage.getByRole('heading', { name: 'Введите код класса' })).toBeVisible();
+  await expect(studentPage.getByRole('button', { name: 'Войти по коду класса' })).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Мои проекты' })).toHaveCount(0);
 
   teacherFailures.assertEmpty();
   studentFailures.assertEmpty();

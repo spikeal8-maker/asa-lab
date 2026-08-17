@@ -62,14 +62,19 @@ function decodeRouteParameter(value: string): string | null {
   }
 }
 
-export function portalNavigation(canTeach: boolean): readonly PortalNavigationItem[] {
-  // Kept in the public signature for callers that also use the capability for
-  // management actions. The Classes destination itself is available to every
-  // signed-in account.
+export function portalNavigation(
+  canTeach: boolean,
+  options: { readonly classes?: boolean } = {},
+): readonly PortalNavigationItem[] {
+  // The Classes destination is available to every signed-in account: what stays
+  // behind the educator capability is managing a class, not seeing where they
+  // live. A learner signed in with a class seat is the one exception — they are
+  // already inside a class and have nothing to do on that page.
   void canTeach;
+  const classes = options.classes ?? true;
   return [
     { section: 'home', label: 'Главная' },
-    { section: 'classes', label: 'Классы' },
+    ...(classes ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
     { section: 'projects', label: 'Проекты' },
     { section: 'collections', label: 'Коллекции' },
     { section: 'learning', label: 'Учебные пособия' },

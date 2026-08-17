@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type SessionPayload } from './api';
+import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { JoinClassPage } from './pages/JoinClassPage';
+import { studentSessionPayload } from './creator-portal/student-session';
 import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MyProjectsPage } from './pages/MyProjectsPage';
@@ -36,6 +37,8 @@ type SessionState =
   | { kind: 'checking' }
   | { kind: 'anonymous' }
   | { kind: 'authenticated'; session: SessionPayload }
+  /** Signed in with a class seat: a learner, not an account holder. */
+  | { kind: 'student'; session: ClassroomStudentSession }
   | { kind: 'error' };
 
 type PublicView =
@@ -119,21 +122,36 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  /**
+   * A class seat is a way of being signed in, not a state of the join page.
+   * Asking about it here means a learner who reloads — on any address, after
+   * an editor has rewritten the one in the bar — comes back to their own work
+   * instead of to the front door.
+   */
+  const resolveStudent = useCallback(async (): Promise<void> => {
+    const seat = await api.classroomStudentMe();
+    setSession(
+      seat.ok && seat.data.authenticated
+        ? { kind: 'student', session: seat.data }
+        : { kind: 'anonymous' },
+    );
+  }, []);
+
   const checkSession = useCallback(async () => {
     setSession({ kind: 'checking' });
     const result = await api.me();
     if (result.ok) {
-      setSession(
-        result.data.authenticated
-          ? { kind: 'authenticated', session: result.data }
-          : { kind: 'anonymous' },
-      );
+      if (result.data.authenticated) {
+        setSession({ kind: 'authenticated', session: result.data });
+      } else {
+        await resolveStudent();
+      }
     } else if (result.status === 401) {
-      setSession({ kind: 'anonymous' });
+      await resolveStudent();
     } else {
       setSession({ kind: 'error' });
     }
-  }, []);
+  }, [resolveStudent]);
 
   useEffect(() => {
     void checkSession();
@@ -202,7 +220,12 @@ export function App(): JSX.Element {
       );
     }
     if (publicView.kind === 'join-class') {
-      return <JoinClassPage onBack={() => setPublicView({ kind: 'entry' })} />;
+      return (
+        <JoinClassPage
+          onBack={() => setPublicView({ kind: 'entry' })}
+          onSignedIn={() => void checkSession()}
+        />
+      );
     }
     if (publicView.kind === 'organization-sign-in') {
       return (
@@ -233,16 +256,21 @@ export function App(): JSX.Element {
     );
   }
 
-  const hasTeachingCapability = session.session.capabilities.some(
+  // A learner signed in with a class seat reaches the portal through the same
+  // door as everyone else: the same shell, the same pages, the same editors.
+  // What a seat cannot do is expressed as capabilities it does not hold, so
+  // nothing below this line has to ask which kind of person is signed in.
+  const isSeatLearner = session.kind === 'student';
+  const portalSession: SessionPayload =
+    session.kind === 'student' ? studentSessionPayload(session.session) : session.session;
+
+  const hasTeachingCapability = portalSession.capabilities.some(
     (entry) =>
       entry.capability === 'educator' &&
       (entry.state === 'verified' || entry.state === 'provisional'),
   );
-  const canTeachHere = canUseClasses(
-    session.session.navigation,
-    session.session.activeWorkspace.kind,
-  );
-  const canManageClasses = canTeachHere && session.session.navigation.classroomManagement;
+  const canTeachHere = canUseClasses(portalSession.navigation, portalSession.activeWorkspace.kind);
+  const canManageClasses = canTeachHere && portalSession.navigation.classroomManagement;
 
   if (view.kind === 'editor') {
     return (
@@ -251,7 +279,7 @@ export function App(): JSX.Element {
         onBack={() => setView(view.returnTo)}
         onModuleResolved={handleModuleResolved}
         returnTo={view.returnTo}
-        user={session.session.user}
+        user={portalSession.user}
       />
     );
   }
@@ -285,8 +313,9 @@ export function App(): JSX.Element {
         Перейти к содержанию
       </a>
       <PortalHeader
-        session={session.session}
+        session={portalSession}
         active={active}
+        seatLearner={isSeatLearner}
         canTeach={hasTeachingCapability}
         onNavigate={navigate}
         onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
@@ -298,7 +327,7 @@ export function App(): JSX.Element {
       />
       {view.kind === 'home' ? (
         <CreatorHomePage
-          session={session.session}
+          session={portalSession}
           canTeach={canTeachHere}
           onNavigate={navigate}
           onOpenProject={(projectId, moduleKey) =>
@@ -393,9 +422,10 @@ export function App(): JSX.Element {
           }}
         />
       ) : null}
-      {view.kind === 'account' ? (
+      {/* A seat has no account to configure, so that page is never reached. */}
+      {view.kind === 'account' && !isSeatLearner ? (
         <AccountPage
-          session={session.session}
+          session={portalSession}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
           onOpenClasses={() => navigate('classes')}
           initialPanel={accountPanel}

@@ -53,6 +53,7 @@ export function PortalHeader({
   session,
   active,
   canTeach,
+  seatLearner = false,
   onNavigate,
   onSessionChanged,
   onLoggedOut,
@@ -61,6 +62,13 @@ export function PortalHeader({
   session: SessionPayload;
   active: PortalSection;
   canTeach: boolean;
+  /**
+   * Signed in with a class seat. The shell is the same one everyone uses; a
+   * seat simply has nowhere to go in the places an account owns — a class to
+   * manage, a school to switch to, a profile to edit — so those are left out
+   * rather than shown and refused.
+   */
+  seatLearner?: boolean;
   onNavigate: (section: PortalSection) => void;
   onSessionChanged: (session: SessionPayload) => void;
   onLoggedOut: () => void;
@@ -83,7 +91,7 @@ export function PortalHeader({
       .map((part) => part[0]?.toLocaleUpperCase('ru-RU') ?? '')
       .join('') || 'A';
   const effectiveAvatarUrl = avatarDataUrl ?? defaultAvatarForAccount(session.user.id).src;
-  const navigationItems = portalNavigation(canTeach);
+  const navigationItems = portalNavigation(canTeach, { classes: !seatLearner });
   const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
@@ -92,6 +100,9 @@ export function PortalHeader({
   }, [session.activeWorkspace.workspaceId]);
 
   useEffect(() => {
+    // A seat has no account and therefore no uploaded picture; asking for one
+    // is a guaranteed 401. The generated avatar below covers it.
+    if (seatLearner) return;
     let cancelled = false;
     void api.accountAvatar().then((result) => {
       if (!cancelled && result.ok) setAvatarDataUrl(result.data.avatarDataUrl);
@@ -99,7 +110,7 @@ export function PortalHeader({
     return () => {
       cancelled = true;
     };
-  }, [session.user.id]);
+  }, [seatLearner, session.user.id]);
 
   useEffect(() => {
     function updateAvatarFromPage(event: Event): void {
@@ -150,7 +161,9 @@ export function PortalHeader({
     if (busy) return;
     setBusy('logout');
     setError(null);
-    const result = await api.logout();
+    // A seat's session is a different cookie with a different lifetime; ending
+    // it is the same act for the learner and a different call here.
+    const result = seatLearner ? await api.classroomStudentLogout() : await api.logout();
     setBusy(null);
     if (result.ok) {
       closeAccountMenu();
@@ -300,32 +313,37 @@ export function PortalHeader({
                 <span>Уведомления</span>
                 <span className="portal-account-item-meta">Нет новых</span>
               </div>
-              <button
-                type="button"
-                className="portal-account-item"
-                onClick={() => navigateFromAccount('account')}
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <SettingsGlyph />
-                </span>
-                <span>Настройки</span>
-              </button>
+              {seatLearner ? null : (
+                <button
+                  type="button"
+                  className="portal-account-item"
+                  onClick={() => navigateFromAccount('account')}
+                >
+                  <span className="portal-account-item-icon" aria-hidden="true">
+                    <SettingsGlyph />
+                  </span>
+                  <span>Настройки</span>
+                </button>
+              )}
             </div>
 
-            <div className="portal-account-group">
-              <button
-                type="button"
-                className="portal-account-item"
-                onClick={() => navigateFromAccount('classes')}
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <ClassesGlyph />
-                </span>
-                <span>Мои классы</span>
-              </button>
-            </div>
+            {seatLearner ? null : (
+              <div className="portal-account-group">
+                <button
+                  type="button"
+                  className="portal-account-item"
+                  onClick={() => navigateFromAccount('classes')}
+                >
+                  <span className="portal-account-item-icon" aria-hidden="true">
+                    <ClassesGlyph />
+                  </span>
+                  <span>Мои классы</span>
+                </button>
+              </div>
+            )}
 
-            <div className="portal-account-group">
+            {/* A seat belongs to one class and has nowhere to switch to. */}
+            <div className="portal-account-group" hidden={seatLearner}>
               <details className="portal-account-workspaces">
                 <summary className="portal-account-item">
                   <span className="portal-account-item-icon" aria-hidden="true">

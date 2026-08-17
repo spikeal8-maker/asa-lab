@@ -147,6 +147,57 @@ describe('classrooms', () => {
     });
     expect(studentMe.json().student.displayName).toBe('Алина К.');
 
+    /**
+     * A learner is someone who makes things. The seat reaches the same project
+     * endpoints as any account, because a project belongs to a principal and a
+     * seat now has one — there is no second project stack for children.
+     */
+    const studentSession = { asa_student_session: studentCookie?.value ?? '' };
+    const studentProject = await inject(app, {
+      method: 'POST',
+      url: '/api/projects',
+      cookies: studentSession,
+      headers: { 'idempotency-key': `seat-${Date.now()}` },
+      payload: {
+        scope: 'personal',
+        classroomId: null,
+        module: 'three-d',
+        title: 'Моя первая модель',
+      },
+    });
+    expect(studentProject.statusCode).toBe(201);
+    const studentProjectId = studentProject.json().project.id as string;
+
+    const studentList = await inject(app, {
+      method: 'GET',
+      url: '/api/projects?scope=personal',
+      cookies: studentSession,
+    });
+    expect(studentList.statusCode).toBe(200);
+    expect(studentList.json().items).toHaveLength(1);
+    expect(studentList.json().items[0]).toMatchObject({ title: 'Моя первая модель' });
+
+    const studentOpened = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${studentProjectId}`,
+      cookies: studentSession,
+    });
+    expect(studentOpened.statusCode).toBe(200);
+    expect(studentOpened.json().draft.document).toMatchObject({ units: 'mm' });
+
+    /**
+     * The work is the learner's own. A teacher of the same class reaches it no
+     * more than anyone else does: nothing in this change opened a door into a
+     * learner's personal projects, and opening one is a decision about privacy
+     * rather than a side effect of letting them create.
+     */
+    const teacherSeesStudentWork = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${studentProjectId}`,
+      cookies: { asa_session: token },
+    });
+    expect(teacherSeesStudentWork.statusCode).toBe(404);
+
     const suspended = await inject(app, {
       method: 'PATCH',
       url: `/api/classrooms/${classroomId}/seats/${seatId}`,

@@ -14,7 +14,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type {
   ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
@@ -30,7 +30,14 @@ import type {
 } from '@asa-lab/projects';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE, SeatContextUseCase } from './seat-context.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
+
+interface ProjectRequestContext {
+  readonly tenantId: string;
+  readonly principalId: string;
+  readonly userId: string | null;
+}
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
@@ -63,17 +70,32 @@ export class ProjectsController {
     private readonly saveSnapshotUseCase: SaveProjectSnapshotUseCase,
     @Inject(TOKENS.readProjectSnapshotUseCase)
     private readonly readSnapshotUseCase: ReadProjectSnapshotUseCase,
+    @Inject(TOKENS.seatContextUseCase) private readonly seatContext: SeatContextUseCase,
   ) {}
 
-  private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
-    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
-    if (!context) {
-      throw new HttpException(error('unauthorized', 'no active session'), 401);
+  /**
+   * Who is working, whether they signed in with an account or as a seat in a
+   * class. Both arrive here as the same three facts, because a project belongs
+   * to a principal and always has: nothing below this line needs to know which
+   * kind of person is holding the pencil.
+   */
+  private async requireContext(request: FastifyRequest): Promise<ProjectRequestContext> {
+    const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (account) {
+      return {
+        tenantId: account.tenantId,
+        principalId: account.principalId,
+        userId: account.userId,
+      };
     }
-    return context;
+    const seat = await this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]);
+    if (seat) {
+      return { tenantId: seat.tenantId, principalId: seat.principalId, userId: seat.userId };
+    }
+    throw new HttpException(error('unauthorized', 'no active session'), 401);
   }
 
-  private static actorOf(context: ActiveContext): {
+  private static actorOf(context: ProjectRequestContext): {
     principalId: string;
     userId: string | null;
   } {
