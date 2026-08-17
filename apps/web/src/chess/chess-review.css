@@ -69,7 +69,7 @@
 
 .asa-review-board-card p {
   margin: 0;
-  color: #657883;
+  color: var(--ink-muted);
   text-align: center;
   font-size: 12px;
 }
@@ -99,7 +99,7 @@
 
 .asa-review-quality-grid span,
 .asa-review-quality-grid small {
-  color: #6c7d87;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -171,7 +171,7 @@
 }
 
 .asa-review-timeline > header small {
-  color: #6b7d87;
+  color: var(--ink-muted);
 }
 
 .asa-review-timeline-track {
@@ -322,7 +322,7 @@
 }
 
 .asa-review-moves small {
-  color: #6b7d87;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 
@@ -440,7 +440,7 @@
 
 .asa-review-retry dt,
 .asa-review-retry > small {
-  color: #6b7d87;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 

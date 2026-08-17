@@ -79,7 +79,7 @@
 }
 
 .project-card-unknown {
-  color: #98a6ae;
+  color: var(--ink-muted);
   font-size: 32px;
   font-weight: 700;
 }
@@ -201,7 +201,7 @@
 }
 
 .project-card-tools > div button:disabled {
-  color: #9aa7ae;
+  color: var(--ink-muted);
   cursor: default;
 }
 
@@ -237,7 +237,7 @@
 .project-card-time,
 .project-card-footer {
   margin: 0;
-  color: #6d7d86;
+  color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -405,7 +405,7 @@
 }
 
 .project-card.is-new small {
-  color: #75858d;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -475,6 +475,6 @@
 
 .feedback-note-author {
   margin: 0;
-  color: #74858f;
+  color: var(--ink-muted);
   font-size: 13px;
 }

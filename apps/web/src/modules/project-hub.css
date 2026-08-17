@@ -175,7 +175,7 @@
 
 .module-tile-meta {
   grid-area: meta;
-  color: #71808d;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 

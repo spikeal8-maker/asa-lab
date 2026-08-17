@@ -23,7 +23,7 @@
 .portal-account > summary::after {
   content: '⌄';
   margin-left: auto;
-  color: #71818d;
+  color: var(--ink-muted);
   font-size: 15px;
 }
 
@@ -144,7 +144,7 @@
 
 .portal-account-identity span {
   overflow: hidden;
-  color: #6b7b87;
+  color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.45;
   text-overflow: ellipsis;
@@ -183,7 +183,7 @@ button.portal-account-identity:hover:not(:disabled) {
   place-items: center;
   width: 28px;
   height: 28px;
-  color: #687986;
+  color: var(--ink-muted);
 }
 
 .portal-account-item-icon svg {
@@ -227,7 +227,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .portal-account-workspace-copy small {
-  color: #71818d;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 550;
 }
@@ -235,7 +235,7 @@ button.portal-account-identity:hover:not(:disabled) {
 .portal-account-chevron {
   width: 18px;
   height: 18px;
-  color: #758590;
+  color: var(--ink-muted);
   transition: transform 160ms ease;
 }
 
@@ -275,7 +275,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .portal-account-workspace-list button small {
-  color: #71818d;
+  color: var(--ink-muted);
 }
 
 .portal-account-exit-group {
@@ -421,7 +421,7 @@ button.portal-account-identity:hover:not(:disabled) {
 .account-field-note {
   grid-column: 1 / -1;
   margin: -11px 0 0;
-  color: #7a8791;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -434,7 +434,7 @@ button.portal-account-identity:hover:not(:disabled) {
 .account-readonly-grid span {
   display: grid;
   gap: 4px;
-  color: #73818c;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -500,7 +500,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-workspace-list li span {
-  color: #70808c;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -526,7 +526,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-capability-list li span {
-  color: #687985;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -577,7 +577,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-session-list li span {
-  color: #74838d;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -803,7 +803,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-avatar-editor span {
-  color: #687b87;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 
@@ -844,7 +844,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-profile-form label > small {
-  color: #788893;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.45;
@@ -888,12 +888,12 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-profile-form input:disabled {
   background: #f0f3f5;
-  color: #687985;
+  color: var(--ink-muted);
 }
 
 .account-character-count {
   justify-self: end;
-  color: #7c8b95;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 550;
 }
@@ -931,7 +931,7 @@ button.portal-account-identity:hover:not(:disabled) {
 .account-school-empty p,
 .account-create-school p {
   margin-top: 5px;
-  color: #687b87;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 
@@ -1036,7 +1036,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-school-list article span {
-  color: #6b7e89;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -1098,7 +1098,7 @@ button.portal-account-identity:hover:not(:disabled) {
   height: 34px;
   border: 2px solid #bccad2;
   border-radius: 50%;
-  color: #6f818d;
+  color: var(--ink-muted);
   font-weight: 800;
 }
 
@@ -1120,7 +1120,7 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-access-list p {
   margin-top: 4px;
-  color: #6d7e89;
+  color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1186,7 +1186,7 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-private-facts span,
 .account-private-facts small {
-  color: #71828d;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -1256,7 +1256,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-avatar-dialog header p:last-child {
-  color: #6c7e89;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 
@@ -1327,7 +1327,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .account-avatar-dialog > footer span {
-  color: #74858f;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -1437,7 +1437,7 @@ button.portal-account-identity:hover:not(:disabled) {
 }
 
 .seat-account-facts dt {
-  color: #74858f;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1452,6 +1452,6 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-hint {
   margin: 0;
-  color: #6e7f89;
+  color: var(--ink-muted);
   font-size: 14px;
 }

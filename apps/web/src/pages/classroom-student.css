@@ -29,7 +29,7 @@
 
 .classroom-student-identity > p:last-of-type {
   margin: 0;
-  color: #6d7d87;
+  color: var(--ink-muted);
 }
 
 .classroom-student-hero code {
@@ -116,7 +116,7 @@
 
 .classroom-student-note {
   margin: 12px 0 0;
-  color: #7a8894;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 
@@ -145,7 +145,7 @@
 }
 
 .classroom-activity-when {
-  color: #7a8894;
+  color: var(--ink-muted);
   font-size: 13px;
   white-space: nowrap;
 }

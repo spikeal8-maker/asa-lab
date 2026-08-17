@@ -57,7 +57,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   background: #eef1f3;
-  color: #6b7a83;
+  color: var(--ink-muted);
   font-size: 11px;
   font-style: normal;
   font-weight: 700;
@@ -66,7 +66,7 @@
 .assignment-module,
 .assignment-counts,
 .assignment-due {
-  color: #6e808a;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 
@@ -80,7 +80,7 @@
 
 .assignment-detail-heading p {
   margin: 0;
-  color: #6e808a;
+  color: var(--ink-muted);
 }
 
 /* The brief in the teacher's own words: kept as typed, because line breaks in
@@ -135,7 +135,7 @@
 
 /* The row that matters: nobody has opened it. */
 .assignment-state.is-idle {
-  color: #93a0a8;
+  color: var(--ink-muted);
 }
 
 @media (max-width: 860px) {
@@ -216,7 +216,7 @@
 }
 
 .seat-assignment-body span {
-  color: #6b7f8a;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 

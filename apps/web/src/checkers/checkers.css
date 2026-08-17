@@ -819,7 +819,7 @@
 .checkers-mastery-cell.unstarted {
   border: 1px dashed #cbd5da;
   background: #f5f7f8;
-  color: #89969e;
+  color: var(--ink-muted);
 }
 
 .checkers-concept-legend {
@@ -983,7 +983,7 @@
 .checkers-save-state {
   min-width: 0;
   overflow: hidden;
-  color: #70808c;
+  color: var(--ink-muted);
   font-size: 12px;
   text-align: center;
   text-overflow: ellipsis;
@@ -1124,7 +1124,7 @@
 .checkers-board-meta > small {
   max-width: 210px;
   overflow: hidden;
-  color: #6d7f88;
+  color: var(--ink-muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1132,7 +1132,7 @@
 
 .checkers-board-turn small {
   overflow: hidden;
-  color: #6b7f8b;
+  color: var(--ink-muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2234,7 +2234,7 @@
   padding: 7px 4px;
   border-radius: 8px;
   background: #eef2f4;
-  color: #70808a;
+  color: var(--ink-muted);
   font-size: 10px;
   font-weight: 800;
   text-align: center;

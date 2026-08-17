@@ -266,7 +266,7 @@
 }
 
 .asa-puzzle-stats dt {
-  color: #70827c;
+  color: var(--ink-muted);
   font-size: 10px;
   font-weight: 750;
   text-transform: uppercase;

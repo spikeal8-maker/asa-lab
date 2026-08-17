@@ -112,7 +112,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: #7a8791;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 .workbench-save-state svg {
@@ -659,7 +659,7 @@
   width: 68px;
   height: 68px;
   margin-bottom: 10px;
-  color: #a6b3bc;
+  color: var(--ink-muted);
 }
 .workbench-empty-stage h2 {
   margin: 0;
@@ -832,7 +832,7 @@
   top: 13px;
   width: 21px;
   height: 21px;
-  color: #b6c0c8;
+  color: var(--ink-muted);
 }
 .workbench-catalog-grid {
   display: grid;
@@ -991,7 +991,7 @@
 .workbench-catalog-empty {
   grid-column: 1 / -1;
   padding: 20px 8px;
-  color: #788791;
+  color: var(--ink-muted);
   text-align: center;
 }
 .workbench-component-preview {
@@ -1041,7 +1041,7 @@
   font-weight: 750;
 }
 .workbench-inspector-heading small {
-  color: #6c7c88;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 .workbench-inspector-heading button {
@@ -1172,7 +1172,7 @@
   border-radius: 3px;
 }
 .workbench-value-field span {
-  color: #687984;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 .workbench-measurements {
@@ -1295,7 +1295,7 @@
 }
 .workbench-results-card small {
   margin-left: 10px;
-  color: #788791;
+  color: var(--ink-muted);
 }
 @media (max-width: 1180px) {
   .workbench-shell {
@@ -1454,7 +1454,7 @@
   display: none;
 }
 .workbench-empty-stage {
-  color: #788791;
+  color: var(--ink-muted);
 }
 .workbench-library {
   background: #e6e7eb;
@@ -1715,7 +1715,7 @@
   place-items: center;
   gap: 7px;
   padding: 35px 20px;
-  color: #6a7a85;
+  color: var(--ink-muted);
   text-align: center;
 }
 .workbench-code-empty > svg {
@@ -1896,7 +1896,7 @@
   align-items: center;
   height: 48px;
   padding: 0 10px;
-  color: #8b9aa5;
+  color: var(--ink-muted);
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -2043,7 +2043,7 @@
 .workbench-toolbar-group.right .workbench-pill.simulate.running {
   border-color: #c9d0d6;
   background: transparent;
-  color: #758895;
+  color: var(--ink-muted);
 }
 .workbench-toolbar-group.right .workbench-pill:last-child {
   box-sizing: border-box;
@@ -2498,7 +2498,7 @@
   -webkit-line-clamp: 3;
 }
 .workbench-catalog-chevron {
-  color: #7b8b95;
+  color: var(--ink-muted);
   font-size: 21px;
   line-height: 1;
 }

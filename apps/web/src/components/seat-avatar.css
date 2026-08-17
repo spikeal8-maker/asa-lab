@@ -35,7 +35,7 @@
 }
 
 .seat-avatar-current small {
-  color: #6e7f89;
+  color: var(--ink-muted);
 }
 
 .seat-avatar-grid {

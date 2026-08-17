@@ -611,7 +611,7 @@
   padding: 5px 2px;
   border: 0;
   background: transparent;
-  color: #687985;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -715,7 +715,7 @@
 
 .creator-dashboard-project-meta > small,
 .creator-dashboard-project-meta span small {
-  color: #73828b;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -767,7 +767,7 @@
 }
 
 .creator-dashboard-project.create-project small {
-  color: #7a8992;
+  color: var(--ink-muted);
 }
 
 .creator-dashboard-state {
@@ -779,7 +779,7 @@
 
 .creator-dashboard-state p {
   margin: 6px 0 14px;
-  color: #687985;
+  color: var(--ink-muted);
 }
 
 .creator-dashboard-loading {

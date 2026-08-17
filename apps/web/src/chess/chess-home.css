@@ -98,7 +98,7 @@
 }
 
 .asa-chess-home-sidebar button small {
-  color: #6b7d87;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 
@@ -217,7 +217,7 @@
 }
 
 .asa-chess-home-rating small {
-  color: #657985;
+  color: var(--ink-muted);
 }
 
 .asa-chess-home-rating strong {
@@ -379,7 +379,7 @@
 }
 
 .asa-chess-home-feature small {
-  color: #6a7d87;
+  color: var(--ink-muted);
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
@@ -441,7 +441,7 @@
 
 .asa-chess-home-activity li span,
 .asa-chess-home-activity li small {
-  color: #6a7d87;
+  color: var(--ink-muted);
 }
 
 .asa-chess-home-empty-activity {
@@ -476,7 +476,7 @@
 }
 
 .asa-chess-home-stats dt {
-  color: #6a7d87;
+  color: var(--ink-muted);
   font-size: 10px;
   text-transform: uppercase;
 }

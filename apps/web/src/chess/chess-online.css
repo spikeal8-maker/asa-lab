@@ -185,7 +185,7 @@
 }
 
 .asa-online-rated-toggle small {
-  color: #6c7d86;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 
@@ -315,7 +315,7 @@
 }
 
 .asa-online-rating-details dt {
-  color: #73838b;
+  color: var(--ink-muted);
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
@@ -402,7 +402,7 @@
 }
 
 .asa-live-player small {
-  color: #687a84;
+  color: var(--ink-muted);
 }
 
 .asa-live-player time {
@@ -509,7 +509,7 @@
 
 .asa-online-moves span {
   background: #edf1f3;
-  color: #6a7b84;
+  color: var(--ink-muted);
   text-align: right;
 }
 
@@ -517,7 +517,7 @@
   padding: 24px 12px;
   border: 1px dashed #becad0;
   border-radius: 9px;
-  color: #6d7f88;
+  color: var(--ink-muted);
   text-align: center;
 }
 

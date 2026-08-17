@@ -288,7 +288,7 @@
 }
 .project-card-meta p {
   margin: 5px 0 0;
-  color: #6c7b88;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 .classroom-gallery-card {
@@ -317,7 +317,7 @@
 }
 .classroom-card-copy p {
   margin: 4px 0 0;
-  color: #6b7987;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 .portal-empty {
@@ -459,7 +459,7 @@
 }
 .module-tile-description {
   grid-area: description;
-  color: #6c7984;
+  color: var(--ink-muted);
   font-size: 13px;
 }
 .module-coming {

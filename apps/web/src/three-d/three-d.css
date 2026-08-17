@@ -98,7 +98,7 @@
   min-width: 0;
   padding: 0 16px;
   overflow: hidden;
-  color: #7a8791;
+  color: var(--ink-muted);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -242,7 +242,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-tool:disabled {
-  color: #c8d0d5;
+  color: var(--ink-muted);
   cursor: default;
 }
 
@@ -576,7 +576,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-multi-selection-actions button:disabled {
-  color: #91a0a7;
+  color: var(--ink-muted);
   background: #edf0f2;
   border-color: #d7dfe2;
   cursor: default;
@@ -615,7 +615,7 @@ button.asa3d-save-recovery {
 .asa3d-boolean-mode span {
   display: block;
   margin-bottom: 6px;
-  color: #6b7a81;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
@@ -818,7 +818,7 @@ button.asa3d-save-recovery {
 .asa3d-library-search svg {
   width: 20px;
   height: 20px;
-  color: #82929b;
+  color: var(--ink-muted);
 }
 
 .asa3d-library-search input {
@@ -837,7 +837,7 @@ button.asa3d-save-recovery {
   width: 26px;
   height: 26px;
   padding: 0;
-  color: #71818b;
+  color: var(--ink-muted);
   font-size: 20px;
   background: transparent;
   border: 0;
@@ -877,7 +877,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-hole-card small {
-  color: #687881;
+  color: var(--ink-muted);
   font-weight: 700;
 }
 
@@ -903,14 +903,14 @@ button.asa3d-save-recovery {
 .asa3d-library-empty {
   grid-column: 1 / -1;
   padding: 24px 8px;
-  color: #7c8b94;
+  color: var(--ink-muted);
   font-size: 12px;
   text-align: center;
 }
 
 .asa3d-library-hint {
   margin: 0 14px 20px;
-  color: #81909a;
+  color: var(--ink-muted);
   font-size: 10px;
   line-height: 1.4;
 }
@@ -926,7 +926,7 @@ button.asa3d-save-recovery {
 
 .asa3d-view-cube button {
   padding: 0;
-  color: #6b7880;
+  color: var(--ink-muted);
   font-size: 8px;
   font-weight: 700;
   background: linear-gradient(#fff, #e4e8ea);
@@ -950,7 +950,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-view-cube div button:last-child {
-  color: #87939a;
+  color: var(--ink-muted);
   font-size: 16px;
   background: linear-gradient(90deg, #eef1f2, #dfe4e6);
 }
@@ -1040,7 +1040,7 @@ button.asa3d-save-recovery {
 .asa3d-inspector-title > span {
   padding: 0 5px;
   overflow: hidden;
-  color: #7a8992;
+  color: var(--ink-muted);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1160,7 +1160,7 @@ button.asa3d-save-recovery {
   align-items: center;
   gap: 10px;
   padding: 9px 11px 11px;
-  color: #72828b;
+  color: var(--ink-muted);
   font-size: 10px;
   border-top: 1px solid #e7ecef;
 }
@@ -1257,7 +1257,7 @@ button.asa3d-save-recovery {
 .asa3d-field-grid label span {
   position: static;
   padding-left: 2px;
-  color: #7a8992;
+  color: var(--ink-muted);
   font-size: 10px;
   font-weight: 700;
   pointer-events: none;
@@ -1446,7 +1446,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-grid-panel > small {
-  color: #829099;
+  color: var(--ink-muted);
   font-size: 9px;
   line-height: 1.4;
 }
@@ -1456,7 +1456,7 @@ button.asa3d-save-recovery {
   bottom: 9px;
   left: 74px;
   z-index: 6;
-  color: #84929a;
+  color: var(--ink-muted);
   font-size: 9px;
 }
 
@@ -1467,7 +1467,7 @@ button.asa3d-save-recovery {
   z-index: 7;
   display: grid;
   width: 270px;
-  color: #6e7d86;
+  color: var(--ink-muted);
   font-size: 10px;
 }
 
@@ -1476,7 +1476,7 @@ button.asa3d-save-recovery {
   width: 122px;
   height: 22px;
   padding: 0;
-  color: #75848d;
+  color: var(--ink-muted);
   font-size: 10px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid #dbe2e6;
@@ -1538,7 +1538,7 @@ button.asa3d-save-recovery {
   width: 24px;
   height: 24px;
   padding: 0;
-  color: #657984;
+  color: var(--ink-muted);
   font-size: 18px;
   line-height: 1;
   background: transparent;

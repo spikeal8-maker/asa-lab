@@ -264,7 +264,7 @@
 }
 
 .asa-chess-player-copy small {
-  color: #667985;
+  color: var(--ink-muted);
 }
 
 .asa-chess-clock {
@@ -583,7 +583,7 @@
 }
 
 .asa-chess-moves .move-number {
-  color: #6b7c86;
+  color: var(--ink-muted);
   background: #edf1f4;
   text-align: right;
 }
@@ -592,7 +592,7 @@
   padding: 24px 15px;
   border: 1px dashed #bdc9d0;
   border-radius: 9px;
-  color: #6b7d87;
+  color: var(--ink-muted);
   text-align: center;
 }
 
@@ -717,7 +717,7 @@
 }
 
 .asa-chess-analysis-list dt {
-  color: #6a7b85;
+  color: var(--ink-muted);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -755,7 +755,7 @@
 
 .asa-chess-versions span,
 .asa-chess-versions time {
-  color: #687a85;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -877,7 +877,7 @@
 }
 
 .asa-chess-choice-grid small {
-  color: #677984;
+  color: var(--ink-muted);
 }
 
 .asa-chess-time-options,
@@ -957,7 +957,7 @@
 }
 
 .asa-chess-bot-profile-grid small {
-  color: #657984;
+  color: var(--ink-muted);
   font-size: 11px;
 }
 

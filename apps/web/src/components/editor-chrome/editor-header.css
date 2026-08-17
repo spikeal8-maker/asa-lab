@@ -103,7 +103,7 @@
   max-width: 100%;
   padding: 0 12px;
   overflow: hidden;
-  color: #7a8791;
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 650;
   text-overflow: ellipsis;
