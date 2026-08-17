@@ -1152,3 +1152,10 @@
 .portal-sidebar.collapsed .portal-sidebar-change-avatar {
   display: none;
 }
+
+.creator-home-title {
+  margin: 0 0 26px;
+  color: #16232c;
+  font-size: clamp(26px, 3.2vw, 34px);
+  letter-spacing: -0.02em;
+}

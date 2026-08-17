@@ -106,6 +106,8 @@ export interface ClassroomAssignment {
   createdAt: string;
   /** One of the ten a class is given rather than one the teacher wrote. */
   isDemo: boolean;
+  /** Picture of what to make: half the brief on a "make this" task. */
+  sampleImage: string | null;
   seatCount: number;
   startedCount: number;
   submittedCount: number;
@@ -130,6 +132,7 @@ export interface SeatAssignment {
   moduleKey: string;
   dueAt: string | null;
   status: 'open' | 'closed';
+  sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
 }

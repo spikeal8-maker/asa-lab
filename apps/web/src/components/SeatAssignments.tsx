@@ -72,6 +72,18 @@ export function SeatAssignments({
       <ul data-testid="seat-assignments">
         {items.map((assignment) => (
           <li key={assignment.id}>
+            {/* On a "make this" task the picture is half the brief: a paragraph
+                about a castle is not the same as seeing one. */}
+            {assignment.sampleImage ? (
+              <img
+                className="seat-assignment-sample"
+                src={assignment.sampleImage}
+                alt={`Образец: ${assignment.title}`}
+                width={96}
+                height={96}
+                loading="lazy"
+              />
+            ) : null}
             <div className="seat-assignment-body">
               <strong>{assignment.title}</strong>
               <span>

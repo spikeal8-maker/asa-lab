@@ -121,9 +121,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    * sidebar, same pages — with the places a seat has no business in absent:
    * no class to manage, no school to switch to, no account to configure.
    */
-  await expect(
-    studentPage.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
-  ).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
   await expect(
     studentPage.getByRole('button', { name: 'Проекты', exact: true }).first(),
   ).toBeVisible();
@@ -337,6 +335,25 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
     .getByTestId('seat-assignments')
     .locator('li')
     .filter({ hasText: 'Брелок с именем' });
+  /**
+   * The ten a class is given arrive with their reference render, and they start
+   * in the right editor. Both were broken on the first attempt: the seed named
+   * an environment that does not exist ('3d' rather than 'three-d'), so every
+   * demo refused to open, and nothing looked at a demo because the test pressed
+   * an assignment made through the picker, which cannot get the key wrong.
+   */
+  const demoCard = studentPage
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: 'Домик' });
+  await expect(demoCard.locator('img')).toHaveAttribute(
+    'src',
+    '/assets/assignments/demo-house.jpg',
+  );
+  await demoCard.getByRole('button', { name: 'Начать' }).click();
+  await expect(studentPage.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
+  await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+
   await assignmentCard.getByRole('group').getByText('Что нужно сделать').click();
   await expect(assignmentCard).toContainText('Скруглите углы и подпишите имя.');
   await studentPage.screenshot({ path: `${evidenceDir}/student-assignment.png`, fullPage: true });

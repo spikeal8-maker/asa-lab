@@ -199,6 +199,15 @@ export function ClassroomAssignments({
             {open.dueAt ? ` · срок ${time.date(open.dueAt)}` : ''}
             {open.status === 'closed' ? ' · закрыто' : ''}
           </p>
+          {open.sampleImage ? (
+            <img
+              className="assignment-sample"
+              src={open.sampleImage}
+              alt={`Образец: ${open.title}`}
+              width={220}
+              height={220}
+            />
+          ) : null}
           {open.brief ? <p className="assignment-brief">{open.brief}</p> : null}
         </div>
 

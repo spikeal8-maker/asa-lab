@@ -306,3 +306,32 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* The reference render. Square, because every one of them is. */
+.seat-assignment-sample {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  border: 1px solid #dbe6ec;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.assignment-sample {
+  display: block;
+  width: 220px;
+  height: 220px;
+  margin: 14px 0 0;
+  border: 1px solid #dbe6ec;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #fff;
+}
+
+@media (max-width: 720px) {
+  .seat-assignment-sample {
+    width: 72px;
+    height: 72px;
+  }
+}

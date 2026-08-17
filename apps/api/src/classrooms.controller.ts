@@ -121,6 +121,7 @@ interface AssignmentRow {
   created_at: Date | string;
   /** Set on the ten tasks every class is given; null on a teacher's own. */
   demo_key?: string | null;
+  sample_image?: string | null;
   seat_count?: number | string;
   started_count?: number | string;
   submitted_count?: number | string;
@@ -200,6 +201,7 @@ function assignmentView(row: AssignmentRow) {
     status: row.status,
     createdAt: iso(row.created_at),
     isDemo: Boolean(row.demo_key),
+    sampleImage: row.sample_image ?? null,
     // Present on the list, absent on the row returned straight after creating
     // one — a brand-new assignment has nobody in it yet.
     seatCount: row.seat_count === undefined ? 0 : Number(row.seat_count),
@@ -830,7 +832,7 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, module_key, due_at, status, created_at, demo_key,
+      `SELECT id, title, brief, module_key, due_at, status, created_at, demo_key, sample_image,
               seat_count, started_count, submitted_count
          FROM classroom_assignment_list($1, $2)`,
       [context.accountId, classroomId],

@@ -19,7 +19,7 @@ export async function loginWithOrganization(
   await page.getByRole('button', { name: 'Войти через организацию' }).click();
   await expect(
     page.getByRole('heading', {
-      name: /^(Мои проекты|Проектируйте сами, ведите класс, подключите школу)$/,
+      name: /^(Мои проекты|Главная)$/,
     }),
   ).toBeVisible();
 }

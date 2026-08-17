@@ -66,9 +66,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByLabel('Пароль').fill(password);
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   // A new account lands on the creator home, not on the projects list.
-  await expect(
-    page.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
 
   const context = page.context();
   for (const [module, title] of [
@@ -107,9 +105,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await secondPage.getByLabel('Email или имя пользователя').fill(username);
   await secondPage.getByLabel('Пароль').fill(password);
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
-  await expect(
-    secondPage.getByRole('heading', { name: 'Проектируйте сами, ведите класс, подключите школу' }),
-  ).toBeVisible();
+  await expect(secondPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
   secondFailures.assertEmpty();
 
   const meResponse = await context.request.get('/api/auth/me');

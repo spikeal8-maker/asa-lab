@@ -30,13 +30,11 @@ function sortProjects(projects: readonly Project[]): Project[] {
 
 export function CreatorHomePage({
   session,
-  canTeach,
   seatLearner = false,
   onNavigate,
   onOpenProject,
 }: {
   session: SessionPayload;
-  canTeach: boolean;
   /** A class seat: the only kind of person who can have work set for them. */
   seatLearner?: boolean;
   onNavigate: (
@@ -130,10 +128,6 @@ export function CreatorHomePage({
     return grouped;
   }, [projects]);
   const visibleState = creatorHomeState(projects, error);
-  const activeWorkspace =
-    session.workspaces.find(
-      (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
-    )?.title ?? 'Личное пространство';
 
   function openCreate(moduleKey?: string): void {
     setCreatingModule(moduleKey);
@@ -142,58 +136,15 @@ export function CreatorHomePage({
 
   return (
     <main className="portal-content creator-home" id="main-content" tabIndex={-1}>
-      <section className="creator-dashboard-banner" aria-labelledby="creator-banner-title">
-        <div className="creator-dashboard-art" aria-hidden="true">
-          {activeModules.slice(0, 3).map((module, index) => (
-            <span
-              key={module.moduleKey}
-              className={`creator-dashboard-art-tile tile-${index + 1}`}
-              style={{ '--module-accent': moduleAccent(module.moduleKey) } as CSSProperties}
-            >
-              <ModuleGlyph module={module} size={70} />
-            </span>
-          ))}
-        </div>
-        {/*
-          The banner answers "what is this place for", which is the one thing a
-          first visit needs and the one thing a decorative strip cannot say. The
-          three answers are the three ways ASA Lab is used, and each is a button
-          rather than a claim.
-        */}
-        <div className="creator-dashboard-banner-copy">
-          <p className="creator-dashboard-context">{activeWorkspace}</p>
-          <h1 id="creator-banner-title">Проектируйте сами, ведите класс, подключите школу</h1>
-          <p>
-            Модели, схемы, шахматы и шашки — в одном месте. Класс может открыть любой взрослый:
-            ученикам не нужны свои аккаунты. Школа добавляет общее пространство и коллег-учителей.
-          </p>
-          {/*
-            Creating a project already has its button in the header, so the
-            banner offers only the two things a person cannot otherwise find:
-            where classes live and how a school is connected. Managing a class
-            stays behind the educator capability, so that door is only shown to
-            someone who can walk through it.
-          */}
-          <div className="creator-banner-actions">
-            {canTeach ? (
-              <button
-                type="button"
-                className="creator-banner-action"
-                onClick={() => onNavigate('classes')}
-              >
-                Открыть классы
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={`creator-banner-action${canTeach ? ' secondary' : ''}`}
-              onClick={() => onNavigate('account')}
-            >
-              Подключить школу
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* The banner is gone. It sold the product to someone already inside it,
+          and half of it was a decorative strip of module glyphs — the one thing
+          on the page that could not tell you anything. Its two doors live where
+          they belong: classes in the navigation, school in settings.
+
+          What it must not take with it is the page's name: a page with no
+          heading leaves a screen reader, and anyone glancing at a tab, with
+          nothing to go on. */}
+      <h1 className="creator-home-title">Главная</h1>
 
       {/* Work a teacher set, above a learner's own gallery: a task with a
           deadline outranks a shelf of models. Renders nothing for anyone who
