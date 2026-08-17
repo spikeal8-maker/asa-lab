@@ -38,6 +38,7 @@ export function ProjectCard({
   module,
   timeLabel,
   footerLabel,
+  footerTone,
   open,
   primaryLabel = 'Изменить',
   primaryAction,
@@ -49,6 +50,11 @@ export function ProjectCard({
   readonly module?: ModuleSummary | undefined;
   readonly timeLabel: string;
   readonly footerLabel: string;
+  /**
+   * Turns the footer line into a coloured mark. A teacher's verdict has to be
+   * legible from across a grid of thirty cards; grey body text is not.
+   */
+  readonly footerTone?: 'excellent' | 'good' | 'progress' | 'redo' | 'teacher' | undefined;
   /** Present while the project can be opened in its editor. */
   readonly open?: ProjectCardOpen | undefined;
   readonly primaryLabel?: string;
@@ -159,7 +165,9 @@ export function ProjectCard({
           </>
         )}
         <p className="project-card-footer">
-          <span>{footerLabel}</span>
+          <span className={footerTone ? `project-card-mark tone-${footerTone}` : undefined}>
+            {footerLabel}
+          </span>
           <span className="project-card-subject">{subject}</span>
         </p>
       </div>

@@ -45,13 +45,25 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await classCard.getByRole('button', { name: '5Б Makers' }).click();
 
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
-  const joinCode = (await page.locator('.classroom-code-card > strong').innerText()).trim();
+  const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   expect(joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
 
-  /** A camera instead of nine characters typed from a whiteboard. */
-  await page.getByRole('button', { name: 'Показать QR-код' }).click();
-  await expect(page.getByTestId('class-join-qr')).toBeVisible();
-  await page.getByRole('button', { name: 'Скрыть QR-код' }).click();
+  /**
+   * The code goes on the wall: one screen, nothing but the code, and a square
+   * so a camera can do the typing.
+   */
+  await page.getByRole('button', { name: 'Поделиться классом' }).click();
+  const shareScreen = page.getByRole('dialog', { name: `Вход в класс 5Б Makers` });
+  await expect(shareScreen.getByTestId('class-share-code')).toHaveText(joinCode);
+  await expect(shareScreen.getByTestId('class-join-qr')).toBeVisible();
+  await page.screenshot({ path: `${evidenceDir}/class-share.png` });
+  // The same screen on a phone: a teacher without a projector holds the code up.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(shareScreen.getByTestId('class-share-code')).toBeVisible();
+  await page.screenshot({ path: `${evidenceDir}/class-share-phone.png` });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await shareScreen.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(shareScreen).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Добавить ученика' }).click();
   const studentDialog = page.getByRole('dialog');
@@ -63,6 +75,34 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(studentRow).toContainText('alina-k');
   await expect(studentRow).toContainText('Ещё не входил');
   await page.screenshot({ path: `${evidenceDir}/teacher-roster.png`, fullPage: true });
+
+  /**
+   * The same register on a phone. A teacher walking between desks holds one,
+   * so the five-column table has to become a list of cards that fits — nothing
+   * may push the page sideways.
+   */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(studentRow).toContainText('Алина К.');
+  const overflow = await page.evaluate(() => {
+    const viewport = window.innerWidth;
+    const document_ = document.documentElement.scrollWidth;
+    // Named only when the page really does slide sideways: a tab strip that
+    // scrolls inside itself is wider than the screen on purpose.
+    const wide =
+      document_ <= viewport
+        ? []
+        : [...document.querySelectorAll<HTMLElement>('body *')]
+            .filter((node) => node.getBoundingClientRect().right > viewport + 1)
+            .slice(0, 6)
+            .map((node) => `${node.tagName.toLowerCase()}.${node.className}`);
+    return { document: document_, viewport, wide };
+  });
+  expect(
+    overflow.document,
+    `elements past the viewport: ${overflow.wide.join(', ')}`,
+  ).toBeLessThanOrEqual(overflow.viewport);
+  await page.screenshot({ path: `${evidenceDir}/teacher-roster-phone.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   const studentContext = await browser.newContext();
   const studentPage = await studentContext.newPage();

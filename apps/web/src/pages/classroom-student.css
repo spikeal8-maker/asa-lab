@@ -1,8 +1,39 @@
 /* A learner's page, and the class record it borrows its list from. */
 
 .classroom-student-hero {
+  display: flex;
   align-items: flex-start;
-  margin-bottom: 22px;
+  gap: 18px;
+  margin-bottom: 26px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid #e0e7ea;
+}
+
+.classroom-student-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #0d83b4;
+  color: #fff;
+  font-size: 26px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.classroom-student-identity h1 {
+  margin: 4px 0 6px;
+  color: #273b49;
+  font-size: clamp(26px, 3.4vw, 38px);
+  letter-spacing: -0.02em;
+}
+
+.classroom-student-identity > p:last-of-type {
+  margin: 0;
+  color: #6d7d87;
 }
 
 .classroom-student-hero code {
@@ -16,6 +47,45 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.classroom-student-badges:not(:empty) {
+  margin-top: 12px;
+}
+
+/* The works get the room; the record is a rail beside them. On a phone the
+   rail becomes the next section down. */
+.classroom-student-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 32px;
+  align-items: start;
+}
+
+.classroom-student-record {
+  padding: 18px 20px;
+  border: 1px solid #e1e7ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 1000px) {
+  .classroom-student-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 560px) {
+  .classroom-student-hero {
+    gap: 14px;
+  }
+
+  .classroom-student-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
 }
 
 .classroom-student-badge {

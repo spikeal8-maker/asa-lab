@@ -263,6 +263,41 @@
   font-weight: 600;
 }
 
+/* A teacher's verdict, as a mark rather than a sentence: read at a glance from
+ * a grid of thirty, and the same four colours in every class. */
+.project-card-mark {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef1f3;
+  color: #56666f;
+  font-weight: 700;
+}
+
+.project-card-mark.tone-excellent {
+  background: #e2f4ea;
+  color: #1c6f4a;
+}
+
+.project-card-mark.tone-good {
+  background: #e7f3fb;
+  color: #0d6a97;
+}
+
+.project-card-mark.tone-progress {
+  background: #fdf1dd;
+  color: #8a5a12;
+}
+
+.project-card-mark.tone-redo {
+  background: #fcebe9;
+  color: #a5332e;
+}
+
+.project-card-mark.tone-teacher {
+  background: #eef0fb;
+  color: #48519a;
+}
+
 /* ── Renaming in place ───────────────────────────────────────────────────── */
 
 .project-card-rename {

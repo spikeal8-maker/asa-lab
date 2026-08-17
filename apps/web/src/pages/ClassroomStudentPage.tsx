@@ -131,6 +131,20 @@ function FeedbackDialog({
   );
 }
 
+const BADGE_TONES = new Set(['excellent', 'good', 'progress', 'redo']);
+
+/** Which colour the footer mark takes: the verdict if there is one, otherwise
+ * the note that a teacher has been in the work. Untouched work has no mark. */
+function markTone(
+  entry: ProjectFeedback | null,
+  editedByTeacher: boolean,
+): 'excellent' | 'good' | 'progress' | 'redo' | 'teacher' | undefined {
+  if (entry?.badge && BADGE_TONES.has(entry.badge)) {
+    return entry.badge as 'excellent' | 'good' | 'progress' | 'redo';
+  }
+  return editedByTeacher ? 'teacher' : undefined;
+}
+
 /** The card component speaks in projects; a learner's work is one. */
 function asProject(work: ClassroomStudentDetail['projects'][number]): Project {
   return {
@@ -244,74 +258,88 @@ export function ClassroomStudentPage({
         ← {classroomTitle}
       </button>
 
-      <section className="portal-hero classroom-student-hero">
-        <div>
+      {/* The same face as in the register, at the size a page deserves: a
+          teacher arriving here has just clicked a name and should land on the
+          same person, not on a form. */}
+      <section className="classroom-student-hero">
+        <i className="classroom-student-avatar" aria-hidden="true">
+          {student.displayLabel.slice(0, 1).toUpperCase()}
+        </i>
+        <div className="classroom-student-identity">
           <p className="portal-eyebrow">Ученик класса</p>
           <h1>{student.displayLabel}</h1>
           <p>
             Вход: <code>{student.loginHandle}</code> · последний раз{' '}
             {lastSeen(student.lastActiveAt)}
           </p>
-        </div>
-        <div className="classroom-student-badges">
-          {student.safeMode ? (
-            <span className="classroom-student-badge">Безопасный режим</span>
-          ) : null}
-          {student.status === 'suspended' ? (
-            <span className="classroom-student-badge is-warning">Доступ приостановлен</span>
-          ) : null}
+          <div className="classroom-student-badges">
+            {student.safeMode ? (
+              <span className="classroom-student-badge">Безопасный режим</span>
+            ) : null}
+            {student.status === 'suspended' ? (
+              <span className="classroom-student-badge is-warning">Доступ приостановлен</span>
+            ) : null}
+          </div>
         </div>
       </section>
 
-      <section className="classroom-student-section" aria-labelledby="student-works">
-        <h2 id="student-works">Работы · {projects.length}</h2>
-        {projects.length === 0 ? (
-          <p className="classroom-student-empty">
-            Ученик ещё ничего не создал. Здесь появятся его работы, как только он начнёт.
+      {/* What they made, and what they did — side by side on a laptop, one
+          under the other on a phone. */}
+      <div className="classroom-student-columns">
+        <section className="classroom-student-section" aria-labelledby="student-works">
+          <h2 id="student-works">Работы · {projects.length}</h2>
+          {projects.length === 0 ? (
+            <p className="classroom-student-empty">
+              Ученик ещё ничего не создал. Здесь появятся его работы, как только он начнёт.
+            </p>
+          ) : (
+            <ul className="project-card-grid">
+              {projects.map((work) => (
+                <ProjectCard
+                  key={work.id}
+                  project={asProject(work)}
+                  module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
+                  timeLabel={`Изменён ${new Intl.DateTimeFormat('ru-RU', {
+                    day: 'numeric',
+                    month: 'short',
+                  }).format(new Date(work.updatedAt))}`}
+                  footerLabel={
+                    feedback[work.id]?.badge
+                      ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
+                      : work.lastEditedByTeacher
+                        ? 'Правил педагог'
+                        : 'Работа ученика'
+                  }
+                  footerTone={markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)}
+                  primaryLabel="Открыть"
+                  open={{
+                    href: `#/projects/${work.id}`,
+                    onNavigate: () => onOpenProject(work.id, work.moduleKey),
+                  }}
+                  menuItems={[
+                    {
+                      label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
+                      onSelect: () => setResponding({ id: work.id, title: work.title }),
+                    },
+                  ]}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section
+          className="classroom-student-section classroom-student-record"
+          aria-labelledby="student-activity"
+        >
+          <h2 id="student-activity">Что делает</h2>
+          <ClassroomActivityList entries={activity} emptyText="Пока никаких действий." />
+          <p className="classroom-student-note">
+            Записей о работе: {projectEntries.length}. Повторная работа над одним проектом за
+            короткое время собирается в одну строку со счётчиком.
           </p>
-        ) : (
-          <ul className="project-card-grid">
-            {projects.map((work) => (
-              <ProjectCard
-                key={work.id}
-                project={asProject(work)}
-                module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                timeLabel={`Изменён ${new Intl.DateTimeFormat('ru-RU', {
-                  day: 'numeric',
-                  month: 'short',
-                }).format(new Date(work.updatedAt))}`}
-                footerLabel={
-                  feedback[work.id]?.badge
-                    ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
-                    : work.lastEditedByTeacher
-                      ? 'Правил педагог'
-                      : 'Работа ученика'
-                }
-                primaryLabel="Открыть"
-                open={{
-                  href: `#/projects/${work.id}`,
-                  onNavigate: () => onOpenProject(work.id, work.moduleKey),
-                }}
-                menuItems={[
-                  {
-                    label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
-                    onSelect: () => setResponding({ id: work.id, title: work.title }),
-                  },
-                ]}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="classroom-student-section" aria-labelledby="student-activity">
-        <h2 id="student-activity">Что делает</h2>
-        <ClassroomActivityList entries={activity} emptyText="Пока никаких действий." />
-        <p className="classroom-student-note">
-          Записей о работе: {projectEntries.length}. Повторная работа над одним проектом за короткое
-          время собирается в одну строку со счётчиком.
-        </p>
-      </section>
+        </section>
+      </div>
 
       {responding ? (
         <FeedbackDialog

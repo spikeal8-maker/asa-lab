@@ -10,7 +10,7 @@ import {
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
-import { ClassJoinQr } from '../components/ClassJoinQr';
+import { ClassShareScreen } from '../components/ClassShareScreen';
 import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 
 type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
@@ -34,6 +34,22 @@ const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
   { id: 'moderation', label: 'Модерация' },
   { id: 'teachers', label: 'Коллеги-преподаватели' },
 ];
+
+/** 1 ученик, 2 ученика, 5 учеников — a class page that says "1 учеников" reads
+ * as a machine, and this one is read by teachers every day. */
+const LEARNER_FORMS: Record<Intl.LDMLPluralRule, string> = {
+  zero: 'учеников',
+  one: 'ученик',
+  two: 'ученика',
+  few: 'ученика',
+  many: 'учеников',
+  other: 'ученика',
+};
+const learnerPlural = new Intl.PluralRules('ru-RU');
+
+function learnerCount(count: number): string {
+  return `${count} ${LEARNER_FORMS[learnerPlural.select(count)]}`;
+}
 
 function lastActive(value: string | null): string {
   if (!value) return 'Ещё не входил';
@@ -277,7 +293,8 @@ export function ClassroomPage({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(null);
-  const [showQr, setShowQr] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [search, setSearch] = useState('');
 
   const reload = useCallback(async () => {
     const [classroom, roster] = await Promise.all([
@@ -372,6 +389,17 @@ export function ClassroomPage({
     );
 
   const { classroom, students } = page;
+  // A class of thirty is one screen of scrolling; finding one child in it
+  // should not be.
+  const needle = search.trim().toLocaleLowerCase('ru-RU');
+  const visibleStudents =
+    needle.length === 0
+      ? students
+      : students.filter(
+          (student) =>
+            student.displayLabel.toLocaleLowerCase('ru-RU').includes(needle) ||
+            student.loginHandle.includes(needle),
+        );
 
   if (openStudent !== null) {
     return (
@@ -396,8 +424,8 @@ export function ClassroomPage({
       <button type="button" className="classroom-back" onClick={onBack}>
         ← Мои классы
       </button>
-      <header className="classroom-workspace-header">
-        <div>
+      <header className="classroom-head">
+        <div className="classroom-head-title">
           <span className="portal-eyebrow">
             {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
             {' · '}
@@ -405,103 +433,72 @@ export function ClassroomPage({
           </span>
           <h1>{classroom.title}</h1>
           <p>
-            {classroom.studentCount} учеников · возраст{' '}
+            {learnerCount(classroom.studentCount)} · возраст{' '}
             {classroom.ageBand === 'mixed' ? 'разный' : classroom.ageBand}
           </p>
         </div>
-        <div className="classroom-code-card">
-          <span>Код класса</span>
-          <strong>{classroom.joinCode ?? 'Вход закрыт'}</strong>
-          {/* A camera does not mistype a nine-character code, and a primary
-              class with one shared code loses ten minutes to typing it. */}
-          {classroom.joinCode && classLink ? (
+        {/* The code is a chip and a button, not a panel. It is needed twice a
+            lesson and read from across a room, so the place it is read properly
+            is the full screen behind "Поделиться" — not a block that competes
+            with the register for the top of every visit. */}
+        <div className="classroom-head-code">
+          {classroom.joinCode ? (
             <button
               type="button"
-              className="classroom-qr-toggle"
-              aria-expanded={showQr}
-              onClick={() => setShowQr((current) => !current)}
+              className="classroom-code-chip"
+              title="Скопировать код"
+              onClick={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
             >
-              {showQr ? 'Скрыть QR-код' : 'Показать QR-код'}
+              {classroom.joinCode}
             </button>
-          ) : null}
-          {showQr && classLink ? (
-            <ClassJoinQr url={classLink} label={`Ссылка на класс ${classroom.title}`} />
-          ) : null}
-          <div>
-            {classroom.joinCode ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
-                >
-                  Копировать код
-                </button>
-                {classLink ? (
-                  <button type="button" onClick={() => void copy(classLink, 'Ссылка скопирована.')}>
-                    Копировать ссылку
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-            <button
-              type="button"
-              disabled={busy === 'code'}
-              onClick={async () => {
-                setBusy('code');
-                const result = await api.rotateClassroomJoinCode(classroomId);
-                setBusy(null);
-                if (result.ok) {
-                  setNotice(
-                    classroom.joinCode
-                      ? 'Создан новый код. Старый больше не работает.'
-                      : 'Вход в класс открыт.',
-                  );
-                  await reload();
-                }
-              }}
-            >
-              {classroom.joinCode ? 'Сменить код' : 'Открыть вход'}
-            </button>
-            {classroom.joinCode ? (
-              <button
-                type="button"
-                className="danger"
-                disabled={busy === 'code'}
-                onClick={async () => {
-                  if (
-                    !window.confirm(
-                      'Закрыть вход по текущему коду? Уже вошедшие ученики сохранят доступ.',
-                    )
-                  )
-                    return;
-                  setBusy('code');
-                  const result = await api.revokeClassroomJoinCode(classroomId);
-                  setBusy(null);
-                  if (result.ok) {
-                    setNotice('Вход по коду закрыт.');
-                    await reload();
-                  }
-                }}
-              >
-                Закрыть вход
-              </button>
-            ) : null}
-          </div>
+          ) : (
+            <span className="classroom-code-chip is-closed">Вход закрыт</span>
+          )}
+          <button type="button" className="portal-create-button" onClick={() => setSharing(true)}>
+            Поделиться классом
+          </button>
         </div>
       </header>
 
-      <nav className="classroom-workspace-tabs" aria-label="Разделы класса">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={tab === item.id ? 'active' : undefined}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {/* The tabs and the one switch that applies to every learner share a row:
+          both are about the class as a whole, and the switch used to be a
+          banner of its own that pushed the register below the fold. */}
+      <div className="classroom-tabbar">
+        <nav className="classroom-workspace-tabs" aria-label="Разделы класса">
+          {TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={tab === item.id ? 'active' : undefined}
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <label className="classroom-safe-switch">
+          <span>Безопасный режим для всех</span>
+          <input
+            type="checkbox"
+            checked={classroom.safeModeDefault}
+            disabled={busy === 'policy'}
+            onChange={async (event) => {
+              setBusy('policy');
+              const result = await api.updateClassroomPolicy(classroomId, event.target.checked);
+              setBusy(null);
+              if (result.ok) {
+                setNotice(
+                  event.target.checked
+                    ? 'Безопасный режим включён для класса.'
+                    : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
+                );
+                await reload();
+              }
+            }}
+          />
+          <i aria-hidden="true" />
+        </label>
+      </div>
       {notice ? (
         <p className="notice-success" role="status">
           {notice}
@@ -510,15 +507,10 @@ export function ClassroomPage({
 
       {tab === 'students' ? (
         <section className="classroom-roster-panel">
+          {/* Actions on the left, finding on the right: the two things a
+              teacher does to a register, in the order they do them. */}
           <div className="classroom-roster-toolbar">
-            <div>
-              <h2>Учащиеся</h2>
-              <p>Выдайте ученику код класса и его имя для входа. Почта не нужна.</p>
-            </div>
-            <div>
-              <button type="button" className="btn-secondary" onClick={() => setDialog('batch')}>
-                Добавить списком
-              </button>
+            <div className="classroom-roster-actions">
               <button
                 type="button"
                 className="portal-create-button"
@@ -526,32 +518,20 @@ export function ClassroomPage({
               >
                 <PlusIcon /> Добавить ученика
               </button>
+              <button type="button" className="btn-secondary" onClick={() => setDialog('batch')}>
+                Добавить списком
+              </button>
             </div>
+            <label className="classroom-roster-search">
+              <span className="sr-only">Поиск учащихся</span>
+              <input
+                type="search"
+                placeholder="Поиск учащихся"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
           </div>
-          <label className="classroom-global-safe-mode">
-            <input
-              type="checkbox"
-              checked={classroom.safeModeDefault}
-              disabled={busy === 'policy'}
-              onChange={async (event) => {
-                setBusy('policy');
-                const result = await api.updateClassroomPolicy(classroomId, event.target.checked);
-                setBusy(null);
-                if (result.ok) {
-                  setNotice(
-                    event.target.checked
-                      ? 'Безопасный режим включён для класса.'
-                      : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
-                  );
-                  await reload();
-                }
-              }}
-            />
-            <span>
-              <strong>Безопасный режим для всего класса</strong>
-              <small>Закрывает публичную публикацию и открытые социальные функции.</small>
-            </span>
-          </label>
           {students.length === 0 ? (
             <div className="classroom-roster-empty">
               <span>
@@ -563,13 +543,13 @@ export function ClassroomPage({
           ) : (
             <div className="classroom-roster-table" role="table" aria-label="Ученики класса">
               <div className="classroom-roster-head" role="row">
-                <span>Ученик</span>
+                <span>Учащийся</span>
                 <span>Имя для входа</span>
                 <span>Последняя активность</span>
-                <span>Safe Mode</span>
-                <span>Действия</span>
+                <span>Безопасный режим</span>
+                <span className="sr-only">Действия</span>
               </div>
-              {students.map((student) => (
+              {visibleStudents.map((student) => (
                 <div className="classroom-roster-row" role="row" key={student.id}>
                   {/* The name is the way in: a register tells you who is here,
                       and the next thing a teacher wants is how they are doing. */}
@@ -595,16 +575,23 @@ export function ClassroomPage({
                   >
                     {student.loginHandle}
                   </button>
-                  <span>{lastActive(student.lastActiveAt)}</span>
+                  <span className="classroom-roster-seen">{lastActive(student.lastActiveAt)}</span>
                   <label className="classroom-seat-safe">
                     <input
                       type="checkbox"
                       checked={student.safeMode}
                       disabled={Boolean(busy)}
+                      aria-label={`Безопасный режим: ${student.displayLabel}`}
                       onChange={() =>
                         void updateStudent({ ...student, safeMode: !student.safeMode })
                       }
                     />
+                    <i aria-hidden="true" />
+                    {/* On a phone the column heading is gone, so the row has to
+                        say what the switch is about. */}
+                    <span className="classroom-seat-safe-name" aria-hidden="true">
+                      Безопасный режим
+                    </span>
                     <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
                   </label>
                   <details className="classroom-row-menu">
@@ -895,6 +882,36 @@ export function ClassroomPage({
             </>
           ) : null}
         </section>
+      ) : null}
+
+      {sharing ? (
+        <ClassShareScreen
+          title={classroom.title}
+          joinCode={classroom.joinCode}
+          joinUrl={classLink}
+          busy={busy === 'code'}
+          onCopyCode={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
+          onCopyLink={() => void copy(classLink as string, 'Ссылка скопирована.')}
+          onRotate={async () => {
+            setBusy('code');
+            const result = await api.rotateClassroomJoinCode(classroomId);
+            setBusy(null);
+            if (result.ok) {
+              setNotice('Код класса обновлён. Старый код больше не работает.');
+              await reload();
+            }
+          }}
+          onRevoke={async () => {
+            setBusy('code');
+            const result = await api.revokeClassroomJoinCode(classroomId);
+            setBusy(null);
+            if (result.ok) {
+              setNotice('Вход по коду закрыт.');
+              await reload();
+            }
+          }}
+          onClose={() => setSharing(false)}
+        />
       ) : null}
 
       {dialog === 'single' ? (

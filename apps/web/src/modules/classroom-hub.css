@@ -287,17 +287,14 @@
 }
 
 .classroom-topic-fieldset label,
-.classroom-safe-mode-field,
-.classroom-global-safe-mode {
+.classroom-safe-mode-field {
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
 
 .classroom-topic-fieldset input,
-.classroom-safe-mode-field input,
-.classroom-global-safe-mode input,
-.classroom-seat-safe input {
+.classroom-safe-mode-field input {
   width: 18px;
   height: 18px;
   margin: 1px 0 0;
@@ -311,14 +308,12 @@
   background: #eef8fc;
 }
 
-.classroom-safe-mode-field span,
-.classroom-global-safe-mode span {
+.classroom-safe-mode-field span {
   display: grid;
   gap: 3px;
 }
 
-.classroom-safe-mode-field small,
-.classroom-global-safe-mode small {
+.classroom-safe-mode-field small {
   color: #6e7f89;
   font-weight: 400;
 }
@@ -337,89 +332,146 @@
   font-weight: 700;
 }
 
-.classroom-workspace-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(430px, 0.7fr);
-  gap: 30px;
-  align-items: stretch;
-  overflow: hidden;
-  border: 1px solid #dce4e9;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 5px 20px rgba(31, 60, 78, 0.06);
+/* The head of a class page.
+ *
+ * A teacher opens this page many times a week and wants the register, not a
+ * poster. So the head is a line of type and one chip: the title says where you
+ * are, the chip carries the code for the two minutes a lesson needs it, and the
+ * button behind it opens the wall-sized screen where the code is actually read.
+ */
+.classroom-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 28px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
 }
 
-.classroom-workspace-header > div:first-child {
-  padding: 28px 32px;
-}
-
-.classroom-workspace-header h1 {
-  margin: 6px 0 8px;
+.classroom-head-title h1 {
+  margin: 4px 0 6px;
   color: #273b49;
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(26px, 3.4vw, 38px);
+  letter-spacing: -0.02em;
 }
 
-.classroom-workspace-header p {
+.classroom-head-title p {
   margin: 0;
   color: #6d7d87;
+  font-size: 15px;
 }
 
-.classroom-code-card {
-  display: grid;
-  align-content: center;
-  gap: 6px;
-  padding: 22px 28px;
-  background: linear-gradient(135deg, #0d779f, #0a5c7e);
-  color: #fff;
-}
-
-.classroom-code-card > span {
-  opacity: 0.8;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.classroom-code-card > strong {
-  font-size: clamp(24px, 3vw, 36px);
-  letter-spacing: 0.12em;
-}
-
-.classroom-code-card > div {
+.classroom-head-code {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 7px;
+  align-items: center;
+  gap: 10px;
 }
 
-.classroom-code-card button {
-  padding: 7px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+.classroom-code-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #bfd7e2;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  font-size: 12px;
+  background: #f2fafd;
+  color: #0a6f9c;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.classroom-code-card button:hover {
-  background: #fff;
-  color: #075f82;
+button.classroom-code-chip:hover {
+  border-color: #7ec0dc;
+  background: #e5f5fb;
 }
 
-.classroom-code-card button.danger:hover,
+.classroom-code-chip.is-closed {
+  border-color: #dfe4e7;
+  background: #f4f6f7;
+  color: #77858d;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
 .classroom-row-menu button.danger:hover {
   background: #fff0f0;
   color: #a92e32;
+}
+
+/* Tabs and the one class-wide switch share a rule: both address the class as a
+   whole, and the switch used to be a banner that pushed the register below the
+   fold on every laptop. */
+.classroom-tabbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #d7e0e5;
+}
+
+.classroom-safe-switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 9px;
+  color: #5c6f7b;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.classroom-safe-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.classroom-safe-switch i {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: #c3ced4;
+  transition: background 120ms ease;
+}
+
+.classroom-safe-switch i::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+.classroom-safe-switch input:checked + i {
+  background: #17a05f;
+}
+
+.classroom-safe-switch input:checked + i::after {
+  transform: translateX(18px);
+}
+
+.classroom-safe-switch input:focus-visible + i {
+  outline: 2px solid #0b82ba;
+  outline-offset: 2px;
 }
 
 .classroom-workspace-tabs {
   display: flex;
   overflow-x: auto;
   gap: 6px;
-  margin: 24px 0 18px;
   padding-bottom: 1px;
-  border-bottom: 1px solid #d7e0e5;
 }
 
 .classroom-workspace-tabs button {
@@ -448,8 +500,42 @@
 .classroom-roster-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 12px 20px;
+  flex-wrap: wrap;
   align-items: center;
+  margin-bottom: 16px;
+}
+
+.classroom-roster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.classroom-roster-search {
+  flex: 0 1 260px;
+}
+
+.classroom-roster-search input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #c8d4da;
+  border-radius: 999px;
+  background: #fff;
+  color: #33505f;
+  font: inherit;
+}
+
+.classroom-roster-search input:focus-visible {
+  border-color: #0b82ba;
+  outline: 2px solid #bfe3f2;
+}
+
+.classroom-roster-seen {
+  color: #6e808a;
+  font-size: 13px;
 }
 
 .classroom-roster-toolbar h2,
@@ -462,11 +548,6 @@
 .classroom-tab-panel p {
   margin: 0;
   color: #6f808a;
-}
-
-.classroom-roster-toolbar > div:last-child {
-  display: flex;
-  gap: 8px;
 }
 
 .classroom-teacher-panel {
@@ -649,14 +730,6 @@
   color: #913b3e;
 }
 
-.classroom-global-safe-mode {
-  margin: 20px 0;
-  padding: 14px 16px;
-  border: 1px solid #cfe5ef;
-  border-radius: 10px;
-  background: #f1f9fc;
-}
-
 .classroom-roster-empty {
   display: grid;
   justify-items: center;
@@ -692,7 +765,7 @@
 .classroom-roster-head,
 .classroom-roster-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.8fr) minmax(160px, 0.8fr) 130px 58px;
+  grid-template-columns: minmax(200px, 1.2fr) minmax(140px, 0.7fr) minmax(150px, 0.7fr) 152px 58px;
   gap: 14px;
   align-items: center;
   padding: 11px 14px;
@@ -749,11 +822,64 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
+/* The same switch as the class-wide one, at row scale: one control, one
+   meaning, wherever a teacher meets it. */
 .classroom-seat-safe {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   font-size: 13px;
+  cursor: pointer;
+}
+
+.classroom-seat-safe input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.classroom-seat-safe i {
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #c3ced4;
+  transition: background 120ms ease;
+}
+
+.classroom-seat-safe i::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+.classroom-seat-safe input:checked + i {
+  background: #17a05f;
+}
+
+.classroom-seat-safe input:checked + i::after {
+  transform: translateX(16px);
+}
+
+.classroom-seat-safe input:focus-visible + i {
+  outline: 2px solid #0b82ba;
+  outline-offset: 2px;
+}
+
+.classroom-seat-safe input:disabled + i {
+  opacity: 0.55;
+}
+
+.classroom-seat-safe-name {
+  display: none;
 }
 
 .classroom-student-dialog > p,
@@ -1008,9 +1134,25 @@
   color: #6b7d87;
 }
 
+/* Below a laptop the register stops being a table and becomes a list of cards:
+ * a phone has no room for five columns, and a teacher holding one wants the
+ * name, when the child was last here, and the menu — in that order. */
 @media (max-width: 900px) {
-  .classroom-workspace-header {
-    grid-template-columns: 1fr;
+  .classroom-tab-panel {
+    padding: 16px 14px;
+    border-radius: 10px;
+  }
+
+  /* One frame, not two: the panel's own card would only draw a box around a
+     list of boxes on a screen this narrow. */
+  .classroom-roster-panel {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .classroom-roster-table {
+    border: 0;
   }
 
   .classroom-roster-head {
@@ -1018,16 +1160,104 @@
   }
 
   .classroom-roster-row {
-    grid-template-columns: minmax(0, 1fr) 48px;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px 10px;
+    padding: 12px;
+    border: 1px solid #e1e7eb;
+    border-radius: 10px;
+    margin-bottom: 8px;
   }
 
   .classroom-roster-row > :not(.classroom-student-name, .classroom-row-menu) {
     grid-column: 1;
   }
 
+  .classroom-student-name {
+    grid-column: 1;
+  }
+
   .classroom-row-menu {
     grid-column: 2;
-    grid-row: 1 / span 4;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  /* The last two facts read as one line rather than two rows of their own. */
+  .classroom-login-handle {
+    font-size: 13px;
+  }
+
+  .classroom-seat-safe {
+    justify-self: start;
+    gap: 8px;
+    color: #5c6f7b;
+  }
+
+  .classroom-seat-safe-name {
+    display: inline;
+  }
+
+  .classroom-seat-safe > span:last-child {
+    color: #8b979e;
+  }
+}
+
+@media (max-width: 720px) {
+  .classroom-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 14px;
+  }
+
+  /* Which workspace this class belongs to is context, not headline; on a phone
+     it was taking two lines above the name of the class. */
+  .classroom-head-title .portal-eyebrow {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 11px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .classroom-head-code {
+    flex-wrap: wrap;
+  }
+
+  .classroom-head-code .portal-create-button {
+    flex: 1 0 auto;
+    justify-content: center;
+  }
+
+  /* Tabs scroll sideways; the switch drops under them instead of squeezing
+     them into unreadable stubs. */
+  .classroom-tabbar {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    gap: 0;
+  }
+
+  .classroom-safe-switch {
+    justify-content: space-between;
+    padding: 10px 2px;
+    border-bottom: 1px solid #e6ecef;
+  }
+
+  .classroom-workspace-tabs::-webkit-scrollbar {
+    height: 0;
+  }
+
+  .classroom-roster-search {
+    flex: 1 1 100%;
+  }
+
+  .classroom-roster-actions {
+    width: 100%;
+  }
+
+  .classroom-roster-actions button {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 
@@ -1056,21 +1286,8 @@
     justify-self: start;
   }
 
-  .classroom-roster-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .classroom-roster-toolbar > div:last-child {
-    flex-direction: column;
-  }
-
   .classroom-topic-fieldset {
     grid-template-columns: 1fr;
-  }
-
-  .classroom-code-card > strong {
-    font-size: 24px;
   }
 }
 
@@ -1089,17 +1306,4 @@
   margin: 10px 0 4px;
   color: #64747f;
   font-size: 13px;
-}
-
-.classroom-qr-toggle {
-  align-self: start;
-  margin-top: 8px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #0878a9;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
 }
