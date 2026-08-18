@@ -443,20 +443,10 @@ export function PortalHeader({
           </button>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
-            {/* A learner has one thing here that is theirs to change, and no
-                reason to guess that it lives two clicks inside an account menu
-                they have never been told about. */}
-            {seatLearner ? (
-              <button
-                type="button"
-                className="portal-sidebar-change-avatar"
-                onClick={() => onNavigate('account')}
-              >
-                Сменить аватар
-              </button>
-            ) : (
-              <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
-            )}
+            {/* Учащемуся под именем показываем класс, а не ссылку на смену
+                аватара: аватар меняется в настройках, а лишняя строка здесь
+                только занимала место. */}
+            <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
           </span>
         </div>
         <nav className="portal-nav">

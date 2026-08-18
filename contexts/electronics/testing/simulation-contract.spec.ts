@@ -146,4 +146,57 @@ describe('R4-M1 simulation implementation contract', () => {
     const circuit = simpleOhmLaw([{ x: 10, y: 20 }]);
     expect(JSON.stringify(analyseCircuit(circuit))).toBe(JSON.stringify(analyseCircuit(circuit)));
   });
+
+  it('passes quality verification with all eight seven-segment branches lit', () => {
+    // Regression: every branch current rounds with a sub-microamp error, so the
+    // KCL check used to accumulate ~0.5 µA per lit segment and reject a fully
+    // wired display as nonconvergent even though the solve itself was exact.
+    const display = component('display', 'seven-segment', 0, {
+      componentTypeId: 'seven-segment-display',
+      pinIds: [
+        'top-1',
+        'top-2',
+        'top-3',
+        'top-4',
+        'top-5',
+        'bottom-1',
+        'bottom-2',
+        'bottom-3',
+        'bottom-4',
+        'bottom-5',
+      ],
+      internalConnections: [['top-3', 'bottom-3']],
+      stateProperties: { commonMode: 'common-cathode' },
+    });
+    const segmentPins: Readonly<Record<string, Terminal>> = {
+      a: 'top-4',
+      b: 'top-5',
+      c: 'bottom-4',
+      d: 'bottom-2',
+      e: 'bottom-1',
+      f: 'top-2',
+      g: 'top-1',
+      dp: 'bottom-5',
+    };
+    const components: SchematicComponent[] = [component('source', 'source', 3), display];
+    const connections: ElectronicsDocument['connections'] = [];
+    for (const [segment, pin] of Object.entries(segmentPins)) {
+      components.push(component(`r-${segment}`, 'resistor', 220));
+      connections.push(
+        connect(`p-${segment}`, 'source', 'a', `r-${segment}`, 'a'),
+        connect(`s-${segment}`, `r-${segment}`, 'b', 'display', pin),
+      );
+    }
+    connections.push(connect('common', 'display', 'bottom-3', 'source', 'b'));
+
+    const result = analyseCircuit(document(components, connections));
+    expect(result.status).toBe('solved');
+    expect(result.quality.passed).toBe(true);
+    const solved = result.components.find((entry) => entry.componentId === 'display');
+    for (const segment of Object.keys(segmentPins)) {
+      expect(solved?.branchCurrents?.[segment], segment).toBeGreaterThan(0);
+      expect(solved?.branchBrightness?.[segment], segment).toBeGreaterThan(0);
+    }
+    expect(solved?.lit).toBe(true);
+  });
 });

@@ -75,6 +75,8 @@ export interface Classroom {
   topicKeys: string[];
   safeModeDefault: boolean;
   studentCount: number;
+  /** Сдано и ещё не отвечено: сколько работ ждёт преподавателя. */
+  awaitingReview?: number;
   joinCodeVersion: number | null;
   joinCodeStatus: 'active' | 'revoked' | null;
   joinCode: string | null;
@@ -288,6 +290,10 @@ export interface ClassroomStudentWork {
 
 export interface ClassroomStudentDetail {
   student: ClassroomStudentSeat;
+  /** Сколько работ ученик сдал за всё время. */
+  submittedCount: number;
+  /** Из них ждут ответа преподавателя. */
+  awaitingReview: number;
   projects: ClassroomStudentWork[];
   activity: ClassroomActivityEntry[];
 }

@@ -74,7 +74,18 @@ export function SeatAssignments({
       ) : null}
       <ul data-testid="seat-assignments">
         {items.map((assignment) => (
-          <li key={assignment.id} className={openId === assignment.id ? 'is-open' : undefined}>
+          <li
+            key={assignment.id}
+            className={openId === assignment.id ? 'is-open' : undefined}
+            // Нажатие в любое место карточки раскрывает задание. Заголовок
+            // остаётся кнопкой ради клавиатуры и чтения с экрана, но искать
+            // глазами, куда именно нажать, больше не нужно.
+            onClick={(event) => {
+              const target = event.target as HTMLElement;
+              if (target.closest('button, a')) return;
+              setOpenId(openId === assignment.id ? null : assignment.id);
+            }}
+          >
             {/* On a "make this" task the picture is half the brief: a paragraph
                 about a castle is not the same as seeing one. */}
             {assignment.sampleImage ? (
@@ -100,8 +111,20 @@ export function SeatAssignments({
               </button>
               <span>
                 {assignment.dueAt ? `Сдать до ${time.date(assignment.dueAt)}` : 'Без срока'}
-                {assignment.submittedAt ? ` · сдано ${time.dateTime(assignment.submittedAt)}` : ''}
                 {assignment.status === 'closed' ? ' · задание закрыто' : ''}
+              </span>
+              {/* Состояние работы словом и цветом. «Сдал и ничего не изменилось»
+                  — первое, на что жалуется ребёнок, нажавший «Сдать». */}
+              <span
+                className={`seat-assignment-state${
+                  assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : ''
+                }`}
+              >
+                {assignment.submittedAt
+                  ? `Сдано ${time.dateTime(assignment.submittedAt)}`
+                  : assignment.projectId
+                    ? 'В работе'
+                    : 'Не начато'}
               </span>
               {openId === assignment.id ? (
                 <div className="seat-assignment-full">

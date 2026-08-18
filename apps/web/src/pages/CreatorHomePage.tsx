@@ -47,14 +47,35 @@ export function CreatorHomePage({
   const loadSequence = useRef(0);
   const activeWorkspaceId = session.activeWorkspace.workspaceId;
 
+  async function toggleShare(project: Project): Promise<void> {
+    setBusyProject(project.id);
+    const isShared = shared.has(project.id);
+    const result = isShared
+      ? await api.unpublishFromGallery(project.id)
+      : await api.publishToGallery(project.id);
+    setBusyProject(null);
+    if (!result.ok) {
+      setError(result.error.message || 'Не удалось поделиться работой.');
+      return;
+    }
+    setShared((current) => {
+      const next = new Set(current);
+      if (isShared) next.delete(project.id);
+      else next.add(project.id);
+      return next;
+    });
+  }
+
   const load = useCallback(async (): Promise<void> => {
     const sequence = ++loadSequence.current;
     setProjects(null);
     setError(null);
-    const [projectsResult, modulesResult] = await Promise.all([
+    const [projectsResult, modulesResult, sharedResult] = await Promise.all([
       api.listProjects({ scope: 'personal' }),
       api.listModules(),
+      api.myGalleryProjects(),
     ]);
+    if (sharedResult.ok) setShared(new Set(sharedResult.data.projectIds));
     if (sequence !== loadSequence.current) return;
     if (!projectsResult.ok || !modulesResult.ok) {
       setError(
@@ -79,6 +100,10 @@ export function CreatorHomePage({
   // a field and a confirmation, so it stays where a project is managed rather
   // than glanced at.
   const [busyProject, setBusyProject] = useState<string | null>(null);
+  // Which of these are on the gallery wall, so the menu says the truth here as
+  // well as on the projects page — sharing has to be reachable from wherever a
+  // person is looking at their work.
+  const [shared, setShared] = useState<ReadonlySet<string>>(new Set());
 
   async function runProjectAction(
     project: Project,
@@ -214,6 +239,13 @@ export function CreatorHomePage({
                         onNavigate: () => onOpenProject(project.id, project.moduleKey),
                       }}
                       menuItems={[
+                        {
+                          label: shared.has(project.id)
+                            ? 'Убрать из галереи'
+                            : 'Поделиться в галерее',
+                          disabled: busyProject === project.id,
+                          onSelect: () => void toggleShare(project),
+                        },
                         {
                           label: 'Дублировать',
                           disabled: busyProject === project.id,

@@ -1459,3 +1459,16 @@ button.classroom-code-chip:hover {
   color: var(--ink-muted);
   font-size: 13px;
 }
+
+/* Сколько работ ждёт проверки. Единственная цифра в строке класса, ради
+   которой преподаватель вообще открывает продукт с утра. */
+.classroom-row-review {
+  justify-self: start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fdeee2;
+  color: #8a3f06;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}

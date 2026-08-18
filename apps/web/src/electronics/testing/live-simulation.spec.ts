@@ -27,7 +27,10 @@ const circuit: SchematicDocument = {
 describe('live Electronics simulation', () => {
   it('calculates immediately from the in-memory document without waiting for persistence', () => {
     const result = calculateLiveSimulation(circuit, null, true);
-    expect(result).toMatchObject({ solved: true, status: 'solved', current: 0.005 });
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    // Solved currents keep sub-microamp precision for the KCL quality check,
+    // so the exact 0.005 A carries a negligible GMIN-scale tail.
+    expect(result?.current).toBeCloseTo(0.005, 9);
   });
 
   it('keeps the persisted result while simulation is stopped', () => {

@@ -61,6 +61,7 @@ interface ClassroomSummaryRow {
   join_code_version: number | string | null;
   join_code_status: 'active' | 'revoked' | null;
   student_count: number | string;
+  awaiting_review?: number | string;
   teacher_role: 'owner' | 'co_teacher';
   workspace_kind: 'personal' | 'organization';
   workspace_title: string;
@@ -175,6 +176,9 @@ function summaryView(row: ClassroomSummaryRow) {
     workspaceTitle: row.workspace_title,
     createdAt: iso(row.created_at),
     archivedAt: row.archived_at ? iso(row.archived_at) : null,
+    // Сдано и ещё не отвечено. Учитель видит это в списке классов, не заходя
+    // в каждое задание, чтобы выяснить, есть ли что проверять.
+    awaitingReview: row.awaiting_review === undefined ? 0 : Number(row.awaiting_review),
   });
 }
 
@@ -215,8 +219,16 @@ function assignmentView(row: AssignmentRow) {
   };
 }
 
+/**
+ * Имя для входа, которое ребёнок вводит с доски.
+ *
+ * Шесть цифр и ничего больше: слово «student-» перед ними ученик всё равно
+ * набирал с ошибками, а к разбору букв и дефисов на первом уроке добавлять
+ * нечего. Первая цифра не ноль — иначе его теряют при переносе в таблицы.
+ */
 function fallbackHandle(): string {
-  return `student-${randomBytes(3).toString('hex')}`;
+  const digits = randomBytes(4).readUInt32BE(0) % 900_000;
+  return String(100_000 + digits);
 }
 
 @Controller('api/classrooms')
@@ -450,7 +462,7 @@ export class ClassroomsController {
   ) {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
-    const [roster, projects, activity] = await Promise.all([
+    const [roster, projects, activity, counts] = await Promise.all([
       this.requirePool().query(
         `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
            FROM classroom_management_roster($1, $2)`,
@@ -468,13 +480,24 @@ export class ClassroomsController {
            FROM classroom_activity_feed($1, $2, $3, 100)`,
         [context.principalId, classroomId, seatId],
       ),
+      // Сколько сдал и сколько из этого ждёт ответа. Первый вопрос, с которым
+      // преподаватель открывает страницу ученика.
+      this.requirePool().query(
+        `SELECT submitted, awaiting_review FROM classroom_seat_work_counts($1)`,
+        [seatId],
+      ),
     ]);
     const seat = (roster.rows as StudentSeatRow[]).find((row) => row.id === seatId);
     if (!seat) {
       throw new HttpException(error('not_found', 'Ученик не найден в этом классе.'), 404);
     }
+    const workCounts = counts.rows[0] as
+      | { submitted: number | string; awaiting_review: number | string }
+      | undefined;
     return {
       student: seatView(seat),
+      submittedCount: Number(workCounts?.submitted ?? 0),
+      awaitingReview: Number(workCounts?.awaiting_review ?? 0),
       projects: (projects.rows as SeatProjectRow[]).map((row) => ({
         id: row.id,
         moduleKey: row.module_key,

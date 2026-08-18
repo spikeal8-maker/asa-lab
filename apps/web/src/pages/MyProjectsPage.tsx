@@ -476,14 +476,17 @@ export function MyProjectsPage({
                               },
                             ]
                           : []),
-                        { label: 'Переименовать', onSelect: () => beginRename(project) },
                         {
+                          // Первым пунктом: это единственное действие на
+                          // карточке, которое показывает работу кому-то ещё,
+                          // и искать его в конце списка никто не станет.
                           label: shared.has(project.id)
                             ? 'Убрать из галереи'
                             : 'Поделиться в галерее',
                           disabled: busy,
                           onSelect: () => void toggleShare(project),
                         },
+                        { label: 'Переименовать', onSelect: () => beginRename(project) },
                         {
                           label: 'Дублировать',
                           disabled: busy,

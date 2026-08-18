@@ -339,10 +339,28 @@ function isSimulated(component: SchematicComponent): boolean {
   return !['breadboard', 'visual', 'wire'].includes(component.kind);
 }
 
-function round(value: number, digits = 6): number {
+/**
+ * Presentation rounding for solved values. The default must stay far below the
+ * verification tolerances in `simulation.ts` (1 µA KCL, 1 nV source voltage):
+ * the quality check reads these rounded numbers, so rounding at 6 digits
+ * leaked up to 0.5 µA per branch and rejected an eight-branch seven-segment
+ * display as nonconvergent although the solve itself was exact.
+ */
+function round(value: number, digits = 12): number {
   const factor = 10 ** digits;
   const result = Math.round(value * factor) / factor;
   return Object.is(result, -0) ? 0 : result;
+}
+
+/**
+ * An open switch or a reverse-biased junction conducts nothing. The linear
+ * solve still returns GMIN-scale residue (~pA) there; reporting it as a
+ * measured current would be inventing a value, so anything below the
+ * deadband — a thousand times tighter than the 1 µA KCL tolerance — is zero.
+ */
+const CURRENT_DEADBAND_AMP = 1e-9;
+function roundCurrent(value: number): number {
+  return Math.abs(value) < CURRENT_DEADBAND_AMP ? 0 : round(value);
 }
 
 function solveLinear(matrix: number[][], rhs: number[]): number[] | null {
@@ -976,14 +994,14 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       );
       const branchCurrents = transistorResult
         ? {
-            base: round(transistorResult.baseCurrent),
-            collector: round(transistorResult.collectorCurrent),
-            emitter: round(transistorResult.emitterCurrent),
+            base: roundCurrent(transistorResult.baseCurrent),
+            collector: roundCurrent(transistorResult.collectorCurrent),
+            emitter: roundCurrent(transistorResult.emitterCurrent),
           }
         : Object.fromEntries(
             branchResults.map(({ branch, current: branchCurrent }) => [
               branch.id,
-              round(branchCurrent),
+              roundCurrent(branchCurrent),
             ]),
           );
       const branchBrightness = Object.fromEntries(
@@ -1024,7 +1042,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       return {
         componentId: component.id,
         voltageDrop: round(voltageDrop),
-        current: round(current),
+        current: roundCurrent(current),
         terminalVoltages,
         power: round(power),
         brightness: round(brightness, 2),
@@ -1054,9 +1072,9 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         ...(transistorResult
           ? {
               operatingRegion: transistorResult.operatingRegion,
-              baseCurrent: round(transistorResult.baseCurrent),
-              collectorCurrent: round(transistorResult.collectorCurrent),
-              emitterCurrent: round(transistorResult.emitterCurrent),
+              baseCurrent: roundCurrent(transistorResult.baseCurrent),
+              collectorCurrent: roundCurrent(transistorResult.collectorCurrent),
+              emitterCurrent: roundCurrent(transistorResult.emitterCurrent),
               currentGain: round(transistorResult.currentGain, 2),
             }
           : {}),
@@ -1243,7 +1261,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   return {
     solved: true,
     status: 'solved',
-    current: round(totalSourceCurrent),
+    current: roundCurrent(totalSourceCurrent),
     components,
     nodes,
     diagnostics: diagnostics.map(withDiagnosticAnchors),

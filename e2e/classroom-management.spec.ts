@@ -414,7 +414,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
   await studentPage.getByRole('button', { name: /^Классы/ }).click();
   await assignmentCard.getByRole('button', { name: 'Сдать' }).click();
-  await expect(assignmentCard).toContainText('сдано');
+  // Состояние работы теперь сказано отдельной пометкой, а не хвостом в строке
+  // со сроком: ребёнок, нажавший «Сдать», должен увидеть, что это случилось.
+  await expect(assignmentCard).toContainText(/Сдано \d/);
   await expect(assignmentCard.getByRole('button', { name: 'Вернуть в работу' })).toBeVisible();
 
   await page.reload();

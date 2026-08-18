@@ -242,15 +242,17 @@ export function ClassroomStudentPage({
     );
   }
 
-  const { student, projects, activity } = state.detail;
+  const { student, projects, activity, submittedCount, awaitingReview } = state.detail;
   const projectEntries: ClassroomActivityEntry[] = activity.filter(
     (entry) => entry.projectId !== null,
   );
 
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
-      <button type="button" className="portal-back" onClick={onBack}>
-        ← {classroomTitle}
+      {/* Возврат в класс — обычная заметная кнопка. Тонкая ссылка размером с
+          строку читалась как подпись, и преподаватели её не находили. */}
+      <button type="button" className="classroom-student-back" onClick={onBack}>
+        <span aria-hidden="true">←</span> {classroomTitle}
       </button>
 
       {/* The same face as in the register, at the size a page deserves: a
@@ -271,6 +273,22 @@ export function ClassroomStudentPage({
             Вход: <code>{student.loginHandle}</code> · последний раз{' '}
             {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не заходил'}
           </p>
+
+          {/* Три числа, ради которых преподаватель сюда и пришёл. */}
+          <ul className="classroom-student-stats">
+            <li>
+              <strong>{projects.length}</strong>
+              <span>работ</span>
+            </li>
+            <li>
+              <strong>{submittedCount}</strong>
+              <span>сдано</span>
+            </li>
+            <li className={awaitingReview > 0 ? 'is-waiting' : undefined}>
+              <strong>{awaitingReview}</strong>
+              <span>ждут ответа</span>
+            </li>
+          </ul>
           <div className="classroom-student-badges">
             <SeatAwardRow keys={awardKeys} />
             {student.safeMode ? (

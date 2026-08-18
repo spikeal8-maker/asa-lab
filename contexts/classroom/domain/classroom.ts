@@ -6,6 +6,8 @@ export interface Classroom {
   readonly topicKeys: readonly string[];
   readonly safeModeDefault: boolean;
   readonly studentCount: number;
+  /** Сдано и ещё не отвечено — счётчик проверки. */
+  readonly awaitingReview?: number;
   readonly joinCodeVersion: number | null;
   readonly joinCodeStatus: 'active' | 'revoked' | null;
   readonly teacherRole: 'owner' | 'co_teacher';

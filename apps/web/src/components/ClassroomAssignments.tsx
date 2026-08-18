@@ -212,7 +212,10 @@ export function ClassroomAssignments({
             />
           ) : null}
           <AssignmentGoal goal={open.goal} />
-          {open.brief ? <BriefText text={open.brief} className="assignment-brief" /> : null}
+          {/* Своё имя класса, а не «assignment-brief»: так называется полоса,
+              которая висит над редактором и прибита к верху экрана, и описание
+              задания уезжало вместе с ней поверх шапки страницы. */}
+          {open.brief ? <BriefText text={open.brief} className="assignment-detail-brief" /> : null}
         </div>
 
         {progress === null ? (

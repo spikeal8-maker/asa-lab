@@ -19,10 +19,12 @@
 }
 
 .project-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
+  /* Not clipped: the actions menu lives over the picture and has to be able to
+     open past the card's edge. The picture is clipped by its own frame. */
   border: 1px solid #dfe5ea;
   border-radius: 8px;
   background: #fff;
@@ -44,7 +46,6 @@
   /* A fixed shape means a row of cards lines up whatever each project looks
    * like, and the grid does not reflow as pictures load. */
   aspect-ratio: 4 / 3;
-  overflow: hidden;
   border-bottom: 1px solid #e8edf1;
   background: #fff;
 }
@@ -52,10 +53,16 @@
 /* The picture goes edge to edge. A photograph carries its own ground and a
  * figure paints one, so any inset here would read as a frame around the work
  * rather than as breathing room. */
+/* The picture is clipped here rather than on the frame around it. The actions
+   menu also lives in that frame, and with six entries it is taller than the
+   picture — clipping the frame cut its top rows off inside the image, which is
+   exactly what a person sees as "the top of the menu has gone somewhere". */
 .project-card-surface {
   display: block;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  border-radius: 7px 7px 0 0;
   color: var(--module-accent, #0877b3);
   text-decoration: none;
 }
