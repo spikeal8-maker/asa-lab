@@ -175,3 +175,123 @@
     gap: 8px;
   }
 }
+
+/* Writing a task needs room: a picture, a goal, a description with structure.
+   The base dialog is 440px, which is right for "are you sure" and wrong for
+   this — !important because that width is set on the same element. */
+.modal-wide {
+  max-width: min(760px, calc(100vw - 2rem)) !important;
+}
+
+.field-label {
+  display: block;
+  margin: 14px 0 6px;
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.library-image-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.library-image-preview {
+  width: 120px;
+  height: 120px;
+  border: 1px solid #cfdde5;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.library-no-sample-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 10px;
+}
+
+.library-image-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* A file input that looks like the buttons next to it. */
+.library-file-button {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.library-file-button input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brief-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.brief-editor-head label {
+  margin: 0;
+}
+
+.brief-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.brief-toolbar button {
+  padding: 5px 10px;
+  border: 1px solid #cfdde5;
+  border-radius: 7px;
+  background: #fff;
+  color: #16232c;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.brief-toolbar button:hover:not(:disabled) {
+  border-color: #0b82ba;
+  background: #eef7fc;
+}
+
+.brief-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.brief-toolbar button.is-active {
+  border-color: #0b82ba;
+  background: #0b82ba;
+  color: #fff;
+}
+
+.brief-preview {
+  min-height: 220px;
+  margin-top: 6px;
+  padding: 14px 16px;
+  border: 1px dashed #b6cbd7;
+  border-radius: 10px;
+  background: #fbfdfe;
+}
+
+.library-goal-line {
+  color: #08627f;
+  font-size: 13px;
+  font-weight: 600;
+}

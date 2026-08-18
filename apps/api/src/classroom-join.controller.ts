@@ -48,6 +48,7 @@ interface AssignmentForSeatRow {
   id: string;
   title: string;
   brief: string | null;
+  goal: string | null;
   module_key: string;
   due_at: Date | string | null;
   status: 'open' | 'closed';
@@ -304,7 +305,7 @@ export class ClassroomJoinController {
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, module_key, due_at, status, sample_image, project_id, submitted_at
+      `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id, submitted_at
          FROM classroom_assignments_for_seat($1)`,
       [seat.seat_id],
     );
@@ -313,6 +314,7 @@ export class ClassroomJoinController {
         id: row.id,
         title: row.title,
         brief: row.brief,
+        goal: row.goal,
         moduleKey: row.module_key,
         dueAt: row.due_at ? isoDate(row.due_at) : null,
         status: row.status,

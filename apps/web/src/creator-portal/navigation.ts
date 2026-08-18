@@ -73,7 +73,6 @@ export function portalNavigation(
   // behind the educator capability is managing a class, not seeing where they
   // live. A learner has one too — it is where the work set for them lives, and
   // hiding it put their homework on the same page as their own models.
-  void canTeach;
   const classes = options.classes ?? true;
   return [
     { section: 'home', label: 'Главная' },
@@ -81,7 +80,10 @@ export function portalNavigation(
     { section: 'projects', label: 'Проекты' },
     { section: 'collections', label: 'Коллекции' },
     { section: 'learning', label: 'Учебные пособия' },
-    { section: 'challenges', label: 'Задачи' },
+    // For a teacher this destination is their own bank of tasks, and the page it
+    // opens is headed «Задания». Calling it «Задачи» in the sidebar sent a
+    // teacher looking for the bank somewhere else entirely.
+    { section: 'challenges', label: canTeach ? 'Задания' : 'Задачи' },
     { section: 'help', label: 'Справочный центр' },
   ];
 }

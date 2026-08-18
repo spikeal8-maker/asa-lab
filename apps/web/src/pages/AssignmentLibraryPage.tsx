@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AssignmentClassroom, type LibraryAssignment, type ModuleSummary } from '../api';
+import { AssignmentGoal, BriefText } from '../components/BriefText';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
 import './assignment-library.css';
@@ -16,6 +17,14 @@ import './assignment-library.css';
  * a tick per class and a date — not a trip into each class in turn.
  */
 
+const BRIEF_PLACEHOLDER = [
+  '## Что делаем',
+  '1. Первый шаг',
+  '2. Второй шаг',
+  '',
+  '**Проверь себя:** деталь получилась одна.',
+].join('\n');
+
 function EditorDialog({
   assignment,
   modules,
@@ -28,14 +37,74 @@ function EditorDialog({
   readonly onSave: (input: {
     title: string;
     brief: string | null;
+    goal: string | null;
     moduleKey: string;
+    imageDataUrl: string | null | undefined;
   }) => Promise<string | null>;
 }): JSX.Element {
   const [title, setTitle] = useState(assignment?.title ?? '');
   const [brief, setBrief] = useState(assignment?.brief ?? '');
+  const [goal, setGoal] = useState(assignment?.goal ?? '');
   const [moduleKey, setModuleKey] = useState(assignment?.moduleKey ?? modules[0]?.moduleKey ?? '');
+  // undefined = leave the picture alone, null = remove it, string = a new one.
+  const [image, setImage] = useState<string | null | undefined>(undefined);
+  const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const briefRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const shownImage = image === undefined ? (assignment?.sampleImage ?? null) : image;
+
+  /**
+   * Formatting without a formatting engine.
+   *
+   * The buttons put the markup in for a teacher who does not want to learn what
+   * two asterisks mean, and the text stays text — which is what makes it safe to
+   * show on a child's screen and easy to correct a year later.
+   */
+  function wrap(before: string, after: string, placeholder: string): void {
+    const field = briefRef.current;
+    if (!field) return;
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    const selected = brief.slice(start, end) || placeholder;
+    setBrief(`${brief.slice(0, start)}${before}${selected}${after}${brief.slice(end)}`);
+    window.requestAnimationFrame(() => {
+      field.focus();
+      field.setSelectionRange(start + before.length, start + before.length + selected.length);
+    });
+  }
+
+  function prefixLine(prefix: string): void {
+    const field = briefRef.current;
+    if (!field) return;
+    const caret = field.selectionStart;
+    const lineStart = brief.lastIndexOf('\n', Math.max(0, caret - 1)) + 1;
+    setBrief(`${brief.slice(0, lineStart)}${prefix}${brief.slice(lineStart)}`);
+    window.requestAnimationFrame(() => {
+      field.focus();
+      field.setSelectionRange(caret + prefix.length, caret + prefix.length);
+    });
+  }
+
+  async function pickImage(file: File): Promise<void> {
+    if (file.size > 400_000) {
+      setError('Картинка должна быть до 400 КБ.');
+      return;
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setError('Подойдёт PNG, JPEG или WebP.');
+      return;
+    }
+    const reader = new FileReader();
+    const data = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('read failed'));
+      reader.readAsDataURL(file);
+    });
+    setError(null);
+    setImage(data);
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -47,7 +116,9 @@ function EditorDialog({
     const message = await onSave({
       title: title.trim(),
       brief: brief.trim() || null,
+      goal: goal.trim() || null,
       moduleKey,
+      imageDataUrl: image,
     });
     setBusy(false);
     if (message) setError(message);
@@ -55,12 +126,17 @@ function EditorDialog({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="library-edit-heading">
+      <div
+        className="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="library-edit-heading"
+      >
         <h2 id="library-edit-heading">{assignment ? 'Задание' : 'Новое задание'}</h2>
         <p>
           {assignment
             ? 'Изменения увидят все классы, которым это задание выдано.'
-            : 'Задание останется у вас и его можно выдать любым классам.'}
+            : 'Задание останется у вас, и его можно выдать любым классам.'}
         </p>
         <form onSubmit={(event) => void submit(event)}>
           <label htmlFor="library-title">Название</label>
@@ -73,6 +149,7 @@ function EditorDialog({
             placeholder="Брелок с именем"
             onChange={(event) => setTitle(event.target.value)}
           />
+
           <label htmlFor="library-module">Среда</label>
           <select
             id="library-module"
@@ -86,15 +163,115 @@ function EditorDialog({
               </option>
             ))}
           </select>
-          <label htmlFor="library-brief">Что нужно сделать</label>
-          <textarea
-            id="library-brief"
-            rows={8}
-            maxLength={4000}
-            value={brief}
+
+          <label htmlFor="library-goal">Цель — одной строкой</label>
+          <input
+            id="library-goal"
+            maxLength={160}
+            value={goal}
             disabled={busy}
-            onChange={(event) => setBrief(event.target.value)}
+            placeholder="Научиться соединять две фигуры в одну деталь"
+            onChange={(event) => setGoal(event.target.value)}
           />
+          <p className="account-hint">Ученик увидит её первой, выделенной.</p>
+
+          {/* A "make this" task with no picture is a paragraph about a castle. */}
+          <span className="field-label">Картинка-образец</span>
+          <div className="library-image-row">
+            {shownImage ? (
+              <img src={shownImage} alt="Образец задания" className="library-image-preview" />
+            ) : (
+              <span className="library-no-sample library-no-sample-large" aria-hidden="true" />
+            )}
+            <div className="library-image-actions">
+              <label className="btn-secondary library-file-button">
+                {shownImage ? 'Заменить' : 'Загрузить'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void pickImage(file);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+              {shownImage ? (
+                <button
+                  type="button"
+                  className="assignment-remove"
+                  disabled={busy}
+                  onClick={() => setImage(null)}
+                >
+                  Убрать
+                </button>
+              ) : null}
+              <span className="account-hint">PNG, JPEG или WebP, до 400 КБ.</span>
+            </div>
+          </div>
+
+          <div className="brief-editor-head">
+            <label htmlFor="library-brief">Что нужно сделать</label>
+            <div className="brief-toolbar" role="group" aria-label="Форматирование">
+              <button
+                type="button"
+                title="Полужирный"
+                disabled={busy || preview}
+                onClick={() => wrap('**', '**', 'важное')}
+              >
+                <strong>Ж</strong>
+              </button>
+              <button
+                type="button"
+                disabled={busy || preview}
+                onClick={() => prefixLine('## ')}
+              >
+                Заголовок
+              </button>
+              <button
+                type="button"
+                disabled={busy || preview}
+                onClick={() => prefixLine('- ')}
+              >
+                • Список
+              </button>
+              <button
+                type="button"
+                disabled={busy || preview}
+                onClick={() => prefixLine('1. ')}
+              >
+                1. Шаги
+              </button>
+              <button
+                type="button"
+                className={preview ? 'is-active' : undefined}
+                aria-pressed={preview}
+                disabled={busy}
+                onClick={() => setPreview(!preview)}
+              >
+                {preview ? 'Правка' : 'Посмотреть'}
+              </button>
+            </div>
+          </div>
+          {preview ? (
+            <div className="brief-preview" data-testid="brief-preview">
+              <AssignmentGoal goal={goal.trim() || null} />
+              <BriefText text={brief} />
+            </div>
+          ) : (
+            <textarea
+              id="library-brief"
+              ref={briefRef}
+              rows={12}
+              maxLength={4000}
+              value={brief}
+              disabled={busy}
+              placeholder={BRIEF_PLACEHOLDER}
+              onChange={(event) => setBrief(event.target.value)}
+            />
+          )}
+
           {error ? (
             <p className="form-error" role="alert">
               {error}
@@ -292,6 +469,9 @@ export function AssignmentLibraryPage(): JSX.Element {
                 <span>
                   {moduleName(assignment.moduleKey)} · создано {time.date(assignment.createdAt)}
                 </span>
+                {assignment.goal ? (
+                  <span className="library-goal-line">Цель: {assignment.goal}</span>
+                ) : null}
                 <span className="library-counts">
                   {assignment.handoutCount === 0
                     ? 'Не выдано ни одному классу'
@@ -344,11 +524,18 @@ export function AssignmentLibraryPage(): JSX.Element {
           modules={modules}
           onClose={() => setEditing(null)}
           onSave={async (input) => {
+            const { imageDataUrl, ...fields } = input;
             const result = await api.saveLibraryAssignment(
               editing === 'new' ? null : editing.id,
-              input,
+              fields,
             );
             if (!result.ok) return result.error.message || 'Не удалось сохранить задание.';
+            // The picture goes in its own request: it is bytes, and the wording of
+            // a task should not fail to save because an image was too big.
+            if (imageDataUrl !== undefined) {
+              const attached = await api.setAssignmentSample(result.data.id, imageDataUrl);
+              if (!attached.ok) return attached.error.message || 'Не удалось сохранить картинку.';
+            }
             setEditing(null);
             setNotice(`Задание «${input.title}» сохранено.`);
             await reload();

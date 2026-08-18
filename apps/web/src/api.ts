@@ -100,6 +100,8 @@ export interface LibraryAssignment {
   id: string;
   title: string;
   brief: string | null;
+  /** The one sentence the task turns on, shown set apart from the rest. */
+  goal: string | null;
   moduleKey: string;
   sampleImage: string | null;
   isDemo: boolean;
@@ -124,6 +126,7 @@ export interface ClassroomAssignment {
   assignmentId: string;
   title: string;
   brief: string | null;
+  goal: string | null;
   moduleKey: string;
   dueAt: string | null;
   status: 'open' | 'closed';
@@ -155,6 +158,7 @@ export interface SeatAssignment {
   id: string;
   title: string;
   brief: string | null;
+  goal: string | null;
   moduleKey: string;
   dueAt: string | null;
   status: 'open' | 'closed';
@@ -688,12 +692,18 @@ export const api = {
   listAssignmentLibrary: () => call<{ items: LibraryAssignment[] }>('/api/assignments'),
   saveLibraryAssignment: (
     assignmentId: string | null,
-    input: { title: string; brief: string | null; moduleKey: string },
+    input: { title: string; brief: string | null; goal: string | null; moduleKey: string },
   ) =>
     call<{ id: string }>(
       assignmentId ? `/api/assignments/${encodeURIComponent(assignmentId)}` : '/api/assignments',
       { method: assignmentId ? 'PATCH' : 'POST', body: JSON.stringify(input) },
     ),
+  /** Attach a reference picture to a task, or clear it by passing null. */
+  setAssignmentSample: (assignmentId: string, imageDataUrl: string | null) =>
+    call<{ ok: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}/sample`, {
+      method: 'PUT',
+      body: JSON.stringify({ imageDataUrl }),
+    }),
   deleteLibraryAssignment: (assignmentId: string) =>
     call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
       method: 'DELETE',

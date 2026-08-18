@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
+import { AssignmentGoal, BriefText } from './BriefText';
 import { newClientId } from '../client-id';
 import { useSchoolTime } from './school-time';
 import './classroom-assignments.css';
@@ -23,6 +24,8 @@ export function SeatAssignments({
 }): JSX.Element | null {
   const [items, setItems] = useState<SeatAssignment[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Which task is being read. One at a time: a learner is doing one thing.
+  const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
 
@@ -71,7 +74,7 @@ export function SeatAssignments({
       ) : null}
       <ul data-testid="seat-assignments">
         {items.map((assignment) => (
-          <li key={assignment.id}>
+          <li key={assignment.id} className={openId === assignment.id ? 'is-open' : undefined}>
             {/* On a "make this" task the picture is half the brief: a paragraph
                 about a castle is not the same as seeing one. */}
             {assignment.sampleImage ? (
@@ -85,20 +88,26 @@ export function SeatAssignments({
               />
             ) : null}
             <div className="seat-assignment-body">
-              <strong>{assignment.title}</strong>
+              {/* The whole card opens it. A task is the thing on this page, so
+                  reading it should not mean finding a small triangle. */}
+              <button
+                type="button"
+                className="seat-assignment-open"
+                aria-expanded={openId === assignment.id}
+                onClick={() => setOpenId(openId === assignment.id ? null : assignment.id)}
+              >
+                {assignment.title}
+              </button>
               <span>
                 {assignment.dueAt ? `Сдать до ${time.date(assignment.dueAt)}` : 'Без срока'}
                 {assignment.submittedAt ? ` · сдано ${time.dateTime(assignment.submittedAt)}` : ''}
                 {assignment.status === 'closed' ? ' · задание закрыто' : ''}
               </span>
-              {/* A class carries ten of these. Printing every brief in full
-                  turns the learner's home page into a wall of text, so the
-                  requirements open when the one being worked on is opened. */}
-              {assignment.brief ? (
-                <details className="seat-assignment-brief">
-                  <summary>Что нужно сделать</summary>
-                  <p>{assignment.brief}</p>
-                </details>
+              {openId === assignment.id ? (
+                <div className="seat-assignment-full">
+                  <AssignmentGoal goal={assignment.goal} />
+                  {assignment.brief ? <BriefText text={assignment.brief} /> : null}
+                </div>
               ) : null}
             </div>
             <div className="seat-assignment-actions">

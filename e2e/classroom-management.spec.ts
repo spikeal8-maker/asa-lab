@@ -365,11 +365,35 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
   await studentPage.getByRole('button', { name: /^Классы/ }).click();
 
-  await assignmentCard.getByRole('group').getByText('Что нужно сделать').click();
+  /**
+   * The task opens by being pressed, not by finding a triangle in the corner —
+   * and what opens is the goal first, then the description.
+   */
+  await assignmentCard.getByRole('button', { name: 'Брелок с именем' }).click();
   await expect(assignmentCard).toContainText('Скруглите углы и подпишите имя.');
+  await expect(demoCard.getByRole('button', { name: 'Домик' })).toBeVisible();
+  await demoCard.getByRole('button', { name: 'Домик' }).click();
+  await expect(demoCard.locator('.assignment-goal')).toContainText('Собрать модель из простых фигур');
   await studentPage.screenshot({ path: `${evidenceDir}/student-assignment.png`, fullPage: true });
   await assignmentCard.getByRole('button', { name: 'Начать' }).click();
   await expect(studentPage.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
+
+  /**
+   * The brief travels with the work.
+   *
+   * A learner opened their assignment, landed in the editor, and the task was
+   * gone — they had to go back to read what to build and then remember it. So
+   * the strip sits over the editor, opens to the whole task and the reference
+   * picture, and folds back to a line when the model needs the screen.
+   */
+  const brief = studentPage.getByTestId('assignment-brief');
+  await expect(brief).toContainText('Задание: Брелок с именем');
+  await expect(brief).toContainText('Скруглите углы и подпишите имя.');
+  await studentPage.screenshot({ path: `${evidenceDir}/editor-brief.png`, fullPage: true });
+  await brief.getByRole('button', { name: /Задание:/ }).click();
+  await expect(brief).not.toContainText('Скруглите углы и подпишите имя.');
+  await brief.getByRole('button', { name: /Задание:/ }).click();
+  await expect(brief).toContainText('Скруглите углы и подпишите имя.');
 
   // And hands it in.
   await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();

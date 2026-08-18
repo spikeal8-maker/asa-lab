@@ -324,6 +324,7 @@ export function App(): JSX.Element {
           onBack={() => setView(view.returnTo)}
           onModuleResolved={handleModuleResolved}
           returnTo={view.returnTo}
+          seatLearner={isSeatLearner}
           user={portalSession.user}
         />
       </SchoolTimeProvider>
@@ -469,7 +470,11 @@ export function App(): JSX.Element {
             }
           />
         ) : null}
+        {/* An invitation to start teaching belongs to a grown-up who might. A
+            child signed in on a class seat is shown their work here, and asking
+            them to "выберите роль «Педагог»" under it is noise at best. */}
         {!hasTeachingCapability &&
+        !isSeatLearner &&
         (view.kind === 'classrooms' ||
           view.kind === 'classroom' ||
           view.kind === 'classroom-projects') ? (

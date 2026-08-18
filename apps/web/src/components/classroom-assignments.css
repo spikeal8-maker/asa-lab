@@ -207,6 +207,10 @@
 .seat-assignment-body {
   display: grid;
   gap: 4px;
+  /* Take the room between the picture and the buttons, so the title starts at
+     the picture rather than floating in the middle of the card. */
+  flex: 1 1 auto;
+  justify-items: start;
   min-width: 0;
 }
 
@@ -334,4 +338,41 @@
     width: 72px;
     height: 72px;
   }
+}
+
+/* The task opens by being pressed, not by finding a triangle. */
+.seat-assignment-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #223d4c;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seat-assignment-open:hover {
+  color: #0a6f9c;
+  text-decoration: underline;
+}
+
+.seat-assignments li.is-open {
+  border-color: #0b82ba;
+  background: #eef7fc;
+}
+
+.seat-assignments li.is-open .seat-assignment-sample {
+  width: 168px;
+  height: 168px;
+}
+
+
+/* The opened task: the goal first, then the description as written. */
+.seat-assignment-full {
+  width: 100%;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #d7e6ee;
 }

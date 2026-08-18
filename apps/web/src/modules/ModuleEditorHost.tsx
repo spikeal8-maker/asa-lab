@@ -6,6 +6,7 @@ import { loadCheckersEditor } from '../checkers/load-checkers-editor';
 import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-portal/navigation';
 import { loadSchematicEditor } from '../electronics/load-schematic-editor';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
+import { AssignmentBrief } from '../components/AssignmentBrief';
 
 interface ModuleEditorProps {
   projectId: string;
@@ -14,6 +15,8 @@ interface ModuleEditorProps {
 }
 
 interface ModuleEditorHostProps extends ModuleEditorProps {
+  /** Work is only ever set for a class seat, so nobody else asks for it. */
+  readonly seatLearner?: boolean;
   onModuleResolved?: (projectId: string, moduleKey: string) => void;
   returnTo: CreatorPortalReturnView;
 }
@@ -123,6 +126,9 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
 
   return (
     <EditorErrorBoundary onBack={props.onBack}>
+      {/* What to make, while you are making it. Renders nothing for anyone
+          whose project is not work a teacher set. */}
+      {props.seatLearner ? <AssignmentBrief projectId={props.projectId} /> : null}
       <Suspense
         fallback={
           <main className="page-center" role="status" aria-live="polite">

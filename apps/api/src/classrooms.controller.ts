@@ -116,6 +116,7 @@ interface AssignmentRow {
   assignment_id?: string;
   title: string;
   brief: string | null;
+  goal: string | null;
   module_key: string;
   due_at: Date | string | null;
   status: 'open' | 'closed';
@@ -199,6 +200,7 @@ function assignmentView(row: AssignmentRow) {
     assignmentId: row.assignment_id ?? row.id,
     title: row.title,
     brief: row.brief,
+    goal: row.goal ?? null,
     moduleKey: row.module_key,
     dueAt: row.due_at ? iso(row.due_at) : null,
     status: row.status,
@@ -837,7 +839,7 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT id, assignment_id, title, brief, module_key, due_at, status, created_at,
+      `SELECT id, assignment_id, title, brief, goal, module_key, due_at, status, created_at,
               demo_key, sample_image, seat_count, started_count, submitted_count
          FROM classroom_assignment_list($1, $2)`,
       [context.accountId, classroomId],

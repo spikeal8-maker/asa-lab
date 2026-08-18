@@ -5,6 +5,7 @@ import {
   type ClassroomAssignmentProgress,
   type ModuleSummary,
 } from '../api';
+import { AssignmentGoal, BriefText } from './BriefText';
 import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { WorkPreview } from './WorkPreview';
@@ -210,7 +211,8 @@ export function ClassroomAssignments({
               height={220}
             />
           ) : null}
-          {open.brief ? <p className="assignment-brief">{open.brief}</p> : null}
+          <AssignmentGoal goal={open.goal} />
+          {open.brief ? <BriefText text={open.brief} className="assignment-brief" /> : null}
         </div>
 
         {progress === null ? (

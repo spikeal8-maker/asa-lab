@@ -1,0 +1,63 @@
+/* A task description reads like a page, not like a paragraph of grey. */
+.brief-text {
+  color: #16232c;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.brief-text > :first-child {
+  margin-top: 0;
+}
+
+.brief-text > :last-child {
+  margin-bottom: 0;
+}
+
+.brief-text p {
+  margin: 0 0 10px;
+}
+
+.brief-text h4 {
+  margin: 16px 0 6px;
+  color: #10222c;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.brief-text ul,
+.brief-text ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.brief-text li {
+  margin: 0 0 4px;
+}
+
+.brief-text strong {
+  color: #0d1c24;
+  font-weight: 700;
+}
+
+/* What the work is for. One line, and the one line that is hard to miss. */
+.assignment-goal {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-left: 4px solid #0b82ba;
+  border-radius: 0 8px 8px 0;
+  background: #e7f4fb;
+  color: #10222c;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.assignment-goal-label {
+  flex: none;
+  color: #08627f;
+  font-size: 13px;
+  font-weight: 800;
+}

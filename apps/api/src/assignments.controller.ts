@@ -10,8 +10,9 @@ import {
   Post,
   Put,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { isValidClassroomTitle } from '@asa-lab/classroom';
@@ -40,6 +41,7 @@ interface LibraryRow {
   id: string;
   title: string;
   brief: string | null;
+  goal: string | null;
   module_key: string;
   sample_image: string | null;
   demo_key: string | null;
@@ -85,7 +87,7 @@ export class AssignmentsController {
   async list(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, module_key, sample_image, demo_key, created_at,
+      `SELECT id, title, brief, goal, module_key, sample_image, demo_key, created_at,
               handout_count, started_count, submitted_count
          FROM teacher_assignment_list($1)`,
       [context.principalId],
@@ -95,6 +97,7 @@ export class AssignmentsController {
         id: row.id,
         title: row.title,
         brief: row.brief,
+        goal: row.goal,
         moduleKey: row.module_key,
         sampleImage: row.sample_image,
         isDemo: Boolean(row.demo_key),
@@ -127,10 +130,11 @@ export class AssignmentsController {
     rawBody: unknown,
   ): Promise<string> {
     const context = await this.requireEducator(request);
-    const shape = checkBodyShape(rawBody, ['title', 'brief', 'moduleKey']);
+    const shape = checkBodyShape(rawBody, ['title', 'brief', 'goal', 'moduleKey']);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const title = shape.body['title'];
     const brief = shape.body['brief'] ?? null;
+    const goal = shape.body['goal'] ?? null;
     const moduleKey = shape.body['moduleKey'];
     if (!isValidClassroomTitle(title)) {
       throw new HttpException(error('validation_error', 'Введите название задания.'), 400);
@@ -141,9 +145,13 @@ export class AssignmentsController {
     if (brief !== null && (typeof brief !== 'string' || brief.length > 4000)) {
       throw new HttpException(error('validation_error', 'Описание слишком длинное.'), 400);
     }
+    // A goal is one sentence. The limit is what keeps it one sentence.
+    if (goal !== null && (typeof goal !== 'string' || goal.length > 160)) {
+      throw new HttpException(error('validation_error', 'Цель — не длиннее 160 символов.'), 400);
+    }
     const result = await this.requirePool().query(
-      `SELECT teacher_assignment_save($1, $2, $3, $4, $5) AS id`,
-      [context.principalId, assignmentId, title.trim(), brief, moduleKey],
+      `SELECT teacher_assignment_save($1, $2, $3, $4, $5, $6) AS id`,
+      [context.principalId, assignmentId, title.trim(), brief, moduleKey, goal],
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
     if (!id) throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
@@ -162,6 +170,80 @@ export class AssignmentsController {
       throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
     }
     return { removed: true as const };
+  }
+
+  /**
+   * The reference picture for a task the teacher wrote.
+   *
+   * Stored rather than linked: a URL to somewhere else rots, and a school that
+   * loses its file server should not lose its course. Sent as a data URL, the
+   * same shape the avatar upload already uses, and checked here for type and
+   * size before it reaches the database.
+   */
+  @Put(':assignmentId/sample')
+  async setSample(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const shape = checkBodyShape(rawBody, ['imageDataUrl']);
+    const raw = shape.ok ? (shape.body['imageDataUrl'] ?? null) : null;
+    if (raw !== null && typeof raw !== 'string') {
+      throw new HttpException(error('validation_error', 'Неверное изображение.'), 400);
+    }
+    let bytes: Buffer | null = null;
+    let contentType: string | null = null;
+    if (raw !== null) {
+      const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
+      if (!match) {
+        throw new HttpException(
+          error('validation_error', 'Подойдёт PNG, JPEG или WebP.'),
+          400,
+        );
+      }
+      contentType = match[1] as string;
+      bytes = Buffer.from(match[2] as string, 'base64');
+      if (bytes.byteLength < 64 || bytes.byteLength > 400_000) {
+        throw new HttpException(
+          error('validation_error', 'Картинка должна быть до 400 КБ.'),
+          400,
+        );
+      }
+    }
+    const result = await this.requirePool().query(
+      `SELECT teacher_assignment_sample_set($1, $2, $3, $4) AS ok`,
+      [context.principalId, assignmentId, bytes, contentType],
+    );
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
+    }
+    return { ok: true as const };
+  }
+
+  /** The picture itself. Public to anyone signed in: it is a reference render,
+   *  and a learner has to be able to see the task they were given. */
+  @Get(':assignmentId/sample')
+  async sample(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    this.requireUuid(assignmentId, 'assignment');
+    void request;
+    const result = await this.requirePool().query(
+      `SELECT sample_bytes, sample_content_type FROM teacher_assignment_sample($1)`,
+      [assignmentId],
+    );
+    const row = result.rows[0] as
+      | { sample_bytes: Buffer; sample_content_type: string }
+      | undefined;
+    if (!row) throw new HttpException(error('sample_not_found', 'Картинки нет.'), 404);
+    return reply
+      .header('content-type', row.sample_content_type)
+      .header('cache-control', 'private, max-age=60')
+      .send(row.sample_bytes);
   }
 
   /** Every class this teacher runs, and whether this task is in it. */
