@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { api, type ModuleSummary, type Project, type SessionPayload } from '../api';
 import { CreateProjectModal } from '../components/CreateProjectModal';
-import { SeatAssignments } from '../components/SeatAssignments';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { creatorHomeState, creatorViewToHref } from '../creator-portal/navigation';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
@@ -30,13 +29,10 @@ function sortProjects(projects: readonly Project[]): Project[] {
 
 export function CreatorHomePage({
   session,
-  seatLearner = false,
   onNavigate,
   onOpenProject,
 }: {
   session: SessionPayload;
-  /** A class seat: the only kind of person who can have work set for them. */
-  seatLearner?: boolean;
   onNavigate: (
     section:
       'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help' | 'account',
@@ -145,11 +141,6 @@ export function CreatorHomePage({
           heading leaves a screen reader, and anyone glancing at a tab, with
           nothing to go on. */}
       <h1 className="creator-home-title">Главная</h1>
-
-      {/* Work a teacher set, above a learner's own gallery: a task with a
-          deadline outranks a shelf of models. Renders nothing for anyone who
-          has no teacher, so an account holder's home page is unchanged. */}
-      {seatLearner ? <SeatAssignments onOpenProject={onOpenProject} /> : null}
 
       {visibleState === 'error' ? (
         <section className="creator-dashboard-state" role="alert">

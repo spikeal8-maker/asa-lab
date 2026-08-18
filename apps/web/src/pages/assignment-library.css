@@ -1,0 +1,177 @@
+/* A teacher's own tasks, as a shelf. */
+
+.library-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.library-heading h1 {
+  margin: 0 0 6px;
+  color: #16232c;
+  font-size: clamp(26px, 3.2vw, 34px);
+  letter-spacing: -0.02em;
+}
+
+.library-heading p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-muted);
+}
+
+.library-search {
+  display: block;
+  margin-bottom: 18px;
+}
+
+.library-search input {
+  width: min(420px, 100%);
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #c8d4da;
+  border-radius: 999px;
+  background: #fff;
+  color: #2a363e;
+  font: inherit;
+}
+
+.library-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.library-list > li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e1e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.library-list img,
+.library-no-sample {
+  width: 72px;
+  height: 72px;
+  border: 1px solid #dbe6ec;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #f2f6f8;
+}
+
+.library-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.library-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #16232c;
+  font-size: 17px;
+}
+
+.library-copy strong em {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2f0f8;
+  color: #0a6f9c;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.library-copy span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.library-counts {
+  font-weight: 600;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Handing out: one tick and one date per class, in one place. */
+.hand-out-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hand-out-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid #e1e7eb;
+  border-radius: 10px;
+}
+
+.hand-out-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #2a363e;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hand-out-list input[type='checkbox'] {
+  width: 19px;
+  height: 19px;
+  accent-color: #0b82ba;
+}
+
+.hand-out-list input[type='date'] {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #c8d4da;
+  border-radius: 8px;
+  font: inherit;
+}
+
+@media (max-width: 860px) {
+  .library-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .library-list > li {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .library-list img,
+  .library-no-sample {
+    width: 56px;
+    height: 56px;
+  }
+
+  .library-actions {
+    grid-column: 1 / -1;
+  }
+
+  .hand-out-list > li {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

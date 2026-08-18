@@ -13,8 +13,10 @@ import { ClassroomPage } from './pages/ClassroomPage';
 import { TeacherInvitePage } from './pages/TeacherInvitePage';
 import { AccountPage } from './pages/AccountPage';
 import { SeatAccountPage } from './pages/SeatAccountPage';
+import { SeatClassPage } from './pages/SeatClassPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
+import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
@@ -169,6 +171,18 @@ export function App(): JSX.Element {
    * their own school's times, not the hotel's. `true` is that promise — the
    * server writes only into an empty setting.
    */
+  /** Work a learner still owes, for the dot on their class. */
+  const [unfinished, setUnfinished] = useState(0);
+  useEffect(() => {
+    if (session.kind !== 'student') {
+      setUnfinished(0);
+      return;
+    }
+    void api.seatAssignmentCounts().then((result) => {
+      if (result.ok) setUnfinished(result.data.unfinished);
+    });
+  }, [session, view]);
+
   const zoneReported = useRef(false);
   useEffect(() => {
     if (session.kind !== 'authenticated' || session.session.timeZone !== null) return;
@@ -349,6 +363,7 @@ export function App(): JSX.Element {
           session={portalSession}
           active={active}
           seatLearner={isSeatLearner}
+          unfinishedCount={unfinished}
           {...(session.kind === 'student'
             ? {
                 seatAvatarUrl: seatAvatar(
@@ -369,7 +384,6 @@ export function App(): JSX.Element {
         {view.kind === 'home' ? (
           <CreatorHomePage
             session={portalSession}
-            seatLearner={isSeatLearner}
             onNavigate={navigate}
             onOpenProject={(projectId, moduleKey) =>
               setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
@@ -383,11 +397,30 @@ export function App(): JSX.Element {
             }
           />
         ) : null}
+        {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
+            learner has no library — the tasks they were given live in their
+            class — so they still get the informational page. */}
+        {view.kind === 'challenges' && hasTeachingCapability && !isSeatLearner ? (
+          <AssignmentLibraryPage />
+        ) : null}
         {view.kind === 'learning' ||
         view.kind === 'collections' ||
-        view.kind === 'challenges' ||
+        (view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
         view.kind === 'help' ? (
-          <CreatorResourcePage section={view.kind} onNavigate={navigate} />
+          <CreatorResourcePage
+            section={view.kind === 'challenges' ? 'challenges' : view.kind}
+            onNavigate={navigate}
+          />
+        ) : null}
+        {/* A learner has one class and no register: the door marked Classes
+            opens onto the work set for them. */}
+        {view.kind === 'classrooms' && session.kind === 'student' ? (
+          <SeatClassPage
+            seat={session.session}
+            onOpenProject={(projectId, moduleKey) =>
+              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
+            }
+          />
         ) : null}
         {view.kind === 'classrooms' && canManageClasses ? (
           <DashboardPage

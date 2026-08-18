@@ -55,6 +55,7 @@ export function PortalHeader({
   canTeach,
   seatLearner = false,
   seatAvatarUrl,
+  unfinishedCount = 0,
   onNavigate,
   onSessionChanged,
   onLoggedOut,
@@ -65,6 +66,8 @@ export function PortalHeader({
   canTeach: boolean;
   /** The picture a class seat chose; an account has none and uploads instead. */
   seatAvatarUrl?: string | undefined;
+  /** Assignments a learner has not handed in; 0 hides the dot. */
+  unfinishedCount?: number;
   /**
    * Signed in with a class seat. The shell is the same one everyone uses; a
    * seat simply has nowhere to go in the places an account owns — a class to
@@ -104,7 +107,7 @@ export function PortalHeader({
    */
   const effectiveAvatarUrl =
     avatarDataUrl ?? seatAvatarUrl ?? defaultAvatarForAccount(session.user.id).src;
-  const navigationItems = portalNavigation(canTeach, { classes: !seatLearner });
+  const navigationItems = portalNavigation(canTeach);
   const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
@@ -467,6 +470,12 @@ export function PortalHeader({
                 {sectionIcon(item.section)}
               </span>
               <span className="portal-nav-label">{item.label}</span>
+              {/* Work still owed, as the dot anything with unread items has. */}
+              {item.section === 'classes' && unfinishedCount > 0 ? (
+                <span className="portal-nav-count" aria-label={`Не сдано: ${unfinishedCount}`}>
+                  {unfinishedCount}
+                </span>
+              ) : null}
             </button>
           ))}
         </nav>

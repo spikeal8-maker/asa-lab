@@ -95,9 +95,33 @@ export interface SeatAward {
   awardedBy: string;
 }
 
+/** A task in a teacher's own library, written once and given out many times. */
+export interface LibraryAssignment {
+  id: string;
+  title: string;
+  brief: string | null;
+  moduleKey: string;
+  sampleImage: string | null;
+  isDemo: boolean;
+  createdAt: string;
+  handoutCount: number;
+  startedCount: number;
+  submittedCount: number;
+}
+
+export interface AssignmentClassroom {
+  classroomId: string;
+  classroomTitle: string;
+  handedOut: boolean;
+  dueAt: string | null;
+}
+
 /** Work a teacher set for a class, with how far the class has got with it. */
 export interface ClassroomAssignment {
+  /** The handout: this task, in this class. */
   id: string;
+  /** The library task behind it, shared by every class that has it. */
+  assignmentId: string;
   title: string;
   brief: string | null;
   moduleKey: string;
@@ -119,6 +143,8 @@ export interface ClassroomAssignmentProgress {
   avatarKey: string | null;
   /** Null until the learner has opened the assignment. */
   projectId: string | null;
+  /** Null while the editor has never saved a picture of this work. */
+  snapshotRevision: number | null;
   startedAt: string | null;
   submittedAt: string | null;
   badge: string | null;
@@ -659,6 +685,33 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
     ),
+  listAssignmentLibrary: () => call<{ items: LibraryAssignment[] }>('/api/assignments'),
+  saveLibraryAssignment: (
+    assignmentId: string | null,
+    input: { title: string; brief: string | null; moduleKey: string },
+  ) =>
+    call<{ id: string }>(
+      assignmentId ? `/api/assignments/${encodeURIComponent(assignmentId)}` : '/api/assignments',
+      { method: assignmentId ? 'PATCH' : 'POST', body: JSON.stringify(input) },
+    ),
+  deleteLibraryAssignment: (assignmentId: string) =>
+    call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
+      method: 'DELETE',
+    }),
+  assignmentClassrooms: (assignmentId: string) =>
+    call<{ items: AssignmentClassroom[] }>(
+      `/api/assignments/${encodeURIComponent(assignmentId)}/classrooms`,
+    ),
+  handOutAssignment: (
+    assignmentId: string,
+    classroomId: string,
+    given: boolean,
+    dueAt: string | null,
+  ) =>
+    call<{ ok: true }>(
+      `/api/assignments/${encodeURIComponent(assignmentId)}/classrooms/${encodeURIComponent(classroomId)}`,
+      { method: 'PUT', body: JSON.stringify({ given, dueAt }) },
+    ),
   listSeatAwards: (classroomId: string, seatId: string) =>
     call<{ items: SeatAward[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}/awards`,
@@ -686,10 +739,10 @@ export const api = {
     classroomId: string,
     input: { title: string; brief: string | null; moduleKey: string; dueAt: string | null },
   ) =>
-    call<{ assignment: ClassroomAssignment }>(
-      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments`,
-      { method: 'POST', body: JSON.stringify(input) },
-    ),
+    call<{ created: true }>(`/api/classrooms/${encodeURIComponent(classroomId)}/assignments`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   setClassroomAssignmentStatus: (
     classroomId: string,
     assignmentId: string,
@@ -710,6 +763,8 @@ export const api = {
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
   mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
+  seatAssignmentCounts: () =>
+    call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
   startSeatAssignment: (assignmentId: string, projectId: string) =>
     call<{ projectId: string; submittedAt: string | null }>(
       `/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`,

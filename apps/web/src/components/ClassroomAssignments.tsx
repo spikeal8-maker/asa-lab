@@ -7,6 +7,7 @@ import {
 } from '../api';
 import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
+import { WorkPreview } from './WorkPreview';
 import './classroom-assignments.css';
 
 /**
@@ -147,6 +148,7 @@ export function ClassroomAssignments({
   const [open, setOpen] = useState<ClassroomAssignment | null>(null);
   const [progress, setProgress] = useState<ClassroomAssignmentProgress[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<ClassroomAssignmentProgress | null>(null);
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
@@ -235,13 +237,15 @@ export function ClassroomAssignments({
                       ? `Работает с ${time.dateTime(row.startedAt)}`
                       : 'Не открывал'}
                 </span>
+                {/* The picture first. Launching an editor to answer "is this
+                    finished" thirty times is not marking, it is waiting. */}
                 {row.projectId ? (
                   <button
                     type="button"
                     className="btn-secondary"
-                    onClick={() => onOpenProject(row.projectId as string, open.moduleKey)}
+                    onClick={() => setPreviewing(row)}
                   >
-                    Открыть работу
+                    Посмотреть работу
                   </button>
                 ) : (
                   <span />
@@ -250,6 +254,27 @@ export function ClassroomAssignments({
             ))}
           </ul>
         )}
+
+        {previewing?.projectId ? (
+          <WorkPreview
+            projectId={previewing.projectId}
+            snapshotRevision={previewing.snapshotRevision}
+            moduleKey={open.moduleKey}
+            learnerName={previewing.displayLabel}
+            submittedAt={previewing.submittedAt}
+            onClose={() => setPreviewing(null)}
+            onOpenEditor={() => {
+              const projectId = previewing.projectId as string;
+              setPreviewing(null);
+              onOpenProject(projectId, open.moduleKey);
+            }}
+            onGraded={() => {
+              void api.classroomAssignmentProgress(classroomId, open.id).then((result) => {
+                if (result.ok) setProgress(result.data.items);
+              });
+            }}
+          />
+        ) : null}
       </section>
     );
   }
@@ -370,7 +395,7 @@ export function ClassroomAssignments({
             const result = await api.createClassroomAssignment(classroomId, input);
             if (!result.ok) return result.error.message || 'Не удалось создать задание.';
             setCreating(false);
-            setNotice(`Задание «${result.data.assignment.title}» выдано классу.`);
+            setNotice(`Задание «${input.title}» выдано классу.`);
             await reload();
             return null;
           }}

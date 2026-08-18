@@ -29,6 +29,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   browser,
   page,
 }) => {
+  // This walks the whole classroom product end to end and loads the 3D runtime
+  // twice; the default half minute is for a test that does one thing.
+  test.setTimeout(180_000);
   const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(page, teacher);
   await openClassrooms(page);
@@ -125,7 +128,14 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(
     studentPage.getByRole('button', { name: 'Проекты', exact: true }).first(),
   ).toBeVisible();
-  await expect(studentPage.getByRole('button', { name: 'Классы', exact: true })).toHaveCount(0);
+  /**
+   * A learner has a class too, and it is where the work set for them lives —
+   * their home page is their own shelf of models. What they do not get is a
+   * register: no roster, no code, no other learners.
+   */
+  await studentPage.getByRole('button', { name: /^Классы/ }).click();
+  await expect(studentPage.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
+  await expect(studentPage.getByText('Поделиться классом')).toHaveCount(0);
 
   await studentPage.getByRole('button', { name: 'Проекты', exact: true }).first().click();
   await expect(studentPage.getByRole('heading', { name: 'Мои проекты' })).toBeVisible();
@@ -327,9 +337,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(page.getByTestId('assignment-progress')).toContainText('Не открывал');
   await page.screenshot({ path: `${evidenceDir}/assignment-progress.png`, fullPage: true });
 
-  // The learner finds it on their own home page and starts it: the project is
-  // made for them in the environment the teacher chose, and opens.
-  await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  // The learner finds it in their class and starts it: the project is made for
+  // them in the environment the teacher chose, and opens.
+  await studentPage.getByRole('button', { name: /^Классы/ }).click();
   // One card among the ten a class is given, so the row is the unit, not the list.
   const assignmentCard = studentPage
     .getByTestId('seat-assignments')
@@ -353,6 +363,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await demoCard.getByRole('button', { name: 'Начать' }).click();
   await expect(studentPage.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
   await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  await studentPage.getByRole('button', { name: /^Классы/ }).click();
 
   await assignmentCard.getByRole('group').getByText('Что нужно сделать').click();
   await expect(assignmentCard).toContainText('Скруглите углы и подпишите имя.');
@@ -362,6 +373,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
 
   // And hands it in.
   await studentPage.getByRole('button', { name: 'ASA Lab' }).first().click();
+  await studentPage.getByRole('button', { name: /^Классы/ }).click();
   await assignmentCard.getByRole('button', { name: 'Сдать' }).click();
   await expect(assignmentCard).toContainText('сдано');
   await expect(assignmentCard.getByRole('button', { name: 'Вернуть в работу' })).toBeVisible();
@@ -371,9 +383,24 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(page.getByTestId('assignment-list')).toContainText('Сдали: 1');
   await page.locator('.assignment-title', { hasText: 'Брелок с именем' }).click();
   await expect(page.getByTestId('assignment-progress')).toContainText('Сдано');
-  await expect(
-    page.getByTestId('assignment-progress').getByRole('button', { name: 'Открыть работу' }),
-  ).toBeVisible();
+  /**
+   * The picture first. A teacher answering "is this finished" thirty times by
+   * launching thirty editors is not marking, it is waiting — so the work opens
+   * as a preview with the verdict and the comment beside it, and the editor is
+   * one further click for the times the answer is "let me fix this with them".
+   */
+  await page
+    .getByTestId('assignment-progress')
+    .getByRole('button', { name: 'Посмотреть работу' })
+    .click();
+  const preview = page.getByRole('dialog', { name: 'Работа: Алина К.' });
+  await expect(preview.getByTestId('work-preview-image')).toBeVisible();
+  await preview.getByRole('button', { name: 'Хорошо' }).click();
+  await preview.getByLabel('Комментарий').fill('Ровные углы, молодец.');
+  await preview.getByRole('button', { name: /отклик/i }).click();
+  await expect(preview.getByText('Отклик сохранён — ученик увидит его у себя.')).toBeVisible();
+  await page.screenshot({ path: `${evidenceDir}/work-preview.png` });
+  await preview.getByRole('button', { name: 'Закрыть' }).click();
 
   await page.getByRole('button', { name: 'Учащиеся' }).click();
   await page.getByLabel('Действия: Алина К.').click();

@@ -1,0 +1,86 @@
+/* Marking from the picture.
+ *
+ * Wide, because the model and the verdict have to be on screen together: a
+ * teacher who has to scroll between them will stop giving comments.
+ */
+
+.work-preview {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.work-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.work-preview-head h2 {
+  margin: 0 0 4px;
+}
+
+.work-preview-head p {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.work-preview-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.work-preview-picture {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.work-preview-picture img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid #dbe6ec;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.work-preview-form {
+  display: grid;
+  gap: 8px;
+}
+
+.work-preview-label {
+  color: #2a363e;
+  font-weight: 700;
+}
+
+.work-preview-existing {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 780px) {
+  .work-preview-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.work-preview-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin: 0;
+  padding: 20px;
+  border: 1px dashed #c3d3dc;
+  border-radius: 12px;
+  background: #f7fafc;
+  color: var(--ink-muted);
+  text-align: center;
+}

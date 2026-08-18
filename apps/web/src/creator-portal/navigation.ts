@@ -71,8 +71,8 @@ export function portalNavigation(
 ): readonly PortalNavigationItem[] {
   // The Classes destination is available to every signed-in account: what stays
   // behind the educator capability is managing a class, not seeing where they
-  // live. A learner signed in with a class seat is the one exception — they are
-  // already inside a class and have nothing to do on that page.
+  // live. A learner has one too — it is where the work set for them lives, and
+  // hiding it put their homework on the same page as their own models.
   void canTeach;
   const classes = options.classes ?? true;
   return [

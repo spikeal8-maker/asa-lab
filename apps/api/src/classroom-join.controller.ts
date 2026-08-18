@@ -284,6 +284,22 @@ export class ClassroomJoinController {
    * Answered from the seat session alone: a learner never names their own seat
    * to the server, so there is nothing to tamper with.
    */
+  /**
+   * How much work is still owed. One small number, asked on every page load, so
+   * the class in a learner's navigation can carry a dot with a count — the way
+   * anything with unread items does.
+   */
+  @Get('me/assignment-counts')
+  async assignmentCounts(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(
+      `SELECT open_count, unfinished_count FROM classroom_seat_assignment_counts($1)`,
+      [seat.seat_id],
+    );
+    const row = result.rows[0] as { open_count: number; unfinished_count: number } | undefined;
+    return { open: Number(row?.open_count ?? 0), unfinished: Number(row?.unfinished_count ?? 0) };
+  }
+
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);

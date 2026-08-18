@@ -113,6 +113,7 @@ interface SeatProjectRow {
 
 interface AssignmentRow {
   id: string;
+  assignment_id?: string;
   title: string;
   brief: string | null;
   module_key: string;
@@ -132,6 +133,7 @@ interface AssignmentProgressRow {
   display_label: string;
   avatar_key: string | null;
   project_id: string | null;
+  snapshot_revision: number | string | null;
   started_at: Date | string | null;
   submitted_at: Date | string | null;
   badge: string | null;
@@ -194,6 +196,7 @@ function seatView(row: StudentSeatRow) {
 function assignmentView(row: AssignmentRow) {
   return {
     id: row.id,
+    assignmentId: row.assignment_id ?? row.id,
     title: row.title,
     brief: row.brief,
     moduleKey: row.module_key,
@@ -819,12 +822,14 @@ export class ClassroomsController {
     if (dueAt !== null && (typeof dueAt !== 'string' || Number.isNaN(Date.parse(dueAt)))) {
       throw new HttpException(error('validation_error', 'Неверный срок сдачи.'), 400);
     }
-    const result = await this.requirePool().query(
-      `SELECT id, title, brief, module_key, due_at, status, created_at
-         FROM classroom_assignment_create($1, $2, $3, $4, $5, $6)`,
-      [context.accountId, classroomId, title.trim(), brief, moduleKey, dueAt],
+    const created = await this.requirePool().query(
+      `SELECT classroom_assignment_create($1, $2, $3, $4, $5, $6) AS id`,
+      [context.principalId, classroomId, title.trim(), brief, moduleKey, dueAt],
     );
-    return { assignment: assignmentView(result.rows[0] as AssignmentRow) };
+    if (!(created.rows[0] as { id: string | null } | undefined)?.id) {
+      throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+    }
+    return { created: true as const };
   }
 
   @Get(':classroomId/assignments')
@@ -832,8 +837,8 @@ export class ClassroomsController {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, module_key, due_at, status, created_at, demo_key, sample_image,
-              seat_count, started_count, submitted_count
+      `SELECT id, assignment_id, title, brief, module_key, due_at, status, created_at,
+              demo_key, sample_image, seat_count, started_count, submitted_count
          FROM classroom_assignment_list($1, $2)`,
       [context.accountId, classroomId],
     );
@@ -899,7 +904,8 @@ export class ClassroomsController {
     this.requireUuid(assignmentId, 'assignment');
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT seat_id, display_label, avatar_key, project_id, started_at, submitted_at, badge
+      `SELECT seat_id, display_label, avatar_key, project_id, snapshot_revision,
+              started_at, submitted_at, badge
          FROM classroom_assignment_progress($1, $2, $3)`,
       [context.accountId, classroomId, assignmentId],
     );
@@ -909,6 +915,7 @@ export class ClassroomsController {
         displayLabel: row.display_label,
         avatarKey: row.avatar_key,
         projectId: row.project_id,
+        snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
         startedAt: row.started_at ? iso(row.started_at) : null,
         submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
         badge: row.badge,
