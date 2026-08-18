@@ -478,3 +478,15 @@
   color: var(--ink-muted);
   font-size: 13px;
 }
+
+/* Откуда взята работа. Не украшение: без этой строки чужую модель можно сдать
+   как свою, поэтому она видна на карточке и снять её нельзя. */
+.project-card-origin {
+  margin: 4px 0 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #fdf3e2;
+  color: #7a4c07;
+  font-size: 12px;
+  line-height: 1.35;
+}

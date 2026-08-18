@@ -22,6 +22,7 @@ function project(overrides: Partial<Project> = {}): Project {
     classroomId: null,
     moduleKey: 'electronics',
     title: 'Светодиод',
+    copiedFrom: null,
     status: 'active',
     createdAt: '2026-08-16T10:00:00.000Z',
     updatedAt: '2026-08-16T10:00:00.000Z',

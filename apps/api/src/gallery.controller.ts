@@ -195,6 +195,91 @@ export class GalleryController {
     );
   }
 
+  /**
+   * One published work in full: what its own page shows.
+   *
+   * Including the model document — what the work is built from. A gallery you
+   * can only look at teaches nothing; a child learns by opening somebody's
+   * castle and seeing which shapes it is made of.
+   */
+  @Get(':projectId/work')
+  async work(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {
+    const viewer = await this.requireViewer(request);
+    this.requireUuid(projectId, 'project');
+    const result = await this.requirePool().query(
+      `SELECT project_id, title, module_key, author_label, published_at, snapshot_revision,
+              editors_choice, like_count, wow_count, viewer_liked, viewer_wowed,
+              viewer_may_remove, viewer_is_author, document_json,
+              copied_from_author, copied_from_title
+         FROM gallery_work($1, $2)`,
+      [viewer.principalId, projectId],
+    );
+    const row = result.rows[0] as
+      | (GalleryRow & {
+          viewer_is_author: boolean;
+          document_json: unknown;
+          copied_from_author: string | null;
+          copied_from_title: string | null;
+        })
+      | undefined;
+    if (!row) throw new HttpException(error('not_published', 'Работа не опубликована.'), 404);
+    return {
+      work: {
+        projectId: row.project_id,
+        title: row.title,
+        moduleKey: row.module_key,
+        authorLabel: row.author_label,
+        publishedAt: iso(row.published_at),
+        snapshotRevision: Number(row.snapshot_revision),
+        editorsChoice: row.editors_choice === true,
+        likeCount: Number(row.like_count),
+        wowCount: Number(row.wow_count),
+        viewerLiked: row.viewer_liked === true,
+        viewerWowed: row.viewer_wowed === true,
+        viewerMayRemove: row.viewer_may_remove === true,
+        viewerIsAuthor: row.viewer_is_author === true,
+        document: row.document_json ?? null,
+        copiedFromAuthor: row.copied_from_author,
+        copiedFromTitle: row.copied_from_title,
+      },
+    };
+  }
+
+  /**
+   * Taking a copy into your own projects.
+   *
+   * The one place a project document crosses a school boundary. The copy is
+   * always personal — somebody else's work cannot be dropped straight into a
+   * class, because class work is what a learner made, not what they fetched —
+   * and it carries where it came from for the rest of its life.
+   */
+  @Post(':projectId/copy')
+  async copy(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const viewer = await this.requireViewer(request);
+    this.requireUuid(projectId, 'project');
+    const shape = checkBodyShape(rawBody ?? {}, ['title']);
+    const title = shape.ok ? (shape.body['title'] ?? null) : null;
+    if (title !== null && (typeof title !== 'string' || title.length > 255)) {
+      throw new HttpException(error('validation_error', 'Слишком длинное название.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT gallery_copy_to_projects($1, $2, $3) AS project_id`,
+      [viewer.principalId, projectId, title],
+    );
+    const created = (result.rows[0] as { project_id: string | null } | undefined)?.project_id;
+    if (!created) {
+      throw new HttpException(
+        error('copy_failed', 'Не удалось взять работу. Свою работу копировать не нужно.'),
+        400,
+      );
+    }
+    return { projectId: created };
+  }
+
   /** Whether this project is on the wall, for the button on its own card. */
   @Get(':projectId/state')
   async state(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {

@@ -99,7 +99,8 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   await page.getByRole('button', { name: 'Галерея', exact: true }).first().click();
   const mine = page.getByTestId('gallery').locator('li').filter({ hasText: TITLE });
   await expect(mine).toBeVisible();
-  await expect(mine.getByRole('img')).toBeVisible();
+  // The picture is the door onto the work, so it is a button carrying the name.
+  await expect(mine.getByRole('button', { name: `Открыть работу «${TITLE}»` })).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/gallery-author.png`, fullPage: true });
 
   // A different account, from a different school, sees it and reacts.
@@ -144,6 +145,30 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   await expect(
     page.getByTestId('gallery').locator('li').filter({ hasText: TITLE }),
   ).toContainText('1');
+
+  /**
+   * Opening the work, and taking it.
+   *
+   * A gallery you can only look at teaches nothing — a child learns by opening
+   * somebody's model, seeing what it is made of, and building on top of it. The
+   * copy says where it came from, permanently, so learning from someone's work
+   * cannot quietly become handing their work in.
+   */
+  await afterReload.getByRole('button', { name: `Открыть работу «${TITLE}»` }).click();
+  await expect(viewerPage.getByRole('heading', { name: TITLE, level: 1 })).toBeVisible();
+  await expect(viewerPage.getByText('Педагог gallery-author')).toBeVisible();
+  await expect(viewerPage.getByRole('heading', { name: 'Из чего собрано' })).toBeVisible();
+  await viewerPage.screenshot({ path: `${evidenceDir}/gallery-work.png`, fullPage: true });
+
+  await viewerPage.getByRole('button', { name: 'Добавить к себе' }).click();
+  await expect(viewerPage.getByText('Копия у вас в проектах, с пометкой откуда она.')).toBeVisible();
+
+  // And the mark is on the card, in the taker's own projects.
+  await viewerPage.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+  const copy = viewerPage.getByTestId('project-card').filter({ hasText: TITLE });
+  await expect(copy).toContainText('Копия работы');
+  await expect(copy).toContainText('Педагог gallery-author');
+  await viewerPage.screenshot({ path: `${evidenceDir}/copied-card.png`, fullPage: true });
 
   authorFailures.assertEmpty();
   viewerFailures.assertEmpty();

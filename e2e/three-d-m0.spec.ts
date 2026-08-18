@@ -387,9 +387,43 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByLabel('Высота, мм')).toHaveValue('12');
   await expect(page.getByLabel('Положение X, мм')).toHaveValue('16');
   await expect(page.getByLabel('Поворот Z, градусов')).toHaveValue('15');
-  await page.getByRole('button', { name: /Версия/ }).click();
+  /**
+   * Versions, and the way back into them.
+   *
+   * The button used to only write: versions piled up and could never be
+   * returned to, which makes a history pointless. It now opens the history, and
+   * the shape put back below proves the document actually travels.
+   */
+  await page.getByRole('button', { name: /^История/ }).click();
+  const history = page.getByRole('dialog', { name: 'История версий' });
+  await history.getByRole('button', { name: 'Сохранить версию' }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
   await dismissNotice(page);
+  await expect(history.getByRole('button', { name: 'Вернуться' })).toBeVisible();
+  // The same button closes it. Escape would also clear the selection the next
+  // step needs, and a panel over a canvas has to be dismissable by the control
+  // that opened it.
+  await page.getByRole('button', { name: /^История/ }).click();
+  await expect(history).toHaveCount(0);
+
+  // Wreck the work, then take it back to the version just saved.
+  await page.getByLabel('Ширина, мм').fill('9');
+  await page.getByLabel('Ширина, мм').press('Enter');
+  await expect(page.getByLabel('Ширина, мм')).toHaveValue('9');
+  await page.getByRole('button', { name: /^История/ }).click();
+  await page
+    .getByRole('dialog', { name: 'История версий' })
+    .getByRole('button', { name: 'Вернуться' })
+    .first()
+    .click();
+  // Restoring replaces the document, so nothing is selected afterwards — the
+  // shape is picked up again to read its width back off the inspector.
+  await expect(page.getByText('1 объект', { exact: true })).toBeVisible();
+  await selectObject(page);
+  await expandShapeInspector(page);
+  await expect(page.getByLabel('Ширина, мм')).toHaveValue('42');
+  await page.screenshot({ path: 'e2e/artifacts/three-d/version-restored.png', fullPage: true });
+
   await page.getByRole('button', { name: 'Свернуть параметры формы' }).click();
 
   await page.setViewportSize({ width: 768, height: 1024 });

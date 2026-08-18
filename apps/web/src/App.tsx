@@ -15,9 +15,11 @@ import { AccountPage } from './pages/AccountPage';
 import { SeatAccountPage } from './pages/SeatAccountPage';
 import { SeatClassPage } from './pages/SeatClassPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
+import { SeatHomePage } from './pages/SeatHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
+import { GalleryWorkPage } from './pages/GalleryWorkPage';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
@@ -384,7 +386,20 @@ export function App(): JSX.Element {
           }}
           onCreate={() => setShellCreating(true)}
         />
-        {view.kind === 'home' ? (
+        {/* A child on a class seat gets a page about them: what they were in
+            the middle of, what is still owed, what they have made. The four
+            identical «Новый проект» tiles that used to be here told a learner
+            nothing and asked them to choose a door for no reason. */}
+        {view.kind === 'home' && session.kind === 'student' ? (
+          <SeatHomePage
+            seat={session.session}
+            onOpenProject={(projectId, moduleKey) =>
+              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
+            }
+            onOpenClass={() => setView({ kind: 'classrooms' })}
+          />
+        ) : null}
+        {view.kind === 'home' && session.kind !== 'student' ? (
           <CreatorHomePage
             session={portalSession}
             onNavigate={navigate}
@@ -414,7 +429,24 @@ export function App(): JSX.Element {
         {/* No "open" on a card: a gallery entry belongs to another person and
             usually another school, and the picture is the point. */}
         {view.kind === 'gallery' ? (
-          <GalleryPage canTeach={hasTeachingCapability && !isSeatLearner} />
+          <GalleryPage
+            canTeach={hasTeachingCapability && !isSeatLearner}
+            onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+          />
+        ) : null}
+        {view.kind === 'gallery-work' ? (
+          <GalleryWorkPage
+            projectId={view.projectId}
+            onBack={() => setView({ kind: 'gallery' })}
+            onOpenProject={(projectId, moduleKey) =>
+              setView({
+                kind: 'editor',
+                projectId,
+                moduleKey,
+                returnTo: { kind: 'my-projects' },
+              })
+            }
+          />
         ) : null}
         {view.kind === 'learning' ||
         view.kind === 'collections' ||

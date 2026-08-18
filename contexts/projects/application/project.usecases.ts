@@ -386,6 +386,53 @@ export class ReadProjectSnapshotUseCase {
   }
 }
 
+/**
+ * Going back to an earlier version.
+ *
+ * Children build by trying things, and the try that goes wrong is the one that
+ * teaches — as long as there is a way back. This is that way: pick a saved
+ * version, and the project returns to it. What was on screen a moment ago is
+ * kept as its own version first, so the way back also has a way back.
+ */
+export class RestoreVersionUseCase {
+  constructor(private readonly repository: ProjectRepositoryPort) {}
+
+  async execute(input: {
+    tenantId: string;
+    projectId: string;
+    actor: ProjectActor;
+    versionId: unknown;
+  }): Promise<UseCaseResult<{ draft: ProjectDraft; versions: readonly ProjectVersion[] }>> {
+    if (typeof input.versionId !== 'string' || input.versionId.length === 0) {
+      return fail('validation_error', 'versionId is required');
+    }
+    const restored = await this.repository.restoreVersion(
+      input.tenantId,
+      input.projectId,
+      input.actor,
+      input.versionId,
+    );
+    return restored === null
+      ? fail('project_not_found', 'project or version not found')
+      : { ok: true, value: restored };
+  }
+}
+
+export class ListVersionsUseCase {
+  constructor(private readonly repository: ProjectRepositoryPort) {}
+
+  async execute(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<UseCaseResult<readonly ProjectVersion[]>> {
+    const versions = await this.repository.listVersions(tenantId, projectId, actor);
+    return versions === null
+      ? fail('project_not_found', 'project not found')
+      : { ok: true, value: versions };
+  }
+}
+
 export class CreateCheckpointUseCase {
   constructor(private readonly repository: ProjectRepositoryPort) {}
 

@@ -123,11 +123,24 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    * A learner lands in the same portal a teacher uses — same header, same
    * sidebar, same pages — with the places a seat has no business in absent:
    * no class to manage, no school to switch to, no account to configure.
+   *
+   * Their home page is about them. It used to be four identical «Новый проект»
+   * tiles, one per environment, which told a child nothing and asked them to
+   * pick a door for no reason; now it greets them, names their class, and says
+   * what is still owed.
    */
-  await expect(studentPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Привет, Алина К.!' })).toBeVisible();
+  // The class line names the class and the teacher in one sentence.
+  await expect(studentPage.getByText(/5Б Makers · преподаватель/)).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Задания', level: 2 })).toBeVisible();
+  await expect(studentPage.getByText(/Не сдано: \d+/)).toBeVisible();
   await expect(
     studentPage.getByRole('button', { name: 'Проекты', exact: true }).first(),
   ).toBeVisible();
+  await studentPage.screenshot({
+    path: `${evidenceDir}/student-home.png`,
+    fullPage: true,
+  });
   /**
    * A learner has a class too, and it is where the work set for them lives —
    * their home page is their own shelf of models. What they do not get is a
@@ -157,7 +170,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(
     studentPage.getByTestId('project-card').filter({ hasText: 'Моя модель' }),
   ).toBeVisible();
-  await studentPage.screenshot({ path: `${evidenceDir}/student-home.png`, fullPage: true });
+  // Their shelf of work, not their home page — the two used to share a file
+  // name, and the later shot quietly overwrote the earlier one.
+  await studentPage.screenshot({ path: `${evidenceDir}/student-projects.png`, fullPage: true });
 
   /**
    * A learner's own picture. There is no upload — a class register full of

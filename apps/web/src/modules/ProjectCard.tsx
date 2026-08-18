@@ -165,6 +165,14 @@ export function ProjectCard({
               )}
             </h2>
             <p className="project-card-time">{timeLabel}</p>
+            {/* Where it came from, when it was taken from the gallery. Set once
+                at copy time and never removable, so a borrowed model cannot be
+                handed in as one's own — the teacher reads it on the same card. */}
+            {project.copiedFrom ? (
+              <p className="project-card-origin" title={`Скопировано из «${project.copiedFrom.title}»`}>
+                Копия работы «{project.copiedFrom.title}», автор {project.copiedFrom.author}
+              </p>
+            ) : null}
           </>
         )}
         <p className="project-card-footer">

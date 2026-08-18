@@ -17,6 +17,7 @@ export type CreatorPortalView =
   | { kind: 'learning' }
   | { kind: 'collections' }
   | { kind: 'gallery' }
+  | { kind: 'gallery-work'; projectId: string }
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
   /** `seatId` opens the class already showing one learner, which is where a
@@ -115,7 +116,7 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'home') return 'home';
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'collections') return 'collections';
-  if (view.kind === 'gallery') return 'gallery';
+  if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
   if (
@@ -140,6 +141,9 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   }
   if (view.kind === 'teacher-invite') {
     return `#/teacher-invite/${encodeURIComponent(view.token)}`;
+  }
+  if (view.kind === 'gallery-work') {
+    return `#/gallery/${encodeURIComponent(view.projectId)}`;
   }
   if (view.kind !== 'editor') return '#/home';
   if (view.returnTo.kind === 'classroom-projects') {
@@ -211,6 +215,13 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   if (teacherInvite) {
     const token = decodeRouteParameter(teacherInvite[1] as string);
     return token ? { kind: 'teacher-invite', token } : { kind: 'home' };
+  }
+  // One work in the gallery has its own address: a teacher shows a class a
+  // model by sending the link, and a page that cannot be linked to is not shown.
+  const galleryWork = /^\/gallery\/([^/]+)$/.exec(path ?? '');
+  if (galleryWork) {
+    const projectId = decodeRouteParameter(galleryWork[1] as string);
+    return projectId ? { kind: 'gallery-work', projectId } : { kind: 'gallery' };
   }
   const classEditor = /^\/classrooms\/([^/]+)\/projects\/([^/]+)$/.exec(path ?? '');
   if (classEditor) {

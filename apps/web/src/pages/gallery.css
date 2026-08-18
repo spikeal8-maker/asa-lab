@@ -184,3 +184,114 @@
   border-top: 1px solid #eef3f6;
   padding-top: 10px;
 }
+
+/* Карточка открывается: картинка и заголовок — кнопки, а не текст. */
+.gallery-picture {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.gallery-card-title {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #16232c;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gallery-card-title:hover {
+  color: #0a6f9c;
+  text-decoration: underline;
+}
+
+/* Одна работа целиком. */
+.gallery-work-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 28px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.gallery-work-picture {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #d7e3ea;
+  border-radius: 16px;
+  background: #eef3f6;
+}
+
+.gallery-work-picture img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.gallery-work-side h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+}
+
+.gallery-work-author {
+  margin: 0 0 2px;
+  color: #16232c;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.gallery-copied-note {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fdf3e2;
+  color: #7a4c07;
+  font-size: 14px;
+}
+
+.gallery-take {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.gallery-work-parts {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e9ee;
+}
+
+.gallery-work-parts h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.gallery-work-parts ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-work-parts li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: #f4f8fa;
+  color: #16232c;
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .gallery-work-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

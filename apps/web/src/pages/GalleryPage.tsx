@@ -23,7 +23,13 @@ const REACTIONS = [
   { kind: 'wow' as const, emoji: '😮', label: 'Ого' },
 ];
 
-export function GalleryPage({ canTeach }: { readonly canTeach: boolean }): JSX.Element {
+export function GalleryPage({
+  canTeach,
+  onOpenWork,
+}: {
+  readonly canTeach: boolean;
+  readonly onOpenWork: (projectId: string) => void;
+}): JSX.Element {
   const [items, setItems] = useState<GalleryItem[] | null>(null);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [sort, setSort] = useState<'recent' | 'popular'>('recent');
@@ -133,18 +139,30 @@ export function GalleryPage({ canTeach }: { readonly canTeach: boolean }): JSX.E
         <ul className="gallery-grid" data-testid="gallery">
           {items.map((item) => (
             <li key={item.projectId} className={item.editorsChoice ? 'is-choice' : undefined}>
-              <div className="gallery-picture">
+              {/* The picture is the door. A card you cannot open is a poster. */}
+              <button
+                type="button"
+                className="gallery-picture"
+                aria-label={`Открыть работу «${item.title}»`}
+                onClick={() => onOpenWork(item.projectId)}
+              >
                 <img
                   src={`/api/gallery/${item.projectId}/image?rev=${item.snapshotRevision}`}
-                  alt={`Работа «${item.title}»`}
+                  alt=""
                   loading="lazy"
                 />
                 {item.editorsChoice ? (
                   <span className="gallery-choice-badge">★ Выбор редакции</span>
                 ) : null}
-              </div>
+              </button>
               <div className="gallery-card-body">
-                <strong>{item.title}</strong>
+                <button
+                  type="button"
+                  className="gallery-card-title"
+                  onClick={() => onOpenWork(item.projectId)}
+                >
+                  {item.title}
+                </button>
                 <span className="gallery-author">{item.authorLabel}</span>
                 <span className="gallery-meta">
                   {moduleName(item.moduleKey)} · {time.date(item.publishedAt)}

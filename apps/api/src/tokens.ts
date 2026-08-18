@@ -20,6 +20,8 @@ export const TOKENS = {
   changeProjectStatusUseCase: 'CHANGE_PROJECT_STATUS_USECASE',
   duplicateProjectUseCase: 'DUPLICATE_PROJECT_USECASE',
   saveDraftUseCase: 'SAVE_DRAFT_USECASE',
+  restoreVersionUseCase: 'RestoreVersionUseCase',
+  listVersionsUseCase: 'ListVersionsUseCase',
   createCheckpointUseCase: 'CREATE_CHECKPOINT_USECASE',
   saveProjectSnapshotUseCase: 'SAVE_PROJECT_SNAPSHOT_USECASE',
   readProjectSnapshotUseCase: 'READ_PROJECT_SNAPSHOT_USECASE',

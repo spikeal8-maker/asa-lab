@@ -18,6 +18,8 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type {
   ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
+  RestoreVersionUseCase,
+  ListVersionsUseCase,
   CreateProjectUseCase,
   DuplicateProjectUseCase,
   ListProjectsUseCase,
@@ -67,6 +69,10 @@ export class ProjectsController {
     @Inject(TOKENS.saveDraftUseCase) private readonly saveUseCase: SaveDraftUseCase,
     @Inject(TOKENS.createCheckpointUseCase)
     private readonly checkpointUseCase: CreateCheckpointUseCase,
+    @Inject(TOKENS.restoreVersionUseCase)
+    private readonly restoreVersionUseCase: RestoreVersionUseCase,
+    @Inject(TOKENS.listVersionsUseCase)
+    private readonly listVersionsUseCase: ListVersionsUseCase,
     @Inject(TOKENS.saveProjectSnapshotUseCase)
     private readonly saveSnapshotUseCase: SaveProjectSnapshotUseCase,
     @Inject(TOKENS.readProjectSnapshotUseCase)
@@ -409,6 +415,46 @@ export class ProjectsController {
   ): Promise<{ items: unknown[] }> {
     const context = await this.requireContext(request);
     return { items: await this.feedback.list(context.principalId, projectId) };
+  }
+
+  /** The history itself, for a panel that opens without reloading the editor. */
+  @Get(':projectId/versions')
+  async versions(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+  ): Promise<{ versions: unknown[] }> {
+    const context = await this.requireContext(request);
+    const result = await this.listVersionsUseCase.execute(
+      context.tenantId,
+      projectId,
+      ProjectsController.actorOf(context),
+    );
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    return { versions: [...result.value] };
+  }
+
+  /**
+   * Going back to a saved version.
+   *
+   * What was on screen is checkpointed before it is replaced, so a learner who
+   * pressed the wrong row can press their way back. Nothing is deleted: the
+   * history only ever grows.
+   */
+  @Post(':projectId/versions/:versionId/restore')
+  async restoreVersion(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Param('versionId') versionId: string,
+  ): Promise<{ draft: unknown; versions: unknown[] }> {
+    const context = await this.requireContext(request);
+    const result = await this.restoreVersionUseCase.execute({
+      tenantId: context.tenantId,
+      projectId,
+      actor: ProjectsController.actorOf(context),
+      versionId,
+    });
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    return { draft: result.value.draft, versions: [...result.value.versions] };
   }
 
   @Post(':projectId/checkpoints')

@@ -22,6 +22,8 @@ import {
 import {
   ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
+  RestoreVersionUseCase,
+  ListVersionsUseCase,
   CreateProjectUseCase,
   DuplicateProjectUseCase,
   ListProjectsUseCase,
@@ -243,6 +245,14 @@ export class AppModule {
         {
           provide: TOKENS.saveDraftUseCase,
           useFactory: () => new SaveDraftUseCase(projectRepository(), projectModules),
+        },
+        {
+          provide: TOKENS.restoreVersionUseCase,
+          useFactory: () => new RestoreVersionUseCase(projectRepository()),
+        },
+        {
+          provide: TOKENS.listVersionsUseCase,
+          useFactory: () => new ListVersionsUseCase(projectRepository()),
         },
         {
           provide: TOKENS.createCheckpointUseCase,

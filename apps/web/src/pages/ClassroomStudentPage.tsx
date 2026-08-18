@@ -148,6 +148,8 @@ function asProject(work: ClassroomStudentDetail['projects'][number]): Project {
     createdAt: work.createdAt,
     updatedAt: work.updatedAt,
     preview: work.preview,
+    // The register does not carry provenance; the card treats that as "made here".
+    copiedFrom: null,
     snapshotRevision: work.snapshotRevision,
   };
 }

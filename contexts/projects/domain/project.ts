@@ -34,6 +34,18 @@ export interface Project {
    * changes with the work, so the image behind it can be cached forever.
    */
   readonly snapshotRevision: number | null;
+  /**
+   * Where this project came from, when it was taken from somebody else's work
+   * in the gallery. Set once at copy time and never afterwards: a project that
+   * says "copy of X" says it for the rest of its life, so nobody can pass a
+   * borrowed model off as their own.
+   */
+  readonly copiedFrom: {
+    readonly projectId: string;
+    readonly author: string;
+    readonly title: string;
+    readonly at: string;
+  } | null;
 }
 
 export interface ProjectDraft {

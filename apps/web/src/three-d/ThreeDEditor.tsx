@@ -16,6 +16,7 @@ import { ShapeLibrary } from './ShapeLibrary';
 import { SelectionTools } from './SelectionTools';
 import { AlignIcon, CubeIcon, GroupIcon, HoleIcon, HomeIcon, UngroupIcon } from './three-d-icons';
 import { useThreeDProject } from './use-three-d-project';
+import { VersionHistory } from '../components/VersionHistory';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
 import { registerProjectSnapshotSource, startProjectSnapshots } from '../modules/project-snapshot';
 import './three-d.css';
@@ -376,13 +377,17 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
               </div>
             )}
           </div>
-          <button
-            type="button"
-            className="asa3d-version-button"
-            onClick={() => void controller.createCheckpoint()}
-          >
-            Версия{controller.versions.length > 0 ? ` · ${controller.versions.length}` : ''}
-          </button>
+          {/* Сохранить версию и вернуться к любой сохранённой. Раньше кнопка
+              умела только записывать: версии копились, а вернуться к ним было
+              нельзя, что делает историю бессмысленной. */}
+          <VersionHistory
+            projectId={projectId}
+            versions={controller.versions}
+            onSaveVersion={() => controller.createCheckpoint()}
+            onRestored={(document) => {
+              controller.importDocument(document);
+            }}
+          />
         </div>
       </div>
 

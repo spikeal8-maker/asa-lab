@@ -128,6 +128,27 @@ export interface GalleryItem {
   viewerMayRemove: boolean;
 }
 
+export interface GalleryWork {
+  projectId: string;
+  title: string;
+  moduleKey: string;
+  authorLabel: string;
+  publishedAt: string;
+  snapshotRevision: number;
+  editorsChoice: boolean;
+  likeCount: number;
+  wowCount: number;
+  viewerLiked: boolean;
+  viewerWowed: boolean;
+  viewerMayRemove: boolean;
+  /** The author looking at their own work: no reactions, no copy. */
+  viewerIsAuthor: boolean;
+  /** The model itself, so the page can say what the work is built from. */
+  document: unknown;
+  copiedFromAuthor: string | null;
+  copiedFromTitle: string | null;
+}
+
 export interface AssignmentClassroom {
   classroomId: string;
   classroomTitle: string;
@@ -311,6 +332,13 @@ export interface Project {
   preview: ProjectPreview | null;
   /** Null until an editor has captured a picture of this project. */
   snapshotRevision: number | null;
+  /** Set when the project was taken from the gallery; never cleared. */
+  copiedFrom: {
+    projectId: string;
+    author: string;
+    title: string;
+    at: string;
+  } | null;
 }
 
 export interface ModuleSummary {
@@ -715,6 +743,13 @@ export const api = {
     return call<{ items: GalleryItem[] }>(`/api/gallery${suffix ? `?${suffix}` : ''}`);
   },
   myGalleryProjects: () => call<{ projectIds: string[] }>('/api/gallery/mine'),
+  galleryWork: (projectId: string) =>
+    call<{ work: GalleryWork }>(`/api/gallery/${encodeURIComponent(projectId)}/work`),
+  copyGalleryWork: (projectId: string, title?: string) =>
+    call<{ projectId: string }>(`/api/gallery/${encodeURIComponent(projectId)}/copy`, {
+      method: 'POST',
+      body: JSON.stringify(title ? { title } : {}),
+    }),
   galleryState: (projectId: string) =>
     call<{ published: boolean; publishedAt?: string; likeCount?: number; wowCount?: number }>(
       `/api/gallery/${encodeURIComponent(projectId)}/state`,
@@ -986,6 +1021,13 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+  listVersions: (projectId: string) =>
+    call<{ versions: ProjectVersion[] }>(`/api/projects/${encodeURIComponent(projectId)}/versions`),
+  restoreVersion: <TDocument = unknown>(projectId: string, versionId: string) =>
+    call<{ draft: ProjectDraft<TDocument>; versions: ProjectVersion[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/versions/${encodeURIComponent(versionId)}/restore`,
+      { method: 'POST' },
+    ),
   createCheckpoint: (projectId: string, label?: string) =>
     call<{ version: ProjectVersion }>(
       `/api/projects/${encodeURIComponent(projectId)}/checkpoints`,

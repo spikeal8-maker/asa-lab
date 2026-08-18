@@ -56,6 +56,10 @@ interface ProjectRow extends PreviewRow {
   created_at: string;
   updated_at?: string;
   request_fingerprint?: string | null;
+  copied_from_project_id?: string | null;
+  copied_from_author?: string | null;
+  copied_from_title?: string | null;
+  copied_at?: string | Date | null;
 }
 
 /**
@@ -84,6 +88,18 @@ function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(r
     updatedAt: String(row.updated_at ?? row.created_at),
     preview,
     snapshotRevision: revision === null || revision === undefined ? null : Number(revision),
+    copiedFrom:
+      row.copied_from_project_id && row.copied_from_author && row.copied_from_title
+        ? {
+            projectId: row.copied_from_project_id,
+            author: row.copied_from_author,
+            title: row.copied_from_title,
+            at:
+              row.copied_at instanceof Date
+                ? row.copied_at.toISOString()
+                : String(row.copied_at ?? ''),
+          }
+        : null,
   };
 }
 
@@ -207,6 +223,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       if (inserted.rows.length === 0) {
         const existing = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
+           p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
                   p.status, p.created_at, p.request_fingerprint,
                   d.preview_json, d.preview_digest
              FROM projects p
@@ -294,6 +311,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       return withTenantContext(this.pool, tenantId, async (client) => {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
+           p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
                   p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest,
                   s.source_revision AS snapshot_revision
              FROM projects p
@@ -311,6 +329,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       if (filter.scope === 'personal') {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
+           p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
                   p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest,
                   s.source_revision AS snapshot_revision
              FROM projects p
@@ -598,6 +617,149 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         versionNo: row.version_no,
         label: row.label ?? null,
         createdAt: String(row.created_at),
+      };
+    });
+  }
+
+  async listVersions(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<readonly ProjectVersion[] | null> {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
+      const rows = await client.query(
+        `SELECT v.id, v.project_id, v.version_no, v.label, v.created_at
+           FROM project_versions v
+           JOIN projects p ON p.tenant_id = v.tenant_id AND p.id = v.project_id
+          WHERE v.tenant_id = $1 AND v.project_id = $2
+            AND p.status <> 'trashed' AND ${ACCESS_SQL}
+          ORDER BY v.version_no DESC`,
+        [access.tenantId, projectId, actor.principalId, access.userId],
+      );
+      return rows.rows.map((row) => ({
+        id: row.id as string,
+        projectId: row.project_id as string,
+        versionNo: Number(row.version_no),
+        label: (row.label as string | null) ?? null,
+        createdAt: String(row.created_at),
+      }));
+    });
+  }
+
+  async restoreVersion(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+    versionId: string,
+  ): Promise<{ draft: ProjectDraft; versions: readonly ProjectVersion[] } | null> {
+    const access = await this.projectContext(tenantId, projectId, actor);
+    if (access === null) return null;
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
+      // The version being returned to.
+      const target = await client.query(
+        `SELECT v.document_json, v.version_no
+           FROM project_versions v
+          WHERE v.tenant_id = $1 AND v.project_id = $2 AND v.id = $3`,
+        [access.tenantId, projectId, versionId],
+      );
+      if (target.rows.length === 0) return null;
+
+      // What is on screen now, locked so nothing lands between reading it and
+      // replacing it.
+      const current = await client.query(
+        `SELECT d.document_json
+           FROM project_drafts d
+           JOIN projects p ON p.tenant_id = d.tenant_id AND p.id = d.project_id
+          WHERE d.tenant_id = $1 AND d.project_id = $2
+            AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
+          FOR UPDATE OF d`,
+        [access.tenantId, projectId, actor.principalId, access.userId],
+      );
+      if (current.rows.length === 0) return null;
+
+      // Keep it first. Going back has to be something you can come back from —
+      // a history where one wrong press loses the afternoon is worse than none.
+      await client.query(
+        `INSERT INTO project_versions
+           (tenant_id, project_id, version_no, document_json, label,
+            created_by, created_by_principal_id)
+         SELECT $1, $2, COALESCE(MAX(version_no), 0) + 1, $3::jsonb, $4, $5, $6
+           FROM project_versions
+          WHERE tenant_id = $1 AND project_id = $2`,
+        [
+          access.tenantId,
+          projectId,
+          JSON.stringify(current.rows[0].document_json),
+          'Перед возвратом',
+          access.userId,
+          actor.principalId,
+        ],
+      );
+
+      const restored = await client.query(
+        `UPDATE project_drafts d
+            SET document_json = $5, revision = revision + 1, updated_at = now(),
+                updated_by = $4, updated_by_principal_id = $3,
+                preview_json = NULL, preview_digest = NULL
+           FROM projects p
+          WHERE d.tenant_id = $1 AND d.project_id = $2
+            AND p.tenant_id = d.tenant_id AND p.id = d.project_id
+            AND p.status <> 'trashed'
+            AND ${EDIT_ACCESS_SQL}
+          RETURNING d.project_id, d.document_json, d.revision, d.updated_at,
+                    d.preview_json, d.preview_digest`,
+        [
+          access.tenantId,
+          projectId,
+          actor.principalId,
+          access.userId,
+          JSON.stringify(target.rows[0].document_json),
+        ],
+      );
+      const row = restored.rows[0];
+      if (!row) return null;
+
+      await client.query(
+        `INSERT INTO audit_events
+           (tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
+         VALUES ($1,$2,'project',$3,'project.version_restored',$4)`,
+        [
+          access.tenantId,
+          access.userId,
+          projectId,
+          JSON.stringify({
+            versionNo: Number(target.rows[0].version_no),
+            actorPrincipalId: actor.principalId,
+          }),
+        ],
+      );
+      await recordClassroomActivity(client, actor.principalId, projectId, 'project.saved');
+
+      const versions = await client.query(
+        `SELECT id, project_id, version_no, label, created_at
+           FROM project_versions
+          WHERE tenant_id = $1 AND project_id = $2
+          ORDER BY version_no DESC`,
+        [access.tenantId, projectId],
+      );
+
+      return {
+        draft: {
+          projectId: row.project_id,
+          document: row.document_json,
+          revision: row.revision,
+          updatedAt: String(row.updated_at),
+          preview: toPreview(row as PreviewRow),
+        },
+        versions: versions.rows.map((entry) => ({
+          id: entry.id as string,
+          projectId: entry.project_id as string,
+          versionNo: Number(entry.version_no),
+          label: (entry.label as string | null) ?? null,
+          createdAt: String(entry.created_at),
+        })),
       };
     });
   }

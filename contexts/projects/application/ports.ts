@@ -111,6 +111,24 @@ export interface ProjectRepositoryPort {
     label: string | null,
   ): Promise<ProjectVersion | null>;
   /**
+   * Puts the project back to how a saved version looked.
+   *
+   * The state being left behind is checkpointed first, so going back is itself
+   * something you can come back from. A history where one wrong press loses an
+   * afternoon's work is worse than no history at all.
+   */
+  restoreVersion(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+    versionId: string,
+  ): Promise<{ draft: ProjectDraft; versions: readonly ProjectVersion[] } | null>;
+  listVersions(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<readonly ProjectVersion[] | null>;
+  /**
    * Stores the picture against the draft revision the server currently holds.
    * The revision is never taken from the caller: it is what decides whether a
    * cached card is still valid, so a client must not be able to name it.

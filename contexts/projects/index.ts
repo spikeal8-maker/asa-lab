@@ -37,6 +37,8 @@ export type {
 export {
   ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
+  RestoreVersionUseCase,
+  ListVersionsUseCase,
   CreateProjectUseCase,
   DuplicateProjectUseCase,
   ListProjectsUseCase,
