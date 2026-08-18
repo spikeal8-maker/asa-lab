@@ -1,13 +1,22 @@
 import type { Project } from '../api';
 
 export type CreatorPortalSection =
-  'home' | 'projects' | 'learning' | 'collections' | 'challenges' | 'classes' | 'help' | 'account';
+  | 'home'
+  | 'projects'
+  | 'learning'
+  | 'collections'
+  | 'gallery'
+  | 'challenges'
+  | 'classes'
+  | 'help'
+  | 'account';
 
 export type CreatorPortalView =
   | { kind: 'home' }
   | { kind: 'my-projects' }
   | { kind: 'learning' }
   | { kind: 'collections' }
+  | { kind: 'gallery' }
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
   /** `seatId` opens the class already showing one learner, which is where a
@@ -51,6 +60,7 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/projects', view: { kind: 'my-projects' } },
   { path: '/learning', view: { kind: 'learning' } },
   { path: '/collections', view: { kind: 'collections' } },
+  { path: '/gallery', view: { kind: 'gallery' } },
   { path: '/challenges', view: { kind: 'challenges' } },
   { path: '/classrooms', view: { kind: 'classrooms' } },
   { path: '/help', view: { kind: 'help' } },
@@ -79,6 +89,9 @@ export function portalNavigation(
     ...(classes ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
     { section: 'projects', label: 'Проекты' },
     { section: 'collections', label: 'Коллекции' },
+    // Where the work that was shared lives. Everyone has it: seeing what other
+    // people made is the reason a child opens a making tool twice.
+    { section: 'gallery', label: 'Галерея' },
     { section: 'learning', label: 'Учебные пособия' },
     // For a teacher this destination is their own bank of tasks, and the page it
     // opens is headed «Задания». Calling it «Задачи» in the sidebar sent a
@@ -102,6 +115,7 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'home') return 'home';
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'collections') return 'collections';
+  if (view.kind === 'gallery') return 'gallery';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
   if (

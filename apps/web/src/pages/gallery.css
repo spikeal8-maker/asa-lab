@@ -1,0 +1,186 @@
+/* A wall of pictures. The work is the content; everything else is small. */
+.gallery-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.gallery-heading h1 {
+  margin: 0 0 6px;
+}
+
+.gallery-heading p {
+  margin: 0;
+  color: #2a363e;
+}
+
+.gallery-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.gallery-sort {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #e7eef3;
+}
+
+.gallery-sort button {
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gallery-sort button.is-active {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(17, 52, 71, 0.18);
+}
+
+.gallery-module select {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cfdde5;
+  border-radius: 8px;
+  background: #fff;
+  color: #16232c;
+  font-size: 14px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-grid li {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #d7e3ea;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.gallery-grid li.is-choice {
+  border-color: #e2a72a;
+  box-shadow: 0 0 0 2px rgba(226, 167, 42, 0.22);
+}
+
+.gallery-picture {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #eef3f6;
+}
+
+.gallery-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-choice-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #b9761a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gallery-card-body {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px 8px;
+}
+
+.gallery-card-body strong {
+  color: #16232c;
+  font-size: 16px;
+}
+
+.gallery-author {
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gallery-meta {
+  color: #2a363e;
+  font-size: 13px;
+}
+
+.gallery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 0 14px 12px;
+}
+
+.gallery-reaction {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #cfdde5;
+  border-radius: 999px;
+  background: #fff;
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gallery-reaction:hover {
+  border-color: #0b82ba;
+  background: #eef7fc;
+}
+
+.gallery-reaction.is-active {
+  border-color: #0b82ba;
+  background: #d9edf8;
+  color: #08627f;
+}
+
+.gallery-open {
+  margin-left: auto;
+  padding: 0 12px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: #e7eef3;
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gallery-teacher-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px 12px;
+  border-top: 1px solid #eef3f6;
+  padding-top: 10px;
+}

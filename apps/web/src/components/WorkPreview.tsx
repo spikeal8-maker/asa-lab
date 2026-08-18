@@ -42,6 +42,9 @@ export function WorkPreview({
 }): JSX.Element {
   const [badge, setBadge] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  // Whether this work is already on the wall, so the button says the truth.
+  const [shared, setShared] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [existing, setExisting] = useState<ProjectFeedback | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -55,6 +58,9 @@ export function WorkPreview({
       setExisting(entry);
       setBadge(entry?.badge ?? null);
       setComment(entry?.comment ?? '');
+    });
+    void api.galleryState(projectId).then((result) => {
+      if (result.ok) setShared(result.data.published);
     });
   }, [projectId]);
 
@@ -129,6 +135,27 @@ export function WorkPreview({
             <button type="button" className="btn-secondary" onClick={onOpenEditor}>
               Открыть в редакторе
             </button>
+            {/* Sharing a child's work is a teacher's decision, never the
+                child's: a ten-year-old should not be publishing their homework
+                mid-lesson, and somebody should look at the picture before the
+                rest of the platform does. */}
+            {pictureUrl ? (
+              <button
+                type="button"
+                className={shared ? 'assignment-remove' : 'btn-secondary'}
+                disabled={sharing}
+                onClick={async () => {
+                  setSharing(true);
+                  const result = shared
+                    ? await api.unpublishFromGallery(projectId)
+                    : await api.publishToGallery(projectId);
+                  setSharing(false);
+                  if (result.ok) setShared(!shared);
+                }}
+              >
+                {shared ? 'Убрать из галереи' : 'Поделиться в галерее'}
+              </button>
+            ) : null}
           </div>
 
           <form className="work-preview-form" onSubmit={(event) => void save(event)}>

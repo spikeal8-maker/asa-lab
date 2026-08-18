@@ -19,6 +19,7 @@ import {
   ChallengesGlyph,
   ClassesGlyph,
   CollectionsGlyph,
+  GalleryGlyph,
   HelpGlyph,
   HomeGlyph,
   LearningGlyph,
@@ -34,6 +35,7 @@ function sectionIcon(section: Exclude<PortalSection, 'account'>): JSX.Element {
   if (section === 'classes') return <ClassesGlyph />;
   if (section === 'projects') return <ProjectsGlyph />;
   if (section === 'collections') return <CollectionsGlyph />;
+  if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;
   if (section === 'challenges') return <ChallengesGlyph />;
   return <HelpGlyph />;
@@ -224,7 +226,7 @@ export function PortalHeader({
           <button type="button" onClick={() => onNavigate('projects')}>
             Проекты
           </button>
-          <button type="button" onClick={() => onNavigate('collections')}>
+          <button type="button" onClick={() => onNavigate('gallery')}>
             Галерея
           </button>
           <button type="button" onClick={() => onNavigate('learning')}>

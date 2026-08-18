@@ -78,6 +78,17 @@ export function CollectionsGlyph(props: GlyphProps): JSX.Element {
   );
 }
 
+/** The gallery: a picture on a wall, which is what the page actually is. */
+export function GalleryGlyph(props: GlyphProps): JSX.Element {
+  return (
+    <Glyph {...props}>
+      <rect x="3.4" y="4.6" width="17.2" height="14.8" rx="1.6" />
+      <path d="M3.4 15.4 8.2 11l3.5 3.2 3.1-2.6 5.8 4.8" />
+      <circle cx="9" cy="8.8" r="1.3" />
+    </Glyph>
+  );
+}
+
 /** Lessons: the cap a person earns, not the paper they read. */
 export function LearningGlyph(props: GlyphProps): JSX.Element {
   return (

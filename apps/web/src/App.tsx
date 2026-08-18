@@ -17,6 +17,7 @@ import { SeatClassPage } from './pages/SeatClassPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
+import { GalleryPage } from './pages/GalleryPage';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
@@ -338,6 +339,7 @@ export function App(): JSX.Element {
     else if (section === 'projects') setView({ kind: 'my-projects' });
     else if (section === 'learning') setView({ kind: 'learning' });
     else if (section === 'collections') setView({ kind: 'collections' });
+    else if (section === 'gallery') setView({ kind: 'gallery' });
     else if (section === 'challenges') setView({ kind: 'challenges' });
     else if (section === 'classes') setView({ kind: 'classrooms' });
     else if (section === 'help') setView({ kind: 'help' });
@@ -403,6 +405,16 @@ export function App(): JSX.Element {
             class — so they still get the informational page. */}
         {view.kind === 'challenges' && hasTeachingCapability && !isSeatLearner ? (
           <AssignmentLibraryPage />
+        ) : null}
+        {/* The gallery is the one place people see each other's work, and that
+            is the whole point of it: inside a class nobody sees a classmate's
+            model, because thirty children on one task shown each other's
+            answers is a copying machine. Here the work is finished and was
+            published on purpose. */}
+        {/* No "open" on a card: a gallery entry belongs to another person and
+            usually another school, and the picture is the point. */}
+        {view.kind === 'gallery' ? (
+          <GalleryPage canTeach={hasTeachingCapability && !isSeatLearner} />
         ) : null}
         {view.kind === 'learning' ||
         view.kind === 'collections' ||

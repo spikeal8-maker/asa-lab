@@ -109,6 +109,9 @@ export function MyProjectsPage({
   // What a teacher said, keyed by project. Empty for anyone with no teacher.
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
   const [reading, setReading] = useState<{ title: string; entry: ProjectFeedback } | null>(null);
+  // Which of these are on the gallery wall, so the menu item says the truth.
+  const [shared, setShared] = useState<ReadonlySet<string>>(new Set());
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setItems(null);
@@ -116,10 +119,11 @@ export function MyProjectsPage({
     // The teacher's responses arrive with the projects, so a mark is on the card
     // when the card appears. A response is not required for the page to work: a
     // learner with no teacher simply has none.
-    const [projectsResult, modulesResult, feedbackResult] = await Promise.all([
+    const [projectsResult, modulesResult, feedbackResult, sharedResult] = await Promise.all([
       api.listProjects({ scope: 'personal', status: statusFilter }),
       api.listModules(),
       api.myProjectFeedback(),
+      api.myGalleryProjects(),
     ]);
     if (!projectsResult.ok || !modulesResult.ok) {
       setError(
@@ -132,6 +136,7 @@ export function MyProjectsPage({
     setItems(projectsResult.data.items);
     setModules(modulesResult.data.items);
     setFeedback(feedbackResult.ok ? feedbackResult.data.items : {});
+    setShared(new Set(sharedResult.ok ? sharedResult.data.projectIds : []));
   }, [statusFilter]);
 
   useEffect(() => {
@@ -205,6 +210,37 @@ export function MyProjectsPage({
       return;
     }
     setItems((current) => current?.filter((item) => item.id !== project.id) ?? null);
+  }
+
+  /**
+   * Putting your own work on the wall, or taking it back off.
+   *
+   * Only an account holder reaches this menu; a child on a class seat has their
+   * work shared by their teacher, from the register, after somebody has looked
+   * at it. Publishing needs a picture, and the editor writes one on its own
+   * schedule — so a project that has never been opened long enough to save a
+   * snapshot says so rather than failing silently.
+   */
+  async function toggleShare(project: Project): Promise<void> {
+    setActionBusy(project.id);
+    const isShared = shared.has(project.id);
+    const result = isShared
+      ? await api.unpublishFromGallery(project.id)
+      : await api.publishToGallery(project.id);
+    setActionBusy(null);
+    if (!result.ok) {
+      setShareNotice(result.error.message || 'Не удалось поделиться работой.');
+      return;
+    }
+    setShared((current) => {
+      const next = new Set(current);
+      if (isShared) next.delete(project.id);
+      else next.add(project.id);
+      return next;
+    });
+    setShareNotice(
+      isShared ? `«${project.title}» убрана из галереи.` : `«${project.title}» теперь в галерее.`,
+    );
   }
 
   async function duplicate(project: Project): Promise<void> {
@@ -320,6 +356,11 @@ export function MyProjectsPage({
         </div>
       </section>
 
+      {shareNotice ? (
+        <p className="notice-success" role="status">
+          {shareNotice}
+        </p>
+      ) : null}
       {error ? (
         <div className="portal-empty" role="alert">
           <p>{error}</p>
@@ -436,6 +477,13 @@ export function MyProjectsPage({
                             ]
                           : []),
                         { label: 'Переименовать', onSelect: () => beginRename(project) },
+                        {
+                          label: shared.has(project.id)
+                            ? 'Убрать из галереи'
+                            : 'Поделиться в галерее',
+                          disabled: busy,
+                          onSelect: () => void toggleShare(project),
+                        },
                         {
                           label: 'Дублировать',
                           disabled: busy,

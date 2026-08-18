@@ -111,6 +111,23 @@ export interface LibraryAssignment {
   submittedCount: number;
 }
 
+export interface GalleryItem {
+  projectId: string;
+  title: string;
+  moduleKey: string;
+  /** How the author is named under the picture: a roster label or a display name. */
+  authorLabel: string;
+  publishedAt: string;
+  snapshotRevision: number;
+  editorsChoice: boolean;
+  likeCount: number;
+  wowCount: number;
+  viewerLiked: boolean;
+  viewerWowed: boolean;
+  /** The author, or whoever put it up — the two people who may take it down. */
+  viewerMayRemove: boolean;
+}
+
 export interface AssignmentClassroom {
   classroomId: string;
   classroomTitle: string;
@@ -689,6 +706,35 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
     ),
+  gallery: (options: { sort?: 'recent' | 'popular'; module?: string; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.sort) query.set('sort', options.sort);
+    if (options.module) query.set('module', options.module);
+    if (options.offset) query.set('offset', String(options.offset));
+    const suffix = query.toString();
+    return call<{ items: GalleryItem[] }>(`/api/gallery${suffix ? `?${suffix}` : ''}`);
+  },
+  myGalleryProjects: () => call<{ projectIds: string[] }>('/api/gallery/mine'),
+  galleryState: (projectId: string) =>
+    call<{ published: boolean; publishedAt?: string; likeCount?: number; wowCount?: number }>(
+      `/api/gallery/${encodeURIComponent(projectId)}/state`,
+    ),
+  publishToGallery: (projectId: string) =>
+    call<{ published: true }>(`/api/gallery/${encodeURIComponent(projectId)}`, { method: 'POST' }),
+  unpublishFromGallery: (projectId: string) =>
+    call<{ published: false }>(`/api/gallery/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE',
+    }),
+  reactToWork: (projectId: string, kind: 'like' | 'wow', on: boolean) =>
+    call<{ ok: true }>(`/api/gallery/${encodeURIComponent(projectId)}/reaction`, {
+      method: 'PUT',
+      body: JSON.stringify({ kind, on }),
+    }),
+  setEditorsChoice: (projectId: string, on: boolean) =>
+    call<{ ok: true }>(`/api/gallery/${encodeURIComponent(projectId)}/editors-choice`, {
+      method: 'PUT',
+      body: JSON.stringify({ on }),
+    }),
   listAssignmentLibrary: () => call<{ items: LibraryAssignment[] }>('/api/assignments'),
   saveLibraryAssignment: (
     assignmentId: string | null,

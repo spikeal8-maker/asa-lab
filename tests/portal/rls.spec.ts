@@ -169,6 +169,12 @@ describe('runtime role hardening', () => {
       'project_feedback:INSERT',
       'project_feedback:SELECT',
       'project_feedback:UPDATE',
+      // The gallery: read by the runtime role across tenants on purpose, since
+      // a gallery that shows a school only its own work is not a gallery.
+      // Nothing here is written directly — every change goes through a function
+      // that checks who is asking.
+      'project_publications:SELECT',
+      'project_reactions:SELECT',
       // Card pictures: written and overwritten by the editor that took them,
       // read back for delivery. No DELETE — a snapshot is replaced, never
       // removed, and the runtime role must not be able to remove one.
