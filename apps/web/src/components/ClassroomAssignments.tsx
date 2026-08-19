@@ -365,6 +365,8 @@ export function ClassroomAssignments({
           </ul>
         </>
       )}
+
+      {editorDialog}
     </section>
   );
 }
