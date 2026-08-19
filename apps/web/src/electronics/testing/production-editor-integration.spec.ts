@@ -34,6 +34,7 @@ const EMPTY: SchematicDocument = {
 };
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
+  'battery-9v': [52.667, 26.8],
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
   'button-tactile-6mm': [10, 10],
@@ -268,10 +269,16 @@ describe('owner SVG integration in the real Electronics document', () => {
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['diode-do35', 'diode-do41']);
     expect(families.find((family) => family.familyId === 'battery')).toMatchObject({
-      enabled: false,
+      enabled: true,
       appearsInBasic: true,
-      simulationStatus: 'not_yet_supported',
+      simulationStatus: 'supported',
+      defaultVariantId: 'battery-9v',
     });
+    // The confirmed 9 V «Крона» is the family's only variant with owner art;
+    // cells without confirmed SVG stay out of the family entirely.
+    expect(
+      families.find((family) => family.familyId === 'battery')?.variants.map((v) => v.variantId),
+    ).toEqual(['battery-9v']);
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families

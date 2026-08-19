@@ -610,6 +610,19 @@ function component(page: Page, componentTypeId: string) {
   );
 }
 
+/**
+ * Диагностическая метка детали.
+ *
+ * Метки рисуются отдельным слоем поверх схемы — иначе подсказка тонула под
+ * проводами и деталями, нарисованными позже. Деталь метка называет сама, так
+ * что искать её нужно по имени детали, а не внутри её группы.
+ */
+function diagnostic(page: Page, componentTypeId: string, testId: string) {
+  return page.locator(
+    `[data-testid="component-diagnostic"][data-component-type="${componentTypeId}"] [data-testid="${testId}"]`,
+  );
+}
+
 async function brightnessValue(page: Page): Promise<number> {
   const value = await component(page, 'led-5mm')
     .locator('.workbench-production-visual')
@@ -619,7 +632,7 @@ async function brightnessValue(page: Page): Promise<number> {
 
 async function selectLed(page: Page): Promise<void> {
   const led = component(page, 'led-5mm');
-  const burnout = led.locator('[data-testid="led-burnout-explosion"]');
+  const burnout = diagnostic(page, 'led-5mm', 'led-burnout-explosion');
   if ((await burnout.count()) > 0 && (await burnout.isVisible())) {
     await burnout.locator('.workbench-led-explosion-inner').click();
   } else {
@@ -817,7 +830,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'data-led-runtime-state',
     'off',
   );
-  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
+  await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
   await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
   await switchComponent.getByTestId('spdt-actuator').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
@@ -843,7 +856,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'data-led-runtime-state',
     'lit',
   );
-  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
+  await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
   await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
     'href',
     /led_red_i000\.svg$/,
@@ -861,7 +874,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     .locator('input[type="number"]');
   await resistanceInput.fill('1');
   await selectLed(page);
-  const warningBadge = led.locator('[data-testid="led-diagnostic-badge"]');
+  const warningBadge = diagnostic(page, 'led-5mm', 'led-diagnostic-badge');
   await expect(warningBadge).toBeVisible();
   await expect(warningBadge).toHaveAttribute(
     'aria-label',
@@ -943,8 +956,8 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     /special\/led_red_reverse_polarity\.svg$/,
   );
   await expect(led.locator('.workbench-production-visual')).toHaveClass(/is-reverse/);
-  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
-  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveCount(0);
+  await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
+  await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveCount(0);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-reverse-polarity.png`,
     fullPage: true,
@@ -964,9 +977,9 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'href',
     /special\/led_red_burned\.svg$/,
   );
-  await expect(led.locator('[data-testid="led-diagnostic-badge"]')).toHaveCount(0);
-  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toBeVisible();
-  await expect(led.locator('[data-testid="led-burnout-explosion"]')).toHaveAttribute(
+  await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
+  await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toBeVisible();
+  await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveAttribute(
     'aria-label',
     /абсолютное максимальное значение/i,
   );
@@ -983,7 +996,9 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.getByText(/Время моделирования:/)).toBeVisible();
   const source = page.locator('[data-testid="schematic-component"][data-kind="source"]');
   await expect(source).toHaveAttribute('data-diagnostics', /short_circuit/);
-  await expect(source.locator('[data-testid="component-diagnostic-indicator"]')).toBeVisible();
+  await expect(
+    diagnostic(page, 'battery-holder-aa-2', 'component-diagnostic-indicator'),
+  ).toBeVisible();
   await expect(page.locator('.workbench-results')).toHaveCount(0);
   await expect(page.locator('.workbench-toast')).toHaveCount(0);
   expect(failures.counts).toMatchObject({
@@ -1126,7 +1141,7 @@ test('RGB LED visibly mixes the saved 3 V red and blue owner wiring', async ({ p
   expect(blue).toBeGreaterThan(red);
   await expect(visual).not.toHaveAttribute('data-rgb-colour', /^rgb\((?:0, 0, 0|255, 0, 0)\)$/);
   await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
-  await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveCount(0);
+  await expect(diagnostic(page, 'rgb-led', 'rgb-led-burnout-explosion')).toHaveCount(0);
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-rgb-red-blue-3v.png`,
     fullPage: true,
@@ -1234,12 +1249,12 @@ test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', as
       await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', '0');
     }
     if (scenario.diagnostic === 'reverse_polarity') {
-      await expect(rgb.getByTestId('led-diagnostic-badge')).toHaveCount(0);
-      await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveCount(0);
+      await expect(diagnostic(page, 'rgb-led', 'led-diagnostic-badge')).toHaveCount(0);
+      await expect(diagnostic(page, 'rgb-led', 'rgb-led-burnout-explosion')).toHaveCount(0);
     }
     if (scenario.runtimeState === 'burned') {
-      await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toBeVisible();
-      await expect(rgb.getByTestId('rgb-led-burnout-explosion')).toHaveAttribute(
+      await expect(diagnostic(page, 'rgb-led', 'rgb-led-burnout-explosion')).toBeVisible();
+      await expect(diagnostic(page, 'rgb-led', 'rgb-led-burnout-explosion')).toHaveAttribute(
         'aria-label',
         /перегорел/i,
       );

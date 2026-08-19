@@ -168,6 +168,7 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
 };
 
 const SIMULATED_TYPES = new Set([
+  'battery-9v',
   'battery-holder-aa-1',
   'battery-holder-aa-2',
   'battery-holder-aa-3',
@@ -263,6 +264,7 @@ function defaults(componentId: string): {
     const cells = Number(componentId.split('-').at(-1));
     return { value: cells * 1.5, unit: 'В', properties: { cells } };
   }
+  if (componentId === 'battery-9v') return { value: 9, unit: 'В', properties: {} };
   if (componentId === 'resistor-axial')
     return {
       value: 220,

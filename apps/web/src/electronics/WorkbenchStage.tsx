@@ -268,7 +268,17 @@ export function WorkbenchStage({
         : !isRgbLed || ledBurned;
       if (!c.simulationRunning || !primaryDiagnostic || !showDiagnosticIndicator) return null;
       return (
-        <g key={component.id} transform={componentTransform(component)}>
+        // Слой рисуется поверх схемы, поэтому метка обязана называть свою
+        // деталь: иначе по разметке не понять, о чём предупреждение, — ни
+        // тесту, ни человеку, который читает страницу.
+        <g
+          key={component.id}
+          transform={componentTransform(component)}
+          data-testid="component-diagnostic"
+          data-component-id={component.id}
+          data-component-type={component.componentTypeId}
+          data-kind={component.kind}
+        >
           <g
             className={`workbench-component-diagnostic-indicator${
               ledBurned ? ' workbench-led-burnout-explosion' : ''
