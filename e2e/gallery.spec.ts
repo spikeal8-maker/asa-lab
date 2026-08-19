@@ -52,38 +52,37 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   const authorFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(page, author);
 
-  // A project with a picture. The editor saves one on its own schedule, so the
-  // test puts one there directly — what is being tested is the gallery, not the
-  // 3D canvas, which has its own suite.
+  /**
+   * A project with a picture, made through the API from the signed-in page.
+   *
+   * This spec is about the gallery, not about the 3D canvas — which has its own
+   * suite, takes a minute to boot a WebGL runtime, and made this test fall over
+   * whenever the whole suite ran in parallel. Publishing needs a project and a
+   * snapshot; both are made here directly.
+   */
   await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
-  // Two buttons carry this name: the one in the header bar and the one on the
-  // page. Either opens the same dialog; the page's is the one a person presses.
-  await page.getByRole('main').getByRole('button', { name: 'Создать проект', exact: true }).click();
-  await page.getByLabel('Название проекта').fill(TITLE);
-  await page.locator('.module-tile').filter({ hasText: 'ASA 3D' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
-  await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
-    timeout: 60_000,
-  });
-
   const projectId = await page.evaluate(
-    () => window.location.hash.replace(/^#\/3d\//, '').split(/[?#]/)[0] ?? '',
-  );
-  expect(projectId).not.toEqual('');
-  const saved = await page.evaluate(
-    async ([id, image]) => {
-      const response = await fetch(`/api/projects/${id}/snapshot`, {
+    async ([title, image]) => {
+      const created = await fetch('/api/projects', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', 'idempotency-key': `gallery-${Date.now()}` },
+        body: JSON.stringify({ scope: 'personal', module: 'three-d', title }),
+      });
+      const body = await created.json();
+      const id = body.project.id as string;
+      await fetch(`/api/projects/${id}/snapshot`, {
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ imageDataUrl: image }),
       });
-      return response.status;
+      return id;
     },
-    [projectId, PICTURE],
+    [TITLE, PICTURE],
   );
-  expect(saved).toBe(200);
+  expect(projectId).toMatch(/^[0-9a-f-]{36}$/);
+  await page.reload();
 
   // Sharing it, from the menu on its own card.
   await page.getByRole('button', { name: 'ASA Lab' }).first().click();
@@ -126,8 +125,10 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   );
 
   // «Выбор редакции» is awarded, and it survives a reload because it was saved.
-  await entry.getByRole('button', { name: 'Выбор редакции' }).click();
-  await expect(entry.getByText('Выбор редакции')).toBeVisible();
+  await entry.getByRole('button', { name: 'Выбор редакции', exact: true }).click();
+  // Именно значок на картинке, а не кнопка «Снять выбор редакции» рядом: оба
+  // содержат эти слова, и проверка без уточнения находила два элемента сразу.
+  await expect(entry.locator('.gallery-choice-badge')).toBeVisible();
   await viewerPage.reload();
   const afterReload = viewerPage
     .getByTestId('gallery')

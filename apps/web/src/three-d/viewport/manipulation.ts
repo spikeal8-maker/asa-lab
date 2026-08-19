@@ -80,3 +80,29 @@ export function snapRotationRadians(radians: number, stepDegrees: number): numbe
   const degrees = normaliseDegrees((radians * 180) / Math.PI);
   return (snapToStep(degrees, stepDegrees) * Math.PI) / 180;
 }
+
+/**
+ * Высота горизонтальной плоскости, по которой ведётся перетаскивание.
+ *
+ * Плоскость обязана проходить через саму фигуру. Пока здесь стоял пол (y = 0),
+ * деталь уезжала из-под курсора: луч от мыши пересекает пол не там, где
+ * проходит через деталь, и при одном движении мыши она проходила лишнее — почти
+ * 6% для куба на плоскости и в разы больше для поднятого. Это то, что видно как
+ * «фигура бежит и плывёт».
+ */
+export function dragPlaneHeight(shapeCentreY: number): number {
+  return Number.isFinite(shapeCentreY) ? shapeCentreY : 0;
+}
+
+/**
+ * Можно ли вообще двигать по этой плоскости с такого угла.
+ *
+ * Луч, идущий вдоль плоскости, пересекает её сколь угодно далеко: у горизонта
+ * один пиксель мыши превращается в метры, и деталь исчезает с экрана. Ниже
+ * этого порога движение не применяется — лучше не сдвинуть, чем зашвырнуть.
+ */
+export const GRAZING_LIMIT = 0.08;
+
+export function canDragOnPlane(rayDotPlaneNormal: number): boolean {
+  return Math.abs(rayDotPlaneNormal) >= GRAZING_LIMIT;
+}

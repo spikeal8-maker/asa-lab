@@ -6,6 +6,8 @@ import {
   normaliseDegrees,
   snapRotationRadians,
   snapToStep,
+  canDragOnPlane,
+  dragPlaneHeight,
 } from '../viewport/manipulation';
 
 describe('ASA 3D direct-manipulation math', () => {
@@ -69,5 +71,31 @@ describe('ASA 3D direct-manipulation math', () => {
     expect(normaliseDegrees(-540)).toBe(-180);
     expect((snapRotationRadians((22.6 * Math.PI) / 180, 1) * 180) / Math.PI).toBeCloseTo(23);
     expect((snapRotationRadians((22.6 * Math.PI) / 180, 15) * 180) / Math.PI).toBeCloseTo(30);
+  });
+});
+
+describe('плоскость перетаскивания', () => {
+  it('проходит через саму фигуру, а не через пол', () => {
+    // Пока здесь был пол, деталь уезжала из-под курсора тем сильнее, чем выше
+    // она стояла: куб на плоскости уходил на 6% дальше мыши, поднятый на
+    // 70 мм — на 63%, верхушка башни — в несколько раз.
+    expect(dragPlaneHeight(10)).toBe(10);
+    expect(dragPlaneHeight(70)).toBe(70);
+    expect(dragPlaneHeight(0)).toBe(0);
+  });
+
+  it('не спотыкается о нечисловую высоту', () => {
+    expect(dragPlaneHeight(Number.NaN)).toBe(0);
+    expect(dragPlaneHeight(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('не двигает фигуру, когда камера смотрит вдоль плоскости', () => {
+    // У горизонта луч почти параллелен плоскости, и один пиксель мыши
+    // превращается в метры. Лучше не сдвинуть, чем зашвырнуть за экран.
+    expect(canDragOnPlane(1)).toBe(true);
+    expect(canDragOnPlane(-0.5)).toBe(true);
+    expect(canDragOnPlane(0.08)).toBe(true);
+    expect(canDragOnPlane(0.02)).toBe(false);
+    expect(canDragOnPlane(0)).toBe(false);
   });
 });

@@ -7,6 +7,8 @@ import {
   normaliseDegrees,
   snapRotationRadians,
   snapToStep,
+  canDragOnPlane,
+  dragPlaneHeight,
 } from './manipulation';
 
 export interface DirectManipulationEntry {
@@ -895,7 +897,17 @@ export class DirectManipulator {
     let mathematicalHandlePoint: THREE.Vector3 | null = null;
 
     if (descriptor.kind === 'move') {
-      plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      /**
+       * Горизонтальная плоскость через саму фигуру, а не через пол.
+       *
+       * Раньше здесь стояла плоскость y = 0, и фигура уезжала из-под курсора:
+       * луч от мыши пересекает пол не там, где проходит через фигуру, поэтому
+       * при одном и том же движении мыши деталь проходила лишнее. Для куба,
+       * стоящего на плоскости (центр на 10 мм), это почти 6% лишнего хода; для
+       * поднятой на 70 мм — 63%; для верхушки башни — в несколько раз больше.
+       * Именно это выглядит как «бежит и плывёт».
+       */
+      plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -dragPlaneHeight(startPosition.y));
     } else if (descriptor.kind === 'resize') {
       mathematicalHandlePoint = this.worldFromLocal(
         entry,
@@ -993,6 +1005,13 @@ export class DirectManipulator {
     const drag = this.drag;
     if (!drag) return;
     this.setPointer(event.clientX, event.clientY);
+    /**
+     * Луч, идущий вдоль плоскости, пересекает её где угодно: у горизонта одно
+     * движение мыши на пиксель улетает в метры, и деталь исчезает с экрана.
+     * Пока камера смотрит слишком полого, движение просто не применяется —
+     * лучше не сдвинуть, чем зашвырнуть.
+     */
+    if (!canDragOnPlane(this.raycaster.ray.direction.dot(drag.plane.normal))) return;
     const point = new THREE.Vector3();
     if (!this.raycaster.ray.intersectPlane(drag.plane, point)) return;
     const delta = point.clone().sub(drag.startPoint);
