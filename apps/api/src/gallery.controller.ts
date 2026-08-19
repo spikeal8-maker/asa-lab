@@ -210,7 +210,8 @@ export class GalleryController {
       `SELECT project_id, title, module_key, author_label, published_at, snapshot_revision,
               editors_choice, like_count, wow_count, viewer_liked, viewer_wowed,
               viewer_may_remove, viewer_is_author, document_json,
-              copied_from_author, copied_from_title
+              copied_from_author, copied_from_title,
+              description, tags, license, visibility, copy_count
          FROM gallery_work($1, $2)`,
       [viewer.principalId, projectId],
     );
@@ -220,6 +221,11 @@ export class GalleryController {
           document_json: unknown;
           copied_from_author: string | null;
           copied_from_title: string | null;
+          description: string | null;
+          tags: string[] | null;
+          license: string;
+          visibility: 'link' | 'public';
+          copy_count: number | string;
         })
       | undefined;
     if (!row) throw new HttpException(error('not_published', 'Работа не опубликована.'), 404);
@@ -241,6 +247,13 @@ export class GalleryController {
         document: row.document_json ?? null,
         copiedFromAuthor: row.copied_from_author,
         copiedFromTitle: row.copied_from_title,
+        description: row.description,
+        tags: row.tags ?? [],
+        license: row.license,
+        visibility: row.visibility,
+        // Сколько раз работу взяли за основу — то число, ради которого автор
+        // вообще выкладывает: его работой воспользовались столько раз.
+        copyCount: Number(row.copy_count ?? 0),
       },
     };
   }
@@ -286,15 +299,23 @@ export class GalleryController {
     const viewer = await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
     const result = await this.requirePool().query(
-      `SELECT published, published_at, like_count, wow_count FROM gallery_state($1, $2)`,
+      `SELECT published, visibility, published_at, like_count, wow_count
+         FROM gallery_state($1, $2)`,
       [viewer.principalId, projectId],
     );
     const row = result.rows[0] as
-      | { published: boolean; published_at: Date | string; like_count: number; wow_count: number }
+      | {
+          published: boolean;
+          visibility: 'link' | 'public';
+          published_at: Date | string;
+          like_count: number;
+          wow_count: number;
+        }
       | undefined;
     if (!row) return { published: false as const };
     return {
       published: true as const,
+      visibility: row.visibility,
       publishedAt: iso(row.published_at),
       likeCount: Number(row.like_count),
       wowCount: Number(row.wow_count),

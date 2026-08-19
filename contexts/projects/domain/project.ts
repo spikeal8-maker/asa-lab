@@ -34,6 +34,12 @@ export interface Project {
    * changes with the work, so the image behind it can be cached forever.
    */
   readonly snapshotRevision: number | null;
+  /** Что это за работа, своими словами автора. */
+  readonly description: string | null;
+  /** До десяти коротких слов, по которым работу находят. */
+  readonly tags: readonly string[];
+  /** Под какой лицензией её можно брать. */
+  readonly license: string;
   /**
    * Where this project came from, when it was taken from somebody else's work
    * in the gallery. Set once at copy time and never afterwards: a project that

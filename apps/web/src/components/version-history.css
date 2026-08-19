@@ -100,3 +100,25 @@
   padding-top: 9px;
   border-top: 1px solid #eef3f6;
 }
+
+/* Тот же список версий, но в диалоге с карточки работы. */
+.version-history-panel-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.version-history-panel-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border: 1px solid #e2e9ee;
+  border-radius: 9px;
+  background: #f8fbfc;
+}

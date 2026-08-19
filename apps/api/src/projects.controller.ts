@@ -14,6 +14,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type {
   ChangeProjectStatusUseCase,
@@ -79,6 +80,9 @@ export class ProjectsController {
     private readonly readSnapshotUseCase: ReadProjectSnapshotUseCase,
     @Inject(TOKENS.seatContextUseCase) private readonly seatContext: SeatContextUseCase,
     @Inject(TOKENS.projectFeedbackService) private readonly feedback: ProjectFeedbackService,
+    // Свойства работы и её видимость правятся функциями базы: там же, где
+    // проверяется, чья это работа.
+    @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
   ) {}
 
   /**
@@ -415,6 +419,88 @@ export class ProjectsController {
   ): Promise<{ items: unknown[] }> {
     const context = await this.requireContext(request);
     return { items: await this.feedback.list(context.principalId, projectId) };
+  }
+
+  /**
+   * Свойства работы: описание, теги, лицензия, кому видно.
+   *
+   * Имя правится здесь же — в референсе это один диалог, и разводить
+   * переименование и остальное по разным местам значит заставлять человека
+   * помнить, где что лежит.
+   */
+  @Put(':projectId/properties')
+  async saveProperties(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+  ): Promise<{ ok: true }> {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, [
+      'title',
+      'description',
+      'tags',
+      'license',
+      'visibility',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const title = shape.body['title'];
+    const description = shape.body['description'] ?? null;
+    const tags = shape.body['tags'] ?? [];
+    const license = shape.body['license'] ?? 'reserved';
+    const visibility = shape.body['visibility'] ?? null;
+
+    if (typeof title !== 'string' || title.trim().length === 0 || title.length > 255) {
+      throw new HttpException(error('validation_error', 'Введите имя проекта.'), 400);
+    }
+    if (description !== null && (typeof description !== 'string' || description.length > 2000)) {
+      throw new HttpException(error('validation_error', 'Описание слишком длинное.'), 400);
+    }
+    if (
+      !Array.isArray(tags) ||
+      tags.length > 10 ||
+      tags.some((tag) => typeof tag !== 'string' || tag.length > 32)
+    ) {
+      throw new HttpException(error('validation_error', 'Не более десяти коротких тегов.'), 400);
+    }
+    const LICENCES = ['reserved', 'public-domain', 'cc-by', 'cc-by-sa', 'cc-by-nc'];
+    if (typeof license !== 'string' || !LICENCES.includes(license)) {
+      throw new HttpException(error('validation_error', 'Неизвестная лицензия.'), 400);
+    }
+
+    const pool = this.pool;
+    if (!pool) throw new HttpException(error('database_unavailable', 'database'), 503);
+    const saved = await pool.query(
+      `SELECT project_properties_save($1, $2, $3, $4, $5, $6) AS ok`,
+      [context.principalId, projectId, title.trim(), description, tags, license],
+    );
+    if ((saved.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('project_not_found', 'Проект не найден.'), 404);
+    }
+
+    // Публикация — это состояние работы, а не действие сбоку, поэтому она тут же.
+    if (visibility !== null) {
+      if (
+        typeof visibility !== 'string' ||
+        !['private', 'link', 'public'].includes(visibility)
+      ) {
+        throw new HttpException(error('validation_error', 'Неизвестная видимость.'), 400);
+      }
+      const changed = await pool.query(`SELECT project_visibility_set($1, $2, $3) AS ok`, [
+        context.principalId,
+        projectId,
+        visibility,
+      ]);
+      if ((changed.rows[0] as { ok: boolean } | undefined)?.ok !== true && visibility !== 'private') {
+        throw new HttpException(
+          error(
+            'visibility_failed',
+            'Чтобы поделиться работой, откройте её — редактор сохранит картинку.',
+          ),
+          400,
+        );
+      }
+    }
+    return { ok: true as const };
   }
 
   /** The history itself, for a panel that opens without reloading the editor. */

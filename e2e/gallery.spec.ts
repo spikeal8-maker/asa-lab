@@ -91,8 +91,21 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   const card = page.getByTestId('project-card').filter({ hasText: TITLE });
   await card.hover();
   await page.getByLabel(`Действия с проектом ${TITLE}`).click();
-  await page.getByRole('button', { name: 'Поделиться в галерее' }).click();
-  await expect(page.getByText(`«${TITLE}» теперь в галерее.`)).toBeVisible();
+  /**
+   * Публикация — состояние работы, а не действие сбоку, поэтому она живёт в её
+   * свойствах рядом с именем: частная, по ссылке или общедоступная. Заодно
+   * здесь же появляются описание, теги и лицензия, без которых зритель видит
+   * картинку и гадает, что перед ним.
+   */
+  await page.getByRole('button', { name: 'Свойства' }).click();
+  const properties = page.getByRole('dialog', { name: 'Свойства проекта' });
+  await properties.getByLabel('Описание проекта').fill('Замок с четырьмя башнями.');
+  await properties.getByLabel('Теги').fill('замок');
+  await properties.getByLabel('Теги').press('Enter');
+  await properties.getByRole('radio', { name: /Общедоступная/ }).check();
+  await properties.getByLabel('Лицензия').selectOption('cc-by');
+  await properties.getByRole('button', { name: 'Сохранить изменения' }).click();
+  await expect(page.getByText('Свойства сохранены.')).toBeVisible();
 
   // On the wall, where the author sees their own work and cannot react to it.
   await page.getByRole('button', { name: 'Галерея', exact: true }).first().click();

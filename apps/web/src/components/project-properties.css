@@ -1,0 +1,104 @@
+/* Свойства работы: один диалог на всё, что о ней можно сказать. */
+.project-properties {
+  max-width: min(600px, calc(100vw - 2rem)) !important;
+}
+
+.project-properties-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-properties-head h2 {
+  margin: 0;
+}
+
+.project-properties-close {
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: #2a363e;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.project-properties-close:hover {
+  color: #16232c;
+}
+
+.project-properties-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.project-properties-tags:empty {
+  display: none;
+}
+
+.project-properties-tags span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 6px 3px 11px;
+  border-radius: 999px;
+  background: #e7f0f5;
+  color: #16232c;
+  font-size: 13px;
+}
+
+.project-properties-tags button {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: #4a5a64;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.project-properties-tags button:hover {
+  color: #a5342b;
+}
+
+.project-properties-choices {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.project-properties-choices label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dfe6ea;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.project-properties-choices label:hover {
+  border-color: #0b82ba;
+  background: #f6fbfd;
+}
+
+.project-properties-choices input {
+  margin-top: 3px;
+}
+
+.project-properties-choices span {
+  display: grid;
+  gap: 2px;
+  color: #2a363e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.project-properties-choices strong {
+  color: #16232c;
+  font-size: 15px;
+}

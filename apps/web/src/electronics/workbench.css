@@ -2357,7 +2357,11 @@
 .workbench-canvas.wiring .workbench-breadboard-hole {
   opacity: 0;
 }
+/* While a wire is in hand, the hovered terminal must show its dot even on an
+   unselected component — a tooltip with no contact point underneath reads as
+   a label floating in space, and the wire lands blind. */
 .workbench-component-selected .workbench-terminal:hover .workbench-terminal-dot,
+.workbench-canvas.wiring .workbench-terminal:hover .workbench-terminal-dot,
 .workbench-terminal.pending .workbench-terminal-dot,
 .workbench-breadboard-terminal:hover .workbench-breadboard-hole,
 .workbench-breadboard-terminal.pending .workbench-breadboard-hole {

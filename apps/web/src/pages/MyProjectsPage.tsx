@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   api,
   type ModuleSummary,
@@ -10,6 +10,9 @@ import { CreateProjectModal } from '../components/CreateProjectModal';
 import { creatorViewToHref } from '../creator-portal/navigation';
 import { PlusIcon } from '../electronics/workbench-icons';
 import { ProjectCard } from '../modules/ProjectCard';
+import { ProjectProperties } from '../components/ProjectProperties';
+import { ProjectHistoryDialog } from '../components/ProjectHistoryDialog';
+import { CollectPicker } from '../components/CollectPicker';
 
 type SortMode = 'recent' | 'oldest' | 'title';
 type LayoutMode = 'grid' | 'list';
@@ -102,16 +105,15 @@ export function MyProjectsPage({
   const [statusFilter, setStatusFilter] = useState<ProjectStatus>('active');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [layout, setLayout] = useState<LayoutMode>('grid');
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [renameBusy, setRenameBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   // What a teacher said, keyed by project. Empty for anyone with no teacher.
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
   const [reading, setReading] = useState<{ title: string; entry: ProjectFeedback } | null>(null);
   // Which of these are on the gallery wall, so the menu item says the truth.
-  const [shared, setShared] = useState<ReadonlySet<string>>(new Set());
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [properties, setProperties] = useState<Project | null>(null);
+  const [history, setHistory] = useState<Project | null>(null);
+  const [collecting, setCollecting] = useState<Project | null>(null);
 
   const load = useCallback(async () => {
     setItems(null);
@@ -119,11 +121,10 @@ export function MyProjectsPage({
     // The teacher's responses arrive with the projects, so a mark is on the card
     // when the card appears. A response is not required for the page to work: a
     // learner with no teacher simply has none.
-    const [projectsResult, modulesResult, feedbackResult, sharedResult] = await Promise.all([
+    const [projectsResult, modulesResult, feedbackResult] = await Promise.all([
       api.listProjects({ scope: 'personal', status: statusFilter }),
       api.listModules(),
       api.myProjectFeedback(),
-      api.myGalleryProjects(),
     ]);
     if (!projectsResult.ok || !modulesResult.ok) {
       setError(
@@ -136,7 +137,6 @@ export function MyProjectsPage({
     setItems(projectsResult.data.items);
     setModules(modulesResult.data.items);
     setFeedback(feedbackResult.ok ? feedbackResult.data.items : {});
-    setShared(new Set(sharedResult.ok ? sharedResult.data.projectIds : []));
   }, [statusFilter]);
 
   useEffect(() => {
@@ -176,30 +176,6 @@ export function MyProjectsPage({
     });
   }, [items, moduleFilter, query, sortMode]);
 
-  function beginRename(project: Project): void {
-    setRenamingId(project.id);
-    setRenameValue(project.title);
-  }
-
-  async function rename(event: FormEvent, projectId: string): Promise<void> {
-    event.preventDefault();
-    const title = renameValue.trim();
-    if (!title) return;
-    setRenameBusy(true);
-    const result = await api.renameProject(projectId, title);
-    setRenameBusy(false);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось переименовать проект.');
-      return;
-    }
-    setItems(
-      (current) =>
-        current?.map((project) => (project.id === projectId ? result.data.project : project)) ??
-        null,
-    );
-    setRenamingId(null);
-  }
-
   async function changeStatus(project: Project, status: ProjectStatus): Promise<void> {
     setActionBusy(project.id);
     setError(null);
@@ -210,37 +186,6 @@ export function MyProjectsPage({
       return;
     }
     setItems((current) => current?.filter((item) => item.id !== project.id) ?? null);
-  }
-
-  /**
-   * Putting your own work on the wall, or taking it back off.
-   *
-   * Only an account holder reaches this menu; a child on a class seat has their
-   * work shared by their teacher, from the register, after somebody has looked
-   * at it. Publishing needs a picture, and the editor writes one on its own
-   * schedule — so a project that has never been opened long enough to save a
-   * snapshot says so rather than failing silently.
-   */
-  async function toggleShare(project: Project): Promise<void> {
-    setActionBusy(project.id);
-    const isShared = shared.has(project.id);
-    const result = isShared
-      ? await api.unpublishFromGallery(project.id)
-      : await api.publishToGallery(project.id);
-    setActionBusy(null);
-    if (!result.ok) {
-      setShareNotice(result.error.message || 'Не удалось поделиться работой.');
-      return;
-    }
-    setShared((current) => {
-      const next = new Set(current);
-      if (isShared) next.delete(project.id);
-      else next.add(project.id);
-      return next;
-    });
-    setShareNotice(
-      isShared ? `«${project.title}» убрана из галереи.` : `«${project.title}» теперь в галерее.`,
-    );
   }
 
   async function duplicate(project: Project): Promise<void> {
@@ -477,20 +422,24 @@ export function MyProjectsPage({
                             ]
                           : []),
                         {
-                          // Первым пунктом: это единственное действие на
-                          // карточке, которое показывает работу кому-то ещё,
-                          // и искать его в конце списка никто не станет.
-                          label: shared.has(project.id)
-                            ? 'Убрать из галереи'
-                            : 'Поделиться в галерее',
-                          disabled: busy,
-                          onSelect: () => void toggleShare(project),
+                          // Имя, описание, теги, лицензия и то, кому работа
+                          // видна — в одном диалоге. Публикация живёт там же:
+                          // это состояние работы, а не действие сбоку.
+                          label: 'Свойства',
+                          onSelect: () => setProperties(project),
                         },
-                        { label: 'Переименовать', onSelect: () => beginRename(project) },
                         {
                           label: 'Дублировать',
                           disabled: busy,
                           onSelect: () => void duplicate(project),
+                        },
+                        {
+                          label: 'Журнал версий',
+                          onSelect: () => setHistory(project),
+                        },
+                        {
+                          label: 'Добавить в коллекцию',
+                          onSelect: () => setCollecting(project),
                         },
                         {
                           label: 'Архивировать',
@@ -515,45 +464,37 @@ export function MyProjectsPage({
                         ]
                       : []
                 }
-                {...(renamingId === project.id
-                  ? {
-                      editing: (
-                        <form
-                          className="project-card-rename"
-                          onSubmit={(event) => void rename(event, project.id)}
-                        >
-                          <label className="sr-only" htmlFor={`rename-${project.id}`}>
-                            Новое название проекта
-                          </label>
-                          <input
-                            id={`rename-${project.id}`}
-                            value={renameValue}
-                            maxLength={255}
-                            autoFocus
-                            onChange={(event) => setRenameValue(event.target.value)}
-                          />
-                          <div className="project-card-rename-actions">
-                            <button type="submit" className="btn-secondary" disabled={renameBusy}>
-                              Сохранить
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-ghost"
-                              onClick={() => setRenamingId(null)}
-                            >
-                              Отмена
-                            </button>
-                          </div>
-                        </form>
-                      ),
-                    }
-                  : {})}
               />
             );
           })}
         </ul>
       ) : null}
 
+      {properties ? (
+        <ProjectProperties
+          project={properties}
+          onClose={() => setProperties(null)}
+          onSaved={async () => {
+            setProperties(null);
+            setShareNotice('Свойства сохранены.');
+            await load();
+          }}
+        />
+      ) : null}
+      {history ? (
+        <ProjectHistoryDialog
+          projectId={history.id}
+          title={history.title}
+          onClose={() => setHistory(null)}
+        />
+      ) : null}
+      {collecting ? (
+        <CollectPicker
+          projectId={collecting.id}
+          title={collecting.title}
+          onClose={() => setCollecting(null)}
+        />
+      ) : null}
       {reading ? (
         <FeedbackNote
           title={reading.title}

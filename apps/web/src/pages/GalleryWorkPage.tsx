@@ -64,6 +64,15 @@ function describeDocument(document: unknown): ShapeLine[] {
     .slice(0, 12);
 }
 
+
+const LICENCE_NAMES: Readonly<Record<string, string>> = {
+  reserved: 'Все права сохранены',
+  'public-domain': 'Общественное достояние',
+  'cc-by': 'CC BY — с указанием автора',
+  'cc-by-sa': 'CC BY-SA — на тех же условиях',
+  'cc-by-nc': 'CC BY-NC — без коммерческого использования',
+};
+
 const SHAPE_NAMES: Readonly<Record<string, string>> = {
   box: 'Параллелепипед',
   cube: 'Куб',
@@ -217,7 +226,23 @@ export function GalleryWorkPage({
         <div className="gallery-work-side">
           <h1>{work.title}</h1>
           <p className="gallery-work-author">{work.authorLabel}</p>
-          <p className="gallery-meta">Опубликовано {time.date(work.publishedAt)}</p>
+          <p className="gallery-meta">
+            Опубликовано {time.date(work.publishedAt)}
+            {work.copyCount > 0 ? ` · взяли за основу: ${work.copyCount}` : ''}
+            {work.visibility === 'link' ? ' · доступна по ссылке' : ''}
+          </p>
+
+          {/* Что это за работа словами автора. Без описания зритель видит
+              картинку и гадает. */}
+          {work.description ? <p className="gallery-work-description">{work.description}</p> : null}
+
+          {work.tags.length > 0 ? (
+            <ul className="gallery-work-tags" aria-label="Теги">
+              {work.tags.map((tag) => (
+                <li key={tag}>{tag}</li>
+              ))}
+            </ul>
+          ) : null}
 
           {/* If the published work is itself a copy, that travels with it. */}
           {work.copiedFromTitle ? (
@@ -340,6 +365,12 @@ export function GalleryWorkPage({
               </button>
             </div>
           ) : null}
+
+          {/* Под какой лицензией работу можно брать. Без этой строки «добавить
+              к себе» превращается в вопрос без ответа. */}
+          <p className="gallery-work-licence">
+            Лицензия: {LICENCE_NAMES[work.license] ?? work.license}
+          </p>
 
           {/* Из чего собрано. Половина смысла галереи — разобрать чужое. */}
           <section className="gallery-work-parts" aria-labelledby="gallery-parts-title">

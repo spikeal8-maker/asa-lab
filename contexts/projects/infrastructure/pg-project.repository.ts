@@ -60,6 +60,9 @@ interface ProjectRow extends PreviewRow {
   copied_from_author?: string | null;
   copied_from_title?: string | null;
   copied_at?: string | Date | null;
+  description?: string | null;
+  tags?: string[] | null;
+  license?: string | null;
 }
 
 /**
@@ -88,6 +91,9 @@ function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(r
     updatedAt: String(row.updated_at ?? row.created_at),
     preview,
     snapshotRevision: revision === null || revision === undefined ? null : Number(revision),
+    description: row.description ?? null,
+    tags: row.tags ?? [],
+    license: row.license ?? 'reserved',
     copiedFrom:
       row.copied_from_project_id && row.copied_from_author && row.copied_from_title
         ? {
@@ -224,6 +230,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         const existing = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
+           p.description, p.tags, p.license,
                   p.status, p.created_at, p.request_fingerprint,
                   d.preview_json, d.preview_digest
              FROM projects p
@@ -312,6 +319,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
+           p.description, p.tags, p.license,
                   p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest,
                   s.source_revision AS snapshot_revision
              FROM projects p
@@ -330,6 +338,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
+           p.description, p.tags, p.license,
                   p.status, p.created_at, d.updated_at, d.preview_json, d.preview_digest,
                   s.source_revision AS snapshot_revision
              FROM projects p

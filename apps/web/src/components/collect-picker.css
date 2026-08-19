@@ -1,0 +1,53 @@
+/* Выбор подборок для работы. */
+.collect-picker-list {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.collect-picker-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+
+.collect-picker-list li:hover {
+  background: #f2f8fb;
+}
+
+.collect-picker-list label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 0;
+  color: #16232c;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.collect-picker-list small {
+  color: #2a363e;
+  font-size: 12px;
+}
+
+.collect-picker-create {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #eef3f6;
+}
+
+.collect-picker-create input {
+  flex: 1 1 160px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cfdde5;
+  border-radius: 8px;
+  font-size: 14px;
+}

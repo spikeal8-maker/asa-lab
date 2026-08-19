@@ -177,6 +177,12 @@ export interface GalleryWork {
   document: unknown;
   copiedFromAuthor: string | null;
   copiedFromTitle: string | null;
+  description: string | null;
+  tags: readonly string[];
+  license: string;
+  visibility: 'link' | 'public';
+  /** Сколько раз работу взяли за основу. */
+  copyCount: number;
 }
 
 export interface AssignmentClassroom {
@@ -366,6 +372,12 @@ export interface Project {
   preview: ProjectPreview | null;
   /** Null until an editor has captured a picture of this project. */
   snapshotRevision: number | null;
+  /** Что это за работа, своими словами автора. */
+  description?: string | null;
+  /** До десяти коротких слов, по которым работу находят. */
+  tags?: readonly string[];
+  /** Под какой лицензией её можно брать: reserved | public-domain | cc-* */
+  license?: string;
   /** Set when the project was taken from the gallery; never cleared. */
   copiedFrom: {
     projectId: string;
@@ -823,9 +835,27 @@ export const api = {
       body: JSON.stringify(title ? { title } : {}),
     }),
   galleryState: (projectId: string) =>
-    call<{ published: boolean; publishedAt?: string; likeCount?: number; wowCount?: number }>(
-      `/api/gallery/${encodeURIComponent(projectId)}/state`,
-    ),
+    call<{
+      published: boolean;
+      visibility?: 'link' | 'public';
+      publishedAt?: string;
+      likeCount?: number;
+      wowCount?: number;
+    }>(`/api/gallery/${encodeURIComponent(projectId)}/state`),
+  saveProjectProperties: (
+    projectId: string,
+    input: {
+      title: string;
+      description: string | null;
+      tags: string[];
+      license: string;
+      visibility: 'private' | 'link' | 'public';
+    },
+  ) =>
+    call<{ ok: true }>(`/api/projects/${encodeURIComponent(projectId)}/properties`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   publishToGallery: (projectId: string) =>
     call<{ published: true }>(`/api/gallery/${encodeURIComponent(projectId)}`, { method: 'POST' }),
   unpublishFromGallery: (projectId: string) =>
