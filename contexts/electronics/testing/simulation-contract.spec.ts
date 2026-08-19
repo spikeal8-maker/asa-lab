@@ -142,6 +142,28 @@ describe('R4-M1 simulation implementation contract', () => {
     expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity/);
   });
 
+  it('accepts single-cell batteries and the bench supply on positive/negative pins', () => {
+    // Holders carry BAT+/BAT-, but catalog batteries carry positive/negative.
+    // A contract that only knew the holder pair rejected every battery before
+    // the simulation ever looked at the circuit.
+    const circuit = document(
+      [
+        component('battery', 'source', 9, {
+          componentTypeId: 'battery-9v',
+          pinIds: ['positive', 'negative'],
+        }),
+        component('load', 'resistor', 1000),
+      ],
+      [
+        connect('positive', 'battery', 'positive', 'load', 'a'),
+        connect('negative', 'load', 'b', 'battery', 'negative'),
+      ],
+    );
+    const result = analyseCircuit(circuit);
+    expect(result.status).toBe('solved');
+    expect(result.quality.passed).toBe(true);
+  });
+
   it('returns byte-for-byte deterministic simulation evidence', () => {
     const circuit = simpleOhmLaw([{ x: 10, y: 20 }]);
     expect(JSON.stringify(analyseCircuit(circuit))).toBe(JSON.stringify(analyseCircuit(circuit)));

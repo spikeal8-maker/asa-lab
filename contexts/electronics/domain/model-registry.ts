@@ -160,7 +160,15 @@ export function unsupportedElectricalComponents(
 
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
-  if (component.kind === 'source') return ['BAT-', 'BAT+'];
+  // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use
+  // positive/negative. The simulation maps both already — the contract must
+  // accept whichever pair the component actually carries, or a catalog battery
+  // can never pass validation no matter how well it is wired.
+  if (component.kind === 'source') {
+    const pins = new Set(component.pinIds ?? []);
+    if (pins.has('positive') || pins.has('negative')) return ['negative', 'positive'];
+    return ['BAT-', 'BAT+'];
+  }
   if (component.kind === 'resistor') return ['lead-1', 'lead-2'];
   if (component.kind === 'led' || component.kind === 'diode') return ['anode', 'cathode'];
   if (component.kind === 'transistor') return ['base', 'collector', 'emitter'];
