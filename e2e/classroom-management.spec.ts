@@ -124,16 +124,11 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    * sidebar, same pages — with the places a seat has no business in absent:
    * no class to manage, no school to switch to, no account to configure.
    *
-   * Their home page is about them. It used to be four identical «Новый проект»
-   * tiles, one per environment, which told a child nothing and asked them to
-   * pick a door for no reason; now it greets them, names their class, and says
-   * what is still owed.
+   * Главная у них одна и та же. Отдельной страницы для учащегося нет и быть не
+   * должно: разница между людьми выражается тем, чего у них нет, а не тем, что
+   * им подсунули другую страницу. Всё классное живёт за дверью «Классы».
    */
-  await expect(studentPage.getByRole('heading', { name: 'Привет, Алина К.!' })).toBeVisible();
-  // The class line names the class and the teacher in one sentence.
-  await expect(studentPage.getByText(/5Б Makers · преподаватель/)).toBeVisible();
-  await expect(studentPage.getByRole('heading', { name: 'Задания', level: 2 })).toBeVisible();
-  await expect(studentPage.getByText(/Не сдано: \d+/)).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
   await expect(
     studentPage.getByRole('button', { name: 'Проекты', exact: true }).first(),
   ).toBeVisible();

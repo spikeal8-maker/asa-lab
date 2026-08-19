@@ -15,7 +15,6 @@ import { AccountPage } from './pages/AccountPage';
 import { SeatAccountPage } from './pages/SeatAccountPage';
 import { SeatClassPage } from './pages/SeatClassPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
-import { SeatHomePage } from './pages/SeatHomePage';
 import { AttendedClassesPage } from './pages/AttendedClassesPage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
@@ -388,20 +387,10 @@ export function App(): JSX.Element {
           }}
           onCreate={() => setShellCreating(true)}
         />
-        {/* A child on a class seat gets a page about them: what they were in
-            the middle of, what is still owed, what they have made. The four
-            identical «Новый проект» tiles that used to be here told a learner
-            nothing and asked them to choose a door for no reason. */}
-        {view.kind === 'home' && session.kind === 'student' ? (
-          <SeatHomePage
-            seat={session.session}
-            onOpenProject={(projectId, moduleKey) =>
-              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
-            }
-            onOpenClass={() => setView({ kind: 'classrooms' })}
-          />
-        ) : null}
-        {view.kind === 'home' && session.kind !== 'student' ? (
+        {/* Главная одна для всех. Учащийся видит ту же страницу, что и любой
+            другой: разница только в том, чего у него нет — не в том, что ему
+            подсунули другую страницу. Всё классное живёт в «Классах». */}
+        {view.kind === 'home' ? (
           <CreatorHomePage
             session={portalSession}
             onNavigate={navigate}
