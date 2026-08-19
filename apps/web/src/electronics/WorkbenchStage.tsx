@@ -481,11 +481,14 @@ export function WorkbenchStage({
                     >
                       <title>{diagnosticText}</title>
                       {ledBurned ? (
-                        // Compact burst: at full size (~14 мм) it swallowed the
-                        // whole LED and the burned part could not be told from any
-                        // other. At 0.55 the flash still reads clearly while the
-                        // dome and leads stay visible around it.
-                        <g transform={`scale(${0.55 / c.viewport.zoom})`} aria-hidden="true">
+                        // Sized from the part, not from the screen: the burst is
+                        // ~85% of the component's smaller side and lives in world
+                        // units, so it grows and shrinks together with the LED
+                        // when zooming instead of covering it at every zoom level.
+                        <g
+                          transform={`scale(${(Math.min(baseSize.width, baseSize.height) * 0.85) / 68})`}
+                          aria-hidden="true"
+                        >
                           <path
                             className="workbench-led-explosion-outer"
                             d="M0-30 7-17 20-24 18-9 33-8 22 3 34 13 18 14 19 30 6 21 0 35-7 21-20 29-18 14-34 13-22 3-33-8-18-9-20-24-7-17Z"
