@@ -72,9 +72,11 @@ describe('typed Electronics state and animation contracts', () => {
   });
 
   it('maps potentiometer, lamp, motor and servo inputs to visible motion state', () => {
-    expect(potentiometerKnobAngle(0)).toBe(-135);
-    expect(potentiometerKnobAngle(0.5)).toBe(0);
-    expect(potentiometerKnobAngle(1)).toBe(135);
+    // The knob graphic points down at rotate(0), so the sweep is offset by
+    // 180°: 0 aims down-left at terminal-1, 1 aims down-right at terminal-2.
+    expect(potentiometerKnobAngle(0)).toBe(45);
+    expect(potentiometerKnobAngle(0.5)).toBe(180);
+    expect(potentiometerKnobAngle(1)).toBe(315);
     expect([0, 0.3, 0.7, 1].map(lampState)).toEqual(['off', 'dim', 'on', 'max']);
     expect(motorMotion(0, 'clockwise')).toMatchObject({
       direction: 'stopped',

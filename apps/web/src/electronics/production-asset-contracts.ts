@@ -249,7 +249,12 @@ export function spdtConnections(selected: SpdtThrow): readonly (readonly [string
 }
 
 export function potentiometerKnobAngle(wiperPosition: number): number {
-  return -135 + Math.min(1, Math.max(0, wiperPosition)) * 270;
+  // The pointer shape in the SVG points down (toward the pins) at rotate(0).
+  // Adding 180° makes the tip follow the pointer during drag and puts the
+  // extremes where they belong electrically: 0 aims at terminal-1 (down-left),
+  // 1 at terminal-2 (down-right). Without the offset the knob moved opposite
+  // to the mouse and min/max looked mirrored.
+  return 45 + Math.min(1, Math.max(0, wiperPosition)) * 270;
 }
 
 export function lampState(powerRatio: number): LampState {

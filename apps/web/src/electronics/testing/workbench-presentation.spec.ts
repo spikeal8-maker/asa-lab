@@ -160,7 +160,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('? ledOvercurrent || ledBurned');
     expect(stageSource).toContain("'rgb-led-burnout-explosion'");
     expect(stageSource).toContain("'component-diagnostic-indicator'");
-    expect(stageSource).toContain('c.simulationRunning && primaryDiagnostic');
+    expect(stageSource).toContain('!c.simulationRunning || !primaryDiagnostic');
+    expect(stageSource).toContain('workbench-diagnostic-layer');
     expect(stageSource).toContain('r={9 / c.viewport.zoom}');
     expect(stageSource).toContain('fontSize={12 / c.viewport.zoom}');
     expect(stageSource).toContain('primaryDiagnostic.message');
