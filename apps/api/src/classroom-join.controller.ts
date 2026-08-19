@@ -20,7 +20,8 @@ import {
   normalizeClassroomCode,
 } from '@asa-lab/classroom';
 import { createSessionToken, hashSessionToken } from '@asa-lab/identity';
-import { TOKENS } from './tokens.js';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
+import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
@@ -89,7 +90,12 @@ function studentPayload(row: StudentSessionRow) {
 export class ClassroomJoinController {
   private readonly attempts = new Map<string, { count: number; resetAt: number }>();
 
-  constructor(@Inject(TOKENS.pool) private readonly pool: pg.Pool | null) {}
+  constructor(
+    @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    // Взрослый входит в класс своим аккаунтом, а не выданным логином, поэтому
+    // здесь нужна и обычная сессия тоже.
+    @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+  ) {}
 
   private requirePool(): pg.Pool {
     if (!this.pool) {
@@ -301,6 +307,112 @@ export class ClassroomJoinController {
     return { open: Number(row?.open_count ?? 0), unfinished: Number(row?.unfinished_count ?? 0) };
   }
 
+  /**
+   * Занять место в классе, будучи собой.
+   *
+   * Взрослый, студент или коллега-преподаватель уже вошёл в продукт под своим
+   * аккаунтом — второй вход по выданному логину ему не нужен, как не нужна и
+   * вторая полка работ. Он вводит тот же код класса, что и дети, и получает то
+   * же место: задания, сдача, значки и отклики работают дальше без изменений.
+   */
+  @Post('account')
+  @HttpCode(200)
+  async joinAsAccount(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    this.checkRateLimit(request);
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'Сначала войдите в аккаунт.'), 401);
+    const code = this.codeFromBody(rawBody);
+    const result = await this.requirePool().query(
+      `SELECT seat_id, classroom_id, classroom_title, already_member
+         FROM classroom_join_with_account($1, $2)`,
+      [context.accountId, classroomCodeHash(code)],
+    );
+    const row = result.rows[0] as
+      | {
+          seat_id: string;
+          classroom_id: string;
+          classroom_title: string;
+          already_member: boolean;
+        }
+      | undefined;
+    if (!row) {
+      throw new HttpException(
+        error(
+          'class_not_found',
+          'Не удалось войти в класс. Проверьте код — и учтите, что преподаватель класса не может быть в нём учеником.',
+        ),
+        404,
+      );
+    }
+    return {
+      classroom: { id: row.classroom_id, title: row.classroom_title },
+      seatId: row.seat_id,
+      alreadyMember: row.already_member === true,
+    };
+  }
+
+  /** Классы, в которых этот аккаунт учится. */
+  @Get('account/classes')
+  async accountClasses(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT seat_id, classroom_id, classroom_title, teacher_display_name,
+              open_count, unfinished_count
+         FROM classroom_account_seats($1)`,
+      [context.accountId],
+    );
+    return {
+      items: (
+        result.rows as Array<{
+          seat_id: string;
+          classroom_id: string;
+          classroom_title: string;
+          teacher_display_name: string;
+          open_count: number | string;
+          unfinished_count: number | string;
+        }>
+      ).map((row) => ({
+        seatId: row.seat_id,
+        classroomId: row.classroom_id,
+        classroomTitle: row.classroom_title,
+        teacherDisplayName: row.teacher_display_name,
+        openCount: Number(row.open_count ?? 0),
+        unfinishedCount: Number(row.unfinished_count ?? 0),
+      })),
+    };
+  }
+
+  /** Задания по всем классам, где этот аккаунт учится. */
+  @Get('account/assignments')
+  async accountAssignments(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
+              due_at, status, sample_image, project_id, submitted_at
+         FROM classroom_assignments_for_account($1)`,
+      [context.accountId],
+    );
+    return {
+      items: (result.rows as Array<AssignmentForSeatRow & { classroom_title: string }>).map(
+        (row) => ({
+          id: row.id,
+          title: row.title,
+          brief: row.brief,
+          goal: row.goal,
+          moduleKey: row.module_key,
+          dueAt: row.due_at ? isoDate(row.due_at) : null,
+          status: row.status,
+          sampleImage: row.sample_image,
+          projectId: row.project_id,
+          submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+          classroomTitle: row.classroom_title,
+        }),
+      ),
+    };
+  }
+
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
@@ -326,6 +438,33 @@ export class ClassroomJoinController {
   }
 
   /**
+   * Место, с которого человек работает над этим заданием.
+   *
+   * Ребёнок сидит на месте по сессии места; взрослый вошёл своим аккаунтом, и
+   * его место находится по классу, которому задание принадлежит. Дальше всё
+   * одинаково: сдача, значки и отклики висят на месте, а не на способе входа.
+   */
+  private async seatForAssignment(
+    request: FastifyRequest,
+    assignmentId: string,
+  ): Promise<string> {
+    const token = request.cookies[STUDENT_SESSION_COOKIE];
+    if (token) return (await this.currentSeat(request)).seat_id;
+
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT classroom_seat_for_account_assignment($1, $2) AS id`,
+      [context.accountId, assignmentId],
+    );
+    const seatId = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
+    if (!seatId) {
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    }
+    return seatId;
+  }
+
+  /**
    * Records the project a learner just made as their copy of an assignment.
    *
    * The project is created through the ordinary route first, so nothing about
@@ -339,7 +478,6 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const seat = await this.currentSeat(request);
     const shape = checkBodyShape(rawBody, ['projectId']);
     const projectId = shape.ok ? shape.body['projectId'] : null;
     if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) {
@@ -348,9 +486,10 @@ export class ClassroomJoinController {
     if (!UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'assignment is invalid'), 400);
     }
+    const seatId = await this.seatForAssignment(request, assignmentId);
     const result = await this.requirePool().query(
       `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
-      [seat.seat_id, assignmentId, projectId],
+      [seatId, assignmentId, projectId],
     );
     const row = result.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
     if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
@@ -399,15 +538,15 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const seat = await this.currentSeat(request);
     const shape = checkBodyShape(rawBody, ['submitted']);
     const submitted = shape.ok ? shape.body['submitted'] : null;
     if (typeof submitted !== 'boolean' || !UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'submitted must be boolean'), 400);
     }
+    const seatId = await this.seatForAssignment(request, assignmentId);
     const result = await this.requirePool().query(
       `SELECT project_id, submitted_at FROM classroom_assignment_work_submit($1, $2, $3)`,
-      [seat.seat_id, assignmentId, submitted],
+      [seatId, assignmentId, submitted],
     );
     const row = result.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
     if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);

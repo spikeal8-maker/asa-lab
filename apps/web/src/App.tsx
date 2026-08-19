@@ -16,6 +16,7 @@ import { SeatAccountPage } from './pages/SeatAccountPage';
 import { SeatClassPage } from './pages/SeatClassPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { SeatHomePage } from './pages/SeatHomePage';
+import { AttendedClassesPage } from './pages/AttendedClassesPage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
@@ -467,8 +468,20 @@ export function App(): JSX.Element {
             }
           />
         ) : null}
+        {/* Учатся не только дети. Преподаватель проходит курс коллеги, студент
+            берёт факультатив, взрослый учится ради себя — и всем им незачем
+            второй вход по выданному логину и вторая полка работ. */}
+        {view.kind === 'attending' ||
+        (view.kind === 'classrooms' && !canManageClasses && !isSeatLearner) ? (
+          <AttendedClassesPage
+            onOpenProject={(projectId, moduleKey) =>
+              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
+            }
+          />
+        ) : null}
         {view.kind === 'classrooms' && canManageClasses ? (
           <DashboardPage
+            onAttendClasses={() => setView({ kind: 'attending' })}
             onOpenProjects={(classroomId, classroomTitle) =>
               setView({ kind: 'classroom', classroomId, classroomTitle })
             }
@@ -519,9 +532,7 @@ export function App(): JSX.Element {
             them to "выберите роль «Педагог»" under it is noise at best. */}
         {!hasTeachingCapability &&
         !isSeatLearner &&
-        (view.kind === 'classrooms' ||
-          view.kind === 'classroom' ||
-          view.kind === 'classroom-projects') ? (
+        (view.kind === 'classroom' || view.kind === 'classroom-projects') ? (
           <main className="portal-content" id="main-content" tabIndex={-1}>
             <section className="creator-access-message">
               <p className="portal-eyebrow">Классы</p>

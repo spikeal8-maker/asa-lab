@@ -56,8 +56,10 @@ function sortClassrooms(items: readonly Classroom[], sort: SortKey): Classroom[]
 
 export function DashboardPage({
   onOpenProjects,
+  onAttendClasses,
 }: {
   onOpenProjects: (classroomId: string, classroomTitle: string) => void;
+  onAttendClasses: () => void;
 }): JSX.Element {
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
@@ -191,6 +193,11 @@ export function DashboardPage({
     >
       <section className="classroom-hub-heading" aria-labelledby="classroom-hub-title">
         <h1 id="classroom-hub-title">Мои классы</h1>
+        {/* Преподаватель тоже учится: у коллеги, на курсах, ради себя. Вход в
+            чужой класс лежит здесь же, а не в другом конце продукта. */}
+        <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
+          Я учусь в классе →
+        </button>
         <nav className="classroom-role-tabs" aria-label="Роли в классах">
           {CLASSROOM_ROLE_TABS.map((tab) => (
             <button

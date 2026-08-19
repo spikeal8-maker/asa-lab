@@ -130,6 +130,16 @@ export interface GalleryItem {
   viewerMayRemove: boolean;
 }
 
+/** Класс, в котором учится сам владелец аккаунта. */
+export interface AttendedClass {
+  seatId: string;
+  classroomId: string;
+  classroomTitle: string;
+  teacherDisplayName: string;
+  openCount: number;
+  unfinishedCount: number;
+}
+
 export interface GalleryWork {
   projectId: string;
   title: string;
@@ -739,6 +749,17 @@ export const api = {
     call<{ removed: true }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
+    ),
+  /** Занять место в классе по коду, будучи собой. */
+  joinClassAsAccount: (code: string) =>
+    call<{ classroom: { id: string; title: string }; seatId: string; alreadyMember: boolean }>(
+      '/api/class-join/account',
+      { method: 'POST', body: JSON.stringify({ code }) },
+    ),
+  attendedClasses: () => call<{ items: AttendedClass[] }>('/api/class-join/account/classes'),
+  attendedAssignments: () =>
+    call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
+      '/api/class-join/account/assignments',
     ),
   gallery: (options: { sort?: 'recent' | 'popular'; module?: string; offset?: number } = {}) => {
     const query = new URLSearchParams();

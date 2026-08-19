@@ -16,6 +16,7 @@ export type CreatorPortalView =
   | { kind: 'my-projects' }
   | { kind: 'learning' }
   | { kind: 'collections' }
+  | { kind: 'attending' }
   | { kind: 'gallery' }
   | { kind: 'gallery-work'; projectId: string }
   | { kind: 'challenges' }
@@ -62,6 +63,7 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/learning', view: { kind: 'learning' } },
   { path: '/collections', view: { kind: 'collections' } },
   { path: '/gallery', view: { kind: 'gallery' } },
+  { path: '/attending', view: { kind: 'attending' } },
   { path: '/challenges', view: { kind: 'challenges' } },
   { path: '/classrooms', view: { kind: 'classrooms' } },
   { path: '/help', view: { kind: 'help' } },
@@ -117,6 +119,7 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
+  if (view.kind === 'attending') return 'classes';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
   if (

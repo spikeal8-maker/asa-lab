@@ -1472,3 +1472,21 @@ button.classroom-code-chip:hover {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* «Я учусь» — вход в чужой класс со страницы своих классов. */
+.classroom-attend-link {
+  justify-self: end;
+  padding: 6px 14px;
+  border: 1px solid #cfdde5;
+  border-radius: 999px;
+  background: #fff;
+  color: #08627f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.classroom-attend-link:hover {
+  border-color: #0b82ba;
+  background: #eef7fc;
+}
