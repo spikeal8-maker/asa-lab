@@ -50,7 +50,14 @@ export function addComponentToDocument(
     kind: entry.kind,
     componentTypeId,
     variantId: componentTypeId,
-    position: { x: snap(center.x - size.width / 2), y: snap(center.y - size.height / 2) },
+    // Free placement, same as when an already placed component is dragged: the
+    // part lands exactly where it was dropped. The only thing allowed to move it
+    // afterwards is the breadboard pulling its pins into the holes below; a
+    // background grid that captured the drop made the canvas feel sticky.
+    position: {
+      x: Math.round(center.x - size.width / 2),
+      y: Math.round(center.y - size.height / 2),
+    },
     value: entry.defaultValue,
     rotation: 0,
     name: entry.label,
