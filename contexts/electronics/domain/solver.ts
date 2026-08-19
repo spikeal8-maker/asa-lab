@@ -21,7 +21,6 @@ export type DiagnosticCode =
   | 'circuit_ok'
   | 'no_source'
   | 'open_circuit'
-  | 'dangling_terminal'
   | 'short_circuit'
   | 'invalid_property'
   | 'invalid_terminal_contract'
@@ -1080,40 +1079,6 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
           : {}),
       };
     });
-
-  const connectionCount = new Map<string, number>();
-  for (const connection of document.connections) {
-    for (const endpoint of [connection.from, connection.to]) {
-      const key = terminalKey(endpoint.componentId, endpoint.terminal);
-      connectionCount.set(key, (connectionCount.get(key) ?? 0) + 1);
-    }
-  }
-  for (const component of document.components) {
-    for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
-      connectionCount.set(terminalKey(component.id, pinId), 1);
-      connectionCount.set(terminalKey(binding.breadboardComponentId, binding.holeId), 1);
-    }
-  }
-  for (const component of document.components.filter(isSimulated)) {
-    if (component.kind === 'rgb-led' || component.kind === 'seven-segment') continue;
-    const logical: Terminal[] =
-      component.kind === 'transistor'
-        ? ['base', 'collector', 'emitter']
-        : [logicalTerminal(component, 'a'), logicalTerminal(component, 'b')];
-    if (component.kind === 'potentiometer') logical.push(logicalTerminal(component, 'wiper'));
-    const dangling = logical.filter(
-      (terminal) => !connectionCount.get(terminalKey(component.id, terminal)),
-    );
-    if (dangling.length > 0) {
-      diagnostics.push({
-        code: 'dangling_terminal',
-        severity: 'warning',
-        message: `${component.name ?? component.id}: не подключены выводы ${dangling.join(', ')}.`,
-        componentIds: [component.id],
-        suggestedAction: 'Соедините свободные выводы или удалите неиспользуемый компонент.',
-      });
-    }
-  }
 
   for (const component of document.components.filter(
     (item) => componentDiodeBranches(item).length > 0,
