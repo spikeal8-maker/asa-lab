@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
-     width="659" height="295" viewBox="42 53 659 295"
+     width="295" height="659" viewBox="0 0 295 659"
      version="1.1" role="img" aria-labelledby="title desc">
   <title id="title">9V battery — clean vector</title>
   <desc id="desc">Pure SVG reconstruction matched to the supplied 776 by 411 reference. No embedded raster images.</desc>
@@ -11,7 +11,7 @@
     </clipPath>
   </defs>
 
-  <g id="battery-9v">
+  <g id="battery-9v" transform="translate(348 -42) rotate(90)">
     <!-- Main battery body, matched to reference -->
     <g id="body" clip-path="url(#bodyClip)">
       <rect x="160" y="53" width="541" height="295" fill="#333333"/>
