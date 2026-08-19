@@ -17407,9 +17407,9 @@
       "displayName": "Батарейка «Крона» 9 В",
       "sourceOwnerArchive": "owner-approved-redraw",
       "sourceOwnerPath": "owner-approved/battery-9v.svg",
-      "sourceSha256": "bbc6a542e752ea215d6dabfb75f6e8e1ef560256076dc51f3833b3c258171de2",
+      "sourceSha256": "9a82fd8709e824eebff1466c29de47a48bfb7c52ba4c4f7688982f677533718e",
       "runtimePath": "/assets/electronics/owner-approved/battery-9v.svg",
-      "runtimeSha256": "bbc6a542e752ea215d6dabfb75f6e8e1ef560256076dc51f3833b3c258171de2",
+      "runtimeSha256": "9a82fd8709e824eebff1466c29de47a48bfb7c52ba4c4f7688982f677533718e",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
