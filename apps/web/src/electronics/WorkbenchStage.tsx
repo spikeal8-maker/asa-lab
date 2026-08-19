@@ -161,8 +161,12 @@ export function WorkbenchStage({
     wireId: string,
     segmentIndex?: number,
   ): void {
-    event.stopPropagation();
+    // While a new wire is being laid, a click on any existing wire must reach
+    // the canvas: it adds a draft bend exactly there, so a route can be drawn
+    // along (and onto) other wires. Swallowing the event here made cable
+    // management impossible — the bend simply never happened.
     if (c.pendingTerminal) return;
+    event.stopPropagation();
     const previous = lastWireClick.current;
     const repeated = previous?.wireId === wireId && isRepeatedClick(previous, event);
     if (event.detail >= 2 || repeated) {
@@ -706,7 +710,7 @@ export function WorkbenchStage({
                         }`}
                         cx={vertex.x}
                         cy={vertex.y}
-                        r={7 / c.viewport.zoom}
+                        r={4.5 / c.viewport.zoom}
                         fill={wire.color ?? '#e3212b'}
                         data-testid="wire-vertex"
                         data-wire-id={wire.id}
@@ -773,7 +777,7 @@ export function WorkbenchStage({
                 data-wire-endpoint={endpoint}
                 cx={point.x}
                 cy={point.y}
-                r={6 / c.viewport.zoom}
+                r={5 / c.viewport.zoom}
                 fill={selectedWire.color ?? '#e3212b'}
                 onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
                 role="button"

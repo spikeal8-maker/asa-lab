@@ -161,6 +161,10 @@ describe('runtime role hardening', () => {
       'classroom_student_seats:SELECT',
       'classrooms:INSERT',
       'classrooms:SELECT',
+      // Подборки работ из галереи: читаются, а пишутся только через функции,
+      // которые знают, чья это подборка.
+      'collection_items:SELECT',
+      'collections:SELECT',
       'project_drafts:INSERT',
       'project_drafts:SELECT',
       'project_drafts:UPDATE',

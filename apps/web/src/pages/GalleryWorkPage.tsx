@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type GalleryWork } from '../api';
+import { api, type Collection, type GalleryWork } from '../api';
 import { useSchoolTime } from '../components/school-time';
 import './gallery.css';
 
@@ -144,6 +144,34 @@ export function GalleryWorkPage({
   }
 
   const [copiedProjectId, setCopiedProjectId] = useState<string | null>(null);
+  // Подборки этого человека и то, в каких уже лежит эта работа.
+  const [collections, setCollections] = useState<readonly Collection[]>([]);
+  const [holding, setHolding] = useState<ReadonlySet<string>>(new Set());
+  const [pickingCollection, setPickingCollection] = useState(false);
+  const [newCollection, setNewCollection] = useState('');
+
+  useEffect(() => {
+    void api.listCollections().then((result) => {
+      if (result.ok) setCollections(result.data.items);
+    });
+    void api.collectionsHolding(projectId).then((result) => {
+      if (result.ok) setHolding(new Set(result.data.collectionIds));
+    });
+  }, [projectId]);
+
+  async function toggleCollection(collectionId: string): Promise<void> {
+    const inside = !holding.has(collectionId);
+    const result = await api.setCollectionItem(collectionId, projectId, inside);
+    if (!result.ok) return;
+    setHolding((current) => {
+      const next = new Set(current);
+      if (inside) next.add(collectionId);
+      else next.delete(collectionId);
+      return next;
+    });
+    const fresh = await api.listCollections();
+    if (fresh.ok) setCollections(fresh.data.items);
+  }
 
   if (missing) {
     return (
@@ -235,6 +263,65 @@ export function GalleryWorkPage({
               {busy ? 'Копируем…' : 'Добавить к себе'}
             </button>
           )}
+
+          {/* Отложить себе. Работа не копируется — в подборке лежит ссылка,
+              и у автора ничего не забирают. */}
+          <div className="gallery-collect">
+            <button
+              type="button"
+              className="btn-secondary gallery-collect-toggle"
+              aria-expanded={pickingCollection}
+              onClick={() => setPickingCollection(!pickingCollection)}
+            >
+              {holding.size > 0 ? `В коллекциях: ${holding.size}` : 'В коллекцию'}
+            </button>
+            {pickingCollection ? (
+              <div className="gallery-collect-panel">
+                {collections.length === 0 ? (
+                  <p className="account-hint">Подборок пока нет — создайте первую.</p>
+                ) : (
+                  <ul>
+                    {collections.map((entry) => (
+                      <li key={entry.id}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={holding.has(entry.id)}
+                            onChange={() => void toggleCollection(entry.id)}
+                          />
+                          <span>{entry.title}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <form
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!newCollection.trim()) return;
+                    const created = await api.createCollection(newCollection.trim());
+                    setNewCollection('');
+                    if (created.ok) {
+                      await api.setCollectionItem(created.data.id, projectId, true);
+                      const fresh = await api.listCollections();
+                      if (fresh.ok) setCollections(fresh.data.items);
+                      setHolding((current) => new Set(current).add(created.data.id));
+                    }
+                  }}
+                >
+                  <input
+                    value={newCollection}
+                    maxLength={120}
+                    placeholder="Новая подборка"
+                    onChange={(event) => setNewCollection(event.target.value)}
+                  />
+                  <button type="submit" className="btn-secondary">
+                    Создать и добавить
+                  </button>
+                </form>
+              </div>
+            ) : null}
+          </div>
 
           {error ? (
             <p className="form-error" role="alert">

@@ -21,6 +21,7 @@ import { CreatorResourcePage } from './pages/CreatorResourcePage';
 import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
 import { GalleryWorkPage } from './pages/GalleryWorkPage';
+import { CollectionsPage } from './pages/CollectionsPage';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
@@ -449,8 +450,15 @@ export function App(): JSX.Element {
             }
           />
         ) : null}
+        {/* Коллекции перестали быть заглушкой: это подборки работ из галереи,
+            отложенных себе. Ни Задания, ни Проекты они не дублируют — там
+            формулировки и своё, а здесь ссылки на чужое. */}
+        {view.kind === 'collections' ? (
+          <CollectionsPage
+            onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+          />
+        ) : null}
         {view.kind === 'learning' ||
-        view.kind === 'collections' ||
         (view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
         view.kind === 'help' ? (
           <CreatorResourcePage

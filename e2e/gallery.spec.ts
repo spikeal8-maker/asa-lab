@@ -171,6 +171,31 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   await expect(copy).toContainText('Педагог gallery-author');
   await viewerPage.screenshot({ path: `${evidenceDir}/copied-card.png`, fullPage: true });
 
+  /**
+   * Отложить работу себе.
+   *
+   * Коллекция — это ссылка, а не копия: у автора ничего не забирают, а работа,
+   * снятая со стены, пропадает и из подборки. Раздел «Коллекции» до этого был
+   * страницей с текстом «здесь пока пусто» и никакой моделью данных за ней.
+   */
+  await viewerPage.getByRole('button', { name: 'Галерея', exact: true }).first().click();
+  await viewerPage.getByRole('button', { name: `Открыть работу «${TITLE}»` }).click();
+  await viewerPage.getByRole('button', { name: 'В коллекцию' }).click();
+  await viewerPage.getByPlaceholder('Новая подборка').fill('Примеры для 6 класса');
+  await viewerPage.getByRole('button', { name: 'Создать и добавить' }).click();
+  await expect(viewerPage.getByRole('button', { name: /В коллекциях: 1/ })).toBeVisible();
+
+  await viewerPage.getByRole('button', { name: 'Коллекции', exact: true }).first().click();
+  const collection = viewerPage.getByTestId('collections').locator('li').filter({
+    hasText: 'Примеры для 6 класса',
+  });
+  await expect(collection).toContainText('работ: 1');
+  await collection.getByRole('button', { name: 'Примеры для 6 класса' }).click();
+  await expect(
+    viewerPage.getByTestId('collection-items').locator('li').filter({ hasText: TITLE }),
+  ).toBeVisible();
+  await viewerPage.screenshot({ path: `${evidenceDir}/collection.png`, fullPage: true });
+
   authorFailures.assertEmpty();
   viewerFailures.assertEmpty();
   await viewerContext.close();

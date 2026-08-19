@@ -130,6 +130,24 @@ export interface GalleryItem {
   viewerMayRemove: boolean;
 }
 
+/** Подборка работ из галереи, отложенных себе. */
+export interface Collection {
+  id: string;
+  title: string;
+  itemCount: number;
+  createdAt: string;
+}
+
+export interface CollectionItem {
+  projectId: string;
+  title: string;
+  moduleKey: string;
+  authorLabel: string;
+  snapshotRevision: number;
+  editorsChoice: boolean;
+  addedAt: string;
+}
+
 /** Класс, в котором учится сам владелец аккаунта. */
 export interface AttendedClass {
   seatId: string;
@@ -750,6 +768,33 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/seats/${encodeURIComponent(seatId)}`,
       { method: 'DELETE' },
     ),
+  listCollections: () => call<{ items: Collection[] }>('/api/collections'),
+  collectionItems: (collectionId: string) =>
+    call<{ items: CollectionItem[] }>(`/api/collections/${encodeURIComponent(collectionId)}`),
+  createCollection: (title: string) =>
+    call<{ id: string }>('/api/collections', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+  renameCollection: (collectionId: string, title: string) =>
+    call<{ ok: true }>(`/api/collections/${encodeURIComponent(collectionId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
+  deleteCollection: (collectionId: string) =>
+    call<{ removed: true }>(`/api/collections/${encodeURIComponent(collectionId)}`, {
+      method: 'DELETE',
+    }),
+  setCollectionItem: (collectionId: string, projectId: string, inside: boolean) =>
+    call<{ ok: true }>(
+      `/api/collections/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(projectId)}`,
+      { method: 'PUT', body: JSON.stringify({ inside }) },
+    ),
+  collectionsHolding: (projectId: string) =>
+    call<{ collectionIds: string[] }>(
+      `/api/collections/holding/${encodeURIComponent(projectId)}`,
+    ),
+
   /** Занять место в классе по коду, будучи собой. */
   joinClassAsAccount: (code: string) =>
     call<{ classroom: { id: string; title: string }; seatId: string; alreadyMember: boolean }>(

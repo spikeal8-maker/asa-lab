@@ -1,0 +1,111 @@
+/* Коллекции: подборки работ из галереи. */
+.collections-heading {
+  margin-bottom: 20px;
+}
+
+.collections-heading h1 {
+  margin: 0 0 6px;
+}
+
+.collections-heading p {
+  max-width: 62ch;
+  margin: 0;
+  color: #2a363e;
+}
+
+.collections-create {
+  max-width: 520px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px solid #cfe3ec;
+  border-radius: 12px;
+  background: #f4fafd;
+}
+
+.collections-create label {
+  display: block;
+  margin-bottom: 6px;
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.collections-create > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.collections-create input {
+  flex: 1 1 220px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cfdde5;
+  border-radius: 9px;
+  background: #fff;
+  color: #16232c;
+  font-size: 15px;
+}
+
+.collections-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collections-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid #dfe6ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.collections-open {
+  flex: 1 1 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #16232c;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.collections-open:hover {
+  color: #0a6f9c;
+  text-decoration: underline;
+}
+
+.collections-count {
+  color: #2a363e;
+  font-size: 13px;
+}
+
+.collections-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.collections-rename {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.collections-rename input {
+  flex: 1 1 220px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cfdde5;
+  border-radius: 8px;
+  font-size: 15px;
+}

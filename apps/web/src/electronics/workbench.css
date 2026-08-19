@@ -243,26 +243,26 @@
 .workbench-wire-vertex {
   fill: #fff;
   stroke: #bfe1ef;
-  stroke-width: 3;
-  cursor: move;
+  stroke-width: 2;
+  cursor: default;
   pointer-events: all;
 }
 
 .workbench-wire-vertex:hover {
   stroke: #1596ce;
-  stroke-width: 4;
+  stroke-width: 2.5;
 }
 
 .workbench-wire-vertex.active {
   fill: #1596ce;
   stroke: #fff;
-  stroke-width: 3.5;
+  stroke-width: 2;
 }
 
 .workbench-wire-endpoint {
   stroke: #bfe1ef;
-  stroke-width: 3;
-  cursor: move;
+  stroke-width: 2;
+  cursor: default;
 }
 
 .workbench-terminal-list {
@@ -515,6 +515,15 @@
 .workbench-canvas.wiring .workbench-terminal-dot {
   opacity: 1;
 }
+/* While a wire is in hand, the terminal under the pointer lights up green —
+   the same "you will land here" confirmation Tinkercad gives, instead of
+   guessing which of the red dots is about to take the wire. */
+.workbench-canvas.wiring .workbench-terminal:hover .workbench-terminal-dot {
+  fill: #17a34a;
+  stroke: #ffffff;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 4px rgba(23, 163, 74, 0.9));
+}
 .workbench-terminal.connected:hover .workbench-terminal-dot,
 .workbench-terminal.connected.pending .workbench-terminal-dot {
   fill: #159447;
@@ -598,7 +607,7 @@
   stroke: transparent;
   stroke-width: 20;
   pointer-events: stroke;
-  cursor: pointer;
+  cursor: default;
 }
 .workbench-wire-segment-hit {
   fill: none;
@@ -606,14 +615,22 @@
   stroke-width: 14;
   pointer-events: stroke;
 }
+/* One steady arrow everywhere on a wire. Resize/move/crosshair cursors made
+   the pointer flicker between shapes while routing, which read as glitching
+   rather than as affordance. */
 .workbench-wire-segment-hit.horizontal {
-  cursor: ns-resize;
+  cursor: default;
 }
 .workbench-wire-segment-hit.vertical {
-  cursor: ew-resize;
+  cursor: default;
 }
 .workbench-canvas.wiring .workbench-wire-segment-hit {
-  cursor: crosshair;
+  cursor: default;
+}
+.workbench-canvas.wiring .workbench-terminal,
+.workbench-canvas.wiring .workbench-terminal-hit,
+.workbench-canvas.wiring .workbench-breadboard-hole-hit {
+  cursor: default;
 }
 .workbench-wire-selection {
   fill: none;

@@ -397,12 +397,14 @@ export function DashboardPage({
               <span className="classroom-row-students">Ученики: {classroom.studentCount}</span>
               {/* Сколько работ сдано и ждёт ответа. Раньше это можно было
                   узнать, только зайдя в класс, открыв «Действия» и открыв
-                  задание — четыре шага ради вопроса «есть ли что проверять». */}
-              {classroom.awaitingReview ? (
-                <span className="classroom-row-review">
-                  Ждут проверки: {classroom.awaitingReview}
-                </span>
-              ) : null}
+                  задание — четыре шага ради вопроса «есть ли что проверять».
+                  Ячейка есть всегда, даже пустая: иначе строки классов
+                  перестают выстраиваться друг под другом. */}
+              <span className="classroom-row-review">
+                {classroom.awaitingReview ? (
+                  <em>Ждут проверки: {classroom.awaitingReview}</em>
+                ) : null}
+              </span>
               <span className="classroom-row-scope">
                 {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
               </span>
