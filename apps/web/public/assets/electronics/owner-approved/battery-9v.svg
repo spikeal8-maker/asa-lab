@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 494" width="1000" height="494">
+  <title>Батарейка «Крона» 9 В — чистый вектор по образцу владельца</title>
+  <desc>Hand-drawn replacement for the auto-traced mosaic. Same composition,
+  same viewBox, same contact geometry: black negative contact on top-left,
+  red positive contact below it, orange band with − and + marks, dark body
+  with a vertical «9V» legend.</desc>
+  <defs>
+    <clipPath id="body-clip">
+      <rect x="225" y="38" width="770" height="394" rx="26"/>
+    </clipPath>
+  </defs>
+
+  <!-- contact caps: negative (black, top), positive (red, bottom) -->
+  <rect x="56" y="213" width="14" height="10" rx="5" fill="#222222"/>
+  <rect x="62" y="205" width="58" height="26" rx="13" fill="#333333"/>
+  <rect x="56" y="253" width="14" height="10" rx="5" fill="#8f1616"/>
+  <rect x="62" y="245" width="58" height="26" rx="13" fill="#af1c1c"/>
+
+  <!-- snap connector base -->
+  <rect x="115" y="50" width="35" height="370" rx="15" fill="#333333"/>
+
+  <!-- white plastic plate and grey prongs of the cap -->
+  <rect x="195" y="88" width="30" height="282" fill="#f4f4f4"/>
+  <rect x="165" y="88" width="60" height="112" rx="6" fill="#bababa"/>
+  <rect x="165" y="255" width="60" height="115" rx="6" fill="#bababa"/>
+
+  <!-- battery body -->
+  <rect x="225" y="38" width="770" height="394" rx="26" fill="#333333"/>
+  <g clip-path="url(#body-clip)">
+    <rect x="225" y="38" width="220" height="394" fill="#d19152"/>
+  </g>
+
+  <!-- polarity marks on the orange band: minus top, plus bottom -->
+  <g fill="none" stroke="#a8703a" stroke-width="5">
+    <circle cx="255" cy="148" r="24"/>
+    <circle cx="255" cy="320" r="24"/>
+  </g>
+  <g stroke="#a8703a" stroke-width="6" stroke-linecap="round">
+    <line x1="243" y1="148" x2="267" y2="148"/>
+    <line x1="243" y1="320" x2="267" y2="320"/>
+    <line x1="255" y1="308" x2="255" y2="332"/>
+  </g>
+
+  <!-- legend -->
+  <text transform="translate(668 318) rotate(-90)" font-family="Arial, Helvetica, sans-serif"
+        font-size="100" font-weight="700" fill="#ededed">9V</text>
+</svg>
