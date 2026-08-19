@@ -222,7 +222,7 @@
 
 .classroom-list-row {
   display: grid;
-  grid-template-columns: 32px minmax(200px, 1fr) 110px 132px 120px 140px 44px;
+  grid-template-columns: 32px minmax(240px, 1fr) 110px 130px 150px 44px;
   align-items: center;
   gap: 12px;
   min-height: 64px;
@@ -352,19 +352,14 @@
   }
 
   .classroom-row-students,
-  .classroom-row-review,
   .classroom-row-scope,
   .classroom-row-date {
     grid-column: 2;
   }
 
-  .classroom-row-review:empty {
-    display: none;
-  }
-
   .classroom-row-menu {
     grid-column: 3;
-    grid-row: 1 / span 5;
+    grid-row: 1 / span 4;
   }
 }
 
@@ -908,7 +903,9 @@ button.classroom-code-chip:hover {
 .classroom-roster-head,
 .classroom-roster-row {
   display: grid;
-  grid-template-columns: minmax(200px, 1.2fr) minmax(140px, 0.7fr) minmax(150px, 0.7fr) 152px 58px;
+  grid-template-columns:
+    minmax(180px, 1.1fr) minmax(120px, 0.6fr) minmax(120px, 0.6fr)
+    minmax(130px, 0.6fr) 132px 52px;
   gap: 14px;
   align-items: center;
   padding: 11px 14px;
@@ -1465,14 +1462,9 @@ button.classroom-code-chip:hover {
   font-size: 13px;
 }
 
-/* Сколько работ ждёт проверки. Единственная цифра в строке класса, ради
-   которой преподаватель вообще открывает продукт с утра. Ячейка занимает свою
-   колонку всегда: пустая у классов, где проверять нечего. */
+/* Сколько работ ждёт проверки — рядом с названием класса. Единственная цифра
+   в строке, ради которой преподаватель вообще открывает продукт с утра. */
 .classroom-row-review {
-  min-width: 0;
-}
-
-.classroom-row-review em {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
@@ -1500,4 +1492,39 @@ button.classroom-code-chip:hover {
 .classroom-attend-link:hover {
   border-color: #0b82ba;
   background: #eef7fc;
+}
+
+/* Сколько сдано из выданного, и кто ждёт ответа. Ради этой пометки
+   преподаватель и заходит в класс, увидев цифру снаружи. */
+.classroom-roster-progress {
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  min-width: 0;
+}
+
+.classroom-roster-done {
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.classroom-roster-progress em {
+  justify-self: start;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #fdeee2;
+  color: #8a3f06;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Плашка внутри названия: не разрывает строку и не тянет колонку. */
+.classroom-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }

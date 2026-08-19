@@ -56,6 +56,7 @@ export function PortalHeader({
   active,
   canTeach,
   seatLearner = false,
+  classroomBadge,
   seatAvatarUrl,
   unfinishedCount = 0,
   onNavigate,
@@ -77,6 +78,8 @@ export function PortalHeader({
    * rather than shown and refused.
    */
   seatLearner?: boolean;
+  /** Сколько работ ждёт ответа — цифра рядом с «Классами» у преподавателя. */
+  classroomBadge?: number | undefined;
   onNavigate: (section: PortalSection) => void;
   onSessionChanged: (session: SessionPayload) => void;
   onLoggedOut: () => void;
@@ -462,10 +465,19 @@ export function PortalHeader({
                 {sectionIcon(item.section)}
               </span>
               <span className="portal-nav-label">{item.label}</span>
-              {/* Work still owed, as the dot anything with unread items has. */}
+              {/* Одна и та же отметка о невыполненном: учащемуся — сколько он
+                  не сдал, преподавателю — сколько работ ждёт его ответа. */}
               {item.section === 'classes' && unfinishedCount > 0 ? (
                 <span className="portal-nav-count" aria-label={`Не сдано: ${unfinishedCount}`}>
                   {unfinishedCount}
+                </span>
+              ) : null}
+              {item.section === 'classes' && !seatLearner && (classroomBadge ?? 0) > 0 ? (
+                <span
+                  className="portal-nav-count"
+                  aria-label={`Ждут проверки: ${classroomBadge}`}
+                >
+                  {classroomBadge}
                 </span>
               ) : null}
             </button>

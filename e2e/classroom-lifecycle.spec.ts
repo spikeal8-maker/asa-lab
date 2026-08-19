@@ -106,10 +106,15 @@ test('a teacher renames, sorts, archives, restores and removes classes', async (
   await expect(page.getByText('В архиве: 2.')).toBeVisible();
   expect(await titles(page)).toEqual(['Электроника 9Б']);
 
-  // The archive tab names the state on the row itself, so the titles carry a
-  // mark alongside the name.
+  /**
+   * The archive tab names the state on the row itself, so the titles carry a
+   * mark alongside the name. Whitespace is normalised: the mark sits beside the
+   * name and wraps under it when the column is narrow, and that is a layout
+   * decision rather than a change of what the row says.
+   */
   await page.getByRole('button', { name: 'В архиве' }).click();
-  expect((await titles(page)).sort()).toEqual(['Авиамодели 7Ав архиве', 'Ботаника 5Гв архиве']);
+  const archived = (await titles(page)).map((title) => title.replace(/\s+/g, ' ').trim()).sort();
+  expect(archived).toEqual(['Авиамодели 7А в архиве', 'Ботаника 5Г в архиве']);
   await page.screenshot({ path: `${evidenceDir}/archive.png`, fullPage: true });
 
   /**

@@ -266,6 +266,10 @@ export interface ClassroomTeacherInvitationPreview {
 }
 
 export interface ClassroomStudentSeat {
+  /** Выдано классу заданий, сдано этим человеком, из них ждёт ответа. */
+  assignedCount?: number;
+  submittedCount?: number;
+  awaitingReview?: number;
   id: string;
   displayLabel: string;
   loginHandle: string;
@@ -311,6 +315,9 @@ export interface ProjectFeedback {
 }
 
 export interface ClassroomStudentWork {
+  /** Когда работа сдана и ждёт ли она ещё ответа преподавателя. */
+  submittedAt?: string | null;
+  awaitingReview?: boolean;
   id: string;
   moduleKey: string;
   title: string;
@@ -728,6 +735,7 @@ export const api = {
         options.kind ? `?kind=${options.kind}` : ''
       }`,
     ),
+  awaitingReviewTotal: () => call<{ total: number }>('/api/classrooms/awaiting-review'),
   classroomStudent: (classroomId: string, seatId: string) =>
     call<ClassroomStudentDetail>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/students/${encodeURIComponent(seatId)}`,

@@ -274,3 +274,51 @@
 .classroom-student-stats li.is-waiting span {
   color: #8a3f06;
 }
+
+/* Заголовок работ с отбором по тем, что ждут ответа. */
+.classroom-student-works-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.classroom-student-works-head h2 {
+  margin: 0;
+}
+
+.classroom-student-filter {
+  padding: 6px 14px;
+  border: 1px solid #e8b98a;
+  border-radius: 999px;
+  background: #fdeee2;
+  color: #8a3f06;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.classroom-student-filter:hover {
+  border-color: #d08a3c;
+}
+
+.classroom-student-filter.is-active {
+  background: #8a3f06;
+  color: #fff;
+}
+
+/* Три числа в шапке — компактнее: это подпись к человеку, а не главный
+   предмет страницы. */
+.classroom-student-stats li {
+  padding: 5px 11px;
+}
+
+.classroom-student-stats strong {
+  font-size: 16px;
+}
+
+.classroom-student-stats span {
+  font-size: 12px;
+}

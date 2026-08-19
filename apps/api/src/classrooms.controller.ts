@@ -79,6 +79,9 @@ interface StudentSeatRow {
   id: string;
   display_label: string;
   login_handle: string;
+  assigned_count?: number | string;
+  submitted_count?: number | string;
+  awaiting_review?: number | string;
   safe_mode: boolean;
   status: 'issued' | 'active' | 'suspended';
   avatar_key: string | null;
@@ -110,6 +113,8 @@ interface SeatProjectRow {
   preview_json: unknown;
   preview_digest: string | null;
   last_editor_was_teacher: boolean;
+  submitted_at?: Date | string | null;
+  awaiting_review?: boolean;
 }
 
 interface AssignmentRow {
@@ -187,6 +192,12 @@ function seatView(row: StudentSeatRow) {
     id: row.id,
     displayLabel: row.display_label,
     loginHandle: row.login_handle,
+    // Сколько заданий выдано классу, сколько этот человек сдал и сколько из
+    // сданного ещё ждёт ответа. Преподаватель видит это в списке, а не после
+    // того, как откроет каждого по очереди.
+    assignedCount: row.assigned_count === undefined ? 0 : Number(row.assigned_count),
+    submittedCount: row.submitted_count === undefined ? 0 : Number(row.submitted_count),
+    awaitingReview: row.awaiting_review === undefined ? 0 : Number(row.awaiting_review),
     safeMode: row.safe_mode,
     status: row.status,
     // Null means "nobody has chosen"; the client draws one from the built-in
@@ -402,12 +413,29 @@ export class ClassroomsController {
     return { classroom: await this.summary(context, result.classroom.id), created: result.created };
   }
 
+  /**
+   * Сколько работ ждёт этого преподавателя во всех его классах.
+   *
+   * Ради этого числа продукт открывают утром; ради него же не должно
+   * приходиться обходить классы по одному.
+   */
+  @Get('awaiting-review')
+  async awaitingReview(@Req() request: FastifyRequest) {
+    const context = await this.requireEducator(request);
+    const result = await this.requirePool().query(
+      `SELECT classroom_awaiting_review_total($1) AS total`,
+      [context.accountId],
+    );
+    return { total: Number((result.rows[0] as { total: number | string }).total ?? 0) };
+  }
+
   @Get(':classroomId/roster')
   async roster(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
     const result = await this.requirePool().query(
-      `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
+      `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
+              last_active_at, created_at, assigned_count, submitted_count, awaiting_review
          FROM classroom_management_roster($1, $2)`,
       [context.accountId, classroomId],
     );
@@ -464,13 +492,15 @@ export class ClassroomsController {
     await this.summary(context, classroomId);
     const [roster, projects, activity, counts] = await Promise.all([
       this.requirePool().query(
-        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
+        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
+                last_active_at, created_at, assigned_count, submitted_count, awaiting_review
            FROM classroom_management_roster($1, $2)`,
         [context.accountId, classroomId],
       ),
       this.requirePool().query(
         `SELECT id, module_key, title, status, created_at, updated_at,
-                snapshot_revision, preview_json, preview_digest, last_editor_was_teacher
+                snapshot_revision, preview_json, preview_digest, last_editor_was_teacher,
+                submitted_at, awaiting_review
            FROM classroom_seat_projects($1, $2)`,
         [context.principalId, seatId],
       ),
@@ -511,6 +541,10 @@ export class ClassroomsController {
             ? { digest: row.preview_digest, descriptor: row.preview_json }
             : null,
         lastEditedByTeacher: row.last_editor_was_teacher === true,
+        // Сдано и ещё не отвечено — свойство самой работы: преподаватель
+        // открывает страницу, чтобы найти именно ту, до которой не дошёл.
+        submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
+        awaitingReview: row.awaiting_review === true,
       })),
       activity: (activity.rows as ClassroomActivityRow[]).map((row) => ({
         id: row.id,

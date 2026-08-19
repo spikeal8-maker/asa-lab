@@ -76,6 +76,17 @@ function publicViewFromHash(): PublicView {
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
   const [publicView, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
+  /**
+   * Сколько работ ждёт ответа во всех классах — цифра рядом с «Классами».
+   *
+   * Ради неё преподаватель и открывает продукт утром: без неё приходится
+   * заходить в каждый класс по очереди, чтобы выяснить, есть ли что проверять.
+   *
+   * Хук стоит здесь, до всех ветвлений: он должен вызываться на каждом рендере
+   * одинаково, а «спрашивать ли сервер» решается внутри.
+   */
+  const [awaitingReview, setAwaitingReview] = useState(0);
+
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
   );
@@ -184,6 +195,24 @@ export function App(): JSX.Element {
     }
     void api.seatAssignmentCounts().then((result) => {
       if (result.ok) setUnfinished(result.data.unfinished);
+    });
+  }, [session, view]);
+
+  /**
+   * Сколько работ ждёт ответа во всех классах преподавателя.
+   *
+   * Спрашиваем только у того, кто классы ведёт: у остальных этот запрос
+   * отвечает отказом и засоряет консоль ошибкой на ровном месте. Сам вызов
+   * хука безусловен, как и требуется.
+   */
+  useEffect(() => {
+    if (session.kind !== 'authenticated') return;
+    if (!session.session.navigation.classroomManagement) {
+      setAwaitingReview(0);
+      return;
+    }
+    void api.awaitingReviewTotal().then((result) => {
+      setAwaitingReview(result.ok ? result.data.total : 0);
     });
   }, [session, view]);
 
@@ -369,6 +398,7 @@ export function App(): JSX.Element {
           session={portalSession}
           active={active}
           seatLearner={isSeatLearner}
+          classroomBadge={canManageClasses ? awaitingReview : undefined}
           unfinishedCount={unfinished}
           {...(session.kind === 'student'
             ? {

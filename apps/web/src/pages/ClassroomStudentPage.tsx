@@ -178,6 +178,9 @@ export function ClassroomStudentPage({
   // Responses already given, so a teacher revises rather than starts again.
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
   const [responding, setResponding] = useState<{ id: string; title: string } | null>(null);
+  // Преподаватель приходит сюда с вопросом «что мне проверить», поэтому список
+  // умеет показать только то, на что он ещё не ответил.
+  const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const time = useSchoolTime();
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
 
@@ -290,7 +293,7 @@ export function ClassroomStudentPage({
             </li>
           </ul>
           <div className="classroom-student-badges">
-            <SeatAwardRow keys={awardKeys} />
+            <SeatAwardRow keys={awardKeys} size="small" />
             {student.safeMode ? (
               <span className="classroom-student-badge">Безопасный режим</span>
             ) : null}
@@ -305,27 +308,45 @@ export function ClassroomStudentPage({
           under the other on a phone. */}
       <div className="classroom-student-columns">
         <section className="classroom-student-section" aria-labelledby="student-works">
-          <h2 id="student-works">Работы · {projects.length}</h2>
+          <div className="classroom-student-works-head">
+            <h2 id="student-works">Работы · {projects.length}</h2>
+            {awaitingReview > 0 ? (
+              <button
+                type="button"
+                className={`classroom-student-filter${onlyAwaiting ? ' is-active' : ''}`}
+                aria-pressed={onlyAwaiting}
+                onClick={() => setOnlyAwaiting(!onlyAwaiting)}
+              >
+                {onlyAwaiting ? 'Показать все' : `Только ждущие ответа · ${awaitingReview}`}
+              </button>
+            ) : null}
+          </div>
           {projects.length === 0 ? (
             <p className="classroom-student-empty">
               Ученик ещё ничего не создал. Здесь появятся его работы, как только он начнёт.
             </p>
           ) : (
             <ul className="project-card-grid">
-              {projects.map((work) => (
+              {(onlyAwaiting ? projects.filter((work) => work.awaitingReview) : projects).map((work) => (
                 <ProjectCard
                   key={work.id}
                   project={asProject(work)}
                   module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
                   timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
                   footerLabel={
-                    feedback[work.id]?.badge
-                      ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
-                      : work.lastEditedByTeacher
-                        ? 'Правил педагог'
-                        : 'Работа ученика'
+                    work.awaitingReview
+                      ? 'Ждёт ответа'
+                      : feedback[work.id]?.badge
+                        ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
+                        : work.lastEditedByTeacher
+                          ? 'Правил педагог'
+                          : 'Работа ученика'
                   }
-                  footerTone={markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)}
+                  footerTone={
+                    work.awaitingReview
+                      ? 'redo'
+                      : markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)
+                  }
                   primaryLabel="Открыть"
                   open={{
                     href: `#/projects/${work.id}`,

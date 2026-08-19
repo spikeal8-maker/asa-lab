@@ -610,6 +610,7 @@ export function ClassroomPage({
               <div className="classroom-roster-head" role="row">
                 <span>Учащийся</span>
                 <span>Имя для входа</span>
+                <span>Задания</span>
                 <span>Последняя активность</span>
                 <span>Безопасный режим</span>
                 <span className="sr-only">Действия</span>
@@ -650,6 +651,17 @@ export function ClassroomPage({
                   >
                     {student.loginHandle}
                   </button>
+                  {/* Сколько сдано из выданного и ждёт ли что-то ответа.
+                      Преподаватель видел «ждут проверки» в списке классов,
+                      заходил внутрь — и не мог понять, кто именно ждёт. */}
+                  <span className="classroom-roster-progress">
+                    <span className="classroom-roster-done">
+                      {student.submittedCount ?? 0} из {student.assignedCount ?? 0}
+                    </span>
+                    {(student.awaitingReview ?? 0) > 0 ? (
+                      <em>ждёт проверки: {student.awaitingReview}</em>
+                    ) : null}
+                  </span>
                   <span className="classroom-roster-seen">
                     {student.lastActiveAt ? time.dateTime(student.lastActiveAt) : 'Ещё не входил'}
                   </span>
