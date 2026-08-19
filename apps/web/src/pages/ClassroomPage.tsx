@@ -13,6 +13,7 @@ import { ClassroomAssignments } from '../components/ClassroomAssignments';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
+import { learnerCount } from '../plural';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
@@ -42,20 +43,6 @@ const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
 
 /** 1 ученик, 2 ученика, 5 учеников — a class page that says "1 учеников" reads
  * as a machine, and this one is read by teachers every day. */
-const LEARNER_FORMS: Record<Intl.LDMLPluralRule, string> = {
-  zero: 'учеников',
-  one: 'ученик',
-  two: 'ученика',
-  few: 'ученика',
-  many: 'учеников',
-  other: 'ученика',
-};
-const learnerPlural = new Intl.PluralRules('ru-RU');
-
-function learnerCount(count: number): string {
-  return `${count} ${LEARNER_FORMS[learnerPlural.select(count)]}`;
-}
-
 function handleFromLabel(label: string): string {
   const latin = label
     .toLocaleLowerCase('ru-RU')
@@ -303,6 +290,23 @@ export function ClassroomPage({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
+  /**
+   * Сводка по классу: выдано, сдано, ждут ответа, кто отстаёт.
+   *
+   * Числа те же, что в списке классов. Преподаватель, открывший класс, не
+   * должен считать их заново по строкам.
+   */
+  const [progress, setProgress] = useState<{
+    seatCount: number;
+    assignedCount: number;
+    submittedCount: number;
+    awaitingReview: number;
+    behindCount: number;
+  } | null>(null);
+  /** Чем упорядочен список учащихся. */
+  const [rosterSort, setRosterSort] = useState<'name' | 'awaiting' | 'submitted' | 'active'>(
+    'name',
+  );
   const [sharing, setSharing] = useState(false);
   const [search, setSearch] = useState('');
   const time = useSchoolTime();
@@ -329,6 +333,13 @@ export function ClassroomPage({
       if (result.ok) setAwards(result.data.items);
     });
   }, [classroomId, openStudent]);
+
+  // Сводка обновляется вместе с классом: после сдачи или отклика числа меняются.
+  useEffect(() => {
+    void api.classroomProgress(classroomId).then((result) => {
+      if (result.ok) setProgress(result.data);
+    });
+  }, [classroomId, page, openStudent]);
 
   useEffect(() => {
     setTeacherTeam({ kind: 'idle' });
@@ -421,6 +432,26 @@ export function ClassroomPage({
             student.loginHandle.includes(needle),
         );
 
+  /**
+   * Порядок в списке. Сортировка по имени — как в журнале; остальные три
+   * отвечают на вопрос «кем заняться сейчас»: кто ждёт ответа, кто сдал больше
+   * всех, кто давно не заходил.
+   */
+  const sortedStudents = [...visibleStudents].sort((a, b) => {
+    if (rosterSort === 'submitted') {
+      return (b.submittedCount ?? 0) - (a.submittedCount ?? 0);
+    }
+    if (rosterSort === 'awaiting') {
+      return (b.awaitingReview ?? 0) - (a.awaitingReview ?? 0);
+    }
+    if (rosterSort === 'active') {
+      const left = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+      const right = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+      return right - left;
+    }
+    return a.displayLabel.localeCompare(b.displayLabel, 'ru');
+  });
+
   if (openStudent !== null) {
     return (
       <ClassroomStudentPage
@@ -445,21 +476,27 @@ export function ClassroomPage({
 
   return (
     <main id="main-content" className="portal-content classroom-workspace" tabIndex={-1}>
-      <button type="button" className="classroom-back" onClick={onBack}>
-        ← Мои классы
-      </button>
+      {/* Возврат и то, чей это класс, — одной строкой: раньше это были три
+          строки одна над другой, и две из них ничего не решали. */}
+      <div className="classroom-crumbs">
+        <button type="button" className="classroom-back" onClick={onBack}>
+          ← Мои классы
+        </button>
+        <span className="classroom-crumb-role">
+          {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
+          {' · '}
+          {classroom.teacherRole === 'owner' ? 'основной преподаватель' : 'коллега-преподаватель'}
+        </span>
+      </div>
       <header className="classroom-head">
         <div className="classroom-head-title">
-          <span className="portal-eyebrow">
-            {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
-            {' · '}
-            {classroom.teacherRole === 'owner' ? 'Основной преподаватель' : 'Коллега-преподаватель'}
-          </span>
-          <h1>{classroom.title}</h1>
-          <p>
-            {learnerCount(classroom.studentCount)} · возраст{' '}
-            {classroom.ageBand === 'mixed' ? 'разный' : classroom.ageBand}
-          </p>
+          <h1>
+            {classroom.title}
+            <small>
+              {learnerCount(classroom.studentCount)} · возраст{' '}
+              {classroom.ageBand === 'mixed' ? 'разный' : classroom.ageBand}
+            </small>
+          </h1>
         </div>
         {/* The code is a chip and a button, not a panel. It is needed twice a
             lesson and read from across a room, so the place it is read properly
@@ -606,153 +643,208 @@ export function ClassroomPage({
               <p>Добавьте одного ученика или вставьте готовый список.</p>
             </div>
           ) : (
-            <div className="classroom-roster-table" role="table" aria-label="Ученики класса">
-              <div className="classroom-roster-head" role="row">
-                <span>Учащийся</span>
-                <span>Имя для входа</span>
-                <span>Задания</span>
-                <span>Последняя активность</span>
-                <span>Безопасный режим</span>
-                <span className="sr-only">Действия</span>
-              </div>
-              {visibleStudents.map((student) => (
-                <div className="classroom-roster-row" role="row" key={student.id}>
-                  {/* The name is the way in: a register tells you who is here,
+            <>
+              {progress ? (
+                <div className="classroom-progress" aria-label="Успеваемость класса">
+                  <span>
+                    <strong>{progress.assignedCount}</strong>
+                    заданий выдано
+                  </span>
+                  <span>
+                    <strong>{progress.submittedCount}</strong>
+                    работ сдано
+                  </span>
+                  <span className={progress.awaitingReview > 0 ? 'is-waiting' : undefined}>
+                    <strong>{progress.awaitingReview}</strong>
+                    ждут проверки
+                  </span>
+                  <span className={progress.behindCount > 0 ? 'is-behind' : undefined}>
+                    <strong>{progress.behindCount}</strong>
+                    не сдали ничего
+                  </span>
+                </div>
+              ) : null}
+              <div className="classroom-roster-table" role="table" aria-label="Ученики класса">
+                <div className="classroom-roster-head" role="row">
+                  {/* Заголовки сортируют: колонка, которая только сообщает,
+                    заставляет искать нужного человека глазами. */}
+                  <button
+                    type="button"
+                    className={`classroom-roster-sort${rosterSort === 'name' ? ' is-active' : ''}`}
+                    onClick={() => setRosterSort('name')}
+                  >
+                    Учащийся
+                  </button>
+                  <span>Имя для входа</span>
+                  {/* Две сортировки на одну колонку: «кто сделал больше» и
+                    «кто ждёт ответа» — разные вопросы к одним и тем же числам. */}
+                  <span className="classroom-roster-sortgroup">
+                    <button
+                      type="button"
+                      className={`classroom-roster-sort${rosterSort === 'submitted' ? ' is-active' : ''}`}
+                      onClick={() => setRosterSort('submitted')}
+                    >
+                      Задания
+                    </button>
+                    <button
+                      type="button"
+                      className={`classroom-roster-sort${rosterSort === 'awaiting' ? ' is-active' : ''}`}
+                      onClick={() => setRosterSort('awaiting')}
+                    >
+                      ждут
+                    </button>
+                  </span>
+                  <button
+                    type="button"
+                    className={`classroom-roster-sort${rosterSort === 'active' ? ' is-active' : ''}`}
+                    onClick={() => setRosterSort('active')}
+                  >
+                    Последняя активность
+                  </button>
+                  <span>Безопасный режим</span>
+                  <span className="sr-only">Действия</span>
+                </div>
+                {sortedStudents.map((student) => (
+                  <div className="classroom-roster-row" role="row" key={student.id}>
+                    {/* The name is the way in: a register tells you who is here,
                       and the next thing a teacher wants is how they are doing. */}
-                  <button
-                    type="button"
-                    className="classroom-student-name"
-                    onClick={() => setOpenStudent(student.id)}
-                  >
-                    <img
-                      className="classroom-seat-avatar"
-                      src={seatAvatar(student.id, student.avatarKey).src}
-                      alt=""
-                      width={38}
-                      height={38}
-                      loading="lazy"
-                    />
-                    <span>
-                      <strong>
-                        {student.displayLabel}
-                        <SeatAwardRow keys={awards[student.id] ?? []} size="small" />
-                      </strong>
-                      <small>
-                        {student.status === 'suspended' ? 'Доступ приостановлен' : 'Место ученика'}
-                      </small>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="classroom-login-handle"
-                    onClick={() =>
-                      void copy(student.loginHandle, `Имя «${student.loginHandle}» скопировано.`)
-                    }
-                  >
-                    {student.loginHandle}
-                  </button>
-                  {/* Сколько сдано из выданного и ждёт ли что-то ответа.
+                    <button
+                      type="button"
+                      className="classroom-student-name"
+                      onClick={() => setOpenStudent(student.id)}
+                    >
+                      <img
+                        className="classroom-seat-avatar"
+                        src={seatAvatar(student.id, student.avatarKey).src}
+                        alt=""
+                        width={38}
+                        height={38}
+                        loading="lazy"
+                      />
+                      <span>
+                        <strong>
+                          {student.displayLabel}
+                          <SeatAwardRow keys={awards[student.id] ?? []} size="small" />
+                        </strong>
+                        <small>
+                          {student.status === 'suspended'
+                            ? 'Доступ приостановлен'
+                            : 'Место ученика'}
+                        </small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="classroom-login-handle"
+                      onClick={() =>
+                        void copy(student.loginHandle, `Имя «${student.loginHandle}» скопировано.`)
+                      }
+                    >
+                      {student.loginHandle}
+                    </button>
+                    {/* Сколько сдано из выданного и ждёт ли что-то ответа.
                       Преподаватель видел «ждут проверки» в списке классов,
                       заходил внутрь — и не мог понять, кто именно ждёт. */}
-                  <span className="classroom-roster-progress">
-                    <span className="classroom-roster-done">
-                      {student.submittedCount ?? 0} из {student.assignedCount ?? 0}
+                    <span className="classroom-roster-progress">
+                      <span className="classroom-roster-done">
+                        {student.submittedCount ?? 0} из {student.assignedCount ?? 0}
+                      </span>
+                      {(student.awaitingReview ?? 0) > 0 ? (
+                        <em>ждёт проверки: {student.awaitingReview}</em>
+                      ) : null}
                     </span>
-                    {(student.awaitingReview ?? 0) > 0 ? (
-                      <em>ждёт проверки: {student.awaitingReview}</em>
-                    ) : null}
-                  </span>
-                  <span className="classroom-roster-seen">
-                    {student.lastActiveAt ? time.dateTime(student.lastActiveAt) : 'Ещё не входил'}
-                  </span>
-                  <label className="classroom-seat-safe">
-                    <input
-                      type="checkbox"
-                      checked={student.safeMode}
-                      disabled={Boolean(busy) || archived}
-                      aria-label={`Безопасный режим: ${student.displayLabel}`}
-                      onChange={() =>
-                        void updateStudent({ ...student, safeMode: !student.safeMode })
-                      }
-                    />
-                    <i aria-hidden="true" />
-                    {/* On a phone the column heading is gone, so the row has to
+                    <span className="classroom-roster-seen">
+                      {student.lastActiveAt ? time.dateTime(student.lastActiveAt) : 'Ещё не входил'}
+                    </span>
+                    <label className="classroom-seat-safe">
+                      <input
+                        type="checkbox"
+                        checked={student.safeMode}
+                        disabled={Boolean(busy) || archived}
+                        aria-label={`Безопасный режим: ${student.displayLabel}`}
+                        onChange={() =>
+                          void updateStudent({ ...student, safeMode: !student.safeMode })
+                        }
+                      />
+                      <i aria-hidden="true" />
+                      {/* On a phone the column heading is gone, so the row has to
                         say what the switch is about. */}
-                    <span className="classroom-seat-safe-name" aria-hidden="true">
-                      Безопасный режим
-                    </span>
-                    <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
-                  </label>
-                  <Dropdown
-                    className="classroom-row-menu"
-                    ariaLabel={`Действия: ${student.displayLabel}`}
-                    label="•••"
-                  >
-                    {(close) => (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            close();
-                            setOpenStudent(student.id);
-                          }}
-                        >
-                          Открыть страницу
-                        </button>
-                        <button
-                          type="button"
-                          disabled={archived}
-                          onClick={() => {
-                            close();
-                            setEditing(student);
-                          }}
-                        >
-                          Изменить данные
-                        </button>
-                        <button
-                          type="button"
-                          disabled={archived}
-                          onClick={() => {
-                            close();
-                            void updateStudent({
-                              ...student,
-                              status: student.status === 'suspended' ? 'active' : 'suspended',
-                            });
-                          }}
-                        >
-                          {student.status === 'suspended'
-                            ? 'Вернуть доступ'
-                            : 'Приостановить доступ'}
-                        </button>
-                        <button
-                          type="button"
-                          className="danger"
-                          disabled={archived}
-                          onClick={async () => {
-                            close();
-                            if (
-                              !window.confirm(
-                                `Удалить ${student.displayLabel} из класса? Его вход будет закрыт.`,
+                      <span className="classroom-seat-safe-name" aria-hidden="true">
+                        Безопасный режим
+                      </span>
+                      <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
+                    </label>
+                    <Dropdown
+                      className="classroom-row-menu"
+                      ariaLabel={`Действия: ${student.displayLabel}`}
+                      label="•••"
+                    >
+                      {(close) => (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close();
+                              setOpenStudent(student.id);
+                            }}
+                          >
+                            Открыть страницу
+                          </button>
+                          <button
+                            type="button"
+                            disabled={archived}
+                            onClick={() => {
+                              close();
+                              setEditing(student);
+                            }}
+                          >
+                            Изменить данные
+                          </button>
+                          <button
+                            type="button"
+                            disabled={archived}
+                            onClick={() => {
+                              close();
+                              void updateStudent({
+                                ...student,
+                                status: student.status === 'suspended' ? 'active' : 'suspended',
+                              });
+                            }}
+                          >
+                            {student.status === 'suspended'
+                              ? 'Вернуть доступ'
+                              : 'Приостановить доступ'}
+                          </button>
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={archived}
+                            onClick={async () => {
+                              close();
+                              if (
+                                !window.confirm(
+                                  `Удалить ${student.displayLabel} из класса? Его вход будет закрыт.`,
+                                )
                               )
-                            )
-                              return;
-                            setBusy(`remove:${student.id}`);
-                            const result = await api.removeClassroomSeat(classroomId, student.id);
-                            setBusy(null);
-                            if (result.ok) {
-                              setNotice(`${student.displayLabel} удалён из класса.`);
-                              await reload();
-                            }
-                          }}
-                        >
-                          Удалить из класса
-                        </button>
-                      </>
-                    )}
-                  </Dropdown>
-                </div>
-              ))}
-            </div>
+                                return;
+                              setBusy(`remove:${student.id}`);
+                              const result = await api.removeClassroomSeat(classroomId, student.id);
+                              setBusy(null);
+                              if (result.ok) {
+                                setNotice(`${student.displayLabel} удалён из класса.`);
+                                await reload();
+                              }
+                            }}
+                          >
+                            Удалить из класса
+                          </button>
+                        </>
+                      )}
+                    </Dropdown>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
       ) : null}

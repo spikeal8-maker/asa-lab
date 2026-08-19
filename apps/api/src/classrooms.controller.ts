@@ -231,15 +231,19 @@ function assignmentView(row: AssignmentRow) {
 }
 
 /**
- * Имя для входа, которое ребёнок вводит с доски.
+ * Код для входа, который ребёнок вводит с доски.
  *
- * Шесть цифр и ничего больше: слово «student-» перед ними ученик всё равно
- * набирал с ошибками, а к разбору букв и дефисов на первом уроке добавлять
- * нечего. Первая цифра не ноль — иначе его теряют при переносе в таблицы.
+ * Шесть знаков из букв и цифр — короткий, как пароль, и не читается как номер.
+ * Из набора убраны знаки, которые путают на слух и на доске: ноль и «O»,
+ * единица с «I» и «l».
  */
+const HANDLE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz';
+
 function fallbackHandle(): string {
-  const digits = randomBytes(4).readUInt32BE(0) % 900_000;
-  return String(100_000 + digits);
+  const bytes = randomBytes(6);
+  let handle = '';
+  for (const byte of bytes) handle += HANDLE_ALPHABET[byte % HANDLE_ALPHABET.length];
+  return handle;
 }
 
 @Controller('api/classrooms')
@@ -429,6 +433,35 @@ export class ClassroomsController {
     return { total: Number((result.rows[0] as { total: number | string }).total ?? 0) };
   }
 
+  /** Сводка по классу: выдано, сдано, ждут ответа, кто отстаёт. */
+  @Get(':classroomId/progress')
+  async progress(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const result = await this.requirePool().query(
+      `SELECT seat_count, assigned_count, submitted_count, awaiting_review, behind_count
+         FROM classroom_progress_summary($1, $2)`,
+      [context.accountId, classroomId],
+    );
+    const row = result.rows[0] as
+      | {
+          seat_count: number | string;
+          assigned_count: number | string;
+          submitted_count: number | string;
+          awaiting_review: number | string;
+          behind_count: number | string;
+        }
+      | undefined;
+    if (!row) throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+    return {
+      seatCount: Number(row.seat_count),
+      assignedCount: Number(row.assigned_count),
+      submittedCount: Number(row.submitted_count),
+      awaitingReview: Number(row.awaiting_review),
+      behindCount: Number(row.behind_count),
+    };
+  }
+
   @Get(':classroomId/roster')
   async roster(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
@@ -522,8 +555,7 @@ export class ClassroomsController {
       throw new HttpException(error('not_found', 'Ученик не найден в этом классе.'), 404);
     }
     const workCounts = counts.rows[0] as
-      | { submitted: number | string; awaiting_review: number | string }
-      | undefined;
+      { submitted: number | string; awaiting_review: number | string } | undefined;
     return {
       student: seatView(seat),
       submittedCount: Number(workCounts?.submitted ?? 0),

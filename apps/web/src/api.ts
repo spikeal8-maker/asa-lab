@@ -77,6 +77,10 @@ export interface Classroom {
   studentCount: number;
   /** Сдано и ещё не отвечено: сколько работ ждёт преподавателя. */
   awaitingReview?: number;
+  /** Выдано заданий, сдано работ, сколько учеников не сдали ничего. */
+  assignedCount?: number;
+  submittedCount?: number;
+  behindCount?: number;
   joinCodeVersion: number | null;
   joinCodeStatus: 'active' | 'revoked' | null;
   joinCode: string | null;
@@ -735,6 +739,14 @@ export const api = {
         options.kind ? `?kind=${options.kind}` : ''
       }`,
     ),
+  classroomProgress: (classroomId: string) =>
+    call<{
+      seatCount: number;
+      assignedCount: number;
+      submittedCount: number;
+      awaitingReview: number;
+      behindCount: number;
+    }>(`/api/classrooms/${encodeURIComponent(classroomId)}/progress`),
   awaitingReviewTotal: () => call<{ total: number }>('/api/classrooms/awaiting-review'),
   classroomStudent: (classroomId: string, seatId: string) =>
     call<ClassroomStudentDetail>(
@@ -811,9 +823,7 @@ export const api = {
       { method: 'PUT', body: JSON.stringify({ inside }) },
     ),
   collectionsHolding: (projectId: string) =>
-    call<{ collectionIds: string[] }>(
-      `/api/collections/holding/${encodeURIComponent(projectId)}`,
-    ),
+    call<{ collectionIds: string[] }>(`/api/collections/holding/${encodeURIComponent(projectId)}`),
 
   /** Занять место в классе по коду, будучи собой. */
   joinClassAsAccount: (code: string) =>

@@ -444,10 +444,7 @@ export class ClassroomJoinController {
    * его место находится по классу, которому задание принадлежит. Дальше всё
    * одинаково: сдача, значки и отклики висят на месте, а не на способе входа.
    */
-  private async seatForAssignment(
-    request: FastifyRequest,
-    assignmentId: string,
-  ): Promise<string> {
+  private async seatForAssignment(request: FastifyRequest, assignmentId: string): Promise<string> {
     const token = request.cookies[STUDENT_SESSION_COOKIE];
     if (token) return (await this.currentSeat(request)).seat_id;
 

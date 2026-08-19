@@ -39,7 +39,11 @@ const LICENCES: ReadonlyArray<{ value: string; label: string; hint: string }> = 
   },
 ];
 
-const VISIBILITY: ReadonlyArray<{ value: 'private' | 'link' | 'public'; label: string; hint: string }> = [
+const VISIBILITY: ReadonlyArray<{
+  value: 'private' | 'link' | 'public';
+  label: string;
+  hint: string;
+}> = [
   { value: 'private', label: 'Частная', hint: 'Видна только вам.' },
   {
     value: 'link',
@@ -75,7 +79,9 @@ export function ProjectProperties({
     void api.galleryState(project.id).then((result) => {
       if (!result.ok) return;
       setVisibility(
-        result.data.published ? ((result.data.visibility ?? 'public') as 'link' | 'public') : 'private',
+        result.data.published
+          ? ((result.data.visibility ?? 'public') as 'link' | 'public')
+          : 'private',
       );
     });
   }, [project.id]);
@@ -137,7 +143,12 @@ export function ProjectProperties({
       >
         <header className="project-properties-head">
           <h2 id="project-properties-title">Свойства проекта</h2>
-          <button type="button" className="project-properties-close" aria-label="Закрыть" onClick={onClose}>
+          <button
+            type="button"
+            className="project-properties-close"
+            aria-label="Закрыть"
+            onClick={onClose}
+          >
             ×
           </button>
         </header>
@@ -165,9 +176,7 @@ export function ProjectProperties({
           />
 
           <label htmlFor="properties-tags">Теги</label>
-          <p className="account-hint">
-            Не более десяти. Добавить — Enter или запятая.
-          </p>
+          <p className="account-hint">Не более десяти. Добавить — Enter или запятая.</p>
           <div className="project-properties-tags">
             {tags.map((tag) => (
               <span key={tag}>

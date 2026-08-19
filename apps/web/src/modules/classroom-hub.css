@@ -222,7 +222,7 @@
 
 .classroom-list-row {
   display: grid;
-  grid-template-columns: 32px minmax(240px, 1fr) 110px 130px 150px 44px;
+  grid-template-columns: 32px minmax(200px, 1fr) 86px 138px 116px 96px 124px 44px;
   align-items: center;
   gap: 12px;
   min-height: 64px;
@@ -256,7 +256,6 @@
 }
 
 .classroom-row-students,
-.classroom-row-scope,
 .classroom-row-date {
   color: var(--ink-muted);
   font-size: 13px;
@@ -352,14 +351,42 @@
   }
 
   .classroom-row-students,
-  .classroom-row-scope,
-  .classroom-row-date {
+  .classroom-row-date,
+  .classroom-row-progress,
+  .classroom-row-awaiting,
+  .classroom-row-behind {
     grid-column: 2;
+  }
+
+  /* На телефоне шапки таблицы нет, поэтому число само говорит, что означает. */
+  .classroom-row-students::before {
+    content: 'Учеников: ';
+  }
+
+  .classroom-row-progress::before {
+    content: 'Сдано: ';
+  }
+
+  .classroom-row-awaiting::before {
+    content: 'Ждут проверки: ';
+  }
+
+  .classroom-row-behind::before {
+    content: 'Отстают: ';
+  }
+
+  .classroom-row-students,
+  .classroom-row-progress,
+  .classroom-row-awaiting,
+  .classroom-row-behind {
+    color: var(--ink-muted);
+    font-size: 13px;
+    font-weight: 400;
   }
 
   .classroom-row-menu {
     grid-column: 3;
-    grid-row: 1 / span 4;
+    grid-row: 1 / span 7;
   }
 }
 
@@ -1462,20 +1489,6 @@ button.classroom-code-chip:hover {
   font-size: 13px;
 }
 
-/* Сколько работ ждёт проверки — рядом с названием класса. Единственная цифра
-   в строке, ради которой преподаватель вообще открывает продукт с утра. */
-.classroom-row-review {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #fdeee2;
-  color: #8a3f06;
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 /* «Я учусь» — вход в чужой класс со страницы своих классов. */
 .classroom-attend-link {
   justify-self: end;
@@ -1527,4 +1540,154 @@ button.classroom-code-chip:hover {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+/* Шапка таблицы классов. Числа без названий колонок — просто числа. */
+.classroom-list-head {
+  display: grid;
+  grid-template-columns: 32px minmax(200px, 1fr) 86px 138px 116px 96px 124px 44px;
+  gap: 12px;
+  padding: 0 7px 6px 14px;
+  color: #2a363e;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.classroom-row-students,
+.classroom-row-progress,
+.classroom-row-awaiting,
+.classroom-row-behind {
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.classroom-row-awaiting em,
+.classroom-row-behind em {
+  display: inline-block;
+  min-width: 26px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+
+.classroom-row-awaiting em {
+  background: #fdeee2;
+  color: #8a3f06;
+}
+
+.classroom-row-behind em {
+  background: #fbeaea;
+  color: #8f2f2f;
+}
+
+@media (max-width: 1100px) {
+  .classroom-list-head {
+    display: none;
+  }
+}
+
+/* Возврат и роль — одной строкой над названием класса. */
+.classroom-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.classroom-crumb-role {
+  color: #2a363e;
+  font-size: 13px;
+}
+
+/* Число учеников — рядом с названием, а не строкой под ним. */
+.classroom-head-title h1 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+  margin: 0;
+}
+
+.classroom-head-title h1 small {
+  color: #2a363e;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+/* Сводка по классу перед списком учащихся. */
+.classroom-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.classroom-progress span {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 14px;
+  border: 1px solid #dfe6ea;
+  border-radius: 10px;
+  background: #f7fafb;
+  color: #2a363e;
+  font-size: 13px;
+}
+
+.classroom-progress strong {
+  color: #16232c;
+  font-size: 19px;
+}
+
+.classroom-progress .is-waiting {
+  border-color: #e8b98a;
+  background: #fdeee2;
+}
+
+.classroom-progress .is-waiting strong,
+.classroom-progress .is-waiting {
+  color: #8a3f06;
+}
+
+.classroom-progress .is-behind {
+  border-color: #e3a7a7;
+  background: #fbeaea;
+}
+
+.classroom-progress .is-behind strong,
+.classroom-progress .is-behind {
+  color: #8f2f2f;
+}
+
+/* Заголовки списка учащихся сортируют. */
+.classroom-roster-sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.classroom-roster-sort:hover {
+  color: #0a6f9c;
+}
+
+.classroom-roster-sort.is-active {
+  color: #08627f;
+  text-decoration: underline;
+}
+
+.classroom-roster-sortgroup {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
 }

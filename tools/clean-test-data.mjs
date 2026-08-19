@@ -103,7 +103,9 @@ const step = async (label, sql, params) => {
 
 if (projectIds.length > 0) {
   await step('реакции', `DELETE FROM project_reactions WHERE project_id = ANY($1)`, [projectIds]);
-  await step('в подборках', `DELETE FROM collection_items WHERE project_id = ANY($1)`, [projectIds]);
+  await step('в подборках', `DELETE FROM collection_items WHERE project_id = ANY($1)`, [
+    projectIds,
+  ]);
   await step('публикации', `DELETE FROM project_publications WHERE project_id = ANY($1)`, [
     projectIds,
   ]);
@@ -131,11 +133,9 @@ if (projectIds.length > 0) {
 }
 
 if (classroomIds.length > 0) {
-  await step(
-    'выданные задания',
-    `DELETE FROM classroom_assignments WHERE classroom_id = ANY($1)`,
-    [classroomIds],
-  );
+  await step('выданные задания', `DELETE FROM classroom_assignments WHERE classroom_id = ANY($1)`, [
+    classroomIds,
+  ]);
   await step(
     'значки',
     `DELETE FROM classroom_seat_awards WHERE seat_id IN

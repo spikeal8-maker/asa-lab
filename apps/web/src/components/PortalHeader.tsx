@@ -473,10 +473,7 @@ export function PortalHeader({
                 </span>
               ) : null}
               {item.section === 'classes' && !seatLearner && (classroomBadge ?? 0) > 0 ? (
-                <span
-                  className="portal-nav-count"
-                  aria-label={`Ждут проверки: ${classroomBadge}`}
-                >
+                <span className="portal-nav-count" aria-label={`Ждут проверки: ${classroomBadge}`}>
                   {classroomBadge}
                 </span>
               ) : null}

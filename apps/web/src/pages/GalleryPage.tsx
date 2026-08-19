@@ -170,8 +170,7 @@ export function GalleryPage({
               </div>
               <div className="gallery-actions">
                 {REACTIONS.map((reaction) => {
-                  const active =
-                    reaction.kind === 'like' ? item.viewerLiked : item.viewerWowed;
+                  const active = reaction.kind === 'like' ? item.viewerLiked : item.viewerWowed;
                   const count = reaction.kind === 'like' ? item.likeCount : item.wowCount;
                   return (
                     <button

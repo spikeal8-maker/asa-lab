@@ -121,10 +121,7 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   const viewerFailures = collectBrowserFailures(viewerPage, { allowAnonymousSessionProbe: true });
   await loginWithOrganization(viewerPage, viewer);
   await viewerPage.getByRole('button', { name: 'Галерея', exact: true }).first().click();
-  const entry = viewerPage
-    .getByTestId('gallery')
-    .locator('li')
-    .filter({ hasText: TITLE });
+  const entry = viewerPage.getByTestId('gallery').locator('li').filter({ hasText: TITLE });
   await expect(entry).toBeVisible();
   // The author is named by their display name, which the seed builds from the label.
   await expect(entry).toContainText('Педагог gallery-author');
@@ -143,10 +140,7 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   // содержат эти слова, и проверка без уточнения находила два элемента сразу.
   await expect(entry.locator('.gallery-choice-badge')).toBeVisible();
   await viewerPage.reload();
-  const afterReload = viewerPage
-    .getByTestId('gallery')
-    .locator('li')
-    .filter({ hasText: TITLE });
+  const afterReload = viewerPage.getByTestId('gallery').locator('li').filter({ hasText: TITLE });
   await expect(afterReload.getByRole('button', { name: 'Ого: 1' })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -156,9 +150,9 @@ test('work is shared to the gallery, seen by another account and reacted to', as
 
   // The count reached the author's copy of the page too.
   await page.reload();
-  await expect(
-    page.getByTestId('gallery').locator('li').filter({ hasText: TITLE }),
-  ).toContainText('1');
+  await expect(page.getByTestId('gallery').locator('li').filter({ hasText: TITLE })).toContainText(
+    '1',
+  );
 
   /**
    * Opening the work, and taking it.
@@ -175,7 +169,9 @@ test('work is shared to the gallery, seen by another account and reacted to', as
   await viewerPage.screenshot({ path: `${evidenceDir}/gallery-work.png`, fullPage: true });
 
   await viewerPage.getByRole('button', { name: 'Добавить к себе' }).click();
-  await expect(viewerPage.getByText('Копия у вас в проектах, с пометкой откуда она.')).toBeVisible();
+  await expect(
+    viewerPage.getByText('Копия у вас в проектах, с пометкой откуда она.'),
+  ).toBeVisible();
 
   // And the mark is on the card, in the taker's own projects.
   await viewerPage.getByRole('button', { name: 'Проекты', exact: true }).first().click();

@@ -16,6 +16,9 @@ interface ClassroomRow {
   safe_mode_default: boolean;
   student_count?: number | string | null;
   awaiting_review?: number | string | null;
+  assigned_count?: number | string | null;
+  submitted_count?: number | string | null;
+  behind_count?: number | string | null;
   join_code_version?: number | string | null;
   join_code_status?: 'active' | 'revoked' | null;
   teacher_role?: 'owner' | 'co_teacher' | null;
@@ -37,6 +40,9 @@ function toClassroom(row: ClassroomRow): Classroom {
     studentCount: Number(row.student_count ?? 0),
     // Сдано и ещё не отвечено: счётчик проверки в списке классов.
     awaitingReview: Number(row.awaiting_review ?? 0),
+    assignedCount: Number(row.assigned_count ?? 0),
+    submittedCount: Number(row.submitted_count ?? 0),
+    behindCount: Number(row.behind_count ?? 0),
     joinCodeVersion:
       row.join_code_version === null || row.join_code_version === undefined
         ? null
@@ -143,7 +149,8 @@ export class PgClassroomRepository implements ClassroomRepositoryPort {
     const result = await this.pool.query(
       `SELECT id, title, status, age_band, topic_keys, safe_mode_default,
               created_at, archived_at, join_code_version, join_code_status, student_count,
-              awaiting_review, teacher_role, workspace_kind, workspace_title
+              awaiting_review, assigned_count, submitted_count, behind_count,
+              teacher_role, workspace_kind, workspace_title
          FROM classroom_list_for_account($1)`,
       [accountId],
     );

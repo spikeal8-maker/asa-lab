@@ -63,10 +63,9 @@ export class CollectionsController {
       );
       const seatId = (session.rows[0] as { seat_id: string } | undefined)?.seat_id ?? null;
       if (seatId) {
-        const principal = await this.requirePool().query(
-          `SELECT principal_for_seat($1) AS id`,
-          [seatId],
-        );
+        const principal = await this.requirePool().query(`SELECT principal_for_seat($1) AS id`, [
+          seatId,
+        ]);
         const id = (principal.rows[0] as { id: string | null } | undefined)?.id ?? null;
         if (id) return id;
       }
@@ -167,10 +166,11 @@ export class CollectionsController {
     if (typeof title !== 'string' || title.trim().length === 0 || title.length > 120) {
       throw new HttpException(error('validation_error', 'Введите название подборки.'), 400);
     }
-    const result = await this.requirePool().query(
-      `SELECT collection_rename($1, $2, $3) AS ok`,
-      [principalId, collectionId, title],
-    );
+    const result = await this.requirePool().query(`SELECT collection_rename($1, $2, $3) AS ok`, [
+      principalId,
+      collectionId,
+      title,
+    ]);
     if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
       throw new HttpException(error('not_found', 'Подборка не найдена.'), 404);
     }

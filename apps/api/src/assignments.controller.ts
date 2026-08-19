@@ -198,18 +198,12 @@ export class AssignmentsController {
     if (raw !== null) {
       const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
       if (!match) {
-        throw new HttpException(
-          error('validation_error', 'Подойдёт PNG, JPEG или WebP.'),
-          400,
-        );
+        throw new HttpException(error('validation_error', 'Подойдёт PNG, JPEG или WebP.'), 400);
       }
       contentType = match[1] as string;
       bytes = Buffer.from(match[2] as string, 'base64');
       if (bytes.byteLength < 64 || bytes.byteLength > 400_000) {
-        throw new HttpException(
-          error('validation_error', 'Картинка должна быть до 400 КБ.'),
-          400,
-        );
+        throw new HttpException(error('validation_error', 'Картинка должна быть до 400 КБ.'), 400);
       }
     }
     const result = await this.requirePool().query(
@@ -236,9 +230,7 @@ export class AssignmentsController {
       `SELECT sample_bytes, sample_content_type FROM teacher_assignment_sample($1)`,
       [assignmentId],
     );
-    const row = result.rows[0] as
-      | { sample_bytes: Buffer; sample_content_type: string }
-      | undefined;
+    const row = result.rows[0] as { sample_bytes: Buffer; sample_content_type: string } | undefined;
     if (!row) throw new HttpException(error('sample_not_found', 'Картинки нет.'), 404);
     return reply
       .header('content-type', row.sample_content_type)

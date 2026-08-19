@@ -97,10 +97,9 @@ export class GalleryController {
       if (seatId) {
         // Through a function, not a read of `principals`: the runtime role has
         // no business being able to page through every identity on the platform.
-        const principal = await this.requirePool().query(
-          `SELECT principal_for_seat($1) AS id`,
-          [seatId],
-        );
+        const principal = await this.requirePool().query(`SELECT principal_for_seat($1) AS id`, [
+          seatId,
+        ]);
         const principalId = (principal.rows[0] as { id: string | null } | undefined)?.id ?? null;
         if (principalId) return { principalId, accountId: null, isSeat: true };
       }
@@ -405,9 +404,7 @@ export class GalleryController {
   ) {
     const viewer = await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
-    const capabilities = viewer.accountId
-      ? await this.accounts.capabilities(viewer.accountId)
-      : [];
+    const capabilities = viewer.accountId ? await this.accounts.capabilities(viewer.accountId) : [];
     const educator = capabilities.find((entry) => entry.capability === 'educator');
     if (!educator || (educator.state !== 'verified' && educator.state !== 'provisional')) {
       throw new HttpException(

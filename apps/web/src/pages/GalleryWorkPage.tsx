@@ -64,7 +64,6 @@ function describeDocument(document: unknown): ShapeLine[] {
     .slice(0, 12);
 }
 
-
 const LICENCE_NAMES: Readonly<Record<string, string>> = {
   reserved: 'Все права сохранены',
   'public-domain': 'Общественное достояние',

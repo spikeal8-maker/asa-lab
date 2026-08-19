@@ -102,9 +102,7 @@ export function BriefText({
       {blocks.map((block, index) => {
         if (block.kind === 'heading') return <h4 key={index}>{inline(block.text)}</h4>;
         if (block.kind === 'para') return <p key={index}>{inline(block.text)}</p>;
-        const items = block.items.map((item, itemIndex) => (
-          <li key={itemIndex}>{inline(item)}</li>
-        ));
+        const items = block.items.map((item, itemIndex) => <li key={itemIndex}>{inline(item)}</li>);
         return block.ordered ? <ol key={index}>{items}</ol> : <ul key={index}>{items}</ul>;
       })}
     </div>

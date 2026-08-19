@@ -169,7 +169,10 @@ export function ProjectCard({
                 at copy time and never removable, so a borrowed model cannot be
                 handed in as one's own — the teacher reads it on the same card. */}
             {project.copiedFrom ? (
-              <p className="project-card-origin" title={`Скопировано из «${project.copiedFrom.title}»`}>
+              <p
+                className="project-card-origin"
+                title={`Скопировано из «${project.copiedFrom.title}»`}
+              >
                 Копия работы «{project.copiedFrom.title}», автор {project.copiedFrom.author}
               </p>
             ) : null}

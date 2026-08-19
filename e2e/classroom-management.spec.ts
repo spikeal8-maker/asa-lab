@@ -44,7 +44,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await createDialog.getByRole('button', { name: 'Создать', exact: true }).click();
 
   const classCard = page.getByTestId('classroom-card').filter({ hasText: '5Б Makers' });
-  await expect(classCard).toContainText('Ученики: 0');
+  await expect(classCard.locator('.classroom-row-students')).toHaveText('0');
   await classCard.locator('.classroom-row-title').click();
 
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
@@ -383,7 +383,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(assignmentCard).toContainText('Скруглите углы и подпишите имя.');
   await expect(demoCard.getByRole('button', { name: 'Домик' })).toBeVisible();
   await demoCard.getByRole('button', { name: 'Домик' }).click();
-  await expect(demoCard.locator('.assignment-goal')).toContainText('Собрать модель из простых фигур');
+  await expect(demoCard.locator('.assignment-goal')).toContainText(
+    'Собрать модель из простых фигур',
+  );
   await studentPage.screenshot({ path: `${evidenceDir}/student-assignment.png`, fullPage: true });
   await assignmentCard.getByRole('button', { name: 'Начать' }).click();
   await expect(studentPage.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });

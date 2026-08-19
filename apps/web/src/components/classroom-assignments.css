@@ -223,11 +223,6 @@
   font-size: 13px;
 }
 
-
-
-
-
-
 .seat-assignment-body p {
   margin: 8px 0 0;
   color: #2a363e;
@@ -347,7 +342,6 @@
   width: 168px;
   height: 168px;
 }
-
 
 /* The opened task: the goal first, then the description as written. */
 .seat-assignment-full {

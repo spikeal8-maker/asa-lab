@@ -73,7 +73,12 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
         <span className="assignment-brief-state">
           {assignment.submittedAt ? 'Сдано' : 'В работе'}
         </span>
-        <button type="button" className="assignment-brief-submit" disabled={busy} onClick={() => void submit()}>
+        <button
+          type="button"
+          className="assignment-brief-submit"
+          disabled={busy}
+          onClick={() => void submit()}
+        >
           {assignment.submittedAt ? 'Вернуть в работу' : 'Сдать работу'}
         </button>
       </div>

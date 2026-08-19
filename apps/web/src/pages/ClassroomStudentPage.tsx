@@ -327,39 +327,41 @@ export function ClassroomStudentPage({
             </p>
           ) : (
             <ul className="project-card-grid">
-              {(onlyAwaiting ? projects.filter((work) => work.awaitingReview) : projects).map((work) => (
-                <ProjectCard
-                  key={work.id}
-                  project={asProject(work)}
-                  module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                  timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
-                  footerLabel={
-                    work.awaitingReview
-                      ? 'Ждёт ответа'
-                      : feedback[work.id]?.badge
-                        ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
-                        : work.lastEditedByTeacher
-                          ? 'Правил педагог'
-                          : 'Работа ученика'
-                  }
-                  footerTone={
-                    work.awaitingReview
-                      ? 'redo'
-                      : markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)
-                  }
-                  primaryLabel="Открыть"
-                  open={{
-                    href: `#/projects/${work.id}`,
-                    onNavigate: () => onOpenProject(work.id, work.moduleKey),
-                  }}
-                  menuItems={[
-                    {
-                      label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
-                      onSelect: () => setResponding({ id: work.id, title: work.title }),
-                    },
-                  ]}
-                />
-              ))}
+              {(onlyAwaiting ? projects.filter((work) => work.awaitingReview) : projects).map(
+                (work) => (
+                  <ProjectCard
+                    key={work.id}
+                    project={asProject(work)}
+                    module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
+                    timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
+                    footerLabel={
+                      work.awaitingReview
+                        ? 'Ждёт ответа'
+                        : feedback[work.id]?.badge
+                          ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
+                          : work.lastEditedByTeacher
+                            ? 'Правил педагог'
+                            : 'Работа ученика'
+                    }
+                    footerTone={
+                      work.awaitingReview
+                        ? 'redo'
+                        : markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)
+                    }
+                    primaryLabel="Открыть"
+                    open={{
+                      href: `#/projects/${work.id}`,
+                      onNavigate: () => onOpenProject(work.id, work.moduleKey),
+                    }}
+                    menuItems={[
+                      {
+                        label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
+                        onSelect: () => setResponding({ id: work.id, title: work.title }),
+                      },
+                    ]}
+                  />
+                ),
+              )}
             </ul>
           )}
         </section>

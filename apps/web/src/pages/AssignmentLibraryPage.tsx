@@ -222,25 +222,13 @@ function EditorDialog({
               >
                 <strong>Ж</strong>
               </button>
-              <button
-                type="button"
-                disabled={busy || preview}
-                onClick={() => prefixLine('## ')}
-              >
+              <button type="button" disabled={busy || preview} onClick={() => prefixLine('## ')}>
                 Заголовок
               </button>
-              <button
-                type="button"
-                disabled={busy || preview}
-                onClick={() => prefixLine('- ')}
-              >
+              <button type="button" disabled={busy || preview} onClick={() => prefixLine('- ')}>
                 • Список
               </button>
-              <button
-                type="button"
-                disabled={busy || preview}
-                onClick={() => prefixLine('1. ')}
-              >
+              <button type="button" disabled={busy || preview} onClick={() => prefixLine('1. ')}>
                 1. Шаги
               </button>
               <button

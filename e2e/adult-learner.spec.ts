@@ -50,7 +50,11 @@ test('человек с аккаунтом входит в класс по ко�
   await dialog.getByLabel('Название класса').fill('Курс для взрослых');
   await dialog.getByLabel('Возраст учеников').selectOption('mixed');
   await dialog.getByRole('button', { name: 'Создать', exact: true }).click();
-  await page.getByTestId('classroom-card').filter({ hasText: 'Курс для взрослых' }).locator('.classroom-row-title').click();
+  await page
+    .getByTestId('classroom-card')
+    .filter({ hasText: 'Курс для взрослых' })
+    .locator('.classroom-row-title')
+    .click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   expect(joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
 

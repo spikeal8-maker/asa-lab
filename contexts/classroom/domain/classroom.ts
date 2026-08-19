@@ -8,6 +8,10 @@ export interface Classroom {
   readonly studentCount: number;
   /** Сдано и ещё не отвечено — счётчик проверки. */
   readonly awaitingReview?: number;
+  /** Выдано классу заданий, сдано работ, и сколько человек не сдали ничего. */
+  readonly assignedCount?: number;
+  readonly submittedCount?: number;
+  readonly behindCount?: number;
   readonly joinCodeVersion: number | null;
   readonly joinCodeStatus: 'active' | 'revoked' | null;
   readonly teacherRole: 'owner' | 'co_teacher';

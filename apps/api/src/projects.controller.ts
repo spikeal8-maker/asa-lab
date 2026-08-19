@@ -469,20 +469,21 @@ export class ProjectsController {
 
     const pool = this.pool;
     if (!pool) throw new HttpException(error('database_unavailable', 'database'), 503);
-    const saved = await pool.query(
-      `SELECT project_properties_save($1, $2, $3, $4, $5, $6) AS ok`,
-      [context.principalId, projectId, title.trim(), description, tags, license],
-    );
+    const saved = await pool.query(`SELECT project_properties_save($1, $2, $3, $4, $5, $6) AS ok`, [
+      context.principalId,
+      projectId,
+      title.trim(),
+      description,
+      tags,
+      license,
+    ]);
     if ((saved.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
       throw new HttpException(error('project_not_found', 'Проект не найден.'), 404);
     }
 
     // Публикация — это состояние работы, а не действие сбоку, поэтому она тут же.
     if (visibility !== null) {
-      if (
-        typeof visibility !== 'string' ||
-        !['private', 'link', 'public'].includes(visibility)
-      ) {
+      if (typeof visibility !== 'string' || !['private', 'link', 'public'].includes(visibility)) {
         throw new HttpException(error('validation_error', 'Неизвестная видимость.'), 400);
       }
       const changed = await pool.query(`SELECT project_visibility_set($1, $2, $3) AS ok`, [
@@ -490,7 +491,10 @@ export class ProjectsController {
         projectId,
         visibility,
       ]);
-      if ((changed.rows[0] as { ok: boolean } | undefined)?.ok !== true && visibility !== 'private') {
+      if (
+        (changed.rows[0] as { ok: boolean } | undefined)?.ok !== true &&
+        visibility !== 'private'
+      ) {
         throw new HttpException(
           error(
             'visibility_failed',

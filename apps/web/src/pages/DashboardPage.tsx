@@ -4,6 +4,7 @@ import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
 import { ageBandLabel } from '../components/ClassroomFields';
 import { Dropdown } from '../components/Dropdown';
+import { classroomWord, learnerWord, workWord } from '../plural';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 
@@ -27,7 +28,15 @@ const CLASSROOM_ROLE_TABS: ReadonlyArray<{ id: ClassroomRoleView; label: string 
  * clearing out last year. Size matters once a term, when a class that should
  * have twenty-eight learners has three.
  */
-type SortKey = 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc' | 'students-desc';
+type SortKey =
+  | 'created-desc'
+  | 'created-asc'
+  | 'title-asc'
+  | 'title-desc'
+  | 'students-desc'
+  | 'awaiting-desc'
+  | 'submitted-desc'
+  | 'behind-desc';
 
 const SORTS: ReadonlyArray<{ id: SortKey; label: string }> = [
   { id: 'created-desc', label: 'Сначала новые' },
@@ -35,13 +44,22 @@ const SORTS: ReadonlyArray<{ id: SortKey; label: string }> = [
   { id: 'title-asc', label: 'По названию: А–Я' },
   { id: 'title-desc', label: 'По названию: Я–А' },
   { id: 'students-desc', label: 'Больше учеников' },
+  { id: 'awaiting-desc', label: 'Больше ждут проверки' },
+  { id: 'submitted-desc', label: 'Больше сдано' },
+  { id: 'behind-desc', label: 'Больше отстающих' },
 ];
 
 const collator = new Intl.Collator('ru-RU', { sensitivity: 'base', numeric: true });
 
 function sortClassrooms(items: readonly Classroom[], sort: SortKey): Classroom[] {
   const sorted = [...items];
-  if (sort === 'title-asc') sorted.sort((a, b) => collator.compare(a.title, b.title));
+  const byNumber = (pick: (item: Classroom) => number) => (a: Classroom, b: Classroom) =>
+    pick(b) - pick(a) || collator.compare(a.title, b.title);
+
+  if (sort === 'awaiting-desc') sorted.sort(byNumber((item) => item.awaitingReview ?? 0));
+  else if (sort === 'submitted-desc') sorted.sort(byNumber((item) => item.submittedCount ?? 0));
+  else if (sort === 'behind-desc') sorted.sort(byNumber((item) => item.behindCount ?? 0));
+  else if (sort === 'title-asc') sorted.sort((a, b) => collator.compare(a.title, b.title));
   else if (sort === 'title-desc') sorted.sort((a, b) => collator.compare(b.title, a.title));
   else if (sort === 'students-desc')
     sorted.sort((a, b) => b.studentCount - a.studentCount || collator.compare(a.title, b.title));
@@ -183,6 +201,18 @@ export function DashboardPage({
   }
 
   const sortLabel = SORTS.find((entry) => entry.id === sort)?.label ?? 'Сначала новые';
+
+  /** Итоги по видимым классам — те же числа, что в колонках, но одной строкой. */
+  const totals = visibleItems.reduce(
+    (acc, classroom) => ({
+      students: acc.students + classroom.studentCount,
+      assigned: acc.assigned + (classroom.assignedCount ?? 0) * classroom.studentCount,
+      submitted: acc.submitted + (classroom.submittedCount ?? 0),
+      awaiting: acc.awaiting + (classroom.awaitingReview ?? 0),
+      behind: acc.behind + (classroom.behindCount ?? 0),
+    }),
+    { students: 0, assigned: 0, submitted: 0, awaiting: 0, behind: 0 },
+  );
 
   return (
     <main
@@ -372,8 +402,41 @@ export function DashboardPage({
           </p>
         </section>
       ) : null}
+      {/* Дашборд по всем классам сразу: до него преподавателю приходилось
+          складывать колонки глазами, чтобы понять, где сегодня работа. */}
+      {list.kind === 'ready' && visibleItems.length > 0 && roleView !== 'enrolled' ? (
+        <section className="classroom-progress" aria-label="Итоги по классам">
+          <span>
+            <strong>{visibleItems.length}</strong> {classroomWord(visibleItems.length)}
+          </span>
+          <span>
+            <strong>{totals.students}</strong> {learnerWord(totals.students)}
+          </span>
+          <span>
+            <strong>{totals.submitted}</strong> из {totals.assigned} {workWord(totals.assigned)}{' '}
+            сдано
+          </span>
+          <span className={totals.awaiting > 0 ? 'is-waiting' : undefined}>
+            <strong>{totals.awaiting}</strong> ждут проверки
+          </span>
+          <span className={totals.behind > 0 ? 'is-behind' : undefined}>
+            <strong>{totals.behind}</strong> не сдали ничего
+          </span>
+        </section>
+      ) : null}
       {list.kind === 'ready' && visibleItems.length > 0 ? (
         <ul className="classroom-list" data-testid="classroom-grid" aria-label="Мои классы">
+          {/* Шапка таблицы: без неё числа в строке — просто числа. */}
+          <li className="classroom-list-head" aria-hidden="true">
+            <span />
+            <span>Класс</span>
+            <span>Ученики</span>
+            <span>Сдано из выданного</span>
+            <span>Ждут проверки</span>
+            <span>Отстают</span>
+            <span>Создан</span>
+            <span />
+          </li>
           {visibleItems.map((classroom) => (
             <li key={classroom.id} className="classroom-list-row" data-testid="classroom-card">
               <label className="classroom-row-select">
@@ -393,20 +456,23 @@ export function DashboardPage({
                 {classroom.status === 'archived' ? (
                   <em className="classroom-row-archived">в архиве</em>
                 ) : null}
-                {/* Рядом с названием, а не отдельной колонкой посреди строки:
-                    это первое, что преподаватель ищет глазами. */}
-                {classroom.awaitingReview ? (
-                  <em className="classroom-row-review">
-                    ждут проверки: {classroom.awaitingReview}
-                  </em>
-                ) : null}
               </button>
-              <span className="classroom-row-students">Ученики: {classroom.studentCount}</span>
-              <span className="classroom-row-scope">
-                {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
+              <span className="classroom-row-students">{classroom.studentCount}</span>
+              {/* Сколько работ сдано из выданного классу: первое число, по
+                  которому преподаватель понимает, идёт ли работа вообще. */}
+              <span className="classroom-row-progress">
+                {classroom.submittedCount ?? 0} из{' '}
+                {(classroom.assignedCount ?? 0) * (classroom.studentCount || 0)}
+              </span>
+              <span className="classroom-row-awaiting">
+                {classroom.awaitingReview ? <em>{classroom.awaitingReview}</em> : '—'}
+              </span>
+              <span className="classroom-row-behind">
+                {classroom.behindCount ? <em>{classroom.behindCount}</em> : '—'}
               </span>
               <span className="classroom-row-date">
-                <small>{classroom.status === 'archived' ? 'В архиве с' : 'Дата создания'}</small>
+                {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
+                {classroom.status === 'archived' ? <small>В архиве с</small> : null}
                 {time.date(
                   classroom.status === 'archived'
                     ? (classroom.archivedAt ?? classroom.createdAt)

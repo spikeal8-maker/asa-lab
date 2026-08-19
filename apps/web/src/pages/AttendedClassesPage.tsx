@@ -31,10 +31,7 @@ export function AttendedClassesPage({
   const time = useSchoolTime();
 
   const load = useCallback(async () => {
-    const [attended, work] = await Promise.all([
-      api.attendedClasses(),
-      api.attendedAssignments(),
-    ]);
+    const [attended, work] = await Promise.all([api.attendedClasses(), api.attendedAssignments()]);
     setClasses(attended.ok ? attended.data.items : []);
     setAssignments(work.ok ? work.data.items : []);
   }, []);
@@ -92,7 +89,9 @@ export function AttendedClassesPage({
       <header className="attended-heading">
         <div>
           <h1>Я учусь</h1>
-          <p>Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.</p>
+          <p>
+            Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.
+          </p>
         </div>
       </header>
 
@@ -189,7 +188,11 @@ export function AttendedClassesPage({
                   </span>
                   <span
                     className={`seat-assignment-state${
-                      assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : ''
+                      assignment.submittedAt
+                        ? ' is-done'
+                        : assignment.projectId
+                          ? ' is-working'
+                          : ''
                     }`}
                   >
                     {assignment.submittedAt
