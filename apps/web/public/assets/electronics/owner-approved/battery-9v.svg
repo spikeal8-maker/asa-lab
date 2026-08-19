@@ -1,48 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 494" width="1000" height="494">
-  <title>Батарейка «Крона» 9 В — чистый вектор по образцу владельца</title>
-  <desc>Hand-drawn replacement for the auto-traced mosaic. Geometry measured
-  from the owner reference render: black negative contact top-left with its
-  tip, red positive below, dark connector bar with grey neck and two cap
-  prongs, orange band with − and + marks, dark body with a vertical «9V»
-  legend.</desc>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="659" height="295" viewBox="42 53 659 295"
+     version="1.1" role="img" aria-labelledby="title desc">
+  <title id="title">9V battery — clean vector</title>
+  <desc id="desc">Pure SVG reconstruction matched to the supplied 776 by 411 reference. No embedded raster images.</desc>
 
-  <!-- contact tips and caps: negative (black, top), positive (red, bottom) -->
-  <rect x="59" y="215" width="15" height="8" rx="4" fill="#333333"/>
-  <rect x="70" y="210" width="47" height="18" rx="9" fill="#333333"/>
-  <rect x="59" y="254" width="15" height="8" rx="4" fill="#af1c1c"/>
-  <rect x="70" y="249" width="47" height="18" rx="9" fill="#af1c1c"/>
+  <defs>
+    <clipPath id="bodyClip">
+      <rect x="160" y="53" width="541" height="295" rx="9" ry="9"/>
+    </clipPath>
+  </defs>
 
-  <!-- connector bar -->
-  <rect x="118" y="53" width="34" height="363" rx="14" fill="#333333"/>
+  <g id="battery-9v">
+    <!-- Main battery body, matched to reference -->
+    <g id="body" clip-path="url(#bodyClip)">
+      <rect x="160" y="53" width="541" height="295" fill="#333333"/>
+      <rect x="160" y="53" width="161" height="295" fill="#d18d52"/>
+    </g>
 
-  <!-- neck between bar and prongs -->
-  <rect x="152" y="77" width="17" height="134" fill="#8c8c8c"/>
-  <rect x="152" y="245" width="17" height="135" fill="#8c8c8c"/>
+    <!-- Contact-side vertical plate -->
+    <rect id="contact-plate" x="85" y="64" width="26" height="269" rx="5" ry="5" fill="#333333"/>
 
-  <!-- cap prongs -->
-  <rect x="169" y="77" width="51" height="134" fill="#bababa"/>
-  <rect x="169" y="245" width="51" height="135" fill="#bababa"/>
-  <rect x="169" y="245" width="27" height="135" fill="#8c8c8c"/>
+    <!-- Upper contact stack: narrow dark spacer + larger light block -->
+    <path id="upper-spacer" d="M111 90 H123 V174 H111 Z" fill="#8c8c8c"/>
+    <path id="upper-contact" d="M126 81 H160 V182 H123 V85 Q123 81 126 81 Z" fill="#bababa"/>
 
-  <!-- battery body -->
-  <rect x="438" y="38" width="515" height="399" rx="8" fill="#333333"/>
+    <!-- Lower contact stack: larger dark block + narrow light spacer to body -->
+    <path id="lower-contact" d="M111 209 H140 Q143 209 143 212 V306 Q143 309 140 309 H111 Z" fill="#8c8c8c"/>
+    <path id="lower-spacer" d="M143 240 H160 V302 H143 Z" fill="#bababa"/>
 
-  <!-- orange band over the body tail -->
-  <path d="M228 38 h208 v399 h-208 q-8 0 -8 -8 v-383 q0 -8 8 -8 z" fill="#d19152"/>
+    <!-- Polarity symbols -->
+    <g id="polarity-minus">
+      <circle cx="187" cy="132" r="18" fill="none" stroke="#b17b4c" stroke-width="2.2"/>
+      <rect x="185" y="120" width="4" height="24" rx="2" fill="#3b3b3b"/>
+    </g>
+    <g id="polarity-plus">
+      <circle cx="187" cy="260" r="18" fill="none" stroke="#b17b4c" stroke-width="2.2"/>
+      <rect x="175" y="258" width="24" height="4" rx="2" fill="#3b3b3b"/>
+      <rect x="185" y="248" width="4" height="24" rx="2" fill="#3b3b3b"/>
+    </g>
 
-  <!-- polarity marks on the orange band: minus top, plus bottom -->
-  <g fill="none" stroke="#b47d4d" stroke-width="4">
-    <circle cx="256" cy="145" r="24"/>
-    <circle cx="256" cy="319" r="24"/>
+    <!-- Upper black lead/terminal -->
+    <g id="terminal-black">
+      <rect x="42" y="183" width="10" height="6" rx="3" fill="#8c8c8c"/>
+      <path d="M50 183 Q53 180 57 180 H67 Q71 180 73 183 V190 Q70 193 66 193 H56 Q51 193 50 189 Z" fill="#383838"/>
+      <path d="M72 187 C76 187 79 185 82 184 C83 184 84 184 85 184" fill="none" stroke="#383838" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Lower red lead/terminal -->
+    <g id="terminal-red">
+      <rect x="42" y="212" width="10" height="6" rx="3" fill="#8c8c8c"/>
+      <path d="M50 211 Q53 208 57 208 H67 Q71 208 73 211 V218 Q70 221 66 222 H56 Q51 222 50 218 Z" fill="#af1c1c"/>
+      <path d="M72 216 C77 216 80 214 83 213 C84 213 85 213 85 213" fill="none" stroke="#af1c1c" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Vertical 9V label: V above 9 as in the reference -->
+    <g id="label-9v" transform="translate(481 201) rotate(-90)">
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="400"
+            fill="#dddddd">9V</text>
+    </g>
   </g>
-  <g stroke="#b47d4d" stroke-width="5" stroke-linecap="round">
-    <line x1="244" y1="145" x2="268" y2="145"/>
-    <line x1="244" y1="319" x2="268" y2="319"/>
-    <line x1="256" y1="307" x2="256" y2="331"/>
-  </g>
-
-  <!-- legend -->
-  <text transform="translate(701 305) rotate(-90)" font-family="Arial, Helvetica, sans-serif"
-        font-size="112" font-weight="700" fill="#dddddd">9V</text>
 </svg>

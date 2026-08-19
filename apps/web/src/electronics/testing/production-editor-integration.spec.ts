@@ -34,7 +34,7 @@ const EMPTY: SchematicDocument = {
 };
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
-  'battery-9v': [52.667, 26.8],
+  'battery-9v': [52.667, 23.5763],
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
   'button-tactile-6mm': [10, 10],

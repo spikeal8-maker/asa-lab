@@ -17368,20 +17368,20 @@
       "displayNameEn": "9V PP3 battery",
       "provenance": "owner_supplied",
       "physicalWidthMm": 52.667,
-      "physicalHeightMm": 26.8,
-      "viewBox": [0, 0, 52.667, 26.8],
+      "physicalHeightMm": 23.5763,
+      "viewBox": [0, 0, 52.667, 23.5763],
       "pins": [
         {
           "id": "negative",
-          "xMm": 3.323,
-          "yMm": 11.8428,
+          "xMm": 0.3996,
+          "yMm": 10.6693,
           "electricalRole": "negative",
           "toleranceMm": 0
         },
         {
           "id": "positive",
-          "xMm": 3.323,
-          "yMm": 13.9748,
+          "xMm": 0.3996,
+          "yMm": 12.947,
           "electricalRole": "positive",
           "toleranceMm": 0
         }
@@ -17406,10 +17406,10 @@
       "isDefaultVariant": true,
       "displayName": "Батарейка «Крона» 9 В",
       "sourceOwnerArchive": "owner-approved-redraw",
-      "sourceOwnerPath": "owner-approved/battery-9v.svg",
-      "sourceSha256": "9a82fd8709e824eebff1466c29de47a48bfb7c52ba4c4f7688982f677533718e",
+      "sourceOwnerPath": "owner-approved/clean_battery_9v_reference_matched_v3.svg",
+      "sourceSha256": "a93fa4880f4f994f65e036af9eeaed97c52e4a99da59553e8277efa3bff2bdea",
       "runtimePath": "/assets/electronics/owner-approved/battery-9v.svg",
-      "runtimeSha256": "9a82fd8709e824eebff1466c29de47a48bfb7c52ba4c4f7688982f677533718e",
+      "runtimeSha256": "a93fa4880f4f994f65e036af9eeaed97c52e4a99da59553e8277efa3bff2bdea",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
