@@ -83,56 +83,21 @@
   background: #075c85;
 }
 
-/* Picture beside the words when there is one, all the width when there is not. */
+/* Вёрстка самого задания — общая (assignment-view). Полосе остаётся рамка
+   вокруг неё и потолок по высоте: экран принадлежит модели. */
 .assignment-brief-body {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  max-height: 46vh;
   overflow-y: auto;
+  max-height: 46vh;
   padding: 0 14px 14px;
 }
 
-.assignment-brief-body figure {
-  flex: 0 0 auto;
-  margin: 0;
-}
-
-.assignment-brief-body img {
-  display: block;
-  width: 180px;
-  height: 180px;
-  border: 1px solid #cfe3ec;
-  border-radius: 10px;
-  object-fit: cover;
-  background: #fff;
-}
-
-.assignment-brief-body figcaption {
-  width: 180px;
-  margin-top: 6px;
-  color: var(--ink-muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-/* The description under the strip, with the goal set apart above it. */
-.assignment-brief-copy {
-  min-width: 0;
-  flex: 1 1 auto;
+.assignment-brief-body .assignment-view {
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 14px;
 }
 
 @media (max-width: 720px) {
-  .assignment-brief-body {
-    flex-direction: column;
-  }
-
-  .assignment-brief-body img,
-  .assignment-brief-body figcaption {
-    width: 120px;
-  }
-
-  .assignment-brief-body img {
-    height: 120px;
+  .assignment-brief-body .assignment-view {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

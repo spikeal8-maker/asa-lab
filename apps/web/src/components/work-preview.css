@@ -4,8 +4,12 @@
  * teacher who has to scroll between them will stop giving comments.
  */
 
-.work-preview {
-  width: min(920px, calc(100vw - 32px));
+/* Окно диалога по умолчанию узкое — это правильная ширина для «вы уверены?» и
+   неправильная для проверки работы: модель, условие и отклик должны быть на
+   экране разом. Селектор из двух классов, иначе базовая ширина остаётся. */
+.modal.work-preview {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: min(1120px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
 }
@@ -27,11 +31,25 @@
   color: var(--ink-muted);
 }
 
+/* Работа, условие и отклик — рядом. Преподаватель не должен помнить задание
+   наизусть и не должен прокручивать окно, чтобы сверить одно с другим. */
 .work-preview-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr) minmax(0, 0.85fr);
+  gap: 22px;
   align-items: start;
+}
+
+.work-preview-task {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 60vh;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dfe6ea;
+  border-radius: 10px;
+  background: #f7fafb;
 }
 
 .work-preview-picture {
@@ -63,6 +81,17 @@
   margin: 0;
   color: var(--ink-muted);
   font-size: 13px;
+}
+
+@media (max-width: 1080px) {
+  .work-preview-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .work-preview-task {
+    grid-column: 1 / -1;
+    max-height: none;
+  }
 }
 
 @media (max-width: 780px) {

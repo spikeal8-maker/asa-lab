@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
-import { AssignmentGoal, BriefText } from '../components/BriefText';
+import { AssignmentView } from '../components/AssignmentView';
 import { newClientId } from '../client-id';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
@@ -203,8 +203,35 @@ export function AttendedClassesPage({
                   </span>
                   {openId === assignment.id ? (
                     <div className="seat-assignment-full">
-                      <AssignmentGoal goal={assignment.goal} />
-                      {assignment.brief ? <BriefText text={assignment.brief} /> : null}
+                      {/* Тот же вид задания и та же своя работа рядом, что и у
+                          ребёнка с местом: учится тот же человек. */}
+                      <AssignmentView
+                        assignment={assignment}
+                        aside={
+                          assignment.projectId ? (
+                            <figure className="seat-assignment-work">
+                              {assignment.snapshotRevision === null ? (
+                                <span className="seat-assignment-work-empty">
+                                  Работа открыта, но пока пустая.
+                                </span>
+                              ) : (
+                                <img
+                                  src={`/api/projects/${encodeURIComponent(
+                                    assignment.projectId,
+                                  )}/snapshot?rev=${assignment.snapshotRevision}`}
+                                  alt="Ваша работа"
+                                  loading="lazy"
+                                />
+                              )}
+                              <figcaption>
+                                {assignment.updatedAt
+                                  ? `Вы работали ${time.dateTime(assignment.updatedAt)}`
+                                  : 'Ваша работа'}
+                              </figcaption>
+                            </figure>
+                          ) : null
+                        }
+                      />
                     </div>
                   ) : null}
                 </div>

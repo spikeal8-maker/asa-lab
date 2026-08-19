@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
-import { AssignmentGoal, BriefText } from './BriefText';
+import { AssignmentView } from './AssignmentView';
 import { newClientId } from '../client-id';
 import { useSchoolTime } from './school-time';
 import './classroom-assignments.css';
@@ -128,8 +128,36 @@ export function SeatAssignments({
               </span>
               {openId === assignment.id ? (
                 <div className="seat-assignment-full">
-                  <AssignmentGoal goal={assignment.goal} />
-                  {assignment.brief ? <BriefText text={assignment.brief} /> : null}
+                  {/* Тот же вид задания, что у преподавателя и поверх редактора.
+                      Рядом — своя работа: вернувшись через неделю, ребёнок
+                      вспоминает, на чём остановился, не открывая редактор. */}
+                  <AssignmentView
+                    assignment={assignment}
+                    aside={
+                      assignment.projectId ? (
+                        <figure className="seat-assignment-work">
+                          {assignment.snapshotRevision === null ? (
+                            <span className="seat-assignment-work-empty">
+                              Работа открыта, но пока пустая.
+                            </span>
+                          ) : (
+                            <img
+                              src={`/api/projects/${encodeURIComponent(
+                                assignment.projectId,
+                              )}/snapshot?rev=${assignment.snapshotRevision}`}
+                              alt="Ваша работа"
+                              loading="lazy"
+                            />
+                          )}
+                          <figcaption>
+                            {assignment.updatedAt
+                              ? `Вы работали ${time.dateTime(assignment.updatedAt)}`
+                              : 'Ваша работа'}
+                          </figcaption>
+                        </figure>
+                      ) : null
+                    }
+                  />
                 </div>
               ) : null}
             </div>

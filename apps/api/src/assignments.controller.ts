@@ -37,6 +37,24 @@ function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+/**
+ * Картинка, пришедшая строкой data-url.
+ *
+ * Тем же путём загружаются аватары: браузер читает файл, отправляет строкой,
+ * а тип и размер проверяются здесь — до того, как байты дойдут до базы.
+ */
+function decodeImage(raw: string): { bytes: Buffer; contentType: string } {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
+  if (!match) {
+    throw new HttpException(error('validation_error', 'Подойдёт PNG, JPEG или WebP.'), 400);
+  }
+  const bytes = Buffer.from(match[2] as string, 'base64');
+  if (bytes.byteLength < 64 || bytes.byteLength > 400_000) {
+    throw new HttpException(error('validation_error', 'Картинка должна быть до 400 КБ.'), 400);
+  }
+  return { bytes, contentType: match[1] as string };
+}
+
 interface LibraryRow {
   id: string;
   title: string;
@@ -193,19 +211,9 @@ export class AssignmentsController {
     if (raw !== null && typeof raw !== 'string') {
       throw new HttpException(error('validation_error', 'Неверное изображение.'), 400);
     }
-    let bytes: Buffer | null = null;
-    let contentType: string | null = null;
-    if (raw !== null) {
-      const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
-      if (!match) {
-        throw new HttpException(error('validation_error', 'Подойдёт PNG, JPEG или WebP.'), 400);
-      }
-      contentType = match[1] as string;
-      bytes = Buffer.from(match[2] as string, 'base64');
-      if (bytes.byteLength < 64 || bytes.byteLength > 400_000) {
-        throw new HttpException(error('validation_error', 'Картинка должна быть до 400 КБ.'), 400);
-      }
-    }
+    const picture = raw === null ? null : decodeImage(raw);
+    const bytes = picture?.bytes ?? null;
+    const contentType = picture?.contentType ?? null;
     const result = await this.requirePool().query(
       `SELECT teacher_assignment_sample_set($1, $2, $3, $4) AS ok`,
       [context.principalId, assignmentId, bytes, contentType],
@@ -236,6 +244,59 @@ export class AssignmentsController {
       .header('content-type', row.sample_content_type)
       .header('cache-control', 'private, max-age=60')
       .send(row.sample_bytes);
+  }
+
+  /**
+   * Картинка внутри текста задания.
+   *
+   * Образец отвечает «что должно получиться», а эти — «как дойти до шага 3».
+   * Возвращается адрес: текст задания хранит ссылку, а не байты, и остаётся
+   * текстом, который можно поправить через год.
+   */
+  @Post(':assignmentId/images')
+  async addImage(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const shape = checkBodyShape(rawBody, ['imageDataUrl']);
+    const raw = shape.ok ? shape.body['imageDataUrl'] : null;
+    if (typeof raw !== 'string') {
+      throw new HttpException(error('validation_error', 'Неверное изображение.'), 400);
+    }
+    const picture = decodeImage(raw);
+    const result = await this.requirePool().query(
+      `SELECT teacher_assignment_image_add($1, $2, $3, $4) AS id`,
+      [context.principalId, assignmentId, picture.bytes, picture.contentType],
+    );
+    const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
+    if (!id) throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
+    return { id, url: `/api/assignments/${assignmentId}/images/${id}` };
+  }
+
+  /** Отдать её. Как и образец — любому, кому видно само задание. */
+  @Get(':assignmentId/images/:imageId')
+  async image(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Param('imageId') imageId: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    this.requireUuid(assignmentId, 'assignment');
+    this.requireUuid(imageId, 'image');
+    void request;
+    const result = await this.requirePool().query(
+      `SELECT bytes, content_type FROM teacher_assignment_image($1, $2)`,
+      [assignmentId, imageId],
+    );
+    const row = result.rows[0] as { bytes: Buffer; content_type: string } | undefined;
+    if (!row) throw new HttpException(error('image_not_found', 'Картинки нет.'), 404);
+    return reply
+      .header('content-type', row.content_type)
+      .header('cache-control', 'private, max-age=300')
+      .send(row.bytes);
   }
 
   /** Every class this teacher runs, and whether this task is in it. */

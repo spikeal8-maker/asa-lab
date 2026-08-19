@@ -243,6 +243,10 @@ export interface SeatAssignment {
   sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
+  /** Снимок собственной работы: по нему ученик вспоминает, на чём остановился. */
+  snapshotRevision: number | null;
+  /** Когда работа менялась в последний раз. */
+  updatedAt: string | null;
 }
 
 export interface ClassroomTeacher {
@@ -331,6 +335,13 @@ export interface ClassroomStudentWork {
   snapshotRevision: number | null;
   preview: ProjectPreview | null;
   lastEditedByTeacher: boolean;
+  /** Что было задано: без условия работу не проверить. */
+  assignment: {
+    title: string;
+    goal: string | null;
+    brief: string | null;
+    sampleImage: string | null;
+  } | null;
 }
 
 export interface ClassroomStudentDetail {
@@ -905,6 +916,12 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ imageDataUrl }),
     }),
+  /** Картинка внутрь текста задания. Возвращает адрес, который идёт в текст. */
+  addAssignmentImage: (assignmentId: string, imageDataUrl: string) =>
+    call<{ id: string; url: string }>(
+      `/api/assignments/${encodeURIComponent(assignmentId)}/images`,
+      { method: 'POST', body: JSON.stringify({ imageDataUrl }) },
+    ),
   deleteLibraryAssignment: (assignmentId: string) =>
     call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
       method: 'DELETE',

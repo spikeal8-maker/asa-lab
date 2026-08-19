@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, type ProjectFeedback } from '../api';
+import { AssignmentView, type AssignmentViewData } from './AssignmentView';
 import { useSchoolTime } from './school-time';
 import './work-preview.css';
 
@@ -26,7 +27,9 @@ export function WorkPreview({
   snapshotRevision,
   moduleKey,
   learnerName,
+  workTitle,
   submittedAt,
+  assignment,
   onClose,
   onOpenEditor,
   onGraded,
@@ -35,7 +38,17 @@ export function WorkPreview({
   readonly snapshotRevision: number | null;
   readonly moduleKey: string;
   readonly learnerName: string;
+  /** Название самой работы: у ученика их несколько. */
+  readonly workTitle?: string;
   readonly submittedAt: string | null;
+  /**
+   * Что было задано.
+   *
+   * Оценивать модель, не видя условия, преподаватель может только по памяти — а
+   * через неделю после урока её уже нет. Поэтому задание открывается вместе с
+   * работой, тем же видом, который читал ученик.
+   */
+  readonly assignment?: AssignmentViewData | null;
   readonly onClose: () => void;
   readonly onOpenEditor: () => void;
   readonly onGraded: () => void;
@@ -112,7 +125,10 @@ export function WorkPreview({
         <header className="work-preview-head">
           <div>
             <h2>{learnerName}</h2>
-            <p>{submittedAt ? `Сдано ${time.dateTime(submittedAt)}` : 'Ещё не сдано'}</p>
+            <p>
+              {workTitle ? `${workTitle} · ` : ''}
+              {submittedAt ? `Сдано ${time.dateTime(submittedAt)}` : 'Ещё не сдано'}
+            </p>
           </div>
           <button type="button" className="btn-secondary" onClick={onClose}>
             Закрыть
@@ -157,6 +173,13 @@ export function WorkPreview({
               </button>
             ) : null}
           </div>
+
+          {assignment ? (
+            <section className="work-preview-task" aria-label="Что было задано">
+              <span className="work-preview-label">Задание: {assignment.title}</span>
+              <AssignmentView assignment={assignment} compact />
+            </section>
+          ) : null}
 
           <form className="work-preview-form" onSubmit={(event) => void save(event)}>
             <span className="work-preview-label">Оценка</span>

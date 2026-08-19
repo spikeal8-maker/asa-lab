@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   api,
   type ClassroomActivityEntry,
   type ClassroomStudentDetail,
+  type ClassroomStudentWork,
   type ModuleSummary,
   type Project,
   type ProjectFeedback,
 } from '../api';
 import { ProjectCard } from '../modules/ProjectCard';
+import { WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
@@ -41,86 +43,6 @@ const BADGES: ReadonlyArray<{ value: string; label: string }> = [
 export const BADGE_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
   BADGES.map((badge) => [badge.value, badge.label]),
 );
-
-function FeedbackDialog({
-  work,
-  current,
-  onClose,
-  onSaved,
-}: {
-  readonly work: { readonly id: string; readonly title: string };
-  readonly current: ProjectFeedback | null;
-  readonly onClose: () => void;
-  readonly onSaved: (feedback: ProjectFeedback) => void;
-}): JSX.Element {
-  const [badge, setBadge] = useState<string | null>(current?.badge ?? null);
-  const [comment, setComment] = useState(current?.comment ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    if (badge === null && !comment.trim()) {
-      setError('Поставьте значок или напишите комментарий.');
-      return;
-    }
-    setBusy(true);
-    const result = await api.saveProjectFeedback(work.id, { badge, comment });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось сохранить отклик.');
-      return;
-    }
-    onSaved(result.data.feedback);
-  }
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label={`Отклик: ${work.title}`}>
-        <h2>Отклик на «{work.title}»</h2>
-        <p>Значок ученик увидит сразу, комментарий — когда откроет работу.</p>
-        <form onSubmit={(event) => void submit(event)}>
-          <div className="feedback-badges" role="group" aria-label="Значок">
-            {BADGES.map((option) => (
-              <button
-                type="button"
-                key={option.value}
-                className={badge === option.value ? 'active' : undefined}
-                aria-pressed={badge === option.value}
-                onClick={() => setBadge(badge === option.value ? null : option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <label htmlFor="feedback-comment">Комментарий</label>
-          <textarea
-            id="feedback-comment"
-            rows={4}
-            maxLength={1000}
-            value={comment}
-            disabled={busy}
-            placeholder="Что получилось и что стоит поправить"
-            onChange={(event) => setComment(event.target.value)}
-          />
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
-              Отмена
-            </button>
-            <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'Сохраняем…' : 'Сохранить отклик'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 const BADGE_TONES = new Set(['excellent', 'good', 'progress', 'redo']);
 
@@ -177,7 +99,8 @@ export function ClassroomStudentPage({
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   // Responses already given, so a teacher revises rather than starts again.
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
-  const [responding, setResponding] = useState<{ id: string; title: string } | null>(null);
+  /** Какую работу сейчас смотрим: картинка, условие задания и отклик разом. */
+  const [responding, setResponding] = useState<ClassroomStudentWork | null>(null);
   // Преподаватель приходит сюда с вопросом «что мне проверить», поэтому список
   // умеет показать только то, на что он ещё не ответил.
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
@@ -356,7 +279,7 @@ export function ClassroomStudentPage({
                     menuItems={[
                       {
                         label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
-                        onSelect: () => setResponding({ id: work.id, title: work.title }),
+                        onSelect: () => setResponding(work),
                       },
                     ]}
                   />
@@ -384,12 +307,26 @@ export function ClassroomStudentPage({
       <SeatAwardPanel classroomId={classroomId} seatId={seatId} onChanged={setAwardKeys} />
 
       {responding ? (
-        <FeedbackDialog
-          work={responding}
-          current={feedback[responding.id] ?? null}
+        <WorkPreview
+          projectId={responding.id}
+          snapshotRevision={responding.snapshotRevision}
+          moduleKey={responding.moduleKey}
+          learnerName={student.displayLabel}
+          workTitle={responding.title}
+          submittedAt={responding.submittedAt ?? null}
+          assignment={responding.assignment}
           onClose={() => setResponding(null)}
-          onSaved={(entry) => {
-            setFeedback((current) => ({ ...current, [responding.id]: entry }));
+          onOpenEditor={() => {
+            const projectId = responding.id;
+            setResponding(null);
+            onOpenProject(projectId, responding.moduleKey);
+          }}
+          onGraded={() => {
+            void api.projectFeedback(responding.id).then((result) => {
+              if (!result.ok) return;
+              const entry = result.data.items[0];
+              if (entry) setFeedback((current) => ({ ...current, [responding.id]: entry }));
+            });
             setResponding(null);
           }}
         />

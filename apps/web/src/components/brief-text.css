@@ -61,3 +61,28 @@
   font-size: 13px;
   font-weight: 800;
 }
+
+/* Картинка внутри задания. Шаг, который показывают, а не описывают. */
+.brief-figure {
+  margin: 12px 0;
+}
+
+.brief-figure img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  border: 1px solid #dfe6ea;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.brief-figure figcaption {
+  margin-top: 6px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.brief-text a {
+  color: #0a6f9c;
+  text-decoration: underline;
+}

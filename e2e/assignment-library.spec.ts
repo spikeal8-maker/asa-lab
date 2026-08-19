@@ -75,7 +75,7 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
     );
 
   // A picture, attached the way a teacher attaches one.
-  await dialog.locator('.library-file-button input[type="file"]').setInputFiles({
+  await dialog.locator('.assignment-editor-sample input[type="file"]').setInputFiles({
     name: 'obrazec.png',
     mimeType: 'image/png',
     buffer: Buffer.from(
@@ -83,10 +83,10 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
       'base64',
     ),
   });
-  await expect(dialog.locator('.library-image-preview')).toBeVisible();
+  await expect(dialog.locator('.assignment-editor-sample img')).toBeVisible();
 
-  // What the learner will see, without having to become one to find out.
-  await dialog.getByRole('button', { name: 'Посмотреть' }).click();
+  // Что увидит ученик — видно сразу, рядом с текстом: разметку набирают редко,
+  // а результат важен каждый раз.
   const preview = dialog.getByTestId('brief-preview');
   await expect(preview.locator('.assignment-goal')).toContainText(
     'Научиться делать полость вычитанием',
@@ -118,6 +118,45 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
   await handOut.getByRole('button', { name: 'Готово' }).click();
   await expect(saved).toContainText('Выдано классам: 1');
   await page.screenshot({ path: `${evidenceDir}/library.png`, fullPage: true });
+
+  /**
+   * Картинка внутри текста задания.
+   *
+   * «Соедини две детали» показывают, а не описывают: шаг с картинкой понимают с
+   * первого раза. Картинка хранится у задания и подставляется в текст ссылкой —
+   * значит, после сохранения в тексте стоит адрес, а не строка в тысячу знаков.
+   */
+  await saved.getByRole('button', { name: 'Изменить' }).click();
+  const editing = page.getByRole('dialog', { name: 'Задание' });
+  await editing.locator('.brief-toolbar-file input[type="file"]').setInputFiles({
+    name: 'shag.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    ),
+  });
+  // До сохранения картинка живёт в самой странице, и превью уже её показывает.
+  await expect(editing.getByTestId('brief-preview').locator('.brief-figure img')).toBeVisible();
+  await editing.getByRole('button', { name: 'Сохранить' }).click();
+  await expect(page.getByText('Задание «Подставка для карандашей» сохранено.')).toBeVisible();
+
+  await page.reload();
+  await page
+    .getByTestId('assignment-library')
+    .locator('li')
+    .filter({ hasText: 'Подставка для карандашей' })
+    .getByRole('button', { name: 'Изменить' })
+    .click();
+  const reopened = page.getByRole('dialog', { name: 'Задание' });
+  await expect(reopened.getByLabel('Что нужно сделать')).toHaveValue(
+    /!\[shag\]\(\/api\/assignments\/[0-9a-f-]+\/images\/[0-9a-f-]+\)/,
+  );
+  await expect(reopened.getByTestId('brief-preview').locator('.brief-figure img')).toHaveAttribute(
+    'src',
+    /\/api\/assignments\/.+\/images\/.+$/,
+  );
+  await reopened.getByRole('button', { name: 'Отмена' }).click();
 
   failures.assertEmpty();
 });

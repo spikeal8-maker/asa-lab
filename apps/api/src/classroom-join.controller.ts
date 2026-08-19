@@ -56,6 +56,9 @@ interface AssignmentForSeatRow {
   sample_image: string | null;
   project_id: string | null;
   submitted_at: Date | string | null;
+  /** Снимок работы: по нему ученик вспоминает, на чём остановился. */
+  snapshot_revision: number | string | null;
+  updated_at: Date | string | null;
 }
 
 function isoDate(value: Date | string): string {
@@ -390,7 +393,8 @@ export class ClassroomJoinController {
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     const result = await this.requirePool().query(
       `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
-              due_at, status, sample_image, project_id, submitted_at
+              due_at, status, sample_image, project_id, submitted_at,
+              snapshot_revision, updated_at
          FROM classroom_assignments_for_account($1)`,
       [context.accountId],
     );
@@ -407,6 +411,8 @@ export class ClassroomJoinController {
           sampleImage: row.sample_image,
           projectId: row.project_id,
           submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+          snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+          updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
           classroomTitle: row.classroom_title,
         }),
       ),
@@ -417,7 +423,8 @@ export class ClassroomJoinController {
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id, submitted_at
+      `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
+              submitted_at, snapshot_revision, updated_at
          FROM classroom_assignments_for_seat($1)`,
       [seat.seat_id],
     );
@@ -433,6 +440,8 @@ export class ClassroomJoinController {
         sampleImage: row.sample_image,
         projectId: row.project_id,
         submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+        snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+        updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
       })),
     };
   }

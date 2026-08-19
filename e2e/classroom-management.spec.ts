@@ -254,7 +254,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await work.hover();
   await work.locator('summary').click();
   await work.getByRole('button', { name: 'Оценить работу' }).click();
-  const feedbackDialog = page.getByRole('dialog', { name: 'Отклик: Моя модель' });
+  // Работа проверяется одним окном на весь продукт: картинка, что было задано
+  // и отклик рядом — оценивать модель, не видя условия, невозможно.
+  const feedbackDialog = page.getByRole('dialog', { name: 'Работа: Алина К.' });
   await feedbackDialog.getByRole('button', { name: 'Хорошо' }).click();
   await feedbackDialog.getByLabel('Комментарий').fill('Добавь отверстие под винт.');
   await feedbackDialog.getByRole('button', { name: 'Сохранить отклик' }).click();

@@ -192,6 +192,7 @@ describe('runtime role hardening', () => {
       'schools:SELECT',
       // The teacher's own library of tasks: read by the runtime role, written
       // only through the functions that know who owns it.
+      'teacher_assignment_images:SELECT',
       'teacher_assignments:SELECT',
     ]);
     const projectUpdateColumns = await runtime.query(

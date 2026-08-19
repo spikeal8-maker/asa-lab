@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
-import { AssignmentGoal, BriefText } from './BriefText';
+import { AssignmentView } from './AssignmentView';
 import './assignment-brief.css';
 
 /**
@@ -85,16 +85,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
 
       {open ? (
         <div className="assignment-brief-body">
-          {assignment.sampleImage ? (
-            <figure>
-              <img src={assignment.sampleImage} alt={`Образец: ${assignment.title}`} />
-              <figcaption>Образец — повторять точь-в-точь не нужно</figcaption>
-            </figure>
-          ) : null}
-          <div className="assignment-brief-copy">
-            <AssignmentGoal goal={assignment.goal} />
-            {assignment.brief ? <BriefText text={assignment.brief} /> : null}
-          </div>
+          <AssignmentView assignment={assignment} />
         </div>
       ) : null}
     </aside>

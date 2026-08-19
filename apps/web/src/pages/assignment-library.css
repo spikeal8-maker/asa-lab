@@ -191,35 +191,6 @@
   font-weight: 600;
 }
 
-.library-image-row {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 6px;
-}
-
-.library-image-preview {
-  width: 120px;
-  height: 120px;
-  border: 1px solid #cfdde5;
-  border-radius: 10px;
-  object-fit: cover;
-  background: #fff;
-}
-
-.library-no-sample-large {
-  width: 120px;
-  height: 120px;
-  border-radius: 10px;
-}
-
-.library-image-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
-}
-
 /* A file input that looks like the buttons next to it. */
 .library-file-button {
   display: inline-flex;

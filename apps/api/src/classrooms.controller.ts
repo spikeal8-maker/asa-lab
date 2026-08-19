@@ -115,6 +115,10 @@ interface SeatProjectRow {
   last_editor_was_teacher: boolean;
   submitted_at?: Date | string | null;
   awaiting_review?: boolean;
+  assignment_title?: string | null;
+  assignment_goal?: string | null;
+  assignment_brief?: string | null;
+  assignment_sample_image?: string | null;
 }
 
 interface AssignmentRow {
@@ -533,7 +537,8 @@ export class ClassroomsController {
       this.requirePool().query(
         `SELECT id, module_key, title, status, created_at, updated_at,
                 snapshot_revision, preview_json, preview_digest, last_editor_was_teacher,
-                submitted_at, awaiting_review
+                submitted_at, awaiting_review,
+                assignment_title, assignment_goal, assignment_brief, assignment_sample_image
            FROM classroom_seat_projects($1, $2)`,
         [context.principalId, seatId],
       ),
@@ -577,6 +582,16 @@ export class ClassroomsController {
         // открывает страницу, чтобы найти именно ту, до которой не дошёл.
         submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
         awaitingReview: row.awaiting_review === true,
+        // Что было задано. Проверять работу, не видя условия, преподаватель
+        // может только по памяти — а через неделю после урока её уже нет.
+        assignment: row.assignment_title
+          ? {
+              title: row.assignment_title,
+              goal: row.assignment_goal,
+              brief: row.assignment_brief,
+              sampleImage: row.assignment_sample_image,
+            }
+          : null,
       })),
       activity: (activity.rows as ClassroomActivityRow[]).map((row) => ({
         id: row.id,

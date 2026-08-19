@@ -1,0 +1,93 @@
+/* Задание, как его читают. Один вид на все места продукта. */
+.assignment-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  align-items: start;
+}
+
+.assignment-view.is-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 760px) {
+  .assignment-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.assignment-view-main {
+  min-width: 0;
+}
+
+.assignment-view-aside {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.assignment-view-sample {
+  margin: 0;
+}
+
+.assignment-view-sample button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #cfdde5;
+  border-radius: 10px;
+  background: #fff;
+  cursor: zoom-in;
+}
+
+.assignment-view-sample button:hover {
+  border-color: #0b82ba;
+}
+
+.assignment-view-sample img {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.assignment-view-sample figcaption {
+  margin-top: 6px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Образец во весь экран: в колонке его не разглядеть. */
+.assignment-lightbox {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 22, 30, 0.86);
+  z-index: 60;
+}
+
+.assignment-lightbox img {
+  max-width: min(1100px, 100%);
+  max-height: calc(100vh - 96px);
+  border-radius: 10px;
+  background: #fff;
+  cursor: zoom-out;
+}
+
+.assignment-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #16232c;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

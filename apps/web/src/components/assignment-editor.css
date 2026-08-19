@@ -1,0 +1,134 @@
+/* Форма задания. Одна и та же в «Заданиях» и в классе.
+   Два класса в селекторе — базовая ширина диалога иначе не уступает. */
+.modal.assignment-editor {
+  max-width: min(1040px, calc(100vw - 2rem));
+}
+
+/* Что за работа — слева, что должно получиться — справа. */
+.assignment-editor-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 24px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.assignment-editor-fields > label:first-child {
+  margin-top: 0;
+}
+
+.assignment-editor-sample {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #dfe6ea;
+  border-radius: 10px;
+  background: #f7fafb;
+}
+
+.assignment-editor-sample .field-label {
+  margin: 0;
+}
+
+.assignment-editor-sample img {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  border: 1px solid #cfdde5;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.assignment-editor-sample-empty {
+  display: grid;
+  align-content: center;
+  min-height: 132px;
+  padding: 12px;
+  border: 1px dashed #b6cbd7;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.assignment-editor-sample-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Кнопка «Картинка» в панели — это файловое поле, но выглядеть должна кнопкой. */
+.brief-toolbar-file {
+  position: relative;
+  padding: 5px 10px;
+  border: 1px solid #cfdde5;
+  border-radius: 7px;
+  background: #fff;
+  color: #16232c;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.brief-toolbar-file:hover {
+  border-color: #0b82ba;
+  background: #eef7fc;
+}
+
+.brief-toolbar-file input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Текст и то, как его увидит ученик, — рядом, а не по очереди. */
+.assignment-editor-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.assignment-editor-split textarea {
+  min-height: 340px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #cfdde5;
+  border-radius: 10px;
+  color: #16232c;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.assignment-editor-split .brief-preview {
+  overflow-y: auto;
+  max-height: 520px;
+  margin: 0;
+}
+
+.brief-preview-label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .assignment-editor-head,
+  .assignment-editor-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assignment-editor-split .brief-preview {
+    max-height: 320px;
+  }
+}

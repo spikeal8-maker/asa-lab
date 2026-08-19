@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   api,
   type ClassroomAssignment,
   type ClassroomAssignmentProgress,
+  type LibraryAssignment,
   type ModuleSummary,
 } from '../api';
-import { AssignmentGoal, BriefText } from './BriefText';
+import { AssignmentEditorDialog } from './AssignmentEditor';
+import { AssignmentView } from './AssignmentView';
 import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { WorkPreview } from './WorkPreview';
@@ -24,114 +26,26 @@ import './classroom-assignments.css';
  * who never opened it — the empty row is the one that matters.
  */
 
-function AssignmentDialog({
-  modules,
-  onClose,
-  onCreate,
-}: {
-  readonly modules: readonly ModuleSummary[];
-  readonly onClose: () => void;
-  readonly onCreate: (input: {
-    title: string;
-    brief: string | null;
-    moduleKey: string;
-    dueAt: string | null;
-  }) => Promise<string | null>;
-}): JSX.Element {
-  const [title, setTitle] = useState('');
-  const [brief, setBrief] = useState('');
-  const [moduleKey, setModuleKey] = useState(modules[0]?.moduleKey ?? '');
-  const [dueAt, setDueAt] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    if (!title.trim()) {
-      setError('Введите название задания.');
-      return;
-    }
-    if (!moduleKey) {
-      setError('Выберите среду, в которой ученики будут работать.');
-      return;
-    }
-    setBusy(true);
-    const message = await onCreate({
-      title: title.trim(),
-      brief: brief.trim() || null,
-      moduleKey,
-      // A date without a time means the end of that day, which is what a
-      // teacher writing "до пятницы" means.
-      dueAt: dueAt ? new Date(`${dueAt}T23:59:59`).toISOString() : null,
-    });
-    setBusy(false);
-    if (message) setError(message);
-  }
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="assignment-heading">
-        <h2 id="assignment-heading">Новое задание</h2>
-        <p>Каждый ученик получит свою копию работы в выбранной среде.</p>
-        <form onSubmit={(event) => void submit(event)}>
-          <label htmlFor="assignment-title">Название</label>
-          <input
-            id="assignment-title"
-            autoFocus
-            maxLength={255}
-            value={title}
-            disabled={busy}
-            placeholder="Брелок с именем"
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <label htmlFor="assignment-module">Среда</label>
-          <select
-            id="assignment-module"
-            value={moduleKey}
-            disabled={busy}
-            onChange={(event) => setModuleKey(event.target.value)}
-          >
-            {modules.map((module) => (
-              <option key={module.moduleKey} value={module.moduleKey}>
-                {module.displayName}
-              </option>
-            ))}
-          </select>
-          <label htmlFor="assignment-brief">Что нужно сделать</label>
-          <textarea
-            id="assignment-brief"
-            rows={5}
-            maxLength={4000}
-            value={brief}
-            disabled={busy}
-            placeholder="Можно оставить пустым, если объяснили на уроке."
-            onChange={(event) => setBrief(event.target.value)}
-          />
-          <label htmlFor="assignment-due">Срок сдачи</label>
-          <input
-            id="assignment-due"
-            type="date"
-            value={dueAt}
-            disabled={busy}
-            onChange={(event) => setDueAt(event.target.value)}
-          />
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="modal-actions">
-            <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
-              Отмена
-            </button>
-            <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'Создаём…' : 'Выдать классу'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+/**
+ * Выданное классом задание — это то же задание из «Заданий» преподавателя.
+ *
+ * У строки в классе свой номер (кому и когда выдано), у самого задания — свой.
+ * Правится именно задание, поэтому форме отдаём его.
+ */
+function libraryShape(assignment: ClassroomAssignment): LibraryAssignment {
+  return {
+    id: assignment.assignmentId,
+    title: assignment.title,
+    brief: assignment.brief,
+    goal: assignment.goal,
+    moduleKey: assignment.moduleKey,
+    sampleImage: assignment.sampleImage,
+    isDemo: assignment.isDemo,
+    createdAt: assignment.createdAt,
+    handoutCount: 0,
+    startedCount: assignment.startedCount,
+    submittedCount: assignment.submittedCount,
+  };
 }
 
 export function ClassroomAssignments({
@@ -146,6 +60,8 @@ export function ClassroomAssignments({
   const [items, setItems] = useState<ClassroomAssignment[] | null>(null);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [creating, setCreating] = useState(false);
+  /** Какое задание правим той же формой. null — пишем новое. */
+  const [editing, setEditing] = useState<LibraryAssignment | null>(null);
   const [open, setOpen] = useState<ClassroomAssignment | null>(null);
   const [progress, setProgress] = useState<ClassroomAssignmentProgress[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -189,6 +105,50 @@ export function ClassroomAssignments({
   const moduleName = (key: string): string =>
     modules.find((entry) => entry.moduleKey === key)?.displayName ?? key;
 
+  const editorDialog = creating ? (
+    <AssignmentEditorDialog
+      assignment={editing}
+      modules={modules}
+      withDueDate={!editing}
+      heading={editing ? 'Задание' : 'Новое задание для класса'}
+      intro={
+        editing
+          ? 'Изменения увидят все классы, которым это задание выдано.'
+          : 'Задание сохранится у вас в «Заданиях» и сразу уйдёт этому классу.'
+      }
+      submitLabel={editing ? 'Сохранить' : 'Выдать классу'}
+      onClose={() => {
+        setCreating(false);
+        setEditing(null);
+      }}
+      onSaved={async (assignmentId, draft) => {
+        // Выдача — единственное, что связывает задание с классом: то же
+        // действие, что и галочка в «Кому выдать». Задание, уже выданное
+        // классу, выдаётся не заново: иначе правка текста стирала бы срок.
+        if (!editing) {
+          const handed = await api.handOutAssignment(assignmentId, classroomId, true, draft.dueAt);
+          if (!handed.ok) return handed.error.message || 'Не удалось выдать задание классу.';
+        }
+        const wasEditing = Boolean(editing);
+        setCreating(false);
+        setEditing(null);
+        setNotice(
+          wasEditing
+            ? `Задание «${draft.title}» сохранено.`
+            : `Задание «${draft.title}» выдано классу.`,
+        );
+        await reload();
+        if (open) {
+          const fresh = await api.listClassroomAssignments(classroomId);
+          if (fresh.ok) {
+            setOpen(fresh.data.items.find((item) => item.id === open.id) ?? null);
+          }
+        }
+        return null;
+      }}
+    />
+  ) : null;
+
   if (open) {
     return (
       <section className="classroom-tab-panel">
@@ -197,26 +157,26 @@ export function ClassroomAssignments({
         </button>
         <div className="assignment-detail-heading">
           <h2>{open.title}</h2>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={archived}
+            onClick={() => {
+              setEditing(libraryShape(open));
+              setCreating(true);
+            }}
+          >
+            Изменить задание
+          </button>
           <p>
             {moduleName(open.moduleKey)}
             {open.dueAt ? ` · срок ${time.date(open.dueAt)}` : ''}
             {open.status === 'closed' ? ' · закрыто' : ''}
           </p>
-          {open.sampleImage ? (
-            <img
-              className="assignment-sample"
-              src={open.sampleImage}
-              alt={`Образец: ${open.title}`}
-              width={220}
-              height={220}
-            />
-          ) : null}
-          <AssignmentGoal goal={open.goal} />
-          {/* Своё имя класса, а не «assignment-brief»: так называется полоса,
-              которая висит над редактором и прибита к верху экрана, и описание
-              задания уезжало вместе с ней поверх шапки страницы. */}
-          {open.brief ? <BriefText text={open.brief} className="assignment-detail-brief" /> : null}
         </div>
+        {/* Тот же вид, что видит ученик: преподаватель проверяет по тому же
+            тексту, который читал ребёнок, а не по своей версии вёрстки. */}
+        <AssignmentView assignment={open} />
 
         {progress === null ? (
           <p role="status">Загружаем…</p>
@@ -266,7 +226,9 @@ export function ClassroomAssignments({
             snapshotRevision={previewing.snapshotRevision}
             moduleKey={open.moduleKey}
             learnerName={previewing.displayLabel}
+            workTitle={open.title}
             submittedAt={previewing.submittedAt}
+            assignment={open}
             onClose={() => setPreviewing(null)}
             onOpenEditor={() => {
               const projectId = previewing.projectId as string;
@@ -280,6 +242,7 @@ export function ClassroomAssignments({
             }}
           />
         ) : null}
+        {editorDialog}
       </section>
     );
   }
@@ -346,6 +309,17 @@ export function ClassroomAssignments({
                   type="button"
                   className="btn-secondary"
                   disabled={archived}
+                  onClick={() => {
+                    setEditing(libraryShape(assignment));
+                    setCreating(true);
+                  }}
+                >
+                  Изменить
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={archived}
                   onClick={async () => {
                     const next = assignment.status === 'open' ? 'closed' : 'open';
                     const result = await api.setClassroomAssignmentStatus(
@@ -391,21 +365,6 @@ export function ClassroomAssignments({
           </ul>
         </>
       )}
-
-      {creating ? (
-        <AssignmentDialog
-          modules={modules}
-          onClose={() => setCreating(false)}
-          onCreate={async (input) => {
-            const result = await api.createClassroomAssignment(classroomId, input);
-            if (!result.ok) return result.error.message || 'Не удалось создать задание.';
-            setCreating(false);
-            setNotice(`Задание «${input.title}» выдано классу.`);
-            await reload();
-            return null;
-          }}
-        />
-      ) : null}
     </section>
   );
 }
