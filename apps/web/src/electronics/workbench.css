@@ -1434,9 +1434,8 @@
 .workbench-part {
   transition: filter 80ms ease;
 }
-.workbench-part:hover {
-  opacity: 0.96;
-}
+/* The part body stays rigid on hover — only the connection point under the
+   pointer may light up. A whole-part opacity dip read as the part blinking. */
 .workbench-part:focus,
 .workbench-part:focus-visible {
   outline: none;
