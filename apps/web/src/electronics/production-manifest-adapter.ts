@@ -377,12 +377,12 @@ function pinLabel(componentId: string, pinId: string): string {
     red: 'R',
     green: 'G',
     blue: 'B',
-    base: 'B',
-    collector: 'C',
-    emitter: 'E',
-    gate: 'G',
-    source: 'S',
-    drain: 'D',
+    base: 'База',
+    collector: 'Коллектор',
+    emitter: 'Эмиттер',
+    gate: 'Затвор',
+    source: 'Исток',
+    drain: 'Сток',
   };
   const arduinoLabels: Readonly<Record<string, string>> = {
     a0: 'A0',

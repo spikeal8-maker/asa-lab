@@ -123,9 +123,19 @@ describe('owner SVG integration in the real Electronics document', () => {
       common: { label: 'Катод' },
     });
     expect(entries.get('transistor-npn')?.terminals).toMatchObject({
-      collector: { label: 'C' },
-      base: { label: 'B' },
-      emitter: { label: 'E' },
+      collector: { label: 'Коллектор' },
+      base: { label: 'База' },
+      emitter: { label: 'Эмиттер' },
+    });
+    expect(entries.get('transistor-pnp')?.terminals).toMatchObject({
+      collector: { label: 'Коллектор' },
+      base: { label: 'База' },
+      emitter: { label: 'Эмиттер' },
+    });
+    expect(entries.get('transistor-fet')?.terminals).toMatchObject({
+      gate: { label: 'Затвор' },
+      source: { label: 'Исток' },
+      drain: { label: 'Сток' },
     });
     expect(entries.get('button-tactile-6mm')?.terminals).toMatchObject({
       'SW-A1': { label: '1a' },
