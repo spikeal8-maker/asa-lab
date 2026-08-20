@@ -105,6 +105,8 @@ describe('runtime role hardening', () => {
     const actual = grants.rows.map((r) => `${r.table_name}:${r.privilege_type}`);
     expect(actual).toEqual([
       'academic_periods:SELECT',
+      // Папки банка заданий: читает рабочая роль, пишут только функции.
+      'assignment_folders:SELECT',
       'audit_events:INSERT',
       'audit_events:SELECT',
       'checkers_class_games:INSERT',

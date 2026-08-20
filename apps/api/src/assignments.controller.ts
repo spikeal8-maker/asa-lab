@@ -61,13 +61,35 @@ interface LibraryRow {
   brief: string | null;
   goal: string | null;
   module_key: string;
+  age_band: string | null;
   sample_image: string | null;
   demo_key: string | null;
+  folder_id: string | null;
+  folder_title: string | null;
+  archived_at: Date | string | null;
+  copied_from_assignment_id: string | null;
+  copied_from_title: string | null;
   created_at: Date | string;
+  updated_at: Date | string;
   handout_count: number | string;
   started_count: number | string;
   submitted_count: number | string;
+  classroom_titles: string[] | null;
+  academic_years: string[] | null;
+  last_handed_out_at: Date | string | null;
 }
+
+interface FolderRow {
+  id: string;
+  parent_id: string | null;
+  title: string;
+  depth: number | string;
+  direct_count: number | string;
+  total_count: number | string;
+}
+
+/** Возраст задания — тот же словарь, что у классов, слово в слово. */
+const AGE_BANDS = new Set(['mixed', '6-8', '9-10', '11-12', '13-15', '16-18']);
 
 @Controller('api/assignments')
 export class AssignmentsController {
@@ -105,8 +127,11 @@ export class AssignmentsController {
   async list(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
     const result = await this.requirePool().query(
-      `SELECT id, title, brief, goal, module_key, sample_image, demo_key, created_at,
-              handout_count, started_count, submitted_count
+      `SELECT id, title, brief, goal, module_key, age_band, sample_image, demo_key,
+              folder_id, folder_title, archived_at, copied_from_assignment_id,
+              copied_from_title, created_at, updated_at,
+              handout_count, started_count, submitted_count,
+              classroom_titles, academic_years, last_handed_out_at
          FROM teacher_assignment_list($1)`,
       [context.principalId],
     );
@@ -117,12 +142,24 @@ export class AssignmentsController {
         brief: row.brief,
         goal: row.goal,
         moduleKey: row.module_key,
+        ageBand: row.age_band,
         sampleImage: row.sample_image,
         isDemo: Boolean(row.demo_key),
+        folderId: row.folder_id,
+        folderTitle: row.folder_title,
+        archivedAt: row.archived_at ? iso(row.archived_at) : null,
+        copiedFrom: row.copied_from_assignment_id
+          ? { id: row.copied_from_assignment_id, title: row.copied_from_title ?? '' }
+          : null,
         createdAt: iso(row.created_at),
+        updatedAt: iso(row.updated_at),
         handoutCount: Number(row.handout_count),
         startedCount: Number(row.started_count),
         submittedCount: Number(row.submitted_count),
+        // Кому и когда выдавалось: по этим строкам задание и ищут через год.
+        classroomTitles: row.classroom_titles ?? [],
+        academicYears: row.academic_years ?? [],
+        lastHandedOutAt: row.last_handed_out_at ? iso(row.last_handed_out_at) : null,
       })),
     };
   }
@@ -148,12 +185,25 @@ export class AssignmentsController {
     rawBody: unknown,
   ): Promise<string> {
     const context = await this.requireEducator(request);
-    const shape = checkBodyShape(rawBody, ['title', 'brief', 'goal', 'moduleKey']);
+    const shape = checkBodyShape(rawBody, [
+      'title',
+      'brief',
+      'goal',
+      'moduleKey',
+      'folderId',
+      'ageBand',
+    ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const title = shape.body['title'];
     const brief = shape.body['brief'] ?? null;
     const goal = shape.body['goal'] ?? null;
     const moduleKey = shape.body['moduleKey'];
+    const folderId = shape.body['folderId'] ?? null;
+    const ageBand = shape.body['ageBand'] ?? null;
+    if (folderId !== null) this.requireUuid(String(folderId), 'folder');
+    if (ageBand !== null && !AGE_BANDS.has(String(ageBand))) {
+      throw new HttpException(error('validation_error', 'Неизвестный возраст.'), 400);
+    }
     if (!isValidClassroomTitle(title)) {
       throw new HttpException(error('validation_error', 'Введите название задания.'), 400);
     }
@@ -168,8 +218,8 @@ export class AssignmentsController {
       throw new HttpException(error('validation_error', 'Цель — не длиннее 160 символов.'), 400);
     }
     const result = await this.requirePool().query(
-      `SELECT teacher_assignment_save($1, $2, $3, $4, $5, $6) AS id`,
-      [context.principalId, assignmentId, title.trim(), brief, moduleKey, goal],
+      `SELECT teacher_assignment_save($1, $2, $3, $4, $5, $6, $7, $8) AS id`,
+      [context.principalId, assignmentId, title.trim(), brief, moduleKey, goal, folderId, ageBand],
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
     if (!id) throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
@@ -244,6 +294,195 @@ export class AssignmentsController {
       .header('content-type', row.sample_content_type)
       .header('cache-control', 'private, max-age=60')
       .send(row.sample_bytes);
+  }
+
+  // Папки.
+  //
+  // Дерево отвечает на вопрос «куда я это положил». На вопрос «что мне подходит
+  // сейчас» отвечают признаки задания — среда, возраст, классы, годы, — и они
+  // приходят вместе со списком, расставлять их руками не нужно.
+
+  @Get('folders')
+  async folders(@Req() request: FastifyRequest) {
+    const context = await this.requireEducator(request);
+    const result = await this.requirePool().query(
+      `SELECT id, parent_id, title, depth, direct_count, total_count
+         FROM assignment_folder_tree($1)`,
+      [context.principalId],
+    );
+    return {
+      items: (result.rows as FolderRow[]).map((row) => ({
+        id: row.id,
+        parentId: row.parent_id,
+        title: row.title,
+        depth: Number(row.depth),
+        directCount: Number(row.direct_count),
+        totalCount: Number(row.total_count),
+      })),
+    };
+  }
+
+  @Post('folders')
+  async createFolder(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireEducator(request);
+    const shape = checkBodyShape(rawBody, ['title', 'parentId']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const title = String(shape.body['title'] ?? '').trim();
+    const parentId = shape.body['parentId'] ?? null;
+    if (title.length === 0 || title.length > 120) {
+      throw new HttpException(error('validation_error', 'Введите название папки.'), 400);
+    }
+    if (parentId !== null) this.requireUuid(String(parentId), 'folder');
+    const result = await this.requirePool().query(
+      `SELECT assignment_folder_create($1, $2, $3) AS id`,
+      [context.principalId, parentId, title],
+    );
+    const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
+    if (!id) {
+      throw new HttpException(
+        error(
+          'folder_rejected',
+          'Папку создать не удалось: имя уже занято рядом или вложенность слишком глубокая.',
+        ),
+        400,
+      );
+    }
+    return { id };
+  }
+
+  @Patch('folders/:folderId')
+  async updateFolder(
+    @Req() request: FastifyRequest,
+    @Param('folderId') folderId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(folderId, 'folder');
+    const shape = checkBodyShape(rawBody, ['title', 'parentId']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const pool = this.requirePool();
+
+    if (shape.body['title'] !== undefined) {
+      const title = String(shape.body['title'] ?? '').trim();
+      if (title.length === 0 || title.length > 120) {
+        throw new HttpException(error('validation_error', 'Введите название папки.'), 400);
+      }
+      const renamed = await pool.query(`SELECT assignment_folder_rename($1, $2, $3) AS ok`, [
+        context.principalId,
+        folderId,
+        title,
+      ]);
+      if ((renamed.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+        throw new HttpException(error('folder_not_found', 'Папка не найдена.'), 404);
+      }
+    }
+
+    if (shape.body['parentId'] !== undefined) {
+      const parentId = shape.body['parentId'] ?? null;
+      if (parentId !== null) this.requireUuid(String(parentId), 'folder');
+      const moved = await pool.query(`SELECT assignment_folder_move($1, $2, $3) AS ok`, [
+        context.principalId,
+        folderId,
+        parentId,
+      ]);
+      if ((moved.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+        throw new HttpException(error('folder_rejected', 'Папку туда перенести нельзя.'), 400);
+      }
+    }
+
+    return { ok: true as const };
+  }
+
+  /** Удаляется папка, а не задания: всё внутри поднимается на уровень выше. */
+  @Delete('folders/:folderId')
+  async deleteFolder(@Req() request: FastifyRequest, @Param('folderId') folderId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(folderId, 'folder');
+    const result = await this.requirePool().query(`SELECT assignment_folder_delete($1, $2) AS ok`, [
+      context.principalId,
+      folderId,
+    ]);
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('folder_not_found', 'Папка не найдена.'), 404);
+    }
+    return { removed: true as const };
+  }
+
+  /** Задание переезжает в папку. null — в корень полки. */
+  @Put(':assignmentId/folder')
+  async moveAssignment(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const shape = checkBodyShape(rawBody, ['folderId']);
+    const folderId = shape.ok ? (shape.body['folderId'] ?? null) : null;
+    if (folderId !== null) this.requireUuid(String(folderId), 'folder');
+    const result = await this.requirePool().query(
+      `SELECT teacher_assignment_move($1, $2, $3) AS ok`,
+      [context.principalId, assignmentId, folderId],
+    );
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
+    }
+    return { ok: true as const };
+  }
+
+  /**
+   * В архив и обратно.
+   *
+   * Задание прошлого года уходит из списка, но остаётся в базе: удалив его, мы
+   * удалили бы выдачи и работы учеников за тот год.
+   */
+  @Put(':assignmentId/archived')
+  async archiveAssignment(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const shape = checkBodyShape(rawBody, ['archived']);
+    const archived = shape.ok ? shape.body['archived'] === true : false;
+    const result = await this.requirePool().query(
+      `SELECT teacher_assignment_archive($1, $2, $3) AS ok`,
+      [context.principalId, assignmentId, archived],
+    );
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
+    }
+    return { ok: true as const };
+  }
+
+  /**
+   * Своя версия задания.
+   *
+   * Правка на месте меняет задание всем классам, которым оно выдано. Когда
+   * переделка нужна одному классу, берут копию: она ложится в ту же папку,
+   * помнит источник, а готовый курс остаётся готовым курсом.
+   */
+  @Post(':assignmentId/copy')
+  async copyAssignment(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(assignmentId, 'assignment');
+    const shape = checkBodyShape(rawBody, ['title']);
+    const title = shape.ok ? (shape.body['title'] ?? null) : null;
+    if (title !== null && (typeof title !== 'string' || title.length > 255)) {
+      throw new HttpException(error('validation_error', 'Название слишком длинное.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT teacher_assignment_copy($1, $2, $3) AS id`,
+      [context.principalId, assignmentId, title],
+    );
+    const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
+    if (!id) throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
+    return { id };
   }
 
   /**

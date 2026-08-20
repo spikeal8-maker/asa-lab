@@ -1,21 +1,48 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api, type AssignmentClassroom, type LibraryAssignment, type ModuleSummary } from '../api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  api,
+  type AssignmentClassroom,
+  type AssignmentFolder,
+  type LibraryAssignment,
+  type ModuleSummary,
+} from '../api';
 import { AssignmentEditorDialog } from '../components/AssignmentEditor';
+import { CLASSROOM_AGE_OPTIONS } from '../components/ClassroomFields';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
 import './assignment-library.css';
 
 /**
- * A teacher's own tasks.
+ * Банк заданий.
  *
- * The task belongs to the person who wrote it, not to a class. That is the
- * difference between a product a teacher uses for one term and one they use for
- * years: the same work goes to this year's classes and next year's, the wording
- * is corrected in one place, and September does not start with retyping.
+ * Задание принадлежит человеку, который его написал, а не классу и не году:
+ * одно и то же уходит и в этом сентябре, и в следующем, правится в одном месте
+ * и не пишется заново каждый август.
  *
- * Handing out is the only thing that involves a class, so it is one dialog with
- * a tick per class and a date — not a trip into each class in turn.
+ * За три года заданий набирается двести, и одним списком они не ищутся.
+ * Поэтому полка двухслойная. Папки — дерево, задание лежит в одной папке, как
+ * файл на диске: понятно без объяснений. Признаки — среда, возраст, классы,
+ * учебные годы — не папки, потому что пересекаются: задание про светодиод это
+ * и «электроника», и «8 класс», и «2024/25». Их не расставляют руками, они
+ * известны из самого задания и его выдач.
  */
+
+/** Подпись возраста по значению, каким оно пришло из базы. */
+function ageLabel(band: string): string {
+  return CLASSROOM_AGE_OPTIONS.find((entry) => entry.value === band)?.label ?? band;
+}
+
+/** Отбор слева: вся полка, корень, конкретная папка или архив. */
+type Scope =
+  { kind: 'all' } | { kind: 'root' } | { kind: 'folder'; id: string } | { kind: 'archive' };
+
+type SortKey = 'new' | 'title' | 'handed';
+
+const SORTS: ReadonlyArray<{ id: SortKey; label: string }> = [
+  { id: 'new', label: 'Сначала новые' },
+  { id: 'title', label: 'По названию' },
+  { id: 'handed', label: 'Недавно выдавал' },
+];
 
 function HandOutDialog({
   assignment,
@@ -104,18 +131,43 @@ function HandOutDialog({
   );
 }
 
+/** Папки одного уровня и всё, что под ними. */
+function descendantsOf(folders: readonly AssignmentFolder[], id: string): Set<string> {
+  const result = new Set<string>([id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const folder of folders) {
+      if (folder.parentId && result.has(folder.parentId) && !result.has(folder.id)) {
+        result.add(folder.id);
+        grew = true;
+      }
+    }
+  }
+  return result;
+}
+
 export function AssignmentLibraryPage(): JSX.Element {
   const [items, setItems] = useState<LibraryAssignment[] | null>(null);
+  const [folders, setFolders] = useState<AssignmentFolder[]>([]);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [editing, setEditing] = useState<LibraryAssignment | null | 'new'>(null);
   const [handingOut, setHandingOut] = useState<LibraryAssignment | null>(null);
+  const [scope, setScope] = useState<Scope>({ kind: 'all' });
   const [search, setSearch] = useState('');
+  const [moduleFilter, setModuleFilter] = useState('');
+  const [ageFilter, setAgeFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
+  const [sort, setSort] = useState<SortKey>('new');
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
-    const result = await api.listAssignmentLibrary();
-    setItems(result.ok ? result.data.items : []);
+    const [list, tree] = await Promise.all([api.listAssignmentLibrary(), api.assignmentFolders()]);
+    setItems(list.ok ? list.data.items : []);
+    setFolders(tree.ok ? tree.data.items : []);
   }, []);
 
   useEffect(() => {
@@ -135,20 +187,96 @@ export function AssignmentLibraryPage(): JSX.Element {
   const moduleName = (key: string): string =>
     modules.find((entry) => entry.moduleKey === key)?.displayName ?? key;
 
+  const all = items ?? [];
+  const active = all.filter((entry) => entry.archivedAt === null);
+
+  /** Значения признаков берутся из самих заданий: пустых строк в отборе нет. */
+  const facets = useMemo(() => {
+    const usedModules = new Set<string>();
+    const usedAges = new Set<string>();
+    const usedClasses = new Set<string>();
+    const usedYears = new Set<string>();
+    for (const entry of all) {
+      usedModules.add(entry.moduleKey);
+      if (entry.ageBand) usedAges.add(entry.ageBand);
+      for (const title of entry.classroomTitles) usedClasses.add(title);
+      for (const year of entry.academicYears) usedYears.add(year);
+    }
+    return {
+      modules: [...usedModules].sort(),
+      ages: [...usedAges].sort(),
+      classes: [...usedClasses].sort((a, b) => a.localeCompare(b, 'ru')),
+      years: [...usedYears].sort().reverse(),
+    };
+  }, [all]);
+
   const needle = search.trim().toLocaleLowerCase('ru-RU');
-  const visible = (items ?? []).filter(
-    (entry) =>
-      needle.length === 0 ||
-      entry.title.toLocaleLowerCase('ru-RU').includes(needle) ||
-      (entry.brief ?? '').toLocaleLowerCase('ru-RU').includes(needle),
-  );
+  const scopeIds = scope.kind === 'folder' ? descendantsOf(folders, scope.id) : null;
+
+  const visible = (scope.kind === 'archive' ? all.filter((e) => e.archivedAt !== null) : active)
+    .filter((entry) => {
+      if (scope.kind === 'root' && entry.folderId !== null) return false;
+      if (scopeIds && (entry.folderId === null || !scopeIds.has(entry.folderId))) return false;
+      if (moduleFilter && entry.moduleKey !== moduleFilter) return false;
+      if (ageFilter && entry.ageBand !== ageFilter) return false;
+      if (classFilter && !entry.classroomTitles.includes(classFilter)) return false;
+      if (yearFilter && !entry.academicYears.includes(yearFilter)) return false;
+      if (needle.length === 0) return true;
+      return (
+        entry.title.toLocaleLowerCase('ru-RU').includes(needle) ||
+        (entry.brief ?? '').toLocaleLowerCase('ru-RU').includes(needle) ||
+        (entry.goal ?? '').toLocaleLowerCase('ru-RU').includes(needle)
+      );
+    })
+    .sort((a, b) => {
+      if (sort === 'title') return a.title.localeCompare(b.title, 'ru');
+      if (sort === 'handed') {
+        return (
+          new Date(b.lastHandedOutAt ?? 0).getTime() - new Date(a.lastHandedOutAt ?? 0).getTime()
+        );
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+  const archivedCount = all.length - active.length;
+  const rootCount = active.filter((entry) => entry.folderId === null).length;
+  const filtersOn = Boolean(moduleFilter || ageFilter || classFilter || yearFilter);
+
+  async function act(
+    run: () => Promise<{ ok: boolean; error?: { message: string } }>,
+    done: string,
+  ): Promise<void> {
+    const result = await run();
+    if (!result.ok) {
+      setError(result.error?.message ?? 'Не получилось.');
+      return;
+    }
+    setError(null);
+    setNotice(done);
+    await reload();
+  }
+
+  async function newFolder(parentId: string | null): Promise<void> {
+    const title = window.prompt(
+      parentId ? 'Название вложенной папки' : 'Название папки',
+      parentId ? 'Подкатегория' : 'Электроника',
+    );
+    if (!title || !title.trim()) return;
+    await act(
+      () => api.createAssignmentFolder(title.trim(), parentId),
+      `Папка «${title.trim()}» создана.`,
+    );
+  }
 
   return (
     <main id="main-content" className="portal-content" tabIndex={-1}>
       <header className="library-heading">
         <div>
           <h1>Задания</h1>
-          <p>Ваши задания. Написали один раз — выдаёте любым классам, в этом году и в следующем.</p>
+          <p>
+            Ваш банк заданий. Разложите по папкам, отберите по среде, возрасту, классу или году — и
+            выдавайте любым классам, в этом году и в следующем.
+          </p>
         </div>
         <button type="button" className="portal-create-button" onClick={() => setEditing('new')}>
           Новое задание
@@ -160,94 +288,344 @@ export function AssignmentLibraryPage(): JSX.Element {
           {notice}
         </p>
       ) : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-      <label className="library-search">
-        <span className="sr-only">Поиск заданий</span>
-        <input
-          type="search"
-          placeholder="Поиск по названию или описанию"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </label>
-
-      {items === null ? (
-        <p role="status">Загружаем задания…</p>
-      ) : visible.length === 0 ? (
-        <div className="classroom-roster-empty">
-          <h3>{needle ? 'Ничего не найдено' : 'Заданий пока нет'}</h3>
-          <p>Напишите первое — потом его можно будет выдать сразу нескольким классам.</p>
-        </div>
-      ) : (
-        <ul className="library-list" data-testid="assignment-library">
-          {visible.map((assignment) => (
-            <li key={assignment.id}>
-              {assignment.sampleImage ? (
-                <img src={assignment.sampleImage} alt="" width={72} height={72} loading="lazy" />
-              ) : (
-                <span className="library-no-sample" aria-hidden="true" />
-              )}
-              <div className="library-copy">
-                <strong>
-                  {assignment.title}
-                  {assignment.isDemo ? <em>пример</em> : null}
-                </strong>
-                <span>
-                  {moduleName(assignment.moduleKey)} · создано {time.date(assignment.createdAt)}
-                </span>
-                {assignment.goal ? (
-                  <span className="library-goal-line">Цель: {assignment.goal}</span>
-                ) : null}
-                <span className="library-counts">
-                  {assignment.handoutCount === 0
-                    ? 'Не выдано ни одному классу'
-                    : `Выдано классам: ${assignment.handoutCount} · работают: ${assignment.startedCount} · сдали: ${assignment.submittedCount}`}
-                </span>
-              </div>
-              <div className="library-actions">
-                <button
-                  type="button"
-                  className="portal-create-button"
-                  onClick={() => setHandingOut(assignment)}
-                >
-                  Выдать классам
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setEditing(assignment)}
-                >
-                  Изменить
-                </button>
-                <button
-                  type="button"
-                  className="assignment-remove"
-                  onClick={async () => {
-                    if (
-                      !window.confirm(
-                        `Удалить «${assignment.title}» из ваших заданий? Оно пропадёт и у классов, которым выдано. Работы учеников останутся у них.`,
-                      )
-                    )
-                      return;
-                    const result = await api.deleteLibraryAssignment(assignment.id);
-                    if (result.ok) {
-                      setNotice(`Задание «${assignment.title}» удалено.`);
-                      await reload();
-                    }
-                  }}
-                >
-                  Удалить
-                </button>
-              </div>
+      <div className="library-layout">
+        {/* Дерево отвечает на вопрос «куда я это положил». */}
+        <aside className="library-tree" aria-label="Папки заданий">
+          <div className="library-tree-head">
+            <span>Папки</span>
+            <button type="button" className="btn-secondary" onClick={() => void newFolder(null)}>
+              + Папка
+            </button>
+          </div>
+          <ul>
+            <li>
+              <button
+                type="button"
+                className={`library-folder${scope.kind === 'all' ? ' is-active' : ''}`}
+                onClick={() => setScope({ kind: 'all' })}
+              >
+                <span>Все задания</span>
+                <em>{active.length}</em>
+              </button>
             </li>
-          ))}
-        </ul>
-      )}
+            {folders.map((folder) => (
+              <li key={folder.id}>
+                <button
+                  type="button"
+                  className={`library-folder${
+                    scope.kind === 'folder' && scope.id === folder.id ? ' is-active' : ''
+                  }`}
+                  style={{ paddingLeft: `${8 + (folder.depth - 1) * 16}px` }}
+                  onClick={() => setScope({ kind: 'folder', id: folder.id })}
+                >
+                  <span>{folder.title}</span>
+                  <em>{folder.totalCount}</em>
+                </button>
+                {scope.kind === 'folder' && scope.id === folder.id ? (
+                  <div className="library-folder-tools">
+                    <button type="button" onClick={() => void newFolder(folder.id)}>
+                      Вложенная
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const title = window.prompt('Новое название папки', folder.title);
+                        if (!title || !title.trim()) return;
+                        void act(
+                          () => api.updateAssignmentFolder(folder.id, { title: title.trim() }),
+                          'Папка переименована.',
+                        );
+                      }}
+                    >
+                      Переименовать
+                    </button>
+                    <button
+                      type="button"
+                      className="assignment-remove"
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Удалить папку «${folder.title}»? Задания и вложенные папки не пропадут — они поднимутся на уровень выше.`,
+                          )
+                        )
+                          return;
+                        setScope({ kind: 'all' });
+                        void act(
+                          () => api.deleteAssignmentFolder(folder.id),
+                          `Папка «${folder.title}» удалена, задания остались.`,
+                        );
+                      }}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+            <li>
+              <button
+                type="button"
+                className={`library-folder${scope.kind === 'root' ? ' is-active' : ''}`}
+                onClick={() => setScope({ kind: 'root' })}
+              >
+                <span>Без папки</span>
+                <em>{rootCount}</em>
+              </button>
+            </li>
+            <li>
+              {/* Старые годы убираются из списка, но остаются в базе: вместе с
+                  заданием исчезли бы выдачи и работы учеников за тот год. */}
+              <button
+                type="button"
+                className={`library-folder${scope.kind === 'archive' ? ' is-active' : ''}`}
+                onClick={() => setScope({ kind: 'archive' })}
+              >
+                <span>Архив</span>
+                <em>{archivedCount}</em>
+              </button>
+            </li>
+          </ul>
+        </aside>
+
+        <section className="library-main">
+          <div className="library-filters">
+            <label className="library-search">
+              <span className="sr-only">Поиск заданий</span>
+              <input
+                type="search"
+                placeholder="Поиск по названию, цели или описанию"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <label>
+              <span className="sr-only">Среда</span>
+              <select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
+                <option value="">Любая среда</option>
+                {facets.modules.map((key) => (
+                  <option key={key} value={key}>
+                    {moduleName(key)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Возраст</span>
+              <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}>
+                <option value="">Любой возраст</option>
+                {facets.ages.map((band) => (
+                  <option key={band} value={band}>
+                    {ageLabel(band)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Класс</span>
+              <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+                <option value="">Любой класс</option>
+                {facets.classes.map((title) => (
+                  <option key={title} value={title}>
+                    {title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Учебный год</span>
+              <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+                <option value="">Любой год</option>
+                {facets.years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Порядок</span>
+              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+                {SORTS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {filtersOn ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setModuleFilter('');
+                  setAgeFilter('');
+                  setClassFilter('');
+                  setYearFilter('');
+                }}
+              >
+                Сбросить отбор
+              </button>
+            ) : null}
+          </div>
+
+          {items === null ? (
+            <p role="status">Загружаем задания…</p>
+          ) : visible.length === 0 ? (
+            <div className="classroom-roster-empty">
+              <h3>{needle || filtersOn ? 'Ничего не найдено' : 'Здесь пока пусто'}</h3>
+              <p>
+                {scope.kind === 'archive'
+                  ? 'В архив попадают задания прошлых лет. Работы учеников по ним остаются на месте.'
+                  : 'Напишите задание — потом его можно будет выдать сразу нескольким классам.'}
+              </p>
+            </div>
+          ) : (
+            <ul className="library-list" data-testid="assignment-library">
+              {visible.map((assignment) => (
+                <li key={assignment.id}>
+                  {assignment.sampleImage ? (
+                    <img src={assignment.sampleImage} alt="" width={72} height={72} />
+                  ) : (
+                    <span className="library-no-sample" aria-hidden="true" />
+                  )}
+                  <div className="library-copy">
+                    <strong>
+                      {assignment.title}
+                      {assignment.isDemo ? <em>пример</em> : null}
+                      {assignment.copiedFrom ? <em>копия</em> : null}
+                      {assignment.archivedAt ? <em className="is-archived">в архиве</em> : null}
+                      {/* Папка — отдельной меткой: рядом со средой она читается
+                          как повтор, когда названия совпадают. */}
+                      {assignment.folderTitle ? (
+                        <em className="is-folder">{assignment.folderTitle}</em>
+                      ) : null}
+                    </strong>
+                    <span>
+                      {moduleName(assignment.moduleKey)}
+                      {assignment.ageBand ? ` · ${ageLabel(assignment.ageBand)}` : ''}
+                      {` · создано ${time.date(assignment.createdAt)}`}
+                    </span>
+                    {assignment.goal ? (
+                      <span className="library-goal-line">Цель: {assignment.goal}</span>
+                    ) : null}
+                    <span className="library-counts">
+                      {assignment.handoutCount === 0
+                        ? 'Не выдано ни одному классу'
+                        : `Выдано классам: ${assignment.handoutCount} · работают: ${assignment.startedCount} · сдали: ${assignment.submittedCount}`}
+                    </span>
+                    {/* Кому и когда выдавалось: этой строкой задание и находят
+                        через год, когда название уже ничего не говорит. */}
+                    {assignment.classroomTitles.length > 0 ? (
+                      <span className="library-history">
+                        {assignment.classroomTitles.join(', ')}
+                        {assignment.academicYears.length > 0
+                          ? ` · ${assignment.academicYears.join(', ')}`
+                          : ''}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="library-actions">
+                    <button
+                      type="button"
+                      className="portal-create-button"
+                      onClick={() => setHandingOut(assignment)}
+                    >
+                      Выдать классам
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setEditing(assignment)}
+                    >
+                      Изменить
+                    </button>
+                    {/* Переделка под свой класс не должна менять задание всем
+                        остальным — для этого копия, а не правка. */}
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() =>
+                        void act(
+                          () => api.copyLibraryAssignment(assignment.id),
+                          `Копия задания «${assignment.title}» создана — правьте её, исходник цел.`,
+                        )
+                      }
+                    >
+                      Копия
+                    </button>
+                    <label className="library-move">
+                      <span className="sr-only">Папка задания</span>
+                      <select
+                        value={assignment.folderId ?? ''}
+                        onChange={(event) =>
+                          void act(
+                            () =>
+                              api.moveAssignmentToFolder(assignment.id, event.target.value || null),
+                            'Задание перемещено.',
+                          )
+                        }
+                      >
+                        <option value="">Без папки</option>
+                        {folders.map((folder) => (
+                          <option key={folder.id} value={folder.id}>
+                            {'— '.repeat(folder.depth - 1) + folder.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() =>
+                        void act(
+                          () =>
+                            api.archiveAssignment(assignment.id, assignment.archivedAt === null),
+                          assignment.archivedAt === null
+                            ? 'Задание убрано в архив. Работы учеников остались.'
+                            : 'Задание вернулось в работу.',
+                        )
+                      }
+                    >
+                      {assignment.archivedAt === null ? 'В архив' : 'Вернуть'}
+                    </button>
+                    <button
+                      type="button"
+                      className="assignment-remove"
+                      onClick={async () => {
+                        if (
+                          !window.confirm(
+                            `Удалить «${assignment.title}» из ваших заданий? Оно пропадёт и у классов, которым выдано. Работы учеников останутся у них.`,
+                          )
+                        )
+                          return;
+                        await act(
+                          () => api.deleteLibraryAssignment(assignment.id),
+                          `Задание «${assignment.title}» удалено.`,
+                        );
+                      }}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
       {editing ? (
         <AssignmentEditorDialog
           assignment={editing === 'new' ? null : editing}
           modules={modules}
+          folders={folders}
+          defaultFolderId={scope.kind === 'folder' ? scope.id : null}
           onClose={() => setEditing(null)}
           onSaved={async (_id, draft) => {
             setEditing(null);

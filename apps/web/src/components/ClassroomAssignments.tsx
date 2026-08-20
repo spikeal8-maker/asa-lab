@@ -39,12 +39,23 @@ function libraryShape(assignment: ClassroomAssignment): LibraryAssignment {
     brief: assignment.brief,
     goal: assignment.goal,
     moduleKey: assignment.moduleKey,
+    ageBand: null,
     sampleImage: assignment.sampleImage,
     isDemo: assignment.isDemo,
+    // Строка класса знает про выдачу, а не про полку: папку, архив и историю
+    // выдач форма перечитает из банка, когда её откроют оттуда.
+    folderId: null,
+    folderTitle: null,
+    archivedAt: null,
+    copiedFrom: null,
     createdAt: assignment.createdAt,
+    updatedAt: assignment.createdAt,
     handoutCount: 0,
     startedCount: assignment.startedCount,
     submittedCount: assignment.submittedCount,
+    classroomTitles: [],
+    academicYears: [],
+    lastHandedOutAt: null,
   };
 }
 

@@ -109,12 +109,37 @@ export interface LibraryAssignment {
   /** The one sentence the task turns on, shown set apart from the rest. */
   goal: string | null;
   moduleKey: string;
+  /** Возраст, на который написано задание. Тот же словарь, что у классов. */
+  ageBand: string | null;
   sampleImage: string | null;
   isDemo: boolean;
+  /** Папка на полке преподавателя. null — задание лежит в корне. */
+  folderId: string | null;
+  folderTitle: string | null;
+  /** Задание прошлых лет: убрано из списка, но живо вместе с работами учеников. */
+  archivedAt: string | null;
+  /** Своя переделка чужого задания: копия помнит источник. */
+  copiedFrom: { id: string; title: string } | null;
   createdAt: string;
+  updatedAt: string;
   handoutCount: number;
   startedCount: number;
   submittedCount: number;
+  /** Кому выдавалось и в какие учебные годы — по этому и ищут через год. */
+  classroomTitles: string[];
+  academicYears: string[];
+  lastHandedOutAt: string | null;
+}
+
+/** Папка банка заданий. Дерево до четырёх уровней. */
+export interface AssignmentFolder {
+  id: string;
+  parentId: string | null;
+  title: string;
+  depth: number;
+  /** Заданий в самой папке и вместе с вложенными. */
+  directCount: number;
+  totalCount: number;
 }
 
 export interface GalleryItem {
@@ -904,7 +929,14 @@ export const api = {
   listAssignmentLibrary: () => call<{ items: LibraryAssignment[] }>('/api/assignments'),
   saveLibraryAssignment: (
     assignmentId: string | null,
-    input: { title: string; brief: string | null; goal: string | null; moduleKey: string },
+    input: {
+      title: string;
+      brief: string | null;
+      goal: string | null;
+      moduleKey: string;
+      folderId?: string | null;
+      ageBand?: string | null;
+    },
   ) =>
     call<{ id: string }>(
       assignmentId ? `/api/assignments/${encodeURIComponent(assignmentId)}` : '/api/assignments',
@@ -922,6 +954,39 @@ export const api = {
       `/api/assignments/${encodeURIComponent(assignmentId)}/images`,
       { method: 'POST', body: JSON.stringify({ imageDataUrl }) },
     ),
+  /** Дерево папок банка со счётчиками. */
+  assignmentFolders: () => call<{ items: AssignmentFolder[] }>('/api/assignments/folders'),
+  createAssignmentFolder: (title: string, parentId: string | null) =>
+    call<{ id: string }>('/api/assignments/folders', {
+      method: 'POST',
+      body: JSON.stringify({ title, parentId }),
+    }),
+  updateAssignmentFolder: (folderId: string, input: { title?: string; parentId?: string | null }) =>
+    call<{ ok: true }>(`/api/assignments/folders/${encodeURIComponent(folderId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  /** Удаляется папка, а не задания: всё внутри поднимается уровнем выше. */
+  deleteAssignmentFolder: (folderId: string) =>
+    call<{ removed: true }>(`/api/assignments/folders/${encodeURIComponent(folderId)}`, {
+      method: 'DELETE',
+    }),
+  moveAssignmentToFolder: (assignmentId: string, folderId: string | null) =>
+    call<{ ok: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}/folder`, {
+      method: 'PUT',
+      body: JSON.stringify({ folderId }),
+    }),
+  archiveAssignment: (assignmentId: string, archived: boolean) =>
+    call<{ ok: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}/archived`, {
+      method: 'PUT',
+      body: JSON.stringify({ archived }),
+    }),
+  /** Своя версия задания: источник остаётся нетронутым. */
+  copyLibraryAssignment: (assignmentId: string, title?: string) =>
+    call<{ id: string }>(`/api/assignments/${encodeURIComponent(assignmentId)}/copy`, {
+      method: 'POST',
+      body: JSON.stringify({ title: title ?? null }),
+    }),
   deleteLibraryAssignment: (assignmentId: string) =>
     call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
       method: 'DELETE',

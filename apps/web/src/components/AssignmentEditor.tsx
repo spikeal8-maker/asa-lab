@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent, type JSX } from 'react';
-import { api, type LibraryAssignment, type ModuleSummary } from '../api';
+import { api, type AssignmentFolder, type LibraryAssignment, type ModuleSummary } from '../api';
+import { CLASSROOM_AGE_OPTIONS } from './ClassroomFields';
 import { AssignmentGoal, BriefText } from './BriefText';
 import './assignment-editor.css';
 
@@ -36,6 +37,8 @@ export interface AssignmentDraft {
   readonly brief: string | null;
   readonly goal: string | null;
   readonly moduleKey: string;
+  readonly folderId: string | null;
+  readonly ageBand: string | null;
   readonly dueAt: string | null;
 }
 
@@ -59,6 +62,8 @@ function checkPicture(file: File): string | null {
 export function AssignmentEditorDialog({
   assignment,
   modules,
+  folders = [],
+  defaultFolderId = null,
   withDueDate = false,
   heading,
   intro,
@@ -68,6 +73,10 @@ export function AssignmentEditorDialog({
 }: {
   readonly assignment: LibraryAssignment | null;
   readonly modules: readonly ModuleSummary[];
+  /** Папки банка: задание кладут на полку сразу, а не «потом разберу». */
+  readonly folders?: readonly AssignmentFolder[];
+  /** Открыли банк на папке — новое задание ложится в неё. */
+  readonly defaultFolderId?: string | null;
   /** Внутри класса задание сразу выдаётся, поэтому спрашиваем срок. */
   readonly withDueDate?: boolean;
   readonly heading?: string;
@@ -80,6 +89,8 @@ export function AssignmentEditorDialog({
   const [brief, setBrief] = useState(assignment?.brief ?? '');
   const [goal, setGoal] = useState(assignment?.goal ?? '');
   const [moduleKey, setModuleKey] = useState(assignment?.moduleKey ?? modules[0]?.moduleKey ?? '');
+  const [folderId, setFolderId] = useState(assignment?.folderId ?? defaultFolderId ?? '');
+  const [ageBand, setAgeBand] = useState(assignment?.ageBand ?? '');
   const [dueAt, setDueAt] = useState('');
   // undefined = оставить картинку как есть, null = убрать, строка = новая.
   const [sample, setSample] = useState<string | null | undefined>(undefined);
@@ -196,6 +207,8 @@ export function AssignmentEditorDialog({
       brief: brief.trim() || null,
       goal: goal.trim() || null,
       moduleKey,
+      folderId: folderId || null,
+      ageBand: ageBand || null,
     };
     const saved = await api.saveLibraryAssignment(assignment?.id ?? null, fields);
     if (!saved.ok) {
@@ -288,6 +301,38 @@ export function AssignmentEditorDialog({
                 {modules.map((module) => (
                   <option key={module.moduleKey} value={module.moduleKey}>
                     {module.displayName}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="assignment-editor-folder">Папка</label>
+              <select
+                id="assignment-editor-folder"
+                value={folderId}
+                disabled={busy}
+                onChange={(event) => setFolderId(event.target.value)}
+              >
+                <option value="">Без папки</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {'— '.repeat(folder.depth - 1) + folder.title}
+                  </option>
+                ))}
+              </select>
+
+              {/* Возраст — признак задания, а не класса, которому оно досталось:
+                  «для младших» ищут до того, как выбрали класс. */}
+              <label htmlFor="assignment-editor-age">Возраст</label>
+              <select
+                id="assignment-editor-age"
+                value={ageBand}
+                disabled={busy}
+                onChange={(event) => setAgeBand(event.target.value)}
+              >
+                <option value="">Не важен</option>
+                {CLASSROOM_AGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>

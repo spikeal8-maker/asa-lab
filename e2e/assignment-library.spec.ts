@@ -158,5 +158,89 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
   );
   await reopened.getByRole('button', { name: 'Отмена' }).click();
 
+  /**
+   * Банк, а не список.
+   *
+   * За три года заданий набирается двести. Папка отвечает на вопрос «куда я это
+   * положил», признаки — «что мне подходит сейчас»: одно и то же задание это и
+   * «электроника», и «8 класс», и «2025/26», и деревом такое не выражается.
+   */
+  // Имя папки спрашивают окном браузера, поэтому ответ готовим заранее.
+  page.once('dialog', (dialog) => void dialog.accept('Электроника'));
+  await page.getByRole('button', { name: '+ Папка' }).click();
+  const folderTree = page.getByRole('complementary', { name: 'Папки заданий' });
+  // Готовый курс приезжает своей папкой: пример, который нельзя тронуть, — не
+  // пример, а мебель.
+  await expect(folderTree).toContainText('Готовый курс');
+  await expect(folderTree).toContainText('Электроника');
+
+  // Вложенная папка — второй уровень того же дерева.
+  await folderTree.getByRole('button', { name: 'Электроника' }).click();
+  page.once('dialog', (dialog) => void dialog.accept('Светодиоды'));
+  await page.getByRole('button', { name: 'Вложенная' }).click();
+  await expect(folderTree).toContainText('Светодиоды');
+
+  // Выбранная папка отбирает список, поэтому возвращаемся ко всей полке.
+  await folderTree.getByRole('button', { name: 'Все задания' }).click();
+
+  // Задание переезжает в папку выбором, а не перетаскиванием.
+  const pencilRow = page
+    .getByTestId('assignment-library')
+    .locator('li')
+    .filter({ hasText: 'Подставка для карандашей' });
+  await pencilRow.getByLabel('Папка задания').selectOption({ label: '— Светодиоды' });
+  await expect(page.getByText('Задание перемещено.')).toBeVisible();
+  await expect(pencilRow).toContainText('Светодиоды');
+
+  // Папка удаляется, задания остаются: потерять работу за три года, промахнувшись
+  // по кнопке, нельзя.
+  await folderTree.getByRole('button', { name: 'Светодиоды' }).click();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Удалить' }).first().click();
+  await expect(page.getByText(/Папка «Светодиоды» удалена, задания остались/)).toBeVisible();
+  await folderTree.getByRole('button', { name: 'Все задания' }).click();
+  await expect(
+    page
+      .getByTestId('assignment-library')
+      .locator('li')
+      .filter({ hasText: 'Подставка для карандашей' })
+      .first(),
+  ).toContainText('Электроника');
+
+  /**
+   * Своя версия готового задания. Правка на месте меняет задание всем классам —
+   * это верно для опечатки и неверно для переделки под один класс.
+   */
+  await pencilRow.getByRole('button', { name: 'Копия' }).click();
+  await expect(page.getByText(/Копия задания .* создана/)).toBeVisible();
+  const copyRow = page
+    .getByTestId('assignment-library')
+    .locator('li')
+    .filter({ hasText: 'Подставка для карандашей — моя версия' });
+  await expect(copyRow).toContainText('копия');
+
+  // Архив, а не удаление: вместе с заданием ушли бы выдачи и работы учеников.
+  await copyRow.getByRole('button', { name: 'В архив' }).click();
+  await expect(page.getByText(/убрано в архив/)).toBeVisible();
+  await expect(
+    page.getByTestId('assignment-library').locator('li').filter({ hasText: '— моя версия' }),
+  ).toHaveCount(0);
+  await folderTree.getByRole('button', { name: 'Архив' }).click();
+  await expect(
+    page.getByTestId('assignment-library').locator('li').filter({ hasText: '— моя версия' }),
+  ).toHaveCount(1);
+  await folderTree.getByRole('button', { name: 'Все задания' }).click();
+
+  // Признак, которого нет в дереве: кому задание выдавалось.
+  await page.getByLabel('Класс').selectOption('6В группа');
+  await expect(
+    page
+      .getByTestId('assignment-library')
+      .locator('li')
+      .filter({ hasText: 'Подставка для карандашей' })
+      .first(),
+  ).toBeVisible();
+  await page.screenshot({ path: `${evidenceDir}/bank.png`, fullPage: true });
+
   failures.assertEmpty();
 });
