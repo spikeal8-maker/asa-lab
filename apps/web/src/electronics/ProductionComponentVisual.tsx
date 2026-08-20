@@ -10,9 +10,11 @@ import {
   rgbLedDisplayColour,
   rgbLedState,
   rgbLedVisualOpacity,
+  SEVEN_SEGMENT_COLOUR_CSS,
   WORLD_UNITS_PER_MM,
   type RgbCommonMode,
   type ResistorTolerancePercent,
+  type SevenSegmentColour,
   type SevenSegmentId,
 } from './production-asset-contracts';
 
@@ -49,16 +51,27 @@ interface Props {
   readonly onSwitchActuate?: (() => void) | undefined;
 }
 
-const SEGMENT_BOXES: Readonly<Record<SevenSegmentId, readonly [number, number, number, number]>> = {
-  a: [4.306, 3.166, 6.309, 1.218],
-  b: [8.963, 3.788, 2.058, 5.493],
-  c: [7.961, 9.769, 1.95, 5.466],
-  d: [2.302, 14.639, 6.147, 1.218],
-  e: [1.652, 9.714, 2.004, 5.521],
-  f: [2.735, 3.788, 1.95, 5.466],
-  g: [3.439, 8.876, 5.849, 1.217],
-  dp: [9.763, 14.6, 1.408, 1.408],
+// Exact segment outlines of the owner-drawn art (viewBox 0 0 12.7 19.05, units are mm).
+const SEGMENT_PATHS: Readonly<Record<Exclude<SevenSegmentId, 'dp'>, string>> = {
+  a: 'M 4.306 3.599 L 4.983 4.384 L 9.586 4.384 L 10.615 3.518 L 10.317 3.166 L 4.766 3.166 Z',
+  b: 'M 10.832 3.788 L 9.613 4.871 L 8.963 8.551 L 9.532 9.281 L 10.182 8.767 L 11.021 4.005 Z',
+  c: 'M 9.505 9.769 L 8.638 10.472 L 7.961 14.233 L 8.692 15.235 L 9.099 14.910 L 9.911 10.310 Z',
+  d: 'M 2.302 15.505 L 2.600 15.857 L 7.988 15.857 L 8.449 15.451 L 7.772 14.639 L 3.304 14.639 Z',
+  e: 'M 3.168 9.714 L 2.383 10.526 L 1.652 14.693 L 2.085 15.235 L 2.925 14.531 L 3.656 10.445 Z',
+  f: 'M 4.035 3.788 L 3.493 4.248 L 2.735 8.551 L 3.222 9.254 L 3.981 8.605 L 4.685 4.600 Z',
+  g: 'M 3.439 9.525 L 3.899 10.093 L 8.584 10.093 L 9.288 9.498 L 8.774 8.876 L 4.197 8.876 Z',
 };
+const SEGMENT_DP_CIRCLE = { cx: 10.467, cy: 15.304, r: 0.704 } as const;
+const SEGMENT_IDS = [
+  'a',
+  'b',
+  'c',
+  'd',
+  'e',
+  'f',
+  'g',
+  'dp',
+] as const satisfies readonly SevenSegmentId[];
 
 export function ProductionComponentVisual({
   entry,
@@ -75,6 +88,8 @@ export function ProductionComponentVisual({
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const ledColour = String(properties['ledColour'] ?? 'red');
+  const segmentColourKey = String(properties['segmentColor'] ?? 'red') as SevenSegmentColour;
+  const segmentColour = SEVEN_SEGMENT_COLOUR_CSS[segmentColourKey] ?? '#ff2424';
   const ledBrightness =
     entry.key === 'led-5mm' && simulationRunning
       ? Math.round(Math.min(100, Math.max(0, effectiveBrightness ?? 0)))
@@ -547,37 +562,49 @@ export function ProductionComponentVisual({
 
       {entry.key === 'seven-segment-display' ? (
         <g data-testid="seven-segment-state" pointerEvents="none">
-          {(() => {
-            return (Object.keys(SEGMENT_BOXES) as SevenSegmentId[]).map((segment) => {
+          <g transform={`scale(${width / 12.7} ${height / 19.05})`}>
+            {SEGMENT_IDS.map((segment) => {
               const brightness = simulationRunning
-                ? Number(result?.branchBrightness?.[segment] ?? 0)
+                ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.[segment] ?? 0)))
                 : 0;
-              const [x, y, segmentWidth, segmentHeight] = SEGMENT_BOXES[segment];
+              const opacity = brightness / 100;
               return segment === 'dp' ? (
-                <circle
-                  key={segment}
-                  data-segment={segment}
-                  cx={((x + segmentWidth / 2) / 12.7) * width}
-                  cy={((y + segmentHeight / 2) / 19.05) * height}
-                  r={(segmentWidth / 2 / 12.7) * width}
-                  fill="#ff2424"
-                  opacity={brightness / 100}
-                />
+                <g key={segment}>
+                  <circle
+                    className="workbench-seven-segment-glow"
+                    cx={SEGMENT_DP_CIRCLE.cx}
+                    cy={SEGMENT_DP_CIRCLE.cy}
+                    r={SEGMENT_DP_CIRCLE.r}
+                    fill={segmentColour}
+                    opacity={opacity * 0.6}
+                  />
+                  <circle
+                    data-segment={segment}
+                    cx={SEGMENT_DP_CIRCLE.cx}
+                    cy={SEGMENT_DP_CIRCLE.cy}
+                    r={SEGMENT_DP_CIRCLE.r}
+                    fill={segmentColour}
+                    opacity={opacity}
+                  />
+                </g>
               ) : (
-                <rect
-                  key={segment}
-                  data-segment={segment}
-                  x={(x / 12.7) * width}
-                  y={(y / 19.05) * height}
-                  width={(segmentWidth / 12.7) * width}
-                  height={(segmentHeight / 19.05) * height}
-                  rx="1"
-                  fill="#ff2424"
-                  opacity={brightness / 100}
-                />
+                <g key={segment}>
+                  <path
+                    className="workbench-seven-segment-glow"
+                    d={SEGMENT_PATHS[segment]}
+                    fill={segmentColour}
+                    opacity={opacity * 0.6}
+                  />
+                  <path
+                    data-segment={segment}
+                    d={SEGMENT_PATHS[segment]}
+                    fill={segmentColour}
+                    opacity={opacity}
+                  />
+                </g>
               );
-            });
-          })()}
+            })}
+          </g>
         </g>
       ) : null}
     </svg>

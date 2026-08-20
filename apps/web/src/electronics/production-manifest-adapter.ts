@@ -297,7 +297,7 @@ function defaults(componentId: string): {
     return {
       value: 0,
       unit: '',
-      properties: { commonMode: 'common-cathode' },
+      properties: { commonMode: 'common-cathode', segmentColor: 'red' },
     };
   if (componentId === 'button-tactile-6mm')
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };

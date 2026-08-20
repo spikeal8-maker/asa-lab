@@ -6,6 +6,24 @@ export type OrdinaryLedColour = 'blue' | 'green' | 'orange' | 'red' | 'white' | 
 export type OrdinaryLedFault = 'none' | 'reverse' | 'overcurrent' | 'burned';
 export type RgbCommonMode = 'common-anode' | 'common-cathode';
 export type SevenSegmentId = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'dp';
+export type SevenSegmentColour = 'blue' | 'green' | 'red' | 'white' | 'yellow';
+export const SEVEN_SEGMENT_COLOUR_CSS: Readonly<Record<SevenSegmentColour, string>> = {
+  red: '#ff2424',
+  green: '#22c55e',
+  blue: '#3b82f6',
+  yellow: '#fbbf24',
+  white: '#f8fafc',
+};
+export const SEVEN_SEGMENT_COLOUR_OPTIONS: readonly {
+  value: SevenSegmentColour;
+  label: string;
+}[] = [
+  { value: 'red', label: 'Красный' },
+  { value: 'green', label: 'Зелёный' },
+  { value: 'blue', label: 'Синий' },
+  { value: 'yellow', label: 'Жёлтый' },
+  { value: 'white', label: 'Белый' },
+];
 export type SpdtThrow = 'left' | 'right';
 export type MotorDirection = 'clockwise' | 'counterclockwise' | 'stopped';
 export type LampState = 'off' | 'dim' | 'on' | 'max';

@@ -655,6 +655,10 @@
   filter: drop-shadow(0 0 2.5px var(--workbench-rgb-led-glow))
     drop-shadow(0 0 7px var(--workbench-rgb-led-glow));
 }
+.workbench-seven-segment-glow {
+  /* Blur radius is in local (mm) units, so the halo scales together with the part. */
+  filter: blur(0.3px);
+}
 @keyframes wb-wire-flow {
   to {
     stroke-dashoffset: -34;

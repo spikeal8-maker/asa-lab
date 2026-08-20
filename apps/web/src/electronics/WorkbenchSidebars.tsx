@@ -15,6 +15,7 @@ import {
   resistanceValueInOhms,
   type ResistanceUnit,
 } from './workbench-values';
+import { SEVEN_SEGMENT_COLOUR_OPTIONS } from './production-asset-contracts';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 function valueLabel(kind: string): string {
@@ -572,6 +573,25 @@ export function WorkbenchSidebars({
                     >
                       <option value="common-cathode">Общий катод</option>
                       <option value="common-anode">Общий анод</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Цвет сегментов</span>
+                    <select
+                      aria-label="Цвет сегментов индикатора"
+                      value={String(c.selectedComponent.stateProperties?.['segmentColor'] ?? 'red')}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { segmentColor: event.target.value },
+                          'Цвет индикатора изменён.',
+                        )
+                      }
+                    >
+                      {SEVEN_SEGMENT_COLOUR_OPTIONS.map((colour) => (
+                        <option key={colour.value} value={colour.value}>
+                          {colour.label}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <div className="workbench-segment-measurements">

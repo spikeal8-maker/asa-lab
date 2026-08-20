@@ -25,11 +25,13 @@ describe('owner SVG runtime catalog adapter', () => {
     expect(ownerCatalogItems().length).toBeGreaterThan(33);
     expect(productionCatalog().length).toBeGreaterThan(0);
 
-    // Arduino, the hand-redrawn 9 V «Крона» and the owner-drawn transistors live under owner-approved;
+    // Arduino, the hand-redrawn 9 V «Крона», the owner-drawn transistors and the
+    // owner-drawn seven-segment display live under owner-approved;
     // every other enabled part keeps its byte-exact owner archive SVG.
     const ownerApproved = new Set([
       'arduino-uno',
       'battery-9v',
+      'seven-segment-display',
       'transistor-npn',
       'transistor-pnp',
       'transistor-fet',
