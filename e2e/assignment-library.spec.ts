@@ -211,7 +211,9 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
    * Своя версия готового задания. Правка на месте меняет задание всем классам —
    * это верно для опечатки и неверно для переделки под один класс.
    */
-  await pencilRow.getByRole('button', { name: 'Копия' }).click();
+  // Редкие действия живут в меню строки: шесть кнопок в ряд не помещались.
+  await pencilRow.getByRole('button', { name: /^Ещё: / }).click();
+  await pencilRow.getByRole('button', { name: 'Сделать копию' }).click();
   await expect(page.getByText(/Копия задания .* создана/)).toBeVisible();
   const copyRow = page
     .getByTestId('assignment-library')
@@ -220,7 +222,8 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
   await expect(copyRow).toContainText('копия');
 
   // Архив, а не удаление: вместе с заданием ушли бы выдачи и работы учеников.
-  await copyRow.getByRole('button', { name: 'В архив' }).click();
+  await copyRow.getByRole('button', { name: /^Ещё: / }).click();
+  await copyRow.getByRole('button', { name: 'Убрать в архив' }).click();
   await expect(page.getByText(/убрано в архив/)).toBeVisible();
   await expect(
     page.getByTestId('assignment-library').locator('li').filter({ hasText: '— моя версия' }),

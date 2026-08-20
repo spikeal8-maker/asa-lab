@@ -118,6 +118,11 @@ export interface LibraryAssignment {
   folderTitle: string | null;
   /** Задание прошлых лет: убрано из списка, но живо вместе с работами учеников. */
   archivedAt: string | null;
+  /** Кому открыто и скольким коллегам поимённо. */
+  visibility: Visibility;
+  sharedWith: number;
+  /** В каких курсах это задание стоит. */
+  courseTitles: string[];
   /** Своя переделка чужого задания: копия помнит источник. */
   copiedFrom: { id: string; title: string } | null;
   createdAt: string;
@@ -129,6 +134,82 @@ export interface LibraryAssignment {
   classroomTitles: string[];
   academicYears: string[];
   lastHandedOutAt: string | null;
+}
+
+/**
+ * Кому открыто содержимое.
+ *
+ * Один и тот же порядок у задания и у курса: только мне → названным
+ * преподавателям → моей школе → всем. Вопрос один, и два разных ответа в двух
+ * местах преподаватель не удержит в голове.
+ */
+export type Visibility = 'private' | 'teachers' | 'school' | 'public';
+
+export const VISIBILITY_OPTIONS: ReadonlyArray<{ value: Visibility; label: string; hint: string }> =
+  [
+    { value: 'private', label: 'Только мне', hint: 'Никто, кроме вас, этого не видит.' },
+    {
+      value: 'teachers',
+      label: 'Названным преподавателям',
+      hint: 'Видят только те, кого вы добавите по почте.',
+    },
+    { value: 'school', label: 'Моей школе', hint: 'Видят все преподаватели вашей школы.' },
+    {
+      value: 'public',
+      label: 'Всем',
+      hint: 'Попадёт в общий каталог: увидит любой преподаватель.',
+    },
+  ];
+
+export function visibilityLabel(value: string): string {
+  return VISIBILITY_OPTIONS.find((entry) => entry.value === value)?.label ?? 'Только мне';
+}
+
+/** Курс — порядок, в котором проходят задания. */
+export interface Course {
+  id: string;
+  title: string;
+  summary: string | null;
+  visibility: Visibility;
+  ageBand: string | null;
+  itemCount: number;
+  /** Скольким коллегам открыт поимённо. */
+  sharedWith: number;
+  copiedFromCourseId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CourseItem {
+  id: string;
+  title: string;
+  goal: string | null;
+  moduleKey: string;
+  sampleImage: string | null;
+  position: number;
+}
+
+/** Строка общего каталога: чужой курс или чужое задание. */
+export interface CatalogueEntry {
+  kind: 'course' | 'assignment';
+  id: string;
+  title: string;
+  summary: string | null;
+  moduleKey: string | null;
+  ageBand: string | null;
+  visibility: Visibility;
+  sampleImage: string | null;
+  itemCount: number;
+  authorName: string;
+  authorSchool: string | null;
+  createdAt: string;
+}
+
+export interface ContentShare {
+  accountId: string;
+  email: string;
+  displayName: string;
+  createdAt: string;
 }
 
 /** Папка банка заданий. Дерево до четырёх уровней. */
@@ -986,6 +1067,67 @@ export const api = {
     call<{ id: string }>(`/api/assignments/${encodeURIComponent(assignmentId)}/copy`, {
       method: 'POST',
       body: JSON.stringify({ title: title ?? null }),
+    }),
+  // Курсы.
+  listCourses: () => call<{ items: Course[] }>('/api/courses'),
+  saveCourse: (
+    courseId: string | null,
+    input: {
+      title: string;
+      summary: string | null;
+      ageBand?: string | null;
+      visibility?: Visibility | null;
+    },
+  ) =>
+    call<{ id: string }>(
+      courseId ? `/api/courses/${encodeURIComponent(courseId)}` : '/api/courses',
+      {
+        method: courseId ? 'PATCH' : 'POST',
+        body: JSON.stringify(input),
+      },
+    ),
+  /** Удаляется курс, а не задания: они остаются в банке. */
+  deleteCourse: (courseId: string) =>
+    call<{ removed: true }>(`/api/courses/${encodeURIComponent(courseId)}`, { method: 'DELETE' }),
+  courseItems: (courseId: string) =>
+    call<{ items: CourseItem[] }>(`/api/courses/${encodeURIComponent(courseId)}/items`),
+  setCourseItem: (courseId: string, assignmentId: string, included: boolean) =>
+    call<{ ok: true }>(
+      `/api/courses/${encodeURIComponent(courseId)}/items/${encodeURIComponent(assignmentId)}`,
+      { method: 'PUT', body: JSON.stringify({ included }) },
+    ),
+  moveCourseItem: (courseId: string, assignmentId: string, delta: number) =>
+    call<{ ok: boolean }>(
+      `/api/courses/${encodeURIComponent(courseId)}/items/${encodeURIComponent(assignmentId)}/move`,
+      { method: 'POST', body: JSON.stringify({ delta }) },
+    ),
+
+  // Кому открыто.
+  setVisibility: (kind: 'assignment' | 'course', subjectId: string, visibility: Visibility) =>
+    call<{ ok: true }>(`/api/sharing/${kind}/${encodeURIComponent(subjectId)}/visibility`, {
+      method: 'PUT',
+      body: JSON.stringify({ visibility }),
+    }),
+  listShares: (kind: 'assignment' | 'course', subjectId: string) =>
+    call<{ items: ContentShare[] }>(`/api/sharing/${kind}/${encodeURIComponent(subjectId)}`),
+  addShare: (kind: 'assignment' | 'course', subjectId: string, email: string) =>
+    call<{ ok: true }>(`/api/sharing/${kind}/${encodeURIComponent(subjectId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  removeShare: (kind: 'assignment' | 'course', subjectId: string, accountId: string) =>
+    call<{ removed: true }>(
+      `/api/sharing/${kind}/${encodeURIComponent(subjectId)}/${encodeURIComponent(accountId)}`,
+      { method: 'DELETE' },
+    ),
+
+  /** Общий каталог: чужое, открытое вам. Своё сюда не попадает. */
+  catalogue: () => call<{ items: CatalogueEntry[] }>('/api/catalogue'),
+  /** Забрать себе копией: автор правит своё, вы — своё. */
+  takeFromCatalogue: (kind: 'course' | 'assignment', subjectId: string) =>
+    call<{ id: string }>(`/api/catalogue/${kind}/${encodeURIComponent(subjectId)}/take`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     }),
   deleteLibraryAssignment: (assignmentId: string) =>
     call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {

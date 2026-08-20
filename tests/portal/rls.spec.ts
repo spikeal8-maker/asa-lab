@@ -167,6 +167,11 @@ describe('runtime role hardening', () => {
       // которые знают, чья это подборка.
       'collection_items:SELECT',
       'collections:SELECT',
+      // Курсы, их состав и то, кому что открыто: читаются рабочей ролью,
+      // пишутся только функциями, которые знают владельца.
+      'content_shares:SELECT',
+      'course_items:SELECT',
+      'courses:SELECT',
       'project_drafts:INSERT',
       'project_drafts:SELECT',
       'project_drafts:UPDATE',

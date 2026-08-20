@@ -1,0 +1,102 @@
+/* Кому видно: один и тот же вопрос для задания и для курса. */
+.modal.share-dialog {
+  max-width: min(560px, calc(100vw - 2rem));
+}
+
+.share-levels {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.share-levels button {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid #dfe6ea;
+  border-radius: 10px;
+  background: #fff;
+  color: #16232c;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.share-levels button:hover:not(:disabled) {
+  border-color: #0b82ba;
+  background: #f6fbfe;
+}
+
+.share-levels button.is-active {
+  border-color: #0b82ba;
+  background: #eef7fc;
+  box-shadow: inset 0 0 0 1px #0b82ba;
+}
+
+.share-levels strong {
+  font-size: 15px;
+}
+
+.share-levels small {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.share-people {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.share-invite {
+  display: flex;
+  gap: 8px;
+}
+
+.share-invite input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #c8d4da;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.share-people ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-people li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid #e7ecef;
+  border-radius: 8px;
+}
+
+.share-people li span {
+  display: grid;
+}
+
+.share-people li small {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.share-public-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 4px solid #0b82ba;
+  border-radius: 0 8px 8px 0;
+  background: #e7f4fb;
+  color: #10222c;
+  font-size: 14px;
+  line-height: 1.5;
+}

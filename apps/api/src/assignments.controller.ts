@@ -69,6 +69,9 @@ interface LibraryRow {
   archived_at: Date | string | null;
   copied_from_assignment_id: string | null;
   copied_from_title: string | null;
+  visibility?: string | null;
+  shared_with?: number | string | null;
+  course_titles?: string[] | null;
   created_at: Date | string;
   updated_at: Date | string;
   handout_count: number | string;
@@ -129,7 +132,8 @@ export class AssignmentsController {
     const result = await this.requirePool().query(
       `SELECT id, title, brief, goal, module_key, age_band, sample_image, demo_key,
               folder_id, folder_title, archived_at, copied_from_assignment_id,
-              copied_from_title, created_at, updated_at,
+              copied_from_title, visibility, shared_with, course_titles,
+              created_at, updated_at,
               handout_count, started_count, submitted_count,
               classroom_titles, academic_years, last_handed_out_at
          FROM teacher_assignment_list($1)`,
@@ -148,6 +152,10 @@ export class AssignmentsController {
         folderId: row.folder_id,
         folderTitle: row.folder_title,
         archivedAt: row.archived_at ? iso(row.archived_at) : null,
+        // Кому открыто: без этого список не рассказывает, что видно коллегам.
+        visibility: row.visibility ?? 'private',
+        sharedWith: Number(row.shared_with ?? 0),
+        courseTitles: row.course_titles ?? [],
         copiedFrom: row.copied_from_assignment_id
           ? { id: row.copied_from_assignment_id, title: row.copied_from_title ?? '' }
           : null,

@@ -1,0 +1,262 @@
+/* Курсы и общий каталог. */
+.courses-panel,
+.catalogue-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.courses-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.courses-head p,
+.catalogue-intro {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--ink-muted);
+}
+
+.courses-list,
+.catalogue-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.courses-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid #e1e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.catalogue-list > li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px 18px;
+  align-items: start;
+  padding: 16px 18px;
+  border: 1px solid #e1e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.catalogue-list > li > img,
+.catalogue-list > li > .library-no-sample {
+  grid-row: 1 / span 2;
+  width: 72px;
+  height: 72px;
+  border: 1px solid #dbe6ec;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #f2f6f8;
+}
+
+.course-copy,
+.catalogue-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.course-copy strong,
+.catalogue-copy strong {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+  color: #16232c;
+  font-size: 17px;
+}
+
+.course-copy em,
+.catalogue-copy em {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eef4f7;
+  color: #37505d;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.catalogue-copy em.is-course {
+  background: #e2f0f8;
+  color: #0a6f9c;
+}
+
+/* Уровень доступа виден с первого взгляда: «всем» и «только мне» не должны
+   выглядеть одинаково. */
+.course-copy em.is-visibility.is-public {
+  background: #e4f4e8;
+  color: #1f6b35;
+}
+
+.course-copy em.is-visibility.is-school {
+  background: #e7f4fb;
+  color: #0a6f9c;
+}
+
+.course-copy em.is-visibility.is-teachers {
+  background: #fdf0e2;
+  color: #8a5306;
+}
+
+.course-copy span,
+.catalogue-copy span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.course-meta {
+  font-weight: 600;
+}
+
+.catalogue-author {
+  color: #37505d;
+  font-size: 13px;
+}
+
+.course-actions,
+.catalogue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.catalogue-actions {
+  grid-column: 2;
+}
+
+.course-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.course-detail-head h2 {
+  margin: 0 0 4px;
+}
+
+.course-detail-head p {
+  margin: 0 0 4px;
+  color: var(--ink-muted);
+}
+
+/* Порядок — это и есть курс. */
+.course-items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.course-items > li {
+  display: grid;
+  grid-template-columns: 28px 56px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid #e7ecef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.course-step {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #0b82ba;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.course-items img,
+.course-no-sample {
+  width: 56px;
+  height: 56px;
+  border: 1px solid #dbe6ec;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f2f6f8;
+}
+
+.course-item-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.course-item-copy small {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.course-item-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.course-item-actions .btn-secondary {
+  min-width: 38px;
+  padding: 6px 10px;
+}
+
+.course-add {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px dashed #b6cbd7;
+  border-radius: 10px;
+  background: #fbfdfe;
+}
+
+.course-add > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.course-add select {
+  flex: 1 1 260px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #c8d4da;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+.modal.course-preview {
+  max-width: min(720px, calc(100vw - 2rem));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+@media (max-width: 720px) {
+  .course-items > li {
+    grid-template-columns: 26px 48px minmax(0, 1fr);
+  }
+
+  .course-item-actions {
+    grid-column: 1 / -1;
+  }
+}

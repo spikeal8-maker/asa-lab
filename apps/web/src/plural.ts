@@ -61,6 +61,19 @@ export function taskWord(count: number): string {
   return TASK[rules.select(count)];
 }
 
+const COLLEAGUE: Forms = {
+  zero: 'коллегам',
+  one: 'коллеге',
+  two: 'коллегам',
+  few: 'коллегам',
+  many: 'коллегам',
+  other: 'коллегам',
+};
+
+export function colleagueWord(count: number): string {
+  return COLLEAGUE[rules.select(count)];
+}
+
 /** Число и слово вместе — для строк в предложении. */
 export function learnerCount(count: number): string {
   return `${count} ${learnerWord(count)}`;

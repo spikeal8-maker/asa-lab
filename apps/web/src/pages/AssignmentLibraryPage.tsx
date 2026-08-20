@@ -3,11 +3,16 @@ import {
   api,
   type AssignmentClassroom,
   type AssignmentFolder,
+  visibilityLabel,
   type LibraryAssignment,
   type ModuleSummary,
 } from '../api';
 import { AssignmentEditorDialog } from '../components/AssignmentEditor';
+import { CataloguePanel } from '../components/CataloguePanel';
+import { CoursesPanel } from '../components/CoursesPanel';
+import { ShareDialog } from '../components/ShareDialog';
 import { CLASSROOM_AGE_OPTIONS } from '../components/ClassroomFields';
+import { Dropdown } from '../components/Dropdown';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
 import './assignment-library.css';
@@ -162,6 +167,9 @@ export function AssignmentLibraryPage(): JSX.Element {
   const [sort, setSort] = useState<SortKey>('new');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Что открыто: свой банк, свои курсы или чужое, открытое вам. */
+  const [tab, setTab] = useState<'bank' | 'courses' | 'catalogue'>('bank');
+  const [sharing, setSharing] = useState<LibraryAssignment | null>(null);
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
@@ -272,16 +280,47 @@ export function AssignmentLibraryPage(): JSX.Element {
     <main id="main-content" className="portal-content" tabIndex={-1}>
       <header className="library-heading">
         <div>
-          <h1>Задания</h1>
+          <h1>Задания и курсы</h1>
           <p>
-            Ваш банк заданий. Разложите по папкам, отберите по среде, возрасту, классу или году — и
-            выдавайте любым классам, в этом году и в следующем.
+            Ваш банк. Разложите по папкам, соберите в курсы, отберите по среде, возрасту, классу или
+            году — и выдавайте любым классам, в этом году и в следующем.
           </p>
         </div>
-        <button type="button" className="portal-create-button" onClick={() => setEditing('new')}>
-          Новое задание
-        </button>
+        {tab === 'bank' ? (
+          <button type="button" className="portal-create-button" onClick={() => setEditing('new')}>
+            Новое задание
+          </button>
+        ) : null}
       </header>
+
+      {/* Три ответа на три разных вопроса: что у меня есть, в каком порядке я
+          это даю и что есть у коллег. */}
+      <nav className="library-tabs" aria-label="Разделы банка">
+        <button
+          type="button"
+          className={tab === 'bank' ? 'is-active' : undefined}
+          aria-current={tab === 'bank' ? 'page' : undefined}
+          onClick={() => setTab('bank')}
+        >
+          Задания
+        </button>
+        <button
+          type="button"
+          className={tab === 'courses' ? 'is-active' : undefined}
+          aria-current={tab === 'courses' ? 'page' : undefined}
+          onClick={() => setTab('courses')}
+        >
+          Курсы
+        </button>
+        <button
+          type="button"
+          className={tab === 'catalogue' ? 'is-active' : undefined}
+          aria-current={tab === 'catalogue' ? 'page' : undefined}
+          onClick={() => setTab('catalogue')}
+        >
+          Общий каталог
+        </button>
+      </nav>
 
       {notice ? (
         <p className="notice-success" role="status">
@@ -294,7 +333,14 @@ export function AssignmentLibraryPage(): JSX.Element {
         </p>
       ) : null}
 
-      <div className="library-layout">
+      {tab === 'courses' ? (
+        <CoursesPanel assignments={all} onChanged={() => void reload()} />
+      ) : null}
+      {tab === 'catalogue' ? (
+        <CataloguePanel modules={modules} onTaken={() => void reload()} />
+      ) : null}
+
+      <div className="library-layout" hidden={tab !== 'bank'}>
         {/* Дерево отвечает на вопрос «куда я это положил». */}
         <aside className="library-tree" aria-label="Папки заданий">
           <div className="library-tree-head">
@@ -499,6 +545,16 @@ export function AssignmentLibraryPage(): JSX.Element {
                       {assignment.title}
                       {assignment.isDemo ? <em>пример</em> : null}
                       {assignment.copiedFrom ? <em>копия</em> : null}
+                      {assignment.visibility !== 'private' ? (
+                        <em className={`is-visibility is-${assignment.visibility}`}>
+                          {visibilityLabel(assignment.visibility)}
+                        </em>
+                      ) : null}
+                      {assignment.courseTitles.map((course) => (
+                        <em key={course} className="is-course">
+                          {course}
+                        </em>
+                      ))}
                       {assignment.archivedAt ? <em className="is-archived">в архиве</em> : null}
                       {/* Папка — отдельной меткой: рядом со средой она читается
                           как повтор, когда названия совпадают. */}
@@ -530,6 +586,8 @@ export function AssignmentLibraryPage(): JSX.Element {
                       </span>
                     ) : null}
                   </div>
+                  {/* Часто нужное — кнопками, редкое — в меню. Шесть кнопок в
+                      ряд не помещались и залезали на текст карточки. */}
                   <div className="library-actions">
                     <button
                       type="button"
@@ -544,20 +602,6 @@ export function AssignmentLibraryPage(): JSX.Element {
                       onClick={() => setEditing(assignment)}
                     >
                       Изменить
-                    </button>
-                    {/* Переделка под свой класс не должна менять задание всем
-                        остальным — для этого копия, а не правка. */}
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() =>
-                        void act(
-                          () => api.copyLibraryAssignment(assignment.id),
-                          `Копия задания «${assignment.title}» создана — правьте её, исходник цел.`,
-                        )
-                      }
-                    >
-                      Копия
                     </button>
                     <label className="library-move">
                       <span className="sr-only">Папка задания</span>
@@ -579,39 +623,76 @@ export function AssignmentLibraryPage(): JSX.Element {
                         ))}
                       </select>
                     </label>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() =>
-                        void act(
-                          () =>
-                            api.archiveAssignment(assignment.id, assignment.archivedAt === null),
-                          assignment.archivedAt === null
-                            ? 'Задание убрано в архив. Работы учеников остались.'
-                            : 'Задание вернулось в работу.',
-                        )
-                      }
+                    <Dropdown
+                      className="library-row-menu"
+                      ariaLabel={`Ещё: ${assignment.title}`}
+                      label={<span aria-hidden="true">•••</span>}
                     >
-                      {assignment.archivedAt === null ? 'В архив' : 'Вернуть'}
-                    </button>
-                    <button
-                      type="button"
-                      className="assignment-remove"
-                      onClick={async () => {
-                        if (
-                          !window.confirm(
-                            `Удалить «${assignment.title}» из ваших заданий? Оно пропадёт и у классов, которым выдано. Работы учеников останутся у них.`,
-                          )
-                        )
-                          return;
-                        await act(
-                          () => api.deleteLibraryAssignment(assignment.id),
-                          `Задание «${assignment.title}» удалено.`,
-                        );
-                      }}
-                    >
-                      Удалить
-                    </button>
+                      {(close) => (
+                        <>
+                          {/* Переделка под свой класс не должна менять задание
+                              всем остальным — для этого копия, а не правка. */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close();
+                              setSharing(assignment);
+                            }}
+                          >
+                            Кому видно…
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close();
+                              void act(
+                                () => api.copyLibraryAssignment(assignment.id),
+                                `Копия задания «${assignment.title}» создана — правьте её, исходник цел.`,
+                              );
+                            }}
+                          >
+                            Сделать копию
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close();
+                              void act(
+                                () =>
+                                  api.archiveAssignment(
+                                    assignment.id,
+                                    assignment.archivedAt === null,
+                                  ),
+                                assignment.archivedAt === null
+                                  ? 'Задание убрано в архив. Работы учеников остались.'
+                                  : 'Задание вернулось в работу.',
+                              );
+                            }}
+                          >
+                            {assignment.archivedAt === null ? 'Убрать в архив' : 'Вернуть в работу'}
+                          </button>
+                          <button
+                            type="button"
+                            className="is-danger"
+                            onClick={async () => {
+                              close();
+                              if (
+                                !window.confirm(
+                                  `Удалить «${assignment.title}» из ваших заданий? Оно пропадёт и у классов, которым выдано. Работы учеников останутся у них.`,
+                                )
+                              )
+                                return;
+                              await act(
+                                () => api.deleteLibraryAssignment(assignment.id),
+                                `Задание «${assignment.title}» удалено.`,
+                              );
+                            }}
+                          >
+                            Удалить
+                          </button>
+                        </>
+                      )}
+                    </Dropdown>
                   </div>
                 </li>
               ))}
@@ -633,6 +714,17 @@ export function AssignmentLibraryPage(): JSX.Element {
             await reload();
             return null;
           }}
+        />
+      ) : null}
+
+      {sharing ? (
+        <ShareDialog
+          kind="assignment"
+          subjectId={sharing.id}
+          title={sharing.title}
+          visibility={sharing.visibility}
+          onClose={() => setSharing(null)}
+          onChanged={() => void reload()}
         />
       ) : null}
 
