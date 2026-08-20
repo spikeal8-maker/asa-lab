@@ -149,8 +149,8 @@ describe('Electronics owner SVG foundation', () => {
     }
 
     for (const [componentId, width, height, pinSpan] of [
-      ['diode-do35', 11.582, 2.54, 10.16],
-      ['diode-do41', 15, 5.25, 7.62],
+      ['diode-do35', 18, 6, 10.16],
+      ['diode-do41', 20, 7, 10.16],
     ] as const) {
       const diode = catalog.find((item) => item.key === componentId);
       expect(diode?.physicalSizeMm, componentId).toEqual({ width, height });

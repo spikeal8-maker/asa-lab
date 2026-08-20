@@ -28872,22 +28872,22 @@
       "appearsInBasic": false,
       "searchAliases": ["diode-do35", "Диод", "DO-35"],
       "displayNameEn": "diode-do35",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 11.582,
-      "physicalHeightMm": 2.54,
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 18,
+      "physicalHeightMm": 6,
       "viewBox": [0, 0, 18, 6],
       "pins": [
         {
           "id": "anode",
-          "xMm": 0.711,
-          "yMm": 1.27,
+          "xMm": 2.54,
+          "yMm": 3,
           "electricalRole": "anode",
           "toleranceMm": 0
         },
         {
           "id": "cathode",
-          "xMm": 10.871,
-          "yMm": 1.27,
+          "xMm": 12.7,
+          "yMm": 3,
           "electricalRole": "cathode",
           "toleranceMm": 0
         }
@@ -28930,11 +28930,11 @@
       },
       "isDefaultVariant": false,
       "displayName": "Диод DO-35",
-      "sourceOwnerArchive": "canonical-components-svg",
-      "sourceOwnerPath": "Копмоненты SVG/Диод/diode_do35_horizontal_4pitch.svg",
-      "sourceSha256": "afbc69a0025f7dd08fb64ec47c328daa321b0c16572598f9a0cccbf7f73d002a",
-      "runtimePath": "/assets/electronics/owner-audit/components/diode/do35.svg",
-      "runtimeSha256": "afbc69a0025f7dd08fb64ec47c328daa321b0c16572598f9a0cccbf7f73d002a",
+      "sourceOwnerArchive": "owner-svg-pin-adjusted",
+      "sourceOwnerPath": "owner-adjusted/diode-do35.svg",
+      "sourceSha256": "d162baa7df288e2022c61704caea774f289435d47ce985b278d1e45bbca0f8e7",
+      "runtimePath": "/assets/electronics/owner-approved/diode-do35.svg",
+      "runtimeSha256": "d162baa7df288e2022c61704caea774f289435d47ce985b278d1e45bbca0f8e7",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
@@ -28952,22 +28952,22 @@
       "appearsInBasic": false,
       "searchAliases": ["diode-do41", "Диод", "DO-41"],
       "displayNameEn": "diode-do41",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 15,
-      "physicalHeightMm": 5.25,
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 20,
+      "physicalHeightMm": 7,
       "viewBox": [0, 0, 20, 7],
       "pins": [
         {
           "id": "anode",
-          "xMm": 2.625,
-          "yMm": 2.625,
+          "xMm": 3.81,
+          "yMm": 3.5,
           "electricalRole": "anode",
           "toleranceMm": 0
         },
         {
           "id": "cathode",
-          "xMm": 10.245,
-          "yMm": 2.625,
+          "xMm": 13.97,
+          "yMm": 3.5,
           "electricalRole": "cathode",
           "toleranceMm": 0
         }
@@ -28976,7 +28976,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [7.62, 0]
+          [10.16, 0]
         ]
       },
       "states": ["default"],
@@ -29010,11 +29010,11 @@
       },
       "isDefaultVariant": true,
       "displayName": "Диод DO-41",
-      "sourceOwnerArchive": "canonical-components-svg",
-      "sourceOwnerPath": "Копмоненты SVG/Диод/diode_do41_horizontal_4pitch.svg",
-      "sourceSha256": "361a65bd0ccbd563f07f1a0c5b2c7ba2e249747717eb87609b339de2821dee11",
-      "runtimePath": "/assets/electronics/owner-audit/components/diode/do41.svg",
-      "runtimeSha256": "361a65bd0ccbd563f07f1a0c5b2c7ba2e249747717eb87609b339de2821dee11",
+      "sourceOwnerArchive": "owner-svg-pin-adjusted",
+      "sourceOwnerPath": "owner-adjusted/diode-do41.svg",
+      "sourceSha256": "261982bf5366f4eee1475bc78851a0ec86c7529772fc7f5d2d822ba96654ed72",
+      "runtimePath": "/assets/electronics/owner-approved/diode-do41.svg",
+      "runtimeSha256": "261982bf5366f4eee1475bc78851a0ec86c7529772fc7f5d2d822ba96654ed72",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
@@ -30120,7 +30120,7 @@
       "kind": "axial",
       "pinOffsetsMm": [
         [0, 0],
-        [7.62, 0]
+        [10.16, 0]
       ]
     },
     {

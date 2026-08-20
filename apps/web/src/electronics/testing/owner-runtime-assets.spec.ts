@@ -31,6 +31,8 @@ describe('owner SVG runtime catalog adapter', () => {
     const ownerApproved = new Set([
       'arduino-uno',
       'battery-9v',
+      'diode-do35',
+      'diode-do41',
       'seven-segment-display',
       'transistor-npn',
       'transistor-pnp',
