@@ -25,15 +25,34 @@
   list-style: none;
 }
 
+/* Картинка, название, среда, числа, срок и три действия — одной строкой.
+   Колонок ровно столько, сколько ячеек: лишняя кнопка когда-то уехала на
+   вторую строку и развалила весь список. */
 .assignment-list > li {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.6fr) minmax(0, 1fr) auto auto auto;
+  grid-template-columns:
+    44px minmax(0, 1.5fr) minmax(0, 0.5fr) minmax(0, 0.9fr)
+    minmax(0, 0.5fr) auto auto auto;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 10px 14px;
   border: 1px solid #e1e7eb;
   border-radius: 10px;
   background: #fff;
+}
+
+.assignment-row-sample {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #dfe6ea;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.assignment-row-sample.is-empty {
+  border-style: dashed;
+  background: #f3f6f8;
 }
 
 .assignment-title {
@@ -133,12 +152,18 @@
 
   .assignment-list > li,
   .assignment-progress > li {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 44px minmax(0, 1fr);
     gap: 6px 12px;
   }
 
   .assignment-list > li > *,
   .assignment-progress > li > * {
+    grid-column: 2;
+  }
+
+  /* На узком экране картинка держит первую колонку рядом с названием. */
+  .assignment-row-sample {
+    grid-row: 1;
     grid-column: 1;
   }
 

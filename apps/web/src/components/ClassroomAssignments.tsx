@@ -288,6 +288,19 @@ export function ClassroomAssignments({
           <ul className="assignment-list" data-testid="assignment-list">
             {items.map((assignment) => (
               <li key={assignment.id}>
+                {/* Задание узнают по картинке раньше, чем по названию: строка
+                    «Домик» и домик — разные вещи, особенно когда их десять. */}
+                {assignment.sampleImage ? (
+                  <img
+                    className="assignment-row-sample"
+                    src={assignment.sampleImage}
+                    alt=""
+                    width={44}
+                    height={44}
+                  />
+                ) : (
+                  <span className="assignment-row-sample is-empty" aria-hidden="true" />
+                )}
                 <button
                   type="button"
                   className="assignment-title"
