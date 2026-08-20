@@ -106,7 +106,7 @@ const TINKERCAD_BASIC_FAMILY_ORDER = [
   'vibration-motor',
   'dc-motor',
   'servo',
-  'transistor-npn',
+  'transistor',
   'rgb-led',
   'diode',
   'photoresistor',

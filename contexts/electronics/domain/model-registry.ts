@@ -171,7 +171,11 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
   }
   if (component.kind === 'resistor') return ['lead-1', 'lead-2'];
   if (component.kind === 'led' || component.kind === 'diode') return ['anode', 'cathode'];
-  if (component.kind === 'transistor') return ['base', 'collector', 'emitter'];
+  if (component.kind === 'transistor') {
+    const pins = new Set(component.pinIds ?? []);
+    if (pins.has('gate') || pins.has('drain')) return ['gate', 'source', 'drain'];
+    return ['base', 'collector', 'emitter'];
+  }
   if (component.kind === 'rgb-led') return ['red', 'common', 'green', 'blue'];
   if (component.kind === 'seven-segment') return MODELS['seven-segment'].requiredTerminals;
   if (component.kind === 'button') return ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'];

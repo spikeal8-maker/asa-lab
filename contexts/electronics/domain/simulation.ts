@@ -1,6 +1,6 @@
 import { type ElectronicsDocument, type SchematicComponent, type Terminal } from './document.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
-import { solveCircuit, type Diagnostic, type SolveResult } from './solver.js';
+import { solveCircuit, transistorTypeOf, type Diagnostic, type SolveResult } from './solver.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -229,6 +229,35 @@ function verifyQuality(
       continue;
     }
     if (component.kind === 'transistor') {
+      const transistorType = transistorTypeOf(component);
+      if (transistorType === 'fet') {
+        // The gate is insulated: drain current leaves the drain and enters the source.
+        addBranch(
+          component,
+          'drain',
+          'source',
+          resultForComponent.collectorCurrent ?? resultForComponent.branchCurrents?.['drain'] ?? 0,
+        );
+        continue;
+      }
+      if (transistorType === 'pnp') {
+        // PNP currents leave the emitter and enter base and collector.
+        addBranch(
+          component,
+          'emitter',
+          'base',
+          resultForComponent.baseCurrent ?? resultForComponent.branchCurrents?.['base'] ?? 0,
+        );
+        addBranch(
+          component,
+          'emitter',
+          'collector',
+          resultForComponent.collectorCurrent ??
+            resultForComponent.branchCurrents?.['collector'] ??
+            0,
+        );
+        continue;
+      }
       addBranch(
         component,
         'base',

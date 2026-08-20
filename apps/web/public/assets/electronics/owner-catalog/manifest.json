@@ -29679,41 +29679,41 @@
     },
     {
       "componentId": "transistor-npn",
-      "familyId": "transistor-npn",
-      "familyLabelRu": "NPN-транзистор",
-      "familyLabelEn": "NPN transistor",
+      "familyId": "transistor",
+      "familyLabelRu": "Транзистор",
+      "familyLabelEn": "Transistor",
       "variantId": "transistor-npn",
       "variantLabelRu": "NPN",
-      "variantLabelEn": "NPN transistor",
+      "variantLabelEn": "NPN",
       "category": "semiconductors",
       "subcategoryId": "transistors",
       "catalogOrder": 27,
       "appearsInBasic": true,
-      "searchAliases": ["transistor-npn", "NPN-транзистор", "NPN transistor"],
+      "searchAliases": ["transistor-npn", "NPN-транзистор", "NPN transistor", "транзистор"],
       "displayNameEn": "NPN transistor",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 8.267,
-      "physicalHeightMm": 13.333,
-      "viewBox": [0, 0, 437, 492],
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 5.79,
+      "physicalHeightMm": 9.6371,
+      "viewBox": [118, 54, 155, 258],
       "pins": [
         {
           "id": "base",
-          "xMm": 4.1932,
-          "yMm": 9.8739,
+          "xMm": 2.9135,
+          "yMm": 9.6371,
           "electricalRole": "base",
           "toleranceMm": 0
         },
         {
           "id": "collector",
-          "xMm": 2.3114,
-          "yMm": 9.8977,
+          "xMm": 0.3735,
+          "yMm": 9.6371,
           "electricalRole": "collector",
           "toleranceMm": 0
         },
         {
           "id": "emitter",
-          "xMm": 6.0751,
-          "yMm": 9.8977,
+          "xMm": 5.4535,
+          "yMm": 9.6371,
           "electricalRole": "emitter",
           "toleranceMm": 0
         }
@@ -29748,13 +29748,171 @@
       },
       "isDefaultVariant": true,
       "displayName": "NPN-транзистор",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/transistor-npn.svg",
-      "sourceSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
-      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/transistor-npn.svg",
-      "runtimeSha256": "33f463e9c60991bdd1dbb9a2acb9b786f65ac1d6b9a7e87c2510a61dbb3a0fe2",
+      "sourceOwnerArchive": "owner-drawn-svg",
+      "sourceOwnerPath": "owner-drawn/transistor-npn.svg",
+      "sourceSha256": "4781a74f85762c0ffafda3a554238a7ea1bd7d2b2128d34cba7ba7f50629e8b6",
+      "runtimePath": "/assets/electronics/owner-approved/transistor-npn.svg",
+      "runtimeSha256": "4781a74f85762c0ffafda3a554238a7ea1bd7d2b2128d34cba7ba7f50629e8b6",
       "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
+      "previousInventoryClassification": "owner_supplied"
+    },
+    {
+      "componentId": "transistor-pnp",
+      "familyId": "transistor",
+      "familyLabelRu": "Транзистор",
+      "familyLabelEn": "Transistor",
+      "variantId": "transistor-pnp",
+      "variantLabelRu": "PNP",
+      "variantLabelEn": "PNP",
+      "category": "semiconductors",
+      "subcategoryId": "transistors",
+      "catalogOrder": 27.1,
+      "appearsInBasic": true,
+      "searchAliases": ["transistor-pnp", "PNP-транзистор", "PNP transistor", "транзистор"],
+      "displayNameEn": "PNP transistor",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 5.79,
+      "physicalHeightMm": 9.6371,
+      "viewBox": [118, 54, 155, 258],
+      "pins": [
+        {
+          "id": "base",
+          "xMm": 2.9135,
+          "yMm": 9.6371,
+          "electricalRole": "base",
+          "toleranceMm": 0
+        },
+        {
+          "id": "collector",
+          "xMm": 0.3735,
+          "yMm": 9.6371,
+          "electricalRole": "collector",
+          "toleranceMm": 0
+        },
+        {
+          "id": "emitter",
+          "xMm": 5.4535,
+          "yMm": 9.6371,
+          "electricalRole": "emitter",
+          "toleranceMm": 0
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [-2.54, 0],
+          [2.54, 0]
+        ]
+      },
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "stateContract": {
+        "type": "static",
+        "state": "static"
+      },
+      "simulationSupport": "pnp_piecewise_linear_dc",
+      "blockReason": null,
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "rejected_runtime_manifest_non_art_metadata",
+        "artNotTrusted": true
+      },
+      "isDefaultVariant": false,
+      "displayName": "PNP-транзистор",
+      "sourceOwnerArchive": "owner-drawn-svg",
+      "sourceOwnerPath": "owner-drawn/transistor-pnp.svg",
+      "sourceSha256": "43baef760455ef41ae21aaaaa459db2ffa0e90fa894daa236cb7425173b40488",
+      "runtimePath": "/assets/electronics/owner-approved/transistor-pnp.svg",
+      "runtimeSha256": "43baef760455ef41ae21aaaaa459db2ffa0e90fa894daa236cb7425173b40488",
+      "status": "enabled",
+      "previousInventoryClassification": "owner_supplied"
+    },
+    {
+      "componentId": "transistor-fet",
+      "familyId": "transistor",
+      "familyLabelRu": "Транзистор",
+      "familyLabelEn": "Transistor",
+      "variantId": "transistor-fet",
+      "variantLabelRu": "Полевой (N-канал)",
+      "variantLabelEn": "N-channel FET",
+      "category": "semiconductors",
+      "subcategoryId": "transistors",
+      "catalogOrder": 27.2,
+      "appearsInBasic": true,
+      "searchAliases": ["transistor-fet", "полевой транзистор", "MOSFET", "FET", "транзистор"],
+      "displayNameEn": "N-channel FET",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 5.79,
+      "physicalHeightMm": 9.6371,
+      "viewBox": [118, 54, 155, 258],
+      "pins": [
+        {
+          "id": "gate",
+          "xMm": 2.9135,
+          "yMm": 9.6371,
+          "electricalRole": "gate",
+          "toleranceMm": 0
+        },
+        {
+          "id": "source",
+          "xMm": 0.3735,
+          "yMm": 9.6371,
+          "electricalRole": "source",
+          "toleranceMm": 0
+        },
+        {
+          "id": "drain",
+          "xMm": 5.4535,
+          "yMm": 9.6371,
+          "electricalRole": "drain",
+          "toleranceMm": 0
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [-2.54, 0],
+          [2.54, 0]
+        ]
+      },
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "stateContract": {
+        "type": "static",
+        "state": "static"
+      },
+      "simulationSupport": "nfet_educational_dc",
+      "blockReason": null,
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "rejected_runtime_manifest_non_art_metadata",
+        "artNotTrusted": true
+      },
+      "isDefaultVariant": false,
+      "displayName": "Полевой транзистор",
+      "sourceOwnerArchive": "owner-drawn-svg",
+      "sourceOwnerPath": "owner-drawn/transistor-fet.svg",
+      "sourceSha256": "8098d8d23ab33f2fa27fced92ec60b3fb89fef0cda7aa13d4a8b4fefb0c6e14b",
+      "runtimePath": "/assets/electronics/owner-approved/transistor-fet.svg",
+      "runtimeSha256": "8098d8d23ab33f2fa27fced92ec60b3fb89fef0cda7aa13d4a8b4fefb0c6e14b",
+      "status": "enabled",
+      "previousInventoryClassification": "owner_supplied"
     },
     {
       "componentId": "piezo",

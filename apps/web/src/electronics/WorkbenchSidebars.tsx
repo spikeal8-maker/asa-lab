@@ -38,7 +38,7 @@ function componentHelp(kind: string): string {
     potentiometer: 'Положение движка делит полное сопротивление на два плеча.',
     diode: 'Диод проводит ток от анода к катоду после достижения прямого падения напряжения.',
     transistor:
-      'NPN-транзистор управляет током коллектора током базы. Модель различает отсечку, активный режим и насыщение.',
+      'Биполярные NPN/PNP управляют током коллектора током базы; полевой (N-канал) — током стока от напряжения затвора. Модель различает отсечку, активный режим и насыщение.',
     lamp: 'Яркость лампы рассчитывается по электрической мощности на нити.',
     breadboard: 'Отверстия макетной платы соединены внутренними группами с шагом 2,54 мм.',
   };
@@ -92,6 +92,17 @@ export function WorkbenchSidebars({
     RESISTANCE_UNITS.some((candidate) => candidate.id === storedResistanceUnit)
       ? (storedResistanceUnit as ResistanceUnit)
       : defaultResistanceUnit(resistanceComponent?.value ?? 0);
+  const transistorType = (() => {
+    if (c.selectedComponent?.kind !== 'transistor') return null;
+    const raw = String(c.selectedComponent.stateProperties?.['transistorType'] ?? '');
+    if (raw === 'pnp' || raw === 'fet' || raw === 'npn') return raw;
+    const typeId = String(
+      c.selectedComponent.variantId ?? c.selectedComponent.componentTypeId ?? '',
+    );
+    if (typeId.includes('pnp')) return 'pnp';
+    if (typeId.includes('fet')) return 'fet';
+    return 'npn';
+  })();
   return (
     <>
       <aside
@@ -435,26 +446,54 @@ export function WorkbenchSidebars({
 
               {c.selectedComponent.kind === 'transistor' ? (
                 <fieldset className="workbench-state-controls">
-                  <legend>NPN-транзистор</legend>
-                  <label>
-                    <span>Коэффициент усиления hFE</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="1000"
-                      step="1"
-                      value={Number(
-                        c.selectedComponent.stateProperties?.['currentGain'] ??
-                          c.selectedComponent.value,
-                      )}
-                      onChange={(event) =>
-                        c.setSelectedProperties(
-                          { currentGain: Number(event.target.value) },
-                          'Коэффициент усиления транзистора изменён.',
-                        )
-                      }
-                    />
-                  </label>
+                  <legend>
+                    {transistorType === 'fet'
+                      ? 'Полевой транзистор (N-канал)'
+                      : transistorType === 'pnp'
+                        ? 'PNP-транзистор'
+                        : 'NPN-транзистор'}
+                  </legend>
+                  {transistorType === 'fet' ? (
+                    <label>
+                      <span>Пороговое напряжение затвора, В</span>
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="5"
+                        step="0.1"
+                        value={Number(
+                          c.selectedComponent.stateProperties?.['thresholdVoltage'] ??
+                            c.selectedComponent.value,
+                        )}
+                        onChange={(event) =>
+                          c.setSelectedProperties(
+                            { thresholdVoltage: Number(event.target.value) },
+                            'Пороговое напряжение транзистора изменено.',
+                          )
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <label>
+                      <span>Коэффициент усиления hFE</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        step="1"
+                        value={Number(
+                          c.selectedComponent.stateProperties?.['currentGain'] ??
+                            c.selectedComponent.value,
+                        )}
+                        onChange={(event) =>
+                          c.setSelectedProperties(
+                            { currentGain: Number(event.target.value) },
+                            'Коэффициент усиления транзистора изменён.',
+                          )
+                        }
+                      />
+                    </label>
+                  )}
                   <div className="workbench-calculated-property">
                     <span>Рабочая область</span>
                     <output>
@@ -462,9 +501,15 @@ export function WorkbenchSidebars({
                         ? 'Насыщение'
                         : measurement?.operatingRegion === 'active'
                           ? 'Активный режим'
-                          : 'Отсечка'}
+                          : measurement?.operatingRegion === 'ohmic'
+                            ? 'Омическая область'
+                            : 'Отсечка'}
                     </output>
-                    <small>VBE 0,7 В · VCE(sat) 0,2 В</small>
+                    <small>
+                      {transistorType === 'fet'
+                        ? `VGS(th) ${Number(c.selectedComponent.stateProperties?.['thresholdVoltage'] ?? 2).toFixed(1)} В · ток затвора 0`
+                        : 'VBE 0,7 В · VCE(sat) 0,2 В'}
+                    </small>
                   </div>
                 </fieldset>
               ) : null}
@@ -594,15 +639,15 @@ export function WorkbenchSidebars({
                   {c.selectedComponent.kind === 'transistor' ? (
                     <>
                       <div>
-                        <dt>Ток базы</dt>
+                        <dt>{transistorType === 'fet' ? 'Ток затвора' : 'Ток базы'}</dt>
                         <dd>{formatCurrent(measurement.baseCurrent ?? 0)}</dd>
                       </div>
                       <div>
-                        <dt>Ток коллектора</dt>
+                        <dt>{transistorType === 'fet' ? 'Ток стока' : 'Ток коллектора'}</dt>
                         <dd>{formatCurrent(measurement.collectorCurrent ?? 0)}</dd>
                       </div>
                       <div>
-                        <dt>Ток эмиттера</dt>
+                        <dt>{transistorType === 'fet' ? 'Ток истока' : 'Ток эмиттера'}</dt>
                         <dd>{formatCurrent(measurement.emitterCurrent ?? 0)}</dd>
                       </div>
                     </>
@@ -614,7 +659,13 @@ export function WorkbenchSidebars({
                     </div>
                   ) : null}
                   <div>
-                    <dt>{c.selectedComponent.kind === 'transistor' ? 'VCE' : 'Падение'}</dt>
+                    <dt>
+                      {c.selectedComponent.kind === 'transistor'
+                        ? transistorType === 'fet'
+                          ? 'VDS'
+                          : 'VCE'
+                        : 'Падение'}
+                    </dt>
                     <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
                   </div>
                   {measurement.power !== undefined ? (

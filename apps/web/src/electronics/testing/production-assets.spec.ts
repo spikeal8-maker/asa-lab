@@ -93,11 +93,11 @@ describe('Electronics owner SVG foundation', () => {
 
     const transistor = catalog.find((item) => item.key === 'transistor-npn');
     expect(transistor?.assetFit).toBe('meet');
-    expect(transistor?.viewBox).toEqual({ x: 0, y: 0, width: 437, height: 492 });
+    expect(transistor?.viewBox).toEqual({ x: 118, y: 54, width: 155, height: 258 });
     expect(transistor?.terminals).toMatchObject({
-      base: { xMm: 4.1932, yMm: 9.8739 },
-      collector: { xMm: 2.3114, yMm: 9.8977 },
-      emitter: { xMm: 6.0751, yMm: 9.8977 },
+      base: { xMm: 2.9135, yMm: 9.6371 },
+      collector: { xMm: 0.3735, yMm: 9.6371 },
+      emitter: { xMm: 5.4535, yMm: 9.6371 },
     });
     expect(transistor?.footprint?.pinOffsetsMm).toEqual([
       [0, 0],

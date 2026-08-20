@@ -54,7 +54,9 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'rgb-led': [8.75, 10.125],
   'seven-segment-display': [12.7, 19.05],
   'incandescent-lamp': [20, 30],
-  'transistor-npn': [8.267, 13.333],
+  'transistor-npn': [5.79, 9.6371],
+  'transistor-pnp': [5.79, 9.6371],
+  'transistor-fet': [5.79, 9.6371],
   'arduino-uno': [78.74, 58.816875],
 } as const;
 
@@ -230,7 +232,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'vibration-motor',
       'dc-motor',
       'servo',
-      'transistor-npn',
+      'transistor',
       'rgb-led',
       'diode',
       'photoresistor',

@@ -67,7 +67,7 @@ export interface ComponentResult {
   readonly energized?: boolean;
   readonly currentUtilizationPercent?: number;
   readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
-  readonly operatingRegion?: 'cutoff' | 'active' | 'saturation';
+  readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
   readonly collectorCurrent?: number;
   readonly emitterCurrent?: number;
@@ -107,6 +107,10 @@ const NPN_DEFAULT_SATURATION_VOLTAGE = 0.2;
 const NPN_BASE_EMITTER_RESISTANCE = 10;
 const NPN_SATURATION_RESISTANCE = 0.5;
 const NPN_DEFAULT_MAX_COLLECTOR_CURRENT_A = 0.2;
+const FET_DEFAULT_THRESHOLD_VOLTAGE = 2;
+const FET_DEFAULT_TRANSCONDUCTANCE_FACTOR = 0.05;
+const FET_DEFAULT_MAX_DRAIN_CURRENT_A = 0.5;
+const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
 
 function formatReferenceMilliamp(currentAmp: number): string {
   const rounded = Math.round(Math.abs(currentAmp) * 10_000) / 10;
@@ -138,9 +142,12 @@ interface DiodeBranch {
   readonly nearLimitWarning: boolean;
 }
 
-type TransistorOperatingRegion = 'cutoff' | 'active' | 'saturation';
+type TransistorOperatingRegion = 'cutoff' | 'active' | 'saturation' | 'ohmic';
 
-interface NpnTransistorModel {
+type TransistorType = 'npn' | 'pnp' | 'fet';
+
+interface BjtTransistorModel {
+  readonly transistorType: 'npn' | 'pnp';
   readonly component: SchematicComponent;
   readonly base: Terminal;
   readonly collector: Terminal;
@@ -150,6 +157,19 @@ interface NpnTransistorModel {
   readonly saturationVoltage: number;
   readonly maxCollectorCurrent: number;
 }
+
+interface FetTransistorModel {
+  readonly transistorType: 'fet';
+  readonly component: SchematicComponent;
+  readonly gate: Terminal;
+  readonly source: Terminal;
+  readonly drain: Terminal;
+  readonly thresholdVoltage: number;
+  readonly transconductanceFactor: number;
+  readonly maxDrainCurrent: number;
+}
+
+type TransistorModel = BjtTransistorModel | FetTransistorModel;
 
 function boundedProperty(
   component: SchematicComponent,
@@ -162,9 +182,50 @@ function boundedProperty(
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
-function npnModel(component: SchematicComponent): NpnTransistorModel | null {
+export function transistorTypeOf(component: SchematicComponent): TransistorType {
+  const raw = String(component.stateProperties?.['transistorType'] ?? '').toLowerCase();
+  if (raw === 'pnp' || raw === 'fet' || raw === 'npn') return raw;
+  const typeId = component.componentTypeId ?? '';
+  if (typeId.includes('pnp')) return 'pnp';
+  if (typeId.includes('fet')) return 'fet';
+  return 'npn';
+}
+
+function transistorModel(component: SchematicComponent): TransistorModel | null {
   if (component.kind !== 'transistor') return null;
+  const transistorType = transistorTypeOf(component);
+  if (transistorType === 'fet') {
+    return {
+      transistorType,
+      component,
+      gate: 'gate',
+      source: 'source',
+      drain: 'drain',
+      thresholdVoltage: boundedProperty(
+        component,
+        'thresholdVoltage',
+        FET_DEFAULT_THRESHOLD_VOLTAGE,
+        0.5,
+        5,
+      ),
+      transconductanceFactor: boundedProperty(
+        component,
+        'transconductanceFactor',
+        FET_DEFAULT_TRANSCONDUCTANCE_FACTOR,
+        0.001,
+        10,
+      ),
+      maxDrainCurrent: boundedProperty(
+        component,
+        'maxDrainCurrent',
+        FET_DEFAULT_MAX_DRAIN_CURRENT_A,
+        0.001,
+        20,
+      ),
+    };
+  }
   return {
+    transistorType,
     component,
     base: 'base',
     collector: 'collector',
@@ -405,6 +466,29 @@ function propertyError(component: SchematicComponent): string | null {
   if ((component.kind === 'led' || component.kind === 'diode') && component.value <= 0)
     return 'Прямое падение напряжения должно быть больше нуля.';
   if (component.kind === 'transistor') {
+    if (transistorTypeOf(component) === 'fet') {
+      const thresholdVoltage = Number(
+        component.stateProperties?.['thresholdVoltage'] ?? FET_DEFAULT_THRESHOLD_VOLTAGE,
+      );
+      const transconductanceFactor = Number(
+        component.stateProperties?.['transconductanceFactor'] ??
+          FET_DEFAULT_TRANSCONDUCTANCE_FACTOR,
+      );
+      const maxDrainCurrent = Number(
+        component.stateProperties?.['maxDrainCurrent'] ?? FET_DEFAULT_MAX_DRAIN_CURRENT_A,
+      );
+      if (!Number.isFinite(thresholdVoltage) || thresholdVoltage < 0.5 || thresholdVoltage > 5)
+        return 'Пороговое напряжение затвора должно быть от 0,5 до 5 В.';
+      if (
+        !Number.isFinite(transconductanceFactor) ||
+        transconductanceFactor < 0.001 ||
+        transconductanceFactor > 10
+      )
+        return 'Крутизна полевого транзистора должна быть от 0,001 до 10 А/В².';
+      if (!Number.isFinite(maxDrainCurrent) || maxDrainCurrent < 0.001 || maxDrainCurrent > 20)
+        return 'Допустимый ток стока должен быть от 1 мА до 20 А.';
+      return null;
+    }
     const currentGain = Number(component.stateProperties?.['currentGain'] ?? component.value);
     const baseEmitterVoltage = Number(
       component.stateProperties?.['baseEmitterVoltage'] ?? NPN_DEFAULT_BASE_EMITTER_VOLTAGE,
@@ -627,11 +711,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   const diodeBranches = document.components.flatMap(componentDiodeBranches);
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
-  const npnTransistors = document.components.flatMap((component) => {
-    const model = npnModel(component);
+  const transistorModels = document.components.flatMap((component) => {
+    const model = transistorModel(component);
     return model ? [model] : [];
   });
   const transistorRegions = new Map<string, TransistorOperatingRegion>();
+  const fetOverdrives = new Map<string, number>();
   // Start nonlinear junctions open. A real forward voltage discovered by the
   // first linear solve turns them on; an isolated LED must not create its own
   // artificial voltage across otherwise floating terminals.
@@ -640,8 +725,9 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     diodeStates.set(key, false);
     diodeSegmentIndices.set(key, 0);
   }
-  for (const transistor of npnTransistors) {
+  for (const transistor of transistorModels) {
     transistorRegions.set(transistor.component.id, 'cutoff');
+    if (transistor.transistorType === 'fet') fetOverdrives.set(transistor.component.id, 0);
   }
 
   let solution: number[] | null = null;
@@ -737,11 +823,37 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       }
     }
 
-    for (const transistor of npnTransistors) {
+    for (const transistor of transistorModels) {
+      const region = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      if (transistor.transistorType === 'fet') {
+        const drain = physicalNodeIndex(transistor.component, transistor.drain);
+        const source = physicalNodeIndex(transistor.component, transistor.source);
+        const gate = physicalNodeIndex(transistor.component, transistor.gate);
+        if (region === 'cutoff') {
+          stampConductance(drain, source, GMIN);
+          continue;
+        }
+        const overdrive = Math.max(0, fetOverdrives.get(transistor.component.id) ?? 0);
+        if (region === 'active') {
+          // Saturation region: drain current source Id = gm · (Vgs − Vth),
+          // gm = k · Vov from the previous iteration (fixed-point style).
+          const transconductance = transistor.transconductanceFactor * overdrive;
+          stampConductance(drain, source, FET_MIN_OHMIC_CONDUCTANCE);
+          stampVccs(drain, source, gate, source, transconductance);
+          stampOffset(drain, source, transconductance * transistor.thresholdVoltage);
+        } else {
+          // Ohmic (triode) region: drain–source behaves as a conductance k · Vov.
+          const conductance = Math.max(
+            FET_MIN_OHMIC_CONDUCTANCE,
+            transistor.transconductanceFactor * overdrive,
+          );
+          stampConductance(drain, source, conductance);
+        }
+        continue;
+      }
       const base = physicalNodeIndex(transistor.component, transistor.base);
       const collector = physicalNodeIndex(transistor.component, transistor.collector);
       const emitter = physicalNodeIndex(transistor.component, transistor.emitter);
-      const region = transistorRegions.get(transistor.component.id) ?? 'cutoff';
       if (region === 'cutoff') {
         stampConductance(base, emitter, GMIN);
         stampConductance(collector, emitter, GMIN);
@@ -750,6 +862,21 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
 
       const baseEmitterConductance = 1 / NPN_BASE_EMITTER_RESISTANCE;
       stampConductance(base, emitter, baseEmitterConductance);
+      if (transistor.transistorType === 'pnp') {
+        // PNP mirrors NPN: the junction conducts emitter → base and the
+        // collector current flows emitter → collector.
+        stampOffset(emitter, base, baseEmitterConductance * transistor.baseEmitterVoltage);
+        if (region === 'active') {
+          const transconductance = transistor.currentGain * baseEmitterConductance;
+          stampVccs(emitter, collector, emitter, base, transconductance);
+          stampOffset(emitter, collector, transconductance * transistor.baseEmitterVoltage);
+        } else {
+          const saturationConductance = 1 / NPN_SATURATION_RESISTANCE;
+          stampConductance(collector, emitter, saturationConductance);
+          stampOffset(emitter, collector, saturationConductance * transistor.saturationVoltage);
+        }
+        continue;
+      }
       stampOffset(base, emitter, baseEmitterConductance * transistor.baseEmitterVoltage);
       if (region === 'active') {
         const transconductance = transistor.currentGain * baseEmitterConductance;
@@ -806,7 +933,36 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         changed = true;
       }
     }
-    for (const transistor of npnTransistors) {
+    for (const transistor of transistorModels) {
+      const currentRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      if (transistor.transistorType === 'fet') {
+        const gateVoltage = voltageFrom(
+          solution,
+          physicalNodeIndex(transistor.component, transistor.gate),
+        );
+        const drainVoltage = voltageFrom(
+          solution,
+          physicalNodeIndex(transistor.component, transistor.drain),
+        );
+        const sourceVoltage = voltageFrom(
+          solution,
+          physicalNodeIndex(transistor.component, transistor.source),
+        );
+        const overdrive = gateVoltage - sourceVoltage - transistor.thresholdVoltage;
+        const drainSourceDrop = drainVoltage - sourceVoltage;
+        fetOverdrives.set(transistor.component.id, Math.max(0, overdrive));
+        const nextRegion: TransistorOperatingRegion =
+          overdrive <= 0.02
+            ? 'cutoff'
+            : drainSourceDrop >= overdrive - (currentRegion === 'active' ? 0.05 : 0)
+              ? 'active'
+              : 'ohmic';
+        if (nextRegion !== currentRegion) {
+          transistorRegions.set(transistor.component.id, nextRegion);
+          changed = true;
+        }
+        continue;
+      }
       const baseVoltage = voltageFrom(
         solution,
         physicalNodeIndex(transistor.component, transistor.base),
@@ -819,9 +975,15 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         solution,
         physicalNodeIndex(transistor.component, transistor.emitter),
       );
-      const baseEmitterDrop = baseVoltage - emitterVoltage;
-      const collectorEmitterDrop = collectorVoltage - emitterVoltage;
-      const currentRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      // For PNP the junction voltages are measured emitter-relative.
+      const baseEmitterDrop =
+        transistor.transistorType === 'pnp'
+          ? emitterVoltage - baseVoltage
+          : baseVoltage - emitterVoltage;
+      const collectorEmitterDrop =
+        transistor.transistorType === 'pnp'
+          ? emitterVoltage - collectorVoltage
+          : collectorVoltage - emitterVoltage;
       const nextRegion: TransistorOperatingRegion =
         baseEmitterDrop < transistor.baseEmitterVoltage - 0.02
           ? 'cutoff'
@@ -907,13 +1069,48 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     };
   };
   const transistorResultById = new Map(
-    npnTransistors.map((transistor) => {
+    transistorModels.map((transistor) => {
       const operatingRegion = transistorRegions.get(transistor.component.id) ?? 'cutoff';
+      if (transistor.transistorType === 'fet') {
+        const gateVoltage = physicalVoltageAt(transistor.component, transistor.gate);
+        const drainVoltage = physicalVoltageAt(transistor.component, transistor.drain);
+        const sourceVoltage = physicalVoltageAt(transistor.component, transistor.source);
+        const gateSourceDrop = gateVoltage - sourceVoltage;
+        const drainSourceDrop = drainVoltage - sourceVoltage;
+        const overdrive = Math.max(0, gateSourceDrop - transistor.thresholdVoltage);
+        const drainCurrent =
+          operatingRegion === 'cutoff'
+            ? 0
+            : operatingRegion === 'active'
+              ? transistor.transconductanceFactor * overdrive * overdrive
+              : Math.max(0, transistor.transconductanceFactor * overdrive * drainSourceDrop);
+        return [
+          transistor.component.id,
+          {
+            operatingRegion,
+            baseEmitterDrop: gateSourceDrop,
+            collectorEmitterDrop: drainSourceDrop,
+            baseCurrent: 0,
+            collectorCurrent: drainCurrent,
+            emitterCurrent: drainCurrent,
+            currentGain: 0,
+            maxCollectorCurrent: transistor.maxDrainCurrent,
+          },
+        ] as const;
+      }
       const baseVoltage = physicalVoltageAt(transistor.component, transistor.base);
       const collectorVoltage = physicalVoltageAt(transistor.component, transistor.collector);
       const emitterVoltage = physicalVoltageAt(transistor.component, transistor.emitter);
-      const baseEmitterDrop = baseVoltage - emitterVoltage;
-      const collectorEmitterDrop = collectorVoltage - emitterVoltage;
+      // For PNP both junction drops are reported emitter-relative, so the same
+      // thresholds and diagnostics apply as for NPN.
+      const baseEmitterDrop =
+        transistor.transistorType === 'pnp'
+          ? emitterVoltage - baseVoltage
+          : baseVoltage - emitterVoltage;
+      const collectorEmitterDrop =
+        transistor.transistorType === 'pnp'
+          ? emitterVoltage - collectorVoltage
+          : collectorVoltage - emitterVoltage;
       const baseCurrent =
         operatingRegion === 'cutoff'
           ? 0
@@ -992,11 +1189,17 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
               : current * voltageDrop,
       );
       const branchCurrents = transistorResult
-        ? {
-            base: roundCurrent(transistorResult.baseCurrent),
-            collector: roundCurrent(transistorResult.collectorCurrent),
-            emitter: roundCurrent(transistorResult.emitterCurrent),
-          }
+        ? transistorTypeOf(component) === 'fet'
+          ? {
+              gate: roundCurrent(transistorResult.baseCurrent),
+              drain: roundCurrent(transistorResult.collectorCurrent),
+              source: roundCurrent(transistorResult.emitterCurrent),
+            }
+          : {
+              base: roundCurrent(transistorResult.baseCurrent),
+              collector: roundCurrent(transistorResult.collectorCurrent),
+              emitter: roundCurrent(transistorResult.emitterCurrent),
+            }
         : Object.fromEntries(
             branchResults.map(({ branch, current: branchCurrent }) => [
               branch.id,
@@ -1166,9 +1369,30 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     }
   }
 
-  for (const transistor of npnTransistors) {
+  for (const transistor of transistorModels) {
     const result = transistorResultById.get(transistor.component.id);
     if (!result) continue;
+    if (transistor.transistorType === 'fet') {
+      if (Math.abs(result.baseEmitterDrop) > 20) {
+        diagnostics.push({
+          code: 'transistor_reverse_bias',
+          severity: 'error',
+          message: `${transistor.component.name ?? transistor.component.id}: напряжение затвор–исток ${result.baseEmitterDrop.toFixed(1)} В превышает пробивное для затвора.`,
+          componentIds: [transistor.component.id],
+          suggestedAction: 'Проверьте распиновку S, G, D и полярность питания.',
+        });
+      }
+      if (result.collectorCurrent > result.maxCollectorCurrent) {
+        diagnostics.push({
+          code: 'transistor_overcurrent',
+          severity: 'error',
+          message: `${transistor.component.name ?? transistor.component.id}: ток стока ${(result.collectorCurrent * 1000).toFixed(1)} мА превышает допустимые ${(result.maxCollectorCurrent * 1000).toFixed(1)} мА.`,
+          componentIds: [transistor.component.id],
+          suggestedAction: 'Увеличьте сопротивление нагрузки или уменьшите напряжение затвора.',
+        });
+      }
+      continue;
+    }
     if (result.baseEmitterDrop < -5) {
       diagnostics.push({
         code: 'transistor_reverse_bias',

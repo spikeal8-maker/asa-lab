@@ -183,6 +183,8 @@ const SIMULATED_TYPES = new Set([
   'diode-do35',
   'diode-do41',
   'transistor-npn',
+  'transistor-pnp',
+  'transistor-fet',
   'incandescent-lamp',
   'rgb-led',
   'seven-segment-display',
@@ -209,6 +211,8 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'regulated-power-supply': 'Регулируемый лабораторный источник питания.',
   photoresistor: 'Фоторезистор изменяет сопротивление в зависимости от освещения.',
   'transistor-npn': 'NPN-транзистор для усиления и переключения электрического сигнала.',
+  transistor:
+    'Транзистор для усиления и переключения сигнала: NPN, PNP или полевой (N-канал). Тип выбирается в панели настроек.',
   piezo: 'Пьезоизлучатель преобразует электрический сигнал в звук.',
   multimeter: 'Измерительный прибор для напряжения, тока и сопротивления.',
 };
@@ -223,7 +227,7 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (componentId === 'switch-spdt') return 'switch';
   if (componentId === 'potentiometer') return 'potentiometer';
   if (componentId.startsWith('diode-')) return 'diode';
-  if (componentId === 'transistor-npn') return 'transistor';
+  if (componentId.startsWith('transistor-')) return 'transistor';
   if (componentId === 'incandescent-lamp') return 'lamp';
   if (componentId.startsWith('breadboard-')) return 'breadboard';
   return 'visual';
@@ -245,7 +249,7 @@ function preview(componentId: string, kind: Exclude<ComponentKind, 'wire'>): Pre
   if (componentId === 'servo-motor') return 'servo';
   if (componentId === 'dc-motor') return 'motor';
   if (componentId === 'vibration-motor') return 'vibration-motor';
-  if (componentId === 'transistor-npn') return 'transistor';
+  if (componentId.startsWith('transistor-')) return 'transistor';
   if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId === 'rgb-led') return 'rgb-led';
   if (componentId === 'seven-segment-display') return 'seven-segment';
@@ -307,15 +311,27 @@ function defaults(componentId: string): {
       properties: { resistanceUnit: 'kΩ' },
     };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
-  if (componentId === 'transistor-npn')
+  if (componentId === 'transistor-npn' || componentId === 'transistor-pnp')
     return {
       value: 100,
       unit: 'hFE',
       properties: {
+        transistorType: componentId === 'transistor-pnp' ? 'pnp' : 'npn',
         currentGain: 100,
         baseEmitterVoltage: 0.7,
         saturationVoltage: 0.2,
         maxCollectorCurrent: 0.2,
+      },
+    };
+  if (componentId === 'transistor-fet')
+    return {
+      value: 2,
+      unit: 'В',
+      properties: {
+        transistorType: 'fet',
+        thresholdVoltage: 2,
+        transconductanceFactor: 0.05,
+        maxDrainCurrent: 0.5,
       },
     };
   if (componentId === 'incandescent-lamp')
@@ -364,6 +380,9 @@ function pinLabel(componentId: string, pinId: string): string {
     base: 'B',
     collector: 'C',
     emitter: 'E',
+    gate: 'G',
+    source: 'S',
+    drain: 'D',
   };
   const arduinoLabels: Readonly<Record<string, string>> = {
     a0: 'A0',

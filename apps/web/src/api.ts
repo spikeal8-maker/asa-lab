@@ -520,7 +520,7 @@ export interface ComponentResult {
   energized?: boolean;
   currentUtilizationPercent?: number;
   stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
-  operatingRegion?: 'cutoff' | 'active' | 'saturation';
+  operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   baseCurrent?: number;
   collectorCurrent?: number;
   emitterCurrent?: number;

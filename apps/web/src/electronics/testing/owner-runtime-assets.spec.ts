@@ -25,9 +25,15 @@ describe('owner SVG runtime catalog adapter', () => {
     expect(ownerCatalogItems().length).toBeGreaterThan(33);
     expect(productionCatalog().length).toBeGreaterThan(0);
 
-    // Arduino and the hand-redrawn 9 V «Крона» live under owner-approved;
+    // Arduino, the hand-redrawn 9 V «Крона» and the owner-drawn transistors live under owner-approved;
     // every other enabled part keeps its byte-exact owner archive SVG.
-    const ownerApproved = new Set(['arduino-uno', 'battery-9v']);
+    const ownerApproved = new Set([
+      'arduino-uno',
+      'battery-9v',
+      'transistor-npn',
+      'transistor-pnp',
+      'transistor-fet',
+    ]);
     for (const item of productionCatalog()) {
       expect(item.catalogStatus, item.key).toBe('enabled');
       expect(item.provenance, item.key).toBe(
