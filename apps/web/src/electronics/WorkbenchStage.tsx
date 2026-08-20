@@ -819,6 +819,10 @@ export function WorkbenchStage({
                   cx={displayed.x}
                   cy={displayed.y}
                   r={5 / c.viewport.zoom}
+                  // The endpoint in hand rides exactly under the pointer. It must
+                  // not eat hit-testing: the terminal beneath it still needs the
+                  // hover highlight and the drop target lookup.
+                  pointerEvents={c.reconnectEndpoint === endpoint ? 'none' : undefined}
                   fill={selectedWire.color ?? '#e3212b'}
                   onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
                   role="button"

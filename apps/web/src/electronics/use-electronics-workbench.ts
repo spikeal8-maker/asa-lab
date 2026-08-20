@@ -918,19 +918,28 @@ export function useElectronicsWorkbench(projectId: string) {
     event.preventDefault();
   }
 
+  // The dragged wire endpoint rides under the pointer, so a plain
+  // elementFromPoint finds the endpoint itself instead of the terminal below.
+  // Walk the whole stack under the pointer and take the first real terminal.
+  function terminalTargetAt(
+    clientX: number,
+    clientY: number,
+  ): { componentId: string; terminal: Terminal } | null {
+    for (const element of globalThis.document.elementsFromPoint(clientX, clientY)) {
+      const target = element.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
+      const componentId = target?.dataset['terminalComponentId'];
+      const terminal = target?.dataset['terminalId'];
+      if (componentId && terminal) return { componentId, terminal: terminal as Terminal };
+    }
+    return null;
+  }
+
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
     const world = toWorld(event);
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
       setWirePreviewEnd(world);
-      const target = globalThis.document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
-      const componentId = target?.dataset['terminalComponentId'];
-      const terminal = target?.dataset['terminalId'];
-      setReconnectHover(
-        componentId && terminal ? { componentId, terminal: terminal as Terminal } : null,
-      );
+      setReconnectHover(terminalTargetAt(event.clientX, event.clientY));
       return;
     }
     const potentiometerDrag = potentiometerDragRef.current;
@@ -1041,11 +1050,9 @@ export function useElectronicsWorkbench(projectId: string) {
     if (endpointDrag?.pointerId === event.pointerId) {
       endpointDragRef.current = null;
       setReconnectHover(null);
-      const target = globalThis.document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
-      const componentId = target?.dataset['terminalComponentId'];
-      const terminal = target?.dataset['terminalId'];
+      const target = terminalTargetAt(event.clientX, event.clientY);
+      const componentId = target?.componentId;
+      const terminal = target?.terminal;
       if (document && componentId && terminal) {
         const next = reconnectWireEndpoint(document, endpointDrag.wireId, endpointDrag.endpoint, {
           componentId,
