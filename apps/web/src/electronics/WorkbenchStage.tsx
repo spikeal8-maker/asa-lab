@@ -566,10 +566,8 @@ export function WorkbenchStage({
                         );
                         if (!point) return null;
                         const pending =
-                          (c.pendingTerminal?.componentId === component.id &&
-                            c.pendingTerminal.terminal === hole.id) ||
-                          (c.reconnectHover?.componentId === component.id &&
-                            c.reconnectHover.terminal === hole.id);
+                          c.pendingTerminal?.componentId === component.id &&
+                          c.pendingTerminal.terminal === hole.id;
                         const connected =
                           hoveredBreadboardNet?.boardId === component.id &&
                           hoveredBreadboardNet.groupId === hole.groupId;
@@ -647,10 +645,8 @@ export function WorkbenchStage({
                   );
                   if (!point) return null;
                   const pending =
-                    (c.pendingTerminal?.componentId === component.id &&
-                      c.pendingTerminal.terminal === terminal) ||
-                    (c.reconnectHover?.componentId === component.id &&
-                      c.reconnectHover.terminal === terminal);
+                    c.pendingTerminal?.componentId === component.id &&
+                    c.pendingTerminal.terminal === terminal;
                   const connected = c.terminalConnectionCount(component.id, terminal) > 0;
                   return (
                     <g
@@ -803,30 +799,23 @@ export function WorkbenchStage({
                 ['from', selectedWireFrom],
                 ['to', selectedWireTo],
               ] as const
-            ).map(([endpoint, point]) => {
-              // The endpoint in hand travels with the pointer instead of
-              // sitting on the old contact — the old dot was reading as if the
-              // wire were still attached there.
-              const displayed =
-                c.reconnectEndpoint === endpoint && c.wirePreviewEnd ? c.wirePreviewEnd : point;
-              return (
-                <circle
-                  key={endpoint}
-                  className="workbench-wire-endpoint"
-                  data-testid="wire-endpoint"
-                  data-wire-id={selectedWire.id}
-                  data-wire-endpoint={endpoint}
-                  cx={displayed.x}
-                  cy={displayed.y}
-                  r={5 / c.viewport.zoom}
-                  fill={selectedWire.color ?? '#e3212b'}
-                  onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${endpoint === 'from' ? 'Начало' : 'Конец'} провода`}
-                />
-              );
-            })}
+            ).map(([endpoint, point]) => (
+              <circle
+                key={endpoint}
+                className="workbench-wire-endpoint"
+                data-testid="wire-endpoint"
+                data-wire-id={selectedWire.id}
+                data-wire-endpoint={endpoint}
+                cx={point.x}
+                cy={point.y}
+                r={5 / c.viewport.zoom}
+                fill={selectedWire.color ?? '#e3212b'}
+                onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
+                role="button"
+                tabIndex={0}
+                aria-label={`${endpoint === 'from' ? 'Начало' : 'Конец'} провода`}
+              />
+            ))}
           </g>
         ) : null}
         {c.catalogPlacementComponent ? (

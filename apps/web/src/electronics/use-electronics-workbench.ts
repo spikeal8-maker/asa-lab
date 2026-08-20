@@ -149,13 +149,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const [draggingComponents, setDraggingComponents] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeDrag | null>(null);
   const [reconnectEndpoint, setReconnectEndpoint] = useState<'from' | 'to' | null>(null);
-  // While an endpoint drag holds pointer capture on the stage, CSS :hover no
-  // longer follows the pointer — the terminal under it never lights up. The
-  // hover target is therefore tracked explicitly and applied as a class.
-  const [reconnectHover, setReconnectHover] = useState<{
-    componentId: string;
-    terminal: Terminal;
-  } | null>(null);
 
   const stageRef = useRef<SVGSVGElement>(null);
   const catalogPlacementRef = useRef<CatalogPlacement | null>(null);
@@ -599,7 +592,6 @@ export function useElectronicsWorkbench(projectId: string) {
   function beginReconnect(endpoint: 'from' | 'to'): void {
     if (selection?.kind !== 'wire') return;
     setReconnectEndpoint(endpoint);
-    setReconnectHover(null);
     setWirePreviewEnd(null);
     setNotice('Выберите новый вывод для переподключения провода.');
   }
@@ -618,7 +610,6 @@ export function useElectronicsWorkbench(projectId: string) {
       });
       if (next) commitDocument(next, 'Конец провода переподключён.');
       setReconnectEndpoint(null);
-      setReconnectHover(null);
       setWirePreviewEnd(null);
       return;
     }
@@ -923,14 +914,6 @@ export function useElectronicsWorkbench(projectId: string) {
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
       setWirePreviewEnd(world);
-      const target = globalThis.document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
-      const componentId = target?.dataset['terminalComponentId'];
-      const terminal = target?.dataset['terminalId'];
-      setReconnectHover(
-        componentId && terminal ? { componentId, terminal: terminal as Terminal } : null,
-      );
       return;
     }
     const potentiometerDrag = potentiometerDragRef.current;
@@ -1040,7 +1023,6 @@ export function useElectronicsWorkbench(projectId: string) {
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
       endpointDragRef.current = null;
-      setReconnectHover(null);
       const target = globalThis.document
         .elementFromPoint(event.clientX, event.clientY)
         ?.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
@@ -1253,7 +1235,6 @@ export function useElectronicsWorkbench(projectId: string) {
     endpointDragRef.current = { pointerId: event.pointerId, wireId, endpoint };
     setSelection({ kind: 'wire', id: wireId });
     setReconnectEndpoint(endpoint);
-    setReconnectHover(null);
     setWirePreviewEnd(toWorld(event));
     stageRef.current?.setPointerCapture(event.pointerId);
     event.stopPropagation();
@@ -1606,7 +1587,6 @@ export function useElectronicsWorkbench(projectId: string) {
     removeWireBends,
     beginReconnect,
     reconnectEndpoint,
-    reconnectHover,
     clickTerminal,
     startComponentDrag,
     startPotentiometerControl,
