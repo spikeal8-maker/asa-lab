@@ -49,11 +49,171 @@ interface CourseRow {
   summary: string | null;
   visibility: string;
   age_band: string | null;
-  item_count: number | string;
+  section_count: number | string;
+  lesson_count: number | string;
+  assignment_count: number | string;
   shared_with: number | string;
   copied_from_course_id: string | null;
+  publication_state: 'draft' | 'published' | 'changed';
+  published_version: number | string | null;
+  published_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
+}
+
+interface CoursePublishRow {
+  result_code: 'ok' | 'course_not_found' | 'course_empty';
+  version_id: string | null;
+  version_number: number | string | null;
+  published_at: Date | string | null;
+  reused: boolean;
+}
+
+interface ClassroomCourseRunRow {
+  run_id: string;
+  course_id: string;
+  course_version_id: string;
+  version_number: number | string;
+  run_title: string;
+  run_summary: string | null;
+  due_at: Date | string | null;
+  run_status: 'open' | 'closed';
+  published_at: Date | string;
+  started_count: number | string;
+  submitted_count: number | string;
+  lesson_id: string;
+  source_lesson_id: string;
+  section_title: string;
+  section_summary: string | null;
+  section_position: number | string;
+  lesson_title: string;
+  lesson_summary: string | null;
+  lesson_content: string | null;
+  lesson_kind: 'material' | 'assignment';
+  estimated_minutes: number | string | null;
+  lesson_position: number | string;
+  classroom_assignment_id: string | null;
+  assignment_title: string | null;
+  assignment_goal: string | null;
+  assignment_brief: string | null;
+  module_key: string | null;
+  sample_image: string | null;
+  seat_count: number | string;
+  lesson_started_count: number | string;
+  lesson_submitted_count: number | string;
+  lesson_completed_count: number | string;
+}
+
+function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
+  const runs: Array<{
+    id: string;
+    courseId: string;
+    courseVersionId: string;
+    versionNumber: number;
+    title: string;
+    summary: string | null;
+    dueAt: string | null;
+    status: 'open' | 'closed';
+    publishedAt: string;
+    startedCount: number;
+    submittedCount: number;
+    sections: Array<{
+      id: string;
+      title: string;
+      summary: string | null;
+      position: number;
+      lessons: Array<{
+        id: string;
+        sourceLessonId: string;
+        title: string;
+        summary: string | null;
+        content: string | null;
+        kind: 'material' | 'assignment';
+        estimatedMinutes: number | null;
+        position: number;
+        classroomAssignmentId: string | null;
+        assignmentTitle: string | null;
+        assignmentGoal: string | null;
+        assignmentBrief: string | null;
+        moduleKey: string | null;
+        sampleImage: string | null;
+        seatCount: number;
+        startedCount: number;
+        submittedCount: number;
+        completedCount: number;
+      }>;
+    }>;
+  }> = [];
+  for (const row of rows) {
+    let run = runs.find((entry) => entry.id === row.run_id);
+    if (!run) {
+      run = {
+        id: row.run_id,
+        courseId: row.course_id,
+        courseVersionId: row.course_version_id,
+        versionNumber: Number(row.version_number),
+        title: row.run_title,
+        summary: row.run_summary,
+        dueAt: row.due_at === null ? null : iso(row.due_at),
+        status: row.run_status,
+        publishedAt: iso(row.published_at),
+        startedCount: Number(row.started_count),
+        submittedCount: Number(row.submitted_count),
+        sections: [],
+      };
+      runs.push(run);
+    }
+    const sectionPosition = Number(row.section_position);
+    let section = run.sections.find((entry) => entry.position === sectionPosition);
+    if (!section) {
+      section = {
+        id: `${row.run_id}:section:${sectionPosition}`,
+        title: row.section_title,
+        summary: row.section_summary,
+        position: sectionPosition,
+        lessons: [],
+      };
+      run.sections.push(section);
+    }
+    section.lessons.push({
+      id: row.lesson_id,
+      sourceLessonId: row.source_lesson_id,
+      title: row.lesson_title,
+      summary: row.lesson_summary,
+      content: row.lesson_content,
+      kind: row.lesson_kind,
+      estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
+      position: Number(row.lesson_position),
+      classroomAssignmentId: row.classroom_assignment_id,
+      assignmentTitle: row.assignment_title,
+      assignmentGoal: row.assignment_goal,
+      assignmentBrief: row.assignment_brief,
+      moduleKey: row.module_key,
+      sampleImage: row.sample_image,
+      seatCount: Number(row.seat_count),
+      startedCount: Number(row.lesson_started_count),
+      submittedCount: Number(row.lesson_submitted_count),
+      completedCount: Number(row.lesson_completed_count),
+    });
+  }
+  return runs;
+}
+
+interface CourseOutlineRow {
+  section_id: string;
+  section_title: string;
+  section_summary: string | null;
+  section_position: number | string;
+  lesson_id: string | null;
+  lesson_title: string | null;
+  lesson_summary: string | null;
+  lesson_content: string | null;
+  lesson_kind: 'material' | 'assignment' | null;
+  lesson_assignment_id: string | null;
+  assignment_title: string | null;
+  module_key: string | null;
+  estimated_minutes: number | string | null;
+  lesson_position: number | string | null;
 }
 
 interface CatalogueRow {
@@ -108,9 +268,10 @@ export class CoursesController {
   async list(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
     const result = await this.requirePool().query(
-      `SELECT id, title, summary, visibility, age_band, item_count, shared_with,
-              copied_from_course_id, created_at, updated_at
-         FROM course_list_for_principal($1)`,
+      `SELECT id, title, summary, visibility, age_band, section_count, lesson_count,
+              assignment_count, shared_with, copied_from_course_id,
+              publication_state, published_version, published_at, created_at, updated_at
+         FROM course_library_list($1)`,
       [context.principalId],
     );
     return {
@@ -120,9 +281,15 @@ export class CoursesController {
         summary: row.summary,
         visibility: row.visibility,
         ageBand: row.age_band,
-        itemCount: Number(row.item_count),
+        itemCount: Number(row.lesson_count),
+        sectionCount: Number(row.section_count),
+        lessonCount: Number(row.lesson_count),
+        assignmentCount: Number(row.assignment_count),
         sharedWith: Number(row.shared_with),
         copiedFromCourseId: row.copied_from_course_id,
+        publicationState: row.publication_state,
+        publishedVersion: row.published_version === null ? null : Number(row.published_version),
+        publishedAt: row.published_at === null ? null : iso(row.published_at),
         createdAt: iso(row.created_at),
         updatedAt: iso(row.updated_at),
       })),
@@ -172,6 +339,133 @@ export class CoursesController {
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
     if (!id) throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
     return id;
+  }
+
+  /**
+   * Freeze the current draft into an immutable version.
+   *
+   * Future classroom runs refer to this version, so an edit in the authoring
+   * surface can never rewrite material that learners have already received.
+   */
+  @Post('courses/:courseId/publish')
+  async publish(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    const result = await this.requirePool().query(
+      `SELECT result_code, version_id, version_number, published_at, reused
+         FROM course_publish($1, $2)`,
+      [context.principalId, courseId],
+    );
+    const row = result.rows[0] as CoursePublishRow | undefined;
+    if (!row || row.result_code === 'course_not_found') {
+      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    }
+    if (row.result_code === 'course_empty') {
+      throw new HttpException(
+        error('course_empty', 'Добавьте хотя бы один урок перед публикацией.'),
+        409,
+      );
+    }
+    if (!row.version_id || row.version_number === null || row.published_at === null) {
+      throw new HttpException(error('publish_failed', 'Не получилось опубликовать курс.'), 500);
+    }
+    return {
+      versionId: row.version_id,
+      versionNumber: Number(row.version_number),
+      publishedAt: iso(row.published_at),
+      reused: row.reused,
+    };
+  }
+
+  // Проведение курса в классе. Здесь используется опубликованная версия, а не
+  // редактируемый черновик из методической мастерской.
+
+  @Get('classrooms/:classroomId/course-runs')
+  async classroomRuns(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const result = await this.requirePool().query(
+      `SELECT run_id, course_id, course_version_id, version_number, run_title, run_summary,
+              due_at, run_status, published_at, started_count, submitted_count,
+              lesson_id, source_lesson_id, section_title, section_summary, section_position,
+              lesson_title, lesson_summary, lesson_content, lesson_kind, estimated_minutes,
+              lesson_position, classroom_assignment_id, assignment_title, assignment_goal,
+              assignment_brief, module_key, sample_image, seat_count,
+              lesson_started_count, lesson_submitted_count, lesson_completed_count
+         FROM classroom_course_runs_for_teacher($1, $2)`,
+      [context.accountId, classroomId],
+    );
+    return { items: classroomCourseRuns(result.rows as ClassroomCourseRunRow[]) };
+  }
+
+  @Post('classrooms/:classroomId/course-runs')
+  async assignCourseToClassroom(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const shape = checkBodyShape(rawBody, ['courseId', 'dueAt']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const courseId = shape.body['courseId'];
+    const dueAt = shape.body['dueAt'] ?? null;
+    if (typeof courseId !== 'string') {
+      throw new HttpException(error('validation_error', 'Выберите курс.'), 400);
+    }
+    this.requireUuid(courseId, 'course');
+    if (dueAt !== null && (typeof dueAt !== 'string' || Number.isNaN(Date.parse(dueAt)))) {
+      throw new HttpException(error('validation_error', 'Неверный срок курса.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT result_code, run_id, version_number, reused
+         FROM classroom_course_run_assign($1, $2, $3, $4)`,
+      [context.principalId, classroomId, courseId, dueAt],
+    );
+    const row = result.rows[0] as
+      | {
+          result_code: 'ok' | 'classroom_not_found' | 'course_not_published';
+          run_id: string | null;
+          version_number: number | string | null;
+          reused: boolean;
+        }
+      | undefined;
+    if (!row || row.result_code === 'classroom_not_found') {
+      throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+    }
+    if (row.result_code === 'course_not_published') {
+      throw new HttpException(error('course_not_published', 'Сначала опубликуйте курс.'), 409);
+    }
+    return {
+      runId: row.run_id as string,
+      versionNumber: Number(row.version_number),
+      reused: row.reused,
+    };
+  }
+
+  @Post('classrooms/:classroomId/course-runs/:runId/status')
+  async setClassroomRunStatus(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('runId') runId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    this.requireUuid(runId, 'course run');
+    const shape = checkBodyShape(rawBody, ['status']);
+    const status = shape.ok ? shape.body['status'] : null;
+    if (status !== 'open' && status !== 'closed') {
+      throw new HttpException(error('validation_error', 'Неизвестное состояние курса.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT classroom_course_run_set_status($1, $2, $3, $4) AS ok`,
+      [context.principalId, classroomId, runId, status],
+    );
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('course_run_not_found', 'Курс класса не найден.'), 404);
+    }
+    return { ok: true as const };
   }
 
   /** Удаляется курс, а не задания: они остаются в банке. */
@@ -264,6 +558,298 @@ export class CoursesController {
       delta,
     ]);
     return { ok: (result.rows[0] as { ok: boolean } | undefined)?.ok === true };
+  }
+
+  // Настоящее содержание курса: разделы и уроки.
+
+  @Get('courses/:courseId/outline')
+  async outline(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    const result = await this.requirePool().query(
+      'SELECT section_id, section_title, section_summary, section_position, ' +
+        'lesson_id, lesson_title, lesson_summary, lesson_content, lesson_kind, ' +
+        'lesson_assignment_id, assignment_title, module_key, estimated_minutes, ' +
+        'lesson_position FROM course_outline($1, $2, $3, $4)',
+      [courseId, context.principalId, context.accountId, context.tenantId],
+    );
+    const rows = result.rows as CourseOutlineRow[];
+    if (rows.length === 0) {
+      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    }
+
+    const sections: Array<{
+      id: string;
+      title: string;
+      summary: string | null;
+      position: number;
+      lessons: Array<{
+        id: string;
+        title: string;
+        summary: string | null;
+        content: string | null;
+        kind: 'material' | 'assignment';
+        assignmentId: string | null;
+        assignmentTitle: string | null;
+        moduleKey: string | null;
+        estimatedMinutes: number | null;
+        position: number;
+      }>;
+    }> = [];
+    for (const row of rows) {
+      let section = sections.find((entry) => entry.id === row.section_id);
+      if (!section) {
+        section = {
+          id: row.section_id,
+          title: row.section_title,
+          summary: row.section_summary,
+          position: Number(row.section_position),
+          lessons: [],
+        };
+        sections.push(section);
+      }
+      if (row.lesson_id && row.lesson_title && row.lesson_kind) {
+        section.lessons.push({
+          id: row.lesson_id,
+          title: row.lesson_title,
+          summary: row.lesson_summary,
+          content: row.lesson_content,
+          kind: row.lesson_kind,
+          assignmentId: row.lesson_assignment_id,
+          assignmentTitle: row.assignment_title,
+          moduleKey: row.module_key,
+          estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
+          position: Number(row.lesson_position),
+        });
+      }
+    }
+    return { sections };
+  }
+
+  @Post('courses/:courseId/sections')
+  async createSection(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Body() rawBody: unknown,
+  ) {
+    return { id: await this.saveSection(request, courseId, null, rawBody) };
+  }
+
+  @Patch('courses/:courseId/sections/:sectionId')
+  async updateSection(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('sectionId') sectionId: string,
+    @Body() rawBody: unknown,
+  ) {
+    this.requireUuid(sectionId, 'section');
+    return { id: await this.saveSection(request, courseId, sectionId, rawBody) };
+  }
+
+  private async saveSection(
+    request: FastifyRequest,
+    courseId: string,
+    sectionId: string | null,
+    rawBody: unknown,
+  ): Promise<string> {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    const shape = checkBodyShape(rawBody, ['title', 'summary']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const title = String(shape.body['title'] ?? '').trim();
+    const summary = shape.body['summary'] ?? null;
+    if (title.length === 0 || title.length > 160) {
+      throw new HttpException(error('validation_error', 'Введите название раздела.'), 400);
+    }
+    if (summary !== null && (typeof summary !== 'string' || summary.length > 600)) {
+      throw new HttpException(error('validation_error', 'Описание раздела слишком длинное.'), 400);
+    }
+    const result = await this.requirePool().query(
+      'SELECT course_section_save($1, $2, $3, $4, $5) AS id',
+      [context.principalId, courseId, sectionId, title, summary],
+    );
+    const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
+    if (!id) throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    return id;
+  }
+
+  @Post('courses/:courseId/sections/:sectionId/move')
+  async moveSection(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('sectionId') sectionId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(sectionId, 'section');
+    const shape = checkBodyShape(rawBody, ['delta']);
+    const delta = shape.ok && Number(shape.body['delta']) < 0 ? -1 : 1;
+    const result = await this.requirePool().query(
+      'SELECT course_section_move($1, $2, $3, $4) AS ok',
+      [context.principalId, courseId, sectionId, delta],
+    );
+    return { ok: (result.rows[0] as { ok: boolean } | undefined)?.ok === true };
+  }
+
+  @Delete('courses/:courseId/sections/:sectionId')
+  async deleteSection(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('sectionId') sectionId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(sectionId, 'section');
+    const result = await this.requirePool().query(
+      'SELECT course_section_delete($1, $2, $3) AS ok',
+      [context.principalId, courseId, sectionId],
+    );
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(
+        error('section_not_empty', 'Сначала удалите уроки. Последний раздел удалить нельзя.'),
+        409,
+      );
+    }
+    return { removed: true as const };
+  }
+
+  @Post('courses/:courseId/lessons')
+  async createLesson(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Body() rawBody: unknown,
+  ) {
+    return { id: await this.saveLesson(request, courseId, null, rawBody) };
+  }
+
+  @Patch('courses/:courseId/lessons/:lessonId')
+  async updateLesson(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    this.requireUuid(lessonId, 'lesson');
+    return { id: await this.saveLesson(request, courseId, lessonId, rawBody) };
+  }
+
+  private async saveLesson(
+    request: FastifyRequest,
+    courseId: string,
+    lessonId: string | null,
+    rawBody: unknown,
+  ): Promise<string> {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    const shape = checkBodyShape(rawBody, [
+      'sectionId',
+      'title',
+      'summary',
+      'content',
+      'kind',
+      'assignmentId',
+      'estimatedMinutes',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const sectionId = String(shape.body['sectionId'] ?? '');
+    const title = String(shape.body['title'] ?? '').trim();
+    const summary = shape.body['summary'] ?? null;
+    const content = shape.body['content'] ?? null;
+    const kind = String(shape.body['kind'] ?? 'material');
+    const assignmentId = shape.body['assignmentId'] ?? null;
+    const rawMinutes = shape.body['estimatedMinutes'] ?? null;
+    const estimatedMinutes = rawMinutes === null ? null : Number(rawMinutes);
+    this.requireUuid(sectionId, 'section');
+    if (title.length === 0 || title.length > 160) {
+      throw new HttpException(error('validation_error', 'Введите название урока.'), 400);
+    }
+    if (summary !== null && (typeof summary !== 'string' || summary.length > 600)) {
+      throw new HttpException(error('validation_error', 'Описание урока слишком длинное.'), 400);
+    }
+    if (content !== null && (typeof content !== 'string' || content.length > 12_000)) {
+      throw new HttpException(error('validation_error', 'Материал урока слишком длинный.'), 400);
+    }
+    if (kind !== 'material' && kind !== 'assignment') {
+      throw new HttpException(error('validation_error', 'Неизвестный тип урока.'), 400);
+    }
+    if (kind === 'assignment') {
+      if (typeof assignmentId !== 'string') {
+        throw new HttpException(error('validation_error', 'Выберите задание.'), 400);
+      }
+      this.requireUuid(assignmentId, 'assignment');
+    } else if (assignmentId !== null) {
+      throw new HttpException(
+        error('validation_error', 'Материал не должен ссылаться на задание.'),
+        400,
+      );
+    }
+    if (
+      estimatedMinutes !== null &&
+      (!Number.isInteger(estimatedMinutes) || estimatedMinutes < 1 || estimatedMinutes > 600)
+    ) {
+      throw new HttpException(error('validation_error', 'Укажите время от 1 до 600 минут.'), 400);
+    }
+
+    const result = await this.requirePool().query(
+      'SELECT course_lesson_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS id',
+      [
+        context.principalId,
+        courseId,
+        sectionId,
+        lessonId,
+        title,
+        summary,
+        content,
+        kind,
+        kind === 'assignment' ? assignmentId : null,
+        estimatedMinutes,
+      ],
+    );
+    const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
+    if (!id) {
+      throw new HttpException(error('lesson_not_saved', 'Урок или раздел не найдены.'), 404);
+    }
+    return id;
+  }
+
+  @Post('courses/:courseId/lessons/:lessonId/move')
+  async moveLesson(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(lessonId, 'lesson');
+    const shape = checkBodyShape(rawBody, ['delta']);
+    const delta = shape.ok && Number(shape.body['delta']) < 0 ? -1 : 1;
+    const result = await this.requirePool().query(
+      'SELECT course_lesson_move($1, $2, $3, $4) AS ok',
+      [context.principalId, courseId, lessonId, delta],
+    );
+    return { ok: (result.rows[0] as { ok: boolean } | undefined)?.ok === true };
+  }
+
+  @Delete('courses/:courseId/lessons/:lessonId')
+  async deleteLesson(
+    @Req() request: FastifyRequest,
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    this.requireUuid(lessonId, 'lesson');
+    const result = await this.requirePool().query('SELECT course_lesson_delete($1, $2, $3) AS ok', [
+      context.principalId,
+      courseId,
+      lessonId,
+    ]);
+    if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+      throw new HttpException(error('lesson_not_found', 'Урок не найден.'), 404);
+    }
+    return { removed: true as const };
   }
 
   // Кому открыто.
@@ -437,7 +1023,7 @@ export class CoursesController {
     const pool = this.requirePool();
     const sql =
       kind === 'course'
-        ? `SELECT course_take($1, $2, $3, $4) AS id`
+        ? `SELECT course_take_with_outline($1, $2, $3, $4) AS id`
         : `SELECT assignment_take($1, $2, $3, $4) AS id`;
     if (kind !== 'course' && kind !== 'assignment') {
       throw new HttpException(error('validation_error', 'Неизвестный вид содержимого.'), 400);

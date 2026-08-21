@@ -279,10 +279,29 @@ export class AssignmentsController {
   async remove(@Req() request: FastifyRequest, @Param('assignmentId') assignmentId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(assignmentId, 'assignment');
-    const result = await this.requirePool().query(
-      `SELECT teacher_assignment_delete($1, $2) AS removed`,
-      [context.principalId, assignmentId],
-    );
+    let result: pg.QueryResult;
+    try {
+      result = await this.requirePool().query(
+        `SELECT teacher_assignment_delete($1, $2) AS removed`,
+        [context.principalId, assignmentId],
+      );
+    } catch (caught) {
+      if (
+        typeof caught === 'object' &&
+        caught !== null &&
+        'code' in caught &&
+        caught.code === '23503'
+      ) {
+        throw new HttpException(
+          error(
+            'assignment_in_course',
+            'Задание используется в курсе. Сначала удалите его из уроков или уберите в архив.',
+          ),
+          409,
+        );
+      }
+      throw caught;
+    }
     if ((result.rows[0] as { removed: boolean } | undefined)?.removed !== true) {
       throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
     }

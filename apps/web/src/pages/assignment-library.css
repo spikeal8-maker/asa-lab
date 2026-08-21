@@ -1,24 +1,31 @@
 /* A teacher's own tasks, as a shelf. */
 
+.library-layout[hidden] {
+  display: none !important;
+}
+
 .library-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 20px;
+  gap: 16px;
+  margin-bottom: 12px;
 }
 
 .library-heading h1 {
-  margin: 0 0 6px;
+  margin: 0 0 3px;
   color: #16232c;
-  font-size: clamp(26px, 3.2vw, 34px);
+  font-size: clamp(22px, 2.4vw, 27px);
   letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .library-heading p {
   margin: 0;
-  max-width: 62ch;
+  max-width: 70ch;
   color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .library-search {
@@ -518,22 +525,30 @@
 /* Вкладки банка: три ответа на три разных вопроса. */
 .library-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
-  margin-bottom: 18px;
-  padding-bottom: 2px;
+  margin-bottom: 12px;
+  padding-bottom: 1px;
   border-bottom: 1px solid #e1e7eb;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.library-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .library-tabs button {
-  padding: 9px 16px;
+  flex: 0 0 auto;
+  padding: 7px 11px;
   border: 0;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
   background: none;
   color: #55636d;
   font: inherit;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 

@@ -1,4 +1,5 @@
 import type { ClassroomStudentSession } from '../api';
+import { SeatCourses } from '../components/SeatCourses';
 import { SeatAssignments } from '../components/SeatAssignments';
 
 /**
@@ -24,6 +25,7 @@ export function SeatClassPage({
         <p>Преподаватель: {seat.classroom.teacherDisplayName}</p>
       </header>
 
+      <SeatCourses onOpenProject={onOpenProject} />
       <SeatAssignments onOpenProject={onOpenProject} />
     </main>
   );

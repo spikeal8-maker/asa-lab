@@ -6,6 +6,7 @@ export interface BrowserFailureCounts {
   readonly failedRequests: number;
   readonly httpServerErrors: number;
   readonly allowedAnonymousSessionProbes: number;
+  readonly allowedAdminAccessProbes: number;
 }
 
 export interface BrowserFailureCollector {
@@ -19,10 +20,14 @@ export interface BrowserFailureOptions {
    * anonymous 401 is expected, but Chromium reports it as a console error.
    */
   readonly allowAnonymousSessionProbe?: boolean;
+  /** A signed-in non-admin is expected to receive one 403 from /api/admin/v1/me. */
+  readonly allowAdminAccessProbe?: boolean;
 }
 
 const anonymousSessionConsoleText =
   'Failed to load resource: the server responded with a status of 401 (Unauthorized)';
+const forbiddenConsoleText =
+  'Failed to load resource: the server responded with a status of 403 (Forbidden)';
 
 function consoleFailure(message: ConsoleMessage): string {
   const location = message.location();
@@ -59,6 +64,15 @@ function isAnonymousSessionProbe(message: ConsoleMessage): boolean {
   }
 }
 
+function isAdminAccessProbe(message: ConsoleMessage): boolean {
+  if (message.text() !== forbiddenConsoleText) return false;
+  try {
+    return new URL(message.location().url).pathname === '/api/admin/v1/me';
+  } catch {
+    return false;
+  }
+}
+
 export function collectBrowserFailures(
   page: Page,
   options: BrowserFailureOptions = {},
@@ -68,6 +82,7 @@ export function collectBrowserFailures(
   const failedRequests: string[] = [];
   const httpServerErrors: string[] = [];
   let allowedAnonymousSessionProbes = 0;
+  let allowedAdminAccessProbes = 0;
 
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
@@ -77,6 +92,10 @@ export function collectBrowserFailures(
       isAnonymousSessionProbe(message)
     ) {
       allowedAnonymousSessionProbes += 1;
+      return;
+    }
+    if (options.allowAdminAccessProbe && isAdminAccessProbe(message)) {
+      allowedAdminAccessProbes += 1;
       return;
     }
     consoleErrors.push(consoleFailure(message));
@@ -102,6 +121,7 @@ export function collectBrowserFailures(
         failedRequests: failedRequests.length,
         httpServerErrors: httpServerErrors.length,
         allowedAnonymousSessionProbes,
+        allowedAdminAccessProbes,
       };
     },
     assertEmpty() {

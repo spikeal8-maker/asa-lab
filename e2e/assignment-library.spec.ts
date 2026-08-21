@@ -10,9 +10,8 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
  *
  * Three things were reported wrong here and each has an assertion below:
  *
- *  - the bank could not be found — the sidebar said «Задачи» and the page it
- *    opened is headed «Задания», so a teacher looking for their tasks went past
- *    the one destination that had them;
+ *  - the teacher workspace could not be found, so the sidebar and heading now
+ *    use the same «Курсы и задания» language;
  *  - a new task did not save — teacher_assignment_save looked the teacher's
  *    tenant up in a table that only holds accounts carried over from before the
  *    account rework, so for everyone who registered after it returned nothing
@@ -36,11 +35,22 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+async function openAssignmentBank(page: import('@playwright/test').Page): Promise<void> {
+  await page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Банк заданий' })
+    .click();
+  await expect(page.getByTestId('assignment-library')).toBeVisible();
+}
+
 test('a teacher writes a task with a goal and a picture, and hands it to a class', async ({
   page,
 }) => {
   test.setTimeout(120_000);
-  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const failures = collectBrowserFailures(page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
   await loginWithOrganization(page, teacher);
 
   // A class first: it is what seeds the ten shipped tasks into the bank, and
@@ -53,10 +63,11 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
   await classDialog.getByRole('button', { name: 'Создать', exact: true }).click();
   await expect(page.getByTestId('classroom-card').filter({ hasText: '6В группа' })).toBeVisible();
 
-  // The bank, reached the way a teacher reaches it: the sidebar now names it
-  // after the page it opens.
-  await page.getByRole('button', { name: 'Задания', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Задания', level: 1 })).toBeVisible();
+  // The workspace opens on courses; the assignment bank is an explicit tab,
+  // not a second destination competing with the course system.
+  await page.getByRole('button', { name: 'Курсы и задания', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Курсы и задания', level: 1 })).toBeVisible();
+  await openAssignmentBank(page);
   const library = page.getByTestId('assignment-library');
   // The ten a class is given belong to the teacher, so they are here as well —
   // one entry each, however many classes have them.
@@ -101,6 +112,7 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
 
   // Saved means saved: it survives a reload, with its goal and its picture.
   await page.reload();
+  await openAssignmentBank(page);
   const saved = page
     .getByTestId('assignment-library')
     .locator('li')
@@ -142,6 +154,7 @@ test('a teacher writes a task with a goal and a picture, and hands it to a class
   await expect(page.getByText('Задание «Подставка для карандашей» сохранено.')).toBeVisible();
 
   await page.reload();
+  await openAssignmentBank(page);
   await page
     .getByTestId('assignment-library')
     .locator('li')

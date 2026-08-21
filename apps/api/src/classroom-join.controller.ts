@@ -64,12 +64,139 @@ interface AssignmentForSeatRow {
   updated_at: Date | string | null;
 }
 
+interface SeatCourseRunRow {
+  run_id: string;
+  course_id: string;
+  course_version_id: string;
+  version_number: number | string;
+  classroom_title: string;
+  run_title: string;
+  run_summary: string | null;
+  due_at: Date | string | null;
+  run_status: 'open' | 'closed';
+  lesson_id: string;
+  source_lesson_id: string;
+  section_title: string;
+  section_summary: string | null;
+  section_position: number | string;
+  lesson_title: string;
+  lesson_summary: string | null;
+  lesson_content: string | null;
+  lesson_kind: 'material' | 'assignment';
+  estimated_minutes: number | string | null;
+  lesson_position: number | string;
+  classroom_assignment_id: string | null;
+  assignment_title: string | null;
+  assignment_goal: string | null;
+  assignment_brief: string | null;
+  module_key: string | null;
+  sample_image: string | null;
+  project_id: string | null;
+  submitted_at: Date | string | null;
+  snapshot_revision: number | string | null;
+  work_updated_at: Date | string | null;
+  completed_at: Date | string | null;
+}
+
 function isoDate(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
+}
+
+function seatCourseRuns(rows: SeatCourseRunRow[]) {
+  const runs: Array<{
+    id: string;
+    courseId: string;
+    courseVersionId: string;
+    versionNumber: number;
+    classroomTitle: string;
+    title: string;
+    summary: string | null;
+    dueAt: string | null;
+    status: 'open' | 'closed';
+    sections: Array<{
+      id: string;
+      title: string;
+      summary: string | null;
+      position: number;
+      lessons: Array<{
+        id: string;
+        sourceLessonId: string;
+        title: string;
+        summary: string | null;
+        content: string | null;
+        kind: 'material' | 'assignment';
+        estimatedMinutes: number | null;
+        position: number;
+        classroomAssignmentId: string | null;
+        assignmentTitle: string | null;
+        assignmentGoal: string | null;
+        assignmentBrief: string | null;
+        moduleKey: string | null;
+        sampleImage: string | null;
+        projectId: string | null;
+        submittedAt: string | null;
+        snapshotRevision: number | null;
+        updatedAt: string | null;
+        completedAt: string | null;
+      }>;
+    }>;
+  }> = [];
+  for (const row of rows) {
+    let run = runs.find((entry) => entry.id === row.run_id);
+    if (!run) {
+      run = {
+        id: row.run_id,
+        courseId: row.course_id,
+        courseVersionId: row.course_version_id,
+        versionNumber: Number(row.version_number),
+        classroomTitle: row.classroom_title,
+        title: row.run_title,
+        summary: row.run_summary,
+        dueAt: row.due_at === null ? null : isoDate(row.due_at),
+        status: row.run_status,
+        sections: [],
+      };
+      runs.push(run);
+    }
+    const sectionPosition = Number(row.section_position);
+    let section = run.sections.find((entry) => entry.position === sectionPosition);
+    if (!section) {
+      section = {
+        id: `${row.run_id}:section:${sectionPosition}`,
+        title: row.section_title,
+        summary: row.section_summary,
+        position: sectionPosition,
+        lessons: [],
+      };
+      run.sections.push(section);
+    }
+    section.lessons.push({
+      id: row.lesson_id,
+      sourceLessonId: row.source_lesson_id,
+      title: row.lesson_title,
+      summary: row.lesson_summary,
+      content: row.lesson_content,
+      kind: row.lesson_kind,
+      estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
+      position: Number(row.lesson_position),
+      classroomAssignmentId: row.classroom_assignment_id,
+      assignmentTitle: row.assignment_title,
+      assignmentGoal: row.assignment_goal,
+      assignmentBrief: row.assignment_brief,
+      moduleKey: row.module_key,
+      sampleImage: row.sample_image,
+      projectId: row.project_id,
+      submittedAt: row.submitted_at === null ? null : isoDate(row.submitted_at),
+      snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+      updatedAt: row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
+    });
+  }
+  return runs;
 }
 
 function studentPayload(row: StudentSessionRow) {
@@ -473,6 +600,91 @@ export class ClassroomJoinController {
         updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
       })),
     };
+  }
+
+  /** Published courses assigned to the learner's current class. */
+  @Get('me/course-runs')
+  async courseRuns(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(
+      `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
+              run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
+              section_title, section_summary, section_position, lesson_title, lesson_summary,
+              lesson_content, lesson_kind, estimated_minutes, lesson_position,
+              classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
+              module_key, sample_image, project_id, submitted_at, snapshot_revision,
+              work_updated_at, completed_at
+         FROM classroom_course_runs_for_seat($1)`,
+      [seat.seat_id],
+    );
+    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[]) };
+  }
+
+  /** Material completion is explicit; assignment completion comes from submission. */
+  @Post('me/course-runs/:runId/lessons/:lessonId/progress')
+  @HttpCode(200)
+  async setCourseLessonProgress(
+    @Req() request: FastifyRequest,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const shape = checkBodyShape(rawBody, ['completed']);
+    const completed = shape.ok ? shape.body['completed'] : null;
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      typeof completed !== 'boolean'
+    ) {
+      throw new HttpException(error('validation_error', 'completed must be boolean'), 400);
+    }
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(
+      `SELECT result_code, completed_at
+         FROM classroom_course_material_progress_set($1, $2, $3, $4)`,
+      [seat.seat_id, runId, lessonId, completed],
+    );
+    const row = result.rows[0] as
+      | { result_code: 'ok' | 'lesson_not_found' | 'course_closed'; completed_at: Date | null }
+      | undefined;
+    if (!row || row.result_code === 'lesson_not_found') {
+      throw new HttpException(error('course_lesson_not_found', 'Урок недоступен.'), 404);
+    }
+    if (row.result_code === 'course_closed') {
+      throw new HttpException(error('course_closed', 'Курс уже закрыт.'), 409);
+    }
+    return { completedAt: row.completed_at ? isoDate(row.completed_at) : null };
+  }
+
+  /** Versioned uploaded sample, available to a learner or a teacher of the class. */
+  @Get('course-runs/:runId/lessons/:lessonId/sample')
+  async courseRunSample(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: false }) reply: FastifyReply,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+  ): Promise<void> {
+    if (!UUID_PATTERN.test(runId) || !UUID_PATTERN.test(lessonId)) {
+      throw new HttpException(error('validation_error', 'course media is invalid'), 400);
+    }
+    let seatId: string | null = null;
+    let accountId: string | null = null;
+    if (request.cookies[STUDENT_SESSION_COOKIE]) {
+      seatId = (await this.currentSeat(request)).seat_id;
+    } else {
+      const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+      if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+      accountId = context.accountId;
+    }
+    const result = await this.requirePool().query(
+      `SELECT sample_bytes, content_type
+         FROM classroom_course_run_media($1, $2, $3, $4)`,
+      [runId, lessonId, seatId, accountId],
+    );
+    const row = result.rows[0] as { sample_bytes: Buffer; content_type: string } | undefined;
+    if (!row) throw new HttpException(error('media_not_found', 'Образец не найден.'), 404);
+    reply.header('Cache-Control', 'private, max-age=3600, immutable');
+    reply.type(row.content_type).send(row.sample_bytes);
   }
 
   /**

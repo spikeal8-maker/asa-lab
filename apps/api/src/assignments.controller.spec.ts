@@ -34,7 +34,9 @@ function controller(options: {
   const seatContext = {
     resolve: vi.fn(async () => options.seat ?? null),
   } as unknown as SeatContextUseCase;
-  const accounts = {} as AccountDirectoryPort;
+  const accounts = {
+    capabilities: vi.fn(async () => [{ capability: 'educator', state: 'verified' }]),
+  } as unknown as AccountDirectoryPort;
   const pool = { query } as unknown as pg.Pool;
   return {
     value: new AssignmentsController(activeContext, seatContext, accounts, pool),
@@ -89,5 +91,29 @@ describe('assignment media authorization', () => {
       expect.stringContaining('assignment_image_for_viewer'),
       [ASSIGNMENT_ID, IMAGE_ID, 'principal-seat', null, 'tenant-id', 'seat-id'],
     );
+  });
+});
+
+describe('assignment course protection', () => {
+  it('explains that a lesson reference must be removed before deleting an assignment', async () => {
+    const target = controller({
+      account: {
+        principalId: 'principal-account',
+        accountId: 'account-id',
+        tenantId: 'tenant-id',
+      },
+    });
+    target.query.mockRejectedValueOnce({ code: '23503' });
+
+    await expect(
+      target.value.remove(request({ asa_session: 'session' }), ASSIGNMENT_ID),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        error: {
+          code: 'assignment_in_course',
+        },
+      },
+    });
   });
 });
