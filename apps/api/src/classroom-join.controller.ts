@@ -23,6 +23,9 @@ import { createSessionToken, hashSessionToken } from '@asa-lab/identity';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import { clientAddress } from './client-address.js';
+import { BotChallengeService } from './bot-challenge.js';
+import { FixedWindowRateLimiter } from './rate-limit.js';
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
 const STUDENT_SESSION_HOURS = 8;
@@ -91,13 +94,23 @@ function studentPayload(row: StudentSessionRow) {
 
 @Controller('api/class-join')
 export class ClassroomJoinController {
-  private readonly attempts = new Map<string, { count: number; resetAt: number }>();
+  private readonly attemptsByAddress = new FixedWindowRateLimiter({
+    limit: MAX_ATTEMPTS,
+    windowMs: ATTEMPT_WINDOW_MS,
+    maxKeys: 5_000,
+  });
+  private readonly attemptsByCredential = new FixedWindowRateLimiter({
+    limit: 10,
+    windowMs: ATTEMPT_WINDOW_MS,
+    maxKeys: 10_000,
+  });
 
   constructor(
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
     // Взрослый входит в класс своим аккаунтом, а не выданным логином, поэтому
     // здесь нужна и обычная сессия тоже.
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+    @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
   ) {}
 
   private requirePool(): pg.Pool {
@@ -107,21 +120,24 @@ export class ClassroomJoinController {
     return this.pool;
   }
 
-  private checkRateLimit(request: FastifyRequest): void {
-    const key = request.ip || 'unknown';
-    const now = Date.now();
-    const current = this.attempts.get(key);
-    if (!current || current.resetAt <= now) {
-      this.attempts.set(key, { count: 1, resetAt: now + ATTEMPT_WINDOW_MS });
-      return;
-    }
-    current.count += 1;
-    if (current.count > MAX_ATTEMPTS) {
+  private enforceRateLimit(limiter: FixedWindowRateLimiter, key: string): void {
+    const decision = limiter.consume(key);
+    if (!decision.allowed) {
       throw new HttpException(
-        error('too_many_attempts', 'Слишком много попыток. Подождите несколько минут.'),
+        {
+          error: {
+            code: 'too_many_attempts',
+            message: 'Слишком много попыток. Подождите несколько минут.',
+            retryAfterSeconds: decision.retryAfterSeconds,
+          },
+        },
         429,
       );
     }
+  }
+
+  private checkRateLimit(request: FastifyRequest): void {
+    this.enforceRateLimit(this.attemptsByAddress, clientAddress(request));
   }
 
   private codeFromBody(rawBody: unknown): string {
@@ -168,7 +184,7 @@ export class ClassroomJoinController {
     @Body() rawBody: unknown,
   ) {
     this.checkRateLimit(request);
-    const shape = checkBodyShape(rawBody, ['code', 'loginHandle']);
+    const shape = checkBodyShape(rawBody, ['code', 'loginHandle', 'botProof']);
     const code = shape.ok ? shape.body['code'] : null;
     const loginHandle = shape.ok ? shape.body['loginHandle'] : null;
     if (
@@ -182,6 +198,19 @@ export class ClassroomJoinController {
         error('validation_error', 'Введите код класса и выданное педагогом имя.'),
         400,
       );
+    }
+    this.enforceRateLimit(
+      this.attemptsByCredential,
+      `${classroomCodeHash(code)}:${loginHandle.trim().toLowerCase()}`,
+    );
+    if (
+      !this.botChallenges.verify(
+        'class_join',
+        shape.body['botProof'],
+        request.headers['user-agent'],
+      )
+    ) {
+      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
     }
     const token = createSessionToken();
     const result = await this.requirePool().query(

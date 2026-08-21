@@ -22,6 +22,8 @@ import type {
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
+import { clientAddress } from './client-address.js';
+import { BotChallengeService, type BotAction } from './bot-challenge.js';
 
 // Password hashing costs tens of milliseconds of thread-pool time per attempt,
 // so an endpoint without a ceiling lets one client spend the whole runtime on
@@ -39,6 +41,8 @@ export const LOGIN_PER_ADDRESS = 120;
 export const LOGIN_PER_IDENTIFIER = 10;
 export const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 export const REGISTER_PER_ADDRESS = 60;
+export const BOT_CHALLENGE_WINDOW_MS = 5 * 60 * 1000;
+export const BOT_CHALLENGE_PER_ADDRESS = 60;
 
 interface PublicUser {
   id: string;
@@ -101,6 +105,10 @@ export class AuthController {
     limit: REGISTER_PER_ADDRESS,
     windowMs: REGISTER_WINDOW_MS,
   });
+  private readonly challengesByAddress = new FixedWindowRateLimiter({
+    limit: BOT_CHALLENGE_PER_ADDRESS,
+    windowMs: BOT_CHALLENGE_WINDOW_MS,
+  });
 
   constructor(
     @Inject(TOKENS.loginUseCase) private readonly legacyLoginUseCase: LoginUseCase,
@@ -108,6 +116,7 @@ export class AuthController {
     @Inject(TOKENS.registerAccountUseCase) private readonly registerUseCase: RegisterAccountUseCase,
     @Inject(TOKENS.accountLoginUseCase) private readonly accountLoginUseCase: AccountLoginUseCase,
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
+    @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
   ) {}
 
   private setSessionCookie(reply: FastifyReply, token: string): void {
@@ -115,7 +124,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
-      secure: process.env['NODE_ENV'] === 'production',
+      secure: process.env['NODE_ENV'] === 'production' || process.env['ASA_SECURE_COOKIES'] === '1',
       maxAge: 12 * 60 * 60,
     });
   }
@@ -186,6 +195,19 @@ export class AuthController {
     return context;
   }
 
+  @Get('bot-challenge')
+  botChallenge(@Query('action') action: string | undefined, @Req() request: FastifyRequest) {
+    if (action !== 'login' && action !== 'register' && action !== 'class_join') {
+      throw new HttpException(error('validation_error', 'unknown bot-check action'), 400);
+    }
+    const address = clientAddress(request);
+    this.enforce(this.challengesByAddress, address);
+    return {
+      required: this.botChallenges.isRequired(),
+      challenge: this.botChallenges.issue(action as BotAction, request.headers['user-agent']),
+    };
+  }
+
   @Post('register')
   @HttpCode(201)
   async register(
@@ -193,7 +215,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    this.enforce(this.registerByAddress, request.ip || 'unknown');
+    const address = clientAddress(request);
+    this.enforce(this.registerByAddress, address);
     const shape = checkBodyShape(rawBody, [
       'email',
       'password',
@@ -201,9 +224,15 @@ export class AuthController {
       'displayName',
       'birthDate',
       'country',
+      'botProof',
     ]);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    if (
+      !this.botChallenges.verify('register', shape.body['botProof'], request.headers['user-agent'])
+    ) {
+      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
     }
     const result = await this.registerUseCase.execute({
       email: shape.body['email'],
@@ -248,10 +277,22 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    this.enforce(this.loginByAddress, request.ip || 'unknown');
-    const shape = checkBodyShape(rawBody, ['workspace', 'identifier', 'email', 'password']);
+    const address = clientAddress(request);
+    this.enforce(this.loginByAddress, address);
+    const shape = checkBodyShape(rawBody, [
+      'workspace',
+      'identifier',
+      'email',
+      'password',
+      'botProof',
+    ]);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    if (
+      !this.botChallenges.verify('login', shape.body['botProof'], request.headers['user-agent'])
+    ) {
+      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
     }
     const identifier = shape.body['identifier'] ?? shape.body['email'];
     if (typeof identifier === 'string' && identifier.length > 0) {

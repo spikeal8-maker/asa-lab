@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
-import { api, type SessionPayload } from '../api';
+import { api, type BotProof, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { BotCheck } from '../components/BotCheck';
 
 export function LoginPage({
   onSignedIn,
@@ -17,6 +18,8 @@ export function LoginPage({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [botProof, setBotProof] = useState<BotProof | null>(null);
+  const [botReset, setBotReset] = useState(0);
   const messageId = useId();
   const identifierRef = useRef<HTMLInputElement>(null);
 
@@ -28,13 +31,19 @@ export function LoginPage({
       identifierRef.current?.focus();
       return;
     }
+    if (!botProof) {
+      setMessage('Поставьте галочку «Я не робот» и дождитесь проверки.');
+      return;
+    }
     setBusy(true);
-    const result = await api.login(identifier.trim(), password);
+    const result = await api.login(identifier.trim(), password, botProof);
     setBusy(false);
     if (result.ok) {
       onSignedIn(result.data);
       return;
     }
+    setBotProof(null);
+    setBotReset((value) => value + 1);
     if (result.status === 400 || result.status === 401) {
       setMessage('Неверные данные для входа.');
     } else if (result.status === 0) {
@@ -80,10 +89,16 @@ export function LoginPage({
             aria-describedby={message ? messageId : undefined}
             onChange={(event) => setPassword(event.target.value)}
           />
+          <BotCheck
+            key={`login-${botReset}`}
+            action="login"
+            disabled={busy}
+            onVerified={setBotProof}
+          />
           <p id={messageId} className="form-error" role="alert" hidden={!message}>
             {message}
           </p>
-          <button type="submit" className="btn-primary" disabled={busy}>
+          <button type="submit" className="btn-primary" disabled={busy || !botProof}>
             {busy ? 'Входим…' : 'Войти'}
           </button>
         </form>

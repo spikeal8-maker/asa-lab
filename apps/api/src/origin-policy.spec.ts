@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isAllowedMutationOrigin, resolveCanonicalWebOrigin } from './origin-policy.js';
+import {
+  isAllowedMutationOrigin,
+  resolveAdditionalWebOrigins,
+  resolveCanonicalWebOrigin,
+} from './origin-policy.js';
 
 const base = {
   requestHost: '127.0.0.1:4611',
@@ -24,12 +28,41 @@ describe('canonical Web origin configuration', () => {
       /must exactly match/,
     );
   });
+
+  it('accepts only explicit public HTTPS origins', () => {
+    expect(resolveAdditionalWebOrigins('https://asa-lab.ru, https://www.asa-lab.ru')).toEqual([
+      'https://asa-lab.ru',
+      'https://www.asa-lab.ru',
+    ]);
+    expect(() => resolveAdditionalWebOrigins('http://asa-lab.ru')).toThrow(/requires HTTPS/);
+    expect(() => resolveAdditionalWebOrigins('https://asa-lab.ru/path')).toThrow(
+      /requires HTTPS origins without paths/,
+    );
+    expect(() => resolveAdditionalWebOrigins('https://localhost')).toThrow(/loopback/);
+  });
 });
 
 describe('mutation origin policy', () => {
   it('accepts the canonical Vite origin and API same-origin SPA', () => {
     expect(isAllowedMutationOrigin({ ...base, origin: 'http://127.0.0.1:4610' })).toBe(true);
     expect(isAllowedMutationOrigin({ ...base, origin: 'http://127.0.0.1:4611' })).toBe(true);
+  });
+
+  it('accepts configured production origins without trusting arbitrary hosts', () => {
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        origin: 'https://asa-lab.ru',
+        additionalAllowedOrigins: ['https://asa-lab.ru', 'https://www.asa-lab.ru'],
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        origin: 'https://evil.example',
+        additionalAllowedOrigins: ['https://asa-lab.ru'],
+      }),
+    ).toBe(false);
   });
 
   it('rejects the owner project on 5173 and every other loopback port', () => {

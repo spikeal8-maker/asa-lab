@@ -67,6 +67,7 @@ import { VersionController } from './version.controller.js';
 import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
 import { ProjectFeedbackService } from './project-feedback.js';
+import { BotChallengeService } from './bot-challenge.js';
 import { TOKENS } from './tokens.js';
 
 function validationMessage(
@@ -165,6 +166,7 @@ export class AppModule {
       providers: [
         { provide: TOKENS.pool, useValue: pool },
         { provide: TOKENS.runtimeMetrics, useValue: createRuntimeMetrics() },
+        { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
         { provide: TOKENS.moduleRegistry, useValue: moduleRegistry },
         { provide: TOKENS.chessLiveRepository, useValue: chessLiveRepository },
         { provide: TOKENS.chessLiveService, useValue: chessLiveService },

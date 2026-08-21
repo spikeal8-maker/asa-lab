@@ -27,6 +27,7 @@ export const TOKENS = {
   readProjectSnapshotUseCase: 'READ_PROJECT_SNAPSHOT_USECASE',
   seatContextUseCase: 'SEAT_CONTEXT_USECASE',
   projectFeedbackService: 'PROJECT_FEEDBACK_SERVICE',
+  botChallengeService: 'BOT_CHALLENGE_SERVICE',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

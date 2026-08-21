@@ -67,6 +67,22 @@ export interface AccountSession {
   userAgentSummary: string | null;
 }
 
+export type BotAction = 'login' | 'register' | 'class_join';
+
+export interface BotChallenge {
+  action: BotAction;
+  nonce: string;
+  salt: string;
+  difficulty: number;
+  issuedAt: number;
+  expiresAt: number;
+  signature: string;
+}
+
+export interface BotProof extends BotChallenge {
+  counter: number;
+}
+
 export interface Classroom {
   id: string;
   title: string;
@@ -768,15 +784,19 @@ export interface CheckersTeacherFeedback {
 
 export const api = {
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
-  login: (identifier: string, password: string) =>
+  botChallenge: (action: BotAction) =>
+    call<{ required: boolean; challenge: BotChallenge }>(
+      `/api/auth/bot-challenge?action=${encodeURIComponent(action)}`,
+    ),
+  login: (identifier: string, password: string, botProof: BotProof) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ identifier, password, botProof }),
     }),
-  loginWithWorkspace: (workspace: string, email: string, password: string) =>
+  loginWithWorkspace: (workspace: string, email: string, password: string, botProof: BotProof) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ workspace, email, password }),
+      body: JSON.stringify({ workspace, email, password, botProof }),
     }),
   register: (input: {
     email: string;
@@ -785,6 +805,7 @@ export const api = {
     displayName: string;
     birthDate: string;
     country: string;
+    botProof: BotProof;
   }) =>
     call<SessionPayload>('/api/auth/register', {
       method: 'POST',
@@ -1279,10 +1300,10 @@ export const api = {
     call<{
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
     }>('/api/class-join/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
-  signInClassroomSeat: (code: string, loginHandle: string) =>
+  signInClassroomSeat: (code: string, loginHandle: string, botProof: BotProof) =>
     call<ClassroomStudentSession>('/api/class-join/studentseat', {
       method: 'POST',
-      body: JSON.stringify({ code, loginHandle }),
+      body: JSON.stringify({ code, loginHandle, botProof }),
     }),
   classroomStudentMe: () =>
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
