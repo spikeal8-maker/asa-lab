@@ -12,6 +12,7 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "seo:check": "node tools/validate-seo.mjs",
     "lint": "nx run-many -t lint --all",
     "typecheck": "nx run-many -t typecheck --all",
     "boundaries:check": "eslint --config eslint.boundaries.config.mjs \"{apps,packages,contexts,modules}/**/*.{ts,tsx}\" && node tools/validate-context-boundaries.mjs",
@@ -70,7 +71,7 @@
     "e2e:three-d": "playwright test e2e/three-d-m0.spec.ts",
     "control-plane:check": "python tools/validate_control_plane.py",
     "gate:governance": "node tools/run-governance-gate.mjs",
-    "gate:code": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm build",
+    "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm build",
     "gate:data": "corepack pnpm db:migrate:check && corepack pnpm test && corepack pnpm test:rls",
     "gate:repository": "corepack pnpm gate:governance && corepack pnpm gate:code && corepack pnpm gate:data",
     "gate:electronics-m1": "corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build",

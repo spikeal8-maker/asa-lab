@@ -25,11 +25,22 @@
 		file_server
 	}
 
-	handle {
+	# Electronics uses a real browser path so that a saved project survives a
+	# refresh. It is the only non-file SPA path; hash routes reach the root
+	# document and never arrive at the server.
+	handle /projects/* {
 		root * /srv
-		try_files {path} /index.html
+		rewrite * /index.html
 		# The entry document names the hashed chunks, so holding it would point
 		# visitors at files the next deploy has already replaced.
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# Real public SEO pages and assets are served as files. Unknown paths now
+	# keep Caddy's 404 instead of becoming a soft-404 copy of the SPA document.
+	handle {
+		root * /srv
 		header Cache-Control "no-cache"
 		file_server
 	}

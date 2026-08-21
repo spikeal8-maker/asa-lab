@@ -1,0 +1,28 @@
+# ASA Lab publishes public educational and product information for search and
+# citation. Private application data and API endpoints must not be crawled.
+User-agent: *
+Content-Signal: search=yes,ai-input=yes,ai-train=no,use=reference
+Allow: /
+Disallow: /api/
+Disallow: /health/
+Disallow: /projects/
+
+# OpenAI search is separate from model training. Allow citations in ChatGPT
+# while GPTBot remains excluded below.
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+Disallow: /health/
+Disallow: /projects/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /api/
+Disallow: /health/
+Disallow: /projects/
+
+# Do not grant permission to collect ASA Lab content for model training.
+User-agent: GPTBot
+Disallow: /
+
+Sitemap: https://asa-lab.ru/sitemap.xml
