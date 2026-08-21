@@ -212,7 +212,7 @@ export function PublicEntryPage({
               Создать аккаунт
             </button>
             <button type="button" className="btn-secondary" onClick={() => onChoose('sign-in')}>
-              Войти
+              Уже есть аккаунт
             </button>
           </div>
         </section>
