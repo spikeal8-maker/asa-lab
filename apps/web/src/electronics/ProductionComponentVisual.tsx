@@ -566,6 +566,7 @@ export function ProductionComponentVisual({
           width={width}
           height={height}
           preserveAspectRatio={imageFit}
+          pointerEvents="none"
         />
       )}
 

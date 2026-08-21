@@ -389,46 +389,16 @@ export function WorkbenchStage({
           height="7000"
           fill={showGrid ? 'url(#asa-grid-large)' : '#f4f5f6'}
         />
-        <g className="workbench-wire-layer workbench-wire-hit-layer">
-          {routedWires.map(({ wire, path }) => (
-            <path
-              key={wire.id}
-              data-testid="wire-hit"
-              data-wire-id={wire.id}
-              className="workbench-wire-hit"
-              d={path}
-              vectorEffect="non-scaling-stroke"
-              onPointerDown={(event) => handleWirePointerDown(event, wire.id)}
-              onClick={(event) => event.stopPropagation()}
-            />
-          ))}
-          {routedWires.flatMap(({ wire, points }) =>
-            points.slice(0, -1).map((start, segmentIndex) => {
-              const end = points[segmentIndex + 1];
-              if (!end) return null;
-              const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
-              return (
-                <path
-                  key={`${wire.id}-segment-${segmentIndex}`}
-                  data-testid="wire-segment"
-                  data-wire-id={wire.id}
-                  data-wire-segment-index={segmentIndex}
-                  className={`workbench-wire-segment-hit ${horizontal ? 'horizontal' : 'vertical'}`}
-                  d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`}
-                  vectorEffect="non-scaling-stroke"
-                  onPointerDown={(event) => handleWirePointerDown(event, wire.id, segmentIndex)}
-                  onClick={(event) => event.stopPropagation()}
-                />
-              );
-            }),
-          )}
-        </g>
         {orderedComponents
           .filter((component) => component.kind !== 'wire')
           .map((component) => {
             const entry = catalogEntry(component);
             if (!entry?.asset || !entry.terminals) return null;
             const baseSize = renderedSize(entry, 0);
+            const bodyHitInset =
+              entry.key === 'arduino-uno'
+                ? { left: 0.035, top: 0.04, right: 0.03, bottom: 0.05 }
+                : { left: 0, top: 0, right: 0, bottom: 0 };
             const selected =
               c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
             const visualState = c.componentVisualState(component);
@@ -513,10 +483,13 @@ export function WorkbenchStage({
                 >
                   <rect
                     className="workbench-component-body-hit"
-                    x="0"
-                    y="0"
-                    width={baseSize.width}
-                    height={baseSize.height}
+                    data-hit-surface={
+                      entry.key === 'arduino-uno' ? 'arduino-board-body' : 'component-bounds'
+                    }
+                    x={baseSize.width * bodyHitInset.left}
+                    y={baseSize.height * bodyHitInset.top}
+                    width={baseSize.width * (1 - bodyHitInset.left - bodyHitInset.right)}
+                    height={baseSize.height * (1 - bodyHitInset.top - bodyHitInset.bottom)}
                     fill="#ffffff"
                     fillOpacity={0.001}
                     pointerEvents="all"
@@ -718,6 +691,44 @@ export function WorkbenchStage({
               </g>
             );
           })}
+        {/* Pointer targets are painted after components, so a visible wire stays
+            selectable even where it crosses a board or another part. The
+            rendered wire itself remains non-interactive and keeps its physical
+            width; these transparent paths are the steady screen-sized target. */}
+        <g className="workbench-wire-layer workbench-wire-hit-layer">
+          {routedWires.map(({ wire, path }) => (
+            <path
+              key={wire.id}
+              data-testid="wire-hit"
+              data-wire-id={wire.id}
+              className="workbench-wire-hit"
+              d={path}
+              vectorEffect="non-scaling-stroke"
+              onPointerDown={(event) => handleWirePointerDown(event, wire.id)}
+              onClick={(event) => event.stopPropagation()}
+            />
+          ))}
+          {routedWires.flatMap(({ wire, points }) =>
+            points.slice(0, -1).map((start, segmentIndex) => {
+              const end = points[segmentIndex + 1];
+              if (!end) return null;
+              const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+              return (
+                <path
+                  key={`${wire.id}-segment-${segmentIndex}`}
+                  data-testid="wire-segment"
+                  data-wire-id={wire.id}
+                  data-wire-segment-index={segmentIndex}
+                  className={`workbench-wire-segment-hit ${horizontal ? 'horizontal' : 'vertical'}`}
+                  d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`}
+                  vectorEffect="non-scaling-stroke"
+                  onPointerDown={(event) => handleWirePointerDown(event, wire.id, segmentIndex)}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              );
+            }),
+          )}
+        </g>
         <g className="workbench-wire-layer workbench-wire-overlay" data-testid="wire-layer">
           {routedWires.map(({ wire, path, selected }) => {
             return (
