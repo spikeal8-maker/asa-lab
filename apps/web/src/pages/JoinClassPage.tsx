@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { api } from '../api';
+import { api, type BotProof } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { BotCheck } from '../components/BotCheck';
 
 type JoinState =
   | { kind: 'code' }
@@ -31,6 +32,8 @@ export function JoinClassPage({
   const [loginHandle, setLoginHandle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [botProof, setBotProof] = useState<BotProof | null>(null);
+  const [botReset, setBotReset] = useState(0);
 
   async function resolve(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -48,13 +51,19 @@ export function JoinClassPage({
   async function signIn(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
+    if (!botProof) {
+      setError('Поставьте галочку «Я не робот» и дождитесь проверки.');
+      return;
+    }
     setBusy(true);
-    const result = await api.signInClassroomSeat(code, loginHandle);
+    const result = await api.signInClassroomSeat(code, loginHandle, botProof);
     setBusy(false);
     if (result.ok) {
       onSignedIn();
       return;
     }
+    setBotProof(null);
+    setBotReset((value) => value + 1);
     setError(result.error.message || 'Не удалось войти в класс.');
   }
 
@@ -68,6 +77,8 @@ export function JoinClassPage({
             state.kind === 'handle'
               ? () => {
                   setError(null);
+                  setBotProof(null);
+                  setBotReset((value) => value + 1);
                   setState({ kind: 'code' });
                 }
               : onBack
@@ -122,12 +133,18 @@ export function JoinClassPage({
               placeholder="alina-k"
               onChange={(event) => setLoginHandle(event.target.value.toLowerCase())}
             />
+            <BotCheck
+              key={`class-join-${botReset}`}
+              action="class_join"
+              disabled={busy}
+              onVerified={setBotProof}
+            />
             {error ? (
               <p className="form-error" role="alert">
                 {error}
               </p>
             ) : null}
-            <button type="submit" className="btn-primary" disabled={busy}>
+            <button type="submit" className="btn-primary" disabled={busy || !botProof}>
               {busy ? 'Входим…' : 'Войти в класс'}
             </button>
           </form>

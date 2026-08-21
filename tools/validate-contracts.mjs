@@ -39,8 +39,14 @@ async function validateOpenApi() {
   for (const path of [
     '/api/auth/register',
     '/api/auth/login',
+    '/api/auth/max/config',
+    '/api/auth/max/session',
+    '/api/auth/max/link',
     '/api/auth/me',
     '/api/session/context',
+    '/api/admin/v1/me',
+    '/api/admin/v1/scopes',
+    '/api/admin/v1/audit-events',
   ]) {
     if (raw.paths?.[path] === undefined) {
       console.error(`OpenAPI must declare runtime path ${path}`);

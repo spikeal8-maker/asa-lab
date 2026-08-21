@@ -3,6 +3,7 @@ export interface MutationOriginInput {
   readonly requestHost: string | undefined;
   readonly requestProtocol: string;
   readonly allowedWebOrigin: string;
+  readonly additionalAllowedOrigins?: readonly string[];
   readonly secFetchSite?: string | undefined;
 }
 
@@ -57,6 +58,41 @@ export function resolveCanonicalWebOrigin(
 }
 
 /**
+ * Public HTTPS origins are explicit production configuration, never inferred
+ * from Host/X-Forwarded-* headers.  That keeps a proxy or Host-header mistake
+ * from silently becoming a trusted CSRF origin.
+ */
+export function resolveAdditionalWebOrigins(raw: string | undefined): readonly string[] {
+  if (raw === undefined || raw.trim() === '') return [];
+
+  const values = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
+  if (values.length > 8) {
+    throw new Error('ASA_PUBLIC_WEB_ORIGINS accepts at most 8 comma-separated origins');
+  }
+
+  const origins = values.map((value) => {
+    const normalized = normalizeOrigin(value);
+    if (normalized === null || !normalized.startsWith('https://')) {
+      throw new Error(`ASA_PUBLIC_WEB_ORIGINS requires HTTPS origins without paths: ${value}`);
+    }
+    const parsed = new URL(normalized);
+    if (
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '::1'
+    ) {
+      throw new Error(`ASA_PUBLIC_WEB_ORIGINS must not contain a loopback origin: ${value}`);
+    }
+    return normalized;
+  });
+
+  return [...new Set(origins)];
+}
+
+/**
  * Browser mutation policy for the Teacher Portal.
  *
  * Browser requests carrying Origin are accepted only from the canonical Vite
@@ -78,8 +114,10 @@ export function isAllowedMutationOrigin(input: MutationOriginInput): boolean {
   }
 
   const requestOrigin = normalizeOrigin(input.origin);
-  const webOrigin = normalizeOrigin(input.allowedWebOrigin);
-  if (requestOrigin === null || webOrigin === null) {
+  const allowedOrigins = [input.allowedWebOrigin, ...(input.additionalAllowedOrigins ?? [])]
+    .map(normalizeOrigin)
+    .filter((origin): origin is string => origin !== null);
+  if (requestOrigin === null || allowedOrigins.length === 0) {
     return false;
   }
 
@@ -87,5 +125,7 @@ export function isAllowedMutationOrigin(input: MutationOriginInput): boolean {
     ? normalizeOrigin(`${input.requestProtocol}://${input.requestHost}`)
     : null;
 
-  return requestOrigin === webOrigin || (sameOrigin !== null && requestOrigin === sameOrigin);
+  return (
+    allowedOrigins.includes(requestOrigin) || (sameOrigin !== null && requestOrigin === sameOrigin)
+  );
 }

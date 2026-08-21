@@ -1,4 +1,5 @@
 import type { ComponentKind, SchematicComponent, Terminal } from './document.js';
+import { isArduinoUno } from './arduino-model.js';
 
 export type ElectricalModelId =
   | 'ideal-dc-source'
@@ -13,6 +14,7 @@ export type ElectricalModelId =
   | 'npn-transistor'
   | 'incandescent-lamp'
   | 'breadboard-connectivity'
+  | 'arduino-uno'
   | 'ideal-wire';
 
 export type ElectricalModelSupport = 'supported' | 'infrastructure' | 'unsupported';
@@ -148,7 +150,16 @@ const MODELS: Readonly<Record<ComponentKind, ElectricalModelDescriptor>> = {
   },
 };
 
+const ARDUINO_UNO_MODEL: ElectricalModelDescriptor = {
+  id: 'arduino-uno',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'multi-junction',
+  requiredTerminals: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+};
+
 export function electricalModelFor(component: SchematicComponent): ElectricalModelDescriptor {
+  if (isArduinoUno(component)) return ARDUINO_UNO_MODEL;
   return MODELS[component.kind];
 }
 
@@ -160,6 +171,7 @@ export function unsupportedElectricalComponents(
 
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
+  if (isArduinoUno(component)) return ARDUINO_UNO_MODEL.requiredTerminals;
   // Holders expose BAT+/BAT-; single-cell batteries and the bench supply use
   // positive/negative. The simulation maps both already — the contract must
   // accept whichever pair the component actually carries, or a catalog battery

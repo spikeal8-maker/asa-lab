@@ -181,7 +181,141 @@ export function groupDocumentNodes(
   return {
     ...document,
     nodes: document.nodes.map((node) =>
-      selected.has(node.id) && !node.locked ? { ...node, groupId, groupOperation } : node,
+      selected.has(node.id) && !node.locked
+        ? { ...node, bundleId: null, groupId, groupOperation }
+        : node,
+    ),
+  };
+}
+
+export function bundleDocumentNodes(
+  document: ThreeDDocument,
+  nodeIds: readonly string[],
+  bundleId: string,
+): ThreeDDocument {
+  const selected = new Set(nodeIds);
+  const candidates = document.nodes.filter(
+    (node) => selected.has(node.id) && !node.locked && !node.groupId,
+  );
+  if (candidates.length < 2) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) =>
+      selected.has(node.id) && !node.locked && !node.groupId ? { ...node, bundleId } : node,
+    ),
+  };
+}
+
+export function unbundleDocumentNodes(
+  document: ThreeDDocument,
+  nodeIds: readonly string[],
+): ThreeDDocument {
+  const selectedBundles = new Set(
+    document.nodes
+      .filter((node) => nodeIds.includes(node.id) && node.bundleId)
+      .map((node) => node.bundleId as string),
+  );
+  if (selectedBundles.size === 0) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) =>
+      node.bundleId && selectedBundles.has(node.bundleId) ? { ...node, bundleId: null } : node,
+    ),
+  };
+}
+
+export function mirrorDocumentNodes(
+  document: ThreeDDocument,
+  nodeIds: readonly string[],
+  axis: AlignmentAxis,
+): ThreeDDocument {
+  const selected = new Set(nodeIds);
+  const candidates = document.nodes.filter((node) => selected.has(node.id) && !node.locked);
+  const bounds = selectionBounds(candidates);
+  if (!bounds) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      if (!selected.has(node.id) || node.locked) return node;
+      return {
+        ...node,
+        transform: {
+          ...node.transform,
+          position: {
+            ...node.transform.position,
+            [axis]: bounds.center[axis] * 2 - node.transform.position[axis],
+          },
+          scale: {
+            ...node.transform.scale,
+            [axis]: node.transform.scale[axis] * -1,
+          },
+        },
+      };
+    }),
+  };
+}
+
+export function dropDocumentNodesToWorkplane(
+  document: ThreeDDocument,
+  nodeIds: readonly string[],
+  workplaneY: number,
+): ThreeDDocument {
+  if (!Number.isFinite(workplaneY)) return document;
+  const selected = new Set(nodeIds);
+  const candidates = document.nodes.filter((node) => selected.has(node.id) && !node.locked);
+  const bounds = selectionBounds(candidates);
+  if (!bounds) return document;
+  const delta = workplaneY - bounds.min.y;
+  if (Math.abs(delta) < 0.000001) return document;
+  return {
+    ...document,
+    nodes: document.nodes.map((node) =>
+      selected.has(node.id) && !node.locked
+        ? {
+            ...node,
+            transform: {
+              ...node.transform,
+              position: { ...node.transform.position, y: node.transform.position.y + delta },
+            },
+          }
+        : node,
+    ),
+  };
+}
+
+export function cruiseDocumentNodesToTarget(
+  document: ThreeDDocument,
+  sourceIds: readonly string[],
+  targetIds: readonly string[],
+): ThreeDDocument {
+  const sources = new Set(sourceIds);
+  const targets = new Set(targetIds.filter((id) => !sources.has(id)));
+  const sourceNodes = document.nodes.filter((node) => sources.has(node.id) && !node.locked);
+  const targetNodes = document.nodes.filter((node) => targets.has(node.id) && node.visible);
+  const sourceBounds = selectionBounds(sourceNodes);
+  const targetBounds = selectionBounds(targetNodes);
+  if (!sourceBounds || !targetBounds) return document;
+  const delta = {
+    x: targetBounds.center.x - sourceBounds.center.x,
+    y: targetBounds.max.y - sourceBounds.min.y,
+    z: targetBounds.center.z - sourceBounds.center.z,
+  };
+  return {
+    ...document,
+    nodes: document.nodes.map((node) =>
+      sources.has(node.id) && !node.locked
+        ? {
+            ...node,
+            transform: {
+              ...node.transform,
+              position: {
+                x: node.transform.position.x + delta.x,
+                y: node.transform.position.y + delta.y,
+                z: node.transform.position.z + delta.z,
+              },
+            },
+          }
+        : node,
     ),
   };
 }

@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
-import { api, type SessionPayload } from '../api';
+import { api, type BotProof, type SessionPayload } from '../api';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
+import { BotCheck } from '../components/BotCheck';
 
 export function OrganizationLoginPage({
   onSignedIn,
@@ -14,6 +15,8 @@ export function OrganizationLoginPage({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [botProof, setBotProof] = useState<BotProof | null>(null);
+  const [botReset, setBotReset] = useState(0);
   const messageId = useId();
   const workspaceRef = useRef<HTMLInputElement>(null);
 
@@ -25,13 +28,19 @@ export function OrganizationLoginPage({
       workspaceRef.current?.focus();
       return;
     }
+    if (!botProof) {
+      setMessage('Поставьте галочку «Я не робот» и дождитесь проверки.');
+      return;
+    }
     setBusy(true);
-    const result = await api.loginWithWorkspace(workspace.trim(), email.trim(), password);
+    const result = await api.loginWithWorkspace(workspace.trim(), email.trim(), password, botProof);
     setBusy(false);
     if (result.ok) {
       onSignedIn(result.data);
       return;
     }
+    setBotProof(null);
+    setBotReset((value) => value + 1);
     setMessage(
       result.status === 0
         ? 'Сервер недоступен. Попробуйте ещё раз.'
@@ -82,10 +91,16 @@ export function OrganizationLoginPage({
             disabled={busy}
             onChange={(event) => setPassword(event.target.value)}
           />
+          <BotCheck
+            key={`organization-login-${botReset}`}
+            action="login"
+            disabled={busy}
+            onVerified={setBotProof}
+          />
           <p id={messageId} className="form-error" role="alert" hidden={!message}>
             {message}
           </p>
-          <button type="submit" className="btn-primary" disabled={busy}>
+          <button type="submit" className="btn-primary" disabled={busy || !botProof}>
             {busy ? 'Входим…' : 'Войти через организацию'}
           </button>
         </form>

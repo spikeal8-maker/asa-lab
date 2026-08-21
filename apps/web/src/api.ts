@@ -42,6 +42,11 @@ export interface SessionPayload {
   timeZone: string | null;
 }
 
+export interface MaxAuthConfig {
+  enabled: boolean;
+  launchUrl: string | null;
+}
+
 export interface AccountProfile {
   email: string;
   emailVerificationState: string;
@@ -65,6 +70,22 @@ export interface AccountSession {
   expiresAt: string;
   current: boolean;
   userAgentSummary: string | null;
+}
+
+export type BotAction = 'login' | 'register' | 'class_join';
+
+export interface BotChallenge {
+  action: BotAction;
+  nonce: string;
+  salt: string;
+  difficulty: number;
+  issuedAt: number;
+  expiresAt: number;
+  signature: string;
+}
+
+export interface BotProof extends BotChallenge {
+  counter: number;
 }
 
 export interface Classroom {
@@ -173,9 +194,15 @@ export interface Course {
   visibility: Visibility;
   ageBand: string | null;
   itemCount: number;
+  sectionCount: number;
+  lessonCount: number;
+  assignmentCount: number;
   /** Скольким коллегам открыт поимённо. */
   sharedWith: number;
   copiedFromCourseId: string | null;
+  publicationState: 'draft' | 'published' | 'changed';
+  publishedVersion: number | null;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -187,6 +214,121 @@ export interface CourseItem {
   moduleKey: string;
   sampleImage: string | null;
   position: number;
+}
+
+export type LessonBlock =
+  | { id: string; type: 'paragraph'; text: string }
+  | { id: string; type: 'heading'; text: string; level: 2 | 3 }
+  | { id: string; type: 'callout'; text: string; tone: 'note' | 'tip' | 'warning' }
+  | { id: string; type: 'image'; url: string; alt: string; caption: string }
+  | { id: string; type: 'video'; url: string; title: string }
+  | { id: string; type: 'audio'; url: string; title: string }
+  | { id: string; type: 'file'; url: string; label: string };
+
+export interface CourseLesson {
+  id: string;
+  title: string;
+  summary: string | null;
+  content: string | null;
+  blocks: LessonBlock[];
+  kind: 'material' | 'assignment';
+  assignmentId: string | null;
+  assignmentTitle: string | null;
+  moduleKey: string | null;
+  estimatedMinutes: number | null;
+  position: number;
+}
+
+export interface CourseSection {
+  id: string;
+  title: string;
+  summary: string | null;
+  position: number;
+  lessons: CourseLesson[];
+}
+
+export interface CourseLessonInput {
+  sectionId: string;
+  title: string;
+  summary: string | null;
+  content: string | null;
+  blocks: LessonBlock[];
+  kind: 'material' | 'assignment';
+  assignmentId: string | null;
+  estimatedMinutes: number | null;
+}
+
+export interface ClassroomCourseRunLesson {
+  id: string;
+  sourceLessonId: string;
+  title: string;
+  summary: string | null;
+  content: string | null;
+  blocks: LessonBlock[];
+  kind: 'material' | 'assignment';
+  estimatedMinutes: number | null;
+  position: number;
+  classroomAssignmentId: string | null;
+  assignmentTitle: string | null;
+  assignmentGoal: string | null;
+  assignmentBrief: string | null;
+  moduleKey: string | null;
+  sampleImage: string | null;
+  seatCount: number;
+  startedCount: number;
+  submittedCount: number;
+  completedCount: number;
+}
+
+export interface ClassroomCourseRun {
+  id: string;
+  courseId: string;
+  courseVersionId: string;
+  versionNumber: number;
+  title: string;
+  summary: string | null;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  publishedAt: string;
+  startedCount: number;
+  submittedCount: number;
+  sections: Array<{
+    id: string;
+    title: string;
+    summary: string | null;
+    position: number;
+    lessons: ClassroomCourseRunLesson[];
+  }>;
+}
+
+export interface SeatCourseRunLesson extends Omit<
+  ClassroomCourseRunLesson,
+  'seatCount' | 'startedCount' | 'submittedCount' | 'completedCount'
+> {
+  projectId: string | null;
+  submittedAt: string | null;
+  snapshotRevision: number | null;
+  updatedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface SeatCourseRun {
+  id: string;
+  courseId: string;
+  courseVersionId: string;
+  versionNumber: number;
+  classroomTitle: string;
+  title: string;
+  summary: string | null;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  sections: Array<{
+    id: string;
+    title: string;
+    summary: string | null;
+    position: number;
+    lessons: SeatCourseRunLesson[];
+  }>;
 }
 
 /** Строка общего каталога: чужой курс или чужое задание. */
@@ -768,15 +910,30 @@ export interface CheckersTeacherFeedback {
 
 export const api = {
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
-  login: (identifier: string, password: string) =>
-    call<SessionPayload>('/api/auth/login', {
+  maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
+  maxSession: (initData: string) =>
+    call<SessionPayload>('/api/auth/max/session', {
       method: 'POST',
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ initData }),
     }),
-  loginWithWorkspace: (workspace: string, email: string, password: string) =>
+  maxLink: (initData: string) =>
+    call<{ linked: true }>('/api/auth/max/link', {
+      method: 'POST',
+      body: JSON.stringify({ initData }),
+    }),
+  botChallenge: (action: BotAction) =>
+    call<{ required: boolean; challenge: BotChallenge }>(
+      `/api/auth/bot-challenge?action=${encodeURIComponent(action)}`,
+    ),
+  login: (identifier: string, password: string, botProof: BotProof) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ workspace, email, password }),
+      body: JSON.stringify({ identifier, password, botProof }),
+    }),
+  loginWithWorkspace: (workspace: string, email: string, password: string, botProof: BotProof) =>
+    call<SessionPayload>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ workspace, email, password, botProof }),
     }),
   register: (input: {
     email: string;
@@ -785,6 +942,7 @@ export const api = {
     displayName: string;
     birthDate: string;
     country: string;
+    botProof: BotProof;
   }) =>
     call<SessionPayload>('/api/auth/register', {
       method: 'POST',
@@ -1070,6 +1228,10 @@ export const api = {
     }),
   // Курсы.
   listCourses: () => call<{ items: Course[] }>('/api/courses'),
+  ensureDemoCourse: () =>
+    call<{ id: string; created: boolean; publishedVersion: number }>('/api/courses/demo', {
+      method: 'POST',
+    }),
   saveCourse: (
     courseId: string | null,
     input: {
@@ -1091,6 +1253,73 @@ export const api = {
     call<{ removed: true }>(`/api/courses/${encodeURIComponent(courseId)}`, { method: 'DELETE' }),
   courseItems: (courseId: string) =>
     call<{ items: CourseItem[] }>(`/api/courses/${encodeURIComponent(courseId)}/items`),
+  courseOutline: (courseId: string) =>
+    call<{ sections: CourseSection[] }>(`/api/courses/${encodeURIComponent(courseId)}/outline`),
+  publishCourse: (courseId: string) =>
+    call<{
+      versionId: string;
+      versionNumber: number;
+      publishedAt: string;
+      reused: boolean;
+    }>(`/api/courses/${encodeURIComponent(courseId)}/publish`, { method: 'POST' }),
+  listClassroomCourseRuns: (classroomId: string) =>
+    call<{ items: ClassroomCourseRun[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs`,
+    ),
+  assignCourseToClassroom: (classroomId: string, courseId: string, dueAt: string | null) =>
+    call<{ runId: string; versionNumber: number; reused: boolean }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs`,
+      { method: 'POST', body: JSON.stringify({ courseId, dueAt }) },
+    ),
+  setClassroomCourseRunStatus: (classroomId: string, runId: string, status: 'open' | 'closed') =>
+    call<{ ok: true }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs/${encodeURIComponent(runId)}/status`,
+      { method: 'POST', body: JSON.stringify({ status }) },
+    ),
+  saveCourseSection: (
+    courseId: string,
+    sectionId: string | null,
+    input: { title: string; summary: string | null },
+  ) =>
+    call<{ id: string }>(
+      sectionId
+        ? `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`
+        : `/api/courses/${encodeURIComponent(courseId)}/sections`,
+      {
+        method: sectionId ? 'PATCH' : 'POST',
+        body: JSON.stringify(input),
+      },
+    ),
+  moveCourseSection: (courseId: string, sectionId: string, delta: number) =>
+    call<{ ok: boolean }>(
+      `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}/move`,
+      { method: 'POST', body: JSON.stringify({ delta }) },
+    ),
+  deleteCourseSection: (courseId: string, sectionId: string) =>
+    call<{ removed: true }>(
+      `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`,
+      { method: 'DELETE' },
+    ),
+  saveCourseLesson: (courseId: string, lessonId: string | null, input: CourseLessonInput) =>
+    call<{ id: string }>(
+      lessonId
+        ? `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`
+        : `/api/courses/${encodeURIComponent(courseId)}/lessons`,
+      {
+        method: lessonId ? 'PATCH' : 'POST',
+        body: JSON.stringify(input),
+      },
+    ),
+  moveCourseLesson: (courseId: string, lessonId: string, delta: number) =>
+    call<{ ok: boolean }>(
+      `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/move`,
+      { method: 'POST', body: JSON.stringify({ delta }) },
+    ),
+  deleteCourseLesson: (courseId: string, lessonId: string) =>
+    call<{ removed: true }>(
+      `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`,
+      { method: 'DELETE' },
+    ),
   setCourseItem: (courseId: string, assignmentId: string, included: boolean) =>
     call<{ ok: true }>(
       `/api/courses/${encodeURIComponent(courseId)}/items/${encodeURIComponent(assignmentId)}`,
@@ -1197,6 +1426,14 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/progress`,
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
+  seatCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/me/course-runs'),
+  setSeatCourseLessonProgress: (runId: string, lessonId: string, completed: boolean) =>
+    call<{ completedAt: string | null }>(
+      `/api/class-join/me/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(
+        lessonId,
+      )}/progress`,
+      { method: 'POST', body: JSON.stringify({ completed }) },
+    ),
   mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
   seatAssignmentCounts: () =>
     call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
@@ -1279,10 +1516,10 @@ export const api = {
     call<{
       classroom: { id: string; title: string; teacherDisplayName: string; safeMode: boolean };
     }>('/api/class-join/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
-  signInClassroomSeat: (code: string, loginHandle: string) =>
+  signInClassroomSeat: (code: string, loginHandle: string, botProof: BotProof) =>
     call<ClassroomStudentSession>('/api/class-join/studentseat', {
       method: 'POST',
-      body: JSON.stringify({ code, loginHandle }),
+      body: JSON.stringify({ code, loginHandle, botProof }),
     }),
   classroomStudentMe: () =>
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),

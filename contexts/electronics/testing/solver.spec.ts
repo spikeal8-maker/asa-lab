@@ -244,10 +244,100 @@ describe('electrical model registry', () => {
       topology: 'three-terminal',
       requiredTerminals: ['base', 'collector', 'emitter'],
     });
+    expect(
+      electricalModelFor(
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+        }),
+      ),
+    ).toMatchObject({
+      id: 'arduino-uno',
+      support: 'supported',
+      topology: 'multi-junction',
+    });
   });
 });
 
 describe('deterministic DC solver', () => {
+  it('runs Arduino Uno by itself and exposes the deterministic first D13 output state', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1', 'power-gnd-2', 'gnd-top'],
+          }),
+        ],
+        [],
+      ),
+    );
+
+    expect(result.solved).toBe(true);
+    expect(result.status).toBe('solved');
+    const uno = result.components.find((item) => item.componentId === 'uno');
+    expect(uno).toMatchObject({ energized: true });
+    expect(uno?.terminalVoltages.d13).toBeCloseTo(5, 9);
+    expect(uno?.terminalVoltages['power-5v']).toBeCloseTo(5, 9);
+    expect(uno?.terminalVoltages['power-3v3']).toBeCloseTo(3.3, 9);
+    expect(result.diagnostics.map((item) => item.code)).not.toContain('unsupported_component');
+  });
+
+  it('models a resistor-less LED on Arduino D13 and reports physical burnout', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1', 'power-gnd-2', 'gnd-top'],
+          }),
+          component('led', 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+          }),
+        ],
+        [
+          connect('d13-anode', 'uno', 'd13', 'led', 'anode'),
+          connect('cathode-ground', 'led', 'cathode', 'uno', 'gnd-top'),
+        ],
+      ),
+    );
+
+    expect(result.solved).toBe(true);
+    expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: true,
+      stressState: 'burned',
+    });
+    expect(result.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining(['led_overcurrent', 'led_burnout']),
+    );
+  });
+
+  it('turns the D13 LED off when the Arduino program starts with LOW', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: { arduinoSource: 'void loop() { digitalWrite(13, LOW); }' },
+          }),
+          component('led', 'led', 2),
+        ],
+        [
+          connect('d13-anode', 'uno', 'd13', 'led', 'a'),
+          connect('cathode-ground', 'led', 'b', 'uno', 'power-gnd-1'),
+        ],
+      ),
+    );
+
+    expect(result.solved).toBe(true);
+    expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: false,
+      current: 0,
+    });
+  });
+
   it('fails closed when the document contains an unsupported electrical component', () => {
     const result = solveCircuit(
       doc(

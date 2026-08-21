@@ -168,6 +168,7 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
 };
 
 const SIMULATED_TYPES = new Set([
+  'arduino-uno',
   'battery-9v',
   'battery-holder-aa-1',
   'battery-holder-aa-2',
@@ -264,6 +265,9 @@ function defaults(componentId: string): {
   wiperPosition?: number;
   properties: Readonly<Record<string, ProductionStateValue>>;
 } {
+  if (componentId === 'arduino-uno') {
+    return { value: 5, unit: 'В', properties: {} };
+  }
   if (componentId.startsWith('battery-holder-aa-')) {
     const cells = Number(componentId.split('-').at(-1));
     return { value: cells * 1.5, unit: 'В', properties: { cells } };

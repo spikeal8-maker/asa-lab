@@ -1,4 +1,5 @@
 import { terminalsForComponent, type ElectronicsDocument, type Terminal } from './document.js';
+import { ARDUINO_GROUND_TERMINALS, isArduinoUno } from './arduino-model.js';
 
 export interface TerminalRef {
   readonly componentId: string;
@@ -70,6 +71,15 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     }
     if (component.kind === 'wire') {
       union.union(terminalKey(component.id, 'a'), terminalKey(component.id, 'b'));
+    }
+    if (isArduinoUno(component)) {
+      const grounds = ARDUINO_GROUND_TERMINALS.filter((terminal) => terminals.includes(terminal));
+      const reference = grounds[0];
+      if (reference) {
+        for (const terminal of grounds.slice(1)) {
+          union.union(terminalKey(component.id, reference), terminalKey(component.id, terminal));
+        }
+      }
     }
   }
   for (const connection of document.connections) {

@@ -21,10 +21,15 @@ export {
 } from './domain/document.js';
 export {
   alignDocumentNodes,
+  bundleDocumentNodes,
+  cruiseDocumentNodesToTarget,
+  dropDocumentNodesToWorkplane,
   groupDocumentNodes,
+  mirrorDocumentNodes,
   nodeBounds,
   selectionBounds,
   setDocumentNodeOperation,
+  unbundleDocumentNodes,
   ungroupDocumentNodes,
   type AlignmentAxis,
   type AlignmentMode,

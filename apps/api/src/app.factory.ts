@@ -12,7 +12,12 @@ import pg from 'pg';
 import type { RuntimeMetrics } from '@asa-lab/observability';
 import { AppModule } from './app.module.js';
 import { TOKENS } from './tokens.js';
-import { isAllowedMutationOrigin, resolveCanonicalWebOrigin } from './origin-policy.js';
+import {
+  isAllowedMutationOrigin,
+  resolveAdditionalWebOrigins,
+  resolveCanonicalWebOrigin,
+} from './origin-policy.js';
+import { MutationAbuseProtection } from './abuse-protection.js';
 
 /**
  * Content-hashed filenames may be cached forever; anything else may not.
@@ -29,6 +34,30 @@ import { isAllowedMutationOrigin, resolveCanonicalWebOrigin } from './origin-pol
 // matched before this was tightened. A build hash that happens to contain a
 // hyphen simply falls back to revalidation, which is the safe direction to err.
 const HASHED_ASSET = /-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$/;
+
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    'upgrade-insecure-requests',
+  ].join('; '),
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-Permitted-Cross-Domain-Policies': 'none',
+} as const;
 
 export function cacheControlFor(fileName: string): string {
   return HASHED_ASSET.test(fileName) ? 'public, max-age=31536000, immutable' : 'no-cache';
@@ -57,6 +86,8 @@ export interface ApiFactoryOptions {
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
   readonly allowedWebOrigin?: string;
+  /** Additional explicit HTTPS origins used by the production deployment. */
+  readonly additionalAllowedOrigins?: readonly string[];
   /** One structured line per response. Defaults on, off under the test runner. */
   readonly logRequests?: boolean;
 }
@@ -110,6 +141,9 @@ export async function createApiApp(
 ): Promise<NestFastifyApplication> {
   const pool = options.pool !== undefined ? options.pool : defaultPool();
   const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
+  const additionalAllowedOrigins =
+    options.additionalAllowedOrigins ??
+    resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS']);
   const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forPool(pool), adapter, {
     logger: ['error', 'warn'],
@@ -119,6 +153,13 @@ export async function createApiApp(
   // deliberate boundary cast lets the canonical plugin types apply.
   const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
   await fastify.register(fastifyCookie);
+
+  fastify.addHook('onSend', async (_request, reply, payload) => {
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      if (!reply.hasHeader(name)) void reply.header(name, value);
+    }
+    return payload;
+  });
 
   // Caddy compresses in front of the API in production, but dev, the browser
   // E2E stack and every local measurement talk to the API directly. Without
@@ -132,6 +173,7 @@ export async function createApiApp(
 
   const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
   const logRequests = shouldLogRequests(options.logRequests);
+  const mutationAbuseProtection = new MutationAbuseProtection();
 
   fastify.addHook('onRequest', async () => {
     metrics.requestStarted();
@@ -157,6 +199,14 @@ export async function createApiApp(
 
   fastify.addHook('onRequest', async (request, reply) => {
     void reply.header('x-request-id', request.id);
+    const path = (request.raw.url ?? '/').split('?')[0];
+    if (
+      process.env['NODE_ENV'] === 'production' &&
+      process.env['ASA_PUBLIC_METRICS'] !== '1' &&
+      path === '/health/metrics'
+    ) {
+      return reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
+    }
     const method = request.method;
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
       return;
@@ -167,6 +217,7 @@ export async function createApiApp(
       requestHost: request.headers.host,
       requestProtocol: request.protocol,
       allowedWebOrigin,
+      additionalAllowedOrigins,
       secFetchSite:
         typeof request.headers['sec-fetch-site'] === 'string'
           ? request.headers['sec-fetch-site']
@@ -176,6 +227,18 @@ export async function createApiApp(
       return reply
         .code(403)
         .send({ error: { code: 'origin_forbidden', message: 'request origin is not allowed' } });
+    }
+
+    const abuse = mutationAbuseProtection.consume(request);
+    if (!abuse.allowed) {
+      void reply.header('retry-after', abuse.retryAfterSeconds);
+      return reply.code(429).send({
+        error: {
+          code: 'too_many_requests',
+          message: 'Слишком много запросов. Подождите и попробуйте снова.',
+          retryAfterSeconds: abuse.retryAfterSeconds,
+        },
+      });
     }
   });
 

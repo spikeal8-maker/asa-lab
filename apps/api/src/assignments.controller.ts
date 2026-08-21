@@ -17,6 +17,7 @@ import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { isValidClassroomTitle } from '@asa-lab/classroom';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE, type SeatContext, SeatContextUseCase } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
 
 /**
@@ -91,6 +92,13 @@ interface FolderRow {
   total_count: number | string;
 }
 
+interface AssignmentViewer {
+  readonly principalId: string;
+  readonly accountId: string | null;
+  readonly tenantId: string;
+  readonly seatId: string | null;
+}
+
 /** Возраст задания — тот же словарь, что у классов, слово в слово. */
 const AGE_BANDS = new Set(['mixed', '6-8', '9-10', '11-12', '13-15', '16-18']);
 
@@ -98,6 +106,7 @@ const AGE_BANDS = new Set(['mixed', '6-8', '9-10', '11-12', '13-15', '16-18']);
 export class AssignmentsController {
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+    @Inject(TOKENS.seatContextUseCase) private readonly seatContext: SeatContextUseCase,
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
   ) {}
@@ -118,6 +127,38 @@ export class AssignmentsController {
       throw new HttpException(error('educator_required', 'Задания доступны педагогам.'), 403);
     }
     return context;
+  }
+
+  /**
+   * Images are private application data, not bearer URLs. Resolve either kind
+   * of signed-in user here, then let the database verify that this exact
+   * principal/seat may see the assignment. Keeping the second check in SQL is
+   * important because the byte-reading functions run as SECURITY DEFINER.
+   */
+  private async requireViewer(request: FastifyRequest): Promise<AssignmentViewer> {
+    const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (account) {
+      return {
+        principalId: account.principalId,
+        accountId: account.accountId,
+        tenantId: account.tenantId,
+        seatId: null,
+      };
+    }
+
+    const seat: SeatContext | null = await this.seatContext.resolve(
+      request.cookies[STUDENT_SESSION_COOKIE],
+    );
+    if (seat) {
+      return {
+        principalId: seat.principalId,
+        accountId: null,
+        tenantId: seat.tenantId,
+        seatId: seat.seatId,
+      };
+    }
+
+    throw new HttpException(error('unauthorized', 'no active session'), 401);
   }
 
   private requireUuid(value: string, label: string): void {
@@ -238,10 +279,29 @@ export class AssignmentsController {
   async remove(@Req() request: FastifyRequest, @Param('assignmentId') assignmentId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(assignmentId, 'assignment');
-    const result = await this.requirePool().query(
-      `SELECT teacher_assignment_delete($1, $2) AS removed`,
-      [context.principalId, assignmentId],
-    );
+    let result: pg.QueryResult;
+    try {
+      result = await this.requirePool().query(
+        `SELECT teacher_assignment_delete($1, $2) AS removed`,
+        [context.principalId, assignmentId],
+      );
+    } catch (caught) {
+      if (
+        typeof caught === 'object' &&
+        caught !== null &&
+        'code' in caught &&
+        caught.code === '23503'
+      ) {
+        throw new HttpException(
+          error(
+            'assignment_in_course',
+            'Задание используется в курсе. Сначала удалите его из уроков или уберите в архив.',
+          ),
+          409,
+        );
+      }
+      throw caught;
+    }
     if ((result.rows[0] as { removed: boolean } | undefined)?.removed !== true) {
       throw new HttpException(error('assignment_not_found', 'Задание не найдено.'), 404);
     }
@@ -282,8 +342,7 @@ export class AssignmentsController {
     return { ok: true as const };
   }
 
-  /** The picture itself. Public to anyone signed in: it is a reference render,
-   *  and a learner has to be able to see the task they were given. */
+  /** The picture itself, only for a viewer who may see this assignment. */
   @Get(':assignmentId/sample')
   async sample(
     @Req() request: FastifyRequest,
@@ -291,10 +350,11 @@ export class AssignmentsController {
     @Res({ passthrough: false }) reply: FastifyReply,
   ) {
     this.requireUuid(assignmentId, 'assignment');
-    void request;
+    const viewer = await this.requireViewer(request);
     const result = await this.requirePool().query(
-      `SELECT sample_bytes, sample_content_type FROM teacher_assignment_sample($1)`,
-      [assignmentId],
+      `SELECT sample_bytes, sample_content_type
+         FROM assignment_sample_for_viewer($1, $2, $3, $4, $5)`,
+      [assignmentId, viewer.principalId, viewer.accountId, viewer.tenantId, viewer.seatId],
     );
     const row = result.rows[0] as { sample_bytes: Buffer; sample_content_type: string } | undefined;
     if (!row) throw new HttpException(error('sample_not_found', 'Картинки нет.'), 404);
@@ -533,10 +593,11 @@ export class AssignmentsController {
   ) {
     this.requireUuid(assignmentId, 'assignment');
     this.requireUuid(imageId, 'image');
-    void request;
+    const viewer = await this.requireViewer(request);
     const result = await this.requirePool().query(
-      `SELECT bytes, content_type FROM teacher_assignment_image($1, $2)`,
-      [assignmentId, imageId],
+      `SELECT bytes, content_type
+         FROM assignment_image_for_viewer($1, $2, $3, $4, $5, $6)`,
+      [assignmentId, imageId, viewer.principalId, viewer.accountId, viewer.tenantId, viewer.seatId],
     );
     const row = result.rows[0] as { bytes: Buffer; content_type: string } | undefined;
     if (!row) throw new HttpException(error('image_not_found', 'Картинки нет.'), 404);

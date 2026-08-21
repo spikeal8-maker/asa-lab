@@ -57,6 +57,8 @@ export interface ThreeDNode {
   readonly bevel: number;
   readonly visible: boolean;
   readonly locked: boolean;
+  /** A lightweight, non-boolean bundle. Members keep their own geometry and colour. */
+  readonly bundleId: string | null;
   /** A reversible modelling group. Null keeps the primitive independent. */
   readonly groupId: string | null;
   /** Repeated on group members so the browser can rebuild the boolean result. */
@@ -216,6 +218,7 @@ export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNo
     bevel: 0,
     visible: true,
     locked: false,
+    bundleId: null,
     groupId: null,
     groupOperation: null,
   };
@@ -278,6 +281,9 @@ function isNode(value: unknown): value is ThreeDNode {
     (value['bevel'] as number) >= 0 &&
     typeof value['visible'] === 'boolean' &&
     typeof value['locked'] === 'boolean' &&
+    (value['bundleId'] === undefined ||
+      value['bundleId'] === null ||
+      (typeof value['bundleId'] === 'string' && value['bundleId'].length > 0)) &&
     (value['groupId'] === undefined ||
       value['groupId'] === null ||
       (typeof value['groupId'] === 'string' && value['groupId'].length > 0)) &&
@@ -305,6 +311,7 @@ export function parseThreeDDocument(value: unknown): DocumentParseResult {
   }
   const normalizedNodes = nodes.map((node) => ({
     ...node,
+    bundleId: node.bundleId ?? null,
     groupId: node.groupId ?? null,
     groupOperation: node.groupId ? (node.groupOperation ?? 'union') : null,
   }));

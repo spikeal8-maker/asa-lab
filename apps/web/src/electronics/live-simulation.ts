@@ -10,13 +10,17 @@ export function calculateLiveSimulation(
   document: SchematicDocument | null,
   persistedResult: SolveResult | null,
   running: boolean,
+  simulationTimeMs = 0,
 ): SolveResult | null {
   if (!running || !document) return persistedResult;
-  return calculateSimulationPreflight(document);
+  return calculateSimulationPreflight(document, simulationTimeMs);
 }
 
-export function calculateSimulationPreflight(document: SchematicDocument): SolveResult {
-  return analyseCircuit(document) as SolveResult;
+export function calculateSimulationPreflight(
+  document: SchematicDocument,
+  simulationTimeMs = 0,
+): SolveResult {
+  return analyseCircuit(document, { simulationTimeMs }) as SolveResult;
 }
 
 export function prepareLiveSimulationStart(document: SchematicDocument): {

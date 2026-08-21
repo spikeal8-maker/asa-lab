@@ -37,6 +37,7 @@ interface SceneEntry extends DirectManipulationEntry {
 interface PlacementPreview {
   readonly primitive: PrimitiveKind;
   readonly operation: ShapeOperation;
+  readonly height: number;
   readonly object: THREE.Group;
 }
 
@@ -134,6 +135,7 @@ export class SceneRuntime {
   private gridSignature = '';
   private readonly gridRoot = new THREE.Group();
   private gridSnap = 1;
+  private workplaneY = 0;
   private animationFrame = 0;
   private readonly resizeObserver: ResizeObserver;
 
@@ -607,7 +609,13 @@ export class SceneRuntime {
     this.manipulator.setSelection(nodeId, nodeIds);
   }
 
-  workplanePoint(clientX: number, clientY: number): { x: number; z: number } | null {
+  setWorkplaneY(value: number): void {
+    this.workplaneY = Number.isFinite(value) ? value : 0;
+    this.gridRoot.position.y = this.workplaneY;
+    this.container.dataset['workplaneY'] = String(this.workplaneY);
+  }
+
+  workplanePoint(clientX: number, clientY: number): { x: number; y: number; z: number } | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -615,9 +623,14 @@ export class SceneRuntime {
     );
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const point = new THREE.Vector3();
-    if (!this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), point))
+    if (
+      !this.raycaster.ray.intersectPlane(
+        new THREE.Plane(new THREE.Vector3(0, 1, 0), -this.workplaneY),
+        point,
+      )
+    )
       return null;
-    return { x: snap(point.x, this.gridSnap), z: snap(point.z, this.gridSnap) };
+    return { x: snap(point.x, this.gridSnap), y: this.workplaneY, z: snap(point.z, this.gridSnap) };
   }
 
   setPlacementPreview(
@@ -656,12 +669,14 @@ export class SceneRuntime {
         child.renderOrder = 18;
       });
       this.scene.add(object);
-      this.placementPreview = { primitive, operation, object };
+      this.placementPreview = { primitive, operation, height: node.dimensions.height, object };
     }
     this.placementPreview.object.position.x = point.x;
+    this.placementPreview.object.position.y = point.y + this.placementPreview.height / 2;
     this.placementPreview.object.position.z = point.z;
     this.placementPreview.object.updateMatrixWorld(true);
-    this.container.dataset['placementPreview'] = `${operation}:${primitive}:${point.x}:${point.z}`;
+    this.container.dataset['placementPreview'] =
+      `${operation}:${primitive}:${point.x}:${point.y}:${point.z}`;
   }
 
   clearPlacementPreview(): void {

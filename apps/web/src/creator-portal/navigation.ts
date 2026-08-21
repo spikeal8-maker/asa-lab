@@ -95,11 +95,11 @@ export function portalNavigation(
     // Where the work that was shared lives. Everyone has it: seeing what other
     // people made is the reason a child opens a making tool twice.
     { section: 'gallery', label: 'Галерея' },
-    { section: 'learning', label: 'Учебные пособия' },
-    // For a teacher this destination is their own bank of tasks, and the page it
-    // opens is headed «Задания». Calling it «Задачи» in the sidebar sent a
-    // teacher looking for the bank somewhere else entirely.
-    { section: 'challenges', label: canTeach ? 'Задания' : 'Задачи' },
+    // Learning is the place where a person studies. Course authoring lives in
+    // the teacher-only destination below, so the two labels describe different
+    // actions instead of competing for the same meaning.
+    { section: 'learning', label: 'Обучение' },
+    { section: 'challenges', label: canTeach ? 'Курсы и задания' : 'Задачи' },
     { section: 'help', label: 'Справочный центр' },
   ];
 }

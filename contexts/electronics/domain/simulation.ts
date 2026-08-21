@@ -1,5 +1,7 @@
 import { type ElectronicsDocument, type SchematicComponent, type Terminal } from './document.js';
+import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
+import { electricalModelFor } from './model-registry.js';
 import { solveCircuit, transistorTypeOf, type Diagnostic, type SolveResult } from './solver.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
@@ -91,11 +93,11 @@ export function compileCircuit(document: ElectronicsDocument): CompiledCircuit {
     .map((component) => component.id)
     .sort();
   const sourceIds = document.components
-    .filter((component) => component.kind === 'source')
+    .filter((component) => component.kind === 'source' || isArduinoUno(component))
     .map((component) => component.id)
     .sort();
   const unsupportedComponentIds = document.components
-    .filter((component) => component.kind === 'visual')
+    .filter((component) => electricalModelFor(component).support === 'unsupported')
     .map((component) => component.id)
     .sort();
   const topologySignature = JSON.stringify({
@@ -141,6 +143,7 @@ function verifyQuality(
   document: ElectronicsDocument,
   compiled: CompiledCircuit,
   result: SolveResult,
+  options: SimulationOptions,
 ): SimulationQuality {
   const finite = allNumbers(result).every(Number.isFinite);
   if (result.components.length === 0) {
@@ -186,6 +189,15 @@ function verifyQuality(
         maxSourceVoltageResidualVolt,
         Math.abs(measured - component.value),
       );
+      continue;
+    }
+    if (isArduinoUno(component)) {
+      for (const branch of arduinoOutputBranches(component, options.simulationTimeMs ?? 0)) {
+        const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
+        const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
+        const currentLeaving = (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+        addBranch(component, branch.terminal, branch.ground, currentLeaving);
+      }
       continue;
     }
     if (
@@ -343,7 +355,14 @@ function statusFor(result: SolveResult): SimulationStatus {
   return result.solved ? 'solved' : 'invalid';
 }
 
-export function analyseCircuit(document: ElectronicsDocument): SimulationResult {
+export interface SimulationOptions {
+  readonly simulationTimeMs?: number;
+}
+
+export function analyseCircuit(
+  document: ElectronicsDocument,
+  options: SimulationOptions = {},
+): SimulationResult {
   const compiled = compileCircuit(document);
   if (compiled.unsupportedComponentIds.length > 0) {
     const diagnostic: Diagnostic = {
@@ -370,8 +389,8 @@ export function analyseCircuit(document: ElectronicsDocument): SimulationResult 
     };
   }
 
-  const solved = solveCircuit(document);
-  const quality = verifyQuality(document, compiled, solved);
+  const solved = solveCircuit(document, options);
+  const quality = verifyQuality(document, compiled, solved, options);
   if (solved.solved && !quality.passed) {
     const diagnostic: Diagnostic = {
       code: 'nonconvergent_topology',

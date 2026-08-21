@@ -7,7 +7,7 @@ import { GridIcon, RulerIcon } from './three-d-icons';
 interface ShapeLibraryProps {
   readonly onAdd: (
     primitive: PrimitiveKind,
-    position?: { x: number; z: number },
+    position?: { x: number; y?: number; z: number },
     additive?: boolean,
     operation?: ShapeOperation,
   ) => void;

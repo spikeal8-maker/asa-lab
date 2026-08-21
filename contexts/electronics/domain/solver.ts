@@ -4,6 +4,7 @@ import {
   type SchematicComponent,
   type Terminal,
 } from './document.js';
+import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import {
   unsupportedElectricalComponents,
@@ -90,6 +91,10 @@ export interface SolveResult {
   readonly iterations: number;
   readonly numericalResidual: number;
   readonly numericalTolerance: number;
+}
+
+export interface SolveOptions {
+  readonly simulationTimeMs?: number;
 }
 
 const GMIN = 1e-12;
@@ -396,7 +401,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
 }
 
 function isSimulated(component: SchematicComponent): boolean {
-  return !['breadboard', 'visual', 'wire'].includes(component.kind);
+  return isArduinoUno(component) || !['breadboard', 'visual', 'wire'].includes(component.kind);
 }
 
 /**
@@ -533,10 +538,23 @@ function withDiagnosticAnchors(diagnostic: Diagnostic): Diagnostic {
   return anchors.length === 0 ? diagnostic : { ...diagnostic, anchors };
 }
 
-export function solveCircuit(document: ElectronicsDocument): SolveResult {
+export function solveCircuit(
+  document: ElectronicsDocument,
+  options: SolveOptions = {},
+): SolveResult {
   const diagnostics: Diagnostic[] = [];
   const netlist = buildNetlist(document);
   const sources = document.components.filter((component) => component.kind === 'source');
+  const arduinoBranches = document.components.flatMap((component) =>
+    arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
+      component,
+      ...branch,
+    })),
+  );
+  const sourceProviderIds = [
+    ...sources.map((source) => source.id),
+    ...document.components.filter(isArduinoUno).map((component) => component.id),
+  ];
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
     iterations = 0,
@@ -594,7 +612,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     });
     return empty('unsupported');
   }
-  if (sources.length === 0) {
+  if (sources.length === 0 && arduinoBranches.length === 0) {
     diagnostics.push({
       code: 'no_source',
       severity: 'error',
@@ -696,6 +714,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     const island = findIsland(negative);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, negative);
   }
+  for (const branch of arduinoBranches) {
+    const ground = netlist.nodeOf.get(terminalKey(branch.component.id, branch.ground));
+    if (ground === undefined) continue;
+    const island = findIsland(ground);
+    if (!referenceByIsland.has(island)) referenceByIsland.set(island, ground);
+  }
   for (let node = 0; node < netlist.nodeCount; node += 1) {
     const island = findIsland(node);
     if (!referenceByIsland.has(island)) referenceByIsland.set(island, node);
@@ -780,7 +804,15 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
     };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
+    for (const branch of arduinoBranches) {
+      const positive = physicalNodeIndex(branch.component, branch.terminal);
+      const ground = physicalNodeIndex(branch.component, branch.ground);
+      const conductance = 1 / branch.resistanceOhm;
+      stampConductance(positive, ground, conductance);
+      stampOffset(positive, ground, conductance * branch.targetVoltage);
+    }
     for (const component of document.components) {
+      if (isArduinoUno(component)) continue;
       if (!isSimulated(component) || component.kind === 'source') continue;
       if (['led', 'diode', 'rgb-led', 'seven-segment', 'transistor'].includes(component.kind))
         continue;
@@ -1050,6 +1082,12 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   for (const [position, source] of sources.entries()) {
     sourceCurrents.set(source.id, solution[nodeVariableCount + position] as number);
   }
+  const currentDeliveredByArduinoBranch = (branch: (typeof arduinoBranches)[number]): number => {
+    const measured =
+      physicalVoltageAt(branch.component, branch.terminal) -
+      physicalVoltageAt(branch.component, branch.ground);
+    return (branch.targetVoltage - measured) / branch.resistanceOhm;
+  };
   const resultForBranch = (branch: DiodeBranch) => {
     const key = diodeBranchKey(branch);
     const segment = diodeLinearSegment(branch, diodeSegmentIndices.get(key) ?? 0);
@@ -1152,13 +1190,27 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       }
       const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
       const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));
+      const componentArduinoBranches = arduinoBranches.filter(
+        (branch) => branch.component.id === component.id,
+      );
+      const arduinoBranchResults = componentArduinoBranches.map((branch) => ({
+        branch,
+        voltageDrop:
+          physicalVoltageAt(component, branch.terminal) -
+          physicalVoltageAt(component, branch.ground),
+        current: currentDeliveredByArduinoBranch(branch),
+      }));
       const transistorResult = transistorResultById.get(component.id);
       const voltageDrop =
         transistorResult?.collectorEmitterDrop ??
         branchResults[0]?.voltageDrop ??
+        arduinoBranchResults.find((entry) => entry.branch.id === 'd13')?.voltageDrop ??
+        arduinoBranchResults[0]?.voltageDrop ??
         (isSimulated(component) ? voltageAt(component, 'a') - voltageAt(component, 'b') : 0);
       let current = 0;
       if (component.kind === 'source') current = -(sourceCurrents.get(component.id) ?? 0);
+      else if (isArduinoUno(component))
+        current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
       else if (component.kind === 'resistor')
         current = voltageDrop / Math.max(CLOSED_RESISTANCE, component.value);
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
@@ -1179,14 +1231,22 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       else if (branches.length > 0)
         current = branchResults.reduce((sum, branch) => sum + branch.current, 0);
       const power = Math.abs(
-        transistorResult
-          ? transistorResult.collectorCurrent * transistorResult.collectorEmitterDrop +
+        isArduinoUno(component)
+          ? arduinoBranchResults.reduce(
+              (sum, entry) => sum + Math.abs(entry.current * entry.voltageDrop),
+              0,
+            )
+          : transistorResult
+            ? transistorResult.collectorCurrent * transistorResult.collectorEmitterDrop +
               transistorResult.baseCurrent * transistorResult.baseEmitterDrop
-          : component.kind === 'lamp'
-            ? current * voltageDrop
-            : branchResults.length > 0
-              ? branchResults.reduce((sum, branch) => sum + branch.current * branch.voltageDrop, 0)
-              : current * voltageDrop,
+            : component.kind === 'lamp'
+              ? current * voltageDrop
+              : branchResults.length > 0
+                ? branchResults.reduce(
+                    (sum, branch) => sum + branch.current * branch.voltageDrop,
+                    0,
+                  )
+                : current * voltageDrop,
       );
       const branchCurrents = transistorResult
         ? transistorTypeOf(component) === 'fet'
@@ -1200,12 +1260,19 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
               collector: roundCurrent(transistorResult.collectorCurrent),
               emitter: roundCurrent(transistorResult.emitterCurrent),
             }
-        : Object.fromEntries(
-            branchResults.map(({ branch, current: branchCurrent }) => [
-              branch.id,
-              roundCurrent(branchCurrent),
-            ]),
-          );
+        : isArduinoUno(component)
+          ? Object.fromEntries(
+              arduinoBranchResults.map(({ branch, current: branchCurrent }) => [
+                branch.id,
+                roundCurrent(branchCurrent),
+              ]),
+            )
+          : Object.fromEntries(
+              branchResults.map(({ branch, current: branchCurrent }) => [
+                branch.id,
+                roundCurrent(branchCurrent),
+              ]),
+            );
       const branchBrightness = Object.fromEntries(
         branchResults.map(({ branch, brightness }) => [branch.id, round(brightness, 2)]),
       );
@@ -1248,7 +1315,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
         terminalVoltages,
         power: round(power),
         brightness: round(brightness, 2),
-        ...(branches.length > 0 || transistorResult
+        ...(branches.length > 0 || transistorResult || isArduinoUno(component)
           ? {
               branchCurrents,
               ...(branches.length > 0 ? { branchBrightness } : {}),
@@ -1271,6 +1338,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
               energized: Math.abs(current) > 1e-6,
             }
           : {}),
+        ...(isArduinoUno(component) ? { energized: true } : {}),
         ...(transistorResult
           ? {
               operatingRegion: transistorResult.operatingRegion,
@@ -1414,22 +1482,24 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
   }
 
   const totalSourceCurrent = Math.max(
+    0,
     ...sources.map((source) => Math.abs(sourceCurrents.get(source.id) ?? 0)),
+    ...arduinoBranches.map((branch) => Math.abs(currentDeliveredByArduinoBranch(branch))),
   );
   if (totalSourceCurrent > SHORT_CIRCUIT_CURRENT_A) {
     diagnostics.push({
       code: 'short_circuit',
       severity: 'error',
       message: `Ток источника ${totalSourceCurrent.toFixed(2)} А указывает на короткое замыкание.`,
-      componentIds: sources.map((source) => source.id),
+      componentIds: sourceProviderIds,
       suggestedAction: 'Остановите моделирование и добавьте сопротивление в путь тока.',
     });
-  } else if (totalSourceCurrent < 1e-8) {
+  } else if (sources.length > 0 && totalSourceCurrent < 1e-8) {
     diagnostics.push({
       code: 'open_circuit',
       severity: 'warning',
       message: 'Источник не отдаёт ток: цепь разомкнута или блокируется полярным элементом.',
-      componentIds: sources.map((source) => source.id),
+      componentIds: sourceProviderIds,
       suggestedAction: 'Замкните переключатель и проверьте все соединения и полярность.',
     });
   }

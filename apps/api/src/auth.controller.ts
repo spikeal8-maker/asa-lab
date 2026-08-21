@@ -22,6 +22,9 @@ import type {
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
+import { clientAddress } from './client-address.js';
+import { BotChallengeService, type BotAction } from './bot-challenge.js';
+import { MaxAuthService, MaxInitDataError } from './max-auth.service.js';
 
 // Password hashing costs tens of milliseconds of thread-pool time per attempt,
 // so an endpoint without a ceiling lets one client spend the whole runtime on
@@ -39,6 +42,9 @@ export const LOGIN_PER_ADDRESS = 120;
 export const LOGIN_PER_IDENTIFIER = 10;
 export const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 export const REGISTER_PER_ADDRESS = 60;
+export const BOT_CHALLENGE_WINDOW_MS = 5 * 60 * 1000;
+export const BOT_CHALLENGE_PER_ADDRESS = 60;
+export const MAX_AUTH_PER_ADDRESS = 60;
 
 interface PublicUser {
   id: string;
@@ -101,6 +107,14 @@ export class AuthController {
     limit: REGISTER_PER_ADDRESS,
     windowMs: REGISTER_WINDOW_MS,
   });
+  private readonly challengesByAddress = new FixedWindowRateLimiter({
+    limit: BOT_CHALLENGE_PER_ADDRESS,
+    windowMs: BOT_CHALLENGE_WINDOW_MS,
+  });
+  private readonly maxAuthByAddress = new FixedWindowRateLimiter({
+    limit: MAX_AUTH_PER_ADDRESS,
+    windowMs: LOGIN_WINDOW_MS,
+  });
 
   constructor(
     @Inject(TOKENS.loginUseCase) private readonly legacyLoginUseCase: LoginUseCase,
@@ -108,6 +122,8 @@ export class AuthController {
     @Inject(TOKENS.registerAccountUseCase) private readonly registerUseCase: RegisterAccountUseCase,
     @Inject(TOKENS.accountLoginUseCase) private readonly accountLoginUseCase: AccountLoginUseCase,
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
+    @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
+    @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
   ) {}
 
   private setSessionCookie(reply: FastifyReply, token: string): void {
@@ -115,7 +131,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
-      secure: process.env['NODE_ENV'] === 'production',
+      secure: process.env['NODE_ENV'] === 'production' || process.env['ASA_SECURE_COOKIES'] === '1',
       maxAge: 12 * 60 * 60,
     });
   }
@@ -186,6 +202,151 @@ export class AuthController {
     return context;
   }
 
+  private throwMaxValidation(problem: unknown): never {
+    if (problem instanceof MaxInitDataError) {
+      if (problem.code === 'max_auth_disabled') {
+        throw new HttpException(
+          error('max_auth_disabled', 'Вход через MAX пока не подключён.'),
+          503,
+        );
+      }
+      if (problem.code === 'max_init_data_expired') {
+        throw new HttpException(
+          error('max_init_data_expired', 'Ссылка MAX устарела. Откройте мини-приложение заново.'),
+          401,
+        );
+      }
+      throw new HttpException(
+        error('max_init_data_invalid', 'MAX не подтвердил данные входа.'),
+        401,
+      );
+    }
+    throw problem;
+  }
+
+  @Get('max/config')
+  maxConfig(): { enabled: boolean; launchUrl: string | null } {
+    return this.maxAuth.config();
+  }
+
+  @Post('max/session')
+  @HttpCode(200)
+  async maxSession(
+    @Body() rawBody: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const shape = checkBodyShape(rawBody, ['initData']);
+    if (!shape.ok || typeof shape.body['initData'] !== 'string') {
+      throw new HttpException(error('validation_error', 'initData is required'), 400);
+    }
+    let result;
+    try {
+      result = await this.maxAuth.signIn(
+        shape.body['initData'],
+        summarizeUserAgent(request.headers['user-agent']),
+      );
+    } catch (problem) {
+      this.throwMaxValidation(problem);
+    }
+    if (result.status === 'link_required') {
+      throw new HttpException(
+        error('max_link_required', 'Сначала привяжите MAX к существующему аккаунту ASA Lab.'),
+        409,
+      );
+    }
+    if (result.status === 'assertion_replayed') {
+      throw new HttpException(
+        error(
+          'max_assertion_replayed',
+          'Эта ссылка MAX уже использована. Откройте приложение заново.',
+        ),
+        409,
+      );
+    }
+    if (result.status === 'account_suspended') {
+      throw new HttpException(error('account_suspended', 'Учётная запись приостановлена.'), 403);
+    }
+    if (result.status !== 'authenticated') {
+      throw new HttpException(
+        error('max_auth_unavailable', 'Вход через MAX временно недоступен.'),
+        503,
+      );
+    }
+
+    this.setSessionCookie(reply, result.token);
+    const context = await this.activeContext.resolve(result.token);
+    if (!context) {
+      throw new HttpException(error('server_error', 'session was not created'), 500);
+    }
+    return this.payload(context);
+  }
+
+  @Post('max/link')
+  @HttpCode(200)
+  async maxLink(
+    @Body() rawBody: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ linked: true }> {
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const shape = checkBodyShape(rawBody, ['initData']);
+    if (!shape.ok || typeof shape.body['initData'] !== 'string') {
+      throw new HttpException(error('validation_error', 'initData is required'), 400);
+    }
+    const context = await this.requireContext(request);
+    let result;
+    try {
+      result = await this.maxAuth.link(context.accountId, shape.body['initData']);
+    } catch (problem) {
+      this.throwMaxValidation(problem);
+    }
+    if (result.status === 'linked' || result.status === 'already_linked') {
+      return { linked: true };
+    }
+    if (result.status === 'identity_taken') {
+      throw new HttpException(
+        error('max_identity_taken', 'Этот профиль MAX уже связан с другим аккаунтом.'),
+        409,
+      );
+    }
+    if (result.status === 'account_already_linked') {
+      throw new HttpException(
+        error('max_account_already_linked', 'К аккаунту уже привязан другой профиль MAX.'),
+        409,
+      );
+    }
+    if (result.status === 'assertion_replayed') {
+      throw new HttpException(
+        error(
+          'max_assertion_replayed',
+          'Эта ссылка MAX уже использована. Откройте приложение заново.',
+        ),
+        409,
+      );
+    }
+    if (result.status === 'account_suspended') {
+      throw new HttpException(error('account_suspended', 'Учётная запись приостановлена.'), 403);
+    }
+    throw new HttpException(
+      error('max_auth_unavailable', 'Привязка MAX временно недоступна.'),
+      503,
+    );
+  }
+
+  @Get('bot-challenge')
+  botChallenge(@Query('action') action: string | undefined, @Req() request: FastifyRequest) {
+    if (action !== 'login' && action !== 'register' && action !== 'class_join') {
+      throw new HttpException(error('validation_error', 'unknown bot-check action'), 400);
+    }
+    const address = clientAddress(request);
+    this.enforce(this.challengesByAddress, address);
+    return {
+      required: this.botChallenges.isRequired(),
+      challenge: this.botChallenges.issue(action as BotAction, request.headers['user-agent']),
+    };
+  }
+
   @Post('register')
   @HttpCode(201)
   async register(
@@ -193,7 +354,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    this.enforce(this.registerByAddress, request.ip || 'unknown');
+    const address = clientAddress(request);
+    this.enforce(this.registerByAddress, address);
     const shape = checkBodyShape(rawBody, [
       'email',
       'password',
@@ -201,9 +363,15 @@ export class AuthController {
       'displayName',
       'birthDate',
       'country',
+      'botProof',
     ]);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    if (
+      !this.botChallenges.verify('register', shape.body['botProof'], request.headers['user-agent'])
+    ) {
+      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
     }
     const result = await this.registerUseCase.execute({
       email: shape.body['email'],
@@ -248,10 +416,22 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SessionPayload> {
-    this.enforce(this.loginByAddress, request.ip || 'unknown');
-    const shape = checkBodyShape(rawBody, ['workspace', 'identifier', 'email', 'password']);
+    const address = clientAddress(request);
+    this.enforce(this.loginByAddress, address);
+    const shape = checkBodyShape(rawBody, [
+      'workspace',
+      'identifier',
+      'email',
+      'password',
+      'botProof',
+    ]);
     if (!shape.ok) {
       throw new HttpException(error('validation_error', shape.message), 400);
+    }
+    if (
+      !this.botChallenges.verify('login', shape.body['botProof'], request.headers['user-agent'])
+    ) {
+      throw new HttpException(error('bot_check_required', 'Подтвердите, что вы не робот.'), 403);
     }
     const identifier = shape.body['identifier'] ?? shape.body['email'];
     if (typeof identifier === 'string' && identifier.length > 0) {

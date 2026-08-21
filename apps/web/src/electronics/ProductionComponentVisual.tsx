@@ -48,7 +48,9 @@ interface Props {
   readonly selected?: boolean;
   readonly selectionOffset?: number;
   readonly simulationRunning?: boolean;
+  readonly simulationTimeMs?: number;
   readonly onSwitchActuate?: (() => void) | undefined;
+  readonly onArduinoReset?: (() => void) | undefined;
 }
 
 // Exact segment outlines of the owner-drawn art (viewBox 0 0 12.7 19.05, units are mm).
@@ -84,7 +86,9 @@ export function ProductionComponentVisual({
   selected = false,
   selectionOffset = 2,
   simulationRunning = false,
+  simulationTimeMs = 0,
   onSwitchActuate,
+  onArduinoReset,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
   const ledColour = String(properties['ledColour'] ?? 'red');
@@ -171,7 +175,25 @@ export function ProductionComponentVisual({
       ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
       : null;
   const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const arduinoGlowFilterId = `arduino-led-glow-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
+  const arduinoScale = Math.min(width / 992, height / 741);
+  const arduinoOffsetX = (width - 992 * arduinoScale) / 2;
+  const arduinoOffsetY = (height - 741 * arduinoScale) / 2;
+  const arduinoLActive =
+    entry.key === 'arduino-uno' &&
+    simulationRunning &&
+    Number(result?.terminalVoltages['d13'] ?? 0) >= 2.5;
+  const arduinoTxActive =
+    entry.key === 'arduino-uno' &&
+    simulationRunning &&
+    ((simulationTimeMs >= 100 && simulationTimeMs < 220) ||
+      (simulationTimeMs >= 540 && simulationTimeMs < 660));
+  const arduinoRxActive =
+    entry.key === 'arduino-uno' &&
+    simulationRunning &&
+    ((simulationTimeMs >= 300 && simulationTimeMs < 420) ||
+      (simulationTimeMs >= 740 && simulationTimeMs < 860));
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
     'diode-do35',
@@ -544,6 +566,7 @@ export function ProductionComponentVisual({
           width={width}
           height={height}
           preserveAspectRatio={imageFit}
+          pointerEvents="none"
         />
       )}
 
@@ -558,6 +581,84 @@ export function ProductionComponentVisual({
           fill={rgbDisplayColour}
           opacity={rgbIsLit ? rgbDisplayOpacity : 0}
         />
+      ) : null}
+
+      {entry.key === 'arduino-uno' ? (
+        <g
+          data-testid="arduino-runtime-indicators"
+          transform={`translate(${arduinoOffsetX} ${arduinoOffsetY}) scale(${arduinoScale})`}
+        >
+          <defs>
+            <filter id={arduinoGlowFilterId} x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="8" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {[
+            { id: 'l', x: 443, y: 178, width: 16, height: 15, active: arduinoLActive },
+            { id: 'tx', x: 443, y: 239, width: 15, height: 15, active: arduinoTxActive },
+            { id: 'rx', x: 443, y: 270, width: 15, height: 15, active: arduinoRxActive },
+            {
+              id: 'on',
+              x: 843,
+              y: 238,
+              width: 17,
+              height: 15,
+              active: simulationRunning,
+            },
+          ].map((indicator) => (
+            <rect
+              key={indicator.id}
+              data-testid={`arduino-led-${indicator.id}`}
+              data-active={indicator.active ? 'true' : 'false'}
+              x={indicator.x}
+              y={indicator.y}
+              width={indicator.width}
+              height={indicator.height}
+              rx="2"
+              fill={indicator.id === 'on' ? '#a8ff7a' : '#fff16a'}
+              opacity={indicator.active ? 1 : 0}
+              filter={indicator.active ? `url(#${arduinoGlowFilterId})` : undefined}
+              pointerEvents="none"
+            />
+          ))}
+          {onArduinoReset ? (
+            <rect
+              data-testid="arduino-reset-button"
+              x="120"
+              y="32"
+              width="120"
+              height="116"
+              rx="14"
+              fill="#ffffff"
+              fillOpacity="0.001"
+              pointerEvents="all"
+              role="button"
+              tabIndex={0}
+              aria-label="Перезапустить Arduino"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onArduinoReset();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onArduinoReset();
+                }
+              }}
+              style={{ cursor: 'pointer' }}
+            />
+          ) : null}
+        </g>
       ) : null}
 
       {entry.key === 'seven-segment-display' ? (

@@ -125,6 +125,63 @@ describe('R4-M1 simulation implementation contract', () => {
     );
   });
 
+  it('accepts Arduino as a finite source and verifies KCL for a D13 LED overload', () => {
+    const circuit = document(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1', 'gnd-top'],
+        }),
+        component('led', 'led', 2, {
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+        }),
+      ],
+      [
+        connect('d13-anode', 'uno', 'd13', 'led', 'anode'),
+        connect('cathode-ground', 'led', 'cathode', 'uno', 'gnd-top'),
+      ],
+    );
+    const result = analyseCircuit(circuit);
+
+    expect(result.status).toBe('solved');
+    expect(result.solved).toBe(true);
+    expect(result.quality).toMatchObject({ finite: true, passed: true });
+    expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: true,
+      stressState: 'burned',
+    });
+    expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
+  });
+
+  it('runs the default Arduino blink program over time without flagging a free board', () => {
+    const circuit = document(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1', 'gnd-top'],
+        }),
+      ],
+      [],
+    );
+    const unoAt = (simulationTimeMs: number) =>
+      analyseCircuit(circuit, { simulationTimeMs }).components.find(
+        (item) => item.componentId === 'uno',
+      );
+
+    expect(unoAt(0)?.terminalVoltages['d13']).toBeCloseTo(5, 6);
+    expect(unoAt(0)?.terminalVoltages['power-5v']).toBeCloseTo(5, 6);
+    expect(unoAt(0)?.terminalVoltages['power-3v3']).toBeCloseTo(3.3, 6);
+    expect(unoAt(0)?.terminalVoltages['power-gnd-1']).toBeCloseTo(0, 6);
+    expect(unoAt(999)?.terminalVoltages['d13']).toBeCloseTo(5, 6);
+    expect(unoAt(1_000)?.terminalVoltages['d13']).toBeCloseTo(0, 6);
+    expect(unoAt(1_999)?.terminalVoltages['d13']).toBeCloseTo(0, 6);
+    expect(unoAt(2_000)?.terminalVoltages['d13']).toBeCloseTo(5, 6);
+    expect(analyseCircuit(circuit).diagnostics.map((item) => item.code)).not.toContain(
+      'open_circuit',
+    );
+  });
+
   it('rejects conflicting ideal sources without NaN or invented values', () => {
     const circuit = document(
       [component('source-5v', 'source', 5), component('source-9v', 'source', 9)],

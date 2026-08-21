@@ -167,8 +167,8 @@ export function AssignmentLibraryPage(): JSX.Element {
   const [sort, setSort] = useState<SortKey>('new');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** Что открыто: свой банк, свои курсы или чужое, открытое вам. */
-  const [tab, setTab] = useState<'bank' | 'courses' | 'catalogue'>('bank');
+  /** Курсы — основной рабочий экран; банк заданий остаётся строительным материалом. */
+  const [tab, setTab] = useState<'bank' | 'courses' | 'catalogue'>('courses');
   const [sharing, setSharing] = useState<LibraryAssignment | null>(null);
   const time = useSchoolTime();
 
@@ -264,6 +264,12 @@ export function AssignmentLibraryPage(): JSX.Element {
     await reload();
   }
 
+  function selectTab(next: 'bank' | 'courses' | 'catalogue'): void {
+    setTab(next);
+    setNotice(null);
+    setError(null);
+  }
+
   async function newFolder(parentId: string | null): Promise<void> {
     const title = window.prompt(
       parentId ? 'Название вложенной папки' : 'Название папки',
@@ -280,10 +286,10 @@ export function AssignmentLibraryPage(): JSX.Element {
     <main id="main-content" className="portal-content" tabIndex={-1}>
       <header className="library-heading">
         <div>
-          <h1>Задания и курсы</h1>
+          <h1>Курсы и задания</h1>
           <p>
-            Ваш банк. Разложите по папкам, соберите в курсы, отберите по среде, возрасту, классу или
-            году — и выдавайте любым классам, в этом году и в следующем.
+            Собирайте программу из разделов, материалов и практики. В классах назначайте её ученикам
+            и проверяйте работы.
           </p>
         </div>
         {tab === 'bank' ? (
@@ -295,30 +301,30 @@ export function AssignmentLibraryPage(): JSX.Element {
 
       {/* Три ответа на три разных вопроса: что у меня есть, в каком порядке я
           это даю и что есть у коллег. */}
-      <nav className="library-tabs" aria-label="Разделы банка">
+      <nav className="library-tabs" aria-label="Разделы курсов и заданий">
         <button
           type="button"
           className={tab === 'bank' ? 'is-active' : undefined}
           aria-current={tab === 'bank' ? 'page' : undefined}
-          onClick={() => setTab('bank')}
+          onClick={() => selectTab('bank')}
         >
-          Задания
+          Банк заданий
         </button>
         <button
           type="button"
           className={tab === 'courses' ? 'is-active' : undefined}
           aria-current={tab === 'courses' ? 'page' : undefined}
-          onClick={() => setTab('courses')}
+          onClick={() => selectTab('courses')}
         >
-          Курсы
+          Мои курсы
         </button>
         <button
           type="button"
           className={tab === 'catalogue' ? 'is-active' : undefined}
           aria-current={tab === 'catalogue' ? 'page' : undefined}
-          onClick={() => setTab('catalogue')}
+          onClick={() => selectTab('catalogue')}
         >
-          Общий каталог
+          Каталог
         </button>
       </nav>
 

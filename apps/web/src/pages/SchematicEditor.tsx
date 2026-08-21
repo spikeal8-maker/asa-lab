@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { PublicUser, SchematicComponent, SchematicDocument } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
@@ -23,6 +23,29 @@ import {
   SNAPSHOT_WIDTH,
 } from '../modules/project-snapshot';
 import { rasteriseSvgStage } from '../modules/svg-snapshot';
+
+const loadArduinoCodePanel = () =>
+  import('../electronics/ArduinoCodePanel').then((module) => ({
+    default: module.ArduinoCodePanel,
+  }));
+const ArduinoCodePanel = lazy(loadArduinoCodePanel);
+
+const ARDUINO_DRAWER_STORAGE_KEY = 'asa-lab:electronics:arduino-drawer-width';
+const ARDUINO_DRAWER_MIN_WIDTH = 620;
+const ARDUINO_CIRCUIT_MIN_WIDTH = 420;
+
+function clampArduinoDrawerWidth(width: number, viewportWidth = window.innerWidth): number {
+  const maximum = Math.max(460, viewportWidth - ARDUINO_CIRCUIT_MIN_WIDTH);
+  const minimum = Math.min(ARDUINO_DRAWER_MIN_WIDTH, maximum);
+  return Math.round(Math.min(maximum, Math.max(minimum, width)));
+}
+
+function initialArduinoDrawerWidth(): number {
+  const stored = Number(localStorage.getItem(ARDUINO_DRAWER_STORAGE_KEY));
+  const preferred =
+    Number.isFinite(stored) && stored > 0 ? stored : Math.min(1040, innerWidth * 0.58);
+  return clampArduinoDrawerWidth(preferred);
+}
 
 function SchematicSymbol({ component }: { component: SchematicComponent }): JSX.Element {
   const commonLabel = (
@@ -359,9 +382,43 @@ export function SchematicEditor({
   const [showGrid] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [codePanelMounted, setCodePanelMounted] = useState(false);
+  const [codePanelWidth, setCodePanelWidth] = useState(initialArduinoDrawerWidth);
   const [shareOpen, setShareOpen] = useState(false);
   const notesStorageKey = `asa-lab:electronics-notes:${projectId}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(notesStorageKey) ?? '');
+
+  useEffect(() => {
+    const clampToViewport = (): void => {
+      setCodePanelWidth((current) => clampArduinoDrawerWidth(current));
+    };
+    window.addEventListener('resize', clampToViewport);
+    return () => window.removeEventListener('resize', clampToViewport);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const warmup = window.setTimeout(() => {
+      void loadArduinoCodePanel().then(() => {
+        if (!cancelled) setCodePanelMounted(true);
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(warmup);
+    };
+  }, []);
+
+  function updateCodePanelWidth(width: number): void {
+    const next = clampArduinoDrawerWidth(width);
+    setCodePanelWidth(next);
+    localStorage.setItem(ARDUINO_DRAWER_STORAGE_KEY, String(next));
+  }
+
+  function toggleCodePanel(): void {
+    if (!codeOpen) setCodePanelMounted(true);
+    setCodeOpen((value) => !value);
+  }
 
   // The card picture is the stage as the learner sees it, rasterised from the
   // live SVG. Project Core owns the size, the format and the schedule.
@@ -426,7 +483,12 @@ export function SchematicEditor({
       </main>
     );
   return (
-    <div className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}`}>
+    <div
+      className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}${
+        codeOpen ? ' code-open' : ''
+      }`}
+      style={{ '--arduino-code-panel-width': `${codePanelWidth}px` } as CSSProperties}
+    >
       <WorkbenchHeader
         controller={controller}
         onBack={onBack}
@@ -434,8 +496,9 @@ export function SchematicEditor({
         view={view}
         onViewChange={setView}
         notesOpen={notesOpen}
+        codeOpen={codeOpen}
         onToggleNotes={() => setNotesOpen((value) => !value)}
-        onToggleCode={() => setCodeOpen((value) => !value)}
+        onToggleCode={toggleCodePanel}
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
       />
@@ -457,7 +520,27 @@ export function SchematicEditor({
             onClose={() => setNotesOpen(false)}
           />
         ) : null}
-        {codeOpen ? <SidePanel kind="code" title="Код" onClose={() => setCodeOpen(false)} /> : null}
+        {codePanelMounted ? (
+          <Suspense
+            fallback={
+              <section
+                className={`arduino-code-panel empty ${codeOpen ? 'open' : 'closed'}`}
+                aria-label="Редактор кода Arduino"
+              >
+                <div className="arduino-code-empty-state">
+                  <strong>Открываем редактор кода…</strong>
+                </div>
+              </section>
+            }
+          >
+            <ArduinoCodePanel
+              controller={controller}
+              open={codeOpen}
+              drawerWidth={codePanelWidth}
+              onDrawerWidthChange={updateCodePanelWidth}
+            />
+          </Suspense>
+        ) : null}
       </div>
       {shareOpen ? (
         <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />

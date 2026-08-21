@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
+import { MaxLinkPage } from './pages/MaxLinkPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { JoinClassPage } from './pages/JoinClassPage';
@@ -21,12 +22,16 @@ import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
 import { GalleryWorkPage } from './pages/GalleryWorkPage';
 import { CollectionsPage } from './pages/CollectionsPage';
+import { AdminPage, type AdminAccessState } from './admin/AdminPage';
+import { adminApi } from './admin/admin-api';
+import { ADMIN_HREF, isAdminLocation } from './admin/admin-navigation';
 import { PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
+import { leaveMaxLaunch, readMaxInitData } from './max-auth';
 import {
   canUseClasses,
   creatorViewFromLocation,
@@ -96,8 +101,16 @@ export function App(): JSX.Element {
   });
   const [shellCreating, setShellCreating] = useState(false);
   const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
+  const [adminRoute, setAdminRoute] = useState(() => isAdminLocation(window.location));
+  const [adminAccess, setAdminAccess] = useState<AdminAccessState>({ kind: 'idle' });
+  const adminAccessRequest = useRef(0);
+  const maxLaunchData = useRef<string | null>(readMaxInitData());
+  const maxLaunchAttempted = useRef(false);
+  const [pendingMaxLink, setPendingMaxLink] = useState<string | null>(null);
+  const [maxLaunchMessage, setMaxLaunchMessage] = useState<string | null>(null);
 
   const setView = useCallback((next: CreatorPortalView) => {
+    setAdminRoute(false);
     setViewState(next);
     const href = creatorViewToHref(next);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -131,6 +144,7 @@ export function App(): JSX.Element {
     const sync = (): void => {
       const nextView = creatorViewFromLocation(window.location);
       setViewState(nextView);
+      setAdminRoute(isAdminLocation(window.location));
       if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
       setPublicViewState(publicViewFromHash());
     };
@@ -159,15 +173,40 @@ export function App(): JSX.Element {
 
   const checkSession = useCallback(async () => {
     setSession({ kind: 'checking' });
+    const launchData = maxLaunchData.current;
+    const isMaxLaunch = launchData !== null;
+    if (launchData && !maxLaunchAttempted.current) {
+      maxLaunchAttempted.current = true;
+      setPublicViewState({ kind: 'sign-in' });
+      const maxResult = await api.maxSession(launchData);
+      if (maxResult.ok) {
+        maxLaunchData.current = null;
+        leaveMaxLaunch();
+        setSession({ kind: 'authenticated', session: maxResult.data });
+        return;
+      }
+      if (maxResult.status === 409 && maxResult.error.code === 'max_link_required') {
+        setPendingMaxLink(launchData);
+      } else if (maxResult.error.code === 'max_init_data_expired') {
+        setMaxLaunchMessage('Ссылка MAX устарела. Закройте и заново откройте ASA Lab в MAX.');
+      } else if (maxResult.error.code === 'max_auth_disabled') {
+        setMaxLaunchMessage('Вход через MAX пока не подключён. Войдите по почте.');
+      } else {
+        setMaxLaunchMessage('MAX не смог подтвердить вход. Откройте мини-приложение заново.');
+      }
+    }
     const result = await api.me();
     if (result.ok) {
       if (result.data.authenticated) {
         setSession({ kind: 'authenticated', session: result.data });
+      } else if (isMaxLaunch) {
+        setSession({ kind: 'anonymous' });
       } else {
         await resolveStudent();
       }
     } else if (result.status === 401) {
-      await resolveStudent();
+      if (isMaxLaunch) setSession({ kind: 'anonymous' });
+      else await resolveStudent();
     } else {
       setSession({ kind: 'error' });
     }
@@ -176,6 +215,48 @@ export function App(): JSX.Element {
   useEffect(() => {
     void checkSession();
   }, [checkSession]);
+
+  const loadAdminAccess = useCallback(async (): Promise<void> => {
+    const request = ++adminAccessRequest.current;
+    if (session.kind === 'student') {
+      setAdminAccess({ kind: 'denied' });
+      return;
+    }
+    if (session.kind !== 'authenticated') {
+      setAdminAccess({ kind: 'idle' });
+      return;
+    }
+
+    setAdminAccess({ kind: 'checking' });
+    const result = await adminApi.me();
+    if (request !== adminAccessRequest.current) return;
+    if (result.ok) {
+      setAdminAccess({ kind: 'granted', profile: result.data });
+    } else if (result.status === 401 || result.status === 403) {
+      setAdminAccess({ kind: 'denied' });
+    } else {
+      setAdminAccess({
+        kind: 'error',
+        message:
+          result.status === 0
+            ? 'Сервер недоступен. Проверьте соединение и повторите.'
+            : 'Сервер не смог подтвердить административные права.',
+      });
+    }
+  }, [session]);
+
+  useEffect(() => {
+    void loadAdminAccess();
+    return () => {
+      adminAccessRequest.current += 1;
+    };
+  }, [loadAdminAccess]);
+
+  const openAdmin = useCallback((): void => {
+    setAdminRoute(true);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (current !== ADMIN_HREF) window.history.pushState(null, '', ADMIN_HREF);
+  }, []);
 
   /**
    * Where this teacher keeps time, asked once.
@@ -256,15 +337,66 @@ export function App(): JSX.Element {
       </main>
     );
   }
+  if (session.kind === 'authenticated' && pendingMaxLink) {
+    return (
+      <MaxLinkPage
+        session={session.session}
+        initData={pendingMaxLink}
+        onLinked={() => {
+          setPendingMaxLink(null);
+          maxLaunchData.current = null;
+          leaveMaxLaunch();
+          setView({ kind: 'home' });
+        }}
+        onCancel={() => {
+          setPendingMaxLink(null);
+          maxLaunchData.current = null;
+          leaveMaxLaunch();
+          setView({ kind: 'home' });
+        }}
+      />
+    );
+  }
   if (session.kind === 'anonymous') {
     const signedIn = (payload: SessionPayload): void => {
       setSession({ kind: 'authenticated', session: payload });
+      if (!pendingMaxLink && maxLaunchData.current) {
+        setMaxLaunchMessage(null);
+        maxLaunchData.current = null;
+        leaveMaxLaunch();
+      }
       if (pendingTeacherInvite) {
         setView({ kind: 'teacher-invite', token: pendingTeacherInvite });
         return;
       }
       setView(view.kind === 'editor' ? view : { kind: 'home' });
     };
+
+    if (
+      (pendingMaxLink || maxLaunchMessage) &&
+      publicView.kind !== 'sign-up' &&
+      publicView.kind !== 'organization-sign-in'
+    ) {
+      return (
+        <LoginPage
+          onSignedIn={signedIn}
+          onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
+          onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
+          contextMessage={
+            pendingMaxLink
+              ? 'Войдите в существующий аккаунт. Затем вы сможете подтвердить привязку MAX.'
+              : (maxLaunchMessage ?? '')
+          }
+          onBack={() => {
+            setPendingMaxLink(null);
+            setMaxLaunchMessage(null);
+            maxLaunchData.current = null;
+            leaveMaxLaunch();
+            setPublicViewState({ kind: 'entry' });
+          }}
+        />
+      );
+    }
 
     if (view.kind === 'teacher-invite' && publicView.kind === 'entry') {
       return (
@@ -409,6 +541,9 @@ export function App(): JSX.Element {
               }
             : {})}
           canTeach={hasTeachingCapability}
+          {...(adminAccess.kind === 'granted'
+            ? { adminNavigation: { active: adminRoute, onNavigate: openAdmin } }
+            : {})}
           onNavigate={navigate}
           onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
           onLoggedOut={() => {
@@ -417,222 +552,251 @@ export function App(): JSX.Element {
           }}
           onCreate={() => setShellCreating(true)}
         />
-        {/* Главная одна для всех. Учащийся видит ту же страницу, что и любой
+        {adminRoute ? (
+          <AdminPage
+            access={adminAccess}
+            onRetry={() => void loadAdminAccess()}
+            onBack={() => setView({ kind: 'home' })}
+            onAccessDenied={() => setAdminAccess({ kind: 'denied' })}
+          />
+        ) : (
+          <>
+            {/* Главная одна для всех. Учащийся видит ту же страницу, что и любой
             другой: разница только в том, чего у него нет — не в том, что ему
             подсунули другую страницу. Всё классное живёт в «Классах». */}
-        {view.kind === 'home' ? (
-          <CreatorHomePage
-            session={portalSession}
-            onNavigate={navigate}
-            onOpenProject={(projectId, moduleKey) =>
-              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
-            }
-          />
-        ) : null}
-        {view.kind === 'my-projects' ? (
-          <MyProjectsPage
-            onOpenProject={(projectId, moduleKey) =>
-              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
-            }
-          />
-        ) : null}
-        {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
+            {view.kind === 'home' ? (
+              <CreatorHomePage
+                session={portalSession}
+                onNavigate={navigate}
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
+                }
+              />
+            ) : null}
+            {view.kind === 'my-projects' ? (
+              <MyProjectsPage
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({
+                    kind: 'editor',
+                    projectId,
+                    moduleKey,
+                    returnTo: { kind: 'my-projects' },
+                  })
+                }
+              />
+            ) : null}
+            {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
             learner has no library — the tasks they were given live in their
             class — so they still get the informational page. */}
-        {view.kind === 'challenges' && hasTeachingCapability && !isSeatLearner ? (
-          <AssignmentLibraryPage />
-        ) : null}
-        {/* The gallery is the one place people see each other's work, and that
+            {view.kind === 'challenges' && hasTeachingCapability && !isSeatLearner ? (
+              <AssignmentLibraryPage />
+            ) : null}
+            {/* The gallery is the one place people see each other's work, and that
             is the whole point of it: inside a class nobody sees a classmate's
             model, because thirty children on one task shown each other's
             answers is a copying machine. Here the work is finished and was
             published on purpose. */}
-        {/* No "open" on a card: a gallery entry belongs to another person and
+            {/* No "open" on a card: a gallery entry belongs to another person and
             usually another school, and the picture is the point. */}
-        {view.kind === 'gallery' ? (
-          <GalleryPage
-            canTeach={hasTeachingCapability && !isSeatLearner}
-            onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
-          />
-        ) : null}
-        {view.kind === 'gallery-work' ? (
-          <GalleryWorkPage
-            projectId={view.projectId}
-            onBack={() => setView({ kind: 'gallery' })}
-            onOpenProject={(projectId, moduleKey) =>
-              setView({
-                kind: 'editor',
-                projectId,
-                moduleKey,
-                returnTo: { kind: 'my-projects' },
-              })
-            }
-          />
-        ) : null}
-        {/* Коллекции перестали быть заглушкой: это подборки работ из галереи,
+            {view.kind === 'gallery' ? (
+              <GalleryPage
+                canTeach={hasTeachingCapability && !isSeatLearner}
+                onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+              />
+            ) : null}
+            {view.kind === 'gallery-work' ? (
+              <GalleryWorkPage
+                projectId={view.projectId}
+                onBack={() => setView({ kind: 'gallery' })}
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({
+                    kind: 'editor',
+                    projectId,
+                    moduleKey,
+                    returnTo: { kind: 'my-projects' },
+                  })
+                }
+              />
+            ) : null}
+            {/* Коллекции перестали быть заглушкой: это подборки работ из галереи,
             отложенных себе. Ни Задания, ни Проекты они не дублируют — там
             формулировки и своё, а здесь ссылки на чужое. */}
-        {view.kind === 'collections' ? (
-          <CollectionsPage
-            onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
-          />
-        ) : null}
-        {view.kind === 'learning' ||
-        (view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
-        view.kind === 'help' ? (
-          <CreatorResourcePage
-            section={view.kind === 'challenges' ? 'challenges' : view.kind}
-            onNavigate={navigate}
-          />
-        ) : null}
-        {/* A learner has one class and no register: the door marked Classes
+            {view.kind === 'collections' ? (
+              <CollectionsPage
+                onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+              />
+            ) : null}
+            {view.kind === 'learning' ||
+            (view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
+            view.kind === 'help' ? (
+              <CreatorResourcePage
+                section={view.kind === 'challenges' ? 'challenges' : view.kind}
+                onNavigate={navigate}
+              />
+            ) : null}
+            {/* A learner has one class and no register: the door marked Classes
             opens onto the work set for them. */}
-        {view.kind === 'classrooms' && session.kind === 'student' ? (
-          <SeatClassPage
-            seat={session.session}
-            onOpenProject={(projectId, moduleKey) =>
-              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
-            }
-          />
-        ) : null}
-        {/* Учатся не только дети. Преподаватель проходит курс коллеги, студент
+            {view.kind === 'classrooms' && session.kind === 'student' ? (
+              <SeatClassPage
+                seat={session.session}
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({
+                    kind: 'editor',
+                    projectId,
+                    moduleKey,
+                    returnTo: { kind: 'my-projects' },
+                  })
+                }
+              />
+            ) : null}
+            {/* Учатся не только дети. Преподаватель проходит курс коллеги, студент
             берёт факультатив, взрослый учится ради себя — и всем им незачем
             второй вход по выданному логину и вторая полка работ. */}
-        {view.kind === 'attending' ||
-        (view.kind === 'classrooms' && !canManageClasses && !isSeatLearner) ? (
-          <AttendedClassesPage
-            onOpenProject={(projectId, moduleKey) =>
-              setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'my-projects' } })
-            }
-          />
-        ) : null}
-        {view.kind === 'classrooms' && canManageClasses ? (
-          <DashboardPage
-            onAttendClasses={() => setView({ kind: 'attending' })}
-            onOpenProjects={(classroomId, classroomTitle) =>
-              setView({ kind: 'classroom', classroomId, classroomTitle })
-            }
-          />
-        ) : null}
-        {view.kind === 'classroom' && canManageClasses ? (
-          <ClassroomPage
-            classroomId={view.classroomId}
-            onBack={() => setView({ kind: 'classrooms' })}
-            onOpenProjects={(classroomTitle) =>
-              setView({
-                kind: 'classroom-projects',
-                classroomId: view.classroomId,
-                classroomTitle,
-              })
-            }
-            {...(view.seatId ? { openSeatId: view.seatId } : {})}
-            /* Leaving a learner's model returns to that learner, not to the
+            {view.kind === 'attending' ||
+            (view.kind === 'classrooms' && !canManageClasses && !isSeatLearner) ? (
+              <AttendedClassesPage
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({
+                    kind: 'editor',
+                    projectId,
+                    moduleKey,
+                    returnTo: { kind: 'my-projects' },
+                  })
+                }
+              />
+            ) : null}
+            {view.kind === 'classrooms' && canManageClasses ? (
+              <DashboardPage
+                onAttendClasses={() => setView({ kind: 'attending' })}
+                onOpenProjects={(classroomId, classroomTitle) =>
+                  setView({ kind: 'classroom', classroomId, classroomTitle })
+                }
+              />
+            ) : null}
+            {view.kind === 'classroom' && canManageClasses ? (
+              <ClassroomPage
+                classroomId={view.classroomId}
+                onBack={() => setView({ kind: 'classrooms' })}
+                onOpenProjects={(classroomTitle) =>
+                  setView({
+                    kind: 'classroom-projects',
+                    classroomId: view.classroomId,
+                    classroomTitle,
+                  })
+                }
+                {...(view.seatId ? { openSeatId: view.seatId } : {})}
+                /* Leaving a learner's model returns to that learner, not to the
                teacher's own project list — which is where this used to land,
                and is nobody's idea of "back". */
-            onOpenProject={(projectId, moduleKey, seatId) =>
-              setView({
-                kind: 'editor',
-                projectId,
-                moduleKey,
-                returnTo: {
-                  kind: 'classroom',
-                  classroomId: view.classroomId,
-                  classroomTitle: view.classroomTitle,
-                  ...(seatId ? { seatId } : {}),
-                },
-              })
-            }
-          />
-        ) : null}
-        {view.kind === 'classroom-projects' && canManageClasses ? (
-          <ProjectsPage
-            classroomId={view.classroomId}
-            classroomTitle={view.classroomTitle}
-            onBack={() => setView({ kind: 'classrooms' })}
-            onOpenProject={(projectId, moduleKey) =>
-              setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
-            }
-          />
-        ) : null}
-        {/* An invitation to start teaching belongs to a grown-up who might. A
+                onOpenProject={(projectId, moduleKey, seatId) =>
+                  setView({
+                    kind: 'editor',
+                    projectId,
+                    moduleKey,
+                    returnTo: {
+                      kind: 'classroom',
+                      classroomId: view.classroomId,
+                      classroomTitle: view.classroomTitle,
+                      ...(seatId ? { seatId } : {}),
+                    },
+                  })
+                }
+              />
+            ) : null}
+            {view.kind === 'classroom-projects' && canManageClasses ? (
+              <ProjectsPage
+                classroomId={view.classroomId}
+                classroomTitle={view.classroomTitle}
+                onBack={() => setView({ kind: 'classrooms' })}
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
+                }
+              />
+            ) : null}
+            {/* An invitation to start teaching belongs to a grown-up who might. A
             child signed in on a class seat is shown their work here, and asking
             them to "выберите роль «Педагог»" under it is noise at best. */}
-        {!hasTeachingCapability &&
-        !isSeatLearner &&
-        (view.kind === 'classroom' || view.kind === 'classroom-projects') ? (
-          <main className="portal-content" id="main-content" tabIndex={-1}>
-            <section className="creator-access-message">
-              <p className="portal-eyebrow">Классы</p>
-              <h1>Хотите вести занятия?</h1>
-              <p>
-                Выберите роль «Педагог» в профиле — после этого можно сразу создать первый класс.
-              </p>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
+            {!hasTeachingCapability &&
+            !isSeatLearner &&
+            (view.kind === 'classroom' || view.kind === 'classroom-projects') ? (
+              <main className="portal-content" id="main-content" tabIndex={-1}>
+                <section className="creator-access-message">
+                  <p className="portal-eyebrow">Классы</p>
+                  <h1>Хотите вести занятия?</h1>
+                  <p>
+                    Выберите роль «Педагог» в профиле — после этого можно сразу создать первый
+                    класс.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      setAccountPanel('profile');
+                      setView({ kind: 'account' });
+                    }}
+                  >
+                    Настроить профиль
+                  </button>
+                </section>
+              </main>
+            ) : null}
+            {view.kind === 'teacher-invite' ? (
+              <TeacherInvitePage
+                token={view.token}
+                authenticated
+                onAccepted={(classroom) => {
+                  setPendingTeacherInvite(null);
+                  setView({
+                    kind: 'classroom',
+                    classroomId: classroom.id,
+                    classroomTitle: classroom.title,
+                  });
+                }}
+                onBack={() => {
+                  setPendingTeacherInvite(null);
+                  setView({ kind: 'classrooms' });
+                }}
+                onOpenProfile={() => {
                   setAccountPanel('profile');
                   setView({ kind: 'account' });
                 }}
-              >
-                Настроить профиль
-              </button>
-            </section>
-          </main>
-        ) : null}
-        {view.kind === 'teacher-invite' ? (
-          <TeacherInvitePage
-            token={view.token}
-            authenticated
-            onAccepted={(classroom) => {
-              setPendingTeacherInvite(null);
-              setView({
-                kind: 'classroom',
-                classroomId: classroom.id,
-                classroomTitle: classroom.title,
-              });
-            }}
-            onBack={() => {
-              setPendingTeacherInvite(null);
-              setView({ kind: 'classrooms' });
-            }}
-            onOpenProfile={() => {
-              setAccountPanel('profile');
-              setView({ kind: 'account' });
-            }}
-          />
-        ) : null}
-        {/* Settings, in the same shell for both. A seat owns fewer of them:
+              />
+            ) : null}
+            {/* Settings, in the same shell for both. A seat owns fewer of them:
             its picture, and not the name its teacher keeps the register by. */}
-        {view.kind === 'account' && !isSeatLearner ? (
-          <AccountPage
-            session={portalSession}
-            onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
-            onOpenClasses={() => navigate('classes')}
-            initialPanel={accountPanel}
-          />
-        ) : null}
-        {view.kind === 'account' && session.kind === 'student' ? (
-          <SeatAccountPage
-            seat={session.session}
-            onSeatChanged={(updated) => setSession({ kind: 'student', session: updated })}
-          />
-        ) : null}
-        {shellCreating ? (
-          <CreateProjectModal
-            scope="personal"
-            onClose={() => setShellCreating(false)}
-            onCreated={(project) => {
-              setShellCreating(false);
-              setView({
-                kind: 'editor',
-                projectId: project.id,
-                moduleKey: project.moduleKey,
-                returnTo: { kind: 'my-projects' },
-              });
-            }}
-          />
-        ) : null}
+            {view.kind === 'account' && !isSeatLearner ? (
+              <AccountPage
+                session={portalSession}
+                onSessionChanged={(updated) =>
+                  setSession({ kind: 'authenticated', session: updated })
+                }
+                onOpenClasses={() => navigate('classes')}
+                initialPanel={accountPanel}
+              />
+            ) : null}
+            {view.kind === 'account' && session.kind === 'student' ? (
+              <SeatAccountPage
+                seat={session.session}
+                onSeatChanged={(updated) => setSession({ kind: 'student', session: updated })}
+              />
+            ) : null}
+            {shellCreating ? (
+              <CreateProjectModal
+                scope="personal"
+                onClose={() => setShellCreating(false)}
+                onCreated={(project) => {
+                  setShellCreating(false);
+                  setView({
+                    kind: 'editor',
+                    projectId: project.id,
+                    moduleKey: project.moduleKey,
+                    returnTo: { kind: 'my-projects' },
+                  });
+                }}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </SchoolTimeProvider>
   );

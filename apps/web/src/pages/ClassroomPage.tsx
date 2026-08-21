@@ -9,7 +9,7 @@ import {
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
-import { ClassroomAssignments } from '../components/ClassroomAssignments';
+import { ClassroomLearning } from '../components/ClassroomLearning';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
@@ -35,9 +35,9 @@ type TeacherTeamState =
 
 const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
   { id: 'students', label: 'Учащиеся' },
-  { id: 'activities', label: 'Действия' },
+  { id: 'activities', label: 'Обучение' },
   { id: 'projects', label: 'Проекты' },
-  { id: 'moderation', label: 'Модерация' },
+  { id: 'moderation', label: 'История' },
   { id: 'teachers', label: 'Коллеги-преподаватели' },
 ];
 
@@ -863,7 +863,7 @@ export function ClassroomPage({
         </section>
       ) : null}
       {tab === 'activities' ? (
-        <ClassroomAssignments
+        <ClassroomLearning
           classroomId={classroomId}
           archived={archived}
           onOpenProject={(projectId, moduleKey) => onOpenProject(projectId, moduleKey)}

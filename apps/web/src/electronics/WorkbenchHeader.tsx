@@ -68,6 +68,7 @@ export function WorkbenchHeader({
   view,
   onViewChange,
   notesOpen,
+  codeOpen,
   onToggleNotes,
   onToggleCode,
   onOpenShare,
@@ -79,6 +80,7 @@ export function WorkbenchHeader({
   view: WorkbenchView;
   onViewChange: (view: WorkbenchView) => void;
   notesOpen: boolean;
+  codeOpen: boolean;
   onToggleNotes: () => void;
   onToggleCode: () => void;
   onOpenShare: () => void;
@@ -312,11 +314,10 @@ export function WorkbenchHeader({
         <div className="workbench-toolbar-group right">
           <button
             type="button"
-            className="workbench-pill"
-            title="Редактор кода пока недоступен в локальной версии"
-            aria-label="Код — пока недоступен"
-            aria-disabled="true"
-            disabled
+            className={`workbench-pill code${codeOpen ? ' active' : ''}`}
+            title={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
+            aria-label={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
+            aria-pressed={codeOpen}
             onClick={onToggleCode}
           >
             <CodeIcon /> Код

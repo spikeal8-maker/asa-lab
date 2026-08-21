@@ -136,7 +136,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toMatch(
       /\.workbench-wire-color summary > span\s*\{[^}]*flex:\s*0 0 30px;/s,
     );
-    expect(headerSource).toContain('aria-label="Код — пока недоступен"');
+    expect(headerSource).toContain("aria-label={codeOpen ? 'Закрыть редактор кода'");
+    expect(headerSource).toContain("className={`workbench-pill code${codeOpen ? ' active' : ''}`}");
+    expect(editorSource).toContain('<ArduinoCodePanel');
+    expect(editorSource).toContain('controller={controller}');
+    expect(editorSource).toContain('drawerWidth={codePanelWidth}');
     expect(headerSource).toContain('aria-label="Отправить — пока недоступно"');
     expect(workbenchCss).toContain('width: 222px');
     expect(workbenchCss).toContain('overflow-x: clip');
@@ -150,6 +154,9 @@ describe('owner-reference Electronics presentation contract', () => {
 
   it('keeps diagnostics on components and reproduces the LED burnout effect', () => {
     expect(stageSource).toContain('className="workbench-component-body-hit"');
+    expect(stageSource).toContain("? 'arduino-board-body' : 'component-bounds'");
+    expect(stageSource).toContain("entry.key === 'arduino-uno'");
+    expect(productionVisualSource).toContain('pointerEvents="none"');
     expect(stageSource).toContain('fillOpacity={0.001}');
     expect(productionVisualSource).toContain('data-testid="spdt-actuator"');
     expect(stageSource).toContain('pointerEvents="all"');
@@ -210,8 +217,11 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
       stageSource.indexOf('{orderedComponents'),
     );
-    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeLessThan(
+    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeGreaterThan(
       stageSource.indexOf('{orderedComponents'),
+    );
+    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeLessThan(
+      stageSource.indexOf('workbench-wire-overlay'),
     );
     expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*pointer-events:\s*none;/s);
     expect(workbenchCss).toMatch(/\.workbench-wire-hit\s*\{[^}]*pointer-events:\s*stroke;/s);

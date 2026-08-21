@@ -489,6 +489,104 @@ label {
   margin-top: 1rem;
 }
 
+.max-login-button {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.max-link-copy {
+  margin: 0.75rem 0 1rem;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.max-link-cancel {
+  display: block;
+  margin: 0.75rem auto 0;
+}
+
+.bot-check {
+  margin: 1rem 0 0.25rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line, #d8dde7);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--surface, #fff) 94%, #2563eb 6%);
+}
+
+.bot-check label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  margin: 0;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.bot-check input {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.bot-check-progress {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 1.05rem;
+  block-size: 1.05rem;
+  margin-inline-start: auto;
+  border-radius: 50%;
+  background: conic-gradient(#2563eb var(--bot-check-progress, 0deg), rgba(37, 99, 235, 0.14) 0);
+  transition:
+    background 80ms linear,
+    opacity 140ms ease;
+}
+
+.bot-check-progress::after {
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: var(--surface, #fff);
+  content: '';
+}
+
+.bot-check-idle .bot-check-progress {
+  opacity: 0.55;
+}
+
+.bot-check-working .bot-check-progress {
+  animation: bot-check-pulse 650ms ease-in-out infinite alternate;
+}
+
+.bot-check-ready {
+  border-color: #16a34a;
+}
+
+.bot-check-ready .bot-check-progress {
+  opacity: 0;
+}
+
+.bot-check-error {
+  border-color: #dc2626;
+}
+
+.bot-check-error .bot-check-progress {
+  background: #dc2626;
+}
+
+@keyframes bot-check-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .link-button {
   padding: 0;
   border: 0;

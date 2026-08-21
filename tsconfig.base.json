@@ -25,7 +25,6 @@
     "paths": {
       "@asa-lab/contracts": ["packages/contracts/src/index.ts"],
       "@asa-lab/domain-kernel": ["packages/domain-kernel/src/index.ts"],
-      "@asa-lab/authz": ["packages/authz/src/index.ts"],
       "@asa-lab/eventing": ["packages/eventing/src/index.ts"],
       "@asa-lab/ui-kit": ["packages/ui-kit/src/index.ts"],
       "@asa-lab/test-kit": ["packages/test-kit/src/index.ts"]
