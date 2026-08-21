@@ -3016,7 +3016,19 @@ html.arduino-palette-resizing * {
 }
 .arduino-block-editor .blocklyText,
 .arduino-block-editor .blocklyHtmlInput {
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif !important;
+  font-family: Arial, sans-serif !important;
+}
+.arduino-block-editor .blocklyFlyoutButton .blocklyText {
+  fill: #43536a !important;
+}
+.arduino-block-editor-active .blocklyWidgetDiv .blocklyHtmlInput {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  transform: none;
+  font-family: Arial, sans-serif !important;
+  line-height: normal;
+  text-align: center;
 }
 .arduino-block-editor .blocklyScrollbarHandle {
   fill: #b9c1c7;
@@ -3056,6 +3068,106 @@ html.arduino-palette-resizing * {
 }
 .arduino-palette-scale button:disabled {
   opacity: 0.35;
+  cursor: default;
+}
+
+.arduino-block-context-menu {
+  position: fixed;
+  z-index: 100200;
+  display: grid;
+  min-width: 214px;
+  overflow: hidden;
+  padding: 5px 0;
+  border: 1px solid #cbd3d9;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(24, 43, 56, 0.24);
+}
+.arduino-block-context-menu > button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  background: #fff;
+  color: #314451;
+  font:
+    13px Arial,
+    sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.arduino-block-context-menu > button:hover,
+.arduino-block-context-menu > button:focus-visible {
+  background: #eaf4fa;
+  outline: none;
+}
+.arduino-block-context-menu > button.danger {
+  color: #a83b32;
+}
+
+.arduino-variable-dialog-backdrop {
+  position: fixed;
+  z-index: 100300;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 48, 59, 0.34);
+}
+.arduino-variable-dialog {
+  display: grid;
+  width: min(390px, calc(100vw - 48px));
+  gap: 16px;
+  box-sizing: border-box;
+  padding: 22px;
+  border: 1px solid #bcc8d0;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(26, 42, 53, 0.3);
+  color: #314451;
+}
+.arduino-variable-dialog > strong {
+  font-size: 19px;
+}
+.arduino-variable-dialog > label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.arduino-variable-dialog input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #9eacb6;
+  border-radius: 3px;
+  color: #263b49;
+  font-size: 15px;
+}
+.arduino-variable-dialog input:focus {
+  border-color: #0794d0;
+  outline: 2px solid rgba(7, 148, 208, 0.18);
+}
+.arduino-variable-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.arduino-variable-dialog button {
+  min-width: 92px;
+  height: 36px;
+  border: 1px solid #9eacb6;
+  border-radius: 3px;
+  background: #fff;
+  color: #314451;
+  cursor: pointer;
+}
+.arduino-variable-dialog button[type='submit'] {
+  border-color: #0794d0;
+  background: #0794d0;
+  color: #fff;
+}
+.arduino-variable-dialog button:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 .arduino-palette-scale output {

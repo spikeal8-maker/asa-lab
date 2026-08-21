@@ -13,6 +13,21 @@ export interface ArduinoProgramState {
   readonly baudRate: number;
 }
 
+export interface ArduinoVariableChoice {
+  readonly id: string;
+  readonly name: string;
+}
+
+export const ARDUINO_CREATE_VARIABLE_CALLBACK = 'CREATE_ARDUINO_VARIABLE';
+
+export function arduinoRenameVariableCallback(variableId: string): string {
+  return `RENAME_ARDUINO_VARIABLE:${variableId}`;
+}
+
+export function arduinoDeleteVariableCallback(variableId: string): string {
+  return `DELETE_ARDUINO_VARIABLE:${variableId}`;
+}
+
 export const DEFAULT_ARDUINO_SOURCE = `// C++ code
 //
 void setup()
@@ -186,7 +201,7 @@ export function registerArduinoBlocks(): void {
       message0: 'назначить вывод %1 на %2',
       args0: [
         { type: 'field_dropdown', name: 'PIN', options: PWM_PINS },
-        { type: 'field_number', name: 'VALUE', value: 0, min: 0, max: 255, precision: 1 },
+        { type: 'field_number', name: 'VALUE', value: '0', min: 0, max: 255, precision: 1 },
       ],
       previousStatement: null,
       nextStatement: null,
@@ -197,7 +212,7 @@ export function registerArduinoBlocks(): void {
       message0: 'повернуть сервопривод на выводе %1 на %2°',
       args0: [
         { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PINS },
-        { type: 'field_number', name: 'ANGLE', value: 0, min: 0, max: 180, precision: 1 },
+        { type: 'field_number', name: 'ANGLE', value: '0', min: 0, max: 180, precision: 1 },
       ],
       previousStatement: null,
       nextStatement: null,
@@ -265,8 +280,8 @@ export function registerArduinoBlocks(): void {
       message2: 'значения R %1 G %2 B %3',
       args2: [
         { type: 'field_number', name: 'R', value: 255, min: 0, max: 255 },
-        { type: 'field_number', name: 'G', value: 0, min: 0, max: 255 },
-        { type: 'field_number', name: 'B', value: 0, min: 0, max: 255 },
+        { type: 'field_number', name: 'G', value: '0', min: 0, max: 255 },
+        { type: 'field_number', name: 'B', value: '0', min: 0, max: 255 },
       ],
       previousStatement: null,
       nextStatement: null,
@@ -304,8 +319,8 @@ export function registerArduinoBlocks(): void {
       type: 'asa_lcd_cursor',
       message0: 'задать положение на ЖК-экране столбец %1 строка %2',
       args0: [
-        { type: 'field_number', name: 'COLUMN', value: 0, min: 0, max: 39 },
-        { type: 'field_number', name: 'ROW', value: 0, min: 0, max: 3 },
+        { type: 'field_number', name: 'COLUMN', value: '0', min: 0, max: 39 },
+        { type: 'field_number', name: 'ROW', value: '0', min: 0, max: 3 },
       ],
       previousStatement: null,
       nextStatement: null,
@@ -427,10 +442,10 @@ export function registerArduinoBlocks(): void {
       type: 'asa_neopixel_set',
       message0: 'светодиод %1 установить R %2 G %3 B %4',
       args0: [
-        { type: 'field_number', name: 'INDEX', value: 0, min: 0, max: 299 },
+        { type: 'field_number', name: 'INDEX', value: '0', min: 0, max: 299 },
         { type: 'field_number', name: 'R', value: 255, min: 0, max: 255 },
-        { type: 'field_number', name: 'G', value: 0, min: 0, max: 255 },
-        { type: 'field_number', name: 'B', value: 0, min: 0, max: 255 },
+        { type: 'field_number', name: 'G', value: '0', min: 0, max: 255 },
+        { type: 'field_number', name: 'B', value: '0', min: 0, max: 255 },
       ],
       previousStatement: null,
       nextStatement: null,
@@ -512,7 +527,7 @@ export function registerArduinoBlocks(): void {
     {
       type: 'asa_number',
       message0: '%1',
-      args0: [{ type: 'field_number', name: 'VALUE', value: 0 }],
+      args0: [{ type: 'field_number', name: 'VALUE', value: '0' }],
       output: 'Number',
       colour: DATA,
     },
@@ -599,9 +614,9 @@ export function registerArduinoBlocks(): void {
       message0: 'перевести %1 из %2…%3 в %4…%5',
       args0: [
         { type: 'input_value', name: 'VALUE', check: 'Number' },
-        { type: 'field_number', name: 'FROM_LOW', value: 0 },
+        { type: 'field_number', name: 'FROM_LOW', value: '0' },
         { type: 'field_number', name: 'FROM_HIGH', value: 1023 },
-        { type: 'field_number', name: 'TO_LOW', value: 0 },
+        { type: 'field_number', name: 'TO_LOW', value: '0' },
         { type: 'field_number', name: 'TO_HIGH', value: 255 },
       ],
       output: 'Number',
@@ -612,7 +627,7 @@ export function registerArduinoBlocks(): void {
       message0: 'ограничить %1 диапазоном от %2 до %3',
       args0: [
         { type: 'input_value', name: 'VALUE', check: 'Number' },
-        { type: 'field_number', name: 'MIN', value: 0 },
+        { type: 'field_number', name: 'MIN', value: '0' },
         { type: 'field_number', name: 'MAX', value: 255 },
       ],
       output: 'Number',
@@ -635,7 +650,14 @@ export function registerArduinoBlocks(): void {
     {
       type: 'asa_var_get',
       message0: 'значение %1',
-      args0: [{ type: 'field_input', name: 'NAME', text: 'переменная' }],
+      args0: [
+        {
+          type: 'field_variable',
+          name: 'NAME',
+          variableTypes: [ScratchBlocks.SCALAR_VARIABLE_TYPE],
+          defaultType: ScratchBlocks.SCALAR_VARIABLE_TYPE,
+        },
+      ],
       output: null,
       colour: VARIABLES,
     },
@@ -643,7 +665,12 @@ export function registerArduinoBlocks(): void {
       type: 'asa_var_set',
       message0: 'задать %1 равным %2',
       args0: [
-        { type: 'field_input', name: 'NAME', text: 'переменная' },
+        {
+          type: 'field_variable',
+          name: 'NAME',
+          variableTypes: [ScratchBlocks.SCALAR_VARIABLE_TYPE],
+          defaultType: ScratchBlocks.SCALAR_VARIABLE_TYPE,
+        },
         { type: 'input_value', name: 'VALUE' },
       ],
       previousStatement: null,
@@ -654,7 +681,12 @@ export function registerArduinoBlocks(): void {
       type: 'asa_var_change',
       message0: 'изменить %1 на %2',
       args0: [
-        { type: 'field_input', name: 'NAME', text: 'переменная' },
+        {
+          type: 'field_variable',
+          name: 'NAME',
+          variableTypes: [ScratchBlocks.SCALAR_VARIABLE_TYPE],
+          defaultType: ScratchBlocks.SCALAR_VARIABLE_TYPE,
+        },
         { type: 'field_number', name: 'VALUE', value: 1 },
       ],
       previousStatement: null,
@@ -747,13 +779,212 @@ const TOOLBOX_BY_CATEGORY: Record<ArduinoBlockCategory, readonly string[]> = {
   variables: ['asa_var_get', 'asa_var_set', 'asa_var_change'],
 };
 
+type ArduinoShadowSpec = {
+  readonly type: 'asa_number' | 'asa_text' | 'asa_level';
+  readonly fields: Readonly<Record<string, string>>;
+};
+
+const NUMBER_SHADOW = (value = '1'): ArduinoShadowSpec => ({
+  type: 'asa_number',
+  fields: { VALUE: value },
+});
+
+const LEVEL_SHADOW: ArduinoShadowSpec = {
+  type: 'asa_level',
+  fields: { LEVEL: 'HIGH' },
+};
+
+const TOOLBOX_INPUT_DEFAULTS: Readonly<
+  Record<string, Readonly<Record<string, ArduinoShadowSpec>>>
+> = {
+  asa_if: { CONDITION: LEVEL_SHADOW },
+  asa_if_else: { CONDITION: LEVEL_SHADOW },
+  asa_while: { CONDITION: LEVEL_SHADOW },
+  asa_math_add: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_math_minus: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_math_multiply: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_math_divide: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_math_modulo: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_compare_lt: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_compare_eq: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_compare_gt: { A: NUMBER_SHADOW(), B: NUMBER_SHADOW() },
+  asa_logic_and: { A: LEVEL_SHADOW, B: LEVEL_SHADOW },
+  asa_logic_or: { A: LEVEL_SHADOW, B: LEVEL_SHADOW },
+  asa_logic_not: { VALUE: LEVEL_SHADOW },
+  asa_map: { VALUE: NUMBER_SHADOW('0') },
+  asa_constrain: { VALUE: NUMBER_SHADOW('0') },
+  asa_abs: { VALUE: NUMBER_SHADOW('0') },
+  asa_var_set: { VALUE: NUMBER_SHADOW() },
+};
+
+const TOOLBOX_FIELD_DEFAULTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  asa_wait: { TIME: '1', UNIT: 'SECONDS' },
+  asa_repeat: { COUNT: '10' },
+  asa_for: { NAME: 'i', STEP: '1', FROM: '1', TO: '10' },
+  asa_analog_write: { VALUE: '0' },
+  asa_servo_write: { ANGLE: '0' },
+  asa_tone: { FREQUENCY: '440' },
+  asa_play_note: { FREQUENCY: '262', DURATION: '1' },
+  asa_rgb_write: { R: '255', G: '0', B: '0' },
+  asa_lcd_cursor: { COLUMN: '0', ROW: '0' },
+  asa_7seg_print: { VALUE: '1234' },
+  asa_neopixel_setup: { COUNT: '8' },
+  asa_neopixel_set: { INDEX: '0', R: '255', G: '0', B: '0' },
+  asa_number: { VALUE: '0' },
+  asa_text: { VALUE: 'текст' },
+  asa_random: { MIN: '1', MAX: '10' },
+  asa_map: { FROM_LOW: '0', FROM_HIGH: '1023', TO_LOW: '0', TO_HIGH: '255' },
+  asa_constrain: { MIN: '0', MAX: '255' },
+  asa_var_change: { VALUE: '1' },
+};
+
+function toolboxBlock(
+  type: string,
+  fields?: Readonly<Record<string, unknown>>,
+): ScratchBlocks.utils.toolbox.BlockInfo {
+  const defaults = TOOLBOX_INPUT_DEFAULTS[type];
+  const blockFields = { ...TOOLBOX_FIELD_DEFAULTS[type], ...fields };
+  return {
+    kind: 'block',
+    type,
+    ...(Object.keys(blockFields).length > 0 ? { fields: blockFields } : {}),
+    ...(defaults
+      ? {
+          inputs: Object.fromEntries(
+            Object.entries(defaults).map(([name, shadow]) => [
+              name,
+              {
+                shadow: {
+                  type: shadow.type,
+                  fields: shadow.fields,
+                },
+              },
+            ]),
+          ),
+        }
+      : {}),
+  };
+}
+
 export function toolboxForCategory(
   category: ArduinoBlockCategory,
+  variables: readonly ArduinoVariableChoice[] = [],
 ): ScratchBlocks.utils.toolbox.ToolboxInfo {
+  if (category === 'variables') {
+    return {
+      kind: 'flyoutToolbox',
+      contents: [
+        {
+          kind: 'button',
+          text: 'Создать переменную',
+          callbackkey: ARDUINO_CREATE_VARIABLE_CALLBACK,
+        },
+        ...variables.flatMap(
+          (variable) =>
+            [
+              ...TOOLBOX_BY_CATEGORY.variables.map((type) =>
+                toolboxBlock(type, {
+                  NAME: {
+                    id: variable.id,
+                    name: variable.name,
+                    type: ScratchBlocks.SCALAR_VARIABLE_TYPE,
+                  },
+                }),
+              ),
+              {
+                kind: 'button',
+                text: `Переименовать «${variable.name}»`,
+                callbackkey: arduinoRenameVariableCallback(variable.id),
+              },
+              {
+                kind: 'button',
+                text: `Удалить «${variable.name}»`,
+                callbackkey: arduinoDeleteVariableCallback(variable.id),
+              },
+            ] as ScratchBlocks.utils.toolbox.FlyoutItemInfoArray,
+        ),
+      ],
+    };
+  }
   return {
     kind: 'flyoutToolbox',
-    contents: TOOLBOX_BY_CATEGORY[category].map((type) => ({ kind: 'block', type })),
+    contents: TOOLBOX_BY_CATEGORY[category].map((type) => toolboxBlock(type)),
   };
+}
+
+const VARIABLE_BLOCK_TYPES = new Set(['asa_var_get', 'asa_var_set', 'asa_var_change']);
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/** Preserve variable names saved by the first ASA Arduino editor, where the
+ * variable field was a free text input rather than a real Blockly variable. */
+export function migrateLegacyArduinoWorkspaceState(
+  state: Record<string, unknown>,
+): Record<string, unknown> {
+  const root = objectValue(state);
+  if (!root) return {};
+  const variables = Array.isArray(root['variables'])
+    ? [...(root['variables'] as readonly unknown[])]
+    : [];
+  const idsByName = new Map<string, string>();
+  for (const entry of variables) {
+    const variable = objectValue(entry);
+    if (typeof variable?.['name'] === 'string' && typeof variable['id'] === 'string') {
+      idsByName.set(variable['name'], variable['id']);
+    }
+  }
+  let sequence = variables.length;
+
+  const idForName = (name: string): string => {
+    const existing = idsByName.get(name);
+    if (existing) return existing;
+    const id = `asa-variable-${++sequence}`;
+    idsByName.set(name, id);
+    variables.push({ name, id, type: ScratchBlocks.SCALAR_VARIABLE_TYPE });
+    return id;
+  };
+
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const child of value) visit(child);
+      return;
+    }
+    const node = objectValue(value);
+    if (!node) return;
+    if (typeof node['type'] === 'string' && VARIABLE_BLOCK_TYPES.has(node['type'])) {
+      const fields = objectValue(node['fields']);
+      const legacyName = fields?.['NAME'];
+      if (fields && typeof legacyName === 'string') {
+        const name = legacyName.trim() || 'переменная';
+        fields['NAME'] = { id: idForName(name) };
+      }
+    }
+    for (const child of Object.values(node)) visit(child);
+  };
+
+  visit(root['blocks']);
+  if (variables.length > 0) root['variables'] = variables;
+  return root;
+}
+
+/** Fill empty fields left by early editor builds without overwriting values the
+ * learner has already entered. Scratch's numeric fields otherwise render as a
+ * visually blank white slot after an old project is restored. */
+export function applyArduinoBlockDefaults(workspace: ScratchBlocks.Workspace): void {
+  for (const block of workspace.getAllBlocks(false)) {
+    const defaults = TOOLBOX_FIELD_DEFAULTS[block.type];
+    if (!defaults) continue;
+    for (const [fieldName, defaultValue] of Object.entries(defaults)) {
+      if (!block.getField(fieldName)) continue;
+      const currentValue = block.getFieldValue(fieldName);
+      if (currentValue !== null && String(currentValue).trim() !== '') continue;
+      block.setFieldValue(defaultValue, fieldName);
+    }
+  }
 }
 
 function quoted(value: string): string {
@@ -768,6 +999,12 @@ function identifier(value: string): string {
 function field(block: ScratchBlocks.Block | null, name: string, fallback = ''): string {
   if (!block) return fallback;
   return block.getFieldValue(name)?.toString() ?? fallback;
+}
+
+function variableName(block: ScratchBlocks.Block | null, fieldName = 'NAME'): string {
+  if (!block) return 'переменная';
+  const id = field(block, fieldName);
+  return block.workspace.getVariableMap().getVariableById(id)?.getName() ?? id ?? 'переменная';
 }
 
 function expression(block: ScratchBlocks.Block | null): string {
@@ -831,7 +1068,7 @@ function expression(block: ScratchBlocks.Block | null): string {
     case 'asa_level':
       return field(block, 'LEVEL', 'HIGH');
     case 'asa_var_get':
-      return identifier(field(block, 'NAME'));
+      return identifier(variableName(block));
     default:
       return '0';
   }
@@ -964,11 +1201,11 @@ function statements(first: ScratchBlocks.Block | null): string {
         break;
       case 'asa_var_set':
         lines.push(
-          `${identifier(field(block, 'NAME'))} = ${expression(block.getInputTargetBlock('VALUE'))};`,
+          `${identifier(variableName(block))} = ${expression(block.getInputTargetBlock('VALUE'))};`,
         );
         break;
       case 'asa_var_change':
-        lines.push(`${identifier(field(block, 'NAME'))} += ${field(block, 'VALUE', '1')};`);
+        lines.push(`${identifier(variableName(block))} += ${field(block, 'VALUE', '1')};`);
         break;
       case 'asa_comment':
         lines.push(`// ${field(block, 'TEXT')}`);
@@ -999,7 +1236,7 @@ export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string 
   const variableNames = new Set(
     allBlocks
       .filter((block) => ['asa_var_get', 'asa_var_set', 'asa_var_change'].includes(block.type))
-      .map((block) => identifier(field(block, 'NAME'))),
+      .map((block) => identifier(variableName(block))),
   );
   for (const name of variableNames) declarations.push(`float ${name} = 0;`);
 

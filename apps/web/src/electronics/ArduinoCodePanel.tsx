@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import * as ScratchBlocks from 'scratch-blocks';
 import scratchSpritesUrl from '../../node_modules/scratch-blocks/media/sprites.png?url';
 import scratchZoomInUrl from '../../node_modules/scratch-blocks/media/zoom-in.svg?url';
@@ -16,14 +17,20 @@ import scratchZoomOutUrl from '../../node_modules/scratch-blocks/media/zoom-out.
 import scratchZoomResetUrl from '../../node_modules/scratch-blocks/media/zoom-reset.svg?url';
 import type { ProductionStateValue, SchematicComponent } from '../api';
 import {
+  ARDUINO_CREATE_VARIABLE_CALLBACK,
+  applyArduinoBlockDefaults,
+  arduinoDeleteVariableCallback,
+  arduinoRenameVariableCallback,
   createDefaultArduinoBlocks,
   generateArduinoCode,
+  migrateLegacyArduinoWorkspaceState,
   readArduinoProgramState,
   registerArduinoBlocks,
   toolboxForCategory,
   type ArduinoBlockCategory,
   type ArduinoCodeMode,
   type ArduinoProgramState,
+  type ArduinoVariableChoice,
 } from './arduino-blocks';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
@@ -45,10 +52,11 @@ const ARDUINO_FLYOUT_MAX_WIDTH = 520;
 const ARDUINO_FLYOUT_DEFAULT_WIDTH = 290;
 const ARDUINO_WORKSPACE_MIN_WIDTH = 300;
 const ARDUINO_FLYOUT_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-width-v2';
-const ARDUINO_PALETTE_SCALE_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-scale';
+const ARDUINO_PALETTE_SCALE_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-scale-v2';
 const ARDUINO_PALETTE_SCALE_MIN = 0.75;
 const ARDUINO_PALETTE_SCALE_MAX = 1.25;
 const ARDUINO_PALETTE_SCALE_STEP = 0.1;
+const ARDUINO_PALETTE_VISUAL_BASELINE = 1.25;
 
 function clampArduinoFlyoutWidth(width: number, drawerWidth: number): number {
   const maximum = Math.max(
@@ -72,7 +80,42 @@ function initialArduinoPaletteScale(): number {
 
 function responsiveFlyoutScale(flyoutWidth: number, userScale: number): number {
   const fittedBase = Math.min(0.75, Math.max(0.45, (0.675 * flyoutWidth) / 330));
-  return Math.min(0.92, Math.max(0.42, fittedBase * userScale));
+  return Math.min(1.18, Math.max(0.42, fittedBase * ARDUINO_PALETTE_VISUAL_BASELINE * userScale));
+}
+
+type ArduinoBlockContextMenu = {
+  readonly blockId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly blockCount: number;
+};
+
+type ArduinoVariablePrompt = {
+  readonly title: string;
+  readonly message: string;
+  readonly value: string;
+  readonly submitLabel: string;
+};
+
+type ArduinoVariablePromptCallback = (
+  variableName: string,
+  additionalVariables: string[],
+  options?: { scope?: string; isCloud?: boolean },
+) => void;
+
+function arduinoVariableChoices(
+  workspace: ScratchBlocks.Workspace,
+): readonly ArduinoVariableChoice[] {
+  return workspace
+    .getVariablesOfType(ScratchBlocks.SCALAR_VARIABLE_TYPE)
+    .map((variable) => ({ id: variable.getId(), name: variable.getName() }))
+    .sort((left, right) =>
+      left.name === right.name ? 0 : left.name.toLowerCase() < right.name.toLowerCase() ? -1 : 1,
+    );
+}
+
+function blockStackCount(block: ScratchBlocks.Block): number {
+  return block.getDescendants(false).filter((descendant) => !descendant.isShadow()).length;
 }
 
 const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
@@ -361,10 +404,16 @@ function ScratchWorkspace({
   const changeRef = useRef(onChange);
   const flyoutWidthRef = useRef(flyoutWidth);
   const paletteScaleRef = useRef(paletteScale);
+  const categoryRef = useRef(category);
+  const refreshToolboxRef = useRef<(() => void) | null>(null);
   const timerRef = useRef<number | null>(null);
+  const variablePromptCallbackRef = useRef<ArduinoVariablePromptCallback | null>(null);
+  const [blockContextMenu, setBlockContextMenu] = useState<ArduinoBlockContextMenu | null>(null);
+  const [variablePrompt, setVariablePrompt] = useState<ArduinoVariablePrompt | null>(null);
   changeRef.current = onChange;
   flyoutWidthRef.current = flyoutWidth;
   paletteScaleRef.current = paletteScale;
+  categoryRef.current = category;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -407,16 +456,67 @@ function ScratchWorkspace({
       flyout.reflow();
     }
     workspaceRef.current = workspace;
+    document.documentElement.classList.add('arduino-block-editor-active');
+
+    const refreshToolbox = (): void => {
+      const variables = arduinoVariableChoices(workspace);
+      for (const variable of variables) {
+        workspace.registerButtonCallback(arduinoRenameVariableCallback(variable.id), () => {
+          const current = workspace.getVariableMap().getVariableById(variable.id);
+          if (current) {
+            ScratchBlocks.ScratchVariables.renameVariable(
+              workspace,
+              current as Parameters<typeof ScratchBlocks.ScratchVariables.renameVariable>[1],
+            );
+          }
+        });
+        workspace.registerButtonCallback(arduinoDeleteVariableCallback(variable.id), () => {
+          const current = workspace.getVariableMap().getVariableById(variable.id);
+          if (current) ScratchBlocks.Variables.deleteVariable(workspace, current);
+        });
+      }
+      workspace.updateToolbox(toolboxForCategory(categoryRef.current, variables));
+      workspace.getFlyout()?.reflow();
+      ScratchBlocks.svgResize(workspace);
+    };
+    refreshToolboxRef.current = refreshToolbox;
+
+    ScratchBlocks.ScratchVariables.setPromptHandler((message, defaultValue, callback, title) => {
+      variablePromptCallbackRef.current = callback;
+      setVariablePrompt({
+        title: title || 'Переменная',
+        message,
+        value: defaultValue,
+        submitLabel: defaultValue.trim() ? 'Сохранить' : 'Создать',
+      });
+    });
+    workspace.registerButtonCallback(ARDUINO_CREATE_VARIABLE_CALLBACK, (button) => {
+      window.requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          ScratchBlocks.ScratchVariables.createVariable(
+            button.getTargetWorkspace(),
+            undefined,
+            ScratchBlocks.SCALAR_VARIABLE_TYPE,
+          );
+        }, 0);
+      });
+    });
+
     let loaded = false;
     if (initialWorkspace) {
       try {
-        ScratchBlocks.serialization.workspaces.load(JSON.parse(initialWorkspace), workspace);
+        ScratchBlocks.serialization.workspaces.load(
+          migrateLegacyArduinoWorkspaceState(JSON.parse(initialWorkspace)),
+          workspace,
+        );
         loaded = workspace.getAllBlocks(false).length > 0;
       } catch {
         loaded = false;
       }
     }
     if (!loaded) createDefaultArduinoBlocks(workspace);
+    applyArduinoBlockDefaults(workspace);
+    refreshToolbox();
     keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
 
     const handleZoomReset = (event: Event): void => {
@@ -427,6 +527,55 @@ function ScratchWorkspace({
       centerArduinoProgram(workspace);
     };
     host.addEventListener('pointerdown', handleZoomReset, true);
+
+    const openBlockContextMenu = (event: globalThis.PointerEvent | MouseEvent): boolean => {
+      const target = event.target instanceof Element ? event.target : null;
+      const blockElement = target?.closest<SVGGElement>('.blocklyDraggable[data-id]');
+      if (!blockElement || blockElement.closest('.blocklyFlyout')) return false;
+      const blockId = blockElement.dataset['id'];
+      const block = blockId ? workspace.getBlockById(blockId) : null;
+      if (!block || block.isInFlyout || !block.isDeletable()) return false;
+      workspace.cancelCurrentGesture();
+      ScratchBlocks.hideChaff();
+      setBlockContextMenu({
+        blockId: block.id,
+        x: Math.max(8, Math.min(window.innerWidth - 230, event.clientX)),
+        y: Math.max(8, Math.min(window.innerHeight - 116, event.clientY)),
+        blockCount: blockStackCount(block),
+      });
+      return true;
+    };
+
+    const handleRightPointerDown = (event: globalThis.PointerEvent): void => {
+      if (event.button !== 2 || !openBlockContextMenu(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+    const handleContextMenu = (event: MouseEvent): void => {
+      if (!openBlockContextMenu(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+    const closeFloatingUi = (event: globalThis.PointerEvent): void => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('.arduino-block-context-menu, .arduino-variable-dialog')) return;
+      setBlockContextMenu(null);
+    };
+    const closeWithEscape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      setBlockContextMenu(null);
+      if (variablePromptCallbackRef.current) {
+        variablePromptCallbackRef.current('', []);
+        variablePromptCallbackRef.current = null;
+        setVariablePrompt(null);
+      }
+    };
+    host.addEventListener('pointerdown', handleRightPointerDown, true);
+    host.addEventListener('contextmenu', handleContextMenu, true);
+    window.addEventListener('pointerdown', closeFloatingUi, true);
+    window.addEventListener('keydown', closeWithEscape, true);
 
     const assetFrame = window.requestAnimationFrame(() => {
       applyScratchMediaAssets(host);
@@ -440,6 +589,13 @@ function ScratchWorkspace({
     publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
       if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
+      if (
+        event.type === ScratchBlocks.Events.VAR_CREATE ||
+        event.type === ScratchBlocks.Events.VAR_DELETE ||
+        event.type === ScratchBlocks.Events.VAR_RENAME
+      ) {
+        window.requestAnimationFrame(refreshToolbox);
+      }
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       timerRef.current = window.setTimeout(publish, 180);
     };
@@ -451,20 +607,23 @@ function ScratchWorkspace({
       window.cancelAnimationFrame(assetFrame);
       resizeObserver.disconnect();
       host.removeEventListener('pointerdown', handleZoomReset, true);
+      host.removeEventListener('pointerdown', handleRightPointerDown, true);
+      host.removeEventListener('contextmenu', handleContextMenu, true);
+      window.removeEventListener('pointerdown', closeFloatingUi, true);
+      window.removeEventListener('keydown', closeWithEscape, true);
       workspace.removeChangeListener(listener);
       workspace.dispose();
       workspaceRef.current = null;
+      refreshToolboxRef.current = null;
+      document.documentElement.classList.remove('arduino-block-editor-active');
+      variablePromptCallbackRef.current = null;
     };
     // A board switch remounts this component by key. Loading a new serialised
     // workspace into a live one would otherwise become an editable undo step.
   }, []);
 
   useEffect(() => {
-    const workspace = workspaceRef.current;
-    if (!workspace) return;
-    workspace.updateToolbox(toolboxForCategory(category));
-    workspace.getFlyout()?.reflow();
-    ScratchBlocks.svgResize(workspace);
+    refreshToolboxRef.current?.();
   }, [category]);
 
   useEffect(() => {
@@ -483,8 +642,108 @@ function ScratchWorkspace({
     ScratchBlocks.svgResize(workspace);
   }, [paletteScale]);
 
+  function closeVariablePrompt(value: string): void {
+    const callback = variablePromptCallbackRef.current;
+    variablePromptCallbackRef.current = null;
+    setVariablePrompt(null);
+    callback?.(value.trim(), []);
+  }
+
+  function duplicateBlockStack(): void {
+    const workspace = workspaceRef.current;
+    const block = blockContextMenu && workspace?.getBlockById(blockContextMenu.blockId);
+    setBlockContextMenu(null);
+    if (!workspace || !block) return;
+    workspace.cancelCurrentGesture();
+    const data = block.toCopyData(true);
+    if (!data) return;
+    ScratchBlocks.Events.setGroup(true);
+    try {
+      ScratchBlocks.clipboard.paste(data, workspace);
+    } finally {
+      ScratchBlocks.Events.setGroup(false);
+    }
+  }
+
+  function deleteBlockStack(): void {
+    const workspace = workspaceRef.current;
+    const block = blockContextMenu && workspace?.getBlockById(blockContextMenu.blockId);
+    setBlockContextMenu(null);
+    if (!workspace || !block) return;
+    workspace.cancelCurrentGesture();
+    ScratchBlocks.Events.setGroup(true);
+    try {
+      block.dispose(false, true);
+    } finally {
+      ScratchBlocks.Events.setGroup(false);
+    }
+  }
+
   return (
-    <div className="arduino-scratch-host" ref={hostRef} data-testid="arduino-block-workspace" />
+    <>
+      <div className="arduino-scratch-host" ref={hostRef} data-testid="arduino-block-workspace" />
+      {blockContextMenu
+        ? createPortal(
+            <div
+              className="arduino-block-context-menu"
+              role="menu"
+              aria-label="Действия с блоками"
+              style={{ left: blockContextMenu.x, top: blockContextMenu.y }}
+            >
+              <button type="button" role="menuitem" onClick={duplicateBlockStack}>
+                {blockContextMenu.blockCount === 1
+                  ? 'Копировать блок'
+                  : `Копировать ${blockContextMenu.blockCount} блоков`}
+              </button>
+              <button type="button" role="menuitem" className="danger" onClick={deleteBlockStack}>
+                {blockContextMenu.blockCount === 1
+                  ? 'Удалить блок'
+                  : `Удалить ${blockContextMenu.blockCount} блоков`}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+      {variablePrompt
+        ? createPortal(
+            <div className="arduino-variable-dialog-backdrop" role="presentation">
+              <form
+                className="arduino-variable-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="arduino-variable-dialog-title"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  closeVariablePrompt(variablePrompt.value);
+                }}
+              >
+                <strong id="arduino-variable-dialog-title">{variablePrompt.title}</strong>
+                <label>
+                  <span>{variablePrompt.message}</span>
+                  <input
+                    autoFocus
+                    value={variablePrompt.value}
+                    onChange={(event) =>
+                      setVariablePrompt((current) =>
+                        current ? { ...current, value: event.target.value } : current,
+                      )
+                    }
+                  />
+                </label>
+                <div>
+                  <button type="button" onClick={() => closeVariablePrompt('')}>
+                    Отмена
+                  </button>
+                  <button type="submit" disabled={!variablePrompt.value.trim()}>
+                    {variablePrompt.submitLabel}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 

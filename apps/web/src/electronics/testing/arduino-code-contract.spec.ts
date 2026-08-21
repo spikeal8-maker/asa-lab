@@ -53,6 +53,8 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('Уменьшить блоки в палитре');
     expect(panelSource).toContain('Увеличить блоки в палитре');
     expect(panelSource).toContain('responsiveFlyoutScale');
+    expect(panelSource).toContain('ARDUINO_PALETTE_VISUAL_BASELINE = 1.25');
+    expect(panelSource).toContain('arduino-palette-scale-v2');
     expect(panelSource).toContain("getFlyoutScale'");
     expect(editorSource).toContain('loadArduinoCodePanel().then');
     expect(editorSource).toContain('codePanelMounted ?');
@@ -94,6 +96,33 @@ describe('Arduino programming room contract', () => {
     ]) {
       expect(blocksSource).toContain(`type: '${block}'`);
     }
+  });
+
+  it('keeps block inputs visible and supports complete stack actions', () => {
+    expect(blocksSource).toContain("name: 'TIME', value: 1");
+    expect(blocksSource).toContain("name: 'VALUE', value: '0'");
+    expect(blocksSource).toContain('TOOLBOX_INPUT_DEFAULTS');
+    expect(blocksSource).toContain('applyArduinoBlockDefaults');
+    expect(blocksSource).toContain('asa_var_set: { VALUE: NUMBER_SHADOW() }');
+    expect(panelSource).toContain('arduino-block-context-menu');
+    expect(panelSource).toContain('block.toCopyData(true)');
+    expect(panelSource).toContain('block.dispose(false, true)');
+    expect(panelSource).toContain('workspace.cancelCurrentGesture()');
+    expect(css).toContain('.arduino-block-context-menu');
+    expect(css).toContain('.arduino-block-editor-active .blocklyWidgetDiv .blocklyHtmlInput');
+  });
+
+  it('creates and persists genuine Blockly variables', () => {
+    expect(blocksSource).toContain("ARDUINO_CREATE_VARIABLE_CALLBACK = 'CREATE_ARDUINO_VARIABLE'");
+    expect(blocksSource).toContain("type: 'field_variable'");
+    expect(blocksSource).toContain('migrateLegacyArduinoWorkspaceState');
+    expect(blocksSource).toContain("text: 'Создать переменную'");
+    expect(blocksSource).toContain('Переименовать «${variable.name}»');
+    expect(blocksSource).toContain('Удалить «${variable.name}»');
+    expect(panelSource).toContain('ScratchBlocks.ScratchVariables.setPromptHandler');
+    expect(panelSource).toContain('ScratchBlocks.ScratchVariables.createVariable');
+    expect(panelSource).toContain('arduino-variable-dialog');
+    expect(css).toContain('.arduino-variable-dialog');
   });
 
   it('generates an Arduino sketch and persists it on the selected Uno', () => {
