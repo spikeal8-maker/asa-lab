@@ -216,9 +216,10 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_play_note',
-      message0: 'воспроизвести запись на выводе %1 с тоном %2 Гц в течение %3 с',
-      args0: [
-        { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PINS },
+      message0: 'воспроизвести запись на выводе %1',
+      args0: [{ type: 'field_dropdown', name: 'PIN', options: DIGITAL_PINS }],
+      message1: 'с тоном %1 Гц в течение %2 с',
+      args1: [
         { type: 'field_number', name: 'FREQUENCY', value: 262, min: 31, max: 20000 },
         { type: 'field_number', name: 'DURATION', value: 1, min: 0.01, max: 60 },
       ],
@@ -254,11 +255,15 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_rgb_write',
-      message0: 'назначить светодиодам RGB на выводах %1 %2 %3 значения %4 %5 %6',
-      args0: [
+      message0: 'назначить светодиодам RGB',
+      message1: 'на выводах %1 %2 %3',
+      args1: [
         { type: 'field_dropdown', name: 'R_PIN', options: PWM_PINS },
         { type: 'field_dropdown', name: 'G_PIN', options: PWM_PINS },
         { type: 'field_dropdown', name: 'B_PIN', options: PWM_PINS },
+      ],
+      message2: 'значения R %1 G %2 B %3',
+      args2: [
         { type: 'field_number', name: 'R', value: 255, min: 0, max: 255 },
         { type: 'field_number', name: 'G', value: 0, min: 0, max: 255 },
         { type: 'field_number', name: 'B', value: 0, min: 0, max: 255 },
@@ -269,12 +274,19 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_lcd_setup',
-      message0: 'настроить ЖК-экран: RS %1 E %2 D4 %3 D5 %4 D6 %5 D7 %6',
-      args0: ['RS', 'E', 'D4', 'D5', 'D6', 'D7'].map((name, index) => ({
+      message0: 'настроить ЖК-экран: RS %1 E %2 D4 %3',
+      args0: ['RS', 'E', 'D4'].map((name, index) => ({
         type: 'field_dropdown',
         name,
         options: DIGITAL_PINS,
         value: String([12, 11, 5, 4, 3, 2][index]),
+      })),
+      message1: 'D5 %1 D6 %2 D7 %3',
+      args1: ['D5', 'D6', 'D7'].map((name, index) => ({
+        type: 'field_dropdown',
+        name,
+        options: DIGITAL_PINS,
+        value: String([4, 3, 2][index]),
       })),
       previousStatement: null,
       nextStatement: null,
@@ -308,7 +320,7 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_lcd_i2c_setup',
-      message0: 'настроить тип ЖК-экрана %1 для I2C с адресом %2',
+      message0: 'настроить тип ЖК-экрана %1',
       args0: [
         {
           type: 'field_dropdown',
@@ -318,6 +330,9 @@ export function registerArduinoBlocks(): void {
             ['20 × 4', '20X4'],
           ],
         },
+      ],
+      message1: 'для I2C с адресом %1',
+      args1: [
         {
           type: 'field_dropdown',
           name: 'ADDRESS',
@@ -334,7 +349,7 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_7seg_setup',
-      message0: 'настроить тип светодиодного экрана %1 для 7-сегментных часов с адресом %2',
+      message0: 'настроить тип светодиодного экрана %1',
       args0: [
         {
           type: 'field_dropdown',
@@ -344,6 +359,9 @@ export function registerArduinoBlocks(): void {
             ['2', '2'],
           ],
         },
+      ],
+      message1: 'для 7-сегментных часов с адресом %1',
+      args1: [
         {
           type: 'field_dropdown',
           name: 'ADDRESS',
@@ -395,8 +413,9 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_neopixel_setup',
-      message0: 'настроить светодиодную ленту: вывод %1 светодиодов %2',
-      args0: [
+      message0: 'настроить светодиодную ленту',
+      message1: 'вывод %1 светодиодов %2',
+      args1: [
         { type: 'field_dropdown', name: 'PIN', options: DIGITAL_PINS },
         { type: 'field_number', name: 'COUNT', value: 8, min: 1, max: 300 },
       ],

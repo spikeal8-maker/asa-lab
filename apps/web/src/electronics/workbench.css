@@ -430,10 +430,6 @@
   height: calc(100vh - var(--wb-header-height) - var(--wb-toolbar-height));
   overflow: hidden;
 }
-.workbench-shell.code-open .workbench-stage,
-.workbench-shell.code-open .workbench-alternate-view {
-  right: var(--arduino-code-panel-width);
-}
 .workbench-stage {
   position: absolute;
   inset: 0 var(--wb-library-width) 0 0;
@@ -2874,6 +2870,37 @@ html.arduino-drawer-resizing * {
   overflow: hidden;
   border-right: 1px solid #cbd3d9;
   background: #fafafa;
+}
+.arduino-palette-resize-handle {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--arduino-flyout-width) - 5px);
+  width: 10px;
+  touch-action: none;
+  cursor: ew-resize;
+  outline: none;
+}
+.arduino-palette-resize-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: transparent;
+  content: '';
+  transition: background 100ms ease;
+}
+.arduino-palette-resize-handle:hover::after,
+.arduino-palette-resize-handle:focus-visible::after,
+html.arduino-palette-resizing .arduino-palette-resize-handle::after {
+  background: #1396ce;
+}
+html.arduino-palette-resizing,
+html.arduino-palette-resizing * {
+  cursor: ew-resize !important;
+  user-select: none !important;
 }
 .arduino-scratch-host {
   position: absolute;

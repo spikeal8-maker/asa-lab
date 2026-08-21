@@ -42,7 +42,22 @@ const CATEGORY_ITEMS: readonly {
 
 const ARDUINO_FLYOUT_MIN_WIDTH = 330;
 const ARDUINO_FLYOUT_MAX_WIDTH = 520;
+const ARDUINO_FLYOUT_DEFAULT_WIDTH = 330;
 const ARDUINO_WORKSPACE_MIN_WIDTH = 360;
+const ARDUINO_FLYOUT_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-width';
+
+function clampArduinoFlyoutWidth(width: number, drawerWidth: number): number {
+  const maximum = Math.max(
+    ARDUINO_FLYOUT_MIN_WIDTH,
+    Math.min(ARDUINO_FLYOUT_MAX_WIDTH, drawerWidth - ARDUINO_WORKSPACE_MIN_WIDTH),
+  );
+  return Math.round(Math.min(maximum, Math.max(ARDUINO_FLYOUT_MIN_WIDTH, width)));
+}
+
+function initialArduinoFlyoutWidth(): number {
+  const stored = Number(localStorage.getItem(ARDUINO_FLYOUT_STORAGE_KEY));
+  return Number.isFinite(stored) && stored > 0 ? stored : ARDUINO_FLYOUT_DEFAULT_WIDTH;
+}
 
 const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
   name: 'asa-arduino',
@@ -127,6 +142,29 @@ function keepWorkspaceClearOfFlyout(
   for (const block of blocks) block.moveBy(shift, 0);
 }
 
+function centerArduinoProgram(workspace: ScratchBlocks.WorkspaceSvg): void {
+  workspace.markFocused();
+  workspace.beginCanvasTransition();
+  workspace.setScale(workspace.options.zoomOptions.startScale);
+
+  const blocks = workspace.getTopBlocks(false);
+  if (blocks.length === 0) {
+    workspace.scrollCenter();
+  } else {
+    const bounds = workspace.getBlocksBoundingBox();
+    const metrics = workspace.getMetrics();
+    const flyoutWidth = workspace.getFlyout()?.getWidth() ?? 0;
+    const centreX = ((bounds.left + bounds.right) / 2) * workspace.scale;
+    const centreY = ((bounds.top + bounds.bottom) / 2) * workspace.scale;
+    workspace.scroll(
+      -(centreX - metrics.viewWidth / 2) + flyoutWidth / 2,
+      -(centreY - metrics.viewHeight / 2),
+    );
+  }
+
+  window.setTimeout(() => workspace.endCanvasTransition(), 500);
+}
+
 function DrawerResizeHandle({
   width,
   onWidthChange,
@@ -182,6 +220,66 @@ function DrawerResizeHandle({
       onLostPointerCapture={() => {
         dragRef.current = null;
         document.documentElement.classList.remove('arduino-drawer-resizing');
+      }}
+    />
+  );
+}
+
+function PaletteResizeHandle({
+  width,
+  onWidthChange,
+}: {
+  width: number;
+  onWidthChange: (width: number) => void;
+}): JSX.Element {
+  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+
+  function stopResize(event: PointerEvent<HTMLDivElement>): void {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    document.documentElement.classList.remove('arduino-palette-resizing');
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const step = event.shiftKey ? 40 : 12;
+    onWidthChange(width + (event.key === 'ArrowRight' ? step : -step));
+  }
+
+  return (
+    <div
+      className="arduino-palette-resize-handle"
+      role="separator"
+      aria-label="Изменить ширину палитры блоков"
+      aria-orientation="vertical"
+      aria-valuenow={Math.round(width)}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        dragRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startWidth: width,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        document.documentElement.classList.add('arduino-palette-resizing');
+        event.preventDefault();
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        onWidthChange(drag.startWidth + event.clientX - drag.startX);
+      }}
+      onPointerUp={stopResize}
+      onPointerCancel={stopResize}
+      onLostPointerCapture={() => {
+        dragRef.current = null;
+        document.documentElement.classList.remove('arduino-palette-resizing');
       }}
     />
   );
@@ -291,6 +389,15 @@ function ScratchWorkspace({
     if (!loaded) createDefaultArduinoBlocks(workspace);
     keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
 
+    const handleZoomReset = (event: Event): void => {
+      if (!(event.target instanceof Element) || !event.target.closest('.blocklyZoomReset')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      centerArduinoProgram(workspace);
+    };
+    host.addEventListener('pointerdown', handleZoomReset, true);
+
     const assetFrame = window.requestAnimationFrame(() => {
       applyScratchMediaAssets(host);
       ScratchBlocks.svgResize(workspace);
@@ -313,6 +420,7 @@ function ScratchWorkspace({
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       window.cancelAnimationFrame(assetFrame);
       resizeObserver.disconnect();
+      host.removeEventListener('pointerdown', handleZoomReset, true);
       workspace.removeChangeListener(listener);
       workspace.dispose();
       workspaceRef.current = null;
@@ -528,10 +636,8 @@ export function ArduinoCodePanel({
       : undefined;
   const [boardId, setBoardId] = useState(() => preferredBoard?.id ?? boards[0]?.id ?? '');
   const selectedBoard = boards.find((board) => board.id === boardId) ?? boards[0];
-  const flyoutWidth = Math.min(
-    ARDUINO_FLYOUT_MAX_WIDTH,
-    Math.max(ARDUINO_FLYOUT_MIN_WIDTH, drawerWidth - ARDUINO_WORKSPACE_MIN_WIDTH),
-  );
+  const [preferredFlyoutWidth, setPreferredFlyoutWidth] = useState(initialArduinoFlyoutWidth);
+  const flyoutWidth = clampArduinoFlyoutWidth(preferredFlyoutWidth, drawerWidth);
   const [program, setProgram] = useState<ArduinoProgramState>(() =>
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
@@ -556,6 +662,10 @@ export function ArduinoCodePanel({
     },
     [],
   );
+
+  useEffect(() => {
+    localStorage.setItem(ARDUINO_FLYOUT_STORAGE_KEY, String(preferredFlyoutWidth));
+  }, [preferredFlyoutWidth]);
 
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
@@ -704,6 +814,14 @@ export function ArduinoCodePanel({
                 </button>
               ))}
             </div>
+            <PaletteResizeHandle
+              width={flyoutWidth}
+              onWidthChange={(width) =>
+                setPreferredFlyoutWidth(
+                  Math.min(ARDUINO_FLYOUT_MAX_WIDTH, Math.max(ARDUINO_FLYOUT_MIN_WIDTH, width)),
+                )
+              }
+            />
             <ScratchWorkspace
               key={selectedBoard.id}
               initialWorkspace={program.workspaceJson}

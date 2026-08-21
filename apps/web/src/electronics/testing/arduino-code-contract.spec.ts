@@ -34,16 +34,21 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('grid-template-columns: minmax(500px, 2fr) minmax(330px, 1fr)');
   });
 
-  it('opens as a resizable side drawer without hiding the circuit or offsetting block drag', () => {
+  it('opens as independent resizable drawer and palette without moving the circuit', () => {
     expect(editorSource).toContain("codeOpen ? ' code-open' : ''");
     expect(editorSource).toContain("'--arduino-code-panel-width'");
     expect(panelSource).toContain('DrawerResizeHandle');
     expect(panelSource).toContain('role="separator"');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MIN_WIDTH = 330');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MAX_WIDTH = 520');
+    expect(panelSource).toContain('ARDUINO_FLYOUT_DEFAULT_WIDTH = 330');
+    expect(panelSource).toContain('PaletteResizeHandle');
+    expect(panelSource).toContain('Изменить ширину палитры блоков');
+    expect(panelSource).toContain('centerArduinoProgram(workspace)');
     expect(panelSource).toContain("image.setAttribute('href', url)");
     expect(blocksSource).not.toContain("delete definition['colour']");
-    expect(css).toContain('.workbench-shell.code-open .workbench-stage');
+    expect(css).not.toContain('.workbench-shell.code-open .workbench-stage');
+    expect(css).toContain('.arduino-palette-resize-handle');
     expect(css).toContain('inset: 0 0 0 auto');
     expect(css).toContain('inset: 98px 0 0');
     expect(css).not.toContain('transform: translate(0, 98px) !important');
