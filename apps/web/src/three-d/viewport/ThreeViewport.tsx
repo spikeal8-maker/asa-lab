@@ -25,6 +25,7 @@ export interface ThreeViewportHandle {
 interface ThreeViewportProps {
   readonly document: ThreeDDocument;
   readonly selectedIds: readonly string[];
+  readonly workplaneY: number;
   readonly onSelect: (nodeId: string | null, additive?: boolean) => void;
   readonly onTransformCommit: (
     nodeId: string,
@@ -34,7 +35,7 @@ interface ThreeViewportProps {
   readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onDropPrimitive: (
     primitive: PrimitiveKind,
-    position: { x: number; z: number },
+    position: { x: number; y?: number; z: number },
     additive?: boolean,
     operation?: ShapeOperation,
   ) => void;
@@ -74,6 +75,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
             onWebGlError: setWebGlError,
           });
           runtimeRef.current.setDocument(propsRef.current.document, propsRef.current.selectedIds);
+          runtimeRef.current.setWorkplaneY(propsRef.current.workplaneY);
           setRuntimeReady(true);
         } catch (error) {
           runtimeRef.current?.dispose();
@@ -113,6 +115,10 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
         );
       }
     }, [props.document, props.selectedIds]);
+
+    useEffect(() => {
+      runtimeRef.current?.setWorkplaneY(props.workplaneY);
+    }, [props.workplaneY]);
 
     useEffect(() => {
       if (!props.activePlacement) runtimeRef.current?.clearPlacementPreview();

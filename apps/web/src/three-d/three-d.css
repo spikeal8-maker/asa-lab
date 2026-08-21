@@ -186,6 +186,7 @@ button.asa3d-save-recovery {
   width: 40px;
   height: 40px;
   margin: 0 8px;
+  overflow: hidden;
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -193,23 +194,36 @@ button.asa3d-save-recovery {
   border-radius: 50%;
 }
 
+.asa3d-user > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .asa3d-toolbar {
   position: relative;
   z-index: 25;
   display: flex;
   align-items: stretch;
+  box-sizing: border-box;
   min-width: 0;
   height: var(--asa3d-toolbar-height);
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
   background: #fff;
   border-bottom: 1px solid #d9dde1;
 }
 
 .asa3d-toolbar-group {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
+}
+
+.asa3d-toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 10px;
 }
 
 .asa3d-tool {
@@ -222,7 +236,7 @@ button.asa3d-save-recovery {
   color: var(--ink-muted);
   background: #fff;
   border: 0;
-  border-right: 1px solid #eef0f2;
+  border: 0;
   cursor: pointer;
 }
 
@@ -244,13 +258,128 @@ button.asa3d-save-recovery {
 .asa3d-tool:disabled {
   color: var(--ink-muted);
   cursor: default;
+  opacity: 0.28;
 }
 
 .asa3d-toolbar-divider {
   flex: 0 0 1px;
   width: 1px;
-  height: 48px;
+  height: 32px;
+  margin: 8px 4px;
   background: #dfe3e8;
+}
+
+.asa3d-duplicate-tool,
+.asa3d-drop-tool {
+  position: relative;
+}
+
+.asa3d-duplicate-tool > span {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  color: currentColor;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.asa3d-bundle-tool svg {
+  stroke-dasharray: 2.4 1.7;
+}
+
+.asa3d-drop-tool svg {
+  transform: rotate(90deg);
+}
+
+.asa3d-split-tool,
+.asa3d-mirror-tool {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.asa3d-split-tool > .asa3d-tool {
+  flex-basis: 42px;
+  width: 42px;
+}
+
+.asa3d-tool-chevron {
+  display: grid;
+  flex: 0 0 22px;
+  place-items: center;
+  width: 22px;
+  height: 48px;
+  padding: 0 3px 0 0;
+  color: #314858;
+  font-size: 13px;
+  background: #fff;
+  border: 0;
+  cursor: pointer;
+}
+
+.asa3d-tool-chevron:hover {
+  color: #067ea9;
+  background: #edf8fb;
+}
+
+.asa3d-toolbar-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  z-index: 80;
+  display: grid;
+  min-width: 198px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #cfd8de;
+  border-radius: 4px;
+  box-shadow: 0 12px 28px rgba(25, 48, 65, 0.2);
+}
+
+.asa3d-toolbar-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+  padding: 7px 9px;
+  color: #34495e;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.asa3d-toolbar-menu button:hover:not(:disabled) {
+  background: #edf6f8;
+}
+
+.asa3d-toolbar-menu button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.asa3d-toolbar-menu kbd {
+  color: #6f808b;
+  font: inherit;
+  font-size: 10px;
+}
+
+.asa3d-visibility-menu {
+  left: 0;
+}
+
+.asa3d-mirror-menu {
+  right: -48px;
+  grid-template-columns: repeat(3, 1fr);
+  min-width: 174px;
+}
+
+.asa3d-mirror-menu button {
+  justify-content: center;
 }
 
 .asa3d-actions {
@@ -259,8 +388,7 @@ button.asa3d-save-recovery {
   align-items: center;
   gap: 6px;
   height: 48px;
-  margin-left: auto;
-  padding: 0 10px 0 0;
+  padding: 0 9px 0 8px;
   border-left: 1px solid #e2e6e9;
 }
 
@@ -272,13 +400,14 @@ button.asa3d-save-recovery {
 
 .asa3d-text-action,
 .asa3d-version-button {
-  height: 32px;
-  padding: 0 14px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 13px;
   color: var(--ink-muted);
-  font-size: 12px;
+  font-size: 13px;
   background: #fff;
   border: 1px solid #d7dee3;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .asa3d-text-action:hover,
@@ -287,24 +416,13 @@ button.asa3d-save-recovery {
   border-color: #9dcbd8;
 }
 
-.asa3d-version-button {
-  color: #fff;
-  background: #087fac;
-  border-color: #087fac;
-}
-
-.asa3d-version-button:hover {
-  color: #fff;
-  background: #087296;
-}
-
 .asa3d-export-wrap {
   position: relative;
 }
 
 .asa3d-export-menu {
   position: absolute;
-  top: calc(100% + 7px);
+  top: calc(100% + 9px);
   right: 0;
   z-index: 60;
   display: grid;
@@ -1567,7 +1685,7 @@ button.asa3d-save-recovery {
   }
 
   .asa3d-actions {
-    margin-left: 8px;
+    margin-left: 0;
   }
 
   .asa3d-text-action,
@@ -1637,6 +1755,18 @@ button.asa3d-save-recovery {
 
   .asa3d-toolbar {
     height: 44px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .asa3d-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .asa3d-toolbar-spacer {
+    flex-basis: 0;
+    min-width: 0;
   }
 
   .asa3d-tool {
@@ -1646,13 +1776,22 @@ button.asa3d-save-recovery {
   }
 
   .asa3d-toolbar-divider {
+    height: 28px;
+    margin-block: 8px;
+  }
+
+  .asa3d-tool-chevron {
     height: 44px;
   }
 
   .asa3d-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
     height: 44px;
     margin-left: auto;
     padding-right: 5px;
+    background: #fff;
   }
 
   .asa3d-text-action,

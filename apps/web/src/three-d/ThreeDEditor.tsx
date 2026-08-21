@@ -1,20 +1,15 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { selectionBounds, type PrimitiveKind, type ShapeOperation } from '@asa-lab/three-d';
 import type { PublicUser } from '../api';
 import { AsaLabMark } from '../brand/AsaLabBrand';
-import {
-  CheckIcon,
-  DeleteIcon,
-  DuplicateIcon,
-  PasteIcon,
-  RedoIcon,
-  UndoIcon,
-} from '../electronics/workbench-icons';
+import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
+import { CheckIcon } from '../electronics/workbench-icons';
 import { downloadThreeDJson, downloadThreeDStl } from './exporters';
 import { ShapeInspector } from './ShapeInspector';
 import { ShapeLibrary } from './ShapeLibrary';
 import { SelectionTools } from './SelectionTools';
-import { AlignIcon, CubeIcon, GroupIcon, HoleIcon, HomeIcon, UngroupIcon } from './three-d-icons';
+import { AlignIcon, CubeIcon, GroupIcon, HomeIcon } from './three-d-icons';
+import { ThreeDToolbar } from './ThreeDToolbar';
 import { useThreeDProject } from './use-three-d-project';
 import { VersionHistory } from '../components/VersionHistory';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
@@ -51,41 +46,16 @@ function objectCountLabel(count: number): string {
   return `${count} объектов`;
 }
 
-function ToolbarButton({
-  label,
-  active = false,
-  disabled = false,
-  onClick,
-  children,
-}: {
-  readonly label: string;
-  readonly active?: boolean;
-  readonly disabled?: boolean;
-  readonly onClick: () => void;
-  readonly children: ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      className={`asa3d-tool${active ? ' active' : ''}`}
-      title={label}
-      aria-label={label}
-      aria-pressed={active || undefined}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JSX.Element {
   const controller = useThreeDProject(projectId);
+  const avatar = useEditorAvatar(user);
   const viewportRef = useRef<ThreeViewportHandle>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const [exportOpen, setExportOpen] = useState(false);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [alignmentOpen, setAlignmentOpen] = useState(false);
+  const [mirrorOpen, setMirrorOpen] = useState(false);
+  const [cruiseActive, setCruiseActive] = useState(false);
+  const [workplaneY, setWorkplaneY] = useState(0);
   const [draggedPlacement, setDraggedPlacement] = useState<{
     readonly primitive: PrimitiveKind;
     readonly operation: ShapeOperation;
@@ -105,43 +75,121 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
     };
   }, [projectId]);
 
+  const ungroupCurrentSelection = useCallback((): void => {
+    if (controller.selectedGroupId) controller.ungroupSelected();
+    else controller.unbundleSelected();
+  }, [controller]);
+
+  const toggleShapeWorkplane = useCallback((): void => {
+    if (Math.abs(workplaneY) > 0.000001) {
+      setWorkplaneY(0);
+      return;
+    }
+    const bounds = selectionBounds(controller.selectedNodes);
+    if (bounds) setWorkplaneY(bounds.max.y);
+  }, [controller.selectedNodes, workplaneY]);
+
+  const shareProject = useCallback(async (): Promise<void> => {
+    const shareData = { title: controller.title, url: window.location.href };
+    if (typeof navigator.share === 'function') {
+      await navigator.share(shareData);
+      return;
+    }
+    await navigator.clipboard.writeText(shareData.url);
+  }, [controller.title]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (isTypingTarget(event.target)) return;
       const modifier = event.ctrlKey || event.metaKey;
-      if (modifier && event.key.toLowerCase() === 'z') {
+      const key = event.key.toLowerCase();
+      if (modifier && key === 'z') {
         event.preventDefault();
         if (event.shiftKey) controller.redo();
         else controller.undo();
-      } else if (modifier && event.key.toLowerCase() === 'y') {
+      } else if (modifier && key === 'y') {
         event.preventDefault();
         controller.redo();
-      } else if (modifier && event.key.toLowerCase() === 'c') {
+      } else if (modifier && key === 'x') {
+        event.preventDefault();
+        controller.cutSelected();
+      } else if (modifier && key === 'c') {
         event.preventDefault();
         controller.copySelected();
-      } else if (modifier && event.key.toLowerCase() === 'v') {
+      } else if (modifier && key === 'v') {
         event.preventDefault();
         controller.pasteCopied();
-      } else if (modifier && event.key.toLowerCase() === 'd') {
+      } else if (modifier && key === 'd') {
         event.preventDefault();
         controller.duplicateSelected();
-      } else if (modifier && event.key.toLowerCase() === 'a') {
+      } else if (modifier && key === 'a') {
         event.preventDefault();
         controller.selectAll();
-      } else if (modifier && event.key.toLowerCase() === 'g') {
+      } else if (modifier && key === 'b') {
         event.preventDefault();
-        if (event.shiftKey) controller.ungroupSelected();
+        controller.bundleSelected();
+      } else if (modifier && key === 'g') {
+        event.preventDefault();
+        if (event.shiftKey) ungroupCurrentSelection();
         else controller.groupSelected('union');
+      } else if (modifier && key === 'i') {
+        event.preventDefault();
+        controller.groupSelected('intersection');
+      } else if (modifier && key === 'h') {
+        event.preventDefault();
+        if (event.shiftKey) controller.showAll();
+        else controller.hideSelected();
+      } else if (modifier && key === 'l') {
+        event.preventDefault();
+        controller.toggleSelectionLock();
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         controller.removeSelected();
+      } else if (key === 'h') {
+        event.preventDefault();
+        controller.setSelectionOperation('hole');
+      } else if (key === 's') {
+        event.preventDefault();
+        controller.setSelectionOperation('solid');
+      } else if (key === 'l') {
+        event.preventDefault();
+        setAlignmentOpen((open) => !open);
+      } else if (key === 'm') {
+        event.preventDefault();
+        setMirrorOpen((open) => !open);
+      } else if (key === 'c') {
+        event.preventDefault();
+        setCruiseActive((active) => !active);
+      } else if (key === 'r') {
+        event.preventDefault();
+        controller.toggleRuler(workplaneY);
+      } else if (key === 'e') {
+        event.preventDefault();
+        toggleShapeWorkplane();
+      } else if (key === 'd') {
+        event.preventDefault();
+        controller.dropSelectedToWorkplane(workplaneY);
       } else if (event.key === 'Escape') {
-        controller.setSelectedId(null);
+        if (alignmentOpen || mirrorOpen || cruiseActive) {
+          setAlignmentOpen(false);
+          setMirrorOpen(false);
+          setCruiseActive(false);
+        } else {
+          controller.setSelectedId(null);
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [controller]);
+  }, [
+    alignmentOpen,
+    controller,
+    cruiseActive,
+    mirrorOpen,
+    toggleShapeWorkplane,
+    ungroupCurrentSelection,
+    workplaneY,
+  ]);
 
   const importJson = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.currentTarget.files?.[0];
@@ -184,6 +232,16 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
     if (!Number.isFinite(value)) return;
     replaceGrid({ [dimension]: Math.min(500, Math.max(20, value)) });
   };
+  const editableSelectedCount = controller.selectedNodes.filter((node) => !node.locked).length;
+  const canBundle =
+    editableSelectedCount >= 2 &&
+    !controller.selectedGroupId &&
+    controller.selectedNodes.every((node) => !node.groupId);
+  const canAlign = editableSelectedCount >= 2 && !controller.selectedGroupId;
+  const canCruise =
+    editableSelectedCount > 0 &&
+    document.nodes.some((node) => node.visible && !controller.selectedIds.includes(node.id));
+  const workplaneActive = Math.abs(workplaneY) > 0.000001;
 
   return (
     <main className="asa3d-shell">
@@ -230,166 +288,61 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             <CubeIcon />
             <span>3D</span>
           </button>
-          <span className="asa3d-user" title={user.displayName}>
-            {user.displayName.slice(0, 1).toUpperCase()}
-          </span>
+          <EditorAvatar className="asa3d-user" avatar={avatar} />
         </nav>
       </header>
 
-      <div className="asa3d-toolbar" role="toolbar" aria-label="Инструменты редактора">
-        <div className="asa3d-toolbar-group">
-          <ToolbarButton
-            label="Копировать (Ctrl+C)"
-            onClick={controller.copySelected}
-            disabled={controller.selectedNodes.length === 0}
-          >
-            <DuplicateIcon />
-          </ToolbarButton>
-          <span className="asa3d-toolbar-divider" />
-          <ToolbarButton
-            label="Сделать телом"
-            active={
-              controller.selectedNodes.length > 0 &&
-              controller.selectedNodes.every((node) => node.operation === 'solid')
-            }
-            onClick={() => controller.setSelectionOperation('solid')}
-            disabled={controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)}
-          >
-            <CubeIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Сделать отверстием"
-            active={
-              controller.selectedNodes.length > 0 &&
-              controller.selectedNodes.every((node) => node.operation === 'hole')
-            }
-            onClick={() => controller.setSelectionOperation('hole')}
-            disabled={controller.selectedNodes.length === 0 || Boolean(controller.selectedGroupId)}
-          >
-            <HoleIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Сгруппировать (Ctrl+G)"
-            onClick={() => controller.groupSelected('union')}
-            disabled={
-              controller.selectedNodes.filter((node) => !node.locked).length < 2 ||
-              Boolean(controller.selectedGroupId)
-            }
-          >
-            <GroupIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Разгруппировать (Ctrl+Shift+G)"
-            onClick={controller.ungroupSelected}
-            disabled={!controller.selectedGroupId}
-          >
-            <UngroupIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Выравнивание"
-            active={alignmentOpen}
-            onClick={() => setAlignmentOpen((open) => !open)}
-            disabled={
-              controller.selectedNodes.filter((node) => !node.locked).length < 2 ||
-              Boolean(controller.selectedGroupId)
-            }
-          >
-            <AlignIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Вставить (Ctrl+V)"
-            onClick={controller.pasteCopied}
-            disabled={!controller.hasClipboard}
-          >
-            <PasteIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Удалить (Delete)"
-            onClick={controller.removeSelected}
-            disabled={
-              controller.selectedNodes.length === 0 ||
-              controller.selectedNodes.every((node) => node.locked)
-            }
-          >
-            <DeleteIcon />
-          </ToolbarButton>
-          <span className="asa3d-toolbar-divider" />
-          <ToolbarButton
-            label="Отменить (Ctrl+Z)"
-            onClick={controller.undo}
-            disabled={controller.history.past.length === 0}
-          >
-            <UndoIcon />
-          </ToolbarButton>
-          <ToolbarButton
-            label="Повторить (Ctrl+Y)"
-            onClick={controller.redo}
-            disabled={controller.history.future.length === 0}
-          >
-            <RedoIcon />
-          </ToolbarButton>
-        </div>
-
-        <div className="asa3d-actions">
-          <input
-            ref={importRef}
-            type="file"
-            accept=".json,.asa3d.json"
-            hidden
-            onChange={importJson}
-          />
-          <button
-            type="button"
-            className="asa3d-text-action"
-            onClick={() => importRef.current?.click()}
-          >
-            Импорт
-          </button>
-          <div className="asa3d-export-wrap">
-            <button
-              type="button"
-              className="asa3d-text-action"
-              onClick={() => setExportOpen((open) => !open)}
-              aria-expanded={exportOpen}
-            >
-              Экспорт
-            </button>
-            {exportOpen && (
-              <div className="asa3d-export-menu">
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadThreeDStl(document, controller.title);
-                    setExportOpen(false);
-                  }}
-                >
-                  STL для 3D-печати
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadThreeDJson(document, controller.title);
-                    setExportOpen(false);
-                  }}
-                >
-                  ASA 3D JSON
-                </button>
-              </div>
-            )}
-          </div>
-          {/* Сохранить версию и вернуться к любой сохранённой. Раньше кнопка
-              умела только записывать: версии копились, а вернуться к ним было
-              нельзя, что делает историю бессмысленной. */}
+      <input ref={importRef} type="file" accept=".json,.asa3d.json" hidden onChange={importJson} />
+      <ThreeDToolbar
+        selectedCount={controller.selectedNodes.length}
+        editableSelectedCount={editableSelectedCount}
+        hasClipboard={controller.hasClipboard}
+        hasHiddenNodes={controller.hasHiddenNodes}
+        canUndo={controller.history.past.length > 0}
+        canRedo={controller.history.future.length > 0}
+        canBundle={canBundle}
+        canUngroup={Boolean(controller.selectedGroupId || controller.selectedBundleId)}
+        canAlign={canAlign}
+        canCruise={canCruise}
+        alignmentActive={alignmentOpen}
+        mirrorActive={mirrorOpen}
+        cruiseActive={cruiseActive}
+        rulerActive={document.ruler.visible}
+        workplaneActive={workplaneActive}
+        onCopy={controller.copySelected}
+        onPaste={controller.pasteCopied}
+        onDuplicate={controller.duplicateSelected}
+        onDelete={controller.removeSelected}
+        onUndo={controller.undo}
+        onRedo={controller.redo}
+        onHideSelected={controller.hideSelected}
+        onShowAll={controller.showAll}
+        onBundle={controller.bundleSelected}
+        onGroup={() => controller.groupSelected('union')}
+        onUngroup={ungroupCurrentSelection}
+        onToggleAlign={() => setAlignmentOpen((open) => !open)}
+        onToggleMirror={() => setMirrorOpen((open) => !open)}
+        onMirror={controller.mirrorSelected}
+        onToggleCruise={() => setCruiseActive((active) => !active)}
+        onToggleRuler={() => controller.toggleRuler(workplaneY)}
+        onToggleWorkplane={toggleShapeWorkplane}
+        onDrop={() => controller.dropSelectedToWorkplane(workplaneY)}
+        onImport={() => importRef.current?.click()}
+        onExportStl={() => downloadThreeDStl(document, controller.title)}
+        onExportJson={() => downloadThreeDJson(document, controller.title)}
+        sendControl={
           <VersionHistory
             projectId={projectId}
             versions={controller.versions}
+            triggerLabel="Отправить"
+            onShare={shareProject}
             onSaveVersion={() => controller.createCheckpoint()}
-            onRestored={(document) => {
-              controller.importDocument(document);
+            onRestored={(restoredDocument) => {
+              controller.importDocument(restoredDocument);
             }}
           />
-        </div>
-      </div>
+        }
+      />
 
       <section className="asa3d-workspace">
         <div className="asa3d-stage">
@@ -397,7 +350,14 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             ref={viewportRef}
             document={document}
             selectedIds={controller.selectedIds}
-            onSelect={controller.setSelectedId}
+            workplaneY={workplaneY}
+            onSelect={(nodeId, additive) => {
+              if (cruiseActive && nodeId && controller.cruiseSelectedTo(nodeId)) {
+                setCruiseActive(false);
+                return;
+              }
+              controller.setSelectedId(nodeId, additive);
+            }}
             onTransformCommit={controller.commitTransform}
             onTransformCommitMany={controller.commitTransforms}
             onDropPrimitive={controller.addPrimitive}
@@ -588,18 +548,15 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
           </div>
         </div>
         <ShapeLibrary
-          onAdd={controller.addPrimitive}
+          onAdd={(primitive, _position, additive, operation) =>
+            controller.addPrimitive(primitive, { x: 0, y: workplaneY, z: 0 }, additive, operation)
+          }
           onDragStateChange={setDraggedPlacement}
           gridVisible={document.grid.visible}
           onToggleGrid={() => replaceGrid({ visible: !document.grid.visible })}
           onOpenGridSettings={() => setGridSettingsOpen(true)}
           rulerVisible={document.ruler.visible}
-          onToggleRuler={() =>
-            controller.execute({
-              type: 'replace-ruler',
-              value: { ...document.ruler, visible: !document.ruler.visible },
-            })
-          }
+          onToggleRuler={() => controller.toggleRuler(workplaneY)}
         />
       </section>
 

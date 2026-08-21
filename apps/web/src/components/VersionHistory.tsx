@@ -17,12 +17,16 @@ import './version-history.css';
 export function VersionHistory({
   projectId,
   versions,
+  triggerLabel = 'История',
+  onShare,
   onSaveVersion,
   onRestored,
 }: {
   readonly projectId: string;
   /** What the editor already knows, so the panel opens filled rather than blank. */
   readonly versions: readonly ProjectVersion[];
+  readonly triggerLabel?: string;
+  readonly onShare?: () => Promise<void>;
   readonly onSaveVersion: () => Promise<void>;
   readonly onRestored: (document: unknown) => void;
 }): JSX.Element {
@@ -30,6 +34,7 @@ export function VersionHistory({
   const [items, setItems] = useState<readonly ProjectVersion[]>(versions);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareDone, setShareDone] = useState(false);
   const time = useSchoolTime();
 
   useEffect(() => {
@@ -76,7 +81,7 @@ export function VersionHistory({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        История{items.length > 0 ? ` · ${items.length}` : ''}
+        {triggerLabel}
       </button>
 
       {open ? (
@@ -88,9 +93,35 @@ export function VersionHistory({
             role="presentation"
             onClick={() => setOpen(false)}
           />
-          <div className="version-history-panel" role="dialog" aria-label="История версий">
+          <div
+            className="version-history-panel"
+            role="dialog"
+            aria-label={onShare ? 'Отправить проект и открыть историю версий' : 'История версий'}
+          >
             <header>
-              <h2>История</h2>
+              <h2>{onShare ? 'Отправить проект' : 'История'}</h2>
+              {onShare ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy !== null}
+                  onClick={async () => {
+                    setBusy('share');
+                    setError(null);
+                    setShareDone(false);
+                    try {
+                      await onShare();
+                      setShareDone(true);
+                    } catch {
+                      setError('Не удалось отправить проект или скопировать ссылку.');
+                    } finally {
+                      setBusy(null);
+                    }
+                  }}
+                >
+                  {busy === 'share' ? 'Отправляем…' : shareDone ? 'Готово' : 'Поделиться ссылкой'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="btn-secondary"
@@ -111,6 +142,8 @@ export function VersionHistory({
                 {error}
               </p>
             ) : null}
+
+            {onShare ? <h3 className="version-history-subtitle">История версий</h3> : null}
 
             {items.length === 0 ? (
               <p className="account-hint">

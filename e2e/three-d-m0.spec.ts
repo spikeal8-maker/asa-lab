@@ -82,6 +82,40 @@ async function createThreeDProject(page: Page, title: string): Promise<void> {
     timeout: 20_000,
   });
   await expect(page).toHaveURL(/#\/3d\/[^/?#]+\?returnTo=%2Fprojects$/);
+
+  const toolbar = page.getByRole('toolbar', { name: 'Инструменты редактора' });
+  await expect(toolbar.locator('[data-command]')).toHaveCount(16);
+  await expect(toolbar.locator('[data-command]').first()).toHaveAttribute('data-command', 'copy');
+  expect(
+    await toolbar
+      .locator('[data-command]')
+      .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('data-command'))),
+  ).toEqual([
+    'copy',
+    'paste',
+    'duplicate',
+    'delete',
+    'undo',
+    'redo',
+    'visibility',
+    'bundle',
+    'group',
+    'ungroup',
+    'align',
+    'mirror',
+    'cruise',
+    'ruler',
+    'workplane',
+    'drop',
+  ]);
+  expect(
+    await toolbar.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      hasVerticalScrollbar:
+        ['auto', 'scroll'].includes(getComputedStyle(element).overflowY) &&
+        element.scrollHeight > element.clientHeight,
+    })),
+  ).toEqual({ overflowY: 'visible', hasVerticalScrollbar: false });
 }
 
 async function expandShapeInspector(page: Page): Promise<void> {
@@ -236,7 +270,9 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.up();
   await expect(multiSelectionPanel).toBeVisible();
 
-  const groupButton = page.getByRole('button', { name: 'Сгруппировать (Ctrl+G)' });
+  const groupButton = page.getByRole('button', {
+    name: 'Булево объединение (Ctrl+G); пересечение — Ctrl+I',
+  });
   await expect(groupButton).toBeEnabled();
   await page.getByRole('button', { name: 'Сгруппировать выбранные объекты' }).click();
   await expect(page.getByText(/Булева группа · 2/)).toBeVisible();
@@ -258,9 +294,9 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByTestId('asa3d-selection-marquee')).toBeVisible();
   await page.mouse.up();
   await expect(viewport).toHaveAttribute('data-selected-node-ids', /,/);
-  await page.getByRole('button', { name: 'Выравнивание' }).click();
+  await page.getByRole('button', { name: 'Выровнять (L)' }).click();
   await page.getByRole('button', { name: 'X · ширина: По центру' }).click();
-  await page.getByRole('button', { name: 'Расширенная линейка' }).click();
+  await page.getByRole('button', { name: 'Линейка (R)' }).click();
   await expect(page.getByText('Линейка · мм')).toBeVisible();
   await page.getByRole('button', { name: 'Снять выделение' }).click();
   await selectObject(page);
@@ -394,8 +430,10 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
    * returned to, which makes a history pointless. It now opens the history, and
    * the shape put back below proves the document actually travels.
    */
-  await page.getByRole('button', { name: /^История/ }).click();
-  const history = page.getByRole('dialog', { name: 'История версий' });
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  const history = page.getByRole('dialog', {
+    name: 'Отправить проект и открыть историю версий',
+  });
   await history.getByRole('button', { name: 'Сохранить версию' }).click();
   await expect(page.getByText(/Создана неизменяемая версия №1/)).toBeVisible();
   await dismissNotice(page);
@@ -403,16 +441,16 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   // The same button closes it. Escape would also clear the selection the next
   // step needs, and a panel over a canvas has to be dismissable by the control
   // that opened it.
-  await page.getByRole('button', { name: /^История/ }).click();
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
   await expect(history).toHaveCount(0);
 
   // Wreck the work, then take it back to the version just saved.
   await page.getByLabel('Ширина, мм').fill('9');
   await page.getByLabel('Ширина, мм').press('Enter');
   await expect(page.getByLabel('Ширина, мм')).toHaveValue('9');
-  await page.getByRole('button', { name: /^История/ }).click();
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
   await page
-    .getByRole('dialog', { name: 'История версий' })
+    .getByRole('dialog', { name: 'Отправить проект и открыть историю версий' })
     .getByRole('button', { name: 'Вернуться' })
     .first()
     .click();

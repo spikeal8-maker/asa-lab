@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   alignDocumentNodes,
+  bundleDocumentNodes,
   commitCommand,
+  cruiseDocumentNodesToTarget,
   createHistory,
   createThreeDNode,
+  dropDocumentNodesToWorkplane,
   groupDocumentNodes,
+  mirrorDocumentNodes,
   parseThreeDDocument,
   redoHistory,
   replaceHistoryPresent,
   selectionBounds,
   setDocumentNodeOperation,
+  unbundleDocumentNodes,
   ungroupDocumentNodes,
   undoHistory,
   type AlignmentAxis,
@@ -41,12 +46,14 @@ export interface ThreeDProjectController {
   readonly selectedNode: ThreeDNode | null;
   readonly selectedNodes: readonly ThreeDNode[];
   readonly selectedGroupId: string | null;
+  readonly selectedBundleId: string | null;
   readonly saveState: SaveState;
   readonly saveError: string | null;
   readonly requiresSignIn: boolean;
   readonly notice: string | null;
   readonly versions: readonly ProjectVersion[];
   readonly hasClipboard: boolean;
+  readonly hasHiddenNodes: boolean;
   readonly setTitle: (title: string) => void;
   readonly renameProject: () => Promise<void>;
   readonly setSelectedId: (nodeId: string | null, additive?: boolean) => void;
@@ -54,19 +61,29 @@ export interface ThreeDProjectController {
   readonly execute: (command: ThreeDCommand) => void;
   readonly addPrimitive: (
     primitive: PrimitiveKind,
-    position?: { x: number; z: number },
+    position?: { x: number; y?: number; z: number },
     additive?: boolean,
     operation?: ShapeOperation,
   ) => void;
   readonly copySelected: () => void;
+  readonly cutSelected: () => void;
   readonly pasteCopied: () => void;
   readonly duplicateSelected: () => void;
   readonly removeSelected: () => void;
   readonly setSelectionOperation: (operation: 'solid' | 'hole') => void;
+  readonly hideSelected: () => void;
+  readonly showAll: () => void;
+  readonly toggleSelectionLock: () => void;
+  readonly bundleSelected: () => void;
+  readonly unbundleSelected: () => void;
   readonly groupSelected: (operation?: BooleanOperation) => void;
   readonly ungroupSelected: () => void;
   readonly setSelectedGroupOperation: (operation: BooleanOperation) => void;
   readonly alignSelected: (axis: AlignmentAxis, mode: AlignmentMode) => void;
+  readonly mirrorSelected: (axis: AlignmentAxis) => void;
+  readonly dropSelectedToWorkplane: (workplaneY: number) => void;
+  readonly cruiseSelectedTo: (targetId: string) => boolean;
+  readonly toggleRuler: (workplaneY?: number) => void;
   readonly setRulerOriginFromSelection: () => void;
   readonly commitTransform: (
     nodeId: string,
@@ -305,11 +322,22 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     const groupId = nodeId.startsWith('group:')
       ? nodeId.slice('group:'.length)
       : document.nodes.find((node) => node.id === nodeId)?.groupId;
-    const incoming = groupId
+    const directIncoming = groupId
       ? document.nodes.filter((node) => node.groupId === groupId).map((node) => node.id)
       : document.nodes.some((node) => node.id === nodeId)
         ? [nodeId]
         : [];
+    const bundleIds = new Set(
+      document.nodes
+        .filter((node) => directIncoming.includes(node.id) && node.bundleId)
+        .map((node) => node.bundleId as string),
+    );
+    const incoming =
+      bundleIds.size === 1
+        ? document.nodes
+            .filter((node) => node.bundleId && bundleIds.has(node.bundleId))
+            .map((node) => node.id)
+        : directIncoming;
     if (incoming.length === 0) return;
     setSelectedIds((current) => {
       if (!additive) return incoming;
@@ -329,7 +357,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const addPrimitive = useCallback(
     (
       primitive: PrimitiveKind,
-      position?: { x: number; z: number },
+      position?: { x: number; y?: number; z: number },
       additive = false,
       operation: ShapeOperation = 'solid',
     ): void => {
@@ -339,7 +367,11 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
             ...node,
             transform: {
               ...node.transform,
-              position: { x: position.x, y: node.dimensions.height / 2, z: position.z },
+              position: {
+                x: position.x,
+                y: (position.y ?? 0) + node.dimensions.height / 2,
+                z: position.z,
+              },
             },
           }
         : node;
@@ -366,6 +398,12 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     selectedNodes.every((node) => node.groupId === selectedNodes[0]?.groupId)
       ? selectedNodes[0].groupId
       : null;
+  const selectedBundleId =
+    selectedNodes.length > 1 &&
+    selectedNodes[0]?.bundleId &&
+    selectedNodes.every((node) => node.bundleId === selectedNodes[0]?.bundleId)
+      ? selectedNodes[0].bundleId
+      : null;
 
   const copySelected = useCallback((): void => {
     const current =
@@ -379,17 +417,33 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     );
   }, [selectedIds]);
 
+  const cutSelected = useCallback((): void => {
+    const current =
+      historyRef.current?.present.nodes.filter((node) => selectedIds.includes(node.id)) ?? [];
+    if (current.length === 0) return;
+    setClipboard(structuredClone(current));
+    execute({ type: 'remove', nodeIds: selectedIds });
+    setSelectedIds([]);
+    setNotice(`Вырезано объектов: ${current.length}.`);
+  }, [execute, selectedIds]);
+
   const pasteCopied = useCallback((): void => {
     const document = historyRef.current?.present;
     if (!document || clipboard.length === 0) return;
     const groupIds = new Map<string, string>();
+    const bundleIds = new Map<string, string>();
     const copies = clipboard.map((source): ThreeDNode => {
       const groupId = source.groupId ? (groupIds.get(source.groupId) ?? makeId('group')) : null;
       if (source.groupId && groupId) groupIds.set(source.groupId, groupId);
+      const bundleId = source.bundleId
+        ? (bundleIds.get(source.bundleId) ?? makeId('bundle'))
+        : null;
+      if (source.bundleId && bundleId) bundleIds.set(source.bundleId, bundleId);
       return {
         ...structuredClone(source),
         id: makeId(source.primitive),
         name: `${source.name} — копия`,
+        bundleId,
         groupId,
         transform: {
           ...structuredClone(source.transform),
@@ -411,13 +465,19 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     const current = document?.nodes.filter((node) => selectedIds.includes(node.id)) ?? [];
     if (!document || current.length === 0) return;
     const groupIds = new Map<string, string>();
+    const bundleIds = new Map<string, string>();
     const copies = current.map((source): ThreeDNode => {
       const groupId = source.groupId ? (groupIds.get(source.groupId) ?? makeId('group')) : null;
       if (source.groupId && groupId) groupIds.set(source.groupId, groupId);
+      const bundleId = source.bundleId
+        ? (bundleIds.get(source.bundleId) ?? makeId('bundle'))
+        : null;
+      if (source.bundleId && bundleId) bundleIds.set(source.bundleId, bundleId);
       return {
         ...structuredClone(source),
         id: makeId(source.primitive),
         name: `${source.name} — копия`,
+        bundleId,
         groupId,
         transform: {
           ...source.transform,
@@ -438,6 +498,65 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     execute({ type: 'remove', nodeIds: selectedIds });
     setSelectedIds([]);
   }, [execute, selectedIds]);
+
+  const hideSelected = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (!document || selectedIds.length === 0) return;
+    const selected = new Set(selectedIds);
+    const next = {
+      ...document,
+      nodes: document.nodes.map((node) =>
+        selected.has(node.id) && node.visible ? { ...node, visible: false } : node,
+      ),
+    };
+    commitDocument(next);
+    setSelectedIds([]);
+    setNotice('Выбранные объекты скрыты. Показать их можно через меню видимости.');
+  }, [commitDocument, selectedIds]);
+
+  const showAll = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (!document || !document.nodes.some((node) => !node.visible)) return;
+    commitDocument({
+      ...document,
+      nodes: document.nodes.map((node) => (node.visible ? node : { ...node, visible: true })),
+    });
+    setNotice('Все скрытые объекты снова показаны.');
+  }, [commitDocument]);
+
+  const toggleSelectionLock = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (!document || selectedIds.length === 0) return;
+    const selected = new Set(selectedIds);
+    const shouldLock = document.nodes.some((node) => selected.has(node.id) && !node.locked);
+    commitDocument({
+      ...document,
+      nodes: document.nodes.map((node) =>
+        selected.has(node.id) ? { ...node, locked: shouldLock } : node,
+      ),
+    });
+    setNotice(
+      shouldLock ? 'Выбранные объекты заблокированы.' : 'Выбранные объекты разблокированы.',
+    );
+  }, [commitDocument, selectedIds]);
+
+  const bundleSelected = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (!document) return;
+    const next = bundleDocumentNodes(document, selectedIds, makeId('bundle'));
+    if (next === document) return;
+    commitDocument(next);
+    setNotice('Объекты собраны в быструю группу без изменения геометрии и цветов.');
+  }, [commitDocument, selectedIds]);
+
+  const unbundleSelected = useCallback((): void => {
+    const document = historyRef.current?.present;
+    if (!document) return;
+    const next = unbundleDocumentNodes(document, selectedIds);
+    if (next === document) return;
+    commitDocument(next);
+    setNotice('Быстрая группа разобрана.');
+  }, [commitDocument, selectedIds]);
 
   const setSelectionOperation = useCallback(
     (operation: 'solid' | 'hole'): void => {
@@ -542,6 +661,69 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       commitDocument(alignDocumentNodes(document, selectedIds, axis, mode));
     },
     [commitDocument, selectedIds],
+  );
+
+  const mirrorSelected = useCallback(
+    (axis: AlignmentAxis): void => {
+      const document = historyRef.current?.present;
+      if (!document) return;
+      const next = mirrorDocumentNodes(document, selectedIds, axis);
+      if (next === document) return;
+      commitDocument(next);
+      setNotice(`Выделение отражено по оси ${axis.toUpperCase()}.`);
+    },
+    [commitDocument, selectedIds],
+  );
+
+  const dropSelectedToWorkplane = useCallback(
+    (workplaneY: number): void => {
+      const document = historyRef.current?.present;
+      if (!document) return;
+      const next = dropDocumentNodesToWorkplane(document, selectedIds, workplaneY);
+      if (next === document) return;
+      commitDocument(next);
+      setNotice('Выбранные объекты опущены на активную рабочую плоскость.');
+    },
+    [commitDocument, selectedIds],
+  );
+
+  const cruiseSelectedTo = useCallback(
+    (targetId: string): boolean => {
+      const document = historyRef.current?.present;
+      if (!document || selectedIds.length === 0) return false;
+      const targetIds = targetId.startsWith('group:')
+        ? document.nodes
+            .filter((node) => node.groupId === targetId.slice('group:'.length))
+            .map((node) => node.id)
+        : [targetId];
+      const next = cruiseDocumentNodesToTarget(document, selectedIds, targetIds);
+      if (next === document) return false;
+      commitDocument(next);
+      setNotice('Cruise разместил выделение на верхней поверхности целевого объекта.');
+      return true;
+    },
+    [commitDocument, selectedIds],
+  );
+
+  const toggleRuler = useCallback(
+    (workplaneY = 0): void => {
+      const document = historyRef.current?.present;
+      if (!document) return;
+      const bounds = selectionBounds(
+        document.nodes.filter((node) => selectedIds.includes(node.id)),
+      );
+      execute({
+        type: 'replace-ruler',
+        value: {
+          ...document.ruler,
+          visible: !document.ruler.visible,
+          origin: document.ruler.visible
+            ? document.ruler.origin
+            : (bounds?.min ?? { x: 0, y: workplaneY, z: 0 }),
+        },
+      });
+    },
+    [execute, selectedIds],
   );
 
   const setRulerOriginFromSelection = useCallback((): void => {
@@ -773,12 +955,14 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     selectedNode,
     selectedNodes,
     selectedGroupId,
+    selectedBundleId,
     saveState,
     saveError,
     requiresSignIn,
     notice,
     versions,
     hasClipboard: clipboard.length > 0,
+    hasHiddenNodes: Boolean(history?.present.nodes.some((node) => !node.visible)),
     setTitle,
     renameProject,
     setSelectedId,
@@ -786,14 +970,24 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     execute,
     addPrimitive,
     copySelected,
+    cutSelected,
     pasteCopied,
     duplicateSelected,
     removeSelected,
     setSelectionOperation,
+    hideSelected,
+    showAll,
+    toggleSelectionLock,
+    bundleSelected,
+    unbundleSelected,
     groupSelected,
     ungroupSelected,
     setSelectedGroupOperation,
     alignSelected,
+    mirrorSelected,
+    dropSelectedToWorkplane,
+    cruiseSelectedTo,
+    toggleRuler,
     setRulerOriginFromSelection,
     commitTransform,
     commitTransforms,

@@ -35,10 +35,17 @@
 
 .version-history-panel header {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+}
+
+.version-history-subtitle {
+  margin: 12px 0 7px;
+  color: #314858;
+  font-size: 13px;
 }
 
 .version-history-panel h2 {

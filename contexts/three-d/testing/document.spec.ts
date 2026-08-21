@@ -4,10 +4,15 @@ import {
   createEmptyThreeDDocument,
   createHistory,
   createThreeDNode,
+  cruiseDocumentNodesToTarget,
+  dropDocumentNodesToWorkplane,
   groupDocumentNodes,
   alignDocumentNodes,
+  bundleDocumentNodes,
+  mirrorDocumentNodes,
   parseThreeDDocument,
   redoHistory,
+  unbundleDocumentNodes,
   undoHistory,
 } from '../index.js';
 
@@ -64,12 +69,17 @@ describe('ASA 3D document', () => {
     const legacy = { ...legacyNode } as Record<string, unknown>;
     delete legacy['groupId'];
     delete legacy['groupOperation'];
+    delete legacy['bundleId'];
     const legacyDocument = { ...document } as Record<string, unknown>;
     delete legacyDocument['ruler'];
     const parsed = parseThreeDDocument({ ...legacyDocument, nodes: [legacy] });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.value.nodes[0]).toMatchObject({ groupId: null, groupOperation: null });
+    expect(parsed.value.nodes[0]).toMatchObject({
+      bundleId: null,
+      groupId: null,
+      groupOperation: null,
+    });
     expect(parsed.value.ruler).toEqual({
       visible: false,
       origin: { x: 0, y: 0, z: 0 },
@@ -92,5 +102,61 @@ describe('ASA 3D document', () => {
     const grouped = groupDocumentNodes(aligned, ['first', 'second'], 'group-1', 'union');
     expect(grouped.nodes).toHaveLength(2);
     expect(grouped.nodes.every((node) => node.groupId === 'group-1')).toBe(true);
+  });
+
+  it('bundles shapes without changing geometry, colour or boolean state', () => {
+    const first = createThreeDNode('box', 'first');
+    const second = createThreeDNode('cylinder', 'second');
+    const document = { ...createEmptyThreeDDocument(), nodes: [first, second] };
+    const bundled = bundleDocumentNodes(document, ['first', 'second'], 'bundle-1');
+    expect(bundled.nodes).toMatchObject([
+      { id: 'first', bundleId: 'bundle-1', groupId: null, color: first.color },
+      { id: 'second', bundleId: 'bundle-1', groupId: null, color: second.color },
+    ]);
+    expect(unbundleDocumentNodes(bundled, ['first']).nodes.every((node) => !node.bundleId)).toBe(
+      true,
+    );
+  });
+
+  it('mirrors a selection around its shared centre and remains undoable', () => {
+    const first = createThreeDNode('wedge', 'first');
+    const second = {
+      ...createThreeDNode('box', 'second'),
+      transform: {
+        ...createThreeDNode('box', 'second').transform,
+        position: { x: 30, y: 10, z: 0 },
+      },
+    };
+    const source = { ...createEmptyThreeDDocument(), nodes: [first, second] };
+    const history = createHistory(source);
+    const mirrored = mirrorDocumentNodes(source, ['first', 'second'], 'x');
+    expect(mirrored.nodes[0]?.transform.position.x).toBe(30);
+    expect(mirrored.nodes[1]?.transform.position.x).toBe(0);
+    expect(mirrored.nodes.every((node) => node.transform.scale.x === -1)).toBe(true);
+    const committed = commitCommand(history, { type: 'replace-nodes', nodes: mirrored.nodes });
+    expect(undoHistory(committed).present).toEqual(source);
+  });
+
+  it('drops to a raised workplane and cruises onto another shape', () => {
+    const source = {
+      ...createThreeDNode('box', 'source'),
+      transform: {
+        ...createThreeDNode('box', 'source').transform,
+        position: { x: -20, y: 30, z: -10 },
+      },
+    };
+    const target = {
+      ...createThreeDNode('box', 'target'),
+      transform: {
+        ...createThreeDNode('box', 'target').transform,
+        position: { x: 40, y: 10, z: 25 },
+      },
+    };
+    const document = { ...createEmptyThreeDDocument(), nodes: [source, target] };
+    const dropped = dropDocumentNodesToWorkplane(document, ['source'], 15);
+    expect(dropped.nodes[0]?.transform.position.y).toBe(25);
+    const cruised = cruiseDocumentNodesToTarget(dropped, ['source'], ['target']);
+    expect(cruised.nodes[0]?.transform.position).toEqual({ x: 40, y: 30, z: 25 });
+    expect(cruised.nodes[1]).toEqual(target);
   });
 });
