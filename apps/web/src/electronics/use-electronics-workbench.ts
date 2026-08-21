@@ -126,9 +126,30 @@ export function useElectronicsWorkbench(projectId: string) {
     renameProject,
   } = projectState;
 
+  const simulationStartedAtRef = useRef<number | null>(null);
+  const [simulationTimeMs, setSimulationTimeMs] = useState(0);
+
+  useEffect(() => {
+    if (!simulationRunning) {
+      simulationStartedAtRef.current = null;
+      setSimulationTimeMs(0);
+      return;
+    }
+
+    simulationStartedAtRef.current = window.performance.now();
+    setSimulationTimeMs(0);
+    const interval = window.setInterval(() => {
+      const startedAt = simulationStartedAtRef.current;
+      if (startedAt !== null) {
+        setSimulationTimeMs(window.performance.now() - startedAt);
+      }
+    }, 100);
+    return () => window.clearInterval(interval);
+  }, [simulationRunning]);
+
   const result = useMemo(
-    () => calculateLiveSimulation(document, persistedResult, simulationRunning),
-    [document, persistedResult, simulationRunning],
+    () => calculateLiveSimulation(document, persistedResult, simulationRunning, simulationTimeMs),
+    [document, persistedResult, simulationRunning, simulationTimeMs],
   );
 
   const [selection, setSelection] = useState<Selection>(null);
@@ -577,6 +598,23 @@ export function useElectronicsWorkbench(projectId: string) {
           : item,
       ),
     });
+  }
+
+  function resetArduinoRuntime(componentId: string): void {
+    const component = document?.components.find((item) => item.id === componentId);
+    if (
+      !component ||
+      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
+    ) {
+      return;
+    }
+    if (!simulationRunning) {
+      setNotice('Запустите моделирование, чтобы перезапустить Arduino.');
+      return;
+    }
+    simulationStartedAtRef.current = window.performance.now();
+    setSimulationTimeMs(0);
+    setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
 
   function setSelectedVariant(variantId: string): void {
@@ -1598,6 +1636,7 @@ export function useElectronicsWorkbench(projectId: string) {
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
+    simulationTimeMs,
     simulationStatus,
     libraryOpen,
     setLibraryOpen,
@@ -1636,6 +1675,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelectedWiper,
     setSelectedProperties,
     updateArduinoProgram,
+    resetArduinoRuntime,
     setSelectedVariant,
     setWireColor,
     toggleWireRoute,

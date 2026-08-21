@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CATEGORY_OPTIONS,
   selectedFamilyVariant,
@@ -26,7 +26,10 @@ function valueLabel(kind: string): string {
   return 'Сопротивление';
 }
 
-function componentHelp(kind: string): string {
+function componentHelp(kind: string, componentKey?: string): string {
+  if (componentKey === 'arduino-uno') {
+    return 'Arduino Uno выполняет setup() один раз, затем повторяет loop(). Питание 5 В и 3,3 В доступно всегда. Ниже показаны все цифровые, аналоговые и силовые выводы; свободный вывод — нормальное состояние, а не ошибка.';
+  }
   const help: Readonly<Record<string, string>> = {
     source: 'Напряжение задаёт разность потенциалов между положительным и отрицательным выводами.',
     resistor:
@@ -83,6 +86,8 @@ export function WorkbenchSidebars({
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
+  const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
+  useEffect(() => setHelpOpen(false), [c.selectedComponent?.id]);
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -279,7 +284,9 @@ export function WorkbenchSidebars({
               type="button"
               className="workbench-inspector-help"
               onClick={() => setHelpOpen((value) => !value)}
-              aria-label="Справка о параметрах"
+              aria-label={
+                selectedIsArduino ? 'Показать подробные параметры Arduino' : 'Справка о параметрах'
+              }
               aria-expanded={helpOpen}
             >
               ?
@@ -288,7 +295,7 @@ export function WorkbenchSidebars({
 
           {helpOpen && c.selectedComponent ? (
             <div className="workbench-inspector-help-popover" role="note">
-              {componentHelp(c.selectedComponent.kind)}
+              {componentHelp(c.selectedComponent.kind, c.selectedEntry?.key)}
             </div>
           ) : null}
 
@@ -330,6 +337,28 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
+              {selectedIsArduino ? (
+                <div className="workbench-arduino-summary" data-testid="arduino-compact-summary">
+                  <div>
+                    <strong>
+                      {c.simulationRunning ? 'Моделирование выполняется' : 'Плата готова'}
+                    </strong>
+                    <span>Питание: 5,0 В · 3,3 В · GND</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => c.resetArduinoRuntime(c.selectedComponent!.id)}
+                    disabled={!c.simulationRunning}
+                  >
+                    Reset
+                  </button>
+                  <small>
+                    {helpOpen
+                      ? 'Подробные выводы раскрыты ниже.'
+                      : 'Нажмите ?, чтобы раскрыть выводы и измерения.'}
+                  </small>
+                </div>
+              ) : null}
               {['source', 'resistor', 'potentiometer', 'diode', 'lamp'].includes(
                 c.selectedComponent.kind,
               ) ? (
@@ -612,8 +641,13 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) ? (
-                <dl className="workbench-terminal-list" aria-label="Подключение выводов">
+              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
+              (!selectedIsArduino || helpOpen) ? (
+                <dl
+                  className="workbench-terminal-list"
+                  aria-label="Подключение выводов"
+                  data-testid={selectedIsArduino ? 'arduino-pin-details' : undefined}
+                >
                   {Object.entries(c.selectedEntry.terminals)
                     .slice(0, c.selectedComponent.kind === 'breadboard' ? 0 : undefined)
                     .map(([terminal, spec]) => {
@@ -624,7 +658,9 @@ export function WorkbenchSidebars({
                         <div key={terminal}>
                           <dt>{spec?.label ?? terminal}</dt>
                           <dd
-                            className={`workbench-terminal-status${connected ? ' connected' : ''}`}
+                            className={`workbench-terminal-status${connected ? ' connected' : ''}${
+                              selectedIsArduino ? ' arduino-pin-status' : ''
+                            }`}
                             title={c.terminalConnectionLabel(c.selectedComponent!.id, terminal)}
                           >
                             {connected ? 'Подключён' : 'Свободен'}
@@ -654,7 +690,8 @@ export function WorkbenchSidebars({
 
               {c.simulationRunning &&
               measurement &&
-              !['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) ? (
+              !['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
+              (!selectedIsArduino || helpOpen) ? (
                 <dl className="workbench-measurements">
                   {c.selectedComponent.kind === 'transistor' ? (
                     <>

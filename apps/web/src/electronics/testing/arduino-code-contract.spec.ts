@@ -9,6 +9,12 @@ const controllerSource = readFileSync(
   resolve(electronicsRoot, 'use-electronics-workbench.ts'),
   'utf8',
 );
+const visualSource = readFileSync(
+  resolve(electronicsRoot, 'ProductionComponentVisual.tsx'),
+  'utf8',
+);
+const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
+const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
 const editorSource = readFileSync(
   resolve(process.cwd(), 'apps/web/src/pages/SchematicEditor.tsx'),
   'utf8',
@@ -110,5 +116,21 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('Отпр.');
     expect(panelSource).toContain('Очист.');
     expect(css).toContain('.arduino-serial-monitor.open');
+  });
+
+  it('shows live Uno indicators, restarts the program and keeps pin details compact', () => {
+    expect(visualSource).toContain('data-testid={`arduino-led-${indicator.id}`}');
+    for (const indicator of ['l', 'tx', 'rx', 'on']) {
+      expect(visualSource).toContain(`id: '${indicator}'`);
+    }
+    expect(visualSource).toContain('data-testid="arduino-reset-button"');
+    expect(controllerSource).toContain('simulationStartedAtRef');
+    expect(controllerSource).toContain('function resetArduinoRuntime(');
+    expect(stageSource).toContain('simulationTimeMs={c.simulationTimeMs}');
+    expect(stageSource).not.toContain('<title>{diagnosticText}</title>');
+    expect(sidebarSource).toContain('data-testid="arduino-compact-summary"');
+    expect(sidebarSource).toContain('(!selectedIsArduino || helpOpen)');
+    expect(sidebarSource).toContain("selectedIsArduino ? ' arduino-pin-status' : ''");
+    expect(css).toContain('.workbench-terminal-status.arduino-pin-status');
   });
 });

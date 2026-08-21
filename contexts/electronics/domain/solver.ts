@@ -93,6 +93,10 @@ export interface SolveResult {
   readonly numericalTolerance: number;
 }
 
+export interface SolveOptions {
+  readonly simulationTimeMs?: number;
+}
+
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
 const DIODE_ON_RESISTANCE = 2;
@@ -534,12 +538,18 @@ function withDiagnosticAnchors(diagnostic: Diagnostic): Diagnostic {
   return anchors.length === 0 ? diagnostic : { ...diagnostic, anchors };
 }
 
-export function solveCircuit(document: ElectronicsDocument): SolveResult {
+export function solveCircuit(
+  document: ElectronicsDocument,
+  options: SolveOptions = {},
+): SolveResult {
   const diagnostics: Diagnostic[] = [];
   const netlist = buildNetlist(document);
   const sources = document.components.filter((component) => component.kind === 'source');
   const arduinoBranches = document.components.flatMap((component) =>
-    arduinoOutputBranches(component).map((branch) => ({ component, ...branch })),
+    arduinoOutputBranches(component, options.simulationTimeMs ?? 0).map((branch) => ({
+      component,
+      ...branch,
+    })),
   );
   const sourceProviderIds = [
     ...sources.map((source) => source.id),
@@ -1484,7 +1494,7 @@ export function solveCircuit(document: ElectronicsDocument): SolveResult {
       componentIds: sourceProviderIds,
       suggestedAction: 'Остановите моделирование и добавьте сопротивление в путь тока.',
     });
-  } else if (totalSourceCurrent < 1e-8) {
+  } else if (sources.length > 0 && totalSourceCurrent < 1e-8) {
     diagnostics.push({
       code: 'open_circuit',
       severity: 'warning',

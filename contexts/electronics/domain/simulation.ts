@@ -143,6 +143,7 @@ function verifyQuality(
   document: ElectronicsDocument,
   compiled: CompiledCircuit,
   result: SolveResult,
+  options: SimulationOptions,
 ): SimulationQuality {
   const finite = allNumbers(result).every(Number.isFinite);
   if (result.components.length === 0) {
@@ -191,7 +192,7 @@ function verifyQuality(
       continue;
     }
     if (isArduinoUno(component)) {
-      for (const branch of arduinoOutputBranches(component)) {
+      for (const branch of arduinoOutputBranches(component, options.simulationTimeMs ?? 0)) {
         const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
         const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
         const currentLeaving = (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
@@ -354,7 +355,14 @@ function statusFor(result: SolveResult): SimulationStatus {
   return result.solved ? 'solved' : 'invalid';
 }
 
-export function analyseCircuit(document: ElectronicsDocument): SimulationResult {
+export interface SimulationOptions {
+  readonly simulationTimeMs?: number;
+}
+
+export function analyseCircuit(
+  document: ElectronicsDocument,
+  options: SimulationOptions = {},
+): SimulationResult {
   const compiled = compileCircuit(document);
   if (compiled.unsupportedComponentIds.length > 0) {
     const diagnostic: Diagnostic = {
@@ -381,8 +389,8 @@ export function analyseCircuit(document: ElectronicsDocument): SimulationResult 
     };
   }
 
-  const solved = solveCircuit(document);
-  const quality = verifyQuality(document, compiled, solved);
+  const solved = solveCircuit(document, options);
+  const quality = verifyQuality(document, compiled, solved, options);
   if (solved.solved && !quality.passed) {
     const diagnostic: Diagnostic = {
       code: 'nonconvergent_topology',

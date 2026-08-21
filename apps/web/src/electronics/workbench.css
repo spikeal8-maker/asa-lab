@@ -296,6 +296,16 @@
   color: #16734a;
 }
 
+.workbench-terminal-status.arduino-pin-status {
+  color: #526674;
+  font-weight: 500;
+}
+
+.workbench-terminal-status.arduino-pin-status.connected {
+  color: #16734a;
+  font-weight: 700;
+}
+
 .workbench-led-electrical-state {
   display: grid;
   gap: 2px;
@@ -2157,6 +2167,46 @@
   color: #34495e;
   font-size: 12px;
   line-height: 1.35;
+}
+.workbench-arduino-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  margin-top: 2px;
+  padding: 8px;
+  border: 1px solid #c9dbe5;
+  background: #f4fafc;
+  color: #34495e;
+  font-size: 11px;
+}
+.workbench-arduino-summary > div {
+  display: grid;
+  gap: 2px;
+}
+.workbench-arduino-summary strong {
+  color: #116b91;
+  font-size: 12px;
+}
+.workbench-arduino-summary span,
+.workbench-arduino-summary small {
+  color: #5a6d79;
+}
+.workbench-arduino-summary small {
+  grid-column: 1 / -1;
+}
+.workbench-arduino-summary button {
+  min-width: 54px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #8ba9ba;
+  border-radius: 3px;
+  background: #fff;
+  color: #28566f;
+  font-size: 11px;
+  font-weight: 700;
+}
+.workbench-arduino-summary button:disabled {
+  opacity: 0.45;
 }
 .workbench-inspector-body {
   padding: 2px;

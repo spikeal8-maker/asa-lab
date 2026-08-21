@@ -308,7 +308,6 @@ export function WorkbenchStage({
               c.selectComponent(component.id, event.shiftKey);
             }}
           >
-            <title>{diagnosticText}</title>
             {ledBurned ? (
               // Sized from the part, not from the screen: the burst is ~85% of
               // the component's smaller side and lives in world units, so it
@@ -533,6 +532,12 @@ export function WorkbenchStage({
                     selected={selected}
                     selectionOffset={1.6 / c.viewport.zoom}
                     simulationRunning={c.simulationRunning}
+                    simulationTimeMs={c.simulationTimeMs}
+                    onArduinoReset={
+                      entry.key === 'arduino-uno'
+                        ? () => c.resetArduinoRuntime(component.id)
+                        : undefined
+                    }
                     onSwitchActuate={
                       c.simulationRunning && component.kind === 'switch'
                         ? () => c.toggleComponentState(component.id)
