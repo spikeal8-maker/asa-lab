@@ -125,6 +125,35 @@ describe('R4-M1 simulation implementation contract', () => {
     );
   });
 
+  it('accepts Arduino as a finite source and verifies KCL for a D13 LED overload', () => {
+    const circuit = document(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1', 'gnd-top'],
+        }),
+        component('led', 'led', 2, {
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+        }),
+      ],
+      [
+        connect('d13-anode', 'uno', 'd13', 'led', 'anode'),
+        connect('cathode-ground', 'led', 'cathode', 'uno', 'gnd-top'),
+      ],
+    );
+    const result = analyseCircuit(circuit);
+
+    expect(result.status).toBe('solved');
+    expect(result.solved).toBe(true);
+    expect(result.quality).toMatchObject({ finite: true, passed: true });
+    expect(result.components.find((item) => item.componentId === 'led')).toMatchObject({
+      lit: true,
+      stressState: 'burned',
+    });
+    expect(result.diagnostics.map((item) => item.code)).toContain('led_burnout');
+  });
+
   it('rejects conflicting ideal sources without NaN or invented values', () => {
     const circuit = document(
       [component('source-5v', 'source', 5), component('source-9v', 'source', 9)],

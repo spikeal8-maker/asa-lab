@@ -40,11 +40,15 @@ const CATEGORY_ITEMS: readonly {
   { id: 'variables', label: 'Переменные', colour: '#cf63cf' },
 ];
 
-const ARDUINO_FLYOUT_MIN_WIDTH = 330;
+const ARDUINO_FLYOUT_MIN_WIDTH = 220;
 const ARDUINO_FLYOUT_MAX_WIDTH = 520;
-const ARDUINO_FLYOUT_DEFAULT_WIDTH = 330;
-const ARDUINO_WORKSPACE_MIN_WIDTH = 360;
-const ARDUINO_FLYOUT_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-width';
+const ARDUINO_FLYOUT_DEFAULT_WIDTH = 290;
+const ARDUINO_WORKSPACE_MIN_WIDTH = 300;
+const ARDUINO_FLYOUT_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-width-v2';
+const ARDUINO_PALETTE_SCALE_STORAGE_KEY = 'asa-lab:electronics:arduino-palette-scale';
+const ARDUINO_PALETTE_SCALE_MIN = 0.75;
+const ARDUINO_PALETTE_SCALE_MAX = 1.25;
+const ARDUINO_PALETTE_SCALE_STEP = 0.1;
 
 function clampArduinoFlyoutWidth(width: number, drawerWidth: number): number {
   const maximum = Math.max(
@@ -57,6 +61,18 @@ function clampArduinoFlyoutWidth(width: number, drawerWidth: number): number {
 function initialArduinoFlyoutWidth(): number {
   const stored = Number(localStorage.getItem(ARDUINO_FLYOUT_STORAGE_KEY));
   return Number.isFinite(stored) && stored > 0 ? stored : ARDUINO_FLYOUT_DEFAULT_WIDTH;
+}
+
+function initialArduinoPaletteScale(): number {
+  const stored = Number(localStorage.getItem(ARDUINO_PALETTE_SCALE_STORAGE_KEY));
+  return Number.isFinite(stored) && stored >= ARDUINO_PALETTE_SCALE_MIN
+    ? Math.min(ARDUINO_PALETTE_SCALE_MAX, stored)
+    : 1;
+}
+
+function responsiveFlyoutScale(flyoutWidth: number, userScale: number): number {
+  const fittedBase = Math.min(0.75, Math.max(0.45, (0.675 * flyoutWidth) / 330));
+  return Math.min(0.92, Math.max(0.42, fittedBase * userScale));
 }
 
 const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
@@ -331,20 +347,24 @@ function ScratchWorkspace({
   initialWorkspace,
   category,
   flyoutWidth,
+  paletteScale,
   onChange,
 }: {
   initialWorkspace: string;
   category: ArduinoBlockCategory;
   flyoutWidth: number;
+  paletteScale: number;
   onChange: (workspaceJson: string, source: string) => void;
 }): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<ScratchBlocks.WorkspaceSvg | null>(null);
   const changeRef = useRef(onChange);
   const flyoutWidthRef = useRef(flyoutWidth);
+  const paletteScaleRef = useRef(paletteScale);
   const timerRef = useRef<number | null>(null);
   changeRef.current = onChange;
   flyoutWidthRef.current = flyoutWidth;
+  paletteScaleRef.current = paletteScale;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -368,12 +388,22 @@ function ScratchWorkspace({
       move: { scrollbars: true, drag: true, wheel: true },
     });
     const flyout = workspace.getFlyout() as
-      (ScratchBlocks.VerticalFlyout & { getWidth: () => number; reflow: () => void }) | null;
+      | (ScratchBlocks.VerticalFlyout & {
+          getWidth: () => number;
+          getFlyoutScale: () => number;
+          reflow: () => void;
+        })
+      | null;
     if (flyout) {
       Object.defineProperty(flyout, 'getWidth', {
         configurable: true,
         value: () => flyoutWidthRef.current,
       });
+      Object.defineProperty(flyout, 'getFlyoutScale', {
+        configurable: true,
+        value: () => paletteScaleRef.current,
+      });
+      flyout.getWorkspace().setScale(paletteScaleRef.current);
       flyout.reflow();
     }
     workspaceRef.current = workspace;
@@ -443,6 +473,15 @@ function ScratchWorkspace({
     workspace.getFlyout()?.reflow();
     ScratchBlocks.svgResize(workspace);
   }, [flyoutWidth]);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    const flyout = workspace?.getFlyout();
+    if (!workspace || !flyout) return;
+    flyout.getWorkspace().setScale(paletteScale);
+    flyout.reflow();
+    ScratchBlocks.svgResize(workspace);
+  }, [paletteScale]);
 
   return (
     <div className="arduino-scratch-host" ref={hostRef} data-testid="arduino-block-workspace" />
@@ -617,10 +656,12 @@ function SerialMonitor({
 
 export function ArduinoCodePanel({
   controller: c,
+  open,
   drawerWidth,
   onDrawerWidthChange,
 }: {
   controller: ElectronicsWorkbenchController;
+  open: boolean;
   drawerWidth: number;
   onDrawerWidthChange: (width: number) => void;
 }): JSX.Element {
@@ -638,6 +679,8 @@ export function ArduinoCodePanel({
   const selectedBoard = boards.find((board) => board.id === boardId) ?? boards[0];
   const [preferredFlyoutWidth, setPreferredFlyoutWidth] = useState(initialArduinoFlyoutWidth);
   const flyoutWidth = clampArduinoFlyoutWidth(preferredFlyoutWidth, drawerWidth);
+  const [paletteScale, setPaletteScale] = useState(initialArduinoPaletteScale);
+  const effectivePaletteScale = responsiveFlyoutScale(flyoutWidth, paletteScale);
   const [program, setProgram] = useState<ArduinoProgramState>(() =>
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
@@ -666,6 +709,10 @@ export function ArduinoCodePanel({
   useEffect(() => {
     localStorage.setItem(ARDUINO_FLYOUT_STORAGE_KEY, String(preferredFlyoutWidth));
   }, [preferredFlyoutWidth]);
+
+  useEffect(() => {
+    localStorage.setItem(ARDUINO_PALETTE_SCALE_STORAGE_KEY, String(paletteScale));
+  }, [paletteScale]);
 
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
@@ -721,7 +768,11 @@ export function ArduinoCodePanel({
 
   if (!selectedBoard) {
     return (
-      <section className="arduino-code-panel empty" aria-label="Редактор кода Arduino">
+      <section
+        className={`arduino-code-panel empty ${open ? 'open' : 'closed'}`}
+        aria-label="Редактор кода Arduino"
+        aria-hidden={!open}
+      >
         <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
         <div className="arduino-code-empty-state">
           <strong>Добавьте Arduino Uno R3</strong>
@@ -733,8 +784,9 @@ export function ArduinoCodePanel({
 
   return (
     <section
-      className="arduino-code-panel"
+      className={`arduino-code-panel ${open ? 'open' : 'closed'}`}
       aria-label="Редактор кода Arduino"
+      aria-hidden={!open}
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
     >
       <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
@@ -827,8 +879,40 @@ export function ArduinoCodePanel({
               initialWorkspace={program.workspaceJson}
               category={category}
               flyoutWidth={flyoutWidth}
+              paletteScale={effectivePaletteScale}
               onChange={(workspaceJson, source) => updateProgram({ workspaceJson, source })}
             />
+            <div
+              className="arduino-palette-scale"
+              role="group"
+              aria-label="Размер блоков в палитре"
+            >
+              <button
+                type="button"
+                aria-label="Уменьшить блоки в палитре"
+                disabled={paletteScale <= ARDUINO_PALETTE_SCALE_MIN}
+                onClick={() =>
+                  setPaletteScale((scale) =>
+                    Math.max(ARDUINO_PALETTE_SCALE_MIN, scale - ARDUINO_PALETTE_SCALE_STEP),
+                  )
+                }
+              >
+                −
+              </button>
+              <output aria-label="Текущий размер блоков">{Math.round(paletteScale * 100)}%</output>
+              <button
+                type="button"
+                aria-label="Увеличить блоки в палитре"
+                disabled={paletteScale >= ARDUINO_PALETTE_SCALE_MAX}
+                onClick={() =>
+                  setPaletteScale((scale) =>
+                    Math.min(ARDUINO_PALETTE_SCALE_MAX, scale + ARDUINO_PALETTE_SCALE_STEP),
+                  )
+                }
+              >
+                +
+              </button>
+            </div>
           </div>
         ) : null}
         {program.mode !== 'blocks' ? (

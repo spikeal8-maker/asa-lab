@@ -1,5 +1,7 @@
 import { type ElectronicsDocument, type SchematicComponent, type Terminal } from './document.js';
+import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
+import { electricalModelFor } from './model-registry.js';
 import { solveCircuit, transistorTypeOf, type Diagnostic, type SolveResult } from './solver.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
@@ -91,11 +93,11 @@ export function compileCircuit(document: ElectronicsDocument): CompiledCircuit {
     .map((component) => component.id)
     .sort();
   const sourceIds = document.components
-    .filter((component) => component.kind === 'source')
+    .filter((component) => component.kind === 'source' || isArduinoUno(component))
     .map((component) => component.id)
     .sort();
   const unsupportedComponentIds = document.components
-    .filter((component) => component.kind === 'visual')
+    .filter((component) => electricalModelFor(component).support === 'unsupported')
     .map((component) => component.id)
     .sort();
   const topologySignature = JSON.stringify({
@@ -186,6 +188,15 @@ function verifyQuality(
         maxSourceVoltageResidualVolt,
         Math.abs(measured - component.value),
       );
+      continue;
+    }
+    if (isArduinoUno(component)) {
+      for (const branch of arduinoOutputBranches(component)) {
+        const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
+        const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
+        const currentLeaving = (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+        addBranch(component, branch.terminal, branch.ground, currentLeaving);
+      }
       continue;
     }
     if (

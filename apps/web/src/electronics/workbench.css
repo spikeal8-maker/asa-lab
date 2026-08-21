@@ -2668,15 +2668,23 @@
   border-left: 1px solid #bdc8d0;
   background: #f7f8f9;
   box-shadow: -7px 0 20px rgba(38, 52, 63, 0.08);
-  animation: arduino-code-drawer-in 180ms ease-out both;
+  transform: translateX(0);
+  opacity: 1;
+  transition:
+    transform 170ms ease-out,
+    opacity 130ms ease-out,
+    visibility 0s linear;
+  will-change: transform;
 }
-@keyframes arduino-code-drawer-in {
-  from {
-    opacity: 0.35;
-  }
-  to {
-    opacity: 1;
-  }
+.arduino-code-panel.closed {
+  visibility: hidden;
+  transform: translateX(calc(100% + 16px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 170ms ease-in,
+    opacity 120ms ease-in,
+    visibility 0s linear 170ms;
 }
 .arduino-drawer-resize-handle {
   position: absolute;
@@ -2967,6 +2975,44 @@ html.arduino-palette-resizing * {
 .arduino-block-editor .blocklyZoom > image,
 .arduino-block-editor .blocklyTrash > image {
   opacity: 0.68;
+}
+.arduino-palette-scale {
+  position: absolute;
+  z-index: 65;
+  bottom: 14px;
+  left: 12px;
+  display: grid;
+  grid-template-columns: 32px minmax(48px, auto) 32px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #cbd3d9;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 7px rgba(30, 49, 62, 0.14);
+}
+.arduino-palette-scale button {
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #3d596b;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+.arduino-palette-scale button:hover:not(:disabled) {
+  background: #e8f3f8;
+  color: #087fb2;
+}
+.arduino-palette-scale button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.arduino-palette-scale output {
+  color: #607483;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 .arduino-source-editor {
   --arduino-code-size: 13px;

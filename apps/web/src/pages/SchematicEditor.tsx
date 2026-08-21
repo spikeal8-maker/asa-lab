@@ -24,11 +24,11 @@ import {
 } from '../modules/project-snapshot';
 import { rasteriseSvgStage } from '../modules/svg-snapshot';
 
-const ArduinoCodePanel = lazy(() =>
+const loadArduinoCodePanel = () =>
   import('../electronics/ArduinoCodePanel').then((module) => ({
     default: module.ArduinoCodePanel,
-  })),
-);
+  }));
+const ArduinoCodePanel = lazy(loadArduinoCodePanel);
 
 const ARDUINO_DRAWER_STORAGE_KEY = 'asa-lab:electronics:arduino-drawer-width';
 const ARDUINO_DRAWER_MIN_WIDTH = 620;
@@ -382,6 +382,7 @@ export function SchematicEditor({
   const [showGrid] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [codePanelMounted, setCodePanelMounted] = useState(false);
   const [codePanelWidth, setCodePanelWidth] = useState(initialArduinoDrawerWidth);
   const [shareOpen, setShareOpen] = useState(false);
   const notesStorageKey = `asa-lab:electronics-notes:${projectId}`;
@@ -395,10 +396,28 @@ export function SchematicEditor({
     return () => window.removeEventListener('resize', clampToViewport);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const warmup = window.setTimeout(() => {
+      void loadArduinoCodePanel().then(() => {
+        if (!cancelled) setCodePanelMounted(true);
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(warmup);
+    };
+  }, []);
+
   function updateCodePanelWidth(width: number): void {
     const next = clampArduinoDrawerWidth(width);
     setCodePanelWidth(next);
     localStorage.setItem(ARDUINO_DRAWER_STORAGE_KEY, String(next));
+  }
+
+  function toggleCodePanel(): void {
+    if (!codeOpen) setCodePanelMounted(true);
+    setCodeOpen((value) => !value);
   }
 
   // The card picture is the stage as the learner sees it, rasterised from the
@@ -479,7 +498,7 @@ export function SchematicEditor({
         notesOpen={notesOpen}
         codeOpen={codeOpen}
         onToggleNotes={() => setNotesOpen((value) => !value)}
-        onToggleCode={() => setCodeOpen((value) => !value)}
+        onToggleCode={toggleCodePanel}
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
       />
@@ -501,10 +520,13 @@ export function SchematicEditor({
             onClose={() => setNotesOpen(false)}
           />
         ) : null}
-        {codeOpen ? (
+        {codePanelMounted ? (
           <Suspense
             fallback={
-              <section className="arduino-code-panel empty" aria-label="Редактор кода Arduino">
+              <section
+                className={`arduino-code-panel empty ${codeOpen ? 'open' : 'closed'}`}
+                aria-label="Редактор кода Arduino"
+              >
                 <div className="arduino-code-empty-state">
                   <strong>Открываем редактор кода…</strong>
                 </div>
@@ -513,6 +535,7 @@ export function SchematicEditor({
           >
             <ArduinoCodePanel
               controller={controller}
+              open={codeOpen}
               drawerWidth={codePanelWidth}
               onDrawerWidthChange={updateCodePanelWidth}
             />
