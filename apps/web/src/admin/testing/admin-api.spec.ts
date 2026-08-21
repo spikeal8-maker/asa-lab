@@ -1,0 +1,192 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { adminApi, type AdminProfile } from '../admin-api';
+
+const PROFILE: AdminProfile = {
+  administrator: true,
+  principalId: '10000000-0000-4000-8000-000000000001',
+  accountId: '20000000-0000-4000-8000-000000000001',
+  displayName: 'Администратор',
+  activeWorkspaceId: '30000000-0000-4000-8000-000000000001',
+  scopes: [],
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('administrative API client', () => {
+  it('checks access without caching and keeps the HttpOnly session same-origin', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify(PROFILE), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await expect(adminApi.me()).resolves.toMatchObject({ ok: true, data: PROFILE });
+    expect(request).toHaveBeenCalledWith('/api/admin/v1/me', {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+    });
+  });
+
+  it('builds a stable scoped audit cursor without client-supplied tenant data', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ items: [], next: null }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.auditEvents({
+      scope: { kind: 'organization', id: '30000000-0000-4000-8000-000000000001' },
+      limit: 25,
+      cursor: {
+        occurredAt: '2026-08-21T17:00:00.000Z',
+        id: '40000000-0000-4000-8000-000000000001',
+      },
+    });
+
+    const path = request.mock.calls[0]?.[0];
+    expect(typeof path).toBe('string');
+    const url = new URL(String(path), 'https://asa.test');
+    expect(url.pathname).toBe('/api/admin/v1/audit-events');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      scopeKind: 'organization',
+      limit: '25',
+      scopeId: '30000000-0000-4000-8000-000000000001',
+      before: '2026-08-21T17:00:00.000Z',
+      beforeId: '40000000-0000-4000-8000-000000000001',
+    });
+    expect(url.searchParams.has('tenantId')).toBe(false);
+  });
+
+  it('builds scoped, encoded directory queries without accepting tenant ids', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ items: [], next: null }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.accounts({
+      scope: { kind: 'organization', id: '30000000-0000-4000-8000-000000000001' },
+      search: '  Иван + школа  ',
+      limit: 20,
+      cursor: {
+        before: '2026-08-21T17:00:00.000Z',
+        id: '40000000-0000-4000-8000-000000000001',
+      },
+    });
+
+    const url = new URL(String(request.mock.calls[0]?.[0]), 'https://asa.test');
+    expect(url.pathname).toBe('/api/admin/v1/accounts');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      scopeKind: 'organization',
+      limit: '20',
+      scopeId: '30000000-0000-4000-8000-000000000001',
+      search: 'Иван + школа',
+      before: '2026-08-21T17:00:00.000Z',
+      beforeId: '40000000-0000-4000-8000-000000000001',
+    });
+    expect(url.searchParams.has('tenantId')).toBe(false);
+  });
+
+  it('uses separate endpoints for organizations and security sessions', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ items: [], next: null }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    const scope = { kind: 'platform' as const, id: null };
+    await adminApi.organizations({ scope });
+    await adminApi.securitySessions({ scope });
+
+    expect(String(request.mock.calls[0]?.[0])).toContain('/api/admin/v1/organizations?');
+    expect(String(request.mock.calls[1]?.[0])).toContain('/api/admin/v1/security/sessions?');
+  });
+
+  it('loads platform operations from a fixed endpoint without client scope parameters', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(
+        JSON.stringify({ services: { api: 'responding', database: 'responding' } }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.operationsStatus();
+
+    expect(request.mock.calls[0]?.[0]).toBe('/api/admin/v1/operations/status');
+  });
+
+  it('sends user-management mutations as same-origin JSON without client role claims', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ accountId: 'account', status: 'suspended' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.setAccountStatus('account/id', {
+      status: 'suspended',
+      reason: 'Запрос владельца',
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      '/api/admin/v1/accounts/account%2Fid/status',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'same-origin',
+        body: JSON.stringify({ status: 'suspended', reason: 'Запрос владельца' }),
+        headers: expect.objectContaining({ 'content-type': 'application/json' }),
+      }),
+    );
+    const body = JSON.parse(String((request.mock.calls[0]?.[1] as RequestInit | undefined)?.body));
+    expect(body).not.toHaveProperty('role');
+    expect(body).not.toHaveProperty('actorId');
+  });
+
+  it('turns network and malformed server failures into stable client errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new Error('offline'))),
+    );
+    await expect(adminApi.me()).resolves.toEqual({
+      ok: false,
+      status: 0,
+      error: { code: 'network', message: 'Сервер администрирования недоступен.' },
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('not-json', { status: 502 })),
+    );
+    await expect(adminApi.me()).resolves.toEqual({
+      ok: false,
+      status: 502,
+      error: {
+        code: 'server_error',
+        message: 'Не удалось выполнить административный запрос.',
+      },
+    });
+  });
+});

@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: ASA Lab Control Plane API
-  version: 0.3.0
+  version: 0.5.0
   description: >-
     Account and Portal contract: health probes, universal account session,
-    capability-aware workspace context and classroom create/list. Tenant,
-    capability and active workspace are derived exclusively from the
-    server-side session.
+    capability-aware workspace context, scoped administrative control plane
+    and classroom create/list. Tenant, capability, active workspace and
+    administrative grants are derived exclusively from the server-side session.
 servers:
   - url: http://127.0.0.1:4611
     description: Local development
@@ -103,6 +103,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/max/config:
+    get:
+      operationId: getMaxAuthConfig
+      summary: Public MAX mini-app launch configuration without credentials
+      responses:
+        '200':
+          description: MAX availability and launch URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaxAuthConfig'
+  /api/auth/max/session:
+    post:
+      operationId: postMaxAuthSession
+      summary: Establish a session from fresh server-validated MAX WebApp data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxInitDataRequest'
+      responses:
+        '200':
+          description: Linked account session established
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          description: MAX signature is invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Account linking is required or the assertion was replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: MAX authentication is not configured or temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/max/link:
+    post:
+      operationId: postMaxAuthLink
+      summary: Link fresh MAX WebApp data to the active ASA Lab account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxInitDataRequest'
+      responses:
+        '200':
+          description: MAX identity linked to the active account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaxLinkResponse'
+        '401':
+          description: No active ASA Lab session or invalid MAX signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The MAX identity or account is already linked elsewhere
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/auth/logout:
     post:
       operationId: postAuthLogout
@@ -167,6 +242,117 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Workspace is unavailable for this Account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/v1/me:
+    get:
+      operationId: getAdminMe
+      summary: Resolve server-owned administrative scopes for the current session
+      responses:
+        '200':
+          description: Administrative principal and its exact scopes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMeEnvelope'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The account has no administrative grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/v1/scopes:
+    get:
+      operationId: getAdminScopes
+      summary: List the exact platform and organization scopes available to the administrator
+      responses:
+        '200':
+          description: Administrative scope collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminScopesEnvelope'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The account has no administrative grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/admin/v1/audit-events:
+    get:
+      operationId: getAdminAuditEvents
+      summary: Read the append-only audit trail within an authorized administrative scope
+      parameters:
+        - name: scopeKind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [platform, organization]
+        - name: scopeId
+          in: query
+          required: false
+          description: Required only for an organization scope; forbidden for platform.
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: before
+          in: query
+          required: false
+          description: Stable cursor timestamp; must be paired with beforeId.
+          schema:
+            type: string
+            format: date-time
+        - name: beforeId
+          in: query
+          required: false
+          description: Stable cursor UUID; must be paired with before.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Authorized audit page; the privileged read is itself audited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuditPage'
+        '400':
+          description: Invalid scope, page limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The requested administrative scope is not granted
           content:
             application/json:
               schema:
@@ -852,6 +1038,156 @@ components:
               type: string
             message:
               type: string
+    AdminPermission:
+      type: string
+      enum:
+        - administration.open
+        - administration.scopes.read
+        - administration.audit.read
+        - administration.accounts.read
+        - administration.organizations.read
+        - administration.security.read
+        - administration.moderation.read
+        - administration.billing.read
+        - administration.operations.read
+    AdminScope:
+      type: object
+      additionalProperties: false
+      required: [kind, id, title, role, permissions]
+      properties:
+        kind:
+          type: string
+          enum: [platform, organization]
+        id:
+          type: [string, 'null']
+          format: uuid
+        title:
+          type: string
+        role:
+          type: string
+          enum: [platform_admin, owner, school_admin, moderator, billing_admin]
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/AdminPermission'
+    AdminMeEnvelope:
+      type: object
+      additionalProperties: false
+      required: [administrator, principalId, accountId, displayName, activeWorkspaceId, scopes]
+      properties:
+        administrator:
+          type: boolean
+          const: true
+        principalId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        activeWorkspaceId:
+          type: string
+          format: uuid
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminScope'
+    AdminScopesEnvelope:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminScope'
+    AdminAuditEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - occurredAt
+        - actorPrincipalId
+        - actorRole
+        - scopeKind
+        - scopeId
+        - action
+        - targetType
+        - targetId
+        - reasonCode
+        - reasonText
+        - ticketId
+        - requestId
+        - result
+        - beforeVersion
+        - afterVersion
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        actorPrincipalId:
+          type: string
+          format: uuid
+        actorRole:
+          type: string
+        scopeKind:
+          type: string
+          enum: [platform, organization]
+        scopeId:
+          type: [string, 'null']
+          format: uuid
+        action:
+          type: string
+        targetType:
+          type: [string, 'null']
+        targetId:
+          type: [string, 'null']
+        reasonCode:
+          type: [string, 'null']
+        reasonText:
+          type: [string, 'null']
+        ticketId:
+          type: [string, 'null']
+        requestId:
+          type: string
+        result:
+          type: string
+          enum: [allowed, denied, succeeded, failed]
+        beforeVersion:
+          type: [integer, 'null']
+          format: int64
+        afterVersion:
+          type: [integer, 'null']
+          format: int64
+    AdminAuditCursor:
+      type: object
+      additionalProperties: false
+      required: [occurredAt, id]
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+    AdminAuditPage:
+      type: object
+      additionalProperties: false
+      required: [items, next]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAuditEvent'
+        next:
+          oneOf:
+            - $ref: '#/components/schemas/AdminAuditCursor'
+            - type: 'null'
     RegisterRequest:
       type: object
       additionalProperties: false
@@ -881,6 +1217,33 @@ components:
       oneOf:
         - $ref: '#/components/schemas/AccountLoginRequest'
         - $ref: '#/components/schemas/OrganizationLoginRequest'
+    MaxAuthConfig:
+      type: object
+      additionalProperties: false
+      required: [enabled, launchUrl]
+      properties:
+        enabled:
+          type: boolean
+        launchUrl:
+          type: [string, 'null']
+          format: uri
+    MaxInitDataRequest:
+      type: object
+      additionalProperties: false
+      required: [initData]
+      properties:
+        initData:
+          type: string
+          minLength: 1
+          maxLength: 16384
+    MaxLinkResponse:
+      type: object
+      additionalProperties: false
+      required: [linked]
+      properties:
+        linked:
+          type: boolean
+          const: true
     AccountLoginRequest:
       type: object
       additionalProperties: false

@@ -59,6 +59,7 @@ export function PortalHeader({
   classroomBadge,
   seatAvatarUrl,
   unfinishedCount = 0,
+  adminNavigation,
   onNavigate,
   onSessionChanged,
   onLoggedOut,
@@ -80,6 +81,11 @@ export function PortalHeader({
   seatLearner?: boolean;
   /** Сколько работ ждёт ответа — цифра рядом с «Классами» у преподавателя. */
   classroomBadge?: number | undefined;
+  /** Shown only after the dedicated administrative endpoint confirms a grant. */
+  adminNavigation?: {
+    readonly active: boolean;
+    readonly onNavigate: () => void;
+  };
   onNavigate: (section: PortalSection) => void;
   onSessionChanged: (session: SessionPayload) => void;
   onLoggedOut: () => void;
@@ -479,6 +485,20 @@ export function PortalHeader({
               ) : null}
             </button>
           ))}
+          {adminNavigation ? (
+            <button
+              type="button"
+              data-admin-navigation="true"
+              className={adminNavigation.active ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-current={adminNavigation.active ? 'page' : undefined}
+              onClick={adminNavigation.onNavigate}
+            >
+              <span className="portal-nav-glyph" aria-hidden="true">
+                <SchoolGlyph />
+              </span>
+              <span className="portal-nav-label">Админ</span>
+            </button>
+          ) : null}
         </nav>
         {helpNavigation ? (
           <div className="portal-sidebar-footer">

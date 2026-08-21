@@ -28,6 +28,8 @@ export const TOKENS = {
   seatContextUseCase: 'SEAT_CONTEXT_USECASE',
   projectFeedbackService: 'PROJECT_FEEDBACK_SERVICE',
   botChallengeService: 'BOT_CHALLENGE_SERVICE',
+  maxAuthService: 'MAX_AUTH_SERVICE',
+  adminControlPlane: 'ADMIN_CONTROL_PLANE',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

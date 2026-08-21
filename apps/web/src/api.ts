@@ -42,6 +42,11 @@ export interface SessionPayload {
   timeZone: string | null;
 }
 
+export interface MaxAuthConfig {
+  enabled: boolean;
+  launchUrl: string | null;
+}
+
 export interface AccountProfile {
   email: string;
   emailVerificationState: string;
@@ -893,6 +898,17 @@ export interface CheckersTeacherFeedback {
 
 export const api = {
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
+  maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
+  maxSession: (initData: string) =>
+    call<SessionPayload>('/api/auth/max/session', {
+      method: 'POST',
+      body: JSON.stringify({ initData }),
+    }),
+  maxLink: (initData: string) =>
+    call<{ linked: true }>('/api/auth/max/link', {
+      method: 'POST',
+      body: JSON.stringify({ initData }),
+    }),
   botChallenge: (action: BotAction) =>
     call<{ required: boolean; challenge: BotChallenge }>(
       `/api/auth/bot-challenge?action=${encodeURIComponent(action)}`,

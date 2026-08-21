@@ -1,4 +1,5 @@
 import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
+import { cpus, freemem, totalmem } from 'node:os';
 
 /**
  * Runtime counters for the one failure mode this service actually has: work
@@ -21,6 +22,12 @@ export interface RuntimeMetricsSnapshot {
   readonly uptimeSeconds: number;
   readonly eventLoopDelayMs: { p50: number; p99: number; max: number };
   readonly memory: { rssMb: number; heapUsedMb: number };
+  readonly host: {
+    readonly cpuUsedByApiPercent: number;
+    readonly logicalCpuCount: number;
+    readonly memoryTotalMb: number;
+    readonly memoryUsedPercent: number;
+  };
   readonly requests: {
     readonly total: number;
     readonly inFlight: number;
@@ -58,6 +65,9 @@ export function createRuntimeMetrics(): RuntimeMetrics {
   const byStatusClass = new Map<string, number>();
   let total = 0;
   let inFlight = 0;
+  const cpuStartedAt = process.cpuUsage();
+  const wallStartedAt = process.hrtime.bigint();
+  const logicalCpuCount = Math.max(1, cpus().length);
 
   return {
     requestStarted(): void {
@@ -76,6 +86,10 @@ export function createRuntimeMetrics(): RuntimeMetrics {
     snapshot(pool: PoolStats | null): RuntimeMetricsSnapshot {
       const sorted = [...durations].sort((a, b) => a - b);
       const memory = process.memoryUsage();
+      const cpu = process.cpuUsage(cpuStartedAt);
+      const wallMicroseconds = Math.max(1, Number(process.hrtime.bigint() - wallStartedAt) / 1_000);
+      const hostMemoryTotal = totalmem();
+      const hostMemoryFree = freemem();
       return {
         uptimeSeconds: Math.round(process.uptime()),
         eventLoopDelayMs: {
@@ -86,6 +100,14 @@ export function createRuntimeMetrics(): RuntimeMetrics {
         memory: {
           rssMb: round(memory.rss / 1024 / 1024),
           heapUsedMb: round(memory.heapUsed / 1024 / 1024),
+        },
+        host: {
+          cpuUsedByApiPercent: round(
+            ((cpu.user + cpu.system) / wallMicroseconds / logicalCpuCount) * 100,
+          ),
+          logicalCpuCount,
+          memoryTotalMb: round(hostMemoryTotal / 1024 / 1024),
+          memoryUsedPercent: round(((hostMemoryTotal - hostMemoryFree) / hostMemoryTotal) * 100),
         },
         requests: {
           total,

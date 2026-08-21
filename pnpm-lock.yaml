@@ -137,6 +137,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@asa-lab/authz':
+        specifier: workspace:*
+        version: link:../../packages/authz
       '@asa-lab/checkers':
         specifier: workspace:*
         version: link:../../contexts/checkers
@@ -293,6 +296,8 @@ importers:
       '@asa-lab/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
+
+  packages/authz: {}
 
   packages/database: {}
 

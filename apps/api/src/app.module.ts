@@ -46,6 +46,8 @@ import {
 } from '@asa-lab/chess-live';
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
+import { AdminController } from './admin.controller.js';
+import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AccountC1Controller } from './account-c1.controller.js';
 import { CheckersClassroomController } from './checkers-classroom.controller.js';
 import { ChessLiveController } from './chess-live.controller.js';
@@ -68,6 +70,7 @@ import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
 import { ProjectFeedbackService } from './project-feedback.js';
 import { BotChallengeService } from './bot-challenge.js';
+import { MaxAuthService } from './max-auth.service.js';
 import { TOKENS } from './tokens.js';
 
 function validationMessage(
@@ -108,6 +111,7 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
+    const runtimeMetrics = createRuntimeMetrics();
     const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
@@ -148,6 +152,7 @@ export class AppModule {
       controllers: [
         HealthController,
         AuthController,
+        AdminController,
         AccountC1Controller,
         AssignmentsController,
         CoursesController,
@@ -165,8 +170,21 @@ export class AppModule {
       ],
       providers: [
         { provide: TOKENS.pool, useValue: pool },
-        { provide: TOKENS.runtimeMetrics, useValue: createRuntimeMetrics() },
+        { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
+        {
+          provide: TOKENS.maxAuthService,
+          useFactory: () => new MaxAuthService(requirePool()),
+        },
+        {
+          provide: TOKENS.adminControlPlane,
+          useFactory: () =>
+            new AdminControlPlaneService(
+              new PgAccountDirectory(requirePool()),
+              requirePool(),
+              runtimeMetrics,
+            ),
+        },
         { provide: TOKENS.moduleRegistry, useValue: moduleRegistry },
         { provide: TOKENS.chessLiveRepository, useValue: chessLiveRepository },
         { provide: TOKENS.chessLiveService, useValue: chessLiveService },

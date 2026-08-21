@@ -150,6 +150,14 @@ describe('runtime metrics', () => {
       database: { total: 10, idle: 0, waiting: 42 },
     });
     expect('eventLoopDelayMs' in snapshot).toBe(true);
+    expect(snapshot).toMatchObject({
+      host: {
+        cpuUsedByApiPercent: expect.any(Number),
+        logicalCpuCount: expect.any(Number),
+        memoryTotalMb: expect.any(Number),
+        memoryUsedPercent: expect.any(Number),
+      },
+    });
   });
 
   it('keeps no request payload, only technical counters', () => {
