@@ -6,6 +6,7 @@ import type pg from 'pg';
 import { cacheControlFor, createApiApp } from './app.factory.js';
 
 const HASHED_SCRIPT = 'index-DuJpyya8.js';
+const LATE_HASHED_SCRIPT = 'index-NewBuild123.js';
 const OWNER_ASSET = 'arduino-uno.svg';
 
 describe('cache policy', () => {
@@ -19,6 +20,7 @@ describe('cache policy', () => {
 
   it('never holds the entry document', () => {
     expect(cacheControlFor('index.html')).toBe('no-cache');
+    expect(cacheControlFor('preload-recovery-v1.js')).toBe('no-cache');
   });
 
   it('never holds owner-supplied assets that carry no hash', () => {
@@ -82,6 +84,33 @@ describe('asset delivery over HTTP', () => {
 
     const ownerAsset = await fastify.inject({ method: 'GET', url: `/${OWNER_ASSET}` });
     expect(ownerAsset.headers['cache-control']).toBe('no-cache');
+  });
+
+  it('serves files created after startup and the latest SPA document', async () => {
+    const fastify = await server();
+
+    writeFileSync(join(webDist, LATE_HASHED_SCRIPT), 'console.log("new build");');
+    writeFileSync(
+      join(webDist, 'index.html'),
+      `<!doctype html><script src="/${LATE_HASHED_SCRIPT}"></script>`,
+    );
+
+    const script = await fastify.inject({ method: 'GET', url: `/${LATE_HASHED_SCRIPT}` });
+    expect(script.statusCode).toBe(200);
+    expect(script.headers['content-type']).toContain('javascript');
+    expect(script.body).toContain('new build');
+
+    const cleanRoute = await fastify.inject({ method: 'GET', url: '/sign-in' });
+    expect(cleanRoute.statusCode).toBe(200);
+    expect(cleanRoute.body).toContain(LATE_HASHED_SCRIPT);
+  });
+
+  it('returns an actual 404 for a missing browser asset', async () => {
+    const fastify = await server();
+    const missing = await fastify.inject({ method: 'GET', url: '/assets/missing-chunk.js' });
+
+    expect(missing.statusCode).toBe(404);
+    expect(missing.headers['content-type']).not.toContain('text/html');
   });
 
   it('compresses what it sends when the client accepts it', async () => {

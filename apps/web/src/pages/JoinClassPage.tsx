@@ -11,7 +11,8 @@ type JoinState =
     };
 
 function initialCode(): string {
-  const query = window.location.hash.split('?')[1] ?? '';
+  const cleanQuery = window.location.search.replace(/^\?/, '');
+  const query = cleanQuery || (window.location.hash.split('?')[1] ?? '');
   return new URLSearchParams(query).get('code') ?? '';
 }
 
