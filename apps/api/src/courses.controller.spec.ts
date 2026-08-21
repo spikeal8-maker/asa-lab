@@ -97,6 +97,25 @@ describe('course outline API', () => {
     ]);
   });
 
+  it('creates the published demo course idempotently for the educator', async () => {
+    const target = controller([
+      {
+        course_id: COURSE_ID,
+        created: true,
+        published_version: '1',
+      },
+    ]);
+
+    await expect(target.value.ensureDemo(request())).resolves.toEqual({
+      id: COURSE_ID,
+      created: true,
+      publishedVersion: 1,
+    });
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_demo_ensure'), [
+      'principal-id',
+    ]);
+  });
+
   it('does not publish a course without lessons', async () => {
     const target = controller([
       {

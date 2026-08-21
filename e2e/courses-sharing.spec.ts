@@ -43,6 +43,56 @@ function bankTab(page: import('@playwright/test').Page, name: string) {
     .getByRole('button', { name });
 }
 
+test('a teacher adds one complete published demo course', async ({ page }) => {
+  const failures = collectBrowserFailures(page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  await loginWithOrganization(page, author);
+  await sidebar(page, 'Курсы и задания').click();
+  await bankTab(page, 'Мои курсы').click();
+
+  await page.getByRole('button', { name: 'Добавить демо-курс' }).click();
+  const editor = page.getByTestId('course-editor');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('Основы 3D-моделирования: от формы к проекту');
+  await expect(editor).toContainText('4 разделов · 12 уроков');
+  await expect(editor).toContainText('Опубликован · v1');
+  await expect(editor.getByRole('button', { name: 'Опубликовать' })).toHaveCount(0);
+  await editor.screenshot({ path: `${evidenceDir}/demo-course-published-desktop.png` });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      editor.locator('.course-builder').evaluate((element) => {
+        return getComputedStyle(element).gridTemplateColumns.split(' ').length;
+      }),
+    )
+    .toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await editor.screenshot({ path: `${evidenceDir}/demo-course-published-mobile.png` });
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  await editor.getByRole('button', { name: 'Курсы' }).click();
+  await page.getByRole('button', { name: 'Добавить демо-курс' }).click();
+  await expect(editor).toBeVisible();
+
+  const identity = await admin.query(
+    `SELECT principal_id FROM legacy_user_account_links
+      WHERE tenant_id = $1 AND user_id = $2`,
+    [author.tenantId, author.teacherId],
+  );
+  const count = await admin.query(
+    `SELECT count(*)::integer AS count FROM courses
+      WHERE owner_principal_id = $1 AND template_key = 'three-d-foundations-v1'`,
+    [identity.rows[0].principal_id],
+  );
+  expect(count.rows[0].count).toBe(1);
+  failures.assertEmpty();
+});
+
 test('a teacher builds a course, shares it by name, and a colleague takes a copy', async ({
   browser,
 }) => {

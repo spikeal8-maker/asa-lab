@@ -15,10 +15,21 @@
   min-height: 42px;
 }
 
-.courses-toolbar > div {
+.courses-toolbar-copy {
   display: grid;
   gap: 2px;
   min-width: 0;
+}
+
+.courses-toolbar-actions,
+.course-list-empty-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.courses-toolbar-actions {
+  flex: 0 0 auto;
 }
 
 .courses-toolbar strong {
@@ -1104,6 +1115,8 @@
 
 @media (max-width: 520px) {
   .courses-toolbar {
+    align-items: stretch;
+    flex-direction: column;
     gap: 8px;
   }
 
@@ -1111,7 +1124,8 @@
     font-size: 14px;
   }
 
-  .courses-toolbar .portal-create-button {
+  .courses-toolbar-actions > button {
+    flex: 1 1 0;
     min-height: 36px;
     padding: 6px 10px;
     font-size: 12px;
@@ -1142,8 +1156,10 @@
     grid-template-columns: 34px minmax(0, 1fr);
   }
 
-  .course-list-empty .btn-primary {
+  .course-list-empty-actions {
     grid-column: 1 / -1;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .course-back-button > span:last-child {

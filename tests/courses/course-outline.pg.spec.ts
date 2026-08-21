@@ -362,4 +362,62 @@ describe('course outline persistence', () => {
     expect(copiedOutline.rows[1].lesson_kind).toBe('assignment');
     expect(copiedOutline.rows[1].lesson_assignment_id).not.toBe(assignmentId);
   });
+
+  it('creates one complete published demo course without assigning it implicitly', async () => {
+    const demoTeacher = await seedTeacher(admin, 'course-demo-template');
+    const demoIdentity = await identityFor(demoTeacher);
+
+    const first = await admin.query(`SELECT * FROM course_demo_ensure($1)`, [
+      demoIdentity.principalId,
+    ]);
+    expect(first.rows[0]).toMatchObject({ created: true, published_version: 1 });
+    const courseId = first.rows[0].course_id as string;
+
+    const second = await admin.query(`SELECT * FROM course_demo_ensure($1)`, [
+      demoIdentity.principalId,
+    ]);
+    expect(second.rows[0]).toEqual({
+      course_id: courseId,
+      created: false,
+      published_version: 1,
+    });
+
+    const structure = await admin.query(
+      `SELECT c.title, c.visibility, c.template_key,
+              count(DISTINCT s.id)::integer AS sections,
+              count(DISTINCT l.id)::integer AS lessons,
+              count(DISTINCT l.id) FILTER (WHERE l.kind = 'assignment')::integer AS assignments,
+              count(DISTINCT v.id)::integer AS versions
+         FROM courses c
+         JOIN course_sections s ON s.course_id = c.id
+         JOIN course_lessons l ON l.course_id = c.id
+         JOIN course_versions v ON v.course_id = c.id
+        WHERE c.id = $1
+        GROUP BY c.id`,
+      [courseId],
+    );
+    expect(structure.rows[0]).toEqual({
+      title: 'Основы 3D-моделирования: от формы к проекту',
+      visibility: 'private',
+      template_key: 'three-d-foundations-v1',
+      sections: 4,
+      lessons: 12,
+      assignments: 10,
+      versions: 1,
+    });
+
+    const demoTasks = await admin.query(
+      `SELECT count(*)::integer AS count
+         FROM teacher_assignments
+        WHERE owner_principal_id = $1 AND demo_key IS NOT NULL`,
+      [demoIdentity.principalId],
+    );
+    expect(demoTasks.rows[0].count).toBe(10);
+
+    const runs = await admin.query(
+      `SELECT count(*)::integer AS count FROM classroom_course_runs WHERE course_id = $1`,
+      [courseId],
+    );
+    expect(runs.rows[0].count).toBe(0);
+  });
 });

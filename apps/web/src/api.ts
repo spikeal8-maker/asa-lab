@@ -1200,6 +1200,10 @@ export const api = {
     }),
   // Курсы.
   listCourses: () => call<{ items: Course[] }>('/api/courses'),
+  ensureDemoCourse: () =>
+    call<{ id: string; created: boolean; publishedVersion: number }>('/api/courses/demo', {
+      method: 'POST',
+    }),
   saveCourse: (
     courseId: string | null,
     input: {

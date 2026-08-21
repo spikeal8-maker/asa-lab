@@ -301,6 +301,32 @@ export class CoursesController {
     return { id: await this.save(request, null, rawBody) };
   }
 
+  /**
+   * Put one complete, published reference course into the educator's library.
+   *
+   * The operation is idempotent per educator. It never assigns the course to a
+   * class: the teacher still previews it and explicitly chooses the audience.
+   */
+  @Post('courses/demo')
+  async ensureDemo(@Req() request: FastifyRequest) {
+    const context = await this.requireEducator(request);
+    const result = await this.requirePool().query(
+      `SELECT course_id, created, published_version
+         FROM course_demo_ensure($1)`,
+      [context.principalId],
+    );
+    const row = result.rows[0] as
+      { course_id: string; created: boolean; published_version: number | string } | undefined;
+    if (!row?.course_id || Number(row.published_version) < 1) {
+      throw new HttpException(error('demo_course_failed', 'Не получилось создать демо-курс.'), 500);
+    }
+    return {
+      id: row.course_id,
+      created: row.created,
+      publishedVersion: Number(row.published_version),
+    };
+  }
+
   @Patch('courses/:courseId')
   async update(
     @Req() request: FastifyRequest,

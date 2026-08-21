@@ -811,6 +811,7 @@ export function CoursesPanel({
   const [sharing, setSharing] = useState<Course | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creatingDemo, setCreatingDemo] = useState(false);
 
   const reload = useCallback(async () => {
     const result = await api.listCourses();
@@ -838,6 +839,27 @@ export function CoursesPanel({
     await reload();
     onChanged();
     return true;
+  }
+
+  async function ensureDemoCourse(): Promise<void> {
+    if (creatingDemo) return;
+    setCreatingDemo(true);
+    const result = await api.ensureDemoCourse();
+    setCreatingDemo(false);
+    if (!result.ok) {
+      setNotice(null);
+      setError(result.error.message);
+      return;
+    }
+    setError(null);
+    setNotice(
+      result.data.created
+        ? 'Готовый демо-курс добавлен и опубликован.'
+        : 'Демо-курс уже есть в вашей библиотеке.',
+    );
+    await reload();
+    setOpenId(result.data.id);
+    onChanged();
   }
 
   const open = courses?.find((course) => course.id === openId) ?? null;
@@ -882,13 +904,27 @@ export function CoursesPanel({
   return (
     <section className="courses-panel">
       <div className="courses-toolbar">
-        <div>
+        <div className="courses-toolbar-copy">
           <strong>Ваши курсы</strong>
           <span>Собирайте уроки и материалы, а назначайте их уже внутри класса.</span>
         </div>
-        <button type="button" className="portal-create-button" onClick={() => setCourseForm('new')}>
-          Создать курс
-        </button>
+        <div className="courses-toolbar-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={creatingDemo}
+            onClick={() => void ensureDemoCourse()}
+          >
+            {creatingDemo ? 'Добавляем…' : 'Добавить демо-курс'}
+          </button>
+          <button
+            type="button"
+            className="portal-create-button"
+            onClick={() => setCourseForm('new')}
+          >
+            Создать курс
+          </button>
+        </div>
       </div>
 
       {notice ? (
@@ -911,9 +947,19 @@ export function CoursesPanel({
             <h3>Создайте первый курс</h3>
             <p>Разделы задают порядок, уроки объединяют объяснение и практику.</p>
           </div>
-          <button type="button" className="btn-primary" onClick={() => setCourseForm('new')}>
-            Создать курс
-          </button>
+          <div className="course-list-empty-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={creatingDemo}
+              onClick={() => void ensureDemoCourse()}
+            >
+              {creatingDemo ? 'Добавляем…' : 'Посмотреть готовый пример'}
+            </button>
+            <button type="button" className="btn-primary" onClick={() => setCourseForm('new')}>
+              Создать свой курс
+            </button>
+          </div>
         </div>
       ) : (
         <ul className="courses-list" data-testid="courses-list">
