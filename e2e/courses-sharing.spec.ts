@@ -204,8 +204,17 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
     .getByLabel('Что будет в уроке')
     .fill('Короткое объяснение перед первой практикой');
   await authorPage
-    .getByLabel('Материал урока')
+    .getByLabel('Текст блока')
     .fill('Резистор ограничивает ток и защищает светодиод от перегрузки.');
+  await authorPage.getByRole('button', { name: '+ Заголовок', exact: true }).click();
+  await authorPage.getByLabel('Текст заголовка').fill('Проверьте себя');
+  await authorPage.getByRole('button', { name: '+ Врезка', exact: true }).click();
+  await authorPage.getByLabel('Тип врезки').selectOption('tip');
+  await authorPage.getByLabel('Текст врезки').fill('Сначала найдите плюс и минус светодиода.');
+  await authorPage.getByRole('button', { name: '+ Картинка', exact: true }).click();
+  await authorPage.getByLabel('Ссылка на изображение').fill('/assets/assignments/demo-robot.jpg');
+  await authorPage.getByLabel('Описание изображения').fill('Пример учебного проекта');
+  await authorPage.getByLabel('Подпись изображения').fill('Так выглядит готовый результат');
   await authorPage.getByLabel('Примерное время, минут').fill('5');
   await authorPage.getByRole('button', { name: 'Добавить урок' }).click();
   await expect(authorPage.getByText('Урок добавлен.')).toBeVisible();
@@ -227,6 +236,9 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   const studentPreview = authorPage.getByTestId('course-preview-page');
   await expect(studentPreview).toContainText(courseTitle);
   await expect(studentPreview.locator('li')).toHaveCount(3);
+  await expect(studentPreview).toContainText('Проверьте себя');
+  await expect(studentPreview).toContainText('Сначала найдите плюс и минус');
+  await expect(studentPreview.getByAltText('Пример учебного проекта')).toBeVisible();
   const previewEvidenceStyle = await authorPage.addStyleTag({
     content: '.portal-header, .portal-sidebar, .skip-link { visibility: hidden !important; }',
   });
@@ -291,6 +303,9 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   await player.screenshot({ path: `${evidenceDir}/student-course-desktop.png` });
   await player.getByRole('button', { name: /Почему нужен резистор/ }).click();
   await expect(player).toContainText('Резистор ограничивает ток');
+  await expect(player).toContainText('Проверьте себя');
+  await expect(player).toContainText('Сначала найдите плюс и минус');
+  await expect(player.getByAltText('Пример учебного проекта')).toBeVisible();
   await player.getByRole('button', { name: 'Отметить пройденным' }).click();
   await expect(player).toContainText('Пройдено 1 из 3');
   await studentPage.setViewportSize({ width: 390, height: 844 });

@@ -1,0 +1,147 @@
+.lesson-blocks {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  color: var(--ink, #20252c);
+}
+
+.lesson-blocks > :first-child {
+  margin-top: 0;
+}
+
+.lesson-blocks > :last-child {
+  margin-bottom: 0;
+}
+
+.lesson-blocks p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+
+.lesson-blocks h2,
+.lesson-blocks h3 {
+  margin: 8px 0 0;
+  line-height: 1.2;
+}
+
+.lesson-blocks h2 {
+  font-size: clamp(1.22rem, 2vw, 1.55rem);
+}
+
+.lesson-blocks h3 {
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+}
+
+.lesson-callout {
+  display: grid;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid #cad8e7;
+  border-left: 4px solid #4c78a8;
+  border-radius: 10px;
+  background: #f5f8fc;
+}
+
+.lesson-callout.is-tip {
+  border-color: #b9dfca;
+  border-left-color: #218357;
+  background: #f2fbf6;
+}
+
+.lesson-callout.is-warning {
+  border-color: #f0d19b;
+  border-left-color: #bf7415;
+  background: #fff8eb;
+}
+
+.lesson-media-block {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.lesson-media-block img,
+.lesson-media-block video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  border-radius: 12px;
+  background: #eef1f4;
+  object-fit: contain;
+}
+
+.lesson-media-block figcaption {
+  color: #5e6976;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.lesson-audio-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #d9dfe6;
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.lesson-audio-block audio {
+  width: 100%;
+}
+
+.lesson-file-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #d9dfe6;
+  border-radius: 10px;
+  color: inherit;
+  background: #fff;
+  text-decoration: none;
+}
+
+.lesson-file-block:hover {
+  border-color: #91a7bf;
+  background: #f8fafc;
+}
+
+.lesson-file-block > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.lesson-file-block strong,
+.lesson-file-block small {
+  overflow-wrap: anywhere;
+}
+
+.lesson-file-block small {
+  color: #657180;
+}
+
+.lesson-blocks.is-compact {
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.lesson-blocks.is-compact .lesson-media-block img,
+.lesson-blocks.is-compact .lesson-media-block video {
+  max-height: 260px;
+}
+
+@media (max-width: 640px) {
+  .lesson-blocks {
+    gap: 12px;
+  }
+
+  .lesson-media-block img,
+  .lesson-media-block video {
+    max-height: 360px;
+    border-radius: 9px;
+  }
+}

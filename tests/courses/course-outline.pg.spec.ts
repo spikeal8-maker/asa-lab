@@ -39,6 +39,119 @@ afterAll(async () => {
 });
 
 describe('course outline persistence', () => {
+  it('freezes structured lesson blocks and carries them into a learner run', async () => {
+    const blockTeacher = await seedTeacher(admin, 'course-rich-blocks');
+    const blockIdentity = await identityFor(blockTeacher);
+    await admin.query(
+      `INSERT INTO teacher_assignments
+         (tenant_id, owner_principal_id, title, brief, module_key, visibility)
+       VALUES ($1, $2, 'Опорный материал', 'Для определения школы курса',
+               'electronics', 'private')`,
+      [blockTeacher.tenantId, blockIdentity.principalId],
+    );
+    const created = await admin.query(
+      `SELECT course_save($1, NULL, 'Мультимедийный курс', 'Проверка блоков', NULL, 'private') AS id`,
+      [blockIdentity.principalId],
+    );
+    const courseId = created.rows[0].id as string;
+    const section = await admin.query(
+      `SELECT section_id FROM course_outline_v2($1, $2, $3, $4) LIMIT 1`,
+      [courseId, blockIdentity.principalId, blockIdentity.accountId, blockTeacher.tenantId],
+    );
+    const sectionId = section.rows[0].section_id as string;
+    const publishedBlocks = [
+      { id: 'heading', type: 'heading', level: 2, text: 'Знакомство со схемой' },
+      { id: 'intro', type: 'paragraph', text: 'Посмотрите на расположение деталей.' },
+      { id: 'tip', type: 'callout', tone: 'tip', text: 'Начните с источника питания.' },
+      {
+        id: 'diagram',
+        type: 'image',
+        url: 'https://cdn.example.test/circuit.png',
+        alt: 'Схема цепи',
+        caption: 'Пример готовой схемы',
+      },
+    ];
+    const lesson = await admin.query(
+      `SELECT course_lesson_save_v2(
+          $1, $2, $3, NULL, 'Как читать схему', NULL, $4::jsonb,
+          'material', NULL, 15
+       ) AS id`,
+      [blockIdentity.principalId, courseId, sectionId, JSON.stringify(publishedBlocks)],
+    );
+    const lessonId = lesson.rows[0].id as string;
+    expect(lessonId).toBeTruthy();
+
+    const published = await admin.query(`SELECT * FROM course_publish($1, $2)`, [
+      blockIdentity.principalId,
+      courseId,
+    ]);
+    expect(published.rows[0]).toMatchObject({ version_number: 1, reused: false });
+    const versionId = published.rows[0].version_id as string;
+    const frozen = await admin.query(
+      `SELECT outline ->> 'schemaVersion' AS schema_version,
+              outline #> '{sections,0,lessons,0,blocks}' AS blocks
+         FROM course_versions WHERE id = $1`,
+      [versionId],
+    );
+    expect(frozen.rows[0]).toEqual({ schema_version: '2', blocks: publishedBlocks });
+
+    const changedBlocks = [
+      { id: 'changed', type: 'paragraph', text: 'Текст для следующей версии.' },
+    ];
+    await admin.query(
+      `SELECT course_lesson_save_v2(
+          $1, $2, $3, $4, 'Как читать схему', NULL, $5::jsonb,
+          'material', NULL, 15
+       )`,
+      [blockIdentity.principalId, courseId, sectionId, lessonId, JSON.stringify(changedBlocks)],
+    );
+
+    const classroom = await admin.query(
+      `INSERT INTO classrooms
+         (tenant_id, school_id, academic_period_id, title, created_by)
+       VALUES ($1, $2, $3, '8Б Медиа', $4) RETURNING id`,
+      [blockTeacher.tenantId, blockTeacher.schoolId, blockTeacher.periodId, blockTeacher.teacherId],
+    );
+    const classroomId = classroom.rows[0].id as string;
+    await admin.query(
+      `INSERT INTO classroom_memberships
+         (tenant_id, classroom_id, user_id, account_id, member_role)
+       VALUES ($1, $2, $3, $4, 'owner')`,
+      [blockTeacher.tenantId, classroomId, blockTeacher.teacherId, blockIdentity.accountId],
+    );
+    const seat = await admin.query(
+      `INSERT INTO classroom_student_seats
+         (tenant_id, classroom_id, display_label, login_handle,
+          normalized_login_handle, safe_mode, status, created_by)
+       VALUES ($1, $2, 'Илья', 'ilya-rich', 'ilya-rich', true, 'active', $3)
+       RETURNING id`,
+      [blockTeacher.tenantId, classroomId, blockTeacher.teacherId],
+    );
+    const assigned = await admin.query(
+      `SELECT * FROM classroom_course_run_assign_v2($1, $2, $3, NULL)`,
+      [blockIdentity.principalId, classroomId, courseId],
+    );
+    expect(assigned.rows[0]).toMatchObject({ version_number: 1, reused: false });
+    const run = await admin.query(
+      `SELECT lesson_blocks FROM classroom_course_runs_for_seat_v2($1)`,
+      [seat.rows[0].id],
+    );
+    expect(run.rows[0].lesson_blocks).toEqual(publishedBlocks);
+
+    const draft = await admin.query(
+      `SELECT lesson_blocks FROM course_outline_v2($1, $2, $3, $4)
+        WHERE lesson_id = $5`,
+      [
+        courseId,
+        blockIdentity.principalId,
+        blockIdentity.accountId,
+        blockTeacher.tenantId,
+        lessonId,
+      ],
+    );
+    expect(draft.rows[0].lesson_blocks).toEqual(changedBlocks);
+  });
+
   it('creates a sectioned course, keeps the compatibility index and copies the outline', async () => {
     const assignment = await admin.query(
       `INSERT INTO teacher_assignments

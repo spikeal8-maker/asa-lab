@@ -82,6 +82,7 @@ interface SeatCourseRunRow {
   lesson_title: string;
   lesson_summary: string | null;
   lesson_content: string | null;
+  lesson_blocks: Array<Record<string, unknown>>;
   lesson_kind: 'material' | 'assignment';
   estimated_minutes: number | string | null;
   lesson_position: number | string;
@@ -128,6 +129,7 @@ function seatCourseRuns(rows: SeatCourseRunRow[]) {
         title: string;
         summary: string | null;
         content: string | null;
+        blocks: Array<Record<string, unknown>>;
         kind: 'material' | 'assignment';
         estimatedMinutes: number | null;
         position: number;
@@ -180,6 +182,7 @@ function seatCourseRuns(rows: SeatCourseRunRow[]) {
       title: row.lesson_title,
       summary: row.lesson_summary,
       content: row.lesson_content,
+      blocks: row.lesson_blocks,
       kind: row.lesson_kind,
       estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
       position: Number(row.lesson_position),
@@ -610,11 +613,11 @@ export class ClassroomJoinController {
       `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
               section_title, section_summary, section_position, lesson_title, lesson_summary,
-              lesson_content, lesson_kind, estimated_minutes, lesson_position,
+              lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
               classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
               module_key, sample_image, project_id, submitted_at, snapshot_revision,
               work_updated_at, completed_at
-         FROM classroom_course_runs_for_seat($1)`,
+         FROM classroom_course_runs_for_seat_v2($1)`,
       [seat.seat_id],
     );
     return { items: seatCourseRuns(result.rows as SeatCourseRunRow[]) };

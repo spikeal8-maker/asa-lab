@@ -216,11 +216,21 @@ export interface CourseItem {
   position: number;
 }
 
+export type LessonBlock =
+  | { id: string; type: 'paragraph'; text: string }
+  | { id: string; type: 'heading'; text: string; level: 2 | 3 }
+  | { id: string; type: 'callout'; text: string; tone: 'note' | 'tip' | 'warning' }
+  | { id: string; type: 'image'; url: string; alt: string; caption: string }
+  | { id: string; type: 'video'; url: string; title: string }
+  | { id: string; type: 'audio'; url: string; title: string }
+  | { id: string; type: 'file'; url: string; label: string };
+
 export interface CourseLesson {
   id: string;
   title: string;
   summary: string | null;
   content: string | null;
+  blocks: LessonBlock[];
   kind: 'material' | 'assignment';
   assignmentId: string | null;
   assignmentTitle: string | null;
@@ -242,6 +252,7 @@ export interface CourseLessonInput {
   title: string;
   summary: string | null;
   content: string | null;
+  blocks: LessonBlock[];
   kind: 'material' | 'assignment';
   assignmentId: string | null;
   estimatedMinutes: number | null;
@@ -253,6 +264,7 @@ export interface ClassroomCourseRunLesson {
   title: string;
   summary: string | null;
   content: string | null;
+  blocks: LessonBlock[];
   kind: 'material' | 'assignment';
   estimatedMinutes: number | null;
   position: number;

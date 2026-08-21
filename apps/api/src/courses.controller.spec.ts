@@ -152,6 +152,7 @@ describe('course outline API', () => {
         lesson_title: 'Светодиод и резистор',
         lesson_summary: 'Первая схема',
         lesson_content: null,
+        lesson_blocks: [],
         lesson_kind: 'assignment',
         estimated_minutes: '25',
         lesson_position: '1',
@@ -231,6 +232,7 @@ describe('course outline API', () => {
         lesson_title: 'Зачем нужен резистор',
         lesson_summary: 'Разбираем роль сопротивления',
         lesson_content: 'Короткое объяснение.',
+        lesson_blocks: [{ id: 'intro', type: 'paragraph', text: 'Короткое объяснение.' }],
         lesson_kind: 'assignment',
         lesson_assignment_id: ASSIGNMENT_ID,
         assignment_title: 'Светодиод и резистор',
@@ -247,6 +249,7 @@ describe('course outline API', () => {
         lesson_title: null,
         lesson_summary: null,
         lesson_content: null,
+        lesson_blocks: null,
         lesson_kind: null,
         lesson_assignment_id: null,
         assignment_title: null,
@@ -318,10 +321,65 @@ describe('course outline API', () => {
       null,
       'Практика',
       'Соберите схему',
-      null,
+      '[]',
       'assignment',
       ASSIGNMENT_ID,
       25,
     ]);
+  });
+
+  it('saves structured lesson blocks and rejects unsafe media URLs', async () => {
+    const target = controller([{ id: LESSON_ID }]);
+    const blocks = [
+      { id: 'heading', type: 'heading', level: 2, text: 'Что мы построим' },
+      { id: 'tip', type: 'callout', tone: 'tip', text: 'Сначала проверьте полярность.' },
+      {
+        id: 'diagram',
+        type: 'image',
+        url: 'https://cdn.example.test/diagram.png',
+        alt: 'Схема подключения',
+        caption: '',
+      },
+    ];
+
+    await expect(
+      target.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Разбор схемы',
+        summary: null,
+        content: null,
+        blocks,
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: 12,
+      }),
+    ).resolves.toEqual({ id: LESSON_ID });
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save_v2'), [
+      'principal-id',
+      COURSE_ID,
+      SECTION_ID,
+      null,
+      'Разбор схемы',
+      null,
+      JSON.stringify(blocks),
+      'material',
+      null,
+      12,
+    ]);
+
+    const unsafe = controller();
+    await expect(
+      unsafe.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Опасная ссылка',
+        summary: null,
+        content: null,
+        blocks: [{ id: 'video', type: 'video', url: 'javascript:alert(1)', title: '' }],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(unsafe.query).not.toHaveBeenCalled();
   });
 });

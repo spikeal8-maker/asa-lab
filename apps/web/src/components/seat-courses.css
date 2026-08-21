@@ -108,6 +108,23 @@
   font-size: 11px;
 }
 
+.seat-course-progress {
+  width: min(360px, 100%);
+  height: 5px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e3eaee;
+}
+
+.seat-course-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #19865f;
+  transition: width 180ms ease;
+}
+
 .seat-course-layout {
   display: grid;
   grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);

@@ -6,9 +6,12 @@ import {
   type CourseLesson,
   type CourseLessonInput,
   type CourseSection,
+  type LessonBlock,
   type LibraryAssignment,
 } from '../api';
 import { Dropdown } from './Dropdown';
+import { LessonBlockEditor, lessonBlocksValid } from './LessonBlockEditor';
+import { LessonBlocks } from './LessonBlocks';
 import { ShareDialog } from './ShareDialog';
 import './courses-panel.css';
 
@@ -184,7 +187,11 @@ function LessonEditor({
   const [targetSection, setTargetSection] = useState(sectionId);
   const [title, setTitle] = useState(lesson?.title ?? '');
   const [summary, setSummary] = useState(lesson?.summary ?? '');
-  const [content, setContent] = useState(lesson?.content ?? '');
+  const [blocks, setBlocks] = useState<LessonBlock[]>(() => {
+    if (lesson?.blocks.length) return lesson.blocks;
+    if (lesson?.content) return [{ id: 'legacy', type: 'paragraph', text: lesson.content }];
+    return lesson ? [] : [{ id: 'intro', type: 'paragraph', text: '' }];
+  });
   const [kind, setKind] = useState<'material' | 'assignment'>(lesson?.kind ?? 'material');
   const [assignmentId, setAssignmentId] = useState(lesson?.assignmentId ?? '');
   const [minutes, setMinutes] = useState(
@@ -195,7 +202,10 @@ function LessonEditor({
   const [saving, setSaving] = useState(false);
   const activeAssignments = assignments.filter((entry) => entry.archivedAt === null);
   const valid =
-    title.trim().length > 0 && (kind === 'material' || assignmentId.length > 0) && !saving;
+    title.trim().length > 0 &&
+    (kind === 'material' || assignmentId.length > 0) &&
+    lessonBlocksValid(blocks) &&
+    !saving;
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -206,7 +216,8 @@ function LessonEditor({
         sectionId: targetSection,
         title: title.trim(),
         summary: summary.trim() || null,
-        content: content.trim() || null,
+        content: null,
+        blocks,
         kind,
         assignmentId: kind === 'assignment' ? assignmentId : null,
         estimatedMinutes: minutes ? Number(minutes) : null,
@@ -298,20 +309,7 @@ function LessonEditor({
         </label>
       ) : null}
 
-      <label className="course-field">
-        <span>{kind === 'assignment' ? 'Пояснение перед заданием' : 'Материал урока'}</span>
-        <textarea
-          value={content}
-          maxLength={12000}
-          rows={kind === 'assignment' ? 6 : 12}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder={
-            kind === 'assignment'
-              ? 'Подготовьте ученика: что повторить и на что обратить внимание'
-              : 'Напишите объяснение. Изображения, видео и файлы будут добавляться как отдельные блоки.'
-          }
-        />
-      </label>
+      <LessonBlockEditor blocks={blocks} onChange={setBlocks} />
 
       <label className="course-field course-duration-field">
         <span>Примерное время, минут</span>
@@ -370,9 +368,7 @@ function CoursePreview({
                       {lesson.estimatedMinutes ? ' · ' + lesson.estimatedMinutes + ' мин' : ''}
                     </small>
                     {lesson.summary ? <p>{lesson.summary}</p> : null}
-                    {lesson.content ? (
-                      <p className="course-preview-content">{lesson.content}</p>
-                    ) : null}
+                    <LessonBlocks blocks={lesson.blocks} legacyContent={lesson.content} compact />
                     {lesson.assignmentTitle ? (
                       <div className="course-preview-assignment">
                         <span>Задание</span>

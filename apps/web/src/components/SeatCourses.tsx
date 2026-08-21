@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type SeatAssignment, type SeatCourseRun, type SeatCourseRunLesson } from '../api';
 import { newClientId } from '../client-id';
 import { AssignmentView } from './AssignmentView';
+import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
 import './seat-courses.css';
 
@@ -20,6 +21,10 @@ function assignmentShape(run: SeatCourseRun, lesson: SeatCourseRunLesson): SeatA
     snapshotRevision: lesson.snapshotRevision,
     updatedAt: lesson.updatedAt,
   };
+}
+
+function lessonComplete(lesson: SeatCourseRunLesson): boolean {
+  return lesson.kind === 'material' ? lesson.completedAt !== null : lesson.submittedAt !== null;
 }
 
 export function SeatCourses({
@@ -53,9 +58,7 @@ export function SeatCourses({
   const openLessonIndex = openLesson
     ? lessons.findIndex((lesson) => lesson.id === openLesson.id)
     : -1;
-  const completedLessonCount = lessons.filter((lesson) =>
-    lesson.kind === 'material' ? lesson.completedAt !== null : lesson.submittedAt !== null,
-  ).length;
+  const completedLessonCount = lessons.filter(lessonComplete).length;
 
   async function start(lesson: SeatCourseRunLesson): Promise<void> {
     if (!lesson.classroomAssignmentId || !lesson.moduleKey) return;
@@ -85,17 +88,18 @@ export function SeatCourses({
     onOpenProject(linked.data.projectId, lesson.moduleKey);
   }
 
-  async function markMaterial(lesson: SeatCourseRunLesson, completed: boolean): Promise<void> {
-    if (!openRun || lesson.kind !== 'material') return;
+  async function markMaterial(lesson: SeatCourseRunLesson, completed: boolean): Promise<boolean> {
+    if (!openRun || lesson.kind !== 'material') return false;
     setBusy(lesson.id);
     setError(null);
     const result = await api.setSeatCourseLessonProgress(openRun.id, lesson.id, completed);
     setBusy(null);
     if (!result.ok) {
       setError(result.error.message || 'Не удалось сохранить прогресс.');
-      return;
+      return false;
     }
     await reload();
+    return true;
   }
 
   if (runs === null || runs.length === 0) return null;
@@ -116,6 +120,20 @@ export function SeatCourses({
               Пройдено {completedLessonCount} из {lessons.length}
               {openRun.dueAt ? ` · до ${time.date(openRun.dueAt)}` : ' · без общего срока'}
             </p>
+            <div
+              className="seat-course-progress"
+              role="progressbar"
+              aria-label="Прогресс курса"
+              aria-valuemin={0}
+              aria-valuemax={lessons.length}
+              aria-valuenow={completedLessonCount}
+            >
+              <span
+                style={{
+                  width: `${lessons.length ? (completedLessonCount / lessons.length) * 100 : 0}%`,
+                }}
+              />
+            </div>
           </div>
         </header>
         {error ? <p className="form-error">{error}</p> : null}
@@ -162,9 +180,7 @@ export function SeatCourses({
             {openLesson.summary ? (
               <p className="seat-course-summary">{openLesson.summary}</p>
             ) : null}
-            {openLesson.content ? (
-              <p className="seat-course-content">{openLesson.content}</p>
-            ) : null}
+            <LessonBlocks blocks={openLesson.blocks} legacyContent={openLesson.content} />
             {assignment ? (
               <>
                 <AssignmentView
@@ -267,7 +283,13 @@ export function SeatCourses({
                 type="button"
                 className="btn-secondary"
                 disabled={openLessonIndex < 0 || openLessonIndex >= lessons.length - 1}
-                onClick={() => setOpenLessonId(lessons[openLessonIndex + 1]?.id ?? null)}
+                onClick={async () => {
+                  if (openLesson.kind === 'material' && !openLesson.completedAt) {
+                    const saved = await markMaterial(openLesson, true);
+                    if (!saved) return;
+                  }
+                  setOpenLessonId(lessons[openLessonIndex + 1]?.id ?? null);
+                }}
               >
                 Далее →
               </button>
@@ -297,7 +319,9 @@ export function SeatCourses({
                 type="button"
                 onClick={() => {
                   setOpenRunId(run.id);
-                  setOpenLessonId(lessons[0]?.id ?? null);
+                  setOpenLessonId(
+                    lessons.find((lesson) => !lessonComplete(lesson))?.id ?? lessons[0]?.id ?? null,
+                  );
                 }}
               >
                 <span className="classroom-course-mark">{run.title.slice(0, 1).toUpperCase()}</span>

@@ -34,6 +34,87 @@ import { checkBodyShape } from './validation.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const VISIBILITY = new Set(['private', 'teachers', 'school', 'public']);
+const BLOCK_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
+const BLOCK_TYPES = new Set(['paragraph', 'heading', 'callout', 'image', 'video', 'audio', 'file']);
+const ASSET_URL_PATTERN = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
+
+type LessonBlock = Record<string, unknown> & { id: string; type: string };
+
+function safeLessonUrl(value: string): boolean {
+  return value.startsWith('https://') || (ASSET_URL_PATTERN.test(value) && !value.includes('..'));
+}
+
+function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[] | null {
+  const value =
+    raw === undefined
+      ? legacyContent
+        ? [{ id: 'legacy', type: 'paragraph', text: legacyContent }]
+        : []
+      : raw;
+  if (!Array.isArray(value) || value.length > 40) return null;
+  if (JSON.stringify(value).length > 60_000) return null;
+  const ids = new Set<string>();
+
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
+    const block = candidate as Record<string, unknown>;
+    if (
+      typeof block['id'] !== 'string' ||
+      !BLOCK_ID_PATTERN.test(block['id']) ||
+      ids.has(block['id']) ||
+      typeof block['type'] !== 'string' ||
+      !BLOCK_TYPES.has(block['type'])
+    )
+      return null;
+    ids.add(block['id']);
+    const text = block['text'];
+    const url = block['url'];
+    if (block['type'] === 'paragraph' && (typeof text !== 'string' || text.length > 12_000)) {
+      return null;
+    }
+    if (
+      block['type'] === 'heading' &&
+      (typeof text !== 'string' ||
+        text.trim().length === 0 ||
+        text.length > 300 ||
+        (block['level'] !== 2 && block['level'] !== 3))
+    )
+      return null;
+    if (
+      block['type'] === 'callout' &&
+      (typeof text !== 'string' ||
+        text.trim().length === 0 ||
+        text.length > 3_000 ||
+        !['note', 'tip', 'warning'].includes(String(block['tone'])))
+    )
+      return null;
+    if (['image', 'video', 'audio', 'file'].includes(String(block['type']))) {
+      if (typeof url !== 'string' || url.length > 2_000 || !safeLessonUrl(url)) return null;
+    }
+    if (
+      block['type'] === 'image' &&
+      ((block['alt'] !== undefined && typeof block['alt'] !== 'string') ||
+        String(block['alt'] ?? '').length > 300 ||
+        (block['caption'] !== undefined && typeof block['caption'] !== 'string') ||
+        String(block['caption'] ?? '').length > 600)
+    )
+      return null;
+    if (
+      ['video', 'audio'].includes(String(block['type'])) &&
+      ((block['title'] !== undefined && typeof block['title'] !== 'string') ||
+        String(block['title'] ?? '').length > 300)
+    )
+      return null;
+    if (
+      block['type'] === 'file' &&
+      (typeof block['label'] !== 'string' ||
+        block['label'].trim().length === 0 ||
+        block['label'].length > 300)
+    )
+      return null;
+  }
+  return value as LessonBlock[];
+}
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
   return { error: { code, message } };
@@ -89,6 +170,7 @@ interface ClassroomCourseRunRow {
   lesson_title: string;
   lesson_summary: string | null;
   lesson_content: string | null;
+  lesson_blocks: LessonBlock[];
   lesson_kind: 'material' | 'assignment';
   estimated_minutes: number | string | null;
   lesson_position: number | string;
@@ -128,6 +210,7 @@ function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
         title: string;
         summary: string | null;
         content: string | null;
+        blocks: LessonBlock[];
         kind: 'material' | 'assignment';
         estimatedMinutes: number | null;
         position: number;
@@ -181,6 +264,7 @@ function classroomCourseRuns(rows: ClassroomCourseRunRow[]) {
       title: row.lesson_title,
       summary: row.lesson_summary,
       content: row.lesson_content,
+      blocks: row.lesson_blocks,
       kind: row.lesson_kind,
       estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
       position: Number(row.lesson_position),
@@ -208,6 +292,7 @@ interface CourseOutlineRow {
   lesson_title: string | null;
   lesson_summary: string | null;
   lesson_content: string | null;
+  lesson_blocks: LessonBlock[] | null;
   lesson_kind: 'material' | 'assignment' | null;
   lesson_assignment_id: string | null;
   assignment_title: string | null;
@@ -414,11 +499,11 @@ export class CoursesController {
       `SELECT run_id, course_id, course_version_id, version_number, run_title, run_summary,
               due_at, run_status, published_at, started_count, submitted_count,
               lesson_id, source_lesson_id, section_title, section_summary, section_position,
-              lesson_title, lesson_summary, lesson_content, lesson_kind, estimated_minutes,
+              lesson_title, lesson_summary, lesson_content, lesson_blocks, lesson_kind, estimated_minutes,
               lesson_position, classroom_assignment_id, assignment_title, assignment_goal,
               assignment_brief, module_key, sample_image, seat_count,
               lesson_started_count, lesson_submitted_count, lesson_completed_count
-         FROM classroom_course_runs_for_teacher($1, $2)`,
+         FROM classroom_course_runs_for_teacher_v2($1, $2)`,
       [context.accountId, classroomId],
     );
     return { items: classroomCourseRuns(result.rows as ClassroomCourseRunRow[]) };
@@ -445,7 +530,7 @@ export class CoursesController {
     }
     const result = await this.requirePool().query(
       `SELECT result_code, run_id, version_number, reused
-         FROM classroom_course_run_assign($1, $2, $3, $4)`,
+         FROM classroom_course_run_assign_v2($1, $2, $3, $4)`,
       [context.principalId, classroomId, courseId, dueAt],
     );
     const row = result.rows[0] as
@@ -594,9 +679,9 @@ export class CoursesController {
     this.requireUuid(courseId, 'course');
     const result = await this.requirePool().query(
       'SELECT section_id, section_title, section_summary, section_position, ' +
-        'lesson_id, lesson_title, lesson_summary, lesson_content, lesson_kind, ' +
+        'lesson_id, lesson_title, lesson_summary, lesson_content, lesson_blocks, lesson_kind, ' +
         'lesson_assignment_id, assignment_title, module_key, estimated_minutes, ' +
-        'lesson_position FROM course_outline($1, $2, $3, $4)',
+        'lesson_position FROM course_outline_v2($1, $2, $3, $4)',
       [courseId, context.principalId, context.accountId, context.tenantId],
     );
     const rows = result.rows as CourseOutlineRow[];
@@ -614,6 +699,7 @@ export class CoursesController {
         title: string;
         summary: string | null;
         content: string | null;
+        blocks: LessonBlock[];
         kind: 'material' | 'assignment';
         assignmentId: string | null;
         assignmentTitle: string | null;
@@ -640,6 +726,7 @@ export class CoursesController {
           title: row.lesson_title,
           summary: row.lesson_summary,
           content: row.lesson_content,
+          blocks: row.lesson_blocks ?? [],
           kind: row.lesson_kind,
           assignmentId: row.lesson_assignment_id,
           assignmentTitle: row.assignment_title,
@@ -773,6 +860,7 @@ export class CoursesController {
       'title',
       'summary',
       'content',
+      'blocks',
       'kind',
       'assignmentId',
       'estimatedMinutes',
@@ -782,6 +870,7 @@ export class CoursesController {
     const title = String(shape.body['title'] ?? '').trim();
     const summary = shape.body['summary'] ?? null;
     const content = shape.body['content'] ?? null;
+    const blocks = lessonBlocks(shape.body['blocks'], typeof content === 'string' ? content : null);
     const kind = String(shape.body['kind'] ?? 'material');
     const assignmentId = shape.body['assignmentId'] ?? null;
     const rawMinutes = shape.body['estimatedMinutes'] ?? null;
@@ -795,6 +884,12 @@ export class CoursesController {
     }
     if (content !== null && (typeof content !== 'string' || content.length > 12_000)) {
       throw new HttpException(error('validation_error', 'Материал урока слишком длинный.'), 400);
+    }
+    if (blocks === null) {
+      throw new HttpException(
+        error('validation_error', 'Проверьте блоки урока и ссылки на материалы.'),
+        400,
+      );
     }
     if (kind !== 'material' && kind !== 'assignment') {
       throw new HttpException(error('validation_error', 'Неизвестный тип урока.'), 400);
@@ -818,7 +913,7 @@ export class CoursesController {
     }
 
     const result = await this.requirePool().query(
-      'SELECT course_lesson_save($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS id',
+      'SELECT course_lesson_save_v2($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS id',
       [
         context.principalId,
         courseId,
@@ -826,7 +921,7 @@ export class CoursesController {
         lessonId,
         title,
         summary,
-        content,
+        JSON.stringify(blocks),
         kind,
         kind === 'assignment' ? assignmentId : null,
         estimatedMinutes,

@@ -9,6 +9,7 @@ import {
 } from '../api';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { AssignmentView } from './AssignmentView';
+import { LessonBlocks } from './LessonBlocks';
 import { WorkPreview } from './WorkPreview';
 import { useSchoolTime } from './school-time';
 import './classroom-courses.css';
@@ -259,7 +260,7 @@ export function ClassroomCourses({
                   <div>
                     <strong>{lesson.title}</strong>
                     {lesson.summary ? <p>{lesson.summary}</p> : null}
-                    {lesson.content ? <p className="course-run-content">{lesson.content}</p> : null}
+                    <LessonBlocks blocks={lesson.blocks} legacyContent={lesson.content} compact />
                     {lesson.kind === 'assignment' ? (
                       <div className="classroom-course-assignment-summary">
                         <span>
