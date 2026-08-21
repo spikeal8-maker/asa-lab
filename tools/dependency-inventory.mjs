@@ -12,6 +12,9 @@ const ALLOWED_LICENSES = new Set([
   'MIT',
   'ISC',
   'Apache-2.0',
+  // Legacy package metadata spelling used by @blockly/field-grid-dropdown;
+  // semantically the same Apache License 2.0 as the SPDX identifier above.
+  'Apache 2.0',
   'BSD-2-Clause',
   'BSD-3-Clause',
   '0BSD',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { PublicUser, SchematicComponent, SchematicDocument } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
@@ -23,6 +23,12 @@ import {
   SNAPSHOT_WIDTH,
 } from '../modules/project-snapshot';
 import { rasteriseSvgStage } from '../modules/svg-snapshot';
+
+const ArduinoCodePanel = lazy(() =>
+  import('../electronics/ArduinoCodePanel').then((module) => ({
+    default: module.ArduinoCodePanel,
+  })),
+);
 
 function SchematicSymbol({ component }: { component: SchematicComponent }): JSX.Element {
   const commonLabel = (
@@ -434,6 +440,7 @@ export function SchematicEditor({
         view={view}
         onViewChange={setView}
         notesOpen={notesOpen}
+        codeOpen={codeOpen}
         onToggleNotes={() => setNotesOpen((value) => !value)}
         onToggleCode={() => setCodeOpen((value) => !value)}
         onOpenShare={() => setShareOpen(true)}
@@ -457,7 +464,19 @@ export function SchematicEditor({
             onClose={() => setNotesOpen(false)}
           />
         ) : null}
-        {codeOpen ? <SidePanel kind="code" title="Код" onClose={() => setCodeOpen(false)} /> : null}
+        {codeOpen ? (
+          <Suspense
+            fallback={
+              <section className="arduino-code-panel empty" aria-label="Редактор кода Arduino">
+                <div className="arduino-code-empty-state">
+                  <strong>Открываем редактор кода…</strong>
+                </div>
+              </section>
+            }
+          >
+            <ArduinoCodePanel controller={controller} />
+          </Suspense>
+        ) : null}
       </div>
       {shareOpen ? (
         <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />

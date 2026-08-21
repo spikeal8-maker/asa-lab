@@ -7,7 +7,13 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import type { ComponentResult, Diagnostic, SchematicComponent, Terminal } from '../api';
+import type {
+  ComponentResult,
+  Diagnostic,
+  ProductionStateValue,
+  SchematicComponent,
+  Terminal,
+} from '../api';
 import {
   catalogEntry,
   componentPointPosition,
@@ -549,6 +555,28 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!document) return;
     const next = updateSelectionProperties(document, selection, properties);
     if (next) commitDocument(next, message);
+  }
+
+  function updateArduinoProgram(
+    componentId: string,
+    properties: Readonly<Record<string, ProductionStateValue>>,
+  ): void {
+    if (!document) return;
+    const component = document.components.find((item) => item.id === componentId);
+    if (
+      !component ||
+      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
+    ) {
+      return;
+    }
+    commitDocument({
+      ...document,
+      components: document.components.map((item) =>
+        item.id === componentId
+          ? { ...item, stateProperties: { ...item.stateProperties, ...properties } }
+          : item,
+      ),
+    });
   }
 
   function setSelectedVariant(variantId: string): void {
@@ -1607,6 +1635,7 @@ export function useElectronicsWorkbench(projectId: string) {
     toggleComponentState,
     setSelectedWiper,
     setSelectedProperties,
+    updateArduinoProgram,
     setSelectedVariant,
     setWireColor,
     toggleWireRoute,

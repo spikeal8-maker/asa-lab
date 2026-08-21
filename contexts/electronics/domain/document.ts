@@ -123,10 +123,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function isStateValue(value: unknown): value is ProductionStateValue {
   return (
-    typeof value === 'string' ||
+    (typeof value === 'string' && value.length <= 500_000) ||
     typeof value === 'boolean' ||
     isFiniteNumber(value) ||
-    (Array.isArray(value) && value.length <= 32 && value.every((item) => typeof item === 'string'))
+    (Array.isArray(value) &&
+      value.length <= 32 &&
+      value.every((item) => typeof item === 'string' && item.length <= 512))
   );
 }
 
