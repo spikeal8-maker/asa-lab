@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { PublicUser, SchematicComponent, SchematicDocument } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
@@ -29,6 +29,23 @@ const ArduinoCodePanel = lazy(() =>
     default: module.ArduinoCodePanel,
   })),
 );
+
+const ARDUINO_DRAWER_STORAGE_KEY = 'asa-lab:electronics:arduino-drawer-width';
+const ARDUINO_DRAWER_MIN_WIDTH = 620;
+const ARDUINO_CIRCUIT_MIN_WIDTH = 420;
+
+function clampArduinoDrawerWidth(width: number, viewportWidth = window.innerWidth): number {
+  const maximum = Math.max(460, viewportWidth - ARDUINO_CIRCUIT_MIN_WIDTH);
+  const minimum = Math.min(ARDUINO_DRAWER_MIN_WIDTH, maximum);
+  return Math.round(Math.min(maximum, Math.max(minimum, width)));
+}
+
+function initialArduinoDrawerWidth(): number {
+  const stored = Number(localStorage.getItem(ARDUINO_DRAWER_STORAGE_KEY));
+  const preferred =
+    Number.isFinite(stored) && stored > 0 ? stored : Math.min(1040, innerWidth * 0.58);
+  return clampArduinoDrawerWidth(preferred);
+}
 
 function SchematicSymbol({ component }: { component: SchematicComponent }): JSX.Element {
   const commonLabel = (
@@ -365,9 +382,24 @@ export function SchematicEditor({
   const [showGrid] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [codePanelWidth, setCodePanelWidth] = useState(initialArduinoDrawerWidth);
   const [shareOpen, setShareOpen] = useState(false);
   const notesStorageKey = `asa-lab:electronics-notes:${projectId}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(notesStorageKey) ?? '');
+
+  useEffect(() => {
+    const clampToViewport = (): void => {
+      setCodePanelWidth((current) => clampArduinoDrawerWidth(current));
+    };
+    window.addEventListener('resize', clampToViewport);
+    return () => window.removeEventListener('resize', clampToViewport);
+  }, []);
+
+  function updateCodePanelWidth(width: number): void {
+    const next = clampArduinoDrawerWidth(width);
+    setCodePanelWidth(next);
+    localStorage.setItem(ARDUINO_DRAWER_STORAGE_KEY, String(next));
+  }
 
   // The card picture is the stage as the learner sees it, rasterised from the
   // live SVG. Project Core owns the size, the format and the schedule.
@@ -432,7 +464,12 @@ export function SchematicEditor({
       </main>
     );
   return (
-    <div className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}`}>
+    <div
+      className={`workbench-shell${controller.libraryOpen ? '' : ' library-collapsed'}${
+        codeOpen ? ' code-open' : ''
+      }`}
+      style={{ '--arduino-code-panel-width': `${codePanelWidth}px` } as CSSProperties}
+    >
       <WorkbenchHeader
         controller={controller}
         onBack={onBack}
@@ -474,7 +511,11 @@ export function SchematicEditor({
               </section>
             }
           >
-            <ArduinoCodePanel controller={controller} />
+            <ArduinoCodePanel
+              controller={controller}
+              drawerWidth={codePanelWidth}
+              onDrawerWidthChange={updateCodePanelWidth}
+            />
           </Suspense>
         ) : null}
       </div>

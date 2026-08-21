@@ -9,6 +9,10 @@ const controllerSource = readFileSync(
   resolve(electronicsRoot, 'use-electronics-workbench.ts'),
   'utf8',
 );
+const editorSource = readFileSync(
+  resolve(process.cwd(), 'apps/web/src/pages/SchematicEditor.tsx'),
+  'utf8',
+);
 const css = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('Arduino programming room contract', () => {
@@ -26,8 +30,23 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain("'blocks-text': 'Блоки с текстом'");
     expect(panelSource).toContain("text: 'Текст'");
     expect(panelSource).toContain('Закрыть редактор блоков?');
-    expect(css).toContain('.arduino-block-editor .blocklyFlyout');
+    expect(css).toContain('.arduino-block-editor .blocklyFlyoutBackground');
     expect(css).toContain('grid-template-columns: minmax(500px, 2fr) minmax(330px, 1fr)');
+  });
+
+  it('opens as a resizable side drawer without hiding the circuit or offsetting block drag', () => {
+    expect(editorSource).toContain("codeOpen ? ' code-open' : ''");
+    expect(editorSource).toContain("'--arduino-code-panel-width'");
+    expect(panelSource).toContain('DrawerResizeHandle');
+    expect(panelSource).toContain('role="separator"');
+    expect(panelSource).toContain('ARDUINO_FLYOUT_MIN_WIDTH = 330');
+    expect(panelSource).toContain('ARDUINO_FLYOUT_MAX_WIDTH = 520');
+    expect(panelSource).toContain("image.setAttribute('href', url)");
+    expect(blocksSource).not.toContain("delete definition['colour']");
+    expect(css).toContain('.workbench-shell.code-open .workbench-stage');
+    expect(css).toContain('inset: 0 0 0 auto');
+    expect(css).toContain('inset: 98px 0 0');
+    expect(css).not.toContain('transform: translate(0, 98px) !important');
   });
 
   it('offers the six measured categories and Arduino-specific blocks', () => {

@@ -2,6 +2,8 @@
   --wb-header-height: 48px;
   --wb-toolbar-height: 48px;
   --wb-library-width: 276px;
+  --arduino-code-panel-width: 1040px;
+  --arduino-flyout-width: 330px;
   min-width: 980px;
   height: 100vh;
   overflow: hidden;
@@ -427,6 +429,10 @@
   width: 100%;
   height: calc(100vh - var(--wb-header-height) - var(--wb-toolbar-height));
   overflow: hidden;
+}
+.workbench-shell.code-open .workbench-stage,
+.workbench-shell.code-open .workbench-alternate-view {
+  right: var(--arduino-code-panel-width);
 }
 .workbench-stage {
   position: absolute;
@@ -2656,25 +2662,56 @@
 .arduino-code-panel {
   position: absolute;
   z-index: 45;
-  inset: 0;
+  inset: 0 0 0 auto;
   display: flex;
-  min-width: 760px;
+  width: var(--arduino-code-panel-width);
+  min-width: 460px;
   flex-direction: column;
   overflow: hidden;
   border-top: 1px solid #d6dce1;
+  border-left: 1px solid #bdc8d0;
   background: #f7f8f9;
   box-shadow: -7px 0 20px rgba(38, 52, 63, 0.08);
   animation: arduino-code-drawer-in 180ms ease-out both;
 }
 @keyframes arduino-code-drawer-in {
   from {
-    transform: translateX(28px);
-    opacity: 0.75;
+    opacity: 0.35;
   }
   to {
-    transform: translateX(0);
     opacity: 1;
   }
+}
+.arduino-drawer-resize-handle {
+  position: absolute;
+  z-index: 120;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  touch-action: none;
+  cursor: ew-resize;
+  outline: none;
+}
+.arduino-drawer-resize-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: transparent;
+  content: '';
+  transition: background 100ms ease;
+}
+.arduino-drawer-resize-handle:hover::after,
+.arduino-drawer-resize-handle:focus-visible::after,
+html.arduino-drawer-resizing .arduino-drawer-resize-handle::after {
+  background: #1396ce;
+}
+html.arduino-drawer-resizing,
+html.arduino-drawer-resizing * {
+  cursor: ew-resize !important;
+  user-select: none !important;
 }
 .arduino-code-panel.empty {
   display: grid;
@@ -2840,7 +2877,7 @@
 }
 .arduino-scratch-host {
   position: absolute;
-  inset: 0;
+  inset: 98px 0 0;
 }
 .arduino-block-categories {
   position: absolute;
@@ -2849,7 +2886,7 @@
   left: 0;
   box-sizing: border-box;
   display: grid;
-  width: 276px;
+  width: var(--arduino-flyout-width);
   height: 98px;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: repeat(3, 1fr);
@@ -2885,9 +2922,6 @@
 }
 .arduino-block-editor .blocklySvg {
   background: #fafafa;
-}
-.arduino-block-editor .blocklyFlyout {
-  transform: translate(0, 98px) !important;
 }
 .arduino-block-editor .blocklyFlyoutBackground {
   fill: #f7f8fa;

@@ -651,22 +651,11 @@ export function registerArduinoBlocks(): void {
       colour: COMMENT,
     },
   ];
-  const colourExtensions = new Map<string, string>([
-    [OUTPUT, 'colours_motion'],
-    [INPUT, 'colours_sensing'],
-    [COMMENT, 'colours_more'],
-    [CONTROL, 'colours_control'],
-    [DATA, 'colours_operators'],
-    [VARIABLES, 'colours_data'],
-  ]);
-  for (const definition of definitions) {
-    const colour = definition['colour'];
-    const colourExtension = typeof colour === 'string' ? colourExtensions.get(colour) : undefined;
-    if (!colourExtension) continue;
-    const extensions = Array.isArray(definition['extensions']) ? definition['extensions'] : [];
-    definition['extensions'] = [...extensions, colourExtension];
-    delete definition['colour'];
-  }
+  // Keep the category colour on each Arduino block. Scratch's colour extensions
+  // resolve through the active Blockly theme; if a host restores the workspace
+  // before that theme has settled, the renderer falls back to black. An explicit
+  // colour is the stable Blockly contract and still uses the genuine Scratch
+  // shapes, fields and renderer.
   ScratchBlocks.defineBlocksWithJsonArray(definitions);
 }
 

@@ -138,7 +138,9 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(headerSource).toContain("aria-label={codeOpen ? 'Закрыть редактор кода'");
     expect(headerSource).toContain("className={`workbench-pill code${codeOpen ? ' active' : ''}`}");
-    expect(editorSource).toContain('<ArduinoCodePanel controller={controller} />');
+    expect(editorSource).toContain('<ArduinoCodePanel');
+    expect(editorSource).toContain('controller={controller}');
+    expect(editorSource).toContain('drawerWidth={codePanelWidth}');
     expect(headerSource).toContain('aria-label="Отправить — пока недоступно"');
     expect(workbenchCss).toContain('width: 222px');
     expect(workbenchCss).toContain('overflow-x: clip');

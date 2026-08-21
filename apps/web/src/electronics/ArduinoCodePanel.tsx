@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import * as ScratchBlocks from 'scratch-blocks';
 import scratchSpritesUrl from '../../node_modules/scratch-blocks/media/sprites.png?url';
 import scratchZoomInUrl from '../../node_modules/scratch-blocks/media/zoom-in.svg?url';
@@ -29,6 +39,10 @@ const CATEGORY_ITEMS: readonly {
   { id: 'comment', label: 'Замечание', colour: '#8e8e8e' },
   { id: 'variables', label: 'Переменные', colour: '#cf63cf' },
 ];
+
+const ARDUINO_FLYOUT_MIN_WIDTH = 330;
+const ARDUINO_FLYOUT_MAX_WIDTH = 520;
+const ARDUINO_WORKSPACE_MIN_WIDTH = 360;
 
 const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
   name: 'asa-arduino',
@@ -90,6 +104,7 @@ const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
 function applyScratchMediaAssets(host: HTMLElement): void {
   const setImage = (selector: string, url: string): void => {
     for (const image of host.querySelectorAll<SVGImageElement>(selector)) {
+      image.setAttribute('href', url);
       image.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
     }
   };
@@ -97,6 +112,79 @@ function applyScratchMediaAssets(host: HTMLElement): void {
   setImage('.blocklyZoomOut image', scratchZoomOutUrl);
   setImage('.blocklyZoomReset image', scratchZoomResetUrl);
   setImage('.blocklyTrash image', scratchSpritesUrl);
+}
+
+function keepWorkspaceClearOfFlyout(
+  workspace: ScratchBlocks.WorkspaceSvg,
+  flyoutWidth: number,
+): void {
+  const blocks = workspace.getTopBlocks(false);
+  if (blocks.length === 0) return;
+  const left = Math.min(...blocks.map((block) => block.getRelativeToSurfaceXY().x));
+  const target = flyoutWidth / workspace.scale + 42;
+  if (left >= target) return;
+  const shift = target - left;
+  for (const block of blocks) block.moveBy(shift, 0);
+}
+
+function DrawerResizeHandle({
+  width,
+  onWidthChange,
+}: {
+  width: number;
+  onWidthChange: (width: number) => void;
+}): JSX.Element {
+  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+
+  function stopResize(event: PointerEvent<HTMLDivElement>): void {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    document.documentElement.classList.remove('arduino-drawer-resizing');
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const step = event.shiftKey ? 48 : 16;
+    onWidthChange(width + (event.key === 'ArrowLeft' ? step : -step));
+  }
+
+  return (
+    <div
+      className="arduino-drawer-resize-handle"
+      role="separator"
+      aria-label="Изменить ширину редактора кода"
+      aria-orientation="vertical"
+      aria-valuenow={Math.round(width)}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        dragRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startWidth: width,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        document.documentElement.classList.add('arduino-drawer-resizing');
+        event.preventDefault();
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        onWidthChange(drag.startWidth + drag.startX - event.clientX);
+      }}
+      onPointerUp={stopResize}
+      onPointerCancel={stopResize}
+      onLostPointerCapture={() => {
+        dragRef.current = null;
+        document.documentElement.classList.remove('arduino-drawer-resizing');
+      }}
+    />
+  );
 }
 
 const MODE_LABELS: Record<ArduinoCodeMode, string> = {
@@ -144,17 +232,21 @@ function ChevronDown(): JSX.Element {
 function ScratchWorkspace({
   initialWorkspace,
   category,
+  flyoutWidth,
   onChange,
 }: {
   initialWorkspace: string;
   category: ArduinoBlockCategory;
+  flyoutWidth: number;
   onChange: (workspaceJson: string, source: string) => void;
 }): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<ScratchBlocks.WorkspaceSvg | null>(null);
   const changeRef = useRef(onChange);
+  const flyoutWidthRef = useRef(flyoutWidth);
   const timerRef = useRef<number | null>(null);
   changeRef.current = onChange;
+  flyoutWidthRef.current = flyoutWidth;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -177,7 +269,15 @@ function ScratchWorkspace({
       },
       move: { scrollbars: true, drag: true, wheel: true },
     });
-    applyScratchMediaAssets(host);
+    const flyout = workspace.getFlyout() as
+      (ScratchBlocks.VerticalFlyout & { getWidth: () => number; reflow: () => void }) | null;
+    if (flyout) {
+      Object.defineProperty(flyout, 'getWidth', {
+        configurable: true,
+        value: () => flyoutWidthRef.current,
+      });
+      flyout.reflow();
+    }
     workspaceRef.current = workspace;
     let loaded = false;
     if (initialWorkspace) {
@@ -189,6 +289,12 @@ function ScratchWorkspace({
       }
     }
     if (!loaded) createDefaultArduinoBlocks(workspace);
+    keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
+
+    const assetFrame = window.requestAnimationFrame(() => {
+      applyScratchMediaAssets(host);
+      ScratchBlocks.svgResize(workspace);
+    });
 
     const publish = (): void => {
       const state = ScratchBlocks.serialization.workspaces.save(workspace);
@@ -205,6 +311,7 @@ function ScratchWorkspace({
     resizeObserver.observe(host);
     return () => {
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      window.cancelAnimationFrame(assetFrame);
       resizeObserver.disconnect();
       workspace.removeChangeListener(listener);
       workspace.dispose();
@@ -218,7 +325,16 @@ function ScratchWorkspace({
     const workspace = workspaceRef.current;
     if (!workspace) return;
     workspace.updateToolbox(toolboxForCategory(category));
+    workspace.getFlyout()?.reflow();
+    ScratchBlocks.svgResize(workspace);
   }, [category]);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    workspace.getFlyout()?.reflow();
+    ScratchBlocks.svgResize(workspace);
+  }, [flyoutWidth]);
 
   return (
     <div className="arduino-scratch-host" ref={hostRef} data-testid="arduino-block-workspace" />
@@ -393,8 +509,12 @@ function SerialMonitor({
 
 export function ArduinoCodePanel({
   controller: c,
+  drawerWidth,
+  onDrawerWidthChange,
 }: {
   controller: ElectronicsWorkbenchController;
+  drawerWidth: number;
+  onDrawerWidthChange: (width: number) => void;
 }): JSX.Element {
   const boards = useMemo(
     () => c.document?.components.filter(isArduino) ?? [],
@@ -408,6 +528,10 @@ export function ArduinoCodePanel({
       : undefined;
   const [boardId, setBoardId] = useState(() => preferredBoard?.id ?? boards[0]?.id ?? '');
   const selectedBoard = boards.find((board) => board.id === boardId) ?? boards[0];
+  const flyoutWidth = Math.min(
+    ARDUINO_FLYOUT_MAX_WIDTH,
+    Math.max(ARDUINO_FLYOUT_MIN_WIDTH, drawerWidth - ARDUINO_WORKSPACE_MIN_WIDTH),
+  );
   const [program, setProgram] = useState<ArduinoProgramState>(() =>
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
@@ -488,6 +612,7 @@ export function ArduinoCodePanel({
   if (!selectedBoard) {
     return (
       <section className="arduino-code-panel empty" aria-label="Редактор кода Arduino">
+        <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
         <div className="arduino-code-empty-state">
           <strong>Добавьте Arduino Uno R3</strong>
           <p>После добавления платы здесь появятся Scratch-блоки, C++ и монитор порта.</p>
@@ -497,7 +622,12 @@ export function ArduinoCodePanel({
   }
 
   return (
-    <section className="arduino-code-panel" aria-label="Редактор кода Arduino">
+    <section
+      className="arduino-code-panel"
+      aria-label="Редактор кода Arduino"
+      style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
+    >
+      <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
       <header className="arduino-code-toolbar">
         <details className="arduino-mode-menu" ref={modeMenuRef}>
           <summary>
@@ -578,6 +708,7 @@ export function ArduinoCodePanel({
               key={selectedBoard.id}
               initialWorkspace={program.workspaceJson}
               category={category}
+              flyoutWidth={flyoutWidth}
               onChange={(workspaceJson, source) => updateProgram({ workspaceJson, source })}
             />
           </div>
