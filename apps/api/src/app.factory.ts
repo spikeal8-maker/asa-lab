@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { basename, join, resolve, sep } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
@@ -34,6 +34,7 @@ import { MutationAbuseProtection } from './abuse-protection.js';
 // matched before this was tightened. A build hash that happens to contain a
 // hyphen simply falls back to revalidation, which is the safe direction to err.
 const HASHED_ASSET = /-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$/;
+const FILE_LIKE_PATH = /\.[A-Za-z0-9]+$/;
 
 const SECURITY_HEADERS = {
   'Content-Security-Policy': [
@@ -247,26 +248,65 @@ export async function createApiApp(
   if (webDist && existsSync(join(webDist, 'index.html'))) {
     await fastify.register(fastifyStatic, {
       root: webDist,
-      wildcard: false,
+      // `sendFile` below resolves files at request time. Enumerating the build
+      // directory here would make a running server unaware of newly built
+      // hashed chunks until it was restarted.
+      serve: false,
       cacheControl: false,
       setHeaders: applyCacheControl,
     });
-    const indexHtml = readFileSync(join(webDist, 'index.html'), 'utf8');
-    // SPA fallback as a lowest-priority wildcard route. API/health misses stay
-    // JSON 404 responses rather than accidentally returning index.html.
-    fastify.get('/*', async (request, reply) => {
+    const resolvedWebDist = resolve(webDist);
+
+    const sendWebRequest = async (request: FastifyRequest, reply: FastifyReply) => {
       const url = request.raw.url ?? '/';
-      if (url.startsWith('/api') || url.startsWith('/health')) {
+      const pathname = url.split('?')[0] ?? '/';
+      if (pathname.startsWith('/api') || pathname.startsWith('/health')) {
         await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
         return;
       }
-      // The entry document names the hashed chunks, so it must never be held:
-      // a cached index.html would point at files a deploy has already replaced.
-      await reply
-        .header('Cache-Control', 'no-cache')
-        .type('text/html; charset=utf-8')
-        .send(indexHtml);
-    });
+
+      let relativePath: string;
+      try {
+        relativePath = decodeURIComponent(pathname).replace(/^\/+/, '');
+      } catch {
+        await reply.code(400).send({ error: { code: 'bad_path', message: 'invalid path' } });
+        return;
+      }
+
+      if (relativePath) {
+        const candidate = resolve(resolvedWebDist, relativePath);
+        const insideRoot = candidate.startsWith(`${resolvedWebDist}${sep}`);
+        if (insideRoot) {
+          try {
+            if (statSync(candidate).isFile()) {
+              await reply.sendFile(relativePath);
+              return;
+            }
+          } catch {
+            // The file may legitimately disappear between two live builds.
+            // Continue into the explicit asset 404 or SPA fallback below.
+          }
+        }
+      }
+
+      // A missing script, stylesheet or image is an actual 404. Returning the
+      // SPA document with status 200 here makes browsers parse HTML as code and
+      // turns a deploy race into a blank or repeatedly reloading screen.
+      if (pathname.startsWith('/assets/') || FILE_LIKE_PATH.test(pathname)) {
+        await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
+        return;
+      }
+
+      // Browser-history routes all receive the newest index from disk. This
+      // keeps direct clean URLs and live publications in sync with the chunks
+      // that the current build produced.
+      await reply.sendFile('index.html');
+    };
+
+    fastify.get('/', sendWebRequest);
+    // SPA fallback as a lowest-priority wildcard route. API/health misses stay
+    // JSON 404 responses rather than accidentally returning index.html.
+    fastify.get('/*', sendWebRequest);
   }
 
   // The runtime launcher owns SIGINT/SIGTERM. Registering Nest shutdown hooks

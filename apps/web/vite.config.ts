@@ -75,7 +75,10 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    // Keep the previous hashed chunks during a live build. Visitors who loaded
+    // the old index just before publication can then finish loading instead of
+    // receiving a transient 404 or a white screen.
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -99,6 +102,10 @@ export default defineConfig(({ command }) => ({
     port: webPort,
     strictPort: true,
     host: '127.0.0.1',
+    // Explicit preview domains for the optional tunnel to this dev server.
+    // Production is served by the API on 4611, but keeping this allow-list
+    // makes the separate 4610 preview predictable without trusting any host.
+    allowedHosts: ['asa-lab.ru', 'www.asa-lab.ru', 'lab.asa-lab.ru'],
     proxy: {
       // The API accepts a state-changing request from exactly one origin,
       // http://127.0.0.1:<web port>, and refuses every other — localhost

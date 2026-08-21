@@ -35,6 +35,11 @@ import {
   type CreatorPortalSection,
   type CreatorPortalView,
 } from './creator-portal/navigation';
+import {
+  publicViewFromLocation,
+  publicViewToHref,
+  type PublicView,
+} from './creator-portal/public-navigation';
 import './brand/brand.css';
 import './electronics/portal.css';
 import './modules/project-hub.css';
@@ -50,32 +55,11 @@ type SessionState =
   | { kind: 'student'; session: ClassroomStudentSession }
   | { kind: 'error' };
 
-type PublicView =
-  | { kind: 'entry' }
-  | { kind: 'sign-in' }
-  | { kind: 'sign-up' }
-  | { kind: 'join-class' }
-  | { kind: 'organization-sign-in' };
-
-const PUBLIC_ROUTES: { readonly path: string; readonly view: PublicView }[] = [
-  { path: '/sign-in', view: { kind: 'sign-in' } },
-  { path: '/sign-up', view: { kind: 'sign-up' } },
-  { path: '/join-class', view: { kind: 'join-class' } },
-  { path: '/organization-sign-in', view: { kind: 'organization-sign-in' } },
-];
-
-function publicViewToHash(view: PublicView): string {
-  return `#${PUBLIC_ROUTES.find((route) => route.view.kind === view.kind)?.path ?? '/'}`;
-}
-
-function publicViewFromHash(): PublicView {
-  const path = window.location.hash.replace(/^#/, '').split('?')[0] ?? '';
-  return PUBLIC_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'entry' };
-}
-
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
-  const [publicView, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
+  const [publicView, setPublicViewState] = useState<PublicView>(() =>
+    publicViewFromLocation(window.location),
+  );
   /**
    * Сколько работ ждёт ответа во всех классах — цифра рядом с «Классами».
    *
@@ -123,8 +107,9 @@ export function App(): JSX.Element {
 
   const setPublicView = useCallback((next: PublicView) => {
     setPublicViewState(next);
-    const hash = publicViewToHash(next);
-    if (window.location.hash !== hash) window.history.pushState(null, '', hash);
+    const href = publicViewToHref(next);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (current !== href) window.history.pushState(null, '', href);
   }, []);
 
   useEffect(() => {
@@ -132,7 +117,7 @@ export function App(): JSX.Element {
       const nextView = creatorViewFromLocation(window.location);
       setViewState(nextView);
       if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
-      setPublicViewState(publicViewFromHash());
+      setPublicViewState(publicViewFromLocation(window.location));
     };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
