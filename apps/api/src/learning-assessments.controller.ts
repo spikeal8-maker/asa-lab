@@ -7,6 +7,13 @@ import { checkBodyShape } from './validation.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECISIONS = ['accepted', 'changes_requested', 'incomplete', 'excused'] as const;
+const QUESTION_TYPES = [
+  'single_choice',
+  'multiple_choice',
+  'boolean',
+  'numeric',
+  'short_text',
+] as const;
 
 function error(code: string, message: string) {
   return { error: { code, message } };
@@ -46,6 +53,335 @@ export class LearningAssessmentsController {
     if (!UUID_PATTERN.test(value)) {
       throw new HttpException(error('validation_error', `${label} is invalid`), 400);
     }
+  }
+
+  /** The answer key is accepted here but never returned by any learner route. */
+  @Post('/learning/questions')
+  async createQuestion(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireEducator(request);
+    const shape = checkBodyShape(rawBody, [
+      'type',
+      'prompt',
+      'options',
+      'correctAnswer',
+      'tolerance',
+      'maxPoints',
+      'scope',
+      'subject',
+      'ageBand',
+      'tags',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const type = shape.body['type'];
+    const prompt = shape.body['prompt'];
+    const options = shape.body['options'] ?? [];
+    const correctAnswer = shape.body['correctAnswer'];
+    const tolerance = shape.body['tolerance'] ?? 0;
+    const maxPoints = shape.body['maxPoints'] ?? 1;
+    const scope = shape.body['scope'] ?? 'school';
+    const subject = shape.body['subject'] ?? null;
+    const ageBand = shape.body['ageBand'] ?? null;
+    const tags = shape.body['tags'] ?? [];
+    if (
+      typeof type !== 'string' ||
+      !QUESTION_TYPES.includes(type as (typeof QUESTION_TYPES)[number]) ||
+      typeof prompt !== 'string' ||
+      prompt.trim().length === 0 ||
+      prompt.length > 4000 ||
+      typeof maxPoints !== 'number' ||
+      !Number.isInteger(maxPoints) ||
+      maxPoints < 1 ||
+      maxPoints > 10000 ||
+      (scope !== 'personal' && scope !== 'school') ||
+      (subject !== null && (typeof subject !== 'string' || subject.length > 80)) ||
+      (ageBand !== null && (typeof ageBand !== 'string' || ageBand.length > 32)) ||
+      !Array.isArray(tags) ||
+      tags.some((tag) => typeof tag !== 'string' || tag.length > 40)
+    ) {
+      throw new HttpException(error('validation_error', 'Проверьте параметры вопроса.'), 400);
+    }
+
+    let responseSchema: Record<string, unknown> = {};
+    let answerKey: Record<string, unknown>;
+    if (type === 'single_choice' || type === 'multiple_choice') {
+      if (
+        !Array.isArray(options) ||
+        options.length < 2 ||
+        options.length > 12 ||
+        options.some(
+          (option) =>
+            !option ||
+            typeof option !== 'object' ||
+            typeof (option as Record<string, unknown>)['id'] !== 'string' ||
+            typeof (option as Record<string, unknown>)['label'] !== 'string' ||
+            !String((option as Record<string, unknown>)['label']).trim() ||
+            String((option as Record<string, unknown>)['label']).length > 500,
+        )
+      ) {
+        throw new HttpException(error('validation_error', 'Добавьте от 2 до 12 вариантов.'), 400);
+      }
+      responseSchema = { options };
+      const optionIds = options.map((option) => String((option as Record<string, unknown>)['id']));
+      if (new Set(optionIds).size !== optionIds.length) {
+        throw new HttpException(
+          error('validation_error', 'Идентификаторы вариантов повторяются.'),
+          400,
+        );
+      }
+      if (type === 'single_choice') {
+        if (typeof correctAnswer !== 'string' || !optionIds.includes(correctAnswer)) {
+          throw new HttpException(error('validation_error', 'Выберите правильный вариант.'), 400);
+        }
+        answerKey = { value: correctAnswer };
+      } else {
+        if (
+          !Array.isArray(correctAnswer) ||
+          correctAnswer.length === 0 ||
+          correctAnswer.some((value) => typeof value !== 'string' || !optionIds.includes(value)) ||
+          new Set(correctAnswer).size !== correctAnswer.length
+        ) {
+          throw new HttpException(error('validation_error', 'Выберите правильные варианты.'), 400);
+        }
+        answerKey = { values: [...correctAnswer].sort() };
+      }
+    } else if (type === 'boolean') {
+      if (typeof correctAnswer !== 'boolean') {
+        throw new HttpException(error('validation_error', 'Укажите ответ да или нет.'), 400);
+      }
+      answerKey = { value: correctAnswer };
+    } else if (type === 'numeric') {
+      if (
+        typeof correctAnswer !== 'number' ||
+        !Number.isFinite(correctAnswer) ||
+        typeof tolerance !== 'number' ||
+        !Number.isFinite(tolerance) ||
+        tolerance < 0
+      ) {
+        throw new HttpException(
+          error('validation_error', 'Укажите число и допустимую погрешность.'),
+          400,
+        );
+      }
+      responseSchema = { input: 'number' };
+      answerKey = { value: correctAnswer, tolerance };
+    } else {
+      const accepted = Array.isArray(correctAnswer) ? correctAnswer : [correctAnswer];
+      if (
+        accepted.length === 0 ||
+        accepted.some((value) => typeof value !== 'string' || !value.trim())
+      ) {
+        throw new HttpException(
+          error('validation_error', 'Добавьте допустимый короткий ответ.'),
+          400,
+        );
+      }
+      responseSchema = { input: 'text', maxLength: 500 };
+      answerKey = { accepted };
+    }
+
+    const result = await this.requirePool().query(
+      `SELECT result_code, question_id, question_version_id
+         FROM question_version_create(
+           $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb,
+           $8, $9, $10, $11::text[]
+         )`,
+      [
+        context.principalId,
+        context.tenantId,
+        scope,
+        type,
+        JSON.stringify([{ type: 'paragraph', text: prompt.trim() }]),
+        JSON.stringify(responseSchema),
+        JSON.stringify(answerKey),
+        maxPoints,
+        subject,
+        ageBand,
+        tags,
+      ],
+    );
+    const row = result.rows[0] as
+      | { result_code: string; question_id: string | null; question_version_id: string | null }
+      | undefined;
+    if (!row || row.result_code !== 'ok' || !row.question_id || !row.question_version_id) {
+      throw new HttpException(
+        error(row?.result_code ?? 'question_failed', 'Не удалось сохранить версию вопроса.'),
+        row?.result_code === 'tenant_forbidden' ? 403 : 409,
+      );
+    }
+    return { id: row.question_id, versionId: row.question_version_id };
+  }
+
+  @Get('/learning/questions')
+  async questions(@Req() request: FastifyRequest) {
+    const context = await this.requireEducator(request);
+    const result = await this.requirePool().query(
+      `SELECT question_id, question_version_id, question_type, prompt_blocks,
+              response_schema, max_points, scope_kind, subject, age_band,
+              tags, published_at
+         FROM question_bank_list($1, $2)`,
+      [context.principalId, context.tenantId],
+    );
+    return {
+      items: result.rows.map((row) => ({
+        id: String(row['question_id']),
+        versionId: String(row['question_version_id']),
+        type: String(row['question_type']),
+        promptBlocks: row['prompt_blocks'],
+        responseSchema: row['response_schema'],
+        maxPoints: Number(row['max_points']),
+        scope: String(row['scope_kind']),
+        subject: row['subject'] ? String(row['subject']) : null,
+        ageBand: row['age_band'] ? String(row['age_band']) : null,
+        tags: row['tags'] as string[],
+        publishedAt: iso(row['published_at'] as Date | string),
+      })),
+    };
+  }
+
+  @Post('/learning/quizzes')
+  async createQuiz(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
+    const context = await this.requireEducator(request);
+    const shape = checkBodyShape(rawBody, [
+      'title',
+      'instructions',
+      'questionVersionIds',
+      'attemptLimit',
+      'timeLimitMinutes',
+      'passThreshold',
+      'feedbackReleasePolicy',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const title = shape.body['title'];
+    const instructions = shape.body['instructions'] ?? null;
+    const questionVersionIds = shape.body['questionVersionIds'];
+    const attemptLimit = shape.body['attemptLimit'] ?? 1;
+    const timeLimitMinutes = shape.body['timeLimitMinutes'] ?? null;
+    const passThreshold = shape.body['passThreshold'] ?? 60;
+    const feedbackPolicy = shape.body['feedbackReleasePolicy'] ?? 'immediate';
+    if (
+      typeof title !== 'string' ||
+      !title.trim() ||
+      title.length > 255 ||
+      (instructions !== null &&
+        (typeof instructions !== 'string' || instructions.length > 12000)) ||
+      !Array.isArray(questionVersionIds) ||
+      questionVersionIds.length === 0 ||
+      questionVersionIds.length > 100 ||
+      questionVersionIds.some((id) => typeof id !== 'string' || !UUID_PATTERN.test(id)) ||
+      typeof attemptLimit !== 'number' ||
+      !Number.isInteger(attemptLimit) ||
+      attemptLimit < 1 ||
+      attemptLimit > 20 ||
+      (timeLimitMinutes !== null &&
+        (typeof timeLimitMinutes !== 'number' ||
+          !Number.isInteger(timeLimitMinutes) ||
+          timeLimitMinutes < 1 ||
+          timeLimitMinutes > 480)) ||
+      typeof passThreshold !== 'number' ||
+      passThreshold < 0 ||
+      passThreshold > 100 ||
+      !['immediate', 'score_only', 'after_close'].includes(String(feedbackPolicy))
+    ) {
+      throw new HttpException(error('validation_error', 'Проверьте параметры теста.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT result_code, quiz_version_id, learning_activity_version_id, total_points
+         FROM quiz_version_create(
+           $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9
+         )`,
+      [
+        context.principalId,
+        context.tenantId,
+        title.trim(),
+        instructions,
+        JSON.stringify(questionVersionIds),
+        attemptLimit,
+        timeLimitMinutes,
+        Math.round(passThreshold * 100),
+        feedbackPolicy,
+      ],
+    );
+    const row = result.rows[0] as
+      | {
+          result_code: string;
+          quiz_version_id: string | null;
+          learning_activity_version_id: string | null;
+          total_points: number | string | null;
+        }
+      | undefined;
+    if (!row || row.result_code !== 'ok' || !row.quiz_version_id) {
+      throw new HttpException(
+        error(row?.result_code ?? 'quiz_failed', 'Не удалось опубликовать тест.'),
+        row?.result_code === 'tenant_forbidden' ? 403 : 409,
+      );
+    }
+    return {
+      id: row.quiz_version_id,
+      activityVersionId: row.learning_activity_version_id,
+      totalPoints: Number(row.total_points),
+    };
+  }
+
+  @Get('/learning/quizzes')
+  async quizzes(@Req() request: FastifyRequest) {
+    const context = await this.requireEducator(request);
+    const result = await this.requirePool().query(
+      `SELECT quiz_version_id, title, instructions, question_count,
+              total_points, attempt_limit, time_limit_minutes,
+              pass_threshold_basis_points, feedback_release_policy, published_at
+         FROM quiz_version_list($1, $2)`,
+      [context.principalId, context.tenantId],
+    );
+    return {
+      items: result.rows.map((row) => ({
+        id: String(row['quiz_version_id']),
+        title: String(row['title']),
+        instructions: row['instructions'] ? String(row['instructions']) : null,
+        questionCount: Number(row['question_count']),
+        totalPoints: Number(row['total_points']),
+        attemptLimit: Number(row['attempt_limit']),
+        timeLimitMinutes:
+          row['time_limit_minutes'] === null ? null : Number(row['time_limit_minutes']),
+        passThreshold: Number(row['pass_threshold_basis_points']) / 100,
+        feedbackReleasePolicy: String(row['feedback_release_policy']),
+        publishedAt: iso(row['published_at'] as Date | string),
+      })),
+    };
+  }
+
+  @Post(':classroomId/quizzes')
+  async assignQuiz(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const shape = checkBodyShape(rawBody, ['quizVersionId', 'dueAt']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const quizVersionId = shape.body['quizVersionId'];
+    const dueAt = shape.body['dueAt'] ?? null;
+    if (
+      typeof quizVersionId !== 'string' ||
+      !UUID_PATTERN.test(quizVersionId) ||
+      (dueAt !== null && (typeof dueAt !== 'string' || Number.isNaN(Date.parse(dueAt))))
+    ) {
+      throw new HttpException(error('validation_error', 'Проверьте тест и срок.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT result_code, classroom_assignment_id, reused
+         FROM classroom_quiz_assign($1, $2, $3, $4, $5)`,
+      [context.accountId, context.principalId, classroomId, quizVersionId, dueAt],
+    );
+    const row = result.rows[0] as
+      { result_code: string; classroom_assignment_id: string | null; reused: boolean } | undefined;
+    if (!row || row.result_code !== 'ok' || !row.classroom_assignment_id) {
+      throw new HttpException(
+        error(row?.result_code ?? 'quiz_assign_failed', 'Не удалось назначить тест.'),
+        404,
+      );
+    }
+    return { assignmentId: row.classroom_assignment_id, reused: row.reused };
   }
 
   /** One canonical matrix for work state, result and published grade. */

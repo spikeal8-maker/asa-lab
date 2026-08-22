@@ -1,6 +1,7 @@
 import type { ClassroomStudentSession } from '../api';
 import { SeatCourses } from '../components/SeatCourses';
 import { SeatAssignments } from '../components/SeatAssignments';
+import { SeatQuizzes } from '../components/SeatQuizzes';
 
 /**
  * A learner's class.
@@ -26,6 +27,7 @@ export function SeatClassPage({
       </header>
 
       <SeatCourses onOpenProject={onOpenProject} />
+      <SeatQuizzes />
       <SeatAssignments onOpenProject={onOpenProject} />
     </main>
   );
