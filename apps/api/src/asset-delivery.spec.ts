@@ -76,9 +76,15 @@ describe('asset delivery over HTTP', () => {
     const script = await fastify.inject({ method: 'GET', url: `/${HASHED_SCRIPT}` });
     expect(script.headers['cache-control']).toBe('public, max-age=31536000, immutable');
 
-    const document = await fastify.inject({ method: 'GET', url: '/some/spa/route' });
+    const document = await fastify.inject({
+      method: 'GET',
+      url: '/projects/project-1/electronics/edit',
+    });
     expect(document.statusCode).toBe(200);
     expect(document.headers['cache-control']).toBe('no-cache');
+
+    const unknown = await fastify.inject({ method: 'GET', url: '/some/spa/route' });
+    expect(unknown.statusCode).toBe(404);
 
     const ownerAsset = await fastify.inject({ method: 'GET', url: `/${OWNER_ASSET}` });
     expect(ownerAsset.headers['cache-control']).toBe('no-cache');
