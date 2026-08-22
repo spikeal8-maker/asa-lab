@@ -1,3 +1,5 @@
+import { fetchWithSessionRefresh } from '../session-fetch';
+
 export type AdminPermission =
   | 'administration.open'
   | 'administration.scopes.read'
@@ -173,11 +175,9 @@ export type AdminApiResult<T> =
 async function call<T>(path: string, init: RequestInit = {}): Promise<AdminApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetchWithSessionRefresh(path, {
       ...init,
       method: init.method ?? 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
       headers: {
         accept: 'application/json',
         ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),

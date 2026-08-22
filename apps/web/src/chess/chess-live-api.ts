@@ -1,3 +1,5 @@
+import { fetchWithSessionRefresh } from '../session-fetch';
+
 export type LiveColor = 'white' | 'black';
 export type LiveColorPreference = LiveColor | 'random';
 export type LiveRatingPool = 'bullet' | 'blitz' | 'rapid' | 'classical' | 'daily';
@@ -97,8 +99,7 @@ export type LiveApiResult<T> =
 async function call<T>(path: string, init?: RequestInit): Promise<LiveApiResult<T>> {
   let response: Response;
   try {
-    response = await fetch(path, {
-      credentials: 'same-origin',
+    response = await fetchWithSessionRefresh(path, {
       ...init,
       headers: {
         ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),

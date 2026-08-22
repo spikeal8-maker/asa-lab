@@ -72,6 +72,7 @@ import { SeatContextUseCase } from './seat-context.js';
 import { ProjectFeedbackService } from './project-feedback.js';
 import { BotChallengeService } from './bot-challenge.js';
 import { MaxAuthService } from './max-auth.service.js';
+import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
 
 function validationMessage(
@@ -177,6 +178,10 @@ export class AppModule {
         {
           provide: TOKENS.maxAuthService,
           useFactory: () => new MaxAuthService(requirePool()),
+        },
+        {
+          provide: TOKENS.refreshSessionService,
+          useFactory: () => new RefreshSessionService(requirePool()),
         },
         {
           provide: TOKENS.adminControlPlane,

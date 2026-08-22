@@ -33,6 +33,7 @@ import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import { leaveMaxLaunch, readMaxInitData } from './max-auth';
+import { onSessionLoggedOut } from './session-fetch';
 import {
   canUseClasses,
   creatorViewFromLocation,
@@ -104,6 +105,7 @@ export function App(): JSX.Element {
   const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
   const [adminRoute, setAdminRoute] = useState(() => isAdminLocation(window.location));
   const [adminAccess, setAdminAccess] = useState<AdminAccessState>({ kind: 'idle' });
+  const [maxVerificationDue, setMaxVerificationDue] = useState(false);
   const adminAccessRequest = useRef(0);
   const maxLaunchData = useRef<string | null>(readMaxInitData());
   const maxLaunchAttempted = useRef(false);
@@ -217,6 +219,32 @@ export function App(): JSX.Element {
     void checkSession();
   }, [checkSession]);
 
+  useEffect(
+    () =>
+      onSessionLoggedOut(() => {
+        setSession({ kind: 'anonymous' });
+        setAdminAccess({ kind: 'idle' });
+        setPublicViewState({ kind: 'entry' });
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    if (session.kind !== 'authenticated') {
+      setMaxVerificationDue(false);
+      return;
+    }
+    let cancelled = false;
+    void api.maxStatus().then((result) => {
+      if (!cancelled) {
+        setMaxVerificationDue(result.ok && result.data.available && result.data.promptDue);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
   const loadAdminAccess = useCallback(async (): Promise<void> => {
     const request = ++adminAccessRequest.current;
     if (session.kind === 'student') {
@@ -233,7 +261,10 @@ export function App(): JSX.Element {
     if (request !== adminAccessRequest.current) return;
     if (result.ok) {
       setAdminAccess({ kind: 'granted', profile: result.data });
-    } else if (result.status === 401 || result.status === 403) {
+    } else if (result.status === 401) {
+      setSession({ kind: 'anonymous' });
+      setAdminAccess({ kind: 'idle' });
+    } else if (result.status === 403) {
       setAdminAccess({ kind: 'denied' });
     } else {
       setAdminAccess({
@@ -533,6 +564,7 @@ export function App(): JSX.Element {
           seatLearner={isSeatLearner}
           classroomBadge={canManageClasses ? awaitingReview : undefined}
           unfinishedCount={unfinished}
+          maxVerificationDue={!isSeatLearner && maxVerificationDue}
           {...(session.kind === 'student'
             ? {
                 seatAvatarUrl: seatAvatar(

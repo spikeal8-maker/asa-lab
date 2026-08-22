@@ -59,6 +59,7 @@ export function PortalHeader({
   classroomBadge,
   seatAvatarUrl,
   unfinishedCount = 0,
+  maxVerificationDue = false,
   adminNavigation,
   onNavigate,
   onSessionChanged,
@@ -72,6 +73,8 @@ export function PortalHeader({
   seatAvatarUrl?: string | undefined;
   /** Assignments a learner has not handed in; 0 hides the dot. */
   unfinishedCount?: number;
+  /** Ненавязчивый индикатор после 24 часов без подтверждённого MAX. */
+  maxVerificationDue?: boolean;
   /**
    * Signed in with a class seat. The shell is the same one everyone uses; a
    * seat simply has nowhere to go in the places an account owns — a class to
@@ -275,6 +278,7 @@ export function PortalHeader({
           <summary aria-label={`Меню аккаунта ${session.user.displayName}`}>
             <span className="portal-user-avatar" aria-hidden="true">
               <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
+              {maxVerificationDue ? <span className="portal-max-verification-badge" /> : null}
             </span>
             <span className="portal-user-copy">
               <strong>{session.user.displayName}</strong>
@@ -352,6 +356,9 @@ export function PortalHeader({
                   <SettingsGlyph />
                 </span>
                 <span>Настройки</span>
+                {maxVerificationDue ? (
+                  <span className="portal-account-item-meta">Подтвердить через MAX</span>
+                ) : null}
               </button>
             </div>
 
@@ -446,6 +453,7 @@ export function PortalHeader({
             onClick={openAccountMenu}
           >
             <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
+            {maxVerificationDue ? <span className="portal-max-verification-badge" /> : null}
             <span className="portal-avatar-upload-badge" aria-hidden="true">
               <ChevronIcon />
             </span>

@@ -2,6 +2,7 @@
  * client never sends or stores tenant identifiers. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
 
 export interface PublicUser {
   id: string;
@@ -45,6 +46,15 @@ export interface SessionPayload {
 export interface MaxAuthConfig {
   enabled: boolean;
   launchUrl: string | null;
+}
+
+export interface MaxAccountStatus {
+  linked: boolean;
+  verifiedAt: string | null;
+  firstAuthenticatedAt: string | null;
+  promptDue: boolean;
+  promptDismissedUntil: string | null;
+  available: boolean;
 }
 
 export interface AccountProfile {
@@ -863,10 +873,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
     ...((init?.headers as Record<string, string> | undefined) ?? {}),
   };
   try {
-    response = await fetch(path, {
-      credentials: 'same-origin',
+    response = await fetchWithSessionRefresh(path, {
       ...init,
-      cache: 'no-store',
       headers,
     });
   } catch {
@@ -963,6 +971,9 @@ export interface CheckersTeacherFeedback {
 export const api = {
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
   maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
+  maxStatus: () => call<MaxAccountStatus>('/api/auth/max/status'),
+  dismissMaxPrompt: () =>
+    call<{ dismissedUntil: string | null }>('/api/auth/max/prompt/dismiss', { method: 'POST' }),
   maxSession: (initData: string) =>
     call<SessionPayload>('/api/auth/max/session', {
       method: 'POST',
@@ -1004,7 +1015,11 @@ export const api = {
     call<{ available: boolean }>(
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
-  logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    const result = await call<{ ok: true }>('/api/auth/logout', { method: 'POST' });
+    if (result.ok) notifySessionLoggedOut();
+    return result;
+  },
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
   accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
   updateAccountAvatar: (avatarDataUrl: string | null) =>
