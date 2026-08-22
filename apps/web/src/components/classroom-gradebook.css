@@ -1,0 +1,207 @@
+.gradebook-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.gradebook-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.gradebook-heading h2,
+.gradebook-heading p {
+  margin: 0;
+}
+
+.gradebook-heading p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.gradebook-heading > span {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gradebook-heading > span.needs-review {
+  border-color: #e7b76b;
+  background: #fff8e9;
+  color: #81530a;
+}
+
+.gradebook-table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.gradebook-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(180px, 1.2fr) minmax(130px, 0.7fr) minmax(
+      260px,
+      1.5fr
+    );
+  gap: 14px;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.gradebook-row:first-child {
+  border-top: 0;
+}
+
+.gradebook-header {
+  min-height: 38px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.gradebook-row > span small,
+.gradebook-score small,
+.gradebook-feedback {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gradebook-row em {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.gradebook-row em[data-state='evaluating'] {
+  background: #fff3d6;
+  color: #81530a;
+}
+
+.gradebook-row em[data-state='accepted'] {
+  background: #e8f7ed;
+  color: #176b38;
+}
+
+.gradebook-row em[data-state='changes_requested'] {
+  background: #fcebea;
+  color: #9b302a;
+}
+
+.gradebook-result,
+.gradebook-review {
+  min-width: 0;
+}
+
+.gradebook-review {
+  display: grid;
+  grid-template-columns: 86px minmax(130px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.gradebook-review label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gradebook-review input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.gradebook-review-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.gradebook-review-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.gradebook-score strong {
+  font-size: 18px;
+}
+
+.gradebook-empty,
+.gradebook-state {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 22px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+}
+
+.gradebook-empty strong {
+  color: var(--text);
+}
+
+@media (max-width: 900px) {
+  .gradebook-header {
+    display: none;
+  }
+
+  .gradebook-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    align-items: start;
+  }
+
+  .gradebook-row > :nth-child(2),
+  .gradebook-result {
+    grid-column: 1 / -1;
+  }
+
+  .gradebook-review {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+
+  .gradebook-review-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .gradebook-heading {
+    display: grid;
+  }
+
+  .gradebook-row {
+    padding: 12px;
+  }
+
+  .gradebook-review {
+    grid-template-columns: 1fr;
+  }
+
+  .gradebook-review-actions {
+    grid-column: auto;
+    flex-wrap: wrap;
+  }
+}

@@ -10,6 +10,7 @@ import {
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { ClassroomLearning } from '../components/ClassroomLearning';
+import { ClassroomGradebook } from '../components/ClassroomGradebook';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
@@ -19,7 +20,8 @@ import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
 import { defaultAvatarForAccount, seatAvatar } from '../creator-portal/default-avatars';
 
-type ClassroomTab = 'students' | 'activities' | 'projects' | 'moderation' | 'teachers';
+type ClassroomTab =
+  'students' | 'activities' | 'gradebook' | 'projects' | 'moderation' | 'teachers';
 type PageState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -36,6 +38,7 @@ type TeacherTeamState =
 const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
   { id: 'students', label: 'Учащиеся' },
   { id: 'activities', label: 'Обучение' },
+  { id: 'gradebook', label: 'Журнал' },
   { id: 'projects', label: 'Проекты' },
   { id: 'moderation', label: 'История' },
   { id: 'teachers', label: 'Коллеги-преподаватели' },
@@ -869,6 +872,7 @@ export function ClassroomPage({
           onOpenProject={(projectId, moduleKey) => onOpenProject(projectId, moduleKey)}
         />
       ) : null}
+      {tab === 'gradebook' ? <ClassroomGradebook classroomId={classroomId} /> : null}
       {tab === 'moderation' ? (
         <section className="classroom-tab-panel">
           <div className="classroom-activity-heading">

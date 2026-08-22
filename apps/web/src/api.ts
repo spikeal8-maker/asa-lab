@@ -502,6 +502,35 @@ export interface ClassroomAssignmentProgress {
   badge: string | null;
 }
 
+export type LearningAttemptState =
+  | 'not_started'
+  | 'in_progress'
+  | 'submitted'
+  | 'evaluating'
+  | 'accepted'
+  | 'changes_requested'
+  | 'incomplete'
+  | 'excused'
+  | 'invalidated';
+
+/** One canonical row from immutable attempt through the published result. */
+export interface GradebookEntry {
+  seatId: string;
+  displayLabel: string;
+  assignmentId: string;
+  assignmentTitle: string;
+  attemptId: string | null;
+  attemptNumber: number | null;
+  state: LearningAttemptState;
+  submittedAt: string | null;
+  points: number | null;
+  maxPoints: number | null;
+  percentage: number | null;
+  outcome: 'passed' | 'failed' | 'incomplete' | 'excused' | null;
+  feedback: string | null;
+  publishedAt: string | null;
+}
+
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
   id: string;
@@ -1045,6 +1074,30 @@ export const api = {
       awaitingReview: number;
       behindCount: number;
     }>(`/api/classrooms/${encodeURIComponent(classroomId)}/progress`),
+  classroomGradebook: (classroomId: string) =>
+    call<{ items: GradebookEntry[] }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/gradebook`,
+    ),
+  reviewLearningAttempt: (
+    classroomId: string,
+    attemptId: string,
+    input: {
+      decision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused';
+      points?: number | null;
+      feedback?: string | null;
+      reason?: string | null;
+    },
+  ) =>
+    call<{
+      attemptId: string;
+      state: LearningAttemptState;
+      assessmentResultId: string | null;
+      gradebookEntryId: string | null;
+      percentage: number | null;
+    }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/review`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   awaitingReviewTotal: () => call<{ total: number }>('/api/classrooms/awaiting-review'),
   classroomStudent: (classroomId: string, seatId: string) =>
     call<ClassroomStudentDetail>(
@@ -1476,10 +1529,23 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ projectId }) },
     ),
   submitSeatAssignment: (assignmentId: string, submitted: boolean) =>
-    call<{ projectId: string; submittedAt: string | null }>(
-      `/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/submit`,
-      { method: 'POST', body: JSON.stringify({ submitted }) },
-    ),
+    call<{
+      projectId: string;
+      projectVersionId: string;
+      attemptId: string;
+      submissionId: string;
+      attemptNumber: number;
+      state: LearningAttemptState;
+      submittedAt: string;
+      lateState: 'on_time' | 'late' | 'excused';
+      reused: boolean;
+    }>(`/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        submitted,
+        clientRequestId: `submit:${crypto.randomUUID()}`,
+      }),
+    }),
   updateClassroom: (
     classroomId: string,
     input: {
