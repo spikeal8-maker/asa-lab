@@ -794,6 +794,7 @@ export interface ModuleSummary {
   moduleVersion: string;
   displayName: string;
   shortDescription: string;
+  defaultProjectTitlePrefix: string;
   projectType: string;
   schemaVersion: number;
   editorRoute: string;
@@ -976,7 +977,14 @@ export interface CreateProjectOptions {
   classroomId?: string | null;
   title: string;
   module: string;
+  automaticTitle?: boolean;
   idempotencyKey: string;
+}
+
+export interface ProjectTitleSuggestionOptions {
+  scope: ProjectScope;
+  classroomId?: string | null;
+  module: string;
 }
 
 export interface CheckersClassroomStudent<TProgress = unknown, TEvidence = unknown> {
@@ -1793,6 +1801,15 @@ export const api = {
     const suffix = query.size > 0 ? `?${query.toString()}` : '';
     return call<{ items: Project[] }>(`/api/projects${suffix}`);
   },
+  suggestProjectTitle: (options: ProjectTitleSuggestionOptions) => {
+    const query = new URLSearchParams({ scope: options.scope, module: options.module });
+    if (options.scope === 'classroom' && options.classroomId) {
+      query.set('classroomId', options.classroomId);
+    }
+    return call<{ title: string; sequence: number }>(
+      `/api/projects/title-suggestion?${query.toString()}`,
+    );
+  },
   createProject: (options: CreateProjectOptions) =>
     call<{ project: Project; created: boolean }>('/api/projects', {
       method: 'POST',
@@ -1802,6 +1819,7 @@ export const api = {
         classroomId: options.classroomId ?? null,
         module: options.module,
         title: options.title,
+        ...(options.automaticTitle === undefined ? {} : { automaticTitle: options.automaticTitle }),
       }),
     }),
   renameProject: (projectId: string, title: string) =>

@@ -24,6 +24,7 @@ const CHECKERS_MANIFEST = {
   moduleVersion: '0.1.0',
   displayName: 'ASA Шашки',
   shortDescription: 'Русские шашки: обучение, задания, боты и безопасная игра в классе.',
+  defaultProjectTitlePrefix: 'Шашечная партия',
   projectType: 'checkers-game',
   schemaVersion: 1,
   editorRoute: '/projects/:projectId/checkers',

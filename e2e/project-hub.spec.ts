@@ -44,6 +44,27 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   await expect(page).toHaveURL(/#\/home$/);
 
+  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
+  const createDialog = page.getByRole('dialog');
+  await expect(createDialog).toBeVisible();
+  await expect(createDialog.locator('.module-tile-title')).toHaveText([
+    'Электроника',
+    'ASA 3D',
+    'ASA Шашки',
+    'ASA Chess',
+    'Блочное программирование',
+    'Виртуальная робототехника',
+    'Рисование и черчение',
+  ]);
+  await expect(createDialog).not.toContainText('Поддерживает безопасный режим');
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Электрическая цепь 1');
+  await createDialog.locator('.module-tile').filter({ hasText: 'ASA 3D' }).click();
+  await expect(page.getByLabel('Название проекта')).toHaveValue('3D-модель 1');
+  expect(
+    await createDialog.evaluate((element) => element.scrollHeight <= element.clientHeight),
+  ).toBe(true);
+  await createDialog.getByRole('button', { name: 'Закрыть' }).click();
+
   const response = await page.context().request.post('/api/projects', {
     headers: { origin: new URL(page.url()).origin, 'idempotency-key': `hub-${unique}` },
     data: {
@@ -93,6 +114,9 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
 
   await page.getByRole('button', { name: 'Корзина' }).click();
   await expect(page.getByText('Умный светильник', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /^Создать(?: проект)?$/ }).click();
+  await expect(page.getByLabel('Название проекта')).toHaveValue('Электрическая цепь 3');
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть' }).click();
   await page.screenshot({ path: `${EVIDENCE_DIR}/01-project-hub-desktop.png`, fullPage: true });
 
   await page.setViewportSize({ width: 390, height: 844 });

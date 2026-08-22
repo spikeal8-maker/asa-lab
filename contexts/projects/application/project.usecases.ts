@@ -57,8 +57,22 @@ export function projectRequestFingerprint(input: {
   classroomId: string | null;
   moduleKey: string;
   title: string;
+  automaticTitle?: boolean;
 }): string {
-  return createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  const payload = input.automaticTitle
+    ? {
+        scope: input.scope,
+        classroomId: input.classroomId,
+        moduleKey: input.moduleKey,
+        automaticTitle: true,
+      }
+    : {
+        scope: input.scope,
+        classroomId: input.classroomId,
+        moduleKey: input.moduleKey,
+        title: input.title,
+      };
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
 export class CreateProjectUseCase {
@@ -74,6 +88,7 @@ export class CreateProjectUseCase {
     actor: ProjectActor;
     moduleKey: unknown;
     title: unknown;
+    automaticTitle?: unknown;
     idempotencyKey: string;
   }): Promise<UseCaseResult<{ project: Project; created: boolean }>> {
     if (!isProjectScope(input.scope)) {
@@ -100,8 +115,12 @@ export class CreateProjectUseCase {
     if (!isValidProjectTitle(input.title)) {
       return fail('validation_error', 'title must be 1..255 characters');
     }
+    if (input.automaticTitle !== undefined && typeof input.automaticTitle !== 'boolean') {
+      return fail('validation_error', 'automaticTitle must be a boolean');
+    }
 
     const title = input.title.trim();
+    const automaticTitle = input.automaticTitle === true;
     const initialDocument = module.createEmptyProject();
     const result = await this.repository.createWithDraft({
       tenantId: input.tenantId,
@@ -110,12 +129,14 @@ export class CreateProjectUseCase {
       actor: input.actor,
       moduleKey: module.moduleKey,
       title,
+      ...(automaticTitle ? { automaticTitlePrefix: module.defaultProjectTitlePrefix } : {}),
       idempotencyKey: input.idempotencyKey,
       requestFingerprint: projectRequestFingerprint({
         scope: input.scope,
         classroomId,
         moduleKey: module.moduleKey,
         title,
+        automaticTitle,
       }),
       initialDocument,
       initialPreview: previewOf(module, initialDocument),
@@ -131,6 +152,55 @@ export class CreateProjectUseCase {
       return fail('classroom_not_found', 'classroom does not exist in this tenant');
     }
     return { ok: true, value: { project: result.project, created: result.kind === 'created' } };
+  }
+}
+
+export class SuggestProjectTitleUseCase {
+  constructor(
+    private readonly repository: ProjectRepositoryPort,
+    private readonly modules: ModuleCatalogPort,
+  ) {}
+
+  async execute(input: {
+    tenantId: string;
+    scope: unknown;
+    classroomId: unknown;
+    actor: ProjectActor;
+    moduleKey: unknown;
+  }): Promise<UseCaseResult<{ title: string; sequence: number }>> {
+    if (!isProjectScope(input.scope)) {
+      return fail('validation_error', 'scope must be personal or classroom');
+    }
+    let classroomId: string | null = null;
+    if (input.scope === 'classroom') {
+      if (typeof input.classroomId !== 'string' || input.classroomId.length === 0) {
+        return fail('validation_error', 'classroomId is required for a classroom project');
+      }
+      classroomId = input.classroomId;
+    } else if (input.classroomId !== null && input.classroomId !== undefined) {
+      return fail('validation_error', 'personal projects must not contain classroomId');
+    }
+    if (typeof input.moduleKey !== 'string' || input.moduleKey.length === 0) {
+      return fail('validation_error', 'module is required');
+    }
+    const module = this.modules.getCreatable(input.moduleKey);
+    if (!module) {
+      return fail('validation_error', `module "${input.moduleKey}" is not available for creation`);
+    }
+    const sequence = await this.repository.nextTitleSequence({
+      tenantId: input.tenantId,
+      scope: input.scope,
+      classroomId,
+      actor: input.actor,
+      moduleKey: module.moduleKey,
+    });
+    if (sequence === null) {
+      return fail('classroom_not_found', 'classroom does not exist in this tenant');
+    }
+    return {
+      ok: true,
+      value: { title: `${module.defaultProjectTitlePrefix} ${sequence}`, sequence },
+    };
   }
 }
 

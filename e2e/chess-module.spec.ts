@@ -19,7 +19,7 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Что вы хотите создать?' })).toBeVisible();
   await page.getByLabel('Название проекта').fill(title);
   const chessTile = page.locator('.module-tile').filter({ hasText: 'ASA Chess' });
-  await expect(chessTile).toContainText('Поддерживает безопасный режим');
+  await expect(page.getByRole('dialog')).not.toContainText('Поддерживает безопасный режим');
   await chessTile.click();
   await expect(chessTile.getByRole('radio')).toBeChecked();
   await page.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();

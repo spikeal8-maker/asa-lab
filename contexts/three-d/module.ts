@@ -97,6 +97,7 @@ const THREE_D_MANIFEST = {
   moduleVersion: '0.1.0',
   displayName: 'ASA 3D',
   shortDescription: 'Браузерное 3D-моделирование из простых форм с точными размерами.',
+  defaultProjectTitlePrefix: '3D-модель',
   projectType: 'three-d-scene',
   schemaVersion: 1,
   editorRoute: '/projects/:projectId/three-d',

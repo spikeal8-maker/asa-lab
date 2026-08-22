@@ -30,6 +30,7 @@ import type {
   RenameProjectUseCase,
   SaveDraftUseCase,
   SaveProjectSnapshotUseCase,
+  SuggestProjectTitleUseCase,
 } from '@asa-lab/projects';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -60,6 +61,8 @@ export class ProjectsController {
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.moduleRegistry) private readonly moduleRegistry: ModuleRegistry,
     @Inject(TOKENS.createProjectUseCase) private readonly createUseCase: CreateProjectUseCase,
+    @Inject(TOKENS.suggestProjectTitleUseCase)
+    private readonly suggestTitleUseCase: SuggestProjectTitleUseCase,
     @Inject(TOKENS.listProjectsUseCase) private readonly listUseCase: ListProjectsUseCase,
     @Inject(TOKENS.openProjectUseCase) private readonly openUseCase: OpenProjectUseCase,
     @Inject(TOKENS.renameProjectUseCase) private readonly renameUseCase: RenameProjectUseCase,
@@ -144,6 +147,25 @@ export class ProjectsController {
     return { items: result.value };
   }
 
+  @Get('title-suggestion')
+  async suggestTitle(
+    @Req() request: FastifyRequest,
+    @Query('scope') scope: string | undefined,
+    @Query('classroomId') classroomId: string | undefined,
+    @Query('module') moduleKey: string | undefined,
+  ): Promise<{ title: string; sequence: number }> {
+    const context = await this.requireContext(request);
+    const result = await this.suggestTitleUseCase.execute({
+      tenantId: context.tenantId,
+      scope,
+      classroomId,
+      actor: ProjectsController.actorOf(context),
+      moduleKey,
+    });
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    return result.value;
+  }
+
   @Post()
   async create(
     @Req() request: FastifyRequest,
@@ -158,7 +180,13 @@ export class ProjectsController {
         400,
       );
     }
-    const shape = checkBodyShape(rawBody, ['scope', 'classroomId', 'module', 'title']);
+    const shape = checkBodyShape(rawBody, [
+      'scope',
+      'classroomId',
+      'module',
+      'title',
+      'automaticTitle',
+    ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const keyCheck = checkIdempotencyKey(idempotencyHeader);
     if (!keyCheck.ok) {
@@ -171,6 +199,7 @@ export class ProjectsController {
       actor: ProjectsController.actorOf(context),
       moduleKey: shape.body['module'],
       title: shape.body['title'],
+      automaticTitle: shape.body['automaticTitle'],
       idempotencyKey: keyCheck.key,
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);

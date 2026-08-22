@@ -21,6 +21,8 @@ export interface CreateProjectInput {
   readonly actor: ProjectActor;
   readonly moduleKey: string;
   readonly title: string;
+  /** Present only when the title must be allocated atomically at insertion. */
+  readonly automaticTitlePrefix?: string;
   readonly idempotencyKey: string;
   readonly requestFingerprint: string;
   readonly initialDocument: unknown;
@@ -61,6 +63,7 @@ export type ProjectDocumentValidation =
 /** Subject-neutral contract consumed by Project Core. */
 export interface ProjectModule {
   readonly moduleKey: string;
+  readonly defaultProjectTitlePrefix: string;
   validateDocument(value: unknown): ProjectDocumentValidation;
   /**
    * The card picture for an already-validated document. Null means the module
@@ -81,6 +84,18 @@ export interface ModuleCatalogPort {
 
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
+  /**
+   * Returns the next per-owner sequence number for a module. Every historical
+   * row counts, including archived and trashed projects, so deleting a card
+   * never reuses its number. Null means the classroom is not accessible.
+   */
+  nextTitleSequence(input: {
+    readonly tenantId: string;
+    readonly scope: ProjectScope;
+    readonly classroomId: string | null;
+    readonly actor: ProjectActor;
+    readonly moduleKey: string;
+  }): Promise<number | null>;
   listForActor(
     tenantId: string,
     actor: ProjectActor,

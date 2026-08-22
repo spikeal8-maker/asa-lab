@@ -33,6 +33,7 @@ import {
   RenameProjectUseCase,
   SaveDraftUseCase,
   SaveProjectSnapshotUseCase,
+  SuggestProjectTitleUseCase,
   type CreatableProjectModule,
   type ModuleCatalogPort,
   type ProjectModule,
@@ -127,6 +128,7 @@ export class AppModule {
     );
     const toProjectModule = (entry: RegisteredModule): ProjectModule => ({
       moduleKey: entry.manifest.moduleKey,
+      defaultProjectTitlePrefix: entry.manifest.defaultProjectTitlePrefix,
       validateDocument: (value) => validationMessage(entry, value),
       // Project Core hands back the document it just validated, so the provider
       // sees its own payload type and the validation never runs twice.
@@ -252,6 +254,10 @@ export class AppModule {
         {
           provide: TOKENS.createProjectUseCase,
           useFactory: () => new CreateProjectUseCase(projectRepository(), projectModules),
+        },
+        {
+          provide: TOKENS.suggestProjectTitleUseCase,
+          useFactory: () => new SuggestProjectTitleUseCase(projectRepository(), projectModules),
         },
         {
           provide: TOKENS.listProjectsUseCase,

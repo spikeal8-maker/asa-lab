@@ -195,6 +195,39 @@ describe('personal teacher projects', () => {
     expect(stored.rows[0]).toMatchObject({ project_scope: 'personal', classroom_id: null });
   });
 
+  it('keeps automatic project numbers increasing after a project enters the trash', async () => {
+    const teacher = await seedTeacher(admin, 'personal-title-sequence');
+    const token = await login(teacher);
+    const firstSuggestion = await inject(app, {
+      method: 'GET',
+      url: '/api/projects/title-suggestion?scope=personal&module=electronics',
+      cookies: { asa_session: token },
+    });
+    expect(firstSuggestion.statusCode).toBe(200);
+    expect(firstSuggestion.json()).toEqual({ title: 'Электрическая цепь 1', sequence: 1 });
+
+    const created = await createProject(token, {
+      scope: 'personal',
+      title: firstSuggestion.json().title as string,
+    });
+    expect(created.status).toBe(201);
+    const trashed = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${created.body.project.id}/status`,
+      cookies: { asa_session: token },
+      payload: { status: 'trashed' },
+    });
+    expect(trashed.statusCode).toBe(201);
+
+    const nextSuggestion = await inject(app, {
+      method: 'GET',
+      url: '/api/projects/title-suggestion?scope=personal&module=electronics',
+      cookies: { asa_session: token },
+    });
+    expect(nextSuggestion.statusCode).toBe(200);
+    expect(nextSuggestion.json()).toEqual({ title: 'Электрическая цепь 2', sequence: 2 });
+  });
+
   it('renames only the owning teacher project', async () => {
     const teacher = await seedTeacher(admin, 'personal-rename');
     const token = await login(teacher);

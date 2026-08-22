@@ -59,6 +59,7 @@ const CHESS_MANIFEST = {
   moduleVersion: '0.1.0',
   displayName: 'ASA Chess',
   shortDescription: 'Шахматные партии, анализ позиций, игра с локальным соперником или ASA Bot.',
+  defaultProjectTitlePrefix: 'Шахматная партия',
   projectType: 'chess-game',
   schemaVersion: 1,
   editorRoute: '/projects/:projectId/chess',

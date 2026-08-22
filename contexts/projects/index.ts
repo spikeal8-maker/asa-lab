@@ -47,6 +47,7 @@ export {
   RenameProjectUseCase,
   SaveDraftUseCase,
   SaveProjectSnapshotUseCase,
+  SuggestProjectTitleUseCase,
   projectRequestFingerprint,
   type ProjectErrorCode,
   type UseCaseResult,

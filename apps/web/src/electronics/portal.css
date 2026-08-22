@@ -372,12 +372,12 @@
   z-index: 200;
 }
 .project-create-dialog {
-  width: min(780px, calc(100vw - 32px));
-  max-height: calc(100vh - 40px);
-  overflow: auto;
-  padding: 25px;
+  width: min(820px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  padding: 24px 26px 22px;
   border: 1px solid #d6dee6;
-  border-radius: 13px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 24px 80px rgba(16, 31, 43, 0.24);
 }
@@ -388,7 +388,8 @@
 }
 .project-create-heading h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 27px;
+  line-height: 1.15;
 }
 .project-create-eyebrow {
   margin: 0 0 5px;
@@ -405,13 +406,49 @@
   border-radius: 50%;
   background: #f0f3f5;
   color: var(--ink-muted);
+  cursor: pointer;
 }
 .project-create-close svg {
   width: 18px;
   height: 18px;
 }
+.project-create-form {
+  min-height: 0;
+}
+.project-title-field {
+  margin-top: 18px;
+}
+.project-title-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.project-title-label-row label {
+  font-weight: 700;
+}
+.project-title-label-row span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.project-title-field input {
+  margin-top: 7px;
+  border-radius: 10px;
+  background: #fbfcfd;
+  font-weight: 650;
+}
+.project-title-field input:focus {
+  background: #fff;
+}
+.project-title-status {
+  display: block;
+  min-height: 15px;
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
 .module-picker {
-  margin: 20px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   border: 0;
 }
@@ -422,7 +459,7 @@
 .module-picker-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px 12px;
 }
 .module-tile {
   position: relative;
@@ -430,11 +467,11 @@
   grid-template-columns: auto 1fr;
   grid-template-areas: 'icon title' 'icon description';
   gap: 3px 13px;
-  min-height: 104px;
+  min-height: 88px;
   margin: 0;
-  padding: 17px;
+  padding: 14px 16px;
   border: 2px solid #dbe2e9;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
   cursor: pointer;
 }
@@ -455,15 +492,15 @@
   grid-area: icon;
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 9px;
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
   background: #dff1f7;
   color: #147eac;
 }
 .module-tile-icon svg {
-  width: 29px;
-  height: 29px;
+  width: 26px;
+  height: 26px;
 }
 .module-tile-title {
   grid-area: title;
@@ -474,6 +511,21 @@
   grid-area: description;
   color: var(--ink-muted);
   font-size: 13px;
+  line-height: 1.35;
+}
+.module-selected-indicator {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--module-accent, #1594ce);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 850;
 }
 .module-coming {
   position: absolute;
@@ -490,7 +542,9 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 22px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #edf1f4;
 }
 .project-create-actions .btn-primary {
   width: auto;
@@ -521,9 +575,6 @@
   }
   .portal-create-button {
     align-self: stretch;
-  }
-  .module-picker-grid {
-    grid-template-columns: 1fr;
   }
   .classroom-gallery-card {
     grid-template-columns: auto 1fr;
@@ -570,13 +621,38 @@
   .portal-create-button {
     align-self: stretch;
   }
-  .module-picker-grid {
-    grid-template-columns: 1fr;
-  }
   .classroom-gallery-card {
     grid-template-columns: auto 1fr;
   }
   .classroom-gallery-card .btn-secondary {
     grid-column: 1/-1;
+  }
+}
+@media (max-width: 680px) {
+  .project-create-dialog {
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+    padding: 20px 16px 16px;
+    border-radius: 15px;
+  }
+  .project-create-heading h2 {
+    font-size: 24px;
+  }
+  .project-title-label-row span {
+    display: none;
+  }
+  .module-picker-grid {
+    grid-template-columns: 1fr;
+  }
+  .module-tile {
+    min-height: 82px;
+  }
+  .project-create-actions {
+    position: sticky;
+    bottom: -16px;
+    margin-inline: -16px;
+    padding: 14px 16px 16px;
+    background: #fff;
   }
 }

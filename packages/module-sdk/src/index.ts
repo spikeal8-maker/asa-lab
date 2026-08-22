@@ -18,6 +18,8 @@ export interface ModuleManifestV1 {
   readonly moduleVersion: string;
   readonly displayName: string;
   readonly shortDescription: string;
+  /** Human-readable stem used for sequential project names, without the number. */
+  readonly defaultProjectTitlePrefix: string;
   readonly projectType: string;
   readonly schemaVersion: number;
   readonly editorRoute: string;
@@ -210,6 +212,7 @@ export interface ModuleSummary {
   readonly moduleVersion: string;
   readonly displayName: string;
   readonly shortDescription: string;
+  readonly defaultProjectTitlePrefix: string;
   readonly projectType: string;
   readonly schemaVersion: number;
   readonly editorRoute: string;
@@ -236,7 +239,11 @@ function validateManifest(manifest: ModuleManifestV1): void {
   if (!/^\d+\.\d+\.\d+$/.test(manifest.moduleVersion)) {
     throw new ModuleRegistryError(`invalid moduleVersion for ${manifest.moduleKey}`);
   }
-  if (!manifest.displayName.trim() || !manifest.shortDescription.trim()) {
+  if (
+    !manifest.displayName.trim() ||
+    !manifest.shortDescription.trim() ||
+    !manifest.defaultProjectTitlePrefix.trim()
+  ) {
     throw new ModuleRegistryError(`module ${manifest.moduleKey} requires display text`);
   }
   if (!Number.isInteger(manifest.schemaVersion) || manifest.schemaVersion < 1) {
@@ -257,6 +264,7 @@ function toSummary(entry: RegisteredModule): ModuleSummary {
     moduleVersion: manifest.moduleVersion,
     displayName: manifest.displayName,
     shortDescription: manifest.shortDescription,
+    defaultProjectTitlePrefix: manifest.defaultProjectTitlePrefix,
     projectType: manifest.projectType,
     schemaVersion: manifest.schemaVersion,
     editorRoute: manifest.editorRoute,

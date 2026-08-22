@@ -16,6 +16,7 @@ import {
   RenameProjectUseCase,
   SaveDraftUseCase,
   SaveProjectSnapshotUseCase,
+  SuggestProjectTitleUseCase,
   projectRequestFingerprint,
 } from '../application/project.usecases';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
@@ -69,6 +70,7 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
       }
       return { kind: previous ? 'existing' : 'created', project: personalProject };
     },
+    nextTitleSequence: async () => 4,
     listForActor: async () => [personalProject],
     load: async () => ({
       project: personalProject,
@@ -142,6 +144,7 @@ function catalog(
 ): ModuleCatalogPort {
   const module = {
     moduleKey: 'electronics',
+    defaultProjectTitlePrefix: 'Электрическая цепь',
     createEmptyProject: () => emptyDocument,
     validateDocument,
     describePreview,
@@ -176,6 +179,21 @@ describe('project domain rules', () => {
 });
 
 describe('create project', () => {
+  it('suggests the next module-specific title from every historical project', async () => {
+    const { port } = repo({ nextTitleSequence: async () => 7 });
+    const result = await new SuggestProjectTitleUseCase(port, catalog()).execute({
+      tenantId: 't1',
+      scope: 'personal',
+      classroomId: null,
+      actor: personalInput.actor,
+      moduleKey: 'electronics',
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: { title: 'Электрическая цепь 7', sequence: 7 },
+    });
+  });
+
   it('creates a personal project from the module provider without a classroom', async () => {
     const { port, creates } = repo();
     const empty = { schemaVersion: 1, components: [], connections: [] };
@@ -192,6 +210,26 @@ describe('create project', () => {
         classroomId: null,
         moduleKey: 'electronics',
         title: 'Схема',
+      }),
+    );
+  });
+
+  it('marks untouched suggested titles for atomic server allocation', async () => {
+    const { port, creates } = repo();
+    const result = await new CreateProjectUseCase(port, catalog()).execute({
+      ...personalInput,
+      title: 'Электрическая цепь 4',
+      automaticTitle: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(creates[0]).toMatchObject({ automaticTitlePrefix: 'Электрическая цепь' });
+    expect(creates[0]?.requestFingerprint).toBe(
+      projectRequestFingerprint({
+        scope: 'personal',
+        classroomId: null,
+        moduleKey: 'electronics',
+        title: 'Электрическая цепь 4',
+        automaticTitle: true,
       }),
     );
   });

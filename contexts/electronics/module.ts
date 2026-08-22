@@ -88,6 +88,7 @@ const ELECTRONICS_MANIFEST = {
   moduleVersion: '3.1.0',
   displayName: 'Электроника',
   shortDescription: 'Создание электрических схем, соединение компонентов и моделирование.',
+  defaultProjectTitlePrefix: 'Электрическая цепь',
   projectType: 'circuit',
   schemaVersion: 3,
   editorRoute: '/projects/:projectId/electronics',

@@ -201,6 +201,39 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       projectUserId = row.user_id;
     }
     return withTenantContext(this.pool, projectTenantId, async (client) => {
+      let projectTitle = input.title;
+      if (input.automaticTitlePrefix) {
+        const sequenceLockKey = JSON.stringify([
+          projectTenantId,
+          principalId,
+          input.scope,
+          input.classroomId,
+          input.moduleKey,
+        ]);
+        await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+          sequenceLockKey,
+        ]);
+        const counted = await client.query(
+          `SELECT COUNT(*)::integer AS project_count
+             FROM projects p
+            WHERE p.tenant_id = $1
+              AND p.project_scope = $2
+              AND p.module_key = $3
+              AND ($4::uuid IS NULL OR p.classroom_id = $4)
+              AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $5)
+                   OR ($6::uuid IS NOT NULL AND p.created_by = $6))`,
+          [
+            projectTenantId,
+            input.scope,
+            input.moduleKey,
+            input.classroomId,
+            principalId,
+            projectUserId,
+          ],
+        );
+        const row = counted.rows[0] as { project_count: number | string } | undefined;
+        projectTitle = `${input.automaticTitlePrefix} ${Number(row?.project_count ?? 0) + 1}`;
+      }
       const conflictTarget =
         projectUserId === null
           ? `(tenant_id, owner_principal_id, idempotency_key)
@@ -219,7 +252,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           input.scope,
           input.classroomId,
           input.moduleKey,
-          input.title,
+          projectTitle,
           projectUserId,
           principalId,
           input.idempotencyKey,
@@ -281,6 +314,51 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       );
       await recordClassroomActivity(client, principalId, project.id, 'project.created');
       return { kind: 'created', project };
+    });
+  }
+
+  async nextTitleSequence(input: {
+    readonly tenantId: string;
+    readonly scope: ProjectScope;
+    readonly classroomId: string | null;
+    readonly actor: ProjectActor;
+    readonly moduleKey: string;
+  }): Promise<number | null> {
+    let projectTenantId = input.tenantId;
+    let projectUserId = input.actor.userId;
+    if (input.scope === 'classroom') {
+      const access = await this.pool.query(
+        `SELECT tenant_id, user_id
+           FROM classroom_project_context_for_principal($1, $2)`,
+        [input.actor.principalId, input.classroomId],
+      );
+      const row = access.rows[0] as { tenant_id: string; user_id: string } | undefined;
+      if (!row) return null;
+      projectTenantId = row.tenant_id;
+      projectUserId = row.user_id;
+    }
+
+    return withTenantContext(this.pool, projectTenantId, async (client) => {
+      const counted = await client.query(
+        `SELECT COUNT(*)::integer AS project_count
+           FROM projects p
+          WHERE p.tenant_id = $1
+            AND p.project_scope = $2
+            AND p.module_key = $3
+            AND ($4::uuid IS NULL OR p.classroom_id = $4)
+            AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $5)
+                 OR ($6::uuid IS NOT NULL AND p.created_by = $6))`,
+        [
+          projectTenantId,
+          input.scope,
+          input.moduleKey,
+          input.classroomId,
+          input.actor.principalId,
+          projectUserId,
+        ],
+      );
+      const row = counted.rows[0] as { project_count: number | string } | undefined;
+      return Number(row?.project_count ?? 0) + 1;
     });
   }
 

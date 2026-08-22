@@ -10,6 +10,7 @@ import { api, type ModuleSummary, type Project, type ProjectScope } from '../api
 import { newClientId } from '../client-id';
 import { CloseIcon } from '../electronics/workbench-icons';
 import { ModuleGlyph, moduleAccent } from '../modules/ModuleGlyph';
+import { orderModulesForCreation } from './create-project-modal.model';
 
 export function CreateProjectModal({
   scope,
@@ -29,15 +30,19 @@ export function CreateProjectModal({
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [suggestingTitle, setSuggestingTitle] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const titleIsAutomatic = useRef(true);
+  const suggestionRequest = useRef(0);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.requestAnimationFrame(() => titleRef.current?.focus());
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
       previous?.focus?.();
     };
   }, []);
@@ -51,13 +56,14 @@ export function CreateProjectModal({
         setModules([]);
         return;
       }
-      setModules(result.data.items);
-      const requestedModule = result.data.items.find(
+      const orderedModules = orderModulesForCreation(result.data.items);
+      setModules(orderedModules);
+      const requestedModule = orderedModules.find(
         (module) => module.moduleKey === initialModule && module.creatable,
       );
       setSelectedModule(
         requestedModule?.moduleKey ??
-          result.data.items.find((module) => module.creatable)?.moduleKey ??
+          orderedModules.find((module) => module.creatable)?.moduleKey ??
           null,
       );
     });
@@ -65,6 +71,35 @@ export function CreateProjectModal({
       active = false;
     };
   }, [initialModule]);
+
+  useEffect(() => {
+    if (!selectedModule) return;
+    const request = suggestionRequest.current + 1;
+    suggestionRequest.current = request;
+    if (titleIsAutomatic.current) setTitle('');
+    setSuggestingTitle(true);
+    void api
+      .suggestProjectTitle({
+        scope,
+        classroomId: scope === 'classroom' ? (classroomId ?? null) : null,
+        module: selectedModule,
+      })
+      .then((result) => {
+        if (suggestionRequest.current !== request) return;
+        setSuggestingTitle(false);
+        if (!result.ok) {
+          if (!titleRef.current?.value.trim()) {
+            setError('Не удалось подобрать номер. Введите название.');
+          }
+          return;
+        }
+        if (titleIsAutomatic.current || !titleRef.current?.value.trim()) {
+          titleIsAutomatic.current = true;
+          setTitle(result.data.title);
+          setError(null);
+        }
+      });
+  }, [classroomId, scope, selectedModule]);
 
   function trap(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key === 'Escape' && !busy) {
@@ -107,6 +142,7 @@ export function CreateProjectModal({
       classroomId: scope === 'classroom' ? (classroomId ?? null) : null,
       title: trimmed,
       module: selectedModule,
+      automaticTitle: titleIsAutomatic.current,
       idempotencyKey: newClientId(),
     });
     setBusy(false);
@@ -145,15 +181,27 @@ export function CreateProjectModal({
             <CloseIcon />
           </button>
         </div>
-        <form onSubmit={(event) => void submit(event)} noValidate>
-          <label htmlFor="project-title">Название проекта</label>
-          <input
-            ref={titleRef}
-            id="project-title"
-            value={title}
-            maxLength={255}
-            onChange={(event) => setTitle(event.target.value)}
-          />
+        <form className="project-create-form" onSubmit={(event) => void submit(event)} noValidate>
+          <div className="project-title-field">
+            <div className="project-title-label-row">
+              <label htmlFor="project-title">Название проекта</label>
+              <span>Можно изменить</span>
+            </div>
+            <input
+              ref={titleRef}
+              id="project-title"
+              value={title}
+              maxLength={255}
+              aria-describedby="project-title-status"
+              onChange={(event) => {
+                titleIsAutomatic.current = false;
+                setTitle(event.target.value);
+              }}
+            />
+            <span id="project-title-status" className="project-title-status" aria-live="polite">
+              {suggestingTitle ? 'Подбираем следующий номер…' : '\u00a0'}
+            </span>
+          </div>
           <fieldset className="module-picker" aria-busy={modules === null}>
             <legend>Среда проекта</legend>
             {modules === null ? <p className="module-picker-loading">Загружаем среды…</p> : null}
@@ -184,11 +232,11 @@ export function CreateProjectModal({
                     </span>
                     <span className="module-tile-title">{module.displayName}</span>
                     <span className="module-tile-description">{module.shortDescription}</span>
-                    <span className="module-tile-meta">
-                      {module.safeModeSupported
-                        ? 'Поддерживает безопасный режим'
-                        : 'Только взрослым'}
-                    </span>
+                    {selected ? (
+                      <span className="module-selected-indicator" aria-hidden="true">
+                        ✓
+                      </span>
+                    ) : null}
                     {!module.creatable ? <span className="module-coming">Скоро</span> : null}
                   </label>
                 );
@@ -204,7 +252,11 @@ export function CreateProjectModal({
             <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
               Отмена
             </button>
-            <button type="submit" className="btn-primary" disabled={busy || modules === null}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || modules === null || !selectedModule || !title.trim()}
+            >
               {busy ? 'Создаём…' : 'Создать проект'}
             </button>
           </div>

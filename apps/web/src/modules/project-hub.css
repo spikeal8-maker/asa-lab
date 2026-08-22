@@ -152,8 +152,7 @@
 .module-tile {
   grid-template-areas:
     'icon title'
-    'icon description'
-    'icon meta';
+    'icon description';
   border-color: color-mix(in srgb, var(--module-accent, #1594ce) 22%, #dbe2e9);
 }
 
@@ -171,12 +170,6 @@
 .module-tile-icon {
   color: var(--module-accent, #147eac);
   background: color-mix(in srgb, var(--module-accent, #147eac) 12%, white);
-}
-
-.module-tile-meta {
-  grid-area: meta;
-  color: var(--ink-muted);
-  font-size: 11px;
 }
 
 @media (max-width: 780px) {

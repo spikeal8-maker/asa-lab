@@ -14,6 +14,7 @@ export const TOKENS = {
   createClassroomUseCase: 'CREATE_CLASSROOM_USECASE',
   listClassroomsUseCase: 'LIST_CLASSROOMS_USECASE',
   createProjectUseCase: 'CREATE_PROJECT_USECASE',
+  suggestProjectTitleUseCase: 'SUGGEST_PROJECT_TITLE_USECASE',
   listProjectsUseCase: 'LIST_PROJECTS_USECASE',
   openProjectUseCase: 'OPEN_PROJECT_USECASE',
   renameProjectUseCase: 'RENAME_PROJECT_USECASE',
