@@ -16,7 +16,7 @@ TASK-ADMIN-AUTH-STABILITY-001
 Issue #135
 branch main
 status in_progress
-checkpoint max_revoke_verified_real_postgresql
+checkpoint production_restart_verified_max_secret_pending
 execution direct_main
 ```
 
