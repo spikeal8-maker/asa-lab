@@ -44,7 +44,7 @@
     "test:startup": "node tools/check-startup.mjs",
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
     "test:authz": "vitest run tests/portal/authz.spec.ts",
-    "test:admin-control-plane": "vitest run packages/authz/src/index.spec.ts apps/api/src/admin.controller.spec.ts apps/api/src/refresh-session.service.spec.ts apps/web/src/admin/testing apps/web/src/session-fetch.spec.ts tests/admin/admin-control-plane.pg.spec.ts",
+    "test:admin-control-plane": "vitest run packages/authz/src/index.spec.ts apps/api/src/admin.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/web/src/admin/testing apps/web/src/session-fetch.spec.ts tests/admin/admin-control-plane.pg.spec.ts",
     "e2e:admin-control-plane": "playwright test e2e/admin-directory.spec.ts",
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",

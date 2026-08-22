@@ -70,6 +70,7 @@ describe('MAX WebApp authentication boundary', () => {
     const service = new MaxAuthService({} as pg.Pool, {
       botToken: BOT_TOKEN,
       botUsername: '@id231408577954_3_bot',
+      enabled: true,
       now: () => NOW_SECONDS * 1000,
     });
     const config = service.config();
@@ -78,5 +79,16 @@ describe('MAX WebApp authentication boundary', () => {
       launchUrl: 'https://max.ru/id231408577954_3_bot?startapp=asa_login',
     });
     expect(JSON.stringify(config)).not.toContain(BOT_TOKEN);
+  });
+
+  it('keeps MAX disabled behind an explicit production flag even when a token exists', async () => {
+    const service = new MaxAuthService({} as pg.Pool, {
+      botToken: BOT_TOKEN,
+      botUsername: 'id231408577954_3_bot',
+      enabled: false,
+      now: () => NOW_SECONDS * 1000,
+    });
+    expect(service.config()).toMatchObject({ enabled: false });
+    await expect(service.signIn(signedInitData())).rejects.toThrowError('max_auth_disabled');
   });
 });

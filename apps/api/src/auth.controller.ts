@@ -261,6 +261,21 @@ export class AuthController {
     return this.maxAuth.config();
   }
 
+  @Get('max/status')
+  async maxStatus(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    const status = await this.maxAuth.status(context.accountId);
+    if (!status) throw new HttpException(error('unauthorized', 'account is not active'), 401);
+    return { ...status, available: this.maxAuth.config().enabled };
+  }
+
+  @Post('max/prompt/dismiss')
+  @HttpCode(200)
+  async dismissMaxPrompt(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    return { dismissedUntil: await this.maxAuth.dismissPrompt(context.accountId) };
+  }
+
   @Post('max/session')
   @HttpCode(200)
   async maxSession(

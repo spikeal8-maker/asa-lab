@@ -37,7 +37,7 @@ task:
   # account sessions and production MAX verification. Email delivery, CRM,
   # billing, competitions and moderation remain outside this task.
   status: in_progress
-  checkpoint: owner_admin_preflight_verified_on_backup
+  checkpoint: max_lifecycle_verified_on_backup
   owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.

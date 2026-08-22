@@ -105,6 +105,7 @@ export function App(): JSX.Element {
   const [accountPanel, setAccountPanel] = useState<'profile' | 'school'>('profile');
   const [adminRoute, setAdminRoute] = useState(() => isAdminLocation(window.location));
   const [adminAccess, setAdminAccess] = useState<AdminAccessState>({ kind: 'idle' });
+  const [maxVerificationDue, setMaxVerificationDue] = useState(false);
   const adminAccessRequest = useRef(0);
   const maxLaunchData = useRef<string | null>(readMaxInitData());
   const maxLaunchAttempted = useRef(false);
@@ -227,6 +228,22 @@ export function App(): JSX.Element {
       }),
     [],
   );
+
+  useEffect(() => {
+    if (session.kind !== 'authenticated') {
+      setMaxVerificationDue(false);
+      return;
+    }
+    let cancelled = false;
+    void api.maxStatus().then((result) => {
+      if (!cancelled) {
+        setMaxVerificationDue(result.ok && result.data.available && result.data.promptDue);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   const loadAdminAccess = useCallback(async (): Promise<void> => {
     const request = ++adminAccessRequest.current;
@@ -547,6 +564,7 @@ export function App(): JSX.Element {
           seatLearner={isSeatLearner}
           classroomBadge={canManageClasses ? awaitingReview : undefined}
           unfinishedCount={unfinished}
+          maxVerificationDue={!isSeatLearner && maxVerificationDue}
           {...(session.kind === 'student'
             ? {
                 seatAvatarUrl: seatAvatar(

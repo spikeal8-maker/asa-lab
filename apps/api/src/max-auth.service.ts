@@ -42,9 +42,18 @@ export type MaxLinkResult =
         | 'unavailable';
     };
 
+export interface MaxAccountStatus {
+  readonly linked: boolean;
+  readonly verifiedAt: string | null;
+  readonly firstAuthenticatedAt: string | null;
+  readonly promptDue: boolean;
+  readonly promptDismissedUntil: string | null;
+}
+
 interface MaxAuthOptions {
   readonly botToken?: string;
   readonly botUsername?: string;
+  readonly enabled?: boolean;
   readonly now?: () => number;
 }
 
@@ -162,6 +171,7 @@ export function validateMaxInitData(
 export class MaxAuthService {
   private readonly botToken: string | null;
   private readonly botUsername: string | null;
+  private readonly enabled: boolean;
   private readonly now: () => number;
 
   constructor(
@@ -170,14 +180,15 @@ export class MaxAuthService {
   ) {
     this.botToken = boundedText(options.botToken ?? process.env['MAX_BOT_TOKEN'], 512);
     this.botUsername = normalizedBotUsername(
-      options.botUsername ?? process.env['MAX_BOT_USERNAME'],
+      options.botUsername ?? process.env['MAX_BOT_USERNAME'] ?? 'id231408577954_3_bot',
     );
+    this.enabled = options.enabled ?? process.env['MAX_AUTH_ENABLED'] === '1';
     this.now = options.now ?? Date.now;
   }
 
   config(): { enabled: boolean; launchUrl: string | null } {
     return {
-      enabled: this.botToken !== null && this.botUsername !== null,
+      enabled: this.enabled && this.botToken !== null && this.botUsername !== null,
       launchUrl:
         this.botUsername === null
           ? null
@@ -186,7 +197,7 @@ export class MaxAuthService {
   }
 
   private identity(rawInitData: unknown): ValidatedMaxIdentity {
-    if (this.botToken === null || this.botUsername === null) {
+    if (!this.enabled || this.botToken === null || this.botUsername === null) {
       throw new MaxInitDataError('max_auth_disabled');
     }
     return validateMaxInitData(rawInitData, this.botToken, this.now());
@@ -194,6 +205,11 @@ export class MaxAuthService {
 
   async signIn(rawInitData: unknown, userAgentSummary?: string): Promise<MaxSignInResult> {
     const identity = this.identity(rawInitData);
+    const activeIdentity = await this.pool.query<{ account_id: string | null }>(
+      `SELECT auth_max_identity_account($1) AS account_id`,
+      [identity.subject],
+    );
+    if (!activeIdentity.rows[0]?.account_id) return { status: 'link_required' };
     const token = createSessionToken();
     const result = await this.pool.query(
       `SELECT result, account_id
@@ -228,5 +244,41 @@ export class MaxAuthService {
       ],
     );
     return { status: String(result.rows[0]?.result ?? 'unavailable') as MaxLinkResult['status'] };
+  }
+
+  async status(accountId: string): Promise<MaxAccountStatus | null> {
+    const result = await this.pool.query(
+      `SELECT linked, verified_at, first_authenticated_at, prompt_due, prompt_dismissed_until
+         FROM auth_max_status($1)`,
+      [accountId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const iso = (value: Date | string | null): string | null =>
+      value === null
+        ? null
+        : value instanceof Date
+          ? value.toISOString()
+          : new Date(value).toISOString();
+    return {
+      linked: row.linked === true,
+      verifiedAt: iso(row.verified_at ?? null),
+      firstAuthenticatedAt: iso(row.first_authenticated_at ?? null),
+      promptDue: row.prompt_due === true,
+      promptDismissedUntil: iso(row.prompt_dismissed_until ?? null),
+    };
+  }
+
+  async dismissPrompt(accountId: string): Promise<string | null> {
+    const result = await this.pool.query<{ dismissed_until: Date | string | null }>(
+      `SELECT auth_max_dismiss_prompt($1) AS dismissed_until`,
+      [accountId],
+    );
+    const value = result.rows[0]?.dismissed_until;
+    return value
+      ? value instanceof Date
+        ? value.toISOString()
+        : new Date(value).toISOString()
+      : null;
   }
 }

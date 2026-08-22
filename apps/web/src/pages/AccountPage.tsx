@@ -11,6 +11,8 @@ import {
   api,
   type AccountProfile,
   type AccountSession,
+  type MaxAccountStatus,
+  type MaxAuthConfig,
   type SessionPayload,
   type WorkspaceRef,
 } from '../api';
@@ -79,6 +81,8 @@ export function AccountPage({
 }): JSX.Element {
   const [panel, setPanel] = useState<SettingsPanel>(initialPanel);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [maxStatus, setMaxStatus] = useState<MaxAccountStatus | null>(null);
+  const [maxConfig, setMaxConfig] = useState<MaxAuthConfig | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
@@ -121,11 +125,14 @@ export function AccountPage({
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
-    const [profileResult, sessionsResult, avatarResult] = await Promise.all([
-      api.accountProfile(),
-      api.listAccountSessions(),
-      api.accountAvatar(),
-    ]);
+    const [profileResult, sessionsResult, avatarResult, maxStatusResult, maxConfigResult] =
+      await Promise.all([
+        api.accountProfile(),
+        api.listAccountSessions(),
+        api.accountAvatar(),
+        api.maxStatus(),
+        api.maxConfig(),
+      ]);
     if (!profileResult.ok || !sessionsResult.ok || !avatarResult.ok) {
       setError('Не удалось загрузить настройки аккаунта.');
       setLoading(false);
@@ -138,6 +145,8 @@ export function AccountPage({
     setAccountRole(educatorEnabled(profileResult.data) ? 'educator' : 'creator');
     setSessions(sessionsResult.data.items);
     setAvatarDataUrl(avatarResult.data.avatarDataUrl);
+    setMaxStatus(maxStatusResult.ok ? maxStatusResult.data : null);
+    setMaxConfig(maxConfigResult.ok ? maxConfigResult.data : null);
     setLoading(false);
   }, []);
 
@@ -670,7 +679,7 @@ export function AccountPage({
                       <h3>
                         {schoolWorkspaces.length > 0 ? 'Создать ещё одну школу' : 'Создать школу'}
                       </h3>
-                      <p>Подтверждение почты сейчас не требуется.</p>
+                      <p>Школа появится в списке сразу после создания.</p>
                     </div>
                     <label>
                       Название школы
@@ -708,7 +717,7 @@ export function AccountPage({
                 <div>
                   <span>Email</span>
                   <strong>{profile.email}</strong>
-                  <small>Подтверждение появится позже и сейчас ничего не ограничивает.</small>
+                  <small>Контактный адрес аккаунта</small>
                 </div>
                 <div>
                   <span>Дата рождения</span>
@@ -720,6 +729,27 @@ export function AccountPage({
                   <strong>{profile.country}</strong>
                   <small>Используется для правил аккаунта</small>
                 </div>
+              </div>
+
+              <div className="account-private-facts">
+                <div>
+                  <span>MAX</span>
+                  <strong>{maxStatus?.linked ? 'Подтверждён' : 'Не подключён'}</strong>
+                  <small>
+                    {maxStatus?.verifiedAt
+                      ? `Связан ${formatDate(maxStatus.verifiedAt, timeZone)}`
+                      : 'Для подтверждения аккаунта и входа без пароля'}
+                  </small>
+                </div>
+                {!maxStatus?.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
+                  <div>
+                    <span>Подтверждение</span>
+                    <a className="btn-secondary" href={maxConfig.launchUrl} rel="noreferrer">
+                      Открыть MAX
+                    </a>
+                    <small>Вернитесь в ASA Lab через бот MAX</small>
+                  </div>
+                ) : null}
               </div>
 
               <div className="account-sessions-heading">

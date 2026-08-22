@@ -48,6 +48,15 @@ export interface MaxAuthConfig {
   launchUrl: string | null;
 }
 
+export interface MaxAccountStatus {
+  linked: boolean;
+  verifiedAt: string | null;
+  firstAuthenticatedAt: string | null;
+  promptDue: boolean;
+  promptDismissedUntil: string | null;
+  available: boolean;
+}
+
 export interface AccountProfile {
   email: string;
   emailVerificationState: string;
@@ -962,6 +971,9 @@ export interface CheckersTeacherFeedback {
 export const api = {
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
   maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
+  maxStatus: () => call<MaxAccountStatus>('/api/auth/max/status'),
+  dismissMaxPrompt: () =>
+    call<{ dismissedUntil: string | null }>('/api/auth/max/prompt/dismiss', { method: 'POST' }),
   maxSession: (initData: string) =>
     call<SessionPayload>('/api/auth/max/session', {
       method: 'POST',
