@@ -2962,7 +2962,7 @@ html.arduino-palette-resizing * {
 }
 .arduino-scratch-host {
   position: absolute;
-  inset: 98px 0 0;
+  inset: 0;
 }
 .arduino-block-categories {
   position: absolute;

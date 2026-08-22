@@ -66,7 +66,10 @@ describe('Arduino programming room contract', () => {
     expect(css).not.toContain('.workbench-shell.code-open .workbench-stage');
     expect(css).toContain('.arduino-palette-resize-handle');
     expect(css).toContain('inset: 0 0 0 auto');
-    expect(css).toContain('inset: 98px 0 0');
+    expect(css).toContain('.arduino-scratch-host');
+    expect(css).toContain('inset: 0;');
+    expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP = 98');
+    expect(blocksSource).toContain("kind: 'sep'");
     expect(css).not.toContain('transform: translate(0, 98px) !important');
   });
 

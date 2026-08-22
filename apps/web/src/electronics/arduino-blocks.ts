@@ -19,6 +19,7 @@ export interface ArduinoVariableChoice {
 }
 
 export const ARDUINO_CREATE_VARIABLE_CALLBACK = 'CREATE_ARDUINO_VARIABLE';
+export const ARDUINO_FLYOUT_HEADER_GAP = 98;
 
 export function arduinoRenameVariableCallback(variableId: string): string {
   return `RENAME_ARDUINO_VARIABLE:${variableId}`;
@@ -870,10 +871,15 @@ export function toolboxForCategory(
   category: ArduinoBlockCategory,
   variables: readonly ArduinoVariableChoice[] = [],
 ): ScratchBlocks.utils.toolbox.ToolboxInfo {
+  const headerSpacer: ScratchBlocks.utils.toolbox.BlockInfo = {
+    kind: 'sep',
+    gap: ARDUINO_FLYOUT_HEADER_GAP,
+  };
   if (category === 'variables') {
     return {
       kind: 'flyoutToolbox',
       contents: [
+        headerSpacer,
         {
           kind: 'button',
           text: 'Создать переменную',
@@ -908,7 +914,7 @@ export function toolboxForCategory(
   }
   return {
     kind: 'flyoutToolbox',
-    contents: TOOLBOX_BY_CATEGORY[category].map((type) => toolboxBlock(type)),
+    contents: [headerSpacer, ...TOOLBOX_BY_CATEGORY[category].map((type) => toolboxBlock(type))],
   };
 }
 
