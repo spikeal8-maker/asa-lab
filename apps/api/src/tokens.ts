@@ -29,9 +29,11 @@ export const TOKENS = {
   projectFeedbackService: 'PROJECT_FEEDBACK_SERVICE',
   botChallengeService: 'BOT_CHALLENGE_SERVICE',
   maxAuthService: 'MAX_AUTH_SERVICE',
+  refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;
 
 export const SESSION_COOKIE = 'asa_session';
+export const REFRESH_COOKIE = 'asa_refresh';

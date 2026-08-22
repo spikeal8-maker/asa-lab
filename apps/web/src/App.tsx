@@ -33,6 +33,7 @@ import { CreateProjectModal } from './components/CreateProjectModal';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
 import { ModuleEditorHost } from './modules/ModuleEditorHost';
 import { leaveMaxLaunch, readMaxInitData } from './max-auth';
+import { onSessionLoggedOut } from './session-fetch';
 import {
   canUseClasses,
   creatorViewFromLocation,
@@ -217,6 +218,16 @@ export function App(): JSX.Element {
     void checkSession();
   }, [checkSession]);
 
+  useEffect(
+    () =>
+      onSessionLoggedOut(() => {
+        setSession({ kind: 'anonymous' });
+        setAdminAccess({ kind: 'idle' });
+        setPublicViewState({ kind: 'entry' });
+      }),
+    [],
+  );
+
   const loadAdminAccess = useCallback(async (): Promise<void> => {
     const request = ++adminAccessRequest.current;
     if (session.kind === 'student') {
@@ -233,7 +244,10 @@ export function App(): JSX.Element {
     if (request !== adminAccessRequest.current) return;
     if (result.ok) {
       setAdminAccess({ kind: 'granted', profile: result.data });
-    } else if (result.status === 401 || result.status === 403) {
+    } else if (result.status === 401) {
+      setSession({ kind: 'anonymous' });
+      setAdminAccess({ kind: 'idle' });
+    } else if (result.status === 403) {
       setAdminAccess({ kind: 'denied' });
     } else {
       setAdminAccess({

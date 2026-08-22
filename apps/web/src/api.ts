@@ -2,6 +2,7 @@
  * client never sends or stores tenant identifiers. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+import { fetchWithSessionRefresh, notifySessionLoggedOut } from './session-fetch';
 
 export interface PublicUser {
   id: string;
@@ -863,10 +864,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> 
     ...((init?.headers as Record<string, string> | undefined) ?? {}),
   };
   try {
-    response = await fetch(path, {
-      credentials: 'same-origin',
+    response = await fetchWithSessionRefresh(path, {
       ...init,
-      cache: 'no-store',
       headers,
     });
   } catch {
@@ -1004,7 +1003,11 @@ export const api = {
     call<{ available: boolean }>(
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
-  logout: () => call<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    const result = await call<{ ok: true }>('/api/auth/logout', { method: 'POST' });
+    if (result.ok) notifySessionLoggedOut();
+    return result;
+  },
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
   accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
   updateAccountAvatar: (avatarDataUrl: string | null) =>

@@ -19,12 +19,17 @@ import type {
   LoginUseCase,
   RegisterAccountUseCase,
 } from '@asa-lab/identity';
-import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import { clientAddress } from './client-address.js';
 import { BotChallengeService, type BotAction } from './bot-challenge.js';
 import { MaxAuthService, MaxInitDataError } from './max-auth.service.js';
+import {
+  REFRESH_TTL_DAYS,
+  RefreshSessionService,
+  type SessionSource,
+} from './refresh-session.service.js';
 
 // Password hashing costs tens of milliseconds of thread-pool time per attempt,
 // so an endpoint without a ceiling lets one client spend the whole runtime on
@@ -124,6 +129,8 @@ export class AuthController {
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
     @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
+    @Inject(TOKENS.refreshSessionService)
+    private readonly refreshSessions: RefreshSessionService,
   ) {}
 
   private setSessionCookie(reply: FastifyReply, token: string): void {
@@ -134,6 +141,31 @@ export class AuthController {
       secure: process.env['NODE_ENV'] === 'production' || process.env['ASA_SECURE_COOKIES'] === '1',
       maxAge: 12 * 60 * 60,
     });
+  }
+
+  private setRefreshCookie(reply: FastifyReply, token: string): void {
+    reply.setCookie(REFRESH_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/api/auth',
+      secure: process.env['NODE_ENV'] === 'production' || process.env['ASA_SECURE_COOKIES'] === '1',
+      maxAge: REFRESH_TTL_DAYS * 24 * 60 * 60,
+    });
+  }
+
+  private clearSessionCookies(reply: FastifyReply): void {
+    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+  }
+
+  private async establishSession(
+    reply: FastifyReply,
+    accessToken: string,
+    source: SessionSource,
+  ): Promise<void> {
+    const refreshToken = await this.refreshSessions.attach(accessToken, source);
+    this.setSessionCookie(reply, accessToken);
+    if (refreshToken) this.setRefreshCookie(reply, refreshToken);
   }
 
   private async payload(context: ActiveContext): Promise<SessionPayload> {
@@ -275,7 +307,7 @@ export class AuthController {
       );
     }
 
-    this.setSessionCookie(reply, result.token);
+    await this.establishSession(reply, result.token, 'max');
     const context = await this.activeContext.resolve(result.token);
     if (!context) {
       throw new HttpException(error('server_error', 'session was not created'), 500);
@@ -391,7 +423,7 @@ export class AuthController {
       const status = result.code === 'email_taken' || result.code === 'username_taken' ? 409 : 400;
       throw new HttpException(error(result.code, result.message), status);
     }
-    this.setSessionCookie(reply, result.token);
+    await this.establishSession(reply, result.token, 'password');
     const context = await this.activeContext.resolve(result.token);
     if (!context) {
       throw new HttpException(error('server_error', 'session was not created'), 500);
@@ -437,11 +469,11 @@ export class AuthController {
     if (typeof identifier === 'string' && identifier.length > 0) {
       this.enforce(this.loginByIdentifier, identifier.trim().toLowerCase());
     }
-    const token =
-      shape.body['workspace'] === undefined
-        ? await this.accountSignIn(shape.body, summarizeUserAgent(request.headers['user-agent']))
-        : await this.legacySignIn(shape.body);
-    this.setSessionCookie(reply, token);
+    const organizationLogin = shape.body['workspace'] !== undefined;
+    const token = organizationLogin
+      ? await this.legacySignIn(shape.body)
+      : await this.accountSignIn(shape.body, summarizeUserAgent(request.headers['user-agent']));
+    await this.establishSession(reply, token, organizationLogin ? 'organization' : 'password');
     const context = await this.activeContext.resolve(token);
     if (!context) {
       throw new HttpException(error('server_error', 'session was not created'), 500);
@@ -501,9 +533,43 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ ok: true }> {
+    await this.refreshSessions.revoke(
+      request.cookies[REFRESH_COOKIE],
+      request.cookies[SESSION_COOKIE],
+    );
     await this.activeContext.logout(request.cookies[SESSION_COOKIE]);
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    this.clearSessionCookies(reply);
     return { ok: true };
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<{ refreshed: true }> {
+    const refreshToken = request.cookies[REFRESH_COOKIE];
+    if (!refreshToken) {
+      this.clearSessionCookies(reply);
+      throw new HttpException(error('refresh_required', 'no refresh session'), 401);
+    }
+    const result = await this.refreshSessions.rotate(refreshToken);
+    if (result.status === 'stale') {
+      throw new HttpException(error('refresh_stale', 'session was refreshed in another tab'), 409);
+    }
+    if (result.status !== 'rotated') {
+      this.clearSessionCookies(reply);
+      throw new HttpException(
+        error(
+          result.status === 'reused' ? 'refresh_reused' : 'refresh_invalid',
+          'refresh session is no longer active',
+        ),
+        401,
+      );
+    }
+    this.setSessionCookie(reply, result.accessToken);
+    this.setRefreshCookie(reply, result.refreshToken);
+    return { refreshed: true };
   }
 
   @Get('me')
