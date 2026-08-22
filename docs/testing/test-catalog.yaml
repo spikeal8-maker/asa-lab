@@ -809,3 +809,69 @@ tests:
     timeout_seconds: 300
     owner: platform-architecture
     artifacts: [console-report, screenshots]
+
+  - id: TST-CHECKERS-M1-RULES-001
+    title: Official Russian draughts-64 rules and deterministic replay
+    suite: contracts
+    level: bounded-context
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, official-rules-fixtures, replay-report]
+
+  - id: TST-CHECKERS-M1-PROJECT-001
+    title: Independent module provider and Project Core create save reload checkpoint
+    suite: integration
+    level: system
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, persistence-report, boundary-report]
+
+  - id: TST-CHECKERS-M1-LEARNING-001
+    title: Curriculum assignments attempts mastery and teacher evidence
+    suite: integration
+    level: system
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, assignment-report, mastery-evidence]
+
+  - id: TST-CHECKERS-M1-BOTS-001
+    title: Bot legality calibration deterministic tie-breaking and time budgets
+    suite: simulation
+    level: bounded-context
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, bot-calibration-report, timeout-report]
+
+  - id: TST-CHECKERS-M1-CLASS-SAFETY-001
+    title: Class authorization reaction allowlist rate limits mute and audit
+    suite: authorization
+    level: system
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm test:checkers
+    timeout_seconds: 1200
+    owner: checkers
+    artifacts: [vitest-report, authorization-matrix, reaction-audit-report]
+
+  - id: TST-CHECKERS-M1-E2E-001
+    title: Student teacher bot and safe class journeys on desktop tablet and mobile
+    suite: e2e
+    level: system
+    phase_available: PHASE-11
+    required_for: [TASK-CHECKERS-M1-001]
+    command: pnpm e2e:checkers
+    timeout_seconds: 2400
+    owner: checkers
+    artifacts: [playwright-report, checkers-screenshots, browser-failure-report]

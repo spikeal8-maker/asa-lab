@@ -1,70 +1,37 @@
 schema_version: 1.0.0
-active_task: TASK-CHECKERS-M1-001
+active_task: TASK-ADMIN-AUTH-STABILITY-001
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
-  - id: TST-CHECKERS-M1-RULES-001
-    title: Official Russian draughts-64 rules and deterministic replay
-    suite: contracts
-    level: bounded-context
-    phase_available: PHASE-11
-    required_for: [TASK-CHECKERS-M1-001]
-    command: pnpm test:checkers
-    timeout_seconds: 1200
-    owner: checkers
-    artifacts: [vitest-report, official-rules-fixtures, replay-report]
-
-  - id: TST-CHECKERS-M1-PROJECT-001
-    title: Independent module provider and Project Core create save reload checkpoint
-    suite: integration
-    level: system
-    phase_available: PHASE-11
-    required_for: [TASK-CHECKERS-M1-001]
-    command: pnpm test:checkers
-    timeout_seconds: 1200
-    owner: checkers
-    artifacts: [vitest-report, persistence-report, boundary-report]
-
-  - id: TST-CHECKERS-M1-LEARNING-001
-    title: Curriculum assignments attempts mastery and teacher evidence
-    suite: integration
-    level: system
-    phase_available: PHASE-11
-    required_for: [TASK-CHECKERS-M1-001]
-    command: pnpm test:checkers
-    timeout_seconds: 1200
-    owner: checkers
-    artifacts: [vitest-report, assignment-report, mastery-evidence]
-
-  - id: TST-CHECKERS-M1-BOTS-001
-    title: Bot legality calibration deterministic tie-breaking and time budgets
-    suite: simulation
-    level: bounded-context
-    phase_available: PHASE-11
-    required_for: [TASK-CHECKERS-M1-001]
-    command: pnpm test:checkers
-    timeout_seconds: 1200
-    owner: checkers
-    artifacts: [vitest-report, bot-calibration-report, timeout-report]
-
-  - id: TST-CHECKERS-M1-CLASS-SAFETY-001
-    title: Class authorization reaction allowlist rate limits mute and audit
+  - id: TST-ADMIN-AUTH-MAX-CORE-001
+    title: Integrated Admin authorization, PostgreSQL isolation and MAX signature boundary
     suite: authorization
     level: system
-    phase_available: PHASE-11
-    required_for: [TASK-CHECKERS-M1-001]
-    command: pnpm test:checkers
-    timeout_seconds: 1200
-    owner: checkers
-    artifacts: [vitest-report, authorization-matrix, reaction-audit-report]
+    phase_available: PHASE-12
+    required_for: [TASK-ADMIN-AUTH-STABILITY-001]
+    command: pnpm gate:admin-control-plane
+    timeout_seconds: 1800
+    owner: admin-auth
+    artifacts: [vitest-report, migration-report, authorization-matrix]
 
-  - id: TST-CHECKERS-M1-E2E-001
-    title: Student teacher bot and safe class journeys on desktop tablet and mobile
+  - id: TST-ADMIN-AUTH-MAX-E2E-001
+    title: Admin navigation and scoped management browser baseline
     suite: e2e
     level: system
-    phase_available: PHASE-11
-    required_for: [TASK-CHECKERS-M1-001]
-    command: pnpm e2e:checkers
-    timeout_seconds: 2400
-    owner: checkers
-    artifacts: [playwright-report, checkers-screenshots, browser-failure-report]
+    phase_available: PHASE-12
+    required_for: [TASK-ADMIN-AUTH-STABILITY-001]
+    command: pnpm e2e:admin-control-plane
+    timeout_seconds: 1800
+    owner: admin-auth
+    artifacts: [playwright-report, admin-desktop-screenshot, admin-mobile-screenshot]
+
+  - id: TST-ADMIN-AUTH-MAX-PRODUCTION-001
+    title: Durable owner session, real MAX client and exact production revision
+    suite: recovery
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-ADMIN-AUTH-STABILITY-001]
+    command: pnpm gate:repository
+    timeout_seconds: 3600
+    owner: admin-auth
+    artifacts: [owner-evidence-report, production-version-report, recovery-report]

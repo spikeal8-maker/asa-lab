@@ -43,6 +43,7 @@
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
     "test:authz": "vitest run tests/portal/authz.spec.ts",
     "test:admin-control-plane": "vitest run packages/authz/src/index.spec.ts apps/api/src/admin.controller.spec.ts apps/web/src/admin/testing tests/admin/admin-control-plane.pg.spec.ts",
+    "e2e:admin-control-plane": "playwright test e2e/admin-directory.spec.ts",
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
     "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",

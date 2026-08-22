@@ -3,7 +3,7 @@
 // It never builds at startup: deployment builds and verifies first, then this
 // process starts only already-produced artifacts with the runtime-role DB URL.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { apiChildEnv } from './child-env.mjs';
 
@@ -36,20 +36,50 @@ loadDotEnvLocal();
 const port = resolvePort(process.env.ASA_API_PORT);
 const entry = resolve('apps/api/dist/main.js');
 const webEntry = resolve('apps/web/dist/index.html');
+const webMetadataEntry = resolve('apps/web/dist/build-metadata.json');
 
 if (!process.env.APP_DATABASE_URL) {
   console.error('APP_DATABASE_URL is required in the environment or uncommitted .env.local.');
   process.exit(78);
 }
-if (!existsSync(entry) || !existsSync(webEntry)) {
+if (!existsSync(entry) || !existsSync(webEntry) || !existsSync(webMetadataEntry)) {
   console.error('Production artifacts are missing. Run `pnpm build` before startup.');
   process.exit(78);
 }
 
-const revision = spawnSync('git', ['rev-parse', '--short=12', 'HEAD'], {
+const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
   encoding: 'utf8',
   windowsHide: true,
 });
+const checkoutRevision = revision.stdout.trim();
+let webMetadata;
+try {
+  webMetadata = JSON.parse(readFileSync(webMetadataEntry, 'utf8'));
+} catch {
+  console.error('Web build metadata is malformed. Rebuild before startup.');
+  process.exit(78);
+}
+if (
+  typeof webMetadata?.revision !== 'string' ||
+  typeof webMetadata?.builtAt !== 'string' ||
+  Number.isNaN(Date.parse(webMetadata.builtAt))
+) {
+  console.error('Web build metadata is incomplete. Rebuild before startup.');
+  process.exit(78);
+}
+if (!checkoutRevision || webMetadata.revision !== checkoutRevision) {
+  console.error('Web artifact revision does not match the checkout. Refusing stale production.');
+  process.exit(78);
+}
+const migrationVersions = readdirSync(resolve('migrations'))
+  .map((name) => /^(\d{4})_.*\.sql$/.exec(name)?.[1])
+  .filter(Boolean)
+  .map(Number);
+const expectedSchemaVersion = Math.max(...migrationVersions);
+if (!Number.isSafeInteger(expectedSchemaVersion)) {
+  console.error('Cannot determine the expected database schema version.');
+  process.exit(78);
+}
 const env = apiChildEnv(
   {
     ...process.env,
@@ -57,7 +87,9 @@ const env = apiChildEnv(
     ASA_SECURE_COOKIES: '1',
     ASA_PUBLIC_WEB_ORIGINS:
       process.env.ASA_PUBLIC_WEB_ORIGINS ?? 'https://asa-lab.ru,https://www.asa-lab.ru',
-    ASA_BUILD_REVISION: process.env.ASA_BUILD_REVISION || revision.stdout.trim() || 'production',
+    ASA_BUILD_REVISION: webMetadata.revision,
+    ASA_BUILT_AT: webMetadata.builtAt,
+    ASA_EXPECTED_SCHEMA_VERSION: String(expectedSchemaVersion),
   },
   port,
 );

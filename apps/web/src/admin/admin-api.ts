@@ -123,6 +123,12 @@ export interface AdminOperationsStatus {
     readonly name: string;
     readonly appliedAt: string;
   };
+  readonly build: {
+    readonly revision: string;
+    readonly builtAt: string | null;
+    readonly expectedSchemaVersion: number | null;
+    readonly synchronized: boolean | null;
+  };
   readonly counts: {
     readonly accounts: number;
     readonly activeAccounts: number;

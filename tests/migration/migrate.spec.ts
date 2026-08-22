@@ -29,6 +29,20 @@ describe('migration runner planning', () => {
     expect(pending.map((m) => m.version)).not.toContain(planned[0].version);
   });
 
+  it('treats CRLF and LF copies of the same migration as identical', () => {
+    const planned = planMigrations('migrations');
+    const migration = planned.find((item) => item.version === '0046');
+    expect(migration).toBeDefined();
+    const compatibleChecksum = [...(migration?.compatibleChecksums ?? [])].find(
+      (checksum) => checksum !== migration?.checksum,
+    );
+    expect(compatibleChecksum).toMatch(/^[0-9a-f]{64}$/);
+
+    const applied = new Map([[migration!.version, { checksum: compatibleChecksum! }]]);
+    const { modified } = reconcile(applied, [migration!]);
+    expect(modified).toEqual([]);
+  });
+
   it('treats a correctly applied migration as neither pending nor modified', () => {
     const planned = planMigrations('migrations');
     const applied = new Map([[planned[0].version, { checksum: planned[0].checksum }]]);
