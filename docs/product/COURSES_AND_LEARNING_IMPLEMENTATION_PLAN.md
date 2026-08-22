@@ -5,12 +5,38 @@
 класса в единый полный учебный цикл для преподавателя и ученика.
 **Связанные нормативные документы:** [PRODUCT_BLUEPRINT.md](PRODUCT_BLUEPRINT.md),
 [CLASSROOM_CORE_SPEC.md](CLASSROOM_CORE_SPEC.md),
-[ASA_ASSIGNMENT_BANK_SPEC.md](ASA_ASSIGNMENT_BANK_SPEC.md).
+[ASA_ASSIGNMENT_BANK_SPEC.md](ASA_ASSIGNMENT_BANK_SPEC.md),
+[ASSESSMENT_REWARDS_SPEC.md](ASSESSMENT_REWARDS_SPEC.md).
 
 Этот документ не является состоянием исполнения и не назначает активную задачу.
 Актуальные TASK, Issue, checkpoint, SHA и blocking по-прежнему читаются только
 из docs/execution/current.yaml. Каждая фаза ниже становится исполнимой только
 после отдельной активации владельцем и фиксации в execution-state.
+
+### Нормативный статус и границы истины
+
+Этот файл является главным продуктово-инженерным контрактом именно для
+контура `школа -> класс -> курс -> занятие -> задание/тест -> попытка ->
+проверка -> оценка -> журнал`. Он отвечает на вопросы «что строим», «какие
+инварианты нельзя нарушить» и «какими доказательствами принимаем результат».
+
+Он не подменяет:
+
+- `docs/execution/current.yaml` — единственный источник текущей исполняемой
+  задачи, checkpoint и blocking;
+- миграции и код — единственный источник фактически реализованного поведения;
+- CI и owner evidence — единственный источник факта прохождения gates.
+
+Для каждого пункта ниже допустимы только статусы:
+
+- **absent** — модели и рабочего пути нет;
+- **foundation** — есть часть модели или UI, но полный инвариант не доказан;
+- **functional** — положительный вертикальный путь работает;
+- **production-proven** — есть negative auth, migration, browser, recovery и
+  owner evidence на одной ревизии.
+
+Нельзя называть возможность «готовой», если она существует только в макете,
+документе, React-состоянии, одной таблице или одном положительном тесте.
 
 ## Реализованные вертикальные срезы (22 августа 2026)
 
@@ -358,7 +384,7 @@ Step имеет один тип:
 - file;
 - external_link;
 - assignment;
-- quiz в следующей фазе;
+- quiz — обязательный тип целевой модели, сейчас `absent`, внедряется в A3/A4;
 - project_demo или module_embed только через контракт модуля.
 
 Заголовок, вводный текст и несколько media-блоков можно объединять внутри
@@ -825,10 +851,10 @@ controller:
 
 **Цель:** ученик действительно проходит курс.
 
-**Текущий срез:** StudentSeat получает разрешённые CourseRun, читает материал,
-открывает практику, отмечает текстовый урок пройденным и видит сохранённый
-прогресс в адаптивном player. Account learner, last-position resume,
-locked/prerequisite states и медиа-плеер ещё не реализованы.
+**Текущий срез:** StudentSeat и account learner получают разрешённые CourseRun,
+читают материал, открывают практику, отмечают текстовый урок пройденным и видят
+сохранённый прогресс в адаптивном player во вкладке «Обучение». Last-position
+resume, locked/prerequisite states и медиа-плеер ещё не реализованы.
 
 Работы:
 
@@ -1170,3 +1196,468 @@ Feature flags разделяются:
 
 Только после этого ASA Lab можно честно называть системой курсов, а не банком
 заданий с упорядоченным списком.
+
+## 20. Обязательная выноска: что ещё не является школьной системой
+
+Эта таблица защищает план от подмены результата красивым экраном. Она должна
+обновляться только вместе с кодом и доказательствами.
+
+| Возможность | Текущий статус | Что существует | Чего не хватает до production-proven |
+| --- | --- | --- | --- |
+| Авторский курс | functional | разделы, уроки, rich blocks, публикация | AssignmentVersion, diff, полный audit |
+| Назначение курса | functional | whole-class CourseRun, общий due date | аудитории, schedule, enrollment, extension |
+| Ученический player | functional | чтение, практика, ручное completion | resume, prerequisites, locked states |
+| Сдача проекта | foundation | связь работы и `submitted_at` | неизменяемая попытка и state machine |
+| Проверка работы | foundation | badge и комментарий к проекту | решение по попытке, rubric, история |
+| Школьная оценка | absent | нет | баллы, шкала, AssessmentResult, audit |
+| Электронный журнал | absent | только агрегаты «сдал/ждёт» | gradebook rows, периоды, итоги, экспорт |
+| Банк вопросов | absent | нет | Question/QuestionVersion, права и поиск |
+| Тесты | absent | только упоминание в плане | QuizVersion, Attempt, Answer, evaluation |
+| Автопроверка | absent | предметные движки не образуют общий assessment | единый grader и доказуемые scoring rules |
+| Занятие по расписанию | absent | CourseRun не является уроком в календаре | ClassSession, attendance, agenda, journal |
+| Несколько школ | foundation | несколько workspace/tenant и классы | явный content scope и школьные политики |
+
+Пока строка имеет статус `absent` или `foundation`, интерфейс не должен
+создавать впечатление, что существует официальный тест, оценка, журнал или
+проведённое занятие.
+
+## 21. Каноническая модель проверки знаний
+
+### 21.1. Один конвейер для теста и практической работы
+
+Тест и проект отличаются способом проверки, но результат обучения у них один:
+
+```text
+LearningActivityVersion
+  -> Attempt
+  -> immutable Submission
+  -> Evaluation
+  -> AssessmentResult
+  -> GradebookEntry
+  -> CourseProgress
+```
+
+Запрещено строить независимый «мини-журнал тестов» рядом с текущей проверкой
+проектов. Любой тип задания обязан завершаться одним `AssessmentResult`, чтобы
+курс, класс, ученик и журнал читали одну истину.
+
+### 21.2. Нормативные сущности
+
+- `learning_activities` — стабильная авторская сущность: quiz, project,
+  open_response или composite;
+- `learning_activity_versions` — неизменяемая опубликованная версия условия,
+  политики попыток, rubric и scoring;
+- `question_bank_items` — стабильный ID вопроса и его владелец;
+- `question_versions` — неизменяемые текст, тип, варианты, ключ и параметры;
+- `quiz_versions` — manifest точных QuestionVersion, порядка и scoring policy;
+- `attempts` — отдельная попытка ученика в конкретном назначении;
+- `attempt_answers` — снимок ответа на конкретную QuestionVersion;
+- `submissions` — неизменяемый снимок всей сдачи;
+- `evaluations` — результаты автоматических и ручных проверяющих;
+- `assessment_results` — канонический итог попытки;
+- `gradebook_entries` — представление принятого результата в школьном журнале;
+- `grade_change_events` — append-only история исправлений.
+
+Каждая tenant-owned таблица содержит `tenant_id` и composite lineage к школе,
+классу, запуску и ученику. UUID без проверки этой цепочки не даёт доступа.
+
+### 21.3. Вопрос как версионируемый объект
+
+Первая обязательная версия поддерживает:
+
+| Тип | Проверка | Правило по умолчанию |
+| --- | --- | --- |
+| single_choice | автоматическая | точное совпадение, 0 или maxPoints |
+| multiple_choice | автоматическая | all-or-nothing; partial только явной политикой |
+| boolean | автоматическая | точное совпадение |
+| numeric | автоматическая | диапазон или абсолютная/относительная погрешность |
+| short_text | автоматическая/ручная | нормализованный allowlist, иначе needs_review |
+| matching | автоматическая | балл за каждую правильную пару |
+| ordering | автоматическая | all-or-nothing; per-position только явной политикой |
+| open_response | ручная | rubric обязателен при наличии баллов |
+| project | ручная/автоматическая | rubric плюс allowlisted module checks |
+| file_upload | ручная | проверка безопасного файла и rubric |
+
+Вопрос хранит минимум:
+
+- owner scope: personal или конкретная школа;
+- subject, age band, tags и language;
+- prompt blocks и разрешённые assets;
+- response schema;
+- answer key отдельно от learner payload;
+- maxPoints в минимальной целой единице;
+- scoring policy;
+- feedback policy;
+- author, version, digest, publishedAt и archivedAt.
+
+Правильный ответ никогда не присутствует в DTO, HTML или загруженном JS
+ученика до момента, разрешённого `feedback_release_policy`.
+
+### 21.4. QuizVersion
+
+Опубликованный тест фиксирует:
+
+- точные `question_version_id`;
+- обязательность и максимальный балл каждого вопроса;
+- порядок либо детерминированное правило перемешивания;
+- pool selection seed policy;
+- лимит времени;
+- число попыток;
+- правила late submission;
+- pass threshold;
+- partial credit и rounding;
+- когда видны баллы, ошибки и правильные ответы;
+- accommodations, применённые конкретному ученику.
+
+Редактирование банка после публикации не изменяет ни активный QuizVersion, ни
+старую попытку, ни журнал.
+
+## 22. Попытка, сдача и проверка
+
+### 22.1. State machine попытки
+
+Допустимы только переходы:
+
+```text
+not_started -> in_progress -> submitted -> evaluating
+evaluating -> accepted
+evaluating -> changes_requested -> in_progress -> resubmitted -> evaluating
+submitted/evaluating -> invalidated (только уполномоченный сотрудник с reason)
+```
+
+Для теста автоматическая проверка может провести `submitted -> evaluating ->
+accepted` одной транзакцией. Для ручной работы состояние `accepted` создаёт
+только разрешённый reviewer.
+
+Запрещено:
+
+- превращать `submitted_at = NULL/not NULL` в полную state machine;
+- изменять submission после сдачи;
+- перезаписывать предыдущую попытку пересдачей;
+- менять ответ после истечения времени без audit event;
+- считать работу завершённой только потому, что ученик нажал «Сдать»;
+- удалять оценённую попытку каскадным удалением задания.
+
+### 22.2. Неизменяемая Submission
+
+Submission хранит:
+
+- attemptId, learnerId/seatId, assignment/run/lesson/version IDs;
+- submittedAt и server deadline decision;
+- снимок ответов либо ProjectVersion;
+- digest, размер и manifest assets;
+- client request id для идемпотентности;
+- late status и применённое accommodation;
+- исходную автоматическую оценку.
+
+Учитель проверяет именно этот снимок. Текущий draft ученика может быть открыт
+для доработки, но не меняет уже сохранённую Submission.
+
+### 22.3. AssessmentResult
+
+Канонический результат содержит:
+
+- rawPoints и maxPoints в точных decimal/integer единицах;
+- percentage, вычисленный сервером;
+- pass/fail/incomplete;
+- gradeValue и gradeScaleVersionId;
+- rubricVersionId и criterion results;
+- autoPoints, manualPoints и adjustmentPoints отдельно;
+- acceptedAttemptId;
+- evaluator principals;
+- publishedAt и supersededBy;
+- обязательную reason при override.
+
+Клиент не присылает итоговый процент или школьную оценку как доверенное
+значение. Он присылает ответы либо ручные criterion decisions, а итог считает
+сервер по зафиксированной версии политики.
+
+## 23. Баллы, rubric и школьная оценка
+
+### 23.1. Точность вычислений
+
+- float для нормативных баллов запрещён;
+- базовая единица — integer points либо `numeric` с фиксированным scale;
+- maxPoints больше нуля для graded activity;
+- сумма criterion maxPoints равна activity maxPoints;
+- результат не выходит за `[0, maxPoints]`, кроме отдельного bonus contract;
+- rounding выполняется один раз по versioned policy;
+- одинаковые ответы и версии дают байт-в-байт одинаковый auto-grade result.
+
+### 23.2. Шкала оценивания
+
+Шкала принадлежит школе и версии учебного периода. Она может быть:
+
+- балльной;
+- процентной;
+- `2–5`;
+- зачёт/незачёт;
+- буквенной;
+- без отметки, только formative feedback.
+
+Пороговые значения, округление, late penalty и правила выбора попытки
+версионируются. Изменение политики не переписывает старый журнал.
+
+### 23.3. Rubric
+
+Rubric содержит критерии, уровни, баллы и обязательные evidence/comment rules.
+После публикации RubricVersion неизменяема. Ручная оценка должна сохранять
+решение по каждому критерию, а не только итоговую цифру.
+
+Badge остаётся мотивационным знаком и не является оценкой. Комментарий остаётся
+обратной связью и не заменяет AssessmentResult.
+
+## 24. Единый электронный журнал
+
+### 24.1. Одна строка истины
+
+Логическая строка журнала:
+
+```text
+school + academicPeriod + classroom + learner + activityAssignment
+  -> acceptedAttempt
+  -> AssessmentResult
+  -> published grade
+```
+
+Журнал показывает:
+
+- не назначено, не начато, работает, сдано, ждёт проверки;
+- вернуть на доработку, пересдано, принято;
+- опоздание и индивидуальный срок;
+- балл/max, процент, отметку и pass state;
+- номер принятой попытки;
+- автора и дату публикации оценки;
+- наличие rubric/comment без раскрытия лишних данных.
+
+### 24.2. Итоги
+
+Итог за курс или период не вводится произвольной цифрой без provenance. Он
+ссылается на versioned aggregation policy: категории, веса, drop-lowest,
+обязательные работы, округление и manual override reason.
+
+Экспорт и API журнала должны повторно проверять school scope. Ученик видит
+только свои строки; преподаватель — разрешённые классы; школьный администратор
+— агрегаты и журнал в пределах своей школы.
+
+## 25. Реальное занятие и посещаемость
+
+`CourseRun` отвечает на вопрос «какая версия курса назначена классу».
+`ClassSession` отвечает на вопрос «какое занятие реально проводится или было
+проведено». Эти сущности нельзя смешивать.
+
+ClassSession содержит:
+
+- school, academic period, classroom и teacher;
+- startsAt, endsAt и school timezone;
+- тему, agenda и связанные lesson/activity versions;
+- статус planned/live/completed/cancelled;
+- attendance: present, absent, late, excused;
+- выданное домашнее задание;
+- фактическое время открытия и закрытия теста;
+- audit изменений.
+
+В первой версии расписание может быть простым, но нельзя называть CourseRun
+«проведённым занятием» без ClassSession и attendance evidence.
+
+## 26. Несколько школ: обязательная граница
+
+### 26.1. Разделение областей владения
+
+Каждый авторский объект получает явный scope:
+
+- `personal` — личный материал преподавателя;
+- `school:<tenantId>` — материал конкретной школы;
+- независимая копия из teacher catalogue.
+
+`principal_home_tenant` не может оставаться неявным решением для нового
+контента в интерфейсе нескольких школ. Создание, копирование и импорт должны получать
+проверенный target scope из активного workspace либо явного выбора пользователя.
+
+### 26.2. Повторное использование между школами
+
+Личный CourseVersion можно назначить классу школы без переноса детских данных.
+Сам `CourseRun`, enrollment, attempts, submissions, assessments и gradebook
+всегда создаются в tenant целевого класса.
+
+Материал школы A попадает в школу B только через разрешённую независимую копию
+или каталог. Вместе с материалом никогда не копируются:
+
+- ученики и roster;
+- попытки и ответы;
+- оценки и комментарии;
+- attendance;
+- teacher-only notes;
+- секретные answer keys вне опубликованного QuizVersion manifest.
+
+### 26.3. Роли
+
+Минимальная матрица:
+
+| Роль | Материалы | Назначение | Проверка | Журнал | Политики школы |
+| --- | --- | --- | --- | --- | --- |
+| course_owner | свои/разрешённые | только при доступе к классу | по grant | по grant | нет |
+| methodist | школьные | нет по умолчанию | нет по умолчанию | агрегаты по grant | curricula |
+| classroom_teacher | разрешённые | свой класс | свой класс | свой класс | нет |
+| reviewer | без редактирования курса | нет | разрешённые работы | разрешённые строки | нет |
+| school_admin | metadata | административный контроль | не автоматически | school scope | шкалы/периоды |
+| learner | назначенное | нет | нет | только своё | нет |
+
+Co-teacher не получает право менять опубликованный курс или школьную шкалу
+только из-за членства в классе. Все расширенные grants явные и аудируемые.
+
+## 27. Политики безопасности тестов
+
+- answer key хранится отдельно от публичного question payload;
+- learner endpoint формируется allowlist DTO, а не удалением пары полей;
+- grading worker читает ключ только для точной QuestionVersion;
+- попытка авторизуется одновременно по tenant, run, audience и learner;
+- server time является источником deadline/time-limit решения;
+- shuffle воспроизводим по сохранённому seed, но seed не раскрывает ключ;
+- повторный submit идемпотентен и возвращает тот же Submission;
+- ручной override требует grant, reason и append-only event;
+- администратор инфраструктуры не становится педагогом автоматически;
+- teacher preview теста не содержит roster или ответы учеников;
+- выгрузка результатов не содержит правильные ответы без отдельного разрешения;
+- rate limits не должны блокировать весь класс из-за одного общего IP;
+- логи не содержат ответов детей, ключей, текстов работ или секретных assets.
+
+## 28. Усиленная последовательность внедрения
+
+Порядок обязателен: UI не опережает нормативную модель.
+
+### A0. Контракты и текущая правда
+
+- status ledger из раздела 20;
+- единая терминология Activity/Attempt/Submission/Assessment/Grade;
+- auth matrix для personal и двух school tenants;
+- фиксация limits и version boundaries;
+- regression текущих курсов и обычных заданий.
+
+### A1. Версии задания и неизменяемая сдача
+
+- LearningActivityVersion/AssignmentVersion;
+- Attempt и Submission;
+- ProjectVersion snapshot при сдаче;
+- state machine и idempotency;
+- миграция старого `submitted_at` как legacy attempt без выдуманной оценки.
+
+### A2. Assessment и ручная проверка
+
+- AssessmentResult;
+- changes_requested/resubmit/accept;
+- rubric versions;
+- grade change audit;
+- обновление course completion только из принятого результата.
+
+### A3. Банк вопросов и QuizVersion
+
+- question types первой версии;
+- безопасный authoring/preview;
+- публикация quiz manifest;
+- answer-key isolation;
+- import/export откладывается до стабильного native flow.
+
+### A4. QuizAttempt и автопроверка
+
+- start/save/submit/expire;
+- deterministic grading;
+- partial credit policies;
+- feedback release;
+- teacher review для ambiguous/manual answers.
+
+### A5. Gradebook
+
+- class grid и learner detail;
+- school grade scale;
+- period aggregation;
+- audit, export и исправления;
+- согласованность course progress/assessment/gradebook.
+
+### A6. ClassSession и multi-school hardening
+
+- расписание и attendance;
+- открытие activity на занятии;
+- explicit personal/school content scope;
+- methodist/reviewer grants;
+- cross-school copy и negative isolation tests.
+
+Каждая фаза additive. Старые работы, feedback и badges сохраняются; legacy
+значок не преобразуется автоматически в школьную отметку.
+
+## 29. Обязательные доказательства приёмки
+
+### 29.1. Domain и database
+
+1. Одинаковый QuizVersion и ответы дают одинаковый результат.
+2. Изменение вопроса создаёт новую версию и не меняет старую попытку.
+3. Пересдача создаёт новый Attempt и сохраняет предыдущий.
+4. Submission не меняется после submit.
+5. Grade override оставляет append-only событие и прежний результат.
+6. Сумма баллов и rounding проходят boundary/property tests.
+7. School A не читает вопросы, ответы, попытки и журнал school B.
+8. Runtime role не имеет обходного прямого доступа к answer keys.
+
+### 29.2. API и authorization
+
+Обязательна матрица:
+
+- owner teacher, co-teacher, reviewer, methodist, school admin, learner;
+- personal workspace, school A, school B;
+- draft/published/archived question и activity;
+- assigned/unassigned learner;
+- open/expired/closed attempt;
+- active/revoked/suspended membership.
+
+Проверяется не только `403/404`, но и отсутствие side effects и утечки через
+counts, timing, assets, export и error text.
+
+### 29.3. Browser journeys
+
+1. Учитель создаёт тест, публикует курс и назначает классу.
+2. Два ученика получают разные сохранённые attempts без утечки ответов.
+3. Автотест начисляет точные баллы и обновляет журнал.
+4. Развёрнутый ответ попадает в очередь ручной проверки.
+5. Учитель возвращает проект, ученик пересдаёт, первая попытка сохраняется.
+6. Принятый AssessmentResult одинаков в player, карточке ученика и gradebook.
+7. School A и school B используют личный курс, но имеют раздельные результаты.
+8. Mobile learner проходит тест без горизонтального overflow и потери ответа.
+9. Потеря сети перед submit не создаёт две попытки и не показывает ложный успех.
+10. Истёкший тест закрывается по server time и сохраняет предсказуемый результат.
+
+### 29.4. Запрет ложной готовности
+
+Нельзя заявлять «тесты готовы», если не доказаны answer-key isolation,
+idempotent submit и scoring boundaries. Нельзя заявлять «оценки готовы», если
+есть только badge/comment. Нельзя заявлять «журнал готов», если это вычисленная
+таблица без AssessmentResult и audit. Нельзя заявлять «несколько школ готовы»,
+если положительный тест использует только один tenant.
+
+## 30. Усиленный Definition of Done школьного контура
+
+Полный контур считается готовым только когда одновременно:
+
+1. личные и школьные материалы имеют явный scope;
+2. курс содержит материал, quiz и практическую activity;
+3. все три типа опубликованы неизменяемой версией;
+4. CourseRun назначен аудитории конкретной школы;
+5. два ученика имеют изолированные progress и attempts;
+6. тест проверяется автоматически по серверному ключу;
+7. открытый ответ и проект проходят ручную rubric-проверку;
+8. каждая сдача является неизменяемой Submission;
+9. пересдача не уничтожает предыдущую попытку;
+10. один AssessmentResult является источником player, progress и gradebook;
+11. школьная шкала и округление versioned;
+12. изменение оценки имеет автора, время и reason;
+13. журнал строится по классу и учебному периоду;
+14. ClassSession фиксирует занятие и attendance;
+15. школы A и B не видят данные друг друга даже по известному UUID;
+16. teacher catalogue не раскрывает answer keys и ученические результаты;
+17. migration/backfill сохраняют legacy assignments, feedback и badges;
+18. restore drill открывает старый CourseVersion, Submission и grade;
+19. focused/data/browser/repository gates зелёные на одном SHA без кэша;
+20. owner evidence подтверждает desktop, tablet и mobile полный цикл.
+
+До выполнения всех двадцати пунктов ASA Lab следует называть платформой с
+рабочим курсом и развиваемым школьным контуром, но не завершённой LMS или
+электронной школой.
