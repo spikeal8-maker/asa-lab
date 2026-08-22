@@ -392,6 +392,78 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
     ).rejects.toMatchObject({ code: '42501' });
   });
 
+  it('reports and revokes a MAX identity without revoking password sessions', async () => {
+    await admin.query(
+      `INSERT INTO account_external_identities
+         (account_id, provider, subject, username, display_name)
+       VALUES ($1, 'max', $2, 'ordinary_max', 'Ordinary MAX')`,
+      [ordinaryAccount.accountId, `${Date.now()}${Math.floor(Math.random() * 1_000_000)}`],
+    );
+    const maxAccessHash = hashSessionToken(`max-admin-test-${randomUUID()}`);
+    await admin.query(
+      `INSERT INTO sessions_v2
+         (principal_id, active_workspace_id, token_hash, expires_at)
+       VALUES ($1, $2, $3, now() + interval '12 hours')`,
+      [ordinaryAccount.principalId, ordinaryAccount.workspaceId, maxAccessHash],
+    );
+    await runtime.query(`SELECT session_refresh_attach($1, $2, 'max', 30)`, [
+      maxAccessHash,
+      hashSessionToken(`max-refresh-${randomUUID()}`),
+    ]);
+
+    const status = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/accounts/${ordinaryAccount.accountId}/max`,
+      cookies: { asa_session: platformAdmin.token },
+    });
+    expect(status.statusCode).toBe(200);
+    expect(status.json()).toMatchObject({ linked: true, verifiedAt: expect.any(String) });
+
+    const revoked = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/accounts/${ordinaryAccount.accountId}/max/revoke`,
+      cookies: { asa_session: platformAdmin.token },
+      payload: { reason: 'Проверка отзыва связи MAX' },
+    });
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.json()).toEqual({ accountId: ordinaryAccount.accountId, revoked: true });
+
+    const persisted = await admin.query<{
+      active_identity: string;
+      max_session_active: string;
+      password_session_active: string;
+      identity_audit: string;
+      admin_audit: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM account_external_identities
+           WHERE account_id = $1 AND provider = 'max' AND revoked_at IS NULL) AS active_identity,
+         (SELECT count(*)::text FROM sessions_v2
+           WHERE token_hash = $2 AND revoked_at IS NULL) AS max_session_active,
+         (SELECT count(*)::text FROM sessions_v2
+           WHERE id = $3 AND revoked_at IS NULL) AS password_session_active,
+         (SELECT count(*)::text FROM account_external_identity_events
+           WHERE account_id = $1 AND event = 'revoked') AS identity_audit,
+         (SELECT count(*)::text FROM administrative_audit_events
+           WHERE actor_principal_id = $4
+             AND action = 'administration.max_identity.revoke'
+             AND target_id = $1::text) AS admin_audit`,
+      [
+        ordinaryAccount.accountId,
+        maxAccessHash,
+        ordinaryAccount.sessionId,
+        platformAdmin.principalId,
+      ],
+    );
+    expect(persisted.rows[0]).toEqual({
+      active_identity: '0',
+      max_session_active: '0',
+      password_session_active: '1',
+      identity_audit: '1',
+      admin_audit: '1',
+    });
+  });
+
   it('manages access, administrator roles and sessions with audit and self-protection', async () => {
     const suspend = await inject(app, {
       method: 'POST',

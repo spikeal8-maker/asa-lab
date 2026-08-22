@@ -586,10 +586,30 @@ function UserManagementDialog({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState<'access' | 'role' | null>(null);
+  const [busy, setBusy] = useState<'access' | 'role' | 'max' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [maxIdentity, setMaxIdentity] = useState<{
+    linked: boolean;
+    verifiedAt: string | null;
+    lastRevokedAt: string | null;
+  } | null>(null);
   const isSelf = account.accountId === currentAccountId;
   const reasonReady = reason.trim().length >= 3;
+
+  useEffect(() => {
+    let cancelled = false;
+    void adminApi.maxIdentity(account.accountId).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) onAccessDenied();
+        return;
+      }
+      setMaxIdentity(result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [account.accountId, onAccessDenied]);
 
   const finish = (result: AdminApiResult<unknown>): void => {
     if (!result.ok) {
@@ -618,6 +638,16 @@ function UserManagementDialog({
     finish(
       await adminApi.setPlatformAdmin(account.accountId, {
         enabled: !account.isPlatformAdmin,
+        reason: reason.trim(),
+      }),
+    );
+  };
+
+  const revokeMax = async (): Promise<void> => {
+    setBusy('max');
+    setFailure(null);
+    finish(
+      await adminApi.revokeMaxIdentity(account.accountId, {
         reason: reason.trim(),
       }),
     );
@@ -661,6 +691,16 @@ function UserManagementDialog({
             <dt>Роль</dt>
             <dd>{account.isPlatformAdmin ? 'Администратор' : 'Пользователь'}</dd>
           </div>
+          <div>
+            <dt>MAX</dt>
+            <dd>
+              {maxIdentity?.linked
+                ? `Подключён${maxIdentity.verifiedAt ? ` · ${dateTime(maxIdentity.verifiedAt)}` : ''}`
+                : maxIdentity?.lastRevokedAt
+                  ? `Отключён · ${dateTime(maxIdentity.lastRevokedAt)}`
+                  : 'Не подключён'}
+            </dd>
+          </div>
         </dl>
 
         <label className="admin-reason-field">
@@ -701,6 +741,14 @@ function UserManagementDialog({
               : account.isPlatformAdmin
                 ? 'Снять роль администратора'
                 : 'Назначить администратором'}
+          </button>
+          <button
+            type="button"
+            className="admin-danger-button"
+            disabled={!reasonReady || busy !== null || !maxIdentity?.linked}
+            onClick={() => void revokeMax()}
+          >
+            {busy === 'max' ? 'Отключаем…' : 'Отозвать MAX'}
           </button>
           <button
             type="button"

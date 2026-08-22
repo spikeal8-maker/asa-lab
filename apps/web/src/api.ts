@@ -1044,6 +1044,7 @@ export const api = {
   maxStatus: () => call<MaxAccountStatus>('/api/auth/max/status'),
   dismissMaxPrompt: () =>
     call<{ dismissedUntil: string | null }>('/api/auth/max/prompt/dismiss', { method: 'POST' }),
+  unlinkMax: () => call<{ unlinked: boolean }>('/api/auth/max/unlink', { method: 'POST' }),
   maxSession: (initData: string) =>
     call<SessionPayload>('/api/auth/max/session', {
       method: 'POST',

@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import { MaxAuthService, MaxInitDataError, validateMaxInitData } from './max-auth.service.js';
 
@@ -90,5 +90,19 @@ describe('MAX WebApp authentication boundary', () => {
     });
     expect(service.config()).toMatchObject({ enabled: false });
     await expect(service.signIn(signedInitData())).rejects.toThrowError('max_auth_disabled');
+  });
+
+  it('delegates unlink to the server-owned account and principal boundary', async () => {
+    const query = vi.fn(async () => ({ rows: [{ unlinked: true }] }));
+    const service = new MaxAuthService({ query } as unknown as pg.Pool, {
+      botToken: BOT_TOKEN,
+      botUsername: 'id231408577954_3_bot',
+      enabled: true,
+    });
+    await expect(service.unlink('account-id', 'principal-id')).resolves.toBe(true);
+    expect(query).toHaveBeenCalledWith('SELECT auth_max_unlink_self($1, $2) AS unlinked', [
+      'account-id',
+      'principal-id',
+    ]);
   });
 });

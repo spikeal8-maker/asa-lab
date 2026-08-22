@@ -14,7 +14,7 @@ Rendered from the control plane; `pnpm control-plane:check` fails on drift.
 task: TASK-ADMIN-AUTH-STABILITY-001
 branch: main
 status: in_progress
-checkpoint: max_lifecycle_verified_on_backup
+checkpoint: max_revoke_verified_real_postgresql
 execution: direct_main
 ```
 
@@ -29,7 +29,7 @@ existing FRP route.
 ## Current evidence
 
 Build identity, rotating refresh sessions, owner-admin startup preflight and the
-MAX verification status/prompt lifecycle are implemented in `main` and verified
-against a restored production backup. Production cutover, a newly generated MAX
-secret, complete revoke controls and restart evidence are still pending, so the
-task remains `in_progress`.
+MAX verification lifecycle and user/admin revoke controls are implemented in
+`main`; the revoke path is verified against real PostgreSQL and preserves
+password sessions. Production cutover, a newly generated MAX secret and restart
+evidence are still pending, so the task remains `in_progress`.

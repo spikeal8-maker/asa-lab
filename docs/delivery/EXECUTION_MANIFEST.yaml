@@ -338,7 +338,7 @@ tasks:
   - position: 9
     task_id: TASK-ADMIN-AUTH-STABILITY-001
     status: in_progress
-    checkpoint: max_lifecycle_verified_on_backup
+    checkpoint: max_revoke_verified_real_postgresql
     issue: https://github.com/spikeal8-maker/asa-lab/issues/135
     branch: main
     base_branch: main

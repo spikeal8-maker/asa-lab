@@ -62,6 +62,12 @@ export interface AdminAccountView {
   readonly isPlatformAdmin: boolean;
 }
 
+export interface AdminMaxIdentityView {
+  readonly linked: boolean;
+  readonly verifiedAt: string | null;
+  readonly lastRevokedAt: string | null;
+}
+
 export interface AdminOrganizationView {
   readonly workspaceId: string;
   readonly title: string;
@@ -557,6 +563,46 @@ export class AdminControlPlaneService {
     );
     if (result.rows[0]?.revoked !== true) throw new Error('ADMIN_SESSION_REVOKE_MISSING');
     return { sessionId: input.sessionId, revoked: true };
+  }
+
+  async maxIdentityStatus(
+    access: ResolvedAdminAccess,
+    targetAccountId: string,
+  ): Promise<AdminMaxIdentityView> {
+    const scope = { kind: 'platform' as const, id: null };
+    this.requirePermission(access, 'administration.accounts.read', scope);
+    const result = await this.pool.query<{
+      linked: boolean;
+      verified_at: Date | string | null;
+      last_revoked_at: Date | string | null;
+    }>(`SELECT linked, verified_at, last_revoked_at FROM admin_max_identity_status($1, $2)`, [
+      access.subject.principalId,
+      targetAccountId,
+    ]);
+    const row = result.rows[0];
+    if (!row) throw new Error('ADMIN_ACCOUNT_MISSING');
+    return {
+      linked: row.linked === true,
+      verifiedAt: row.verified_at === null ? null : iso(row.verified_at),
+      lastRevokedAt: row.last_revoked_at === null ? null : iso(row.last_revoked_at),
+    };
+  }
+
+  async revokeMaxIdentity(
+    access: ResolvedAdminAccess,
+    input: {
+      readonly targetAccountId: string;
+      readonly reason: string;
+      readonly requestId: string;
+    },
+  ): Promise<{ readonly accountId: string; readonly revoked: boolean }> {
+    const scope = { kind: 'platform' as const, id: null };
+    this.requirePermission(access, 'administration.security.manage', scope);
+    const result = await this.pool.query<{ revoked: boolean }>(
+      `SELECT admin_revoke_max_identity($1, $2, $3, $4) AS revoked`,
+      [access.subject.principalId, input.targetAccountId, input.reason, input.requestId],
+    );
+    return { accountId: input.targetAccountId, revoked: result.rows[0]?.revoked === true };
   }
 
   private requirePermission(
