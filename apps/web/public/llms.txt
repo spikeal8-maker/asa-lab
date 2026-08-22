@@ -1,0 +1,34 @@
+# ASA Lab
+
+> ASA Lab is a Russian-language educational STEM platform for schools. Its active project environments are 3D modelling, virtual electronics, chess and Russian draughts. Block programming, drawing and visual projects are in development.
+
+Canonical website: https://asa-lab.ru/
+Primary language: Russian (ru-RU)
+Source repository: https://github.com/spikeal8-maker/asa-lab
+
+## Public product pages
+
+- [Platform capabilities](https://asa-lab.ru/features/)
+- [For teachers](https://asa-lab.ru/for-teachers/)
+- [For schools and clubs](https://asa-lab.ru/for-schools/)
+- [Safety principles](https://asa-lab.ru/safety/)
+- [About ASA Lab](https://asa-lab.ru/about/)
+- [Frequently asked questions](https://asa-lab.ru/faq/)
+- [Block programming — in development](https://asa-lab.ru/features/block-programming/)
+- [Drawing and visual projects — in development](https://asa-lab.ru/features/drawing/)
+- [3D modelling](https://asa-lab.ru/features/3d-modeling/)
+- [Virtual electronics](https://asa-lab.ru/features/electronics/)
+- [Chess and Russian draughts](https://asa-lab.ru/features/chess-and-checkers/)
+
+## Key facts
+
+- Audience: school students, teachers and authors of educational materials.
+- Learning model: students create and investigate; teachers review the actual project, attempt, move, model or measurement behind the result.
+- Safety: no advertising, no open child chat with strangers, role- and class-scoped access.
+- Product principle: unsupported or unverified results are diagnosed explicitly instead of being presented as successful.
+- Availability: 3D modelling, virtual electronics, chess and Russian draughts are active; block programming and drawing are not yet creatable.
+- Brand spelling: ASA Lab. Russian alternate name: АСА Лаб.
+
+## Crawler policy
+
+Public product information may be indexed, summarized and cited with a link to the canonical page. ASA Lab does not grant permission through this file to use its content for model training. See https://asa-lab.ru/robots.txt for machine-readable crawler directives.

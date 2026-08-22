@@ -255,6 +255,13 @@ export function App(): JSX.Element {
       setAdminAccess({ kind: 'idle' });
       return;
     }
+    const hasPlatformAdminCapability = session.session.capabilities.some(
+      (entry) => entry.capability === 'platform_admin' && entry.state === 'verified',
+    );
+    if (!hasPlatformAdminCapability) {
+      setAdminAccess({ kind: 'denied' });
+      return;
+    }
 
     setAdminAccess({ kind: 'checking' });
     const result = await adminApi.me();

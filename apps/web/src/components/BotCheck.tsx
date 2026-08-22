@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, type BotAction, type BotChallenge, type BotProof } from '../api';
+import { sha256Bytes } from './sha256';
 
 const BATCH_SIZE = 128;
 const MAX_COUNTER = 2_000_000;
@@ -47,20 +48,22 @@ function hasLeadingZeroBits(bytes: Uint8Array, difficulty: number): boolean {
 }
 
 async function solve(challenge: BotChallenge): Promise<number> {
-  if (!globalThis.crypto?.subtle) throw new Error('secure browser crypto is unavailable');
   const encoder = new TextEncoder();
+  const subtle = globalThis.crypto?.subtle;
   for (let first = 0; first <= MAX_COUNTER; first += BATCH_SIZE) {
     const counters = Array.from(
       { length: Math.min(BATCH_SIZE, MAX_COUNTER - first + 1) },
       (_, index) => first + index,
     );
-    const digests = await Promise.all(
-      counters.map((counter) =>
-        crypto.subtle.digest('SHA-256', encoder.encode(`${challenge.salt}:${counter}`)),
-      ),
-    );
+    const inputs = counters.map((counter) => encoder.encode(`${challenge.salt}:${counter}`));
+    const digests = subtle
+      ? await Promise.all(inputs.map((input) => subtle.digest('SHA-256', input)))
+      : inputs.map((input) => sha256Bytes(input));
     const match = digests.findIndex((digest) =>
-      hasLeadingZeroBits(new Uint8Array(digest), challenge.difficulty),
+      hasLeadingZeroBits(
+        digest instanceof Uint8Array ? digest : new Uint8Array(digest),
+        challenge.difficulty,
+      ),
     );
     if (match >= 0) return counters[match] as number;
     // Yield periodically so the form and assistive technology stay responsive.

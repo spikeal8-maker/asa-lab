@@ -11,4 +11,19 @@ describe('PublicEntryPage licensing notice', () => {
     expect(html).toContain('href="https://github.com/spikeal8-maker/asa-lab"');
     expect(html).toContain('Бренд и отдельные материалы защищены.');
   });
+
+  it('keeps the exact sign-in label unique for browser journeys', () => {
+    const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
+
+    expect(html.match(/>Войти<\/button>/g)).toHaveLength(1);
+    expect(html).toContain('>Уже есть аккаунт</button>');
+  });
+
+  it('distinguishes active modules from environments still in development', () => {
+    const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
+
+    expect(html).toContain('Блочное программирование и рисование находятся в разработке.');
+    expect(html).toContain('В разработке: алгоритмы');
+    expect(html).toContain('В разработке: иллюстрация');
+  });
 });
