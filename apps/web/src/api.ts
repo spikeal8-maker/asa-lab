@@ -559,6 +559,60 @@ export interface SeatAssignment {
   updatedAt: string | null;
 }
 
+export type QuizQuestionType =
+  'single_choice' | 'multiple_choice' | 'boolean' | 'numeric' | 'short_text';
+
+export interface QuestionBankItem {
+  id: string;
+  versionId: string;
+  type: QuizQuestionType;
+  promptBlocks: Array<{ type?: string; text?: string }>;
+  responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+  maxPoints: number;
+  scope: 'personal' | 'school';
+  subject: string | null;
+  ageBand: string | null;
+  tags: string[];
+  publishedAt: string;
+}
+
+export interface QuizVersion {
+  id: string;
+  title: string;
+  instructions: string | null;
+  questionCount: number;
+  totalPoints: number;
+  attemptLimit: number;
+  timeLimitMinutes: number | null;
+  passThreshold: number;
+  feedbackReleasePolicy: 'immediate' | 'score_only' | 'after_close';
+  publishedAt: string;
+}
+
+export interface LearnerQuiz {
+  assignmentId: string;
+  classroomTitle: string;
+  quizVersionId: string;
+  title: string;
+  instructions: string | null;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  attemptLimit: number;
+  attemptsUsed: number;
+  timeLimitMinutes: number | null;
+  totalPoints: number;
+  passThreshold: number;
+  latestResult: { state: string; points: number | null; percentage: number | null } | null;
+  questions: Array<{
+    versionId: string;
+    type: QuizQuestionType;
+    promptBlocks: Array<{ type?: string; text?: string }>;
+    responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+    maxPoints: number;
+    position: number;
+  }>;
+}
+
 export interface ClassroomTeacher {
   accountId: string;
   displayName: string;
@@ -1492,6 +1546,39 @@ export const api = {
     call<{ items: ClassroomAssignment[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments`,
     ),
+  listQuestionBank: () => call<{ items: QuestionBankItem[] }>('/api/classrooms/learning/questions'),
+  createQuestion: (input: {
+    type: QuizQuestionType;
+    prompt: string;
+    options?: Array<{ id: string; label: string }>;
+    correctAnswer: string | string[] | boolean | number;
+    tolerance?: number;
+    maxPoints?: number;
+    scope?: 'personal' | 'school';
+  }) =>
+    call<{ id: string; versionId: string }>('/api/classrooms/learning/questions', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listQuizzes: () => call<{ items: QuizVersion[] }>('/api/classrooms/learning/quizzes'),
+  createQuiz: (input: {
+    title: string;
+    instructions: string | null;
+    questionVersionIds: string[];
+    attemptLimit: number;
+    timeLimitMinutes: number | null;
+    passThreshold: number;
+    feedbackReleasePolicy: 'immediate' | 'score_only' | 'after_close';
+  }) =>
+    call<{ id: string; activityVersionId: string; totalPoints: number }>(
+      '/api/classrooms/learning/quizzes',
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  assignQuiz: (classroomId: string, quizVersionId: string, dueAt: string | null) =>
+    call<{ assignmentId: string; reused: boolean }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/quizzes`,
+      { method: 'POST', body: JSON.stringify({ quizVersionId, dueAt }) },
+    ),
   createClassroomAssignment: (
     classroomId: string,
     input: { title: string; brief: string | null; moduleKey: string; dueAt: string | null },
@@ -1519,6 +1606,32 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/progress`,
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
+  seatQuizzes: () => call<{ items: LearnerQuiz[] }>('/api/class-join/me/quizzes'),
+  accountQuizzes: () => call<{ items: LearnerQuiz[] }>('/api/class-join/account/quizzes'),
+  submitSeatQuiz: (
+    assignmentId: string,
+    answers: Array<{ questionVersionId: string; answer: Record<string, unknown> }>,
+  ) =>
+    call<{
+      attemptId: string;
+      submissionId: string;
+      attemptNumber: number;
+      points: number;
+      maxPoints: number;
+      percentage: number;
+      outcome: 'passed' | 'failed';
+      lateState: 'on_time' | 'late';
+      questionResults: Array<{
+        questionVersionId: string;
+        correct: boolean;
+        points: number;
+        maxPoints: number;
+      }>;
+      reused: boolean;
+    }>(`/api/class-join/me/quizzes/${encodeURIComponent(assignmentId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ answers, clientRequestId: `quiz:${crypto.randomUUID()}` }),
+    }),
   seatCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/me/course-runs'),
   accountCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/account/course-runs'),
   setSeatCourseLessonProgress: (runId: string, lessonId: string, completed: boolean) =>

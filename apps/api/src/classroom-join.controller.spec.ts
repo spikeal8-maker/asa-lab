@@ -122,6 +122,71 @@ describe('classroom course progress', () => {
 });
 
 describe('immutable classroom submissions', () => {
+  it('submits a quiz for the session seat and returns released correctness', async () => {
+    const assignmentId = '123e4567-e89b-42d3-a456-426614174020';
+    const questionId = '123e4567-e89b-42d3-a456-426614174021';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) {
+        return {
+          rows: [
+            {
+              seat_id: 'seat-id',
+              classroom_id: 'classroom-id',
+              classroom_title: '7А',
+              display_label: 'Алина',
+              teacher_display_name: 'Педагог',
+              safe_mode: true,
+              avatar_key: null,
+              expires_at: '2026-08-21T20:00:00.000Z',
+            },
+          ],
+        };
+      }
+      return {
+        rows: [
+          {
+            result_code: 'ok',
+            attempt_id: 'attempt-id',
+            submission_id: 'submission-id',
+            attempt_number: '1',
+            raw_points: '2',
+            max_points: '3',
+            percentage_basis_points: '6666',
+            outcome: 'passed',
+            late_state: 'on_time',
+            question_results: [
+              { questionVersionId: questionId, correct: true, points: 2, maxPoints: 2 },
+            ],
+            reused: false,
+          },
+        ],
+      };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+      new BotChallengeService({ required: false }),
+    );
+    await expect(
+      controller.submitQuiz(seatRequest(), assignmentId, {
+        answers: [{ questionVersionId: questionId, answer: { value: 'b' } }],
+        clientRequestId: 'quiz:test:0001',
+      }),
+    ).resolves.toMatchObject({
+      attemptId: 'attempt-id',
+      points: 2,
+      maxPoints: 3,
+      percentage: 66.66,
+      outcome: 'passed',
+    });
+    expect(query).toHaveBeenLastCalledWith(expect.stringContaining('quiz_submission_create'), [
+      'seat-id',
+      assignmentId,
+      expect.stringContaining(questionId),
+      'quiz:test:0001',
+    ]);
+  });
+
   it('returns the numbered immutable attempt created for the seat', async () => {
     const assignmentId = '123e4567-e89b-42d3-a456-426614174020';
     const query = vi.fn(async (sql: string) => {
