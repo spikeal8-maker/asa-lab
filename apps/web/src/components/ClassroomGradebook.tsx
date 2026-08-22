@@ -5,7 +5,7 @@ import './classroom-gradebook.css';
 type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; items: GradebookEntry[] };
+  | { kind: 'ready'; items: GradebookEntry[]; scheme: { title: string } | null };
 
 const STATE_LABELS: Record<GradebookEntry['state'], string> = {
   not_started: 'Не начинал',
@@ -90,7 +90,7 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
     const result = await api.classroomGradebook(classroomId);
     setState(
       result.ok
-        ? { kind: 'ready', items: result.data.items }
+        ? { kind: 'ready', items: result.data.items, scheme: result.data.scheme }
         : { kind: 'error', message: result.error.message || 'Не удалось открыть журнал.' },
     );
   }, [classroomId]);
@@ -127,6 +127,37 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
         <span className={awaiting > 0 ? 'needs-review' : undefined}>
           {awaiting > 0 ? `Ждут проверки: ${awaiting}` : 'Всё проверено'}
         </span>
+      </div>
+      <div className="gradebook-scale">
+        <span>Шкала: {state.scheme?.title ?? 'зачёт / незачёт'}</span>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={async () => {
+            const result = await api.publishGradingScheme(classroomId, 'Пятибалльная', [
+              { minBasisPoints: 0, label: '2' },
+              { minBasisPoints: 5000, label: '3' },
+              { minBasisPoints: 7000, label: '4' },
+              { minBasisPoints: 8500, label: '5' },
+            ]);
+            if (result.ok) await reload();
+          }}
+        >
+          Пятибалльная
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={async () => {
+            const result = await api.publishGradingScheme(classroomId, 'Зачётная', [
+              { minBasisPoints: 0, label: 'Не зачтено' },
+              { minBasisPoints: 6000, label: 'Зачёт' },
+            ]);
+            if (result.ok) await reload();
+          }}
+        >
+          Зачётная
+        </button>
       </div>
       {state.items.length === 0 ? (
         <div className="gradebook-empty">
@@ -173,6 +204,7 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
                   />
                 ) : item.points !== null && item.maxPoints !== null ? (
                   <span className="gradebook-score">
+                    {item.displayGrade ? <b>{item.displayGrade}</b> : null}
                     <strong>{item.points}</strong>/{item.maxPoints}
                     {item.percentage !== null ? <small>{item.percentage}%</small> : null}
                   </span>

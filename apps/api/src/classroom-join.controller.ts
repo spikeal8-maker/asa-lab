@@ -100,6 +100,30 @@ interface SeatCourseRunRow {
   completed_at: Date | string | null;
 }
 
+interface QuizForSeatRow {
+  classroom_assignment_id: string;
+  classroom_title: string;
+  quiz_version_id: string;
+  quiz_title: string;
+  quiz_instructions: string | null;
+  due_at: Date | string | null;
+  assignment_status: 'open' | 'closed';
+  attempt_limit: number | string;
+  attempts_used: number | string;
+  time_limit_minutes: number | string | null;
+  total_points: number | string;
+  pass_threshold_basis_points: number | string;
+  question_version_id: string;
+  question_type: string;
+  prompt_blocks: Array<Record<string, unknown>>;
+  response_schema: Record<string, unknown>;
+  question_max_points: number | string;
+  question_position: number | string;
+  latest_state: string | null;
+  latest_points: number | string | null;
+  latest_percentage_basis_points: number | string | null;
+}
+
 function isoDate(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
@@ -201,6 +225,90 @@ function seatCourseRuns(rows: SeatCourseRunRow[]) {
     });
   }
   return runs;
+}
+
+/** Build a learner-safe DTO. Answer keys are not selected by either SQL function. */
+function seatQuizzes(rows: QuizForSeatRow[]) {
+  const quizzes: Array<{
+    assignmentId: string;
+    classroomTitle: string;
+    quizVersionId: string;
+    title: string;
+    instructions: string | null;
+    dueAt: string | null;
+    status: 'open' | 'closed';
+    attemptLimit: number;
+    attemptsUsed: number;
+    timeLimitMinutes: number | null;
+    totalPoints: number;
+    passThreshold: number;
+    latestResult: { state: string; points: number | null; percentage: number | null } | null;
+    questions: Array<{
+      versionId: string;
+      type: string;
+      promptBlocks: Array<Record<string, unknown>>;
+      responseSchema: Record<string, unknown>;
+      maxPoints: number;
+      position: number;
+    }>;
+  }> = [];
+  for (const row of rows) {
+    let quiz = quizzes.find((entry) => entry.assignmentId === row.classroom_assignment_id);
+    if (!quiz) {
+      quiz = {
+        assignmentId: row.classroom_assignment_id,
+        classroomTitle: row.classroom_title,
+        quizVersionId: row.quiz_version_id,
+        title: row.quiz_title,
+        instructions: row.quiz_instructions,
+        dueAt: row.due_at === null ? null : isoDate(row.due_at),
+        status: row.assignment_status,
+        attemptLimit: Number(row.attempt_limit),
+        attemptsUsed: Number(row.attempts_used),
+        timeLimitMinutes: row.time_limit_minutes === null ? null : Number(row.time_limit_minutes),
+        totalPoints: Number(row.total_points),
+        passThreshold: Number(row.pass_threshold_basis_points) / 100,
+        latestResult: row.latest_state
+          ? {
+              state: row.latest_state,
+              points: row.latest_points === null ? null : Number(row.latest_points),
+              percentage:
+                row.latest_percentage_basis_points === null
+                  ? null
+                  : Number(row.latest_percentage_basis_points) / 100,
+            }
+          : null,
+        questions: [],
+      };
+      quizzes.push(quiz);
+    }
+    quiz.questions.push({
+      versionId: row.question_version_id,
+      type: row.question_type,
+      promptBlocks: row.prompt_blocks,
+      responseSchema: row.response_schema,
+      maxPoints: Number(row.question_max_points),
+      position: Number(row.question_position),
+    });
+  }
+  return quizzes;
+}
+
+function learningResults(rows: Array<Record<string, unknown>>) {
+  return rows.map((row) => ({
+    classroomTitle: String(row['classroom_title']),
+    assignmentId: String(row['assignment_id']),
+    assignmentTitle: String(row['assignment_title']),
+    attemptNumber: Number(row['attempt_number']),
+    state: String(row['state']),
+    points: Number(row['raw_points']),
+    maxPoints: Number(row['max_points']),
+    percentage: Number(row['percentage_basis_points']) / 100,
+    displayGrade: String(row['display_grade']),
+    outcome: String(row['outcome']),
+    feedback: row['feedback'] ? String(row['feedback']) : null,
+    publishedAt: isoDate(row['published_at'] as Date | string),
+  }));
 }
 
 function studentPayload(row: StudentSessionRow) {
@@ -579,6 +687,29 @@ export class ClassroomJoinController {
     };
   }
 
+  /** Tests across every class attended by the signed-in account. */
+  @Get('account/quizzes')
+  async accountQuizzes(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT * FROM quiz_assignments_for_account($1)`,
+      [context.accountId],
+    );
+    return { items: seatQuizzes(result.rows as QuizForSeatRow[]) };
+  }
+
+  @Get('account/results')
+  async accountResults(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT * FROM learning_results_for_account($1)`,
+      [context.accountId],
+    );
+    return { items: learningResults(result.rows as Array<Record<string, unknown>>) };
+  }
+
   /** Published course runs across every class this signed-in account attends. */
   @Get('account/course-runs')
   async accountCourseRuns(@Req() request: FastifyRequest) {
@@ -659,6 +790,25 @@ export class ClassroomJoinController {
         updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
       })),
     };
+  }
+
+  /** Published tests for the current learner seat; no answer key crosses this boundary. */
+  @Get('me/quizzes')
+  async quizzes(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(`SELECT * FROM quiz_assignments_for_seat($1)`, [
+      seat.seat_id,
+    ]);
+    return { items: seatQuizzes(result.rows as QuizForSeatRow[]) };
+  }
+
+  @Get('me/results')
+  async results(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(`SELECT * FROM learning_results_for_seat($1)`, [
+      seat.seat_id,
+    ]);
+    return { items: learningResults(result.rows as Array<Record<string, unknown>>) };
   }
 
   /** Published courses assigned to the learner's current class. */
@@ -768,6 +918,80 @@ export class ClassroomJoinController {
       throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     }
     return seatId;
+  }
+
+  /** Submit one immutable quiz attempt and return only the released feedback. */
+  @Post('me/quizzes/:assignmentId/submit')
+  @HttpCode(200)
+  async submitQuiz(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const shape = checkBodyShape(rawBody, ['answers', 'clientRequestId']);
+    const answers = shape.ok ? shape.body['answers'] : null;
+    const clientRequestId = shape.ok ? shape.body['clientRequestId'] : null;
+    if (
+      !UUID_PATTERN.test(assignmentId) ||
+      !Array.isArray(answers) ||
+      answers.length > 100 ||
+      answers.some(
+        (answer) =>
+          !answer ||
+          typeof answer !== 'object' ||
+          typeof (answer as Record<string, unknown>)['questionVersionId'] !== 'string' ||
+          !UUID_PATTERN.test(String((answer as Record<string, unknown>)['questionVersionId'])) ||
+          !Object.hasOwn(answer as object, 'answer'),
+      ) ||
+      typeof clientRequestId !== 'string' ||
+      !/^[A-Za-z0-9._:-]{8,128}$/.test(clientRequestId)
+    ) {
+      throw new HttpException(error('validation_error', 'Проверьте ответы теста.'), 400);
+    }
+    const seatId = await this.seatForAssignment(request, assignmentId);
+    const result = await this.requirePool().query(
+      `SELECT result_code, attempt_id, submission_id, attempt_number,
+              raw_points, max_points, percentage_basis_points, outcome,
+              late_state, question_results, reused
+         FROM quiz_submission_create($1, $2, $3::jsonb, $4)`,
+      [seatId, assignmentId, JSON.stringify(answers), clientRequestId],
+    );
+    const row = result.rows[0] as
+      | {
+          result_code: string;
+          attempt_id: string | null;
+          submission_id: string | null;
+          attempt_number: number | string | null;
+          raw_points: number | string | null;
+          max_points: number | string | null;
+          percentage_basis_points: number | string | null;
+          outcome: string | null;
+          late_state: string | null;
+          question_results: unknown;
+          reused: boolean;
+        }
+      | undefined;
+    if (!row || row.result_code === 'assignment_unavailable') {
+      throw new HttpException(error('assignment_unavailable', 'Тест недоступен.'), 404);
+    }
+    if (row.result_code === 'attempt_limit_reached') {
+      throw new HttpException(error('attempt_limit_reached', 'Попытки закончились.'), 409);
+    }
+    if (row.result_code !== 'ok' || !row.attempt_id || !row.submission_id) {
+      throw new HttpException(error('quiz_submission_failed', 'Не удалось проверить тест.'), 409);
+    }
+    return {
+      attemptId: row.attempt_id,
+      submissionId: row.submission_id,
+      attemptNumber: Number(row.attempt_number),
+      points: Number(row.raw_points),
+      maxPoints: Number(row.max_points),
+      percentage: Number(row.percentage_basis_points) / 100,
+      outcome: row.outcome,
+      lateState: row.late_state,
+      questionResults: row.question_results,
+      reused: row.reused,
+    };
   }
 
   /**

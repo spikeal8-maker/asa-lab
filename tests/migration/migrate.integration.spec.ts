@@ -81,9 +81,10 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
          VALUES ($1, 'max_owner', 'MAX Owner')`,
         [accountId],
       );
-      await db.query(`INSERT INTO principals (kind, account_id) VALUES ('account', $1)`, [
-        accountId,
-      ]);
+      const principal = await db.query<{ id: string }>(
+        `INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id`,
+        [accountId],
+      );
       const tenant = await db.query<{ id: string }>(
         `INSERT INTO tenants (title, workspace_slug)
          VALUES ('MAX test', 'max-test') RETURNING id`,
@@ -152,6 +153,48 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
         [secondAccount.rows[0].id, '231408577954', 'query-link-2', now, null, null],
       );
       expect(taken.rows[0].result).toBe('identity_taken');
+
+      await db.query(`SELECT session_refresh_attach($1, $2, 'max', 30)`, [
+        'a'.repeat(64),
+        'c'.repeat(64),
+      ]);
+      await db.query(`SELECT session_v2_create($1, $2, $3, 12)`, [
+        principal.rows[0].id,
+        workspace.rows[0].id,
+        'p'.repeat(64),
+      ]);
+      await db.query(`SELECT session_refresh_attach($1, $2, 'password', 30)`, [
+        'p'.repeat(64),
+        'd'.repeat(64),
+      ]);
+      const unlinked = await db.query<{ unlinked: boolean }>(
+        `SELECT auth_max_unlink_self($1, $2) AS unlinked`,
+        [accountId, principal.rows[0].id],
+      );
+      expect(unlinked.rows[0].unlinked).toBe(true);
+      const lifecycle = await db.query<{
+        active_identity: number;
+        active_max_session: number;
+        active_password_session: number;
+        revoke_events: number;
+      }>(
+        `SELECT
+           (SELECT count(*)::int FROM account_external_identities
+             WHERE account_id = $1 AND provider = 'max' AND revoked_at IS NULL) AS active_identity,
+           (SELECT count(*)::int FROM sessions_v2
+             WHERE token_hash = $2 AND revoked_at IS NULL) AS active_max_session,
+           (SELECT count(*)::int FROM sessions_v2
+             WHERE token_hash = $3 AND revoked_at IS NULL) AS active_password_session,
+           (SELECT count(*)::int FROM account_external_identity_events
+             WHERE account_id = $1 AND event = 'revoked') AS revoke_events`,
+        [accountId, 'a'.repeat(64), 'p'.repeat(64)],
+      );
+      expect(lifecycle.rows[0]).toEqual({
+        active_identity: 0,
+        active_max_session: 0,
+        active_password_session: 1,
+        revoke_events: 1,
+      });
 
       const storedColumns = await db.query<{ column_name: string }>(
         `SELECT column_name

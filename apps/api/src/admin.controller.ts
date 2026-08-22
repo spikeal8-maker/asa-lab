@@ -236,6 +236,39 @@ export class AdminController {
     }
   }
 
+  @Get('accounts/:accountId/max')
+  async maxIdentity(@Req() request: FastifyRequest, @Param('accountId') accountIdRaw: string) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.maxIdentityStatus(
+        access,
+        this.uuid(accountIdRaw, 'accountId'),
+      );
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Post('accounts/:accountId/max/revoke')
+  @HttpCode(200)
+  async revokeMaxIdentity(
+    @Req() request: FastifyRequest,
+    @Param('accountId') accountIdRaw: string,
+    @Body() body: unknown,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    const value = this.object(body);
+    try {
+      return await this.controlPlane.revokeMaxIdentity(access, {
+        targetAccountId: this.uuid(accountIdRaw, 'accountId'),
+        reason: this.reason(value['reason']),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
   @Post('security/sessions/:sessionId/revoke')
   @HttpCode(200)
   async revokeSession(

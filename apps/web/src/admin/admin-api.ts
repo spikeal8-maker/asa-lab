@@ -83,6 +83,12 @@ export interface AdminAccount {
   readonly isPlatformAdmin: boolean;
 }
 
+export interface AdminMaxIdentity {
+  readonly linked: boolean;
+  readonly verifiedAt: string | null;
+  readonly lastRevokedAt: string | null;
+}
+
 export interface AdminOrganization {
   readonly workspaceId: string;
   readonly title: string;
@@ -246,6 +252,13 @@ export const adminApi = {
   ) =>
     call<{ accountId: string; platformAdmin: boolean }>(
       `/api/admin/v1/accounts/${encodeURIComponent(accountId)}/platform-admin`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
+  maxIdentity: (accountId: string) =>
+    call<AdminMaxIdentity>(`/api/admin/v1/accounts/${encodeURIComponent(accountId)}/max`),
+  revokeMaxIdentity: (accountId: string, input: { readonly reason: string }) =>
+    call<{ accountId: string; revoked: boolean }>(
+      `/api/admin/v1/accounts/${encodeURIComponent(accountId)}/max/revoke`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
   organizations: (input: AdminListInput) =>

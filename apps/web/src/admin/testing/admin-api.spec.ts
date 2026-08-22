@@ -165,6 +165,29 @@ describe('administrative API client', () => {
     expect(body).not.toHaveProperty('actorId');
   });
 
+  it('reads and revokes MAX identity through account-scoped admin endpoints', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+      return new Response(JSON.stringify({ linked: true, verifiedAt: null, lastRevokedAt: null }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await adminApi.maxIdentity('account/id');
+    await adminApi.revokeMaxIdentity('account/id', { reason: 'Запрос владельца' });
+
+    expect(request.mock.calls[0]?.[0]).toBe('/api/admin/v1/accounts/account%2Fid/max');
+    expect(request.mock.calls[1]?.[0]).toBe('/api/admin/v1/accounts/account%2Fid/max/revoke');
+    expect(request.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Запрос владельца' }),
+      }),
+    );
+  });
+
   it('turns network and malformed server failures into stable client errors', async () => {
     vi.stubGlobal(
       'fetch',

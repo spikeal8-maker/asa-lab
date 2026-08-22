@@ -12,7 +12,9 @@ function request(): FastifyRequest {
 }
 
 function controller(rows: unknown[]) {
-  const query = vi.fn(async () => ({ rows }));
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.includes('grading_scheme_for_classroom') ? [] : rows,
+  }));
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: '123e4567-e89b-42d3-a456-426614174010',
@@ -32,6 +34,57 @@ function controller(rows: unknown[]) {
 }
 
 describe('learning assessments API', () => {
+  it('creates a versioned question without exposing its answer key in the response', async () => {
+    const target = controller([
+      {
+        result_code: 'ok',
+        question_id: 'question-id',
+        question_version_id: 'question-version-id',
+      },
+    ]);
+    await expect(
+      target.value.createQuestion(request(), {
+        type: 'single_choice',
+        prompt: 'Сколько будет 2 + 2?',
+        options: [
+          { id: 'a', label: '3' },
+          { id: 'b', label: '4' },
+        ],
+        correctAnswer: 'b',
+        maxPoints: 2,
+        scope: 'school',
+      }),
+    ).resolves.toEqual({ id: 'question-id', versionId: 'question-version-id' });
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('question_version_create'),
+      expect.arrayContaining(['single_choice', 2]),
+    );
+  });
+
+  it('publishes and assigns a fixed quiz version', async () => {
+    const target = controller([
+      {
+        result_code: 'ok',
+        quiz_version_id: 'quiz-version-id',
+        learning_activity_version_id: 'activity-version-id',
+        total_points: '3',
+      },
+    ]);
+    await expect(
+      target.value.createQuiz(request(), {
+        title: 'Входной тест',
+        questionVersionIds: [ATTEMPT_ID],
+        attemptLimit: 1,
+        passThreshold: 60,
+        feedbackReleasePolicy: 'immediate',
+      }),
+    ).resolves.toEqual({
+      id: 'quiz-version-id',
+      activityVersionId: 'activity-version-id',
+      totalPoints: 3,
+    });
+  });
+
   it('returns one canonical gradebook row', async () => {
     const target = controller([
       {
@@ -53,6 +106,7 @@ describe('learning assessments API', () => {
     ]);
 
     await expect(target.value.gradebook(request(), CLASSROOM_ID)).resolves.toEqual({
+      scheme: null,
       items: [
         expect.objectContaining({
           displayLabel: 'Анна',
@@ -62,6 +116,7 @@ describe('learning assessments API', () => {
           maxPoints: 100,
           percentage: 84,
           outcome: 'passed',
+          displayGrade: null,
         }),
       ],
     });

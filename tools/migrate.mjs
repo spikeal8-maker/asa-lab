@@ -83,7 +83,10 @@ export function reconcile(applied, planned) {
       pending.push(migration);
     } else if (
       record.checksum !== migration.checksum &&
-      !migration.compatibleChecksums?.has(record.checksum)
+      !(
+        migration.compatibleChecksums?.has(record.checksum) &&
+        migration.compatibleChecksums.has(migration.checksum)
+      )
     ) {
       modified.push(migration);
     }

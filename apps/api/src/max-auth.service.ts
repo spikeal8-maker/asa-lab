@@ -281,4 +281,12 @@ export class MaxAuthService {
         : new Date(value).toISOString()
       : null;
   }
+
+  async unlink(accountId: string, actorPrincipalId: string): Promise<boolean> {
+    const result = await this.pool.query<{ unlinked: boolean }>(
+      `SELECT auth_max_unlink_self($1, $2) AS unlinked`,
+      [accountId, actorPrincipalId],
+    );
+    return result.rows[0]?.unlinked === true;
+  }
 }

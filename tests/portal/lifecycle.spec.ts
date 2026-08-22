@@ -6,9 +6,9 @@ import { createApiApp } from '../../apps/api/dist/app.factory.js';
 import { startApi } from '../../apps/api/dist/main.js';
 
 /** HTTP lifecycle regression: health probes, request ids, telemetry ordering,
- * real startup and shutdown that releases the canonical API port. */
+ * real startup and shutdown that releases the reserved test API port. */
 
-const API_PORT = 4611;
+const API_PORT = 4612;
 
 function fakeTelemetry() {
   const calls: string[] = [];

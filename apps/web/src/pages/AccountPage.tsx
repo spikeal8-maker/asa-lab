@@ -381,6 +381,20 @@ export function AccountPage({
     );
   }
 
+  async function unlinkMax(): Promise<void> {
+    if (!window.confirm('Отключить MAX и завершить все входы, выполненные через MAX?')) return;
+    setBusyAction('max-unlink');
+    setError(null);
+    const result = await api.unlinkMax();
+    setBusyAction(null);
+    if (!result.ok) {
+      setError('Не удалось отключить MAX. Повторите попытку.');
+      return;
+    }
+    setNotice(result.data.unlinked ? 'MAX отключён.' : 'MAX уже был отключён.');
+    await refresh();
+  }
+
   if (loading || !profile) {
     return (
       <main id="main-content" className="account-page" aria-busy="true" tabIndex={-1}>
@@ -740,6 +754,16 @@ export function AccountPage({
                       ? `Связан ${formatDate(maxStatus.verifiedAt, timeZone)}`
                       : 'Для подтверждения аккаунта и входа без пароля'}
                   </small>
+                  {maxStatus?.linked ? (
+                    <button
+                      type="button"
+                      className="account-revoke"
+                      disabled={busyAction !== null}
+                      onClick={() => void unlinkMax()}
+                    >
+                      {busyAction === 'max-unlink' ? 'Отключаем…' : 'Отключить MAX'}
+                    </button>
+                  ) : null}
                 </div>
                 {!maxStatus?.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
                   <div>

@@ -276,6 +276,15 @@ export class AuthController {
     return { dismissedUntil: await this.maxAuth.dismissPrompt(context.accountId) };
   }
 
+  @Post('max/unlink')
+  @HttpCode(200)
+  async unlinkMax(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    return {
+      unlinked: await this.maxAuth.unlink(context.accountId, context.principalId),
+    };
+  }
+
   @Post('max/session')
   @HttpCode(200)
   async maxSession(

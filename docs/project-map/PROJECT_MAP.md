@@ -16,13 +16,13 @@ TASK-ADMIN-AUTH-STABILITY-001
 Issue #135
 branch main
 status in_progress
-checkpoint build_identity_verified_on_backup
-execution lease unassigned
+checkpoint max_revoke_verified_real_postgresql
+execution direct_main
 ```
 
-The current stabilisation task covers integrated Admin access, durable account
-sessions, production MAX verification and reproducible runtime recovery. Email
-delivery, CRM, billing, competitions and moderation remain outside this task.
+The owner activated an independent educational Russian-draughts system. 3D M0
+is preserved in `main` after PR #95 and remains outside the Checkers writable
+scope. Electronics PR #92 stays paused; Chess remains a separate subject module.
 
 ```mermaid
 flowchart LR
