@@ -870,10 +870,11 @@ function toolboxBlock(
 export function toolboxForCategory(
   category: ArduinoBlockCategory,
   variables: readonly ArduinoVariableChoice[] = [],
+  flyoutScale = 1,
 ): ScratchBlocks.utils.toolbox.ToolboxInfo {
   const headerSpacer: ScratchBlocks.utils.toolbox.BlockInfo = {
     kind: 'sep',
-    gap: ARDUINO_FLYOUT_HEADER_GAP,
+    gap: Math.ceil(ARDUINO_FLYOUT_HEADER_GAP / Math.max(0.1, flyoutScale)),
   };
   if (category === 'variables') {
     return {

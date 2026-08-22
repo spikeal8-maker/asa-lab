@@ -420,7 +420,7 @@ function ScratchWorkspace({
     if (!host) return;
     registerArduinoBlocks();
     const workspace = ScratchBlocks.inject(host, {
-      toolbox: toolboxForCategory(category),
+      toolbox: toolboxForCategory(category, [], paletteScale),
       scratchTheme: ScratchBlocks.ScratchBlocksTheme.CLASSIC,
       theme: ARDUINO_SCRATCH_THEME,
       trashcan: true,
@@ -475,7 +475,9 @@ function ScratchWorkspace({
           if (current) ScratchBlocks.Variables.deleteVariable(workspace, current);
         });
       }
-      workspace.updateToolbox(toolboxForCategory(categoryRef.current, variables));
+      workspace.updateToolbox(
+        toolboxForCategory(categoryRef.current, variables, paletteScaleRef.current),
+      );
       workspace.getFlyout()?.reflow();
       ScratchBlocks.svgResize(workspace);
     };
@@ -638,8 +640,7 @@ function ScratchWorkspace({
     const flyout = workspace?.getFlyout();
     if (!workspace || !flyout) return;
     flyout.getWorkspace().setScale(paletteScale);
-    flyout.reflow();
-    ScratchBlocks.svgResize(workspace);
+    refreshToolboxRef.current?.();
   }, [paletteScale]);
 
   function closeVariablePrompt(value: string): void {

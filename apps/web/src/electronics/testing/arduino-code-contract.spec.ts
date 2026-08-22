@@ -70,6 +70,7 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('inset: 0;');
     expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP = 98');
     expect(blocksSource).toContain("kind: 'sep'");
+    expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP / Math.max(0.1, flyoutScale)');
     expect(css).not.toContain('transform: translate(0, 98px) !important');
   });
 
