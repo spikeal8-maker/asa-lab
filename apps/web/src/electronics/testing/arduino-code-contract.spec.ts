@@ -71,6 +71,9 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP = 98');
     expect(blocksSource).toContain("kind: 'sep'");
     expect(blocksSource).toContain('ARDUINO_FLYOUT_HEADER_GAP / Math.max(0.1, flyoutScale)');
+    expect(panelSource.indexOf('<ScratchWorkspace')).toBeLessThan(
+      panelSource.indexOf('className="arduino-block-categories"'),
+    );
     expect(css).not.toContain('transform: translate(0, 98px) !important');
   });
 
