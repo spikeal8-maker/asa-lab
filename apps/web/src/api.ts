@@ -536,9 +536,25 @@ export interface GradebookEntry {
   points: number | null;
   maxPoints: number | null;
   percentage: number | null;
+  displayGrade: string | null;
   outcome: 'passed' | 'failed' | 'incomplete' | 'excused' | null;
   feedback: string | null;
   publishedAt: string | null;
+}
+
+export interface LearnerResult {
+  classroomTitle: string;
+  assignmentId: string;
+  assignmentTitle: string;
+  attemptNumber: number;
+  state: LearningAttemptState;
+  points: number;
+  maxPoints: number;
+  percentage: number;
+  displayGrade: string;
+  outcome: 'passed' | 'failed' | 'incomplete' | 'excused';
+  feedback: string | null;
+  publishedAt: string;
 }
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
@@ -1144,8 +1160,22 @@ export const api = {
       behindCount: number;
     }>(`/api/classrooms/${encodeURIComponent(classroomId)}/progress`),
   classroomGradebook: (classroomId: string) =>
-    call<{ items: GradebookEntry[] }>(
-      `/api/classrooms/${encodeURIComponent(classroomId)}/gradebook`,
+    call<{
+      scheme: {
+        title: string;
+        version: number;
+        bands: Array<{ minBasisPoints: number; label: string }>;
+      } | null;
+      items: GradebookEntry[];
+    }>(`/api/classrooms/${encodeURIComponent(classroomId)}/gradebook`),
+  publishGradingScheme: (
+    classroomId: string,
+    title: string,
+    bands: Array<{ minBasisPoints: number; label: string }>,
+  ) =>
+    call<{ id: string; version: number }>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/grading-scheme`,
+      { method: 'POST', body: JSON.stringify({ title, bands }) },
     ),
   reviewLearningAttempt: (
     classroomId: string,
@@ -1607,6 +1637,8 @@ export const api = {
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
   seatQuizzes: () => call<{ items: LearnerQuiz[] }>('/api/class-join/me/quizzes'),
+  seatResults: () => call<{ items: LearnerResult[] }>('/api/class-join/me/results'),
+  accountResults: () => call<{ items: LearnerResult[] }>('/api/class-join/account/results'),
   accountQuizzes: () => call<{ items: LearnerQuiz[] }>('/api/class-join/account/quizzes'),
   submitSeatQuiz: (
     assignmentId: string,

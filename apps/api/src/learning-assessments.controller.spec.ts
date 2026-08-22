@@ -12,7 +12,9 @@ function request(): FastifyRequest {
 }
 
 function controller(rows: unknown[]) {
-  const query = vi.fn(async () => ({ rows }));
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.includes('grading_scheme_for_classroom') ? [] : rows,
+  }));
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: '123e4567-e89b-42d3-a456-426614174010',
@@ -104,6 +106,7 @@ describe('learning assessments API', () => {
     ]);
 
     await expect(target.value.gradebook(request(), CLASSROOM_ID)).resolves.toEqual({
+      scheme: null,
       items: [
         expect.objectContaining({
           displayLabel: 'Анна',
@@ -113,6 +116,7 @@ describe('learning assessments API', () => {
           maxPoints: 100,
           percentage: 84,
           outcome: 'passed',
+          displayGrade: null,
         }),
       ],
     });

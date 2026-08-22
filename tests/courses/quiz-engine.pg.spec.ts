@@ -150,6 +150,42 @@ describe('versioned quiz engine', () => {
         outcome: 'passed',
       }),
     ]);
+
+    const scheme = await admin.query(
+      `SELECT * FROM grading_scheme_publish($1, $2, $3, 'Пятибалльная', $4::jsonb)`,
+      [
+        accountId,
+        principalId,
+        classroomId,
+        JSON.stringify([
+          { minBasisPoints: 0, label: '2' },
+          { minBasisPoints: 5000, label: '3' },
+          { minBasisPoints: 7000, label: '4' },
+          { minBasisPoints: 8500, label: '5' },
+        ]),
+      ],
+    );
+    expect(scheme.rows[0]).toMatchObject({ result_code: 'ok', version_number: 1 });
+    const learnerResults = await admin.query(`SELECT * FROM learning_results_for_seat($1)`, [
+      seatId,
+    ]);
+    expect(learnerResults.rows).toEqual([
+      expect.objectContaining({
+        assignment_title: 'Входной тест',
+        percentage_basis_points: 6666,
+        display_grade: '3',
+        outcome: 'passed',
+      }),
+    ]);
+    const history = await admin.query(`SELECT * FROM gradebook_history_list($1, $2, $3, $4)`, [
+      accountId,
+      classroomId,
+      assignmentId,
+      seatId,
+    ]);
+    expect(history.rows).toEqual([
+      expect.objectContaining({ event_kind: 'published', reason: 'Автоматическая проверка теста' }),
+    ]);
     await expect(
       admin.query(`UPDATE attempt_answers SET awarded_points = 0 WHERE attempt_id = $1`, [
         submission.rows[0].attempt_id,

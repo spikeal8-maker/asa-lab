@@ -397,7 +397,23 @@ export class LearningAssessmentsController {
          FROM classroom_gradebook_list($1, $2)`,
       [context.accountId, classroomId],
     );
+    const scheme = await this.requirePool().query(
+      `SELECT title, version_number, bands, published_at
+         FROM grading_scheme_for_classroom($1, $2)`,
+      [context.accountId, classroomId],
+    );
+    const schemeRow = scheme.rows[0] as
+      | {
+          title: string;
+          version_number: number | string;
+          bands: Array<{ minBasisPoints: number; label: string }>;
+        }
+      | undefined;
+    const bands = schemeRow?.bands ?? [];
     return {
+      scheme: schemeRow
+        ? { title: schemeRow.title, version: Number(schemeRow.version_number), bands }
+        : null,
       items: result.rows.map((row) => ({
         seatId: String(row['seat_id']),
         displayLabel: String(row['display_label']),
@@ -413,9 +429,112 @@ export class LearningAssessmentsController {
           row['percentage_basis_points'] === null
             ? null
             : Number(row['percentage_basis_points']) / 100,
+        displayGrade:
+          row['percentage_basis_points'] === null
+            ? null
+            : ([...bands]
+                .sort((a, b) => b.minBasisPoints - a.minBasisPoints)
+                .find((band) => band.minBasisPoints <= Number(row['percentage_basis_points']))
+                ?.label ?? null),
         outcome: row['outcome'] ? String(row['outcome']) : null,
         feedback: row['feedback'] ? String(row['feedback']) : null,
         publishedAt: row['published_at'] ? iso(row['published_at'] as Date | string) : null,
+      })),
+    };
+  }
+
+  @Get(':classroomId/grading-scheme')
+  async gradingScheme(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const result = await this.requirePool().query(
+      `SELECT title, version_number, bands, published_at
+         FROM grading_scheme_for_classroom($1, $2)`,
+      [context.accountId, classroomId],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          title: row['title'],
+          version: Number(row['version_number']),
+          bands: row['bands'],
+          publishedAt: iso(row['published_at'] as Date | string),
+        }
+      : { title: null, version: null, bands: [] };
+  }
+
+  @Post(':classroomId/grading-scheme')
+  async publishGradingScheme(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    const shape = checkBodyShape(rawBody, ['title', 'bands']);
+    const title = shape.ok ? shape.body['title'] : null;
+    const bands = shape.ok ? shape.body['bands'] : null;
+    if (
+      typeof title !== 'string' ||
+      !title.trim() ||
+      title.length > 120 ||
+      !Array.isArray(bands) ||
+      bands.length < 2 ||
+      bands.length > 10 ||
+      bands.some(
+        (band) =>
+          !band ||
+          typeof band !== 'object' ||
+          !Number.isInteger((band as Record<string, unknown>)['minBasisPoints']) ||
+          typeof (band as Record<string, unknown>)['label'] !== 'string',
+      )
+    )
+      throw new HttpException(error('validation_error', 'Проверьте шкалу оценок.'), 400);
+    const result = await this.requirePool().query(
+      `SELECT result_code, grading_scheme_version_id, version_number
+         FROM grading_scheme_publish($1, $2, $3, $4, $5::jsonb)`,
+      [context.accountId, context.principalId, classroomId, title.trim(), JSON.stringify(bands)],
+    );
+    const row = result.rows[0] as
+      | {
+          result_code: string;
+          grading_scheme_version_id: string | null;
+          version_number: number | string | null;
+        }
+      | undefined;
+    if (!row || row.result_code !== 'ok') {
+      throw new HttpException(
+        error(row?.result_code ?? 'scheme_failed', 'Не удалось сохранить шкалу.'),
+        row?.result_code === 'classroom_not_found' ? 404 : 409,
+      );
+    }
+    return { id: row.grading_scheme_version_id, version: Number(row.version_number) };
+  }
+
+  @Get(':classroomId/gradebook/:assignmentId/:seatId/history')
+  async gradeHistory(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Param('seatId') seatId: string,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    this.requireUuid(assignmentId, 'assignment');
+    this.requireUuid(seatId, 'seat');
+    const result = await this.requirePool().query(
+      `SELECT event_id, event_kind, reason, snapshot, actor_display_name, created_at
+         FROM gradebook_history_list($1, $2, $3, $4)`,
+      [context.accountId, classroomId, assignmentId, seatId],
+    );
+    return {
+      items: result.rows.map((row) => ({
+        id: row['event_id'],
+        kind: row['event_kind'],
+        reason: row['reason'],
+        snapshot: row['snapshot'],
+        actor: row['actor_display_name'],
+        createdAt: iso(row['created_at'] as Date | string),
       })),
     };
   }

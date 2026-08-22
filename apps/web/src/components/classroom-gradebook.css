@@ -35,6 +35,29 @@
   background: #fff8e9;
   color: #81530a;
 }
+.gradebook-scale {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.gradebook-scale > span {
+  margin-right: auto;
+  color: #475569;
+  font-size: 0.85rem;
+}
+.gradebook-scale button {
+  padding: 5px 8px;
+  font-size: 0.78rem;
+}
+.gradebook-score b {
+  min-width: 28px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #3730a3;
+  text-align: center;
+}
 
 .gradebook-table {
   overflow: hidden;

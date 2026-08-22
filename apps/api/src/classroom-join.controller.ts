@@ -294,6 +294,23 @@ function seatQuizzes(rows: QuizForSeatRow[]) {
   return quizzes;
 }
 
+function learningResults(rows: Array<Record<string, unknown>>) {
+  return rows.map((row) => ({
+    classroomTitle: String(row['classroom_title']),
+    assignmentId: String(row['assignment_id']),
+    assignmentTitle: String(row['assignment_title']),
+    attemptNumber: Number(row['attempt_number']),
+    state: String(row['state']),
+    points: Number(row['raw_points']),
+    maxPoints: Number(row['max_points']),
+    percentage: Number(row['percentage_basis_points']) / 100,
+    displayGrade: String(row['display_grade']),
+    outcome: String(row['outcome']),
+    feedback: row['feedback'] ? String(row['feedback']) : null,
+    publishedAt: isoDate(row['published_at'] as Date | string),
+  }));
+}
+
 function studentPayload(row: StudentSessionRow) {
   return {
     authenticated: true as const,
@@ -682,6 +699,17 @@ export class ClassroomJoinController {
     return { items: seatQuizzes(result.rows as QuizForSeatRow[]) };
   }
 
+  @Get('account/results')
+  async accountResults(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT * FROM learning_results_for_account($1)`,
+      [context.accountId],
+    );
+    return { items: learningResults(result.rows as Array<Record<string, unknown>>) };
+  }
+
   /** Published course runs across every class this signed-in account attends. */
   @Get('account/course-runs')
   async accountCourseRuns(@Req() request: FastifyRequest) {
@@ -772,6 +800,15 @@ export class ClassroomJoinController {
       seat.seat_id,
     ]);
     return { items: seatQuizzes(result.rows as QuizForSeatRow[]) };
+  }
+
+  @Get('me/results')
+  async results(@Req() request: FastifyRequest) {
+    const seat = await this.currentSeat(request);
+    const result = await this.requirePool().query(`SELECT * FROM learning_results_for_seat($1)`, [
+      seat.seat_id,
+    ]);
+    return { items: learningResults(result.rows as Array<Record<string, unknown>>) };
   }
 
   /** Published courses assigned to the learner's current class. */
