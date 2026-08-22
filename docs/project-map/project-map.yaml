@@ -8,7 +8,7 @@ project:
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
   current_focus: TASK-ADMIN-AUTH-STABILITY-001
-  active_checkpoint: max_revoke_verified_real_postgresql
+  active_checkpoint: production_restart_verified_max_secret_pending
   canonical_branch: main
   product_merge_sha: 20986b1c8aa023b8359008d55c82393cc0426954
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
