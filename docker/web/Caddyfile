@@ -28,7 +28,8 @@
 	# Electronics uses a real browser path so that a saved project survives a
 	# refresh. It is the only non-file SPA path; hash routes reach the root
 	# document and never arrive at the server.
-	handle /projects/* {
+	@spa path /projects/* /max-login /max-login/
+	handle @spa {
 		root * /srv
 		rewrite * /index.html
 		# The entry document names the hashed chunks, so holding it would point

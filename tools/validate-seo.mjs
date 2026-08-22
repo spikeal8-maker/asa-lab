@@ -271,7 +271,17 @@ expect(
   !caddy.includes('try_files {path} /index.html'),
   'Caddy still turns every unknown path into a soft 404',
 );
-expect(caddy.includes('handle /projects/*'), 'Caddy lost the canonical Electronics SPA route');
+expect(
+  caddy.includes('@spa path /projects/* /max-login /max-login/'),
+  'Caddy lost a canonical SPA route',
+);
+
+const appFactory = readFileSync(resolve(root, 'apps', 'api', 'src', 'app.factory.ts'), 'utf8');
+expect(
+  appFactory.includes('if (!shouldServeSpaDocument(path))') &&
+    appFactory.includes("reply.code(404).send({ error: { code: 'not_found'"),
+  'Fastify production fallback still risks soft-404 responses',
+);
 
 if (failures.length > 0) {
   console.error('ASA Lab SEO validation: FAIL');

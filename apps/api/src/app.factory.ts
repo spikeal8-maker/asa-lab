@@ -64,6 +64,12 @@ export function cacheControlFor(fileName: string): string {
   return HASHED_ASSET.test(fileName) ? 'public, max-age=31536000, immutable' : 'no-cache';
 }
 
+export function shouldServeSpaDocument(path: string): boolean {
+  return (
+    path === '/' || path === '/max-login' || path === '/max-login/' || path.startsWith('/projects/')
+  );
+}
+
 function applyCacheControl(reply: FastifyReply, filePath: string): void {
   void reply.header('Cache-Control', cacheControlFor(basename(filePath)));
 }
@@ -253,11 +259,12 @@ export async function createApiApp(
       setHeaders: applyCacheControl,
     });
     const indexHtml = readFileSync(join(webDist, 'index.html'), 'utf8');
-    // SPA fallback as a lowest-priority wildcard route. API/health misses stay
-    // JSON 404 responses rather than accidentally returning index.html.
+    // SPA fallback as a lowest-priority wildcard route. Only real browser
+    // routes receive the entry document; unknown public paths must remain
+    // genuine 404 responses so crawlers do not classify them as soft-404s.
     fastify.get('/*', async (request, reply) => {
-      const url = request.raw.url ?? '/';
-      if (url.startsWith('/api') || url.startsWith('/health')) {
+      const path = (request.raw.url ?? '/').split('?')[0] ?? '/';
+      if (!shouldServeSpaDocument(path)) {
         await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
         return;
       }

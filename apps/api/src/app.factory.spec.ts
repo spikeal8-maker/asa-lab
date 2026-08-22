@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
-import { createApiApp } from './app.factory.js';
+import { createApiApp, shouldServeSpaDocument } from './app.factory.js';
 
 const apps: Array<Awaited<ReturnType<typeof createApiApp>>> = [];
 
@@ -11,6 +11,16 @@ afterEach(async () => {
 });
 
 describe('API application factory', () => {
+  it('serves the SPA only for real browser routes, not arbitrary crawl paths', () => {
+    expect(shouldServeSpaDocument('/')).toBe(true);
+    expect(shouldServeSpaDocument('/max-login')).toBe(true);
+    expect(shouldServeSpaDocument('/max-login/')).toBe(true);
+    expect(shouldServeSpaDocument('/projects/project-1/electronics/edit')).toBe(true);
+    expect(shouldServeSpaDocument('/features/unknown-product-page')).toBe(false);
+    expect(shouldServeSpaDocument('/definitely-not-a-page')).toBe(false);
+    expect(shouldServeSpaDocument('/api/unknown')).toBe(false);
+  });
+
   it('constructs a health-only app without a database and reports 503 readiness', async () => {
     const app = await createApiApp({ pool: null, webDist: null });
     apps.push(app);
