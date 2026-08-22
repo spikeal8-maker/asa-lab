@@ -44,11 +44,13 @@ const pages = [
     file: resolve(publicRoot, 'features', 'block-programming', 'index.html'),
     url: 'https://asa-lab.ru/features/block-programming/',
     image: socialImage('asa-lab-block-programming.png'),
+    availability: 'development',
   },
   {
     file: resolve(publicRoot, 'features', 'drawing', 'index.html'),
     url: 'https://asa-lab.ru/features/drawing/',
     image: socialImage('asa-lab-drawing.png'),
+    availability: 'development',
   },
   {
     file: resolve(publicRoot, 'features', '3d-modeling', 'index.html'),
@@ -182,6 +184,13 @@ for (const page of pages) {
     html.includes('href="/seo.css"') && html.includes('href="/asa-lab-mark.svg"'),
     `${page.url}: shared public CSS or brand icon is missing`,
   );
+  if (page.availability === 'development') {
+    expect(/в разработке/i.test(html), `${page.url}: development status is not disclosed`);
+    expect(
+      !html.includes('href="/#/sign-up"'),
+      `${page.url}: unavailable module must not link to project creation`,
+    );
+  }
   titles.add(title);
   descriptions.add(description);
 
@@ -252,6 +261,10 @@ const llms = readFileSync(resolve(publicRoot, 'llms.txt'), 'utf8');
 for (const page of pages.slice(1)) {
   expect(llms.includes(page.url), `llms.txt is missing ${page.url}`);
 }
+expect(
+  llms.includes('are in development') && llms.includes('are not yet creatable'),
+  'llms.txt must disclose non-creatable block programming and drawing modules',
+);
 
 const caddy = readFileSync(resolve(root, 'docker', 'web', 'Caddyfile'), 'utf8');
 expect(

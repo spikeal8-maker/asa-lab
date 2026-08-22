@@ -187,8 +187,12 @@ requireMarkers('apps/api/src/module-registry.ts', [
   'CHESS_MODULE,',
 ]);
 requireMarkers('apps/web/src/modules/ModuleEditorHost.tsx', [
-  "import { ChessModuleExperience } from '../chess/ChessModuleExperience'",
-  'chess: ChessModuleExperience',
+  "import { loadChessEditor } from '../chess/load-chess-editor'",
+  'chess: lazy(loadChessEditor)',
+]);
+requireMarkers('apps/web/src/chess/load-chess-editor.ts', [
+  "import('./ChessModuleExperience')",
+  'default: module.ChessModuleExperience',
 ]);
 requireMarkers('apps/web/src/chess/ChessModuleExperience.tsx', [
   '<ChessEditor',
