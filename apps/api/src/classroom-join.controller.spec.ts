@@ -84,4 +84,118 @@ describe('classroom course progress', () => {
       ['seat-id', runId, lessonId, true],
     );
   });
+
+  it('loads and updates course progress for an account learner', async () => {
+    const runId = '123e4567-e89b-42d3-a456-426614174010';
+    const lessonId = '123e4567-e89b-42d3-a456-426614174011';
+    const query = vi.fn(async (sql: string) => ({
+      rows: sql.includes('progress_set_for_account')
+        ? [{ result_code: 'ok', completed_at: '2026-08-21T12:30:00.000Z' }]
+        : [],
+    }));
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      activeContext,
+      new BotChallengeService({ required: false }),
+    );
+    const accountRequest = request('203.0.113.20');
+    accountRequest.cookies['asa_session'] = 'account-session';
+
+    await expect(controller.accountCourseRuns(accountRequest)).resolves.toEqual({ items: [] });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('classroom_course_runs_for_account_v2'),
+      ['account-id'],
+    );
+    await expect(
+      controller.setAccountCourseLessonProgress(accountRequest, runId, lessonId, {
+        completed: true,
+      }),
+    ).resolves.toEqual({ completedAt: '2026-08-21T12:30:00.000Z' });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('classroom_course_material_progress_set_for_account'),
+      ['account-id', runId, lessonId, true],
+    );
+  });
+});
+
+describe('immutable classroom submissions', () => {
+  it('returns the numbered immutable attempt created for the seat', async () => {
+    const assignmentId = '123e4567-e89b-42d3-a456-426614174020';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) {
+        return {
+          rows: [
+            {
+              seat_id: 'seat-id',
+              classroom_id: 'classroom-id',
+              classroom_title: '7А',
+              display_label: 'Алина',
+              teacher_display_name: 'Педагог',
+              safe_mode: true,
+              avatar_key: null,
+              expires_at: '2026-08-21T20:00:00.000Z',
+            },
+          ],
+        };
+      }
+      return {
+        rows: [
+          {
+            result_code: 'ok',
+            attempt_id: 'attempt-id',
+            submission_id: 'submission-id',
+            attempt_number: '1',
+            attempt_state: 'evaluating',
+            project_id: 'project-id',
+            project_version_id: 'project-version-id',
+            submitted_at: '2026-08-22T12:00:00.000Z',
+            late_state: 'on_time',
+            reused: false,
+          },
+        ],
+      };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+      new BotChallengeService({ required: false }),
+    );
+
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        clientRequestId: 'submit:test:0001',
+      }),
+    ).resolves.toEqual({
+      projectId: 'project-id',
+      projectVersionId: 'project-version-id',
+      attemptId: 'attempt-id',
+      submissionId: 'submission-id',
+      attemptNumber: 1,
+      state: 'evaluating',
+      submittedAt: '2026-08-22T12:00:00.000Z',
+      lateState: 'on_time',
+      reused: false,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('learning_project_submission_create'),
+      ['seat-id', assignmentId, 'submit:test:0001'],
+    );
+  });
+
+  it('does not let the learner mutate a submitted snapshot back into a draft', async () => {
+    const controller = new ClassroomJoinController(
+      { query: vi.fn() } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+      new BotChallengeService({ required: false }),
+    );
+    await expect(
+      controller.submitAssignment(seatRequest(), '123e4567-e89b-42d3-a456-426614174020', {
+        submitted: false,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
 });

@@ -334,3 +334,37 @@ tasks:
     task_tests: [TST-CHECKERS-M1-RULES-001, TST-CHECKERS-M1-PROJECT-001, TST-CHECKERS-M1-LEARNING-001, TST-CHECKERS-M1-BOTS-001, TST-CHECKERS-M1-CLASS-SAFETY-001, TST-CHECKERS-M1-E2E-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-R11, APP-WEB, APP-API, CTX-CLASSROOM, CTX-PROJECTS, CTX-SAFETY, SDK-MODULE, MOD-CHECKERS]
     artifacts: [checkers-market-analysis, official-rules-fixtures, curriculum-map, assignment-evidence-report, bot-calibration-report, reaction-allowlist-audit, checkers-student-desktop.png, checkers-student-mobile.png, checkers-teacher-desktop.png, playwright-report]
+
+  - position: 9
+    task_id: TASK-ADMIN-AUTH-STABILITY-001
+    status: in_progress
+    checkpoint: build_identity_verified_on_backup
+    issue: https://github.com/spikeal8-maker/asa-lab/issues/135
+    branch: main
+    base_branch: main
+    milestone: Admin Auth and MAX Stability
+    track: product-roadmap
+    delivery_stage: STAGE-PILOT-ADMIN-AUTH
+    architecture_horizon: PHASE-PILOT
+    depends_on: [TASK-ACCOUNT-C1-001]
+    next_task: null
+    capabilities: [CAP-IDENTITY, CAP-SAFETY, CAP-OPERATIONS]
+    visible_result: The integrated Admin surface keeps owner access across durable device sessions, MAX verifies existing accounts in production after a calm 24-hour prompt, and the exact Git revision recovers after restart.
+    user_flow: Register or sign in -> use ASA Lab for one day -> receive a calm MAX verification prompt -> link MAX -> sign in through MAX -> inspect or revoke the device in Account and Admin.
+    required_scope:
+      - integrated_admin_surface_not_separate_service
+      - exact_build_revision_and_schema_status
+      - rotating_refresh_session_families
+      - owner_platform_admin_preflight
+      - existing_max_identity_lifecycle
+      - production_max_secret_and_mini_app
+      - max_prompt_after_first_authenticated_day
+      - account_and_admin_max_revoke
+      - real_postgresql_api_browser_gate
+      - supervised_api_and_frp_recovery
+    non_goals: [email verification delivery, CRM, billing, competitions, moderation, second Admin service, destructive tenant or RLS redesign]
+    read: [AGENTS.md, docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md, docs/product/ASA_ADMIN_CONSOLE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/135]
+    test_profiles: [code_common, tenant_storage]
+    task_tests: [TST-ADMIN-AUTH-MAX-CORE-001, TST-ADMIN-AUTH-MAX-E2E-001, TST-ADMIN-AUTH-MAX-PRODUCTION-001]
+    map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-PILOT, APP-WEB, APP-ADMIN, APP-API, CTX-IDENTITY, CTX-SAFETY, DATA-PG]
+    artifacts: [execution-plan, migration-report, authorization-matrix, playwright-report, production-version-report, recovery-report]

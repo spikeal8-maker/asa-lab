@@ -27,7 +27,17 @@ describe('API application factory', () => {
 
     const ready = await fastify.inject({ method: 'GET', url: '/health/ready' });
     expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toEqual({ status: 'not_ready', dependencies: { database: 'down' } });
+    expect(ready.json()).toEqual({
+      status: 'not_ready',
+      dependencies: { database: 'down' },
+      deployment: {
+        revision: 'development',
+        builtAt: null,
+        schemaVersion: null,
+        expectedSchemaVersion: null,
+        synchronized: null,
+      },
+    });
   });
 
   it('reports ready when the configured database probe succeeds', async () => {
@@ -41,7 +51,17 @@ describe('API application factory', () => {
 
     const ready = await fastify.inject({ method: 'GET', url: '/health/ready' });
     expect(ready.statusCode).toBe(200);
-    expect(ready.json()).toEqual({ status: 'ready', dependencies: { database: 'up' } });
+    expect(ready.json()).toEqual({
+      status: 'ready',
+      dependencies: { database: 'up' },
+      deployment: {
+        revision: 'development',
+        builtAt: null,
+        schemaVersion: null,
+        expectedSchemaVersion: null,
+        synchronized: null,
+      },
+    });
   });
 
   it('rejects the unrelated local project origin before any database query', async () => {

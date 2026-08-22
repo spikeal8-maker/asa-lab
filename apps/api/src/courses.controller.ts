@@ -40,8 +40,9 @@ const ASSET_URL_PATTERN = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 
 type LessonBlock = Record<string, unknown> & { id: string; type: string };
 
-function safeLessonUrl(value: string): boolean {
-  return value.startsWith('https://') || (ASSET_URL_PATTERN.test(value) && !value.includes('..'));
+function safeLessonUrl(value: string, type: string): boolean {
+  const localAsset = ASSET_URL_PATTERN.test(value) && !value.includes('..');
+  return type === 'file' ? value.startsWith('https://') || localAsset : localAsset;
 }
 
 function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[] | null {
@@ -89,7 +90,12 @@ function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[]
     )
       return null;
     if (['image', 'video', 'audio', 'file'].includes(String(block['type']))) {
-      if (typeof url !== 'string' || url.length > 2_000 || !safeLessonUrl(url)) return null;
+      if (
+        typeof url !== 'string' ||
+        url.length > 2_000 ||
+        !safeLessonUrl(url, String(block['type']))
+      )
+        return null;
     }
     if (
       block['type'] === 'image' &&
@@ -314,6 +320,63 @@ interface CatalogueRow {
   author_name: string | null;
   author_school: string | null;
   created_at: Date | string;
+}
+
+interface CataloguePreviewRow {
+  version_number: number | string;
+  title: string;
+  summary: string | null;
+  outline: Record<string, unknown>;
+  published_at: Date | string;
+}
+
+function cataloguePreview(row: CataloguePreviewRow) {
+  const sections = Array.isArray(row.outline['sections']) ? row.outline['sections'] : [];
+  return {
+    versionNumber: Number(row.version_number),
+    title: row.title,
+    summary: row.summary,
+    publishedAt: iso(row.published_at),
+    sections: sections.flatMap((candidate, sectionIndex) => {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return [];
+      const section = candidate as Record<string, unknown>;
+      const lessons = Array.isArray(section['lessons']) ? section['lessons'] : [];
+      return [
+        {
+          id: String(section['sourceSectionId'] ?? `section-${sectionIndex}`),
+          title: String(section['title'] ?? 'Раздел'),
+          summary: typeof section['summary'] === 'string' ? section['summary'] : null,
+          position: Number(section['position'] ?? sectionIndex + 1),
+          lessons: lessons.flatMap((lessonCandidate, lessonIndex) => {
+            if (
+              !lessonCandidate ||
+              typeof lessonCandidate !== 'object' ||
+              Array.isArray(lessonCandidate)
+            ) {
+              return [];
+            }
+            const lesson = lessonCandidate as Record<string, unknown>;
+            return [
+              {
+                id: String(lesson['sourceLessonId'] ?? `lesson-${sectionIndex}-${lessonIndex}`),
+                title: String(lesson['title'] ?? 'Урок'),
+                summary: typeof lesson['summary'] === 'string' ? lesson['summary'] : null,
+                content: typeof lesson['content'] === 'string' ? lesson['content'] : null,
+                blocks: Array.isArray(lesson['blocks']) ? (lesson['blocks'] as LessonBlock[]) : [],
+                kind:
+                  lesson['kind'] === 'assignment' ? ('assignment' as const) : ('material' as const),
+                estimatedMinutes:
+                  typeof lesson['estimatedMinutes'] === 'number'
+                    ? lesson['estimatedMinutes']
+                    : null,
+                position: Number(lesson['position'] ?? lessonIndex + 1),
+              },
+            ];
+          }),
+        },
+      ];
+    }),
+  };
 }
 
 @Controller('api')
@@ -1125,6 +1188,23 @@ export class CoursesController {
         createdAt: iso(row.created_at),
       })),
     };
+  }
+
+  /** Full immutable published outline shown before a colleague takes a course. */
+  @Get('catalogue/courses/:courseId')
+  async catalogueCourse(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(courseId, 'course');
+    const result = await this.requirePool().query(
+      `SELECT version_number, title, summary, outline, published_at
+         FROM course_catalogue_preview($1, $2, $3, $4)`,
+      [courseId, context.principalId, context.accountId, context.tenantId],
+    );
+    const row = result.rows[0] as CataloguePreviewRow | undefined;
+    if (!row) {
+      throw new HttpException(error('not_available', 'Опубликованный курс недоступен.'), 404);
+    }
+    return cataloguePreview(row);
   }
 
   /**

@@ -27,18 +27,18 @@ development_policy:
 # ─────────────────────────────────────────────────────────────────────────────
 
 task:
-  id: TASK-CHECKERS-M1-001
-  issue: 98
-  branch: agent/checkers-education-m1
+  id: TASK-ADMIN-AUTH-STABILITY-001
+  issue: 135
+  branch: main
   base_branch: main
-  pr: 101
+  pr: null
   pr_draft: false
-  # Owner-authorised independent Checkers system. 3D M0 is preserved in main
-  # after PR #95; the Checkers lane does not modify it. Chess and Electronics
-  # remain outside this task's writable product scope.
-  status: done
-  checkpoint: merged_to_main
-  owner_acceptance: accepted
+  # Owner-authorised stabilisation of the integrated Admin surface, durable
+  # account sessions and production MAX verification. Email delivery, CRM,
+  # billing, competitions and moderation remain outside this task.
+  status: in_progress
+  checkpoint: build_identity_verified_on_backup
+  owner_acceptance: pending
 
 # Commits that mean something. Anything not listed here is ordinary history.
 revisions:
@@ -48,14 +48,12 @@ revisions:
   # not recorded here: a hand-maintained copy went stale within hours the last
   # time, and it would go stale again on the next push.
   # Owner-visible convergence baseline for the current task.
-  convergence_baseline_sha: 0a7d11658c3c836818c313c6ff3ff2161f902ac3
-  # Set only by an owner acceptance transition. Never set by an agent.
-  owner_accepted_sha: 0a7d11658c3c836818c313c6ff3ff2161f902ac3
+  convergence_baseline_sha: 3cdbeeffb254d9578b7133dfee666a34db1d1978
 
 # Legacy compatibility record. It is not an access-control mechanism while
 # development_policy.execution_leases is disabled.
 execution_lease:
-  executor_id: codex-checkers-m1
+  executor_id: codex-admin-auth-max
   holder: unassigned
   acquired_at: null
   expires_at: null
@@ -70,10 +68,13 @@ execution_lease:
 # on every branch carrying this file, and would be wrong in between.
 gates:
   focused:
-    workflow: Checkers M1 Focused
+    workflow: ASA Lab Governance and Code Gates
     commands:
-      - pnpm gate:checkers-m1
-      - pnpm gate:checkers-m1:browser
+      - pnpm gate:admin-control-plane
+  browser:
+    workflow: ASA Lab Governance and Code Gates
+    commands:
+      - pnpm e2e:admin-control-plane
   general:
     workflow: ASA Lab Governance and Code Gates
     commands:
@@ -83,15 +84,23 @@ gates:
 # so every existing consumer remains valid. Lane metadata adds disjoint writable
 # scopes for independently leased product work.
 primary_lane:
-  id: checkers
-  worktree_id: checkers-education-m1
+  id: admin-auth
+  worktree_id: admin-auth-main
   owned_paths:
-    - contexts/checkers/**
-    - apps/web/src/checkers/**
-    - tests/checkers/**
-    - e2e/checkers-module.spec.ts
-    - e2e/artifacts/checkers/**
-    - docs/product/CHECKERS_EXECUTION_PLAN.md
+    - contexts/identity/**
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/max-auth.service.ts
+    - apps/api/src/admin-control-plane.service.ts
+    - apps/web/src/admin/**
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/pages/LoginPage.tsx
+    - apps/web/src/pages/MaxLinkPage.tsx
+    - migrations/0077_admin_auth_sessions.sql
+    - migrations/0078_max_verification_lifecycle.sql
+    - tests/admin/**
+    - tests/account/**
+    - e2e/admin-auth-max.spec.ts
+    - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
 
 parallel_lanes:
   - id: chess
@@ -249,7 +258,7 @@ parallel_lanes:
           - pnpm gate:repository
 
 integration:
-  owner_lane: checkers
+  owner_lane: admin-auth
   shared_paths:
     - docs/execution/current.yaml
     - AGENTS.md

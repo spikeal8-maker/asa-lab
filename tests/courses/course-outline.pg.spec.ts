@@ -54,10 +54,12 @@ describe('course outline persistence', () => {
       [blockIdentity.principalId],
     );
     const courseId = created.rows[0].id as string;
+    expect(courseId).toBeTruthy();
     const section = await admin.query(
       `SELECT section_id FROM course_outline_v2($1, $2, $3, $4) LIMIT 1`,
       [courseId, blockIdentity.principalId, blockIdentity.accountId, blockTeacher.tenantId],
     );
+    expect(section.rows).toHaveLength(1);
     const sectionId = section.rows[0].section_id as string;
     const publishedBlocks = [
       { id: 'heading', type: 'heading', level: 2, text: 'Знакомство со схемой' },
@@ -66,7 +68,7 @@ describe('course outline persistence', () => {
       {
         id: 'diagram',
         type: 'image',
-        url: 'https://cdn.example.test/circuit.png',
+        url: '/assets/lessons/circuit.png',
         alt: 'Схема цепи',
         caption: 'Пример готовой схемы',
       },
@@ -532,5 +534,133 @@ describe('course outline persistence', () => {
       [courseId],
     );
     expect(runs.rows[0].count).toBe(0);
+
+    const classroom = await admin.query(
+      `INSERT INTO classrooms
+         (tenant_id, school_id, academic_period_id, title, created_by)
+       VALUES ($1, $2, $3, 'Новый пустой класс', $4)
+       RETURNING id`,
+      [demoTeacher.tenantId, demoTeacher.schoolId, demoTeacher.periodId, demoTeacher.teacherId],
+    );
+    const classroomId = classroom.rows[0].id as string;
+    const seeded = await admin.query(`SELECT classroom_assignments_seed_demo($1) AS count`, [
+      classroomId,
+    ]);
+    expect(seeded.rows[0].count).toBe(0);
+    const handouts = await admin.query(
+      `SELECT count(*)::integer AS count FROM classroom_assignments WHERE classroom_id = $1`,
+      [classroomId],
+    );
+    expect(handouts.rows[0].count).toBe(0);
+  });
+
+  it('catalogues and copies only the latest published snapshot', async () => {
+    const publisher = await seedTeacher(admin, 'course-catalogue-publisher');
+    const reader = await seedTeacher(admin, 'course-catalogue-reader');
+    const publisherIdentity = await identityFor(publisher);
+    const readerIdentity = await identityFor(reader);
+
+    await admin.query(
+      `INSERT INTO teacher_assignments
+         (tenant_id, owner_principal_id, title, module_key, visibility)
+       VALUES ($1, $2, 'Материал автора', 'electronics', 'private'),
+              ($3, $4, 'Материал читателя', 'electronics', 'private')`,
+      [
+        publisher.tenantId,
+        publisherIdentity.principalId,
+        reader.tenantId,
+        readerIdentity.principalId,
+      ],
+    );
+
+    const created = await admin.query(
+      `SELECT course_save($1, NULL, 'Стабильный курс', 'Версия для коллег', NULL, 'public') AS id`,
+      [publisherIdentity.principalId],
+    );
+    const courseId = created.rows[0].id as string;
+    expect(courseId).toBeTruthy();
+    const section = await admin.query(
+      `SELECT section_id FROM course_outline_v2($1, $2, $3, $4) LIMIT 1`,
+      [courseId, publisherIdentity.principalId, publisherIdentity.accountId, publisher.tenantId],
+    );
+    expect(section.rows).toHaveLength(1);
+    const sectionId = section.rows[0].section_id as string;
+    const frozenBlocks = [{ id: 'published', type: 'paragraph', text: 'Опубликованный текст.' }];
+    const lesson = await admin.query(
+      `SELECT course_lesson_save_v2(
+          $1, $2, $3, NULL, 'Опубликованный урок', NULL, $4::jsonb,
+          'material', NULL, 8
+       ) AS id`,
+      [publisherIdentity.principalId, courseId, sectionId, JSON.stringify(frozenBlocks)],
+    );
+    const lessonId = lesson.rows[0].id as string;
+
+    const draftCatalogue = await admin.query(
+      `SELECT id FROM shared_catalogue($1, $2, $3) WHERE kind = 'course' AND id = $4`,
+      [readerIdentity.principalId, readerIdentity.accountId, reader.tenantId, courseId],
+    );
+    expect(draftCatalogue.rows).toHaveLength(0);
+
+    await admin.query(`SELECT * FROM course_publish($1, $2)`, [
+      publisherIdentity.principalId,
+      courseId,
+    ]);
+    await admin.query(
+      `SELECT course_save($1, $2, 'Черновик после публикации', 'Не для каталога', NULL, 'public')`,
+      [publisherIdentity.principalId, courseId],
+    );
+    await admin.query(
+      `SELECT course_lesson_save_v2(
+          $1, $2, $3, $4, 'Черновой урок', NULL, $5::jsonb,
+          'material', NULL, 8
+       )`,
+      [
+        publisherIdentity.principalId,
+        courseId,
+        sectionId,
+        lessonId,
+        JSON.stringify([{ id: 'draft', type: 'paragraph', text: 'Черновой текст.' }]),
+      ],
+    );
+
+    const catalogue = await admin.query(
+      `SELECT title, item_count FROM shared_catalogue($1, $2, $3)
+        WHERE kind = 'course' AND id = $4`,
+      [readerIdentity.principalId, readerIdentity.accountId, reader.tenantId, courseId],
+    );
+    expect(catalogue.rows).toEqual([{ title: 'Стабильный курс', item_count: 1 }]);
+    const preview = await admin.query(
+      `SELECT title, outline #>> '{sections,0,lessons,0,blocks,0,text}' AS lesson_text
+         FROM course_catalogue_preview($1, $2, $3, $4)`,
+      [courseId, readerIdentity.principalId, readerIdentity.accountId, reader.tenantId],
+    );
+    expect(preview.rows).toEqual([
+      { title: 'Стабильный курс', lesson_text: 'Опубликованный текст.' },
+    ]);
+
+    const taken = await admin.query(`SELECT course_take_with_outline($1, $2, $3, $4) AS id`, [
+      readerIdentity.principalId,
+      courseId,
+      readerIdentity.accountId,
+      reader.tenantId,
+    ]);
+    const copiedId = taken.rows[0].id as string;
+    const copied = await admin.query(
+      `SELECT course.title, course.visibility,
+              lesson.title AS lesson_title,
+              lesson.blocks #>> '{0,text}' AS lesson_text
+         FROM courses course
+         JOIN course_lessons lesson ON lesson.course_id = course.id
+        WHERE course.id = $1`,
+      [copiedId],
+    );
+    expect(copied.rows).toEqual([
+      {
+        title: 'Стабильный курс',
+        visibility: 'private',
+        lesson_title: 'Опубликованный урок',
+        lesson_text: 'Опубликованный текст.',
+      },
+    ]);
   });
 });

@@ -409,14 +409,6 @@ export class ClassroomsController {
         result.code === 'idempotency_conflict' ? 409 : 400,
       );
     }
-    if (result.created) {
-      // A new class arrives with the ten-task course already in it, so the
-      // assignments tab explains itself instead of being empty. They are
-      // ordinary rows: edit them, or delete the ones you do not want.
-      await this.requirePool().query(`SELECT classroom_assignments_seed_demo($1)`, [
-        result.classroom.id,
-      ]);
-    }
     reply.code(result.created ? 201 : 200);
     return { classroom: await this.summary(context, result.classroom.id), created: result.created };
   }

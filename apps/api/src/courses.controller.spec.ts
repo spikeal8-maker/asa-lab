@@ -336,7 +336,7 @@ describe('course outline API', () => {
       {
         id: 'diagram',
         type: 'image',
-        url: 'https://cdn.example.test/diagram.png',
+        url: '/assets/lessons/diagram.png',
         alt: 'Схема подключения',
         caption: '',
       },
@@ -381,5 +381,73 @@ describe('course outline API', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(unsafe.query).not.toHaveBeenCalled();
+
+    const externalEmbed = controller();
+    await expect(
+      externalEmbed.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Внешнее видео',
+        summary: null,
+        content: null,
+        blocks: [
+          { id: 'video', type: 'video', url: 'https://cdn.example.test/video.mp4', title: '' },
+        ],
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(externalEmbed.query).not.toHaveBeenCalled();
+  });
+
+  it('returns the complete immutable catalogue preview', async () => {
+    const target = controller([
+      {
+        version_number: '2',
+        title: 'Опубликованный курс',
+        summary: 'Стабильная версия',
+        published_at: '2026-08-22T09:00:00.000Z',
+        outline: {
+          sections: [
+            {
+              sourceSectionId: SECTION_ID,
+              title: 'Старт',
+              summary: null,
+              position: 1,
+              lessons: [
+                {
+                  sourceLessonId: LESSON_ID,
+                  title: 'Теория',
+                  summary: null,
+                  content: null,
+                  blocks: [{ id: 'p', type: 'paragraph', text: 'Содержание.' }],
+                  kind: 'material',
+                  estimatedMinutes: 7,
+                  position: 1,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+
+    await expect(target.value.catalogueCourse(request(), COURSE_ID)).resolves.toEqual(
+      expect.objectContaining({
+        versionNumber: 2,
+        title: 'Опубликованный курс',
+        sections: [
+          expect.objectContaining({
+            lessons: [expect.objectContaining({ title: 'Теория', kind: 'material' })],
+          }),
+        ],
+      }),
+    );
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_catalogue_preview'), [
+      COURSE_ID,
+      'principal-id',
+      'account-id',
+      'tenant-id',
+    ]);
   });
 });

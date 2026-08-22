@@ -45,6 +45,7 @@ const SECURITY_HEADERS = {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
+    "media-src 'self'",
     "font-src 'self' data:",
     "connect-src 'self'",
     "worker-src 'self' blob:",

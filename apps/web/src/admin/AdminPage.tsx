@@ -431,6 +431,15 @@ function OperationsStatus({ status }: { readonly status: AdminOperationsStatus }
     <>
       <div className="admin-operation-grid admin-operation-services">
         <article>
+          <span>Версия приложения</span>
+          <strong title={status.build.revision}>{status.build.revision.slice(0, 12)}</strong>
+          <small>
+            {status.build.builtAt
+              ? `Собрана ${dateTime(status.build.builtAt)}`
+              : 'Время сборки не задано'}
+          </small>
+        </article>
+        <article>
           <span>API</span>
           <strong className="admin-operation-up">Отвечает</strong>
           <small>Запрос выполнен сервером</small>
@@ -443,7 +452,13 @@ function OperationsStatus({ status }: { readonly status: AdminOperationsStatus }
         <article>
           <span>Последняя миграция</span>
           <strong>{status.migration.version}</strong>
-          <small title={status.migration.name}>{status.migration.name}</small>
+          <small title={status.migration.name}>
+            {status.build.synchronized === true
+              ? 'Соответствует приложению'
+              : status.build.synchronized === false
+                ? `Ожидается схема ${status.build.expectedSchemaVersion}`
+                : status.migration.name}
+          </small>
         </article>
         <article>
           <span>Проверено</span>

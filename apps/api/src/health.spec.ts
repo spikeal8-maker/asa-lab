@@ -4,6 +4,14 @@ import type pg from 'pg';
 import { createRuntimeMetrics } from '@asa-lab/observability';
 import { HealthController } from './health.controller.js';
 
+const UNKNOWN_DEPLOYMENT = {
+  revision: 'development',
+  builtAt: null,
+  schemaVersion: null,
+  expectedSchemaVersion: null,
+  synchronized: null,
+} as const;
+
 function replyRecorder(): { reply: FastifyReply; status: () => number } {
   let statusCode = 200;
   const reply = {
@@ -38,7 +46,11 @@ describe('health controller', () => {
     const recorder = replyRecorder();
     const body = await new HealthController(null, null).ready(recorder.reply);
     expect(recorder.status()).toBe(503);
-    expect(body).toEqual({ status: 'not_ready', dependencies: { database: 'down' } });
+    expect(body).toEqual({
+      status: 'not_ready',
+      dependencies: { database: 'down' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    });
   });
 
   it('reports 200 when SELECT 1 succeeds', async () => {
@@ -48,7 +60,11 @@ describe('health controller', () => {
     const recorder = replyRecorder();
     const body = await new HealthController(pool, null).ready(recorder.reply);
     expect(recorder.status()).toBe(200);
-    expect(body).toEqual({ status: 'ready', dependencies: { database: 'up' } });
+    expect(body).toEqual({
+      status: 'ready',
+      dependencies: { database: 'up' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    });
   });
 
   it('reports 503 when the database query fails', async () => {
@@ -60,7 +76,11 @@ describe('health controller', () => {
     const recorder = replyRecorder();
     const body = await new HealthController(pool, null).ready(recorder.reply);
     expect(recorder.status()).toBe(503);
-    expect(body).toEqual({ status: 'not_ready', dependencies: { database: 'down' } });
+    expect(body).toEqual({
+      status: 'not_ready',
+      dependencies: { database: 'down' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    });
   });
 });
 
@@ -77,15 +97,21 @@ describe('readiness under congestion', () => {
     // Congestion must not look like an outage: an orchestrator would pull a
     // healthy instance out of rotation exactly when it is needed most.
     expect(recorder.status()).toBe(200);
-    expect(body).toEqual({ status: 'ready', dependencies: { database: 'busy' } });
+    expect(body).toEqual({
+      status: 'ready',
+      dependencies: { database: 'busy' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    });
   });
 
   it('gives up and reports unavailable once the database keeps not answering', async () => {
     vi.useFakeTimers();
     const controller = new HealthController(stalledPool(), null);
-    let body = { status: 'ready', dependencies: { database: 'busy' } } as Awaited<
-      ReturnType<HealthController['ready']>
-    >;
+    let body = {
+      status: 'ready',
+      dependencies: { database: 'busy' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    } as Awaited<ReturnType<HealthController['ready']>>;
     let status = 200;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -97,7 +123,11 @@ describe('readiness under congestion', () => {
     }
 
     expect(status).toBe(503);
-    expect(body).toEqual({ status: 'not_ready', dependencies: { database: 'down' } });
+    expect(body).toEqual({
+      status: 'not_ready',
+      dependencies: { database: 'down' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    });
   });
 
   it('forgets the congestion streak as soon as the database answers again', async () => {
@@ -117,7 +147,11 @@ describe('readiness under congestion', () => {
     const second = replyRecorder();
     const body = await controller.ready(second.reply);
     expect(second.status()).toBe(200);
-    expect(body).toEqual({ status: 'ready', dependencies: { database: 'up' } });
+    expect(body).toEqual({
+      status: 'ready',
+      dependencies: { database: 'up' },
+      deployment: UNKNOWN_DEPLOYMENT,
+    });
   });
 });
 

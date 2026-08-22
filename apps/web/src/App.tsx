@@ -18,6 +18,7 @@ import { SeatClassPage } from './pages/SeatClassPage';
 import { CreatorHomePage } from './pages/CreatorHomePage';
 import { AttendedClassesPage } from './pages/AttendedClassesPage';
 import { CreatorResourcePage } from './pages/CreatorResourcePage';
+import { LearningPage } from './pages/LearningPage';
 import { AssignmentLibraryPage } from './pages/AssignmentLibraryPage';
 import { GalleryPage } from './pages/GalleryPage';
 import { GalleryWorkPage } from './pages/GalleryWorkPage';
@@ -626,8 +627,20 @@ export function App(): JSX.Element {
                 onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
               />
             ) : null}
-            {view.kind === 'learning' ||
-            (view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
+            {view.kind === 'learning' ? (
+              <LearningPage
+                seat={session.kind === 'student' ? session.session : null}
+                onOpenProject={(projectId, moduleKey) =>
+                  setView({
+                    kind: 'editor',
+                    projectId,
+                    moduleKey,
+                    returnTo: { kind: 'learning' },
+                  })
+                }
+              />
+            ) : null}
+            {(view.kind === 'challenges' && (!hasTeachingCapability || isSeatLearner)) ||
             view.kind === 'help' ? (
               <CreatorResourcePage
                 section={view.kind === 'challenges' ? 'challenges' : view.kind}

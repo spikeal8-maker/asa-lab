@@ -7,8 +7,8 @@ project:
   # current_focus and active_checkpoint mirror docs/execution/current.yaml, which
   # is the single source of execution state; validate_control_plane.py enforces
   # the match. Executor and lease live only in that file.
-  current_focus: null
-  active_checkpoint: merged_to_main
+  current_focus: TASK-ADMIN-AUTH-STABILITY-001
+  active_checkpoint: build_identity_verified_on_backup
   canonical_branch: main
   product_merge_sha: 20986b1c8aa023b8359008d55c82393cc0426954
   verified_account_sha: 35c06c42012672b9b4cb2626b85ba1f21b973bc0
@@ -42,15 +42,15 @@ nodes:
   - {id: ACT-CREATOR, label: Creator, kind: actor, layer: actors, status: in_progress, summary: "Uses Creator Home and personal projects."}
   - {id: ACT-EDUCATOR, label: Educator, kind: actor, layer: actors, status: in_progress, summary: "Uses capability-aware Classes and creator surfaces."}
   - {id: ACT-STUDENT, label: Student, kind: actor, layer: actors, status: in_progress, summary: "Uses the Checkers learning path, assignments, bots and safe class play within existing account and class contracts."}
-  - {id: ACT-ADMIN, label: School Admin, kind: actor, layer: actors, status: planned, summary: "Future organization administration."}
-  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: done, summary: "Owner-authorised Checkers task is accepted; see docs/execution/current.yaml."}
+  - {id: ACT-ADMIN, label: Administrator, kind: actor, layer: actors, status: in_progress, summary: "Uses server-issued platform or organization administration grants inside the shared ASA Lab Web application."}
+  - {id: ACT-AGENT, label: Coding Agent, kind: actor, layer: actors, status: in_progress, summary: "Owner-authorised Admin, session and MAX stabilisation is active; see docs/execution/current.yaml."}
 
   - {id: PLANE-EXPERIENCE, label: Experience Plane, kind: plane, layer: architecture, status: in_progress, summary: "Public entry, Creator Portal, Account and editors."}
   - {id: PLANE-CONTROL, label: Control Plane, kind: plane, layer: architecture, status: in_progress, summary: "Modular monolith API and bounded contexts."}
   - {id: PLANE-COMPUTE, label: Compute Plane, kind: plane, layer: architecture, status: planned, summary: "Future isolated workers."}
-  - {id: APP-WEB, label: Web PWA, kind: application, layer: experience, status: in_progress, summary: "Creator Portal and subject editors.", path: apps/web}
+  - {id: APP-WEB, label: Web PWA, kind: application, layer: experience, status: in_progress, summary: "Creator Portal, subject editors and the integrated protected Admin surface.", path: apps/web}
   - {id: APP-API, label: API, kind: application, layer: control, status: in_progress, summary: "Server-authorized identity, workspace and project API.", path: apps/api}
-  - {id: APP-ADMIN, label: Admin Console, kind: application, layer: experience, status: planned, summary: "Future admin surface."}
+  - {id: APP-ADMIN, label: Admin Surface, kind: surface, layer: experience, status: in_progress, summary: "Protected routes inside APP-WEB; not a separate service, deployment, database or port.", path: apps/web/src/admin}
   - {id: APP-SITE, label: Public Site, kind: application, layer: experience, status: planned, summary: "Future public content."}
 
   - {id: CTX-IDENTITY, label: Identity, kind: bounded_context, layer: control, status: done, summary: "Account, Profile, Principal, capabilities and sessions_v2.", path: contexts/identity}
@@ -112,6 +112,7 @@ nodes:
   - {id: TASK-ELECTRONICS-M1-001, label: R4 Electronics M1, kind: task, layer: delivery, status: blocked, summary: "Owner paused the open corrective PR #92 while Checkers M1 runs; no completion is claimed.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: done, summary: "PR #95 merged into main; the Portal creates ASA 3D projects and the saved WebGL scene reloads through Project Core.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
   - {id: TASK-CHECKERS-M1-001, label: R11-M1 Educational Russian Draughts, kind: task, layer: delivery, status: done, summary: "Independent Checkers system from Issue #98: rules, learning, teacher work, bots, review and safe class play.", phase: PHASE-R11, issue: https://github.com/spikeal8-maker/asa-lab/issues/98}
+  - {id: TASK-ADMIN-AUTH-STABILITY-001, label: Admin Auth and MAX Stability, kind: task, layer: delivery, status: in_progress, summary: "Integrated Admin access, durable sessions, production MAX verification and reproducible runtime recovery.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/135}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
@@ -130,7 +131,7 @@ edges:
   - {from: ASA, to: PLANE-COMPUTE, type: contains}
   - {from: ASA, to: PROGRAM-ALPHA-001, type: contains}
   - {from: PLANE-EXPERIENCE, to: APP-WEB, type: contains}
-  - {from: PLANE-EXPERIENCE, to: APP-ADMIN, type: contains}
+  - {from: APP-WEB, to: APP-ADMIN, type: contains}
   - {from: PLANE-EXPERIENCE, to: APP-SITE, type: contains}
   - {from: PLANE-CONTROL, to: APP-API, type: contains}
   - {from: APP-WEB, to: ACT-CREATOR, type: serves}
@@ -189,6 +190,7 @@ edges:
   - {from: DOC-QUALITY, to: QG-LOCAL, type: governs}
   - {from: DOC-PORTS, to: APP-WEB, type: governs}
   - {from: QG-LOCAL, to: TASK-CHECKERS-M1-001, type: implements}
+  - {from: QG-LOCAL, to: TASK-ADMIN-AUTH-STABILITY-001, type: implements}
   - {from: QG-HOSTED, to: DOC-MANIFEST, type: observes}
   - {from: PROGRAM-ALPHA-001, to: TRACK-TECH-ALPHA, type: contains}
   - {from: PROGRAM-ALPHA-001, to: TRACK-ROADMAP, type: contains}
@@ -200,6 +202,7 @@ edges:
   - {from: TRACK-ROADMAP, to: TASK-ELECTRONICS-M1-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-3D-M0-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-CHECKERS-M1-001, type: contains}
+  - {from: TRACK-ROADMAP, to: TASK-ADMIN-AUTH-STABILITY-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R3, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R4, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-SEAT, type: contains}
@@ -212,6 +215,7 @@ edges:
   - {from: TASK-3D-M0-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
   - {from: TASK-CHECKERS-M1-001, to: TASK-CREATOR-PORTAL-001, type: depends_on}
   - {from: TASK-CHECKERS-M1-001, to: TASK-R3A-ELECTRONICS-GATEWAY-001, type: depends_on}
+  - {from: TASK-ADMIN-AUTH-STABILITY-001, to: TASK-ACCOUNT-C1-001, type: depends_on}
   - {from: TASK-R3, to: TASK-CREATOR-PORTAL-001, type: depends_on}
   - {from: TASK-R4, to: TASK-R3, type: depends_on}
   - {from: TASK-SEAT, to: TASK-R4, type: depends_on}
@@ -224,6 +228,7 @@ edges:
   - {from: TASK-ELECTRONICS-M1-001, to: PHASE-R4, type: implements}
   - {from: TASK-3D-M0-001, to: PHASE-R10, type: implements}
   - {from: TASK-CHECKERS-M1-001, to: PHASE-R11, type: implements}
+  - {from: TASK-ADMIN-AUTH-STABILITY-001, to: PHASE-PILOT, type: implements}
   - {from: TASK-R3, to: PHASE-R3, type: implements}
   - {from: TASK-R4, to: PHASE-R4, type: implements}
   - {from: TASK-SEAT, to: PHASE-PILOT, type: implements}
@@ -252,3 +257,4 @@ execution_queue:
   - {position: 6, task_id: TASK-ELECTRONICS-M1-001, instruction: "Verify the preserved Electronics M1 foundation with corrected ordinary-LED states and zoom-stable wire/terminal presentation.", gate: "focused CI, one actual-editor journey and owner review"}
   - {position: 7, task_id: TASK-3D-M0-001, instruction: "Preserve the merged ASA-native 3D foundation from Issue #94; later CAD, boolean and parity scope requires a separate task.", gate: "done: PR #95 merged after focused checks and an owner-requested save-reload browser verification"}
   - {position: 8, task_id: TASK-CHECKERS-M1-001, instruction: "Build only the independent educational Russian-draughts system from Issue #98; preserve Chess, Electronics, 3D and subject-neutral Core.", gate: "focused rules/project/learning/bot/class-safety tests, student and teacher browser journeys, repository gate and owner review"}
+  - {position: 9, task_id: TASK-ADMIN-AUTH-STABILITY-001, instruction: "Stabilise the integrated Admin surface and owner access, add durable sessions, activate MAX in production and prove exact-main recovery without enabling email verification.", gate: "focused Admin/auth/MAX tests, real PostgreSQL/API/browser journeys, repository gate and owner review"}

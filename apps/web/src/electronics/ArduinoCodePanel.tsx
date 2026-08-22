@@ -420,7 +420,7 @@ function ScratchWorkspace({
     if (!host) return;
     registerArduinoBlocks();
     const workspace = ScratchBlocks.inject(host, {
-      toolbox: toolboxForCategory(category),
+      toolbox: toolboxForCategory(category, [], paletteScale),
       scratchTheme: ScratchBlocks.ScratchBlocksTheme.CLASSIC,
       theme: ARDUINO_SCRATCH_THEME,
       trashcan: true,
@@ -475,7 +475,9 @@ function ScratchWorkspace({
           if (current) ScratchBlocks.Variables.deleteVariable(workspace, current);
         });
       }
-      workspace.updateToolbox(toolboxForCategory(categoryRef.current, variables));
+      workspace.updateToolbox(
+        toolboxForCategory(categoryRef.current, variables, paletteScaleRef.current),
+      );
       workspace.getFlyout()?.reflow();
       ScratchBlocks.svgResize(workspace);
     };
@@ -638,8 +640,7 @@ function ScratchWorkspace({
     const flyout = workspace?.getFlyout();
     if (!workspace || !flyout) return;
     flyout.getWorkspace().setScale(paletteScale);
-    flyout.reflow();
-    ScratchBlocks.svgResize(workspace);
+    refreshToolboxRef.current?.();
   }, [paletteScale]);
 
   function closeVariablePrompt(value: string): void {
@@ -1110,21 +1111,6 @@ export function ArduinoCodePanel({
       <div className={`arduino-code-body mode-${program.mode}`}>
         {program.mode !== 'text' ? (
           <div className="arduino-block-editor">
-            <div className="arduino-block-categories" role="tablist" aria-label="Категории блоков">
-              {CATEGORY_ITEMS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={category === item.id}
-                  className={category === item.id ? 'active' : ''}
-                  onClick={() => setCategory(item.id)}
-                >
-                  <span style={{ background: item.colour }} />
-                  {item.label}
-                </button>
-              ))}
-            </div>
             <PaletteResizeHandle
               width={flyoutWidth}
               onWidthChange={(width) =>
@@ -1141,6 +1127,21 @@ export function ArduinoCodePanel({
               paletteScale={effectivePaletteScale}
               onChange={(workspaceJson, source) => updateProgram({ workspaceJson, source })}
             />
+            <div className="arduino-block-categories" role="tablist" aria-label="Категории блоков">
+              {CATEGORY_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={category === item.id}
+                  className={category === item.id ? 'active' : ''}
+                  onClick={() => setCategory(item.id)}
+                >
+                  <span style={{ background: item.colour }} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <div
               className="arduino-palette-scale"
               role="group"

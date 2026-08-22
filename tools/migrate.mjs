@@ -24,6 +24,10 @@ const EX_CONFIG = 78;
 const ADVISORY_LOCK_KEY = 776_1001; // stable key for the migration advisory lock
 const NAME_PATTERN = /^(\d{4})_([a-z0-9_]+)\.sql$/;
 
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
 /** Read and validate migration files. Pure filesystem logic, no database. */
 export function planMigrations(dir = MIGRATIONS_DIR) {
   if (!existsSync(dir)) {
@@ -49,8 +53,10 @@ export function planMigrations(dir = MIGRATIONS_DIR) {
     }
     seen.add(version);
     const sql = readFileSync(join(dir, file), 'utf8');
-    const checksum = createHash('sha256').update(sql).digest('hex');
-    planned.push({ version, name, file, sql, checksum });
+    const checksum = sha256(sql);
+    const lfSql = sql.replace(/\r\n/g, '\n');
+    const compatibleChecksums = new Set([sha256(lfSql), sha256(lfSql.replace(/\n/g, '\r\n'))]);
+    planned.push({ version, name, file, sql, checksum, compatibleChecksums });
   }
 
   const numbers = planned.map((migration) => Number.parseInt(migration.version, 10));
@@ -75,7 +81,10 @@ export function reconcile(applied, planned) {
     const record = applied.get(migration.version);
     if (!record) {
       pending.push(migration);
-    } else if (record.checksum !== migration.checksum) {
+    } else if (
+      record.checksum !== migration.checksum &&
+      !migration.compatibleChecksums?.has(record.checksum)
+    ) {
       modified.push(migration);
     }
   }

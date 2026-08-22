@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import type { RuntimeMetrics, RuntimeMetricsSnapshot } from '@asa-lab/observability';
+import { runtimeBuildMetadata } from './build-metadata.js';
 import {
   authorizeAdmin,
   resolveAdminScopeGrants,
@@ -102,6 +103,12 @@ export interface AdminOperationsStatusView {
     readonly version: string;
     readonly name: string;
     readonly appliedAt: string;
+  };
+  readonly build: {
+    readonly revision: string;
+    readonly builtAt: string | null;
+    readonly expectedSchemaVersion: number | null;
+    readonly synchronized: boolean | null;
   };
   readonly counts: {
     readonly accounts: number;
@@ -444,6 +451,8 @@ export class AdminControlPlaneService {
     );
     const row = result.rows[0];
     if (!row) throw new Error('ADMIN_OPERATIONS_STATUS_MISSING');
+    const build = runtimeBuildMetadata();
+    const schemaVersion = Number.parseInt(row.migration_version, 10);
 
     return {
       checkedAt: iso(row.database_time),
@@ -452,6 +461,15 @@ export class AdminControlPlaneService {
         version: row.migration_version,
         name: row.migration_name,
         appliedAt: iso(row.migration_applied_at),
+      },
+      build: {
+        revision: build.revision,
+        builtAt: build.builtAt,
+        expectedSchemaVersion: build.expectedSchemaVersion,
+        synchronized:
+          build.expectedSchemaVersion === null || !Number.isSafeInteger(schemaVersion)
+            ? null
+            : build.expectedSchemaVersion === schemaVersion,
       },
       counts: {
         accounts: count(row.total_account_count),

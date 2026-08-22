@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Optional, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import type pg from 'pg';
 import type { RuntimeMetrics, RuntimeMetricsSnapshot } from '@asa-lab/observability';
+import { runtimeBuildMetadata } from './build-metadata.js';
 import { TOKENS } from './tokens.js';
 
 const READINESS_TIMEOUT_MS = 1500;
@@ -19,6 +20,13 @@ type DatabaseState = 'up' | 'busy' | 'down';
 export interface ReadinessBody {
   status: 'ready' | 'not_ready';
   dependencies: { database: DatabaseState };
+  deployment: {
+    readonly revision: string;
+    readonly builtAt: string | null;
+    readonly schemaVersion: number | null;
+    readonly expectedSchemaVersion: number | null;
+    readonly synchronized: boolean | null;
+  };
 }
 
 @Controller('health')
@@ -39,10 +47,25 @@ export class HealthController {
 
   @Get('ready')
   async ready(@Res({ passthrough: true }) reply: FastifyReply): Promise<ReadinessBody> {
-    const database = await this.probeDatabase();
-    const ready = database !== 'down';
+    const probe = await this.probeDatabase();
+    const build = runtimeBuildMetadata();
+    const synchronized =
+      build.expectedSchemaVersion === null || probe.schemaVersion === null
+        ? null
+        : build.expectedSchemaVersion === probe.schemaVersion;
+    const ready = probe.database !== 'down' && synchronized !== false;
     reply.code(ready ? 200 : 503);
-    return { status: ready ? 'ready' : 'not_ready', dependencies: { database } };
+    return {
+      status: ready ? 'ready' : 'not_ready',
+      dependencies: { database: probe.database },
+      deployment: {
+        revision: build.revision,
+        builtAt: build.builtAt,
+        schemaVersion: probe.schemaVersion,
+        expectedSchemaVersion: build.expectedSchemaVersion,
+        synchronized,
+      },
+    };
   }
 
   /** Runtime counters only: no project content, no learner data, no secrets. */
@@ -69,28 +92,43 @@ export class HealthController {
     };
   }
 
-  private async probeDatabase(): Promise<DatabaseState> {
-    if (!this.pool) return 'down';
+  private async probeDatabase(): Promise<{
+    readonly database: DatabaseState;
+    readonly schemaVersion: number | null;
+  }> {
+    if (!this.pool) return { database: 'down', schemaVersion: null };
 
     let timer: NodeJS.Timeout | undefined;
     const timedOut = Symbol('timed-out');
     try {
       const outcome = await Promise.race([
-        this.pool.query('SELECT 1').then(() => 'answered' as const),
+        this.pool
+          .query<{ version: number | string }>('SELECT version FROM runtime_schema_version()')
+          .then((result) => ({
+            answered: true as const,
+            version: result.rows[0]?.version ?? null,
+          })),
         new Promise<typeof timedOut>((resolve) => {
           timer = setTimeout(() => resolve(timedOut), READINESS_TIMEOUT_MS);
         }),
       ]);
       if (outcome === timedOut) {
         this.consecutiveTimeouts += 1;
-        return this.consecutiveTimeouts >= CONSECUTIVE_TIMEOUTS_BEFORE_DOWN ? 'down' : 'busy';
+        return {
+          database: this.consecutiveTimeouts >= CONSECUTIVE_TIMEOUTS_BEFORE_DOWN ? 'down' : 'busy',
+          schemaVersion: null,
+        };
       }
       this.consecutiveTimeouts = 0;
-      return 'up';
+      const parsed = outcome.version === null ? Number.NaN : Number(outcome.version);
+      return {
+        database: 'up',
+        schemaVersion: Number.isSafeInteger(parsed) ? parsed : null,
+      };
     } catch {
       // A refused or broken connection is a real outage, not congestion.
       this.consecutiveTimeouts = CONSECUTIVE_TIMEOUTS_BEFORE_DOWN;
-      return 'down';
+      return { database: 'down', schemaVersion: null };
     } finally {
       if (timer) clearTimeout(timer);
     }

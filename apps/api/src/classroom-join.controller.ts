@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import { randomUUID } from 'node:crypto';
 import {
   classroomCodeHash,
   formatClassroomCode,
@@ -578,6 +579,61 @@ export class ClassroomJoinController {
     };
   }
 
+  /** Published course runs across every class this signed-in account attends. */
+  @Get('account/course-runs')
+  async accountCourseRuns(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
+              run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
+              section_title, section_summary, section_position, lesson_title, lesson_summary,
+              lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
+              classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
+              module_key, sample_image, project_id, submitted_at, snapshot_revision,
+              work_updated_at, completed_at
+         FROM classroom_course_runs_for_account_v2($1)`,
+      [context.accountId],
+    );
+    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[]) };
+  }
+
+  @Post('account/course-runs/:runId/lessons/:lessonId/progress')
+  @HttpCode(200)
+  async setAccountCourseLessonProgress(
+    @Req() request: FastifyRequest,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const shape = checkBodyShape(rawBody, ['completed']);
+    const completed = shape.ok ? shape.body['completed'] : null;
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      typeof completed !== 'boolean'
+    ) {
+      throw new HttpException(error('validation_error', 'completed must be boolean'), 400);
+    }
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT result_code, completed_at
+         FROM classroom_course_material_progress_set_for_account($1, $2, $3, $4)`,
+      [context.accountId, runId, lessonId, completed],
+    );
+    const row = result.rows[0] as
+      | { result_code: 'ok' | 'lesson_not_found' | 'course_closed'; completed_at: Date | null }
+      | undefined;
+    if (!row || row.result_code === 'lesson_not_found') {
+      throw new HttpException(error('course_lesson_not_found', 'Урок недоступен.'), 404);
+    }
+    if (row.result_code === 'course_closed') {
+      throw new HttpException(error('course_closed', 'Курс уже закрыт.'), 409);
+    }
+    return { completedAt: row.completed_at ? isoDate(row.completed_at) : null };
+  }
+
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
@@ -780,7 +836,12 @@ export class ClassroomJoinController {
     };
   }
 
-  /** Handing it in, or taking it back to keep working. */
+  /**
+   * Freeze one attempt for review.
+   *
+   * A submitted snapshot is immutable. A teacher can request changes, which
+   * opens a new numbered attempt; the old submission remains evidence.
+   */
   @Post('me/assignments/:assignmentId/submit')
   @HttpCode(200)
   async submitAssignment(
@@ -788,21 +849,70 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const shape = checkBodyShape(rawBody, ['submitted']);
+    const shape = checkBodyShape(rawBody, ['submitted', 'clientRequestId']);
     const submitted = shape.ok ? shape.body['submitted'] : null;
+    const clientRequestId = shape.ok ? shape.body['clientRequestId'] : null;
     if (typeof submitted !== 'boolean' || !UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'submitted must be boolean'), 400);
     }
+    if (!submitted) {
+      throw new HttpException(
+        error(
+          'submission_immutable',
+          'Сданную попытку нельзя отозвать. Педагог может вернуть её на доработку.',
+        ),
+        409,
+      );
+    }
+    if (
+      clientRequestId !== null &&
+      (typeof clientRequestId !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(clientRequestId))
+    ) {
+      throw new HttpException(error('validation_error', 'clientRequestId is invalid'), 400);
+    }
     const seatId = await this.seatForAssignment(request, assignmentId);
     const result = await this.requirePool().query(
-      `SELECT project_id, submitted_at FROM classroom_assignment_work_submit($1, $2, $3)`,
-      [seatId, assignmentId, submitted],
+      `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
+              project_id, project_version_id, submitted_at, late_state, reused
+         FROM learning_project_submission_create($1, $2, $3)`,
+      [seatId, assignmentId, clientRequestId ?? randomUUID()],
     );
-    const row = result.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
-    if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    const row = result.rows[0] as
+      | {
+          result_code: string;
+          attempt_id: string | null;
+          submission_id: string | null;
+          attempt_number: number | string | null;
+          attempt_state: string | null;
+          project_id: string | null;
+          project_version_id: string | null;
+          submitted_at: Date | string | null;
+          late_state: string | null;
+          reused: boolean;
+        }
+      | undefined;
+    if (!row || row.result_code === 'assignment_unavailable') {
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    }
+    if (row.result_code === 'attempt_already_submitted') {
+      throw new HttpException(
+        error('attempt_already_submitted', 'Эта попытка уже отправлена на проверку.'),
+        409,
+      );
+    }
+    if (row.result_code !== 'ok' || !row.project_id || !row.submitted_at) {
+      throw new HttpException(error('submission_failed', 'Не удалось зафиксировать сдачу.'), 409);
+    }
     return {
       projectId: row.project_id,
-      submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+      projectVersionId: row.project_version_id,
+      attemptId: row.attempt_id,
+      submissionId: row.submission_id,
+      attemptNumber: Number(row.attempt_number),
+      state: row.attempt_state,
+      submittedAt: isoDate(row.submitted_at),
+      lateState: row.late_state,
+      reused: row.reused,
     };
   }
 
