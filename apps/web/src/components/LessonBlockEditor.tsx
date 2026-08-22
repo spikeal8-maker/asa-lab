@@ -2,8 +2,12 @@ import type { LessonBlock } from '../api';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 
-function safeUrl(value: string): boolean {
-  return value.startsWith('https://') || (ASSET_URL.test(value) && !value.includes('..'));
+function localMediaUrl(value: string): boolean {
+  return ASSET_URL.test(value) && !value.includes('..');
+}
+
+function fileUrl(value: string): boolean {
+  return value.startsWith('https://') || localMediaUrl(value);
 }
 
 function nextId(): string {
@@ -28,8 +32,8 @@ export function lessonBlocksValid(blocks: readonly LessonBlock[]): boolean {
       if (block.type === 'paragraph') return block.text.length <= 12_000;
       if (block.type === 'heading') return block.text.trim().length > 0;
       if (block.type === 'callout') return block.text.trim().length > 0;
-      if (block.type === 'file') return safeUrl(block.url) && block.label.trim().length > 0;
-      return safeUrl(block.url);
+      if (block.type === 'file') return fileUrl(block.url) && block.label.trim().length > 0;
+      return localMediaUrl(block.url);
     })
   );
 }
@@ -185,7 +189,7 @@ export function LessonBlockEditor({
                   type="text"
                   value={block.url}
                   maxLength={2_000}
-                  placeholder="https://… или /assets/…"
+                  placeholder="/assets/…"
                   onChange={(event) => replace(block.id, { ...block, url: event.target.value })}
                 />
                 <div className="lesson-block-fields is-split">
@@ -216,7 +220,7 @@ export function LessonBlockEditor({
                   type="text"
                   value={block.url}
                   maxLength={2_000}
-                  placeholder="https://… или /assets/…"
+                  placeholder="/assets/…"
                   onChange={(event) => replace(block.id, { ...block, url: event.target.value })}
                 />
                 <input
@@ -265,7 +269,8 @@ export function LessonBlockEditor({
         ))}
       </div>
       <small className="lesson-block-url-hint">
-        Для медиа используйте защищённую https-ссылку или файл из /assets/.
+        Картинки, видео и аудио загружаются только с этой платформы: укажите путь /assets/… . Для
+        файла можно оставить защищённую https-ссылку — она откроется отдельно.
       </small>
     </section>
   );

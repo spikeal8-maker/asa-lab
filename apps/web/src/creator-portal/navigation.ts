@@ -35,6 +35,7 @@ export type CreatorPortalView =
       returnTo:
         | { kind: 'home' }
         | { kind: 'my-projects' }
+        | { kind: 'learning' }
         | { kind: 'classroom'; classroomId: string; classroomTitle: string; seatId?: string }
         | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
     };
@@ -152,7 +153,12 @@ export function creatorViewToHash(view: CreatorPortalView): string {
   if (view.returnTo.kind === 'classroom-projects') {
     return `#/classrooms/${view.returnTo.classroomId}/projects/${view.projectId}?title=${encodeURIComponent(view.returnTo.classroomTitle)}`;
   }
-  const returnPath = view.returnTo.kind === 'home' ? 'home' : 'projects';
+  const returnPath =
+    view.returnTo.kind === 'home'
+      ? 'home'
+      : view.returnTo.kind === 'learning'
+        ? 'learning'
+        : 'projects';
   return `#/${returnPath}/${view.projectId}`;
 }
 
@@ -182,6 +188,7 @@ function threeDReturnView(query: string | undefined): CreatorPortalReturnView {
   const returnTo = new URLSearchParams(query ?? '').get('returnTo');
   if (returnTo === '/home') return { kind: 'home' };
   if (returnTo === '/projects') return { kind: 'my-projects' };
+  if (returnTo === '/learning') return { kind: 'learning' };
   const [path, nestedQuery] = (returnTo ?? '').split('?');
   const classroom = /^\/classrooms\/([^/]+)\/projects$/.exec(path ?? '');
   if (classroom) {
@@ -203,6 +210,7 @@ function electronicsReturnView(search: string): CreatorPortalReturnView {
   if (
     parsed.kind === 'home' ||
     parsed.kind === 'my-projects' ||
+    parsed.kind === 'learning' ||
     parsed.kind === 'classroom-projects'
   ) {
     return parsed;

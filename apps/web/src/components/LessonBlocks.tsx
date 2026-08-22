@@ -9,6 +9,28 @@ function visibleBlocks(
   return legacyContent ? [{ id: 'legacy', type: 'paragraph', text: legacyContent }] : [];
 }
 
+function isLocalMedia(url: string): boolean {
+  return url.startsWith('/assets/') && !url.includes('..');
+}
+
+function ExternalMediaLink({
+  url,
+  label,
+}: {
+  readonly url: string;
+  readonly label: string;
+}): JSX.Element {
+  return (
+    <a className="lesson-file-block" href={url} target="_blank" rel="noreferrer">
+      <span aria-hidden="true">↗</span>
+      <span>
+        <strong>{label}</strong>
+        <small>Открыть внешний материал</small>
+      </span>
+    </a>
+  );
+}
+
 export function LessonBlocks({
   blocks,
   legacyContent = null,
@@ -49,6 +71,15 @@ export function LessonBlocks({
           );
         }
         if (block.type === 'image') {
+          if (!isLocalMedia(block.url)) {
+            return (
+              <ExternalMediaLink
+                key={block.id}
+                url={block.url}
+                label={block.caption || block.alt || 'Изображение'}
+              />
+            );
+          }
           return (
             <figure key={block.id} className="lesson-media-block">
               <img src={block.url} alt={block.alt} loading="lazy" />
@@ -57,6 +88,11 @@ export function LessonBlocks({
           );
         }
         if (block.type === 'video') {
+          if (!isLocalMedia(block.url)) {
+            return (
+              <ExternalMediaLink key={block.id} url={block.url} label={block.title || 'Видео'} />
+            );
+          }
           return (
             <figure key={block.id} className="lesson-media-block">
               {block.title ? <figcaption>{block.title}</figcaption> : null}
@@ -65,6 +101,11 @@ export function LessonBlocks({
           );
         }
         if (block.type === 'audio') {
+          if (!isLocalMedia(block.url)) {
+            return (
+              <ExternalMediaLink key={block.id} url={block.url} label={block.title || 'Аудио'} />
+            );
+          }
           return (
             <div key={block.id} className="lesson-audio-block">
               {block.title ? <strong>{block.title}</strong> : null}

@@ -347,6 +347,29 @@ export interface CatalogueEntry {
   createdAt: string;
 }
 
+export interface CatalogueCoursePreview {
+  versionNumber: number;
+  title: string;
+  summary: string | null;
+  publishedAt: string;
+  sections: Array<{
+    id: string;
+    title: string;
+    summary: string | null;
+    position: number;
+    lessons: Array<{
+      id: string;
+      title: string;
+      summary: string | null;
+      content: string | null;
+      blocks: LessonBlock[];
+      kind: 'material' | 'assignment';
+      estimatedMinutes: number | null;
+      position: number;
+    }>;
+  }>;
+}
+
 export interface ContentShare {
   accountId: string;
   email: string;
@@ -1352,6 +1375,8 @@ export const api = {
 
   /** Общий каталог: чужое, открытое вам. Своё сюда не попадает. */
   catalogue: () => call<{ items: CatalogueEntry[] }>('/api/catalogue'),
+  catalogueCourse: (courseId: string) =>
+    call<CatalogueCoursePreview>(`/api/catalogue/courses/${encodeURIComponent(courseId)}`),
   /** Забрать себе копией: автор правит своё, вы — своё. */
   takeFromCatalogue: (kind: 'course' | 'assignment', subjectId: string) =>
     call<{ id: string }>(`/api/catalogue/${kind}/${encodeURIComponent(subjectId)}/take`, {
@@ -1427,9 +1452,17 @@ export const api = {
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
   seatCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/me/course-runs'),
+  accountCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/account/course-runs'),
   setSeatCourseLessonProgress: (runId: string, lessonId: string, completed: boolean) =>
     call<{ completedAt: string | null }>(
       `/api/class-join/me/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(
+        lessonId,
+      )}/progress`,
+      { method: 'POST', body: JSON.stringify({ completed }) },
+    ),
+  setAccountCourseLessonProgress: (runId: string, lessonId: string, completed: boolean) =>
+    call<{ completedAt: string | null }>(
+      `/api/class-join/account/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(
         lessonId,
       )}/progress`,
       { method: 'POST', body: JSON.stringify({ completed }) },

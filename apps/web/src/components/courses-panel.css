@@ -939,6 +939,77 @@
   overflow-y: auto;
 }
 
+.catalogue-version {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.catalogue-course-outline {
+  display: grid;
+  gap: 14px;
+}
+
+.catalogue-course-outline > section {
+  display: grid;
+  gap: 6px;
+}
+
+.catalogue-course-outline h3,
+.catalogue-course-outline p {
+  margin: 0;
+}
+
+.catalogue-course-outline h3 {
+  color: #20333d;
+  font-size: 15px;
+}
+
+.catalogue-course-outline > section > p {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.catalogue-course-outline ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalogue-course-outline li {
+  border: 1px solid #e1e8ec;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.catalogue-course-outline summary {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+
+.catalogue-course-outline summary > span,
+.catalogue-course-outline summary > small {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.catalogue-course-outline summary > strong {
+  color: #20333d;
+  font-size: 13px;
+}
+
+.catalogue-course-outline details > p,
+.catalogue-course-outline details > .lesson-blocks {
+  margin: 0 10px 10px;
+}
+
 /* Shared teacher catalogue. */
 .catalogue-list > li {
   display: grid;
@@ -1221,6 +1292,16 @@
 
   .course-header-actions button {
     flex: none;
+  }
+
+  .course-publication-note {
+    margin: 0;
+    padding: 7px 10px;
+    border: 1px solid #d7e5ec;
+    border-radius: 8px;
+    color: #506470;
+    background: #f5f9fb;
+    font-size: 12px;
   }
 
   .course-builder {

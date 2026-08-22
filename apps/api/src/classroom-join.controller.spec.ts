@@ -84,4 +84,39 @@ describe('classroom course progress', () => {
       ['seat-id', runId, lessonId, true],
     );
   });
+
+  it('loads and updates course progress for an account learner', async () => {
+    const runId = '123e4567-e89b-42d3-a456-426614174010';
+    const lessonId = '123e4567-e89b-42d3-a456-426614174011';
+    const query = vi.fn(async (sql: string) => ({
+      rows: sql.includes('progress_set_for_account')
+        ? [{ result_code: 'ok', completed_at: '2026-08-21T12:30:00.000Z' }]
+        : [],
+    }));
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      activeContext,
+      new BotChallengeService({ required: false }),
+    );
+    const accountRequest = request('203.0.113.20');
+    accountRequest.cookies['asa_session'] = 'account-session';
+
+    await expect(controller.accountCourseRuns(accountRequest)).resolves.toEqual({ items: [] });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('classroom_course_runs_for_account_v2'),
+      ['account-id'],
+    );
+    await expect(
+      controller.setAccountCourseLessonProgress(accountRequest, runId, lessonId, {
+        completed: true,
+      }),
+    ).resolves.toEqual({ completedAt: '2026-08-21T12:30:00.000Z' });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('classroom_course_material_progress_set_for_account'),
+      ['account-id', runId, lessonId, true],
+    );
+  });
 });

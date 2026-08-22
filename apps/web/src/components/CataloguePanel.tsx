@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
-import { api, type CatalogueEntry, type CourseItem, type ModuleSummary } from '../api';
+import { api, type CatalogueCoursePreview, type CatalogueEntry, type ModuleSummary } from '../api';
 import { CLASSROOM_AGE_OPTIONS } from './ClassroomFields';
+import { LessonBlocks } from './LessonBlocks';
 import './courses-panel.css';
 
 /**
@@ -24,7 +25,7 @@ export function CataloguePanel({
 }): JSX.Element {
   const [items, setItems] = useState<CatalogueEntry[] | null>(null);
   const [preview, setPreview] = useState<CatalogueEntry | null>(null);
-  const [contents, setContents] = useState<CourseItem[] | null>(null);
+  const [contents, setContents] = useState<CatalogueCoursePreview | null | undefined>(undefined);
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<'' | 'course' | 'assignment'>('');
   const [ageFilter, setAgeFilter] = useState('');
@@ -43,11 +44,12 @@ export function CataloguePanel({
 
   useEffect(() => {
     if (!preview || preview.kind !== 'course') {
-      setContents(null);
+      setContents(undefined);
       return;
     }
-    void api.courseItems(preview.id).then((result) => {
-      setContents(result.ok ? result.data.items : []);
+    setContents(undefined);
+    void api.catalogueCourse(preview.id).then((result) => {
+      setContents(result.ok ? result.data : null);
     });
   }, [preview]);
 
@@ -216,25 +218,43 @@ export function CataloguePanel({
                 : ''}
             </p>
             {preview.summary ? <p>{preview.summary}</p> : null}
-            {contents === null ? (
+            {contents === undefined ? (
               <p role="status">Загружаем состав…</p>
+            ) : contents === null ? (
+              <p className="form-error" role="alert">
+                Не удалось открыть опубликованную версию курса.
+              </p>
             ) : (
-              <ol className="course-items">
-                {contents.map((item, index) => (
-                  <li key={item.id}>
-                    <span className="course-step">{index + 1}</span>
-                    {item.sampleImage ? (
-                      <img src={item.sampleImage} alt="" width={48} height={48} />
-                    ) : (
-                      <span className="course-no-sample" aria-hidden="true" />
-                    )}
-                    <span className="course-item-copy">
-                      <strong>{item.title}</strong>
-                      {item.goal ? <small>{item.goal}</small> : null}
-                    </span>
-                  </li>
+              <div className="catalogue-course-outline" data-testid="catalogue-course-outline">
+                <p className="catalogue-version">Опубликованная версия {contents.versionNumber}</p>
+                {contents.sections.map((section) => (
+                  <section key={section.id}>
+                    <h3>{section.title}</h3>
+                    {section.summary ? <p>{section.summary}</p> : null}
+                    <ol>
+                      {section.lessons.map((lesson) => (
+                        <li key={lesson.id} data-testid="catalogue-course-lesson">
+                          <details>
+                            <summary>
+                              <span>{lesson.kind === 'assignment' ? 'Практика' : 'Материал'}</span>
+                              <strong>{lesson.title}</strong>
+                              {lesson.estimatedMinutes ? (
+                                <small>{lesson.estimatedMinutes} мин</small>
+                              ) : null}
+                            </summary>
+                            {lesson.summary ? <p>{lesson.summary}</p> : null}
+                            <LessonBlocks
+                              blocks={lesson.blocks}
+                              legacyContent={lesson.content}
+                              compact
+                            />
+                          </details>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
                 ))}
-              </ol>
+              </div>
             )}
             <div className="modal-actions">
               <button type="button" className="btn-secondary" onClick={() => setPreview(null)}>

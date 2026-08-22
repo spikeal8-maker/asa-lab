@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { newClientId } from '../client-id';
+import { SeatCourses } from '../components/SeatCourses';
 import { useSchoolTime } from '../components/school-time';
 import '../components/classroom-assignments.css';
 import './attended-classes.css';
@@ -16,8 +17,10 @@ import './attended-classes.css';
  */
 export function AttendedClassesPage({
   onOpenProject,
+  mode = 'classes',
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly mode?: 'classes' | 'learning';
 }): JSX.Element {
   const [classes, setClasses] = useState<readonly AttendedClass[] | null>(null);
   const [assignments, setAssignments] = useState<
@@ -88,9 +91,11 @@ export function AttendedClassesPage({
     <main id="main-content" className="portal-content attended-classes" tabIndex={-1}>
       <header className="attended-heading">
         <div>
-          <h1>Я учусь</h1>
+          <h1>{mode === 'learning' ? 'Обучение' : 'Я учусь'}</h1>
           <p>
-            Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.
+            {mode === 'learning'
+              ? 'Здесь собраны выданные вам материалы и задания. Чтобы получить маршрут, войдите в класс по коду преподавателя.'
+              : 'Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.'}
           </p>
         </div>
       </header>
@@ -148,6 +153,8 @@ export function AttendedClassesPage({
           ))}
         </ul>
       )}
+
+      {mode === 'learning' ? <SeatCourses source="account" onOpenProject={onOpenProject} /> : null}
 
       {assignments.length > 0 ? (
         <section aria-labelledby="attended-tasks">

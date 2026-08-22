@@ -578,6 +578,61 @@ export class ClassroomJoinController {
     };
   }
 
+  /** Published course runs across every class this signed-in account attends. */
+  @Get('account/course-runs')
+  async accountCourseRuns(@Req() request: FastifyRequest) {
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
+              run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
+              section_title, section_summary, section_position, lesson_title, lesson_summary,
+              lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
+              classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
+              module_key, sample_image, project_id, submitted_at, snapshot_revision,
+              work_updated_at, completed_at
+         FROM classroom_course_runs_for_account_v2($1)`,
+      [context.accountId],
+    );
+    return { items: seatCourseRuns(result.rows as SeatCourseRunRow[]) };
+  }
+
+  @Post('account/course-runs/:runId/lessons/:lessonId/progress')
+  @HttpCode(200)
+  async setAccountCourseLessonProgress(
+    @Req() request: FastifyRequest,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const shape = checkBodyShape(rawBody, ['completed']);
+    const completed = shape.ok ? shape.body['completed'] : null;
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      typeof completed !== 'boolean'
+    ) {
+      throw new HttpException(error('validation_error', 'completed must be boolean'), 400);
+    }
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    const result = await this.requirePool().query(
+      `SELECT result_code, completed_at
+         FROM classroom_course_material_progress_set_for_account($1, $2, $3, $4)`,
+      [context.accountId, runId, lessonId, completed],
+    );
+    const row = result.rows[0] as
+      | { result_code: 'ok' | 'lesson_not_found' | 'course_closed'; completed_at: Date | null }
+      | undefined;
+    if (!row || row.result_code === 'lesson_not_found') {
+      throw new HttpException(error('course_lesson_not_found', 'Урок недоступен.'), 404);
+    }
+    if (row.result_code === 'course_closed') {
+      throw new HttpException(error('course_closed', 'Курс уже закрыт.'), 409);
+    }
+    return { completedAt: row.completed_at ? isoDate(row.completed_at) : null };
+  }
+
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);

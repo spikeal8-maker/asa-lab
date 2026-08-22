@@ -552,6 +552,12 @@ function CourseEditor({
         </div>
       </header>
 
+      {course.publicationState === 'draft' && course.visibility !== 'private' ? (
+        <p className="course-publication-note" role="status">
+          Доступ настроен, но коллеги увидят курс в каталоге только после первой публикации.
+        </p>
+      ) : null}
+
       {notice ? (
         <p className="notice-success course-inline-notice" role="status">
           {notice}

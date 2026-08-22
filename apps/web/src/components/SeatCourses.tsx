@@ -29,8 +29,10 @@ function lessonComplete(lesson: SeatCourseRunLesson): boolean {
 
 export function SeatCourses({
   onOpenProject,
+  source = 'seat',
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly source?: 'seat' | 'account';
 }): JSX.Element | null {
   const [runs, setRuns] = useState<SeatCourseRun[] | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
@@ -40,10 +42,11 @@ export function SeatCourses({
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
-    const result = await api.seatCourseRuns();
+    const result =
+      source === 'account' ? await api.accountCourseRuns() : await api.seatCourseRuns();
     setRuns(result.ok ? result.data.items : []);
     if (!result.ok) setError(result.error.message);
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     void reload();
@@ -92,7 +95,10 @@ export function SeatCourses({
     if (!openRun || lesson.kind !== 'material') return false;
     setBusy(lesson.id);
     setError(null);
-    const result = await api.setSeatCourseLessonProgress(openRun.id, lesson.id, completed);
+    const result =
+      source === 'account'
+        ? await api.setAccountCourseLessonProgress(openRun.id, lesson.id, completed)
+        : await api.setSeatCourseLessonProgress(openRun.id, lesson.id, completed);
     setBusy(null);
     if (!result.ok) {
       setError(result.error.message || 'Не удалось сохранить прогресс.');

@@ -1,9 +1,6 @@
 import type { CreatorPortalSection } from '../creator-portal/navigation';
 
-type ResourceSection = Extract<
-  CreatorPortalSection,
-  'learning' | 'collections' | 'challenges' | 'help'
->;
+type ResourceSection = Extract<CreatorPortalSection, 'collections' | 'challenges' | 'help'>;
 
 interface ResourceCopy {
   readonly eyebrow: string;
@@ -18,32 +15,6 @@ interface ResourceCopy {
 }
 
 const COPY: Record<ResourceSection, ResourceCopy> = {
-  learning: {
-    eyebrow: 'Маршрут обучения',
-    title: 'Обучение',
-    description:
-      'Выберите среду, создайте небольшой проект и сохраните контрольную версию результата.',
-    cards: [
-      {
-        title: 'Электроника',
-        body: 'Соберите цепь, запустите моделирование и проверьте диагностику.',
-        action: 'Открыть мои проекты',
-        target: 'projects',
-      },
-      {
-        title: 'ASA Chess',
-        body: 'Разберите позицию, сохраните партию или перейдите к шахматным задачам.',
-        action: 'Открыть мои проекты',
-        target: 'projects',
-      },
-      {
-        title: 'Как сохраняется работа',
-        body: 'Черновики сохраняются в проекте, а контрольные версии остаются неизменяемыми.',
-        action: 'На главную',
-        target: 'home',
-      },
-    ],
-  },
   collections: {
     eyebrow: 'Личная библиотека',
     title: 'Коллекции',

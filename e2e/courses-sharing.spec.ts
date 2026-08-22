@@ -293,7 +293,8 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   await studentPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await expect(studentPage.getByRole('button', { name: 'Войти в класс' })).toBeEnabled();
   await studentPage.getByRole('button', { name: 'Войти в класс' }).click();
-  await studentPage.getByRole('button', { name: /^Классы/ }).click();
+  await sidebar(studentPage, 'Обучение').click();
+  await expect(studentPage.getByRole('heading', { name: 'Обучение', exact: true })).toBeVisible();
   const studentCourses = studentPage.getByTestId('seat-courses');
   await expect(studentCourses).toContainText(courseTitle);
   await studentCourses.getByRole('button', { name: new RegExp(courseTitle) }).click();
@@ -357,7 +358,17 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   await expect(card.locator('.catalogue-author')).toContainText('Педагог course-author');
   await card.getByRole('button', { name: 'Посмотреть' }).click();
   const preview = matePage.getByRole('dialog', { name: courseTitle });
-  await expect(preview.locator('.course-items li')).toHaveCount(2);
+  await expect(preview.getByTestId('catalogue-course-lesson')).toHaveCount(3);
+  await expect(preview).toContainText('Почему нужен резистор');
+  await preview.getByText('Почему нужен резистор', { exact: true }).click();
+  await expect(preview).toContainText('Резистор ограничивает ток');
+  await preview.screenshot({ path: `${evidenceDir}/catalogue-preview-desktop.png` });
+  await matePage.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => matePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true);
+  await preview.screenshot({ path: `${evidenceDir}/catalogue-preview-mobile.png` });
+  await matePage.setViewportSize({ width: 1280, height: 720 });
 
   await preview.getByRole('button', { name: 'Забрать себе' }).click();
   await expect(matePage.getByText(`Курс «${courseTitle}» у вас.`, { exact: false })).toBeVisible();
