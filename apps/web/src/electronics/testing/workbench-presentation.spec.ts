@@ -118,6 +118,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain("{ id: 'breadboard', label: 'Цепи'");
     expect(headerSource).toContain("{ id: 'schematic', label: 'Схемы'");
     expect(headerSource).toContain("{ id: 'bom', label: 'Компоненты'");
+    expect(headerSource).toContain('useEditorAvatar(user)');
+    expect(headerSource).toContain('<EditorAvatar className="workbench-avatar" avatar={avatar} />');
     expect(headerSource).toContain('onViewChange(tab.id)');
     expect(headerSource).toContain('src="/asa-lab-mark.svg"');
     expect(headerSource).toContain('ASA Lab');

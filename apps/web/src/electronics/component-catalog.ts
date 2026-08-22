@@ -90,17 +90,18 @@ export const CATEGORY_LABELS: Readonly<Record<ComponentCategory, string>> = Obje
   CATEGORY_OPTIONS.map((category) => [category.id, category.label]),
 ) as Readonly<Record<ComponentCategory, string>>;
 
-// Tinkercad's Basic drawer is the visual reference for discoverability. The
-// catalog data and assets still come only from the owner manifest; this list
-// controls presentation order and deliberately omits micro:bit by owner choice.
-const TINKERCAD_BASIC_FAMILY_ORDER = [
+// Tinkercad's Basic drawer is the visual reference for discoverability. Keep
+// every confirmed owner family in the same relative order as the reference.
+// Reference-only parts without confirmed owner SVGs are not invented here;
+// they remain missing until their audited assets enter the owner manifest.
+export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'resistor',
   'led',
   'button',
   'potentiometer',
   'capacitor',
   'spdt-switch',
-  'battery-holder-aa',
+  'battery',
   'breadboard',
   'arduino-uno',
   'vibration-motor',
@@ -112,10 +113,6 @@ const TINKERCAD_BASIC_FAMILY_ORDER = [
   'photoresistor',
   'piezo',
   'multimeter',
-  'seven-segment',
-  'lamp',
-  'regulated-power-supply',
-  'battery',
 ] as const;
 const TINKERCAD_BASIC_FAMILY_INDEX = new Map<string, number>(
   TINKERCAD_BASIC_FAMILY_ORDER.map((familyId, index) => [familyId, index]),
@@ -222,10 +219,7 @@ export function familyMatchesCategory(
   family: ComponentFamily,
   category: ComponentCategory,
 ): boolean {
-  // The owner expects the default shelf to be a discoverable inventory, like
-  // Tinkercad's "Basic" drawer. Unsupported owner items remain visible but
-  // disabled, so nothing silently disappears from the supplied catalog.
-  if (category === 'basic') return true;
+  if (category === 'basic') return TINKERCAD_BASIC_FAMILY_INDEX.has(family.familyId);
   if (category === 'all') return true;
   if (category === 'preview') return !family.enabled;
   return family.categoryId === category;

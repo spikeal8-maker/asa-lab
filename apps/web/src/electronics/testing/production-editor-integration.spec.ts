@@ -212,31 +212,14 @@ describe('owner SVG integration in the real Electronics document', () => {
   it('groups owner assets into deterministic families and safe tiers', () => {
     const families = workbenchCatalog();
     const basicFamilies = families.filter((family) => familyMatchesCategory(family, 'basic'));
-    expect(basicFamilies.map((family) => family.familyId)).toEqual(
-      families.map((family) => family.familyId),
-    );
-    expect(basicFamilies.map((family) => family.familyId)).toEqual(
-      expect.arrayContaining([
-        'resistor',
-        'led',
-        'button',
-        'breadboard',
-        'battery-holder-aa',
-        'diode',
-        'rgb-led',
-        'seven-segment',
-        'arduino-uno',
-        'vibration-motor',
-      ]),
-    );
-    expect(basicFamilies.map((family) => family.familyId).slice(0, 18)).toEqual([
+    expect(basicFamilies.map((family) => family.familyId)).toEqual([
       'resistor',
       'led',
       'button',
       'potentiometer',
       'capacitor',
       'spdt-switch',
-      'battery-holder-aa',
+      'battery',
       'breadboard',
       'arduino-uno',
       'vibration-motor',
@@ -250,6 +233,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'multimeter',
     ]);
     expect(basicFamilies.some((family) => family.familyId === 'microbit')).toBe(false);
+    expect(basicFamilies.some((family) => family.familyId === 'battery-holder-aa')).toBe(false);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
