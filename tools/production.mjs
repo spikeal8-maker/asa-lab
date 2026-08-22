@@ -80,6 +80,28 @@ if (!Number.isSafeInteger(expectedSchemaVersion)) {
   console.error('Cannot determine the expected database schema version.');
   process.exit(78);
 }
+const ownerAdminEmail = process.env.ASA_OWNER_ADMIN_EMAIL?.trim();
+if (!ownerAdminEmail) {
+  console.error('ASA_OWNER_ADMIN_EMAIL is required for production owner preflight.');
+  process.exit(78);
+}
+const pg = (await import('pg')).default;
+const preflightClient = new pg.Client({ connectionString: process.env.APP_DATABASE_URL });
+try {
+  await preflightClient.connect();
+  const result = await preflightClient.query('SELECT runtime_owner_admin_ready($1) AS ready', [
+    ownerAdminEmail,
+  ]);
+  if (result.rows[0]?.ready !== true) {
+    console.error('Owner platform_admin preflight failed. Production was not started.');
+    process.exit(78);
+  }
+} catch (error) {
+  console.error(`Owner platform_admin preflight failed: ${String(error)}`);
+  process.exit(78);
+} finally {
+  await preflightClient.end().catch(() => undefined);
+}
 const env = apiChildEnv(
   {
     ...process.env,

@@ -22,6 +22,8 @@
     "db:migrate": "node tools/migrate.mjs --apply",
     "db:migrate:check": "node tools/migrate.mjs --check",
     "db:migrate:test": "node tools/migrate.mjs --smoke",
+    "admin:verify-owner": "node tools/platform-admin.mjs",
+    "admin:grant-owner": "node tools/platform-admin.mjs --grant",
     "test:migration:embedded": "vitest run tests/migration/migrate.integration.spec.ts",
     "test:security": "vitest run tests/security",
     "perf:runtime": "node tools/measure-runtime.mjs",
