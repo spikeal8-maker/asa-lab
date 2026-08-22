@@ -13,9 +13,8 @@ import './classroom-assignments.css';
  * so everything that already works for their work works for this. Nothing is
  * pressed to report progress: opening it is starting it.
  *
- * "Сдать" is separate and is the learner's decision. It does not lock anything:
- * a child may keep working and hand in again. Freezing someone out of their own
- * model to enforce a deadline is a thing school software does and should not.
+ * "Сдать" freezes evidence for review but does not delete or hide the learner's
+ * project. A new numbered attempt opens only after the teacher requests changes.
  */
 export function SeatAssignments({
   onOpenProject,
@@ -176,18 +175,15 @@ export function SeatAssignments({
                   <button
                     type="button"
                     className="btn-secondary"
-                    disabled={busy === assignment.id}
+                    disabled={busy === assignment.id || assignment.submittedAt !== null}
                     onClick={async () => {
                       setBusy(assignment.id);
-                      const result = await api.submitSeatAssignment(
-                        assignment.id,
-                        assignment.submittedAt === null,
-                      );
+                      const result = await api.submitSeatAssignment(assignment.id, true);
                       setBusy(null);
                       if (result.ok) await reload();
                     }}
                   >
-                    {assignment.submittedAt ? 'Вернуть в работу' : 'Сдать'}
+                    {assignment.submittedAt ? 'На проверке' : 'Сдать'}
                   </button>
                 </>
               ) : (

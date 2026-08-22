@@ -120,3 +120,82 @@ describe('classroom course progress', () => {
     );
   });
 });
+
+describe('immutable classroom submissions', () => {
+  it('returns the numbered immutable attempt created for the seat', async () => {
+    const assignmentId = '123e4567-e89b-42d3-a456-426614174020';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) {
+        return {
+          rows: [
+            {
+              seat_id: 'seat-id',
+              classroom_id: 'classroom-id',
+              classroom_title: '7А',
+              display_label: 'Алина',
+              teacher_display_name: 'Педагог',
+              safe_mode: true,
+              avatar_key: null,
+              expires_at: '2026-08-21T20:00:00.000Z',
+            },
+          ],
+        };
+      }
+      return {
+        rows: [
+          {
+            result_code: 'ok',
+            attempt_id: 'attempt-id',
+            submission_id: 'submission-id',
+            attempt_number: '1',
+            attempt_state: 'evaluating',
+            project_id: 'project-id',
+            project_version_id: 'project-version-id',
+            submitted_at: '2026-08-22T12:00:00.000Z',
+            late_state: 'on_time',
+            reused: false,
+          },
+        ],
+      };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+      new BotChallengeService({ required: false }),
+    );
+
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        clientRequestId: 'submit:test:0001',
+      }),
+    ).resolves.toEqual({
+      projectId: 'project-id',
+      projectVersionId: 'project-version-id',
+      attemptId: 'attempt-id',
+      submissionId: 'submission-id',
+      attemptNumber: 1,
+      state: 'evaluating',
+      submittedAt: '2026-08-22T12:00:00.000Z',
+      lateState: 'on_time',
+      reused: false,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('learning_project_submission_create'),
+      ['seat-id', assignmentId, 'submit:test:0001'],
+    );
+  });
+
+  it('does not let the learner mutate a submitted snapshot back into a draft', async () => {
+    const controller = new ClassroomJoinController(
+      { query: vi.fn() } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+      new BotChallengeService({ required: false }),
+    );
+    await expect(
+      controller.submitAssignment(seatRequest(), '123e4567-e89b-42d3-a456-426614174020', {
+        submitted: false,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+});

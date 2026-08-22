@@ -257,18 +257,15 @@ export function AttendedClassesPage({
                       <button
                         type="button"
                         className="btn-secondary"
-                        disabled={busy}
+                        disabled={busy || assignment.submittedAt !== null}
                         onClick={async () => {
                           setBusy(true);
-                          const result = await api.submitSeatAssignment(
-                            assignment.id,
-                            assignment.submittedAt === null,
-                          );
+                          const result = await api.submitSeatAssignment(assignment.id, true);
                           setBusy(false);
                           if (result.ok) await load();
                         }}
                       >
-                        {assignment.submittedAt ? 'Вернуть в работу' : 'Сдать'}
+                        {assignment.submittedAt ? 'На проверке' : 'Сдать'}
                       </button>
                     </>
                   ) : (

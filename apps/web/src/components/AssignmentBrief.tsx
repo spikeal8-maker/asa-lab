@@ -51,7 +51,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   async function submit(): Promise<void> {
     if (!assignment) return;
     setBusy(true);
-    const result = await api.submitSeatAssignment(assignment.id, assignment.submittedAt === null);
+    const result = await api.submitSeatAssignment(assignment.id, true);
     setBusy(false);
     if (result.ok) {
       setAssignment({ ...assignment, submittedAt: result.data.submittedAt });
@@ -76,10 +76,10 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
         <button
           type="button"
           className="assignment-brief-submit"
-          disabled={busy}
+          disabled={busy || assignment.submittedAt !== null}
           onClick={() => void submit()}
         >
-          {assignment.submittedAt ? 'Вернуть в работу' : 'Сдать работу'}
+          {assignment.submittedAt ? 'На проверке' : 'Сдать работу'}
         </button>
       </div>
 

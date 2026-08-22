@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PublicUser } from '../api';
+import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import {
   CheckIcon,
   ChevronIcon,
@@ -20,7 +21,7 @@ import {
   ViewIcon,
   WireIcon,
 } from './workbench-icons';
-import { WIRE_COLORS, initials, type ToolButtonProps, type WorkbenchView } from './workbench-model';
+import { WIRE_COLORS, type ToolButtonProps, type WorkbenchView } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
@@ -89,6 +90,7 @@ export function WorkbenchHeader({
   const hasComponentSelection = c.selection?.kind === 'component';
   const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
   const [simulationElapsedSeconds, setSimulationElapsedSeconds] = useState(0);
+  const avatar = useEditorAvatar(user);
 
   useEffect(() => {
     if (!c.simulationRunning) {
@@ -167,9 +169,7 @@ export function WorkbenchHeader({
               <span>{tab.label}</span>
             </button>
           ))}
-          <span className="workbench-avatar" title={user.displayName}>
-            {initials(user.displayName)}
-          </span>
+          <EditorAvatar className="workbench-avatar" avatar={avatar} />
         </nav>
       </header>
       <div
