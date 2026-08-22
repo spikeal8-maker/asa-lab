@@ -306,7 +306,7 @@ tasks:
     delivery_stage: STAGE-11-CHECKERS-M1
     architecture_horizon: PHASE-R11
     depends_on: [TASK-CREATOR-PORTAL-001, TASK-R3A-ELECTRONICS-GATEWAY-001]
-    next_task: null
+    next_task: TASK-ADMIN-AUTH-STABILITY-001
     capabilities: [CAP-PROJECTS, CAP-CLASSROOM, CAP-CHECKERS-LITE, CAP-CHESS]
     visible_result: A student enters a complete Russian-draughts learning area with assignments, self-learning, bot progression, evidence-based review and safe class play; a teacher assigns work and sees move-level progress.
     user_flow: Open Checkers -> continue learning or assigned work -> solve or play -> receive review and mastery update -> teacher sees exact evidence -> challenge an authorised classmate with predefined reactions only.
@@ -364,7 +364,10 @@ tasks:
       - supervised_api_and_frp_recovery
     non_goals: [email verification delivery, CRM, billing, competitions, moderation, second Admin service, destructive tenant or RLS redesign]
     read: [AGENTS.md, docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md, docs/product/ASA_ADMIN_CONSOLE_SPEC.md, https://github.com/spikeal8-maker/asa-lab/issues/135]
-    test_profiles: [code_common, tenant_storage]
+    # The active catalog below owns the three acceptance suites for this task.
+    # Full repository/data gates are still mandatory through current.yaml, but
+    # are not duplicated as per-task catalog ownership.
+    test_profiles: []
     task_tests: [TST-ADMIN-AUTH-MAX-CORE-001, TST-ADMIN-AUTH-MAX-E2E-001, TST-ADMIN-AUTH-MAX-PRODUCTION-001]
     map_nodes: [PROGRAM-ALPHA-001, TRACK-ROADMAP, PHASE-PILOT, APP-WEB, APP-ADMIN, APP-API, CTX-IDENTITY, CTX-SAFETY, DATA-PG]
     artifacts: [execution-plan, migration-report, authorization-matrix, playwright-report, production-version-report, recovery-report]

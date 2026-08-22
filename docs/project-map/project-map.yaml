@@ -101,7 +101,7 @@ nodes:
   - {id: PHASE-R4, label: R4 Electronics Parity, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Post-merge M1 corrective work aligns physical pins, breadboard footprints and live LED evidence; M2 remains blocked."}
   - {id: PHASE-R10, label: R10 3D Foundation, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "The ASA-native 3D M0 slice is merged and deployed; later R10 CAD capabilities remain blocked pending separate owner activation."}
   - {id: PHASE-R11, label: R11 Educational Checkers, kind: roadmap_phase, layer: roadmap, status: done, summary: "Independent Russian-draughts rules, learning, assignments, bots, review and safe class play."}
-  - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: blocked, summary: "StudentSeat and learning cycle."}
+  - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Admin, durable authentication and MAX production readiness are active before the school pilot."}
 
   - {id: TASK-BOOT-001, label: Bootstrap, kind: task, layer: delivery, status: done, summary: "Monorepo foundation.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
   - {id: TASK-PRODUCT-DOC-001, label: Product Documentation, kind: task, layer: delivery, status: done, summary: "Product contracts accepted.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}

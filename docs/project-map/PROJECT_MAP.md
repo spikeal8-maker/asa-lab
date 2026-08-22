@@ -12,12 +12,12 @@ Rendered from the control plane. Do not edit these values here independently;
 `pnpm control-plane:check` fails when they drift.
 
 ```text
-TASK-CHECKERS-M1-001
-Issue #98
-branch agent/checkers-education-m1
-status done
-checkpoint merged_to_main
-execution lease codex-checkers-m1
+TASK-ADMIN-AUTH-STABILITY-001
+Issue #135
+branch main
+status in_progress
+checkpoint max_lifecycle_verified_on_backup
+execution direct_main
 ```
 
 The owner activated an independent educational Russian-draughts system. 3D M0
