@@ -1,10 +1,10 @@
 # LRN-M0 CURRENT Learning Architecture
 
-**Task:** `LRN-M0-001`  
-**Status:** `DONE — CURRENT EVIDENCE MAP ACCEPTANCE COMPLETE`  
-**Evidence baseline:** `origin/main@cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef`  
-**Owner activation:** `main@374c54f59d72abbfae143b445aa32ede643437da`  
-**Audit date:** `2026-08-24`  
+**Task:** `LRN-M0-001`
+**Status:** `DONE — CURRENT EVIDENCE MAP ACCEPTANCE COMPLETE`
+**Evidence baseline:** `origin/main@cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef`
+**Owner activation:** `main@374c54f59d72abbfae143b445aa32ede643437da`
+**Audit date:** `2026-08-24`
 **Scope:** CURRENT implementation evidence only. The package Master Spec is TARGET and is not evidence of shipped behavior.
 
 ## Executive finding
