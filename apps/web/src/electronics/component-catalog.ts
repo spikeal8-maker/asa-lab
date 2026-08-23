@@ -102,6 +102,7 @@ export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'capacitor',
   'spdt-switch',
   'battery',
+  'battery-holder-aa',
   'breadboard',
   'arduino-uno',
   'vibration-motor',
@@ -113,6 +114,9 @@ export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'photoresistor',
   'piezo',
   'multimeter',
+  'seven-segment',
+  'lamp',
+  'regulated-power-supply',
 ] as const;
 const TINKERCAD_BASIC_FAMILY_INDEX = new Map<string, number>(
   TINKERCAD_BASIC_FAMILY_ORDER.map((familyId, index) => [familyId, index]),
@@ -219,7 +223,10 @@ export function familyMatchesCategory(
   family: ComponentFamily,
   category: ComponentCategory,
 ): boolean {
-  if (category === 'basic') return TINKERCAD_BASIC_FAMILY_INDEX.has(family.familyId);
+  // "Основные" is the default shelf, so it must never make an available owner
+  // component disappear. The catalog sort above keeps the Tinkercad-inspired
+  // order while still appending any future confirmed families safely.
+  if (category === 'basic') return true;
   if (category === 'all') return true;
   if (category === 'preview') return !family.enabled;
   return family.categoryId === category;

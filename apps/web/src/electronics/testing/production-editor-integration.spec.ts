@@ -220,6 +220,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'capacitor',
       'spdt-switch',
       'battery',
+      'battery-holder-aa',
       'breadboard',
       'arduino-uno',
       'vibration-motor',
@@ -231,9 +232,12 @@ describe('owner SVG integration in the real Electronics document', () => {
       'photoresistor',
       'piezo',
       'multimeter',
+      'seven-segment',
+      'lamp',
+      'regulated-power-supply',
     ]);
     expect(basicFamilies.some((family) => family.familyId === 'microbit')).toBe(false);
-    expect(basicFamilies.some((family) => family.familyId === 'battery-holder-aa')).toBe(false);
+    expect(basicFamilies).toHaveLength(families.length);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
