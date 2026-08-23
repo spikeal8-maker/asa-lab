@@ -372,6 +372,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             orientation={cameraView}
             onOrbit={(deltaX, deltaY) => viewportRef.current?.orbitBy(deltaX, deltaY)}
             onSetView={(view) => viewportRef.current?.setView(view)}
+            onSetDirection={(direction) => viewportRef.current?.setCameraDirection(direction)}
           />
 
           <nav className="asa3d-view-tools" aria-label="Управление камерой">

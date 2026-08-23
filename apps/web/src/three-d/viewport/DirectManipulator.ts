@@ -166,17 +166,25 @@ function createRotationArrowTexture(): THREE.CanvasTexture {
     context.clearRect(0, 0, 96, 96);
     context.strokeStyle = '#ffffff';
     context.fillStyle = '#ffffff';
-    context.lineWidth = 9;
+    context.lineWidth = 7;
     context.lineCap = 'round';
     context.beginPath();
-    context.arc(48, 52, 26, Math.PI * 1.08, Math.PI * 1.88);
+    context.arc(48, 50, 27, Math.PI * 1.08, Math.PI * 1.92);
     context.stroke();
-    context.beginPath();
-    context.moveTo(72, 33);
-    context.lineTo(72, 57);
-    context.lineTo(53, 43);
-    context.closePath();
-    context.fill();
+    const drawArrow = (x: number, y: number, mirrored = false): void => {
+      context.save();
+      context.translate(x, y);
+      if (mirrored) context.scale(-1, -1);
+      context.beginPath();
+      context.moveTo(0, 0);
+      context.lineTo(-4, 16);
+      context.lineTo(-16, 7);
+      context.closePath();
+      context.fill();
+      context.restore();
+    };
+    drawArrow(72, 34);
+    drawArrow(24, 34, true);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -249,6 +257,7 @@ export class DirectManipulator {
   private readonly handleRoot = new THREE.Group();
   private readonly handles = new Map<string, HandleVisual>();
   private readonly rotationRing = new THREE.Group();
+  private readonly footprintRoot = new THREE.Group();
   private readonly dimensionRoot = new THREE.Group();
   private readonly overlay: HTMLDivElement;
   private readonly selectionBox: HTMLDivElement;
@@ -259,6 +268,8 @@ export class DirectManipulator {
   private selectedIds: readonly string[] = [];
   private hoveredHandleId: string | null = null;
   private rotationRingAxis: RotationAxis | null = null;
+  private workplaneY = 0;
+  private footprintSignature = '';
   private gridSnap = 1;
   private marquee: MarqueeState | null = null;
   private drag: DragState | null = null;
@@ -276,8 +287,9 @@ export class DirectManipulator {
   ) {
     this.handleRoot.name = 'ASA direct-manipulation handles';
     this.rotationRing.name = 'ASA direct-manipulation rotation ring';
+    this.footprintRoot.name = 'ASA selected-object workplane footprint';
     this.dimensionRoot.name = 'ASA direct-manipulation dimensions';
-    this.scene.add(this.handleRoot, this.rotationRing, this.dimensionRoot);
+    this.scene.add(this.footprintRoot, this.handleRoot, this.rotationRing, this.dimensionRoot);
 
     this.centreMarker = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -377,6 +389,12 @@ export class DirectManipulator {
     this.gridSnap = Number.isFinite(step) && step > 0 ? step : 1;
   }
 
+  setWorkplaneY(value: number): void {
+    this.workplaneY = Number.isFinite(value) ? value : 0;
+    this.footprintSignature = '';
+    this.update();
+  }
+
   setSelection(nodeId: string | null, nodeIds: readonly string[] = nodeId ? [nodeId] : []): void {
     this.selectedId = nodeId;
     this.selectedIds = [...new Set(nodeIds.filter((id) => this.getEntries().has(id)))];
@@ -420,6 +438,7 @@ export class DirectManipulator {
 
   update(): void {
     const selectedEntries = this.selectedEntries();
+    this.updateFootprint(selectedEntries);
     if (selectedEntries.length > 1) {
       this.centreMarker.visible = false;
       this.handleRoot.visible = false;
@@ -532,6 +551,81 @@ export class DirectManipulator {
     this.updateRotationRingTransform(entry);
     this.publishHandlePositions(entry);
     this.updateLabelPositions();
+  }
+
+  private updateFootprint(entries: readonly DirectManipulationEntry[]): void {
+    const bounds = new THREE.Box3();
+    entries.forEach((entry) => bounds.expandByObject(entry.object));
+    if (entries.length === 0 || bounds.isEmpty()) {
+      this.footprintRoot.visible = false;
+      this.footprintSignature = '';
+      return;
+    }
+    const minX = bounds.min.x;
+    const maxX = bounds.max.x;
+    const minZ = bounds.min.z;
+    const maxZ = bounds.max.z;
+    const signature = [minX, maxX, minZ, maxZ, this.workplaneY]
+      .map((value) => round(value, 3))
+      .join(':');
+    this.footprintRoot.visible = true;
+    if (signature === this.footprintSignature) return;
+    this.footprintSignature = signature;
+    disposeGraph(this.footprintRoot);
+    this.footprintRoot.clear();
+
+    const width = Math.max(0.01, maxX - minX);
+    const depth = Math.max(0.01, maxZ - minZ);
+    const centreX = (minX + maxX) / 2;
+    const centreZ = (minZ + maxZ) / 2;
+    const y = this.workplaneY + 0.055;
+    const fill = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, depth),
+      new THREE.MeshBasicMaterial({
+        color: '#19a9cf',
+        transparent: true,
+        opacity: 0.055,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    fill.position.set(centreX, y, centreZ);
+    fill.rotation.x = -Math.PI / 2;
+    fill.renderOrder = 48;
+    this.footprintRoot.add(fill);
+
+    const points = [
+      new THREE.Vector3(minX, y, minZ),
+      new THREE.Vector3(maxX, y, minZ),
+      new THREE.Vector3(maxX, y, minZ),
+      new THREE.Vector3(maxX, y, maxZ),
+      new THREE.Vector3(maxX, y, maxZ),
+      new THREE.Vector3(minX, y, maxZ),
+      new THREE.Vector3(minX, y, maxZ),
+      new THREE.Vector3(minX, y, minZ),
+      new THREE.Vector3(minX, y, centreZ),
+      new THREE.Vector3(maxX, y, centreZ),
+      new THREE.Vector3(centreX, y, minZ),
+      new THREE.Vector3(centreX, y, maxZ),
+    ];
+    const outline = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineDashedMaterial({
+        color: '#30383d',
+        transparent: true,
+        opacity: 0.78,
+        dashSize: 1.45,
+        gapSize: 0.9,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    );
+    outline.computeLineDistances();
+    outline.renderOrder = 54;
+    this.footprintRoot.add(outline);
   }
 
   private publishHandlePositions(entry: DirectManipulationEntry | null): void {
@@ -1195,6 +1289,25 @@ export class DirectManipulator {
         new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0),
       );
     }
+    const addArrowHead = (angle: number, direction: 1 | -1): void => {
+      const tip = new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+      const tangent = new THREE.Vector3(-Math.sin(angle), Math.cos(angle), 0).multiplyScalar(
+        direction,
+      );
+      const inward = tip
+        .clone()
+        .normalize()
+        .multiplyScalar(-radius * 0.14);
+      const back = tangent.multiplyScalar(-radius * 0.2);
+      linePoints.push(
+        tip,
+        tip.clone().add(back).add(inward),
+        tip,
+        tip.clone().add(back).sub(inward),
+      );
+    };
+    addArrowHead(Math.PI * 0.25, 1);
+    addArrowHead(Math.PI * 1.25, -1);
     const lines = new THREE.LineSegments(
       new THREE.BufferGeometry().setFromPoints(linePoints),
       new THREE.LineBasicMaterial({
@@ -1233,6 +1346,7 @@ export class DirectManipulator {
     this.rotationRingAxis = null;
     delete this.rotationRing.userData['directHandleId'];
     disposeGraph(this.rotationRing);
+    disposeGraph(this.footprintRoot);
     this.rotationRing.clear();
     this.rotationRing.visible = false;
   }
@@ -1413,7 +1527,13 @@ export class DirectManipulator {
     disposeGraph(this.rotationRing);
     disposeGraph(this.dimensionRoot);
     disposeGraph(this.centreMarker);
-    this.scene.remove(this.handleRoot, this.rotationRing, this.dimensionRoot, this.centreMarker);
+    this.scene.remove(
+      this.footprintRoot,
+      this.handleRoot,
+      this.rotationRing,
+      this.dimensionRoot,
+      this.centreMarker,
+    );
     this.handles.clear();
     this.labelAnchors = [];
   }

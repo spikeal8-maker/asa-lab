@@ -9,7 +9,7 @@ interface ShapeInspectorProps {
 }
 
 const COLORS = [
-  '#ef3340',
+  '#d71920',
   '#f68b1f',
   '#f6c800',
   '#5fbf5f',

@@ -173,7 +173,7 @@ const SHAPE_NAMES: Readonly<Record<PrimitiveKind, string>> = {
 };
 
 const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
-  box: '#ef3340',
+  box: '#d71920',
   cylinder: '#f68b1f',
   sphere: '#27a9e1',
   cone: '#8a4bb8',

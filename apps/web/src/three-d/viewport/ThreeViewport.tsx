@@ -7,11 +7,17 @@ import {
   type ThreeDDocument,
   type ThreeDTransform,
 } from '@asa-lab/three-d';
-import { SceneRuntime, type CameraViewState, type StandardCameraView } from './SceneRuntime';
+import {
+  SceneRuntime,
+  type CameraDirection,
+  type CameraViewState,
+  type StandardCameraView,
+} from './SceneRuntime';
 import type { DirectManipulationCommit } from './DirectManipulator';
 
 export interface ThreeViewportHandle {
   readonly setView: (view: StandardCameraView) => void;
+  readonly setCameraDirection: (direction: CameraDirection) => void;
   readonly orbitBy: (deltaX: number, deltaY: number) => void;
   readonly zoom: (direction: 1 | -1) => void;
   readonly fit: () => void;
@@ -131,6 +137,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       ref,
       () => ({
         setView: (view) => runtimeRef.current?.setView(view),
+        setCameraDirection: (direction) => runtimeRef.current?.setCameraDirection(direction),
         orbitBy: (deltaX, deltaY) => runtimeRef.current?.orbitBy(deltaX, deltaY),
         zoom: (direction) => runtimeRef.current?.zoom(direction),
         fit: () => runtimeRef.current?.fitToScene(),

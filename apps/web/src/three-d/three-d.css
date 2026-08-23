@@ -1094,11 +1094,42 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-view-cube-face:hover,
-.asa3d-view-cube-face:focus-visible {
+.asa3d-view-cube-face:focus-visible,
+.asa3d-view-cube-face[data-active='true'] {
   color: #047fa8;
   background: #e5f7fb;
   border-color: #00a9cf;
   outline: 2px solid rgba(0, 169, 207, 0.25);
+}
+
+.asa3d-view-cube-zone {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transform: translate3d(var(--asa3d-zone-x), var(--asa3d-zone-y), var(--asa3d-zone-z))
+    translate(-50%, -50%);
+  backface-visibility: visible;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.asa3d-view-cube-zone.edge {
+  width: 18px;
+  height: 11px;
+}
+
+.asa3d-view-cube-zone:hover,
+.asa3d-view-cube-zone:focus-visible {
+  background: rgba(74, 202, 226, 0.82);
+  border-color: #008eb7;
+  outline: 2px solid rgba(0, 169, 207, 0.28);
 }
 
 .asa3d-view-cube-face.front {

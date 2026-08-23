@@ -38,6 +38,10 @@ describe('ASA 3D document', () => {
     });
   });
 
+  it('uses the Tinkercad red for a new box by default', () => {
+    expect(createThreeDNode('box', 'default-box').color).toBe('#d71920');
+  });
+
   it('applies reversible commands without mutating the source document', () => {
     const source = createEmptyThreeDDocument();
     const added = commitCommand(createHistory(source), {

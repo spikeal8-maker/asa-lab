@@ -36,6 +36,12 @@ export interface CameraViewState {
   readonly pitch: number;
 }
 
+export interface CameraDirection {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
 interface SceneEntry extends DirectManipulationEntry {
   readonly object: THREE.Group;
   readonly node: ThreeDNode;
@@ -628,6 +634,7 @@ export class SceneRuntime {
   setWorkplaneY(value: number): void {
     this.workplaneY = Number.isFinite(value) ? value : 0;
     this.gridRoot.position.y = this.workplaneY;
+    this.manipulator.setWorkplaneY(this.workplaneY);
     this.container.dataset['workplaneY'] = String(this.workplaneY);
   }
 
@@ -716,6 +723,17 @@ export class SceneRuntime {
     }[view];
     this.camera.position.copy(position);
     this.orbit.target.set(0, 0, 0);
+    this.orbit.update();
+  }
+
+  setCameraDirection(direction: CameraDirection): void {
+    const offset = new THREE.Vector3(direction.x, direction.y, direction.z);
+    if (offset.lengthSq() < 0.000001) return;
+    this.orbit.target.set(0, 0, 0);
+    this.camera.position
+      .copy(this.orbit.target)
+      .add(offset.normalize().multiplyScalar(ORTHOGONAL_CAMERA_DISTANCE));
+    this.camera.lookAt(this.orbit.target);
     this.orbit.update();
   }
 
