@@ -3,11 +3,11 @@ import * as THREE from 'three';
 import { createThreeDNode, PRIMITIVE_KINDS } from '@asa-lab/three-d';
 import {
   MODEL_EDGE_NAME,
-  MODEL_SILHOUETTE_NAME,
   createNodeObject,
   createPrimitiveGeometry,
   createPrimitiveGeometryForKind,
   disposeObject,
+  measureTextWidthAtHeight,
 } from '../viewport/geometry';
 import { createBooleanGeometry } from '../viewport/csg';
 
@@ -24,16 +24,14 @@ describe('ASA 3D primitive geometry', () => {
     disposeObject(object);
   });
 
-  it('adds crisp CAD edges and a silhouette without changing printable geometry', () => {
+  it('adds readable hard edges without a face-covering silhouette or changing geometry', () => {
     const object = createNodeObject(createThreeDNode('box', 'outlined-box'));
     const mesh = object.children[0] as THREE.Mesh;
     const hardEdges = mesh.getObjectByName(MODEL_EDGE_NAME);
-    const silhouette = mesh.getObjectByName(MODEL_SILHOUETTE_NAME);
 
     expect(hardEdges).toBeInstanceOf(THREE.LineSegments);
-    expect(silhouette).toBeInstanceOf(THREE.Mesh);
     expect(hardEdges?.userData['modelOutline']).toBe(true);
-    expect(silhouette?.userData['modelOutline']).toBe(true);
+    expect(mesh.children).toHaveLength(1);
     expect(mesh.geometry.getAttribute('position').count).toBe(24);
     disposeObject(object);
   });
@@ -45,6 +43,41 @@ describe('ASA 3D primitive geometry', () => {
     expect(mesh.material.transparent).toBe(true);
     expect(mesh.material.depthWrite).toBe(false);
     disposeObject(object);
+  });
+
+  it('keeps bright CAD color readable without a face-covering outline mesh', () => {
+    const object = createNodeObject(createThreeDNode('box', 'bright-box'));
+    const mesh = object.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+
+    expect(mesh.material.color.getHexString()).toBe('d71920');
+    expect(mesh.material.emissive.getHexString()).toBe('d71920');
+    expect(mesh.material.emissiveIntensity).toBe(0.1);
+    expect(mesh.children).toHaveLength(1);
+    expect(mesh.children[0]?.name).toBe(MODEL_EDGE_NAME);
+    disposeObject(object);
+  });
+
+  it('builds editable Latin and Cyrillic text from real glyph contours', () => {
+    const text = createThreeDNode('text', 'real-text');
+    const latin = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'ASA Lab' },
+    });
+    const cyrillic = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'Привет, мир!' },
+    });
+    const positions = cyrillic.getAttribute('position');
+    const fractionalCoordinates = Array.from(positions.array).filter(
+      (value) => Math.abs(value - Math.round(value)) > 0.001,
+    );
+
+    expect(latin.getAttribute('position').count).toBeGreaterThan(100);
+    expect(cyrillic.getAttribute('position').count).toBeGreaterThan(300);
+    expect(fractionalCoordinates.length).toBeGreaterThan(100);
+    expect(measureTextWidthAtHeight('Привет')).toBeGreaterThan(measureTextWidthAtHeight('Я'));
+    latin.dispose();
+    cyrillic.dispose();
   });
 
   it('uses the saved radius and steps for a rounded parallelepiped', () => {

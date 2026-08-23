@@ -333,10 +333,13 @@ export function createBooleanMesh(
     geometry?.dispose();
     return null;
   }
+  const color = nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1';
   const material = new THREE.MeshStandardMaterial({
-    color: nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1',
-    roughness: 0.48,
-    metalness: 0.015,
+    color,
+    emissive: color,
+    emissiveIntensity: 0.1,
+    roughness: 0.62,
+    metalness: 0,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;

@@ -8,6 +8,7 @@ import type {
   Vector2Value,
 } from '@asa-lab/three-d';
 import { ChevronIcon, ViewIcon } from '../electronics/workbench-icons';
+import { measureTextWidthAtHeight } from './viewport/geometry';
 
 interface GroupSelection {
   readonly id: string;
@@ -433,7 +434,22 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
               maxLength={128}
               value={node.parameters.text}
               disabled={node.locked}
-              onChange={(event) => replaceParameters({ text: event.currentTarget.value })}
+              onChange={(event) => {
+                const text = event.currentTarget.value;
+                execute({
+                  type: 'replace-node',
+                  node: {
+                    ...node,
+                    parameters: { ...node.parameters, text },
+                    dimensions: {
+                      ...node.dimensions,
+                      width:
+                        measureTextWidthAtHeight(text, node.parameters.font) *
+                        node.parameters.fontSize,
+                    },
+                  },
+                });
+              }}
             />
           </label>
           <label className="asa3d-compact-text-field">
@@ -441,11 +457,22 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
             <select
               value={node.parameters.font}
               disabled={node.locked}
-              onChange={(event) =>
-                replaceParameters({
-                  font: event.currentTarget.value as ThreeDNode['parameters']['font'],
-                })
-              }
+              onChange={(event) => {
+                const font = event.currentTarget.value as ThreeDNode['parameters']['font'];
+                execute({
+                  type: 'replace-node',
+                  node: {
+                    ...node,
+                    parameters: { ...node.parameters, font },
+                    dimensions: {
+                      ...node.dimensions,
+                      width:
+                        measureTextWidthAtHeight(node.parameters.text, font) *
+                        node.parameters.fontSize,
+                    },
+                  },
+                });
+              }}
             >
               <option value="sans">Многоязычный</option>
               <option value="serif">С засечками</option>
