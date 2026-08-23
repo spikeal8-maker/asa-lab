@@ -89,6 +89,7 @@ import {
   type VertexDrag,
 } from './workbench-model';
 import { calculateLiveSimulation } from './live-simulation';
+import { unlockPiezoAudio, usePiezoAudio } from './use-piezo-audio';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -151,6 +152,20 @@ export function useElectronicsWorkbench(projectId: string) {
     () => calculateLiveSimulation(document, persistedResult, simulationRunning, simulationTimeMs),
     [document, persistedResult, simulationRunning, simulationTimeMs],
   );
+  usePiezoAudio(document, result, simulationRunning);
+
+  async function toggleSimulationWithAudio(): Promise<void> {
+    if (!simulationRunning) {
+      try {
+        await unlockPiezoAudio();
+      } catch {
+        // Audio permission or hardware availability must never prevent the
+        // electrical simulation from starting. The visual/frequency evidence
+        // remains valid and a later user gesture may unlock the speakers.
+      }
+    }
+    await toggleSimulation();
+  }
 
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
@@ -1699,7 +1714,7 @@ export function useElectronicsWorkbench(projectId: string) {
     fitScene,
     placeCatalogComponent,
     saveNow,
-    toggleSimulation,
+    toggleSimulation: toggleSimulationWithAudio,
     resetSimulation,
     checkpoint,
     renameProject,

@@ -131,6 +131,8 @@ function allNumbers(result: SolveResult): readonly number[] {
       component.collectorCurrent ?? 0,
       component.emitterCurrent ?? 0,
       component.currentGain ?? 0,
+      component.frequencyHz ?? 0,
+      component.soundLevel ?? 0,
       ...Object.values(component.terminalVoltages).filter(
         (value): value is number => value !== undefined,
       ),
@@ -204,6 +206,7 @@ function verifyQuality(
     if (
       component.kind === 'resistor' ||
       component.kind === 'photoresistor' ||
+      component.kind === 'piezo' ||
       component.kind === 'lamp' ||
       component.kind === 'switch' ||
       component.kind === 'button'

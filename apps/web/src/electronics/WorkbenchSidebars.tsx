@@ -359,6 +359,24 @@ export function WorkbenchSidebars({
                   </small>
                 </div>
               ) : null}
+              {c.selectedComponent.kind === 'piezo' ? (
+                <div className="workbench-piezo-summary" data-testid="piezo-runtime-summary">
+                  <strong>
+                    {c.resultByComponent.get(c.selectedComponent.id)?.energized
+                      ? 'Звук воспроизводится'
+                      : 'Нет переменного сигнала'}
+                  </strong>
+                  <span>
+                    Частота:{' '}
+                    {Math.round(c.resultByComponent.get(c.selectedComponent.id)?.frequencyHz ?? 0)}{' '}
+                    Гц
+                  </span>
+                  <small>
+                    Пассивный пьезоэлемент звучит от tone() или быстрого переключения вывода, но не
+                    от постоянного уровня.
+                  </small>
+                </div>
+              ) : null}
               {['source', 'resistor', 'potentiometer', 'diode', 'lamp'].includes(
                 c.selectedComponent.kind,
               ) ? (

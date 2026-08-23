@@ -483,6 +483,59 @@
   display: block;
   overflow: visible;
 }
+.workbench-piezo-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #d4e3eb;
+  border-radius: 4px;
+  background: #f5fbfe;
+  color: #344f5f;
+}
+.workbench-piezo-summary small {
+  color: #687b87;
+  line-height: 1.35;
+}
+.workbench-piezo-visual.is-sounding > image {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: workbench-piezo-vibrate 72ms ease-in-out infinite alternate;
+}
+.workbench-piezo-waves path {
+  fill: none;
+  stroke: #3184a4;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  animation: workbench-piezo-wave 560ms ease-out infinite;
+}
+.workbench-piezo-waves path:nth-child(2) {
+  animation-delay: 140ms;
+}
+@keyframes workbench-piezo-vibrate {
+  from {
+    transform: translateX(-0.45px) rotate(-0.18deg);
+  }
+  to {
+    transform: translateX(0.45px) rotate(0.18deg);
+  }
+}
+@keyframes workbench-piezo-wave {
+  from {
+    opacity: 0.25;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-piezo-visual.is-sounding > image,
+  .workbench-piezo-waves path {
+    animation: none;
+  }
+}
 .workbench-breadboard-hole {
   fill: #1596ce;
   stroke: #fff;

@@ -26,7 +26,7 @@ describe('owner SVG runtime catalog adapter', () => {
     expect(productionCatalog().length).toBeGreaterThan(0);
 
     // Arduino, the hand-redrawn 9 V «Крона», the owner-drawn transistors and the
-    // owner-drawn seven-segment display live under owner-approved;
+    // owner-drawn seven-segment display and the two directly supplied piezos live under owner-approved;
     // every other enabled part keeps its byte-exact owner archive SVG.
     const ownerApproved = new Set([
       'arduino-uno',
@@ -34,6 +34,7 @@ describe('owner SVG runtime catalog adapter', () => {
       'diode-do35',
       'diode-do41',
       'photoresistor',
+      'piezo-disc',
       'seven-segment-display',
       'transistor-npn',
       'transistor-pnp',

@@ -164,6 +164,7 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
   switch: 'switch-spdt',
   potentiometer: 'potentiometer',
   photoresistor: 'photoresistor',
+  piezo: 'piezo-passive-buzzer',
   diode: 'diode-do35',
   lamp: 'incandescent-lamp',
 };
@@ -191,6 +192,8 @@ const SIMULATED_TYPES = new Set([
   'incandescent-lamp',
   'rgb-led',
   'seven-segment-display',
+  'piezo-passive-buzzer',
+  'piezo-disc',
 ]);
 
 const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
@@ -230,6 +233,7 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (componentId === 'switch-spdt') return 'switch';
   if (componentId === 'potentiometer') return 'potentiometer';
   if (componentId === 'photoresistor') return 'photoresistor';
+  if (componentId === 'piezo-passive-buzzer' || componentId === 'piezo-disc') return 'piezo';
   if (componentId.startsWith('diode-')) return 'diode';
   if (componentId.startsWith('transistor-')) return 'transistor';
   if (componentId === 'incandescent-lamp') return 'lamp';
@@ -322,6 +326,15 @@ function defaults(componentId: string): {
       value: 31_622.776601683792,
       unit: 'Ом',
       properties: { illumination: 0.5, resistanceUnit: 'kΩ' },
+    };
+  if (componentId === 'piezo-passive-buzzer' || componentId === 'piezo-disc')
+    return {
+      value: 0,
+      unit: 'Гц',
+      properties: {
+        piezoVariant: componentId === 'piezo-disc' ? 'disc' : 'enclosed',
+        waveform: componentId === 'piezo-disc' ? 'sine' : 'square',
+      },
     };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
   if (componentId === 'transistor-npn' || componentId === 'transistor-pnp')

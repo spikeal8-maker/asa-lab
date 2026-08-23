@@ -4,7 +4,12 @@ import {
   type SchematicComponent,
   type Terminal,
 } from './document.js';
-import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
+import {
+  ARDUINO_GROUND_TERMINALS,
+  arduinoOutputBranches,
+  arduinoProgrammedToneOutputs,
+  isArduinoUno,
+} from './arduino-model.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import {
@@ -77,6 +82,8 @@ export interface ComponentResult {
   readonly collectorCurrent?: number;
   readonly emitterCurrent?: number;
   readonly currentGain?: number;
+  readonly frequencyHz?: number;
+  readonly soundLevel?: number;
 }
 
 export interface NodeResult {
@@ -122,6 +129,10 @@ const FET_DEFAULT_THRESHOLD_VOLTAGE = 2;
 const FET_DEFAULT_TRANSCONDUCTANCE_FACTOR = 0.05;
 const FET_DEFAULT_MAX_DRAIN_CURRENT_A = 0.5;
 const FET_MIN_OHMIC_CONDUCTANCE = 1e-4;
+// Passive piezos are capacitive. The present deterministic DC solve represents
+// only their finite leakage; audible drive is derived separately from a
+// confirmed time-varying Arduino output.
+const PIEZO_DC_RESISTANCE_OHM = 100_000_000;
 
 function formatReferenceMilliamp(currentAmp: number): string {
   const rounded = Math.round(Math.abs(currentAmp) * 10_000) / 10;
@@ -391,6 +402,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   }
   if (component.kind === 'resistor' || component.kind === 'photoresistor')
     return terminal === 'a' ? 'lead-1' : 'lead-2';
+  if (component.kind === 'piezo') return terminal === 'a' ? 'positive' : 'negative';
   if (component.kind === 'led' || component.kind === 'diode') {
     return terminal === 'a' ? 'anode' : 'cathode';
   }
@@ -836,6 +848,8 @@ export function solveCircuit(
         stampConductance(a, b, 1 / Math.max(CLOSED_RESISTANCE, component.value));
       } else if (component.kind === 'photoresistor') {
         stampConductance(a, b, 1 / photoresistorResistanceOhm(component));
+      } else if (component.kind === 'piezo') {
+        stampConductance(a, b, 1 / PIEZO_DC_RESISTANCE_OHM);
       } else if (component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
       } else if (component.kind === 'switch') {
@@ -1232,6 +1246,7 @@ export function solveCircuit(
       else if (component.kind === 'photoresistor')
         current = voltageDrop / photoresistorResistanceOhm(component);
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
+      else if (component.kind === 'piezo') current = voltageDrop / PIEZO_DC_RESISTANCE_OHM;
       else if (component.kind === 'switch')
         current = component.componentTypeId
           ? voltageDrop / CLOSED_RESISTANCE
@@ -1339,6 +1354,33 @@ export function solveCircuit(
                     )
                   ? 'warning'
                   : 'normal';
+      const piezoTone =
+        component.kind === 'piezo'
+          ? (() => {
+              const positiveNode = netlist.nodeOf.get(terminalKey(component.id, 'positive'));
+              const negativeNode = netlist.nodeOf.get(terminalKey(component.id, 'negative'));
+              if (positiveNode === undefined || negativeNode === undefined) return null;
+              for (const arduino of document.components.filter(isArduinoUno)) {
+                const groundNodes = ARDUINO_GROUND_TERMINALS.map((terminal) =>
+                  netlist.nodeOf.get(terminalKey(arduino.id, terminal)),
+                ).filter((node): node is number => node !== undefined);
+                for (const tone of arduinoProgrammedToneOutputs(
+                  arduino,
+                  options.simulationTimeMs ?? 0,
+                ).values()) {
+                  const toneNode = netlist.nodeOf.get(terminalKey(arduino.id, tone.terminal));
+                  if (toneNode === undefined) continue;
+                  if (
+                    (toneNode === positiveNode && groundNodes.includes(negativeNode)) ||
+                    (toneNode === negativeNode && groundNodes.includes(positiveNode))
+                  ) {
+                    return tone;
+                  }
+                }
+              }
+              return null;
+            })()
+          : null;
       return {
         componentId: component.id,
         voltageDrop: round(voltageDrop),
@@ -1370,6 +1412,14 @@ export function solveCircuit(
           ? {
               lit: Math.abs(current * voltageDrop) >= LAMP_MIN_POWER_W,
               energized: Math.abs(current) > 1e-6,
+            }
+          : {}),
+        ...(component.kind === 'piezo'
+          ? {
+              energized: piezoTone !== null,
+              frequencyHz: round(piezoTone?.frequencyHz ?? 0, 2),
+              soundLevel:
+                piezoTone === null ? 0 : component.componentTypeId === 'piezo-disc' ? 0.55 : 0.8,
             }
           : {}),
         ...(isArduinoUno(component) ? { energized: true } : {}),

@@ -831,6 +831,7 @@ export type ComponentKind =
   | 'switch'
   | 'potentiometer'
   | 'photoresistor'
+  | 'piezo'
   | 'diode'
   | 'transistor'
   | 'lamp'
@@ -907,6 +908,8 @@ export interface ComponentResult {
   baseCurrent?: number;
   collectorCurrent?: number;
   emitterCurrent?: number;
+  frequencyHz?: number;
+  soundLevel?: number;
 }
 
 export interface SolveResult {

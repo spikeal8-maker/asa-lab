@@ -59,6 +59,8 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'transistor-pnp': [5.79, 9.6371],
   'transistor-fet': [5.79, 9.6371],
   'arduino-uno': [78.74, 58.816875],
+  'piezo-passive-buzzer': [22.133, 22],
+  'piezo-disc': [24, 24],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [

@@ -182,6 +182,63 @@ describe('R4-M1 simulation implementation contract', () => {
     );
   });
 
+  it('drives a passive piezo at the programmed Arduino tone frequency', () => {
+    const circuit = document(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d8', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1', 'gnd-top'],
+          stateProperties: {
+            arduinoSource: 'void setup() {} void loop() { tone(8, 440); delay(1000); }',
+          },
+        }),
+        component('sounder', 'piezo', 0, {
+          componentTypeId: 'piezo-passive-buzzer',
+          pinIds: ['positive', 'negative'],
+        }),
+      ],
+      [
+        connect('tone-positive', 'uno', 'd8', 'sounder', 'positive'),
+        connect('tone-ground', 'sounder', 'negative', 'uno', 'gnd-top'),
+      ],
+    );
+    const result = analyseCircuit(circuit, { simulationTimeMs: 1 });
+    expect(result.status).toBe('solved');
+    expect(result.quality).toMatchObject({ finite: true, passed: true });
+    expect(result.components.find((item) => item.componentId === 'sounder')).toMatchObject({
+      energized: true,
+      frequencyHz: 440,
+      soundLevel: 0.8,
+    });
+    expect(
+      result.components.find((item) => item.componentId === 'uno')?.terminalVoltages['d8'],
+    ).toBeCloseTo(5, 5);
+  });
+
+  it('keeps a passive piezo silent on a slow default Blink signal', () => {
+    const circuit = document(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1', 'gnd-top'],
+        }),
+        component('disc', 'piezo', 0, {
+          componentTypeId: 'piezo-disc',
+          pinIds: ['positive', 'negative'],
+        }),
+      ],
+      [
+        connect('blink-positive', 'uno', 'd13', 'disc', 'positive'),
+        connect('blink-ground', 'disc', 'negative', 'uno', 'gnd-top'),
+      ],
+    );
+    expect(
+      analyseCircuit(circuit, { simulationTimeMs: 100 }).components.find(
+        (item) => item.componentId === 'disc',
+      ),
+    ).toMatchObject({ energized: false, frequencyHz: 0, soundLevel: 0 });
+  });
+
   it('rejects conflicting ideal sources without NaN or invented values', () => {
     const circuit = document(
       [component('source-5v', 'source', 5), component('source-9v', 'source', 9)],
