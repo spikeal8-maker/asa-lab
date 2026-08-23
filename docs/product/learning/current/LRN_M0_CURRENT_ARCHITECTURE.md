@@ -1,7 +1,7 @@
 # LRN-M0 CURRENT Learning Architecture
 
 **Task:** `LRN-M0-001`  
-**Status:** `EVIDENCE COMPLETE — FINAL GATES PENDING`  
+**Status:** `DONE — CURRENT EVIDENCE MAP ACCEPTANCE COMPLETE`  
 **Evidence baseline:** `origin/main@cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef`  
 **Owner activation:** `main@374c54f59d72abbfae143b445aa32ede643437da`  
 **Audit date:** `2026-08-24`  
@@ -356,11 +356,12 @@ e2e/classroom-lifecycle.spec.ts
 ## 11. Status boundary
 
 ```text
-Audit material: PREPARED
+Audit material: COMMITTED
 Owner activation: PRESENT (parallel learning lane)
 Product mutation: NONE
 Migration/OpenAPI mutation: NONE
 Ledger update: NONE
-Commit/push/deploy: NONE
-LRN-M0-001: EVIDENCE COMPLETE; FINAL GATES/COMMIT PENDING
+Browser/security runtime execution: N/A (documentation-only task)
+LRN-M0-001: DONE
+LRN-M0-002: NOT STARTED; requires next owner confirmation
 ```

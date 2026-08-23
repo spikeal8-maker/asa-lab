@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-001`  
 **Milestone:** `M0`  
-**Status:** `IN_PROGRESS — OWNER ACTIVATED`  
+**Status:** `DONE — EVIDENCE COMPLETE`  
 **Baseline SHA:** `cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef`  
 **Activation SHA:** `374c54f59d72abbfae143b445aa32ede643437da`  
 **Master Spec:** `01_ASA_LEARNING_TECHNICAL_SPEC.md` from `ASA_LEARNING_AGENT_PACKAGE_V1.zip`  
@@ -152,7 +152,10 @@ N/A — no UI change. Existing `courses-sharing`, `assignment-library`, and clas
 
 ## 19. Security negative tests
 
-N/A for execution — no product mutation and task is not active. The audit identifies required future negative cases: direct foreign seat/attempt UUID, cross-class teacher access, cross-school content access, learner answer-key access, and Account/Seat history continuity.
+N/A for execution — the active task changes no product or authorization code.
+The audit identifies required future negative cases: direct foreign seat/attempt
+UUID, cross-class teacher access, cross-school content access, learner answer-key
+access, and Account/Seat history continuity.
 
 ## 20. Performance considerations
 
@@ -166,20 +169,32 @@ N/A — static architecture audit with no runtime code path.
 - [x] TARGET separated from CURRENT and unknowns listed
 - [x] owner activation of M0
 - [x] task is active in a separate parallel lane while Admin/Auth remains primary
-- [ ] requirement IDs closed in the ledger
-- [ ] task-specific acceptance evidence approved
-- [ ] repository gates required by an active task
-- [ ] committed final SHA
+- [x] `IDN-002`, `MIG-001`, and `DB-000` audit obligations evidenced
+- [x] task-specific audit acceptance evidence complete
+- [x] `pnpm control-plane:check`
+- [x] `pnpm gate:governance`
+- [x] `git diff --check`
+- [x] ledger mutation N/A — `MIG-001` and `DB-000` are absent from the supplied ledger; no master record was invented
+- [x] audit documents committed on the schema-required Learning lane
 
 ## 22. Evidence
 
 ```text
-baseline/final SHA: cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef (no commit)
+baseline SHA: cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef
+activation SHA: 374c54f59d72abbfae143b445aa32ede643437da
+audit content commit: d8568f0f314c27ef35dafb0f01fc9b4a2fccddd7
+final SHA: reported by Git after merge and governance completion; not self-recorded in this commit
 command: git fetch origin --prune
+command: git diff --check
+result: PASS
 command: pnpm control-plane:check
-result: PASS; activeTask=TASK-ADMIN-AUTH-STABILITY-001; blocking=0
+result: PASS; primary activeTask=TASK-ADMIN-AUTH-STABILITY-001; lanes include learning; blocking=0
+command: pnpm gate:governance
+result: PASS; control-plane 51 cases, project map, architecture, capability, test catalog, delivery and protected asset validators passed
+command: pnpm exec prettier --check <audit files>
+result: NOT RUN — prettier executable is not installed in this checkout; this is not a repository-declared audit gate
 browser artifacts: none created; UI unchanged
 migration evidence: source inspection only; no migration run or creation
-activation SHA: 374c54f59d72abbfae143b445aa32ede643437da
-known gap: final governance/documentation gates and commit evidence pending
+security evidence: static boundary map only; no authorization behavior changed
+known gap: supplied Requirements Ledger omits Work Queue IDs MIG-001 and DB-000
 ```
