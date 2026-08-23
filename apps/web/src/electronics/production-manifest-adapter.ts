@@ -164,7 +164,7 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
   switch: 'switch-spdt',
   potentiometer: 'potentiometer',
   photoresistor: 'photoresistor',
-  piezo: 'piezo-disc',
+  piezo: 'piezo-passive-buzzer',
   diode: 'diode-do35',
   lamp: 'incandescent-lamp',
 };

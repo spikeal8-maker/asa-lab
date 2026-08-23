@@ -983,6 +983,28 @@
 .workbench-catalog-add:disabled {
   cursor: default;
 }
+.workbench-catalog-variants {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 21px;
+  padding: 2px 5px;
+  border: 1px solid #cbd6dc;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #3c5a6c;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.workbench-catalog-variants:hover,
+.workbench-catalog-variants[aria-expanded='true'] {
+  border-color: #1596ce;
+  color: #136d94;
+}
 .workbench-catalog-name {
   display: -webkit-box;
   min-width: 0;
