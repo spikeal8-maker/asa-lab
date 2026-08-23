@@ -39,6 +39,11 @@ export interface Vector3Value {
   readonly z: number;
 }
 
+export interface Vector2Value {
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface ThreeDTransform {
   readonly position: Vector3Value;
   /** Euler rotation in degrees. */
@@ -59,6 +64,21 @@ export interface ThreeDShapeParameters {
   readonly text: string;
   readonly font: 'sans' | 'serif' | 'mono';
   readonly bevelSegments: number;
+  readonly radius: number;
+  readonly tubeRadius: number;
+  readonly wallThickness: number;
+  readonly steps: number;
+  readonly points: number;
+  readonly innerRatio: number;
+  readonly fontSize: number;
+  readonly segments: number;
+  readonly topScale: number;
+  readonly baseScale: number;
+  readonly twist: number;
+  readonly twistSteps: number;
+  readonly smoothTwist: boolean;
+  readonly sketchPoints: readonly Vector2Value[];
+  readonly sketchAccepted: boolean;
 }
 
 export interface ThreeDNode {
@@ -151,12 +171,13 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
     case 'sphere':
       return { width: 20, depth: 20, height: 20 };
     case 'torus':
-      return { width: 24, depth: 24, height: 7 };
+      return { width: 20, depth: 20, height: 5 };
     case 'roof':
       return { width: 20, depth: 20, height: 15 };
     case 'tube':
-      return { width: 24, depth: 24, height: 8 };
+      return { width: 20, depth: 20, height: 20 };
     case 'star':
+      return { width: 40, depth: 40, height: 5 };
     case 'heart':
       return { width: 24, depth: 20, height: 5 };
     case 'half-sphere':
@@ -237,6 +258,23 @@ const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
 };
 
 function defaultShapeParameters(primitive: PrimitiveKind): ThreeDShapeParameters {
+  const sketchPoints =
+    primitive === 'revolve-sketch'
+      ? [
+          { x: 0.2, y: -1 },
+          { x: 0.7, y: -0.85 },
+          { x: 0.9, y: -0.25 },
+          { x: 0.65, y: 0.3 },
+          { x: 0.45, y: 1 },
+        ]
+      : [
+          { x: -0.9, y: -0.65 },
+          { x: -0.25, y: -0.9 },
+          { x: 0.8, y: -0.45 },
+          { x: 0.65, y: 0.55 },
+          { x: 0, y: 0.9 },
+          { x: -0.75, y: 0.45 },
+        ];
   return {
     topRadius: primitive === 'cone' ? 0 : 10,
     baseRadius: 10,
@@ -244,6 +282,21 @@ function defaultShapeParameters(primitive: PrimitiveKind): ThreeDShapeParameters
     text: 'TEXT',
     font: 'sans',
     bevelSegments: 1,
+    radius: primitive === 'torus' ? 7.5 : primitive === 'star' ? 20 : 10,
+    tubeRadius: 2.5,
+    wallThickness: 2.5,
+    steps: primitive === 'torus' ? 48 : primitive === 'sphere' ? 24 : 24,
+    points: 5,
+    innerRatio: 0.5,
+    fontSize: 10,
+    segments: 0,
+    topScale: 1,
+    baseScale: 1,
+    twist: 0,
+    twistSteps: 1,
+    smoothTwist: false,
+    sketchPoints,
+    sketchAccepted: !['extrude-sketch', 'revolve-sketch', 'scribble'].includes(primitive),
   };
 }
 
@@ -267,7 +320,10 @@ export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNo
         ? 6
         : primitive === 'pyramid'
           ? 4
-          : primitive === 'cylinder' || primitive === 'cone'
+          : primitive === 'cylinder' ||
+              primitive === 'cone' ||
+              primitive === 'tube' ||
+              primitive === 'ring'
             ? 48
             : 24,
     bevel: 0,
@@ -310,8 +366,22 @@ function isBooleanOperation(value: unknown): value is BooleanOperation {
 }
 
 function isShapeParameters(value: unknown): value is ThreeDShapeParameters {
+  if (!isRecord(value)) return false;
+  const optionalNumber = (name: string, minimum: number, maximum: number): boolean =>
+    value[name] === undefined ||
+    (isFiniteNumber(value[name]) && value[name] >= minimum && value[name] <= maximum);
+  const optionalInteger = (name: string, minimum: number, maximum: number): boolean => {
+    const candidate = value[name];
+    return (
+      candidate === undefined ||
+      (isFiniteNumber(candidate) &&
+        Number.isInteger(candidate) &&
+        candidate >= minimum &&
+        candidate <= maximum)
+    );
+  };
+  const sketchPoints = value['sketchPoints'];
   return (
-    isRecord(value) &&
     isFiniteNumber(value['topRadius']) &&
     value['topRadius'] >= 0 &&
     value['topRadius'] <= 5_000 &&
@@ -327,7 +397,35 @@ function isShapeParameters(value: unknown): value is ThreeDShapeParameters {
     (value['bevelSegments'] === undefined ||
       (Number.isInteger(value['bevelSegments']) &&
         (value['bevelSegments'] as number) >= 1 &&
-        (value['bevelSegments'] as number) <= 10))
+        (value['bevelSegments'] as number) <= 10)) &&
+    optionalNumber('radius', 0.1, 5_000) &&
+    optionalNumber('tubeRadius', 0.1, 5_000) &&
+    optionalNumber('wallThickness', 0.1, 5_000) &&
+    optionalInteger('steps', 3, 128) &&
+    optionalInteger('points', 3, 30) &&
+    optionalNumber('innerRatio', 0.01, 1) &&
+    optionalNumber('fontSize', 0.1, 100) &&
+    optionalInteger('segments', 0, 10) &&
+    optionalNumber('topScale', 0.01, 5) &&
+    optionalNumber('baseScale', 0.01, 5) &&
+    optionalNumber('twist', -360, 360) &&
+    optionalInteger('twistSteps', 1, 64) &&
+    (value['smoothTwist'] === undefined || typeof value['smoothTwist'] === 'boolean') &&
+    (value['sketchAccepted'] === undefined || typeof value['sketchAccepted'] === 'boolean') &&
+    (sketchPoints === undefined ||
+      (Array.isArray(sketchPoints) &&
+        sketchPoints.length >= 3 &&
+        sketchPoints.length <= 256 &&
+        sketchPoints.every(
+          (point) =>
+            isRecord(point) &&
+            isFiniteNumber(point['x']) &&
+            point['x'] >= -2 &&
+            point['x'] <= 2 &&
+            isFiniteNumber(point['y']) &&
+            point['y'] >= -2 &&
+            point['y'] <= 2,
+        )))
   );
 }
 
@@ -454,7 +552,10 @@ export function cloneThreeDDocument(document: ThreeDDocument): ThreeDDocument {
     ...document,
     nodes: document.nodes.map((node) => ({
       ...node,
-      parameters: { ...node.parameters },
+      parameters: {
+        ...node.parameters,
+        sketchPoints: node.parameters.sketchPoints.map((point) => ({ ...point })),
+      },
       dimensions: { ...node.dimensions },
       transform: {
         position: { ...node.transform.position },

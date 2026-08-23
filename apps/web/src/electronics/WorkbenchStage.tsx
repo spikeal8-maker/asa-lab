@@ -536,10 +536,10 @@ export function WorkbenchStage({
                     <foreignObject
                       className="workbench-photoresistor-control-object"
                       data-testid="photoresistor-light-control"
-                      x={(baseSize.width - 180) / 2}
-                      y={-62}
-                      width={180}
-                      height={54}
+                      x={(baseSize.width - 150) / 2}
+                      y={-54}
+                      width={150}
+                      height={48}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => event.stopPropagation()}
                     >
@@ -552,7 +552,7 @@ export function WorkbenchStage({
                             {
                               '--photoresistor-position': `${photoresistorPercent}%`,
                               '--photoresistor-thumb-shift': `-${photoresistorPercent}%`,
-                              '--photoresistor-fill-adjustment': `${(26 * photoresistorPercent) / 100}px`,
+                              '--photoresistor-fill-adjustment': `${(20 * photoresistorPercent) / 100}px`,
                             } as CSSProperties
                           }
                         >

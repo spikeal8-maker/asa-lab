@@ -20,11 +20,6 @@ interface ProjectedTriangle {
   readonly points: readonly [ProjectedPoint, ProjectedPoint, ProjectedPoint];
 }
 
-interface ProjectedLine {
-  readonly from: ProjectedPoint;
-  readonly to: ProjectedPoint;
-}
-
 const WIDTH = 92;
 const HEIGHT = 70;
 const KEY_POSITION = new THREE.Vector3(-3.2, 5.5, 4.2);
@@ -93,7 +88,13 @@ function collectTriangles(
 
     const diffuse = Math.max(0, normal.dot(toKey.subVectors(KEY_POSITION, center).normalize()));
     const rim = Math.max(0, normal.dot(toRim.subVectors(RIM_POSITION, center).normalize()));
-    const intensity = Math.min(1.3, 0.58 + diffuse * 0.66 + rim * 0.14);
+    // Calibrated against the visible Tinkercad basic-shape shelf: the lightest
+    // red face stays near #c41825 and the two receding faces near #a91420 and
+    // #9b1520 for ASA's canonical #d71920 red.
+    const intensity = Math.min(
+      0.98,
+      0.46 + diffuse * 0.4 + diffuse * diffuse * 0.11 + rim * 0.06,
+    );
     triangles.push({
       color: shadeColor(base, intensity),
       depth: center.distanceToSquared(camera.position),
@@ -102,29 +103,6 @@ function collectTriangles(
   }
 
   return triangles.sort((left, right) => right.depth - left.depth);
-}
-
-function collectHardEdges(
-  geometry: THREE.BufferGeometry,
-  camera: THREE.OrthographicCamera,
-  modelMatrix: THREE.Matrix4,
-): ProjectedLine[] {
-  const edgeGeometry = new THREE.EdgesGeometry(geometry, 24);
-  const positions = edgeGeometry.getAttribute('position');
-  const lines: ProjectedLine[] = [];
-  if (positions instanceof THREE.BufferAttribute) {
-    for (let index = 0; index + 1 < positions.count; index += 2) {
-      const from = new THREE.Vector3()
-        .fromBufferAttribute(positions, index)
-        .applyMatrix4(modelMatrix);
-      const to = new THREE.Vector3()
-        .fromBufferAttribute(positions, index + 1)
-        .applyMatrix4(modelMatrix);
-      lines.push({ from: projectPoint(from, camera), to: projectPoint(to, camera) });
-    }
-  }
-  edgeGeometry.dispose();
-  return lines;
 }
 
 function drawTrianglePath(context: CanvasRenderingContext2D, triangle: ProjectedTriangle): void {
@@ -151,9 +129,21 @@ function drawShadow(context: CanvasRenderingContext2D): void {
 }
 
 function previewModelMatrix(primitive: PrimitiveKind): THREE.Matrix4 {
-  const heightRatio = primitive === 'torus' ? 7 / 24 : primitive === 'roof' ? 15 / 20 : 1;
+  const widthRatio = primitive === 'text' ? 1.55 : 1;
+  const heightRatio =
+    primitive === 'torus'
+      ? 7 / 24
+      : primitive === 'roof'
+        ? 15 / 20
+        : primitive === 'text'
+          ? 0.2
+          : primitive === 'star' || primitive === 'star-6'
+            ? 0.24
+            : primitive === 'heart'
+              ? 0.35
+              : 1;
   const matrix = new THREE.Matrix4().makeRotationY(-0.16);
-  matrix.scale(new THREE.Vector3(1, heightRatio, 1));
+  matrix.scale(new THREE.Vector3(widthRatio, heightRatio, 1));
   matrix.setPosition(0, (heightRatio - 1) / 2, 0);
   return matrix;
 }
@@ -183,7 +173,6 @@ function renderThumbnail(
   const modelMatrix = previewModelMatrix(primitive);
   const geometry = createPrimitiveGeometryForKind(primitive, 48);
   const triangles = collectTriangles(geometry, camera, modelMatrix, color);
-  const hardEdges = collectHardEdges(geometry, camera, modelMatrix);
   const stripeCanvas = globalThis.document.createElement('canvas');
   stripeCanvas.width = 12;
   stripeCanvas.height = 12;
@@ -201,31 +190,12 @@ function renderThumbnail(
     stripeContext.stroke();
   }
   const stripePattern = context.createPattern(stripeCanvas, 'repeat');
-  // Paint a dark underlay first. The second fill covers its inner half, leaving
-  // a clean silhouette around the finished thumbnail instead of a soft blur.
-  context.strokeStyle = operation === 'hole' ? '#5d6b72' : '#1b272d';
-  context.fillStyle = context.strokeStyle;
-  context.lineWidth = 2.1;
-  for (const triangle of triangles) {
-    drawTrianglePath(context, triangle);
-    context.fill();
-    context.stroke();
-  }
-
   for (const triangle of triangles) {
     context.fillStyle = operation === 'hole' && stripePattern ? stripePattern : triangle.color;
-    context.strokeStyle = operation === 'hole' ? '#8a969d' : triangle.color;
-    context.lineWidth = 0.45;
+    context.strokeStyle = operation === 'hole' ? '#a5b0b6' : triangle.color;
+    context.lineWidth = 1.1;
     drawTrianglePath(context, triangle);
     context.fill();
-    context.stroke();
-  }
-  context.strokeStyle = operation === 'hole' ? '#56656d' : '#17242a';
-  context.lineWidth = 1.05;
-  for (const edge of hardEdges) {
-    context.beginPath();
-    context.moveTo(edge.from.x, edge.from.y);
-    context.lineTo(edge.to.x, edge.to.y);
     context.stroke();
   }
   geometry.dispose();

@@ -333,14 +333,17 @@ export function createBooleanMesh(
     geometry?.dispose();
     return null;
   }
+  const color = nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1';
   const material = new THREE.MeshStandardMaterial({
-    color: nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1',
-    roughness: 0.48,
-    metalness: 0.015,
+    color,
+    emissive: '#000000',
+    emissiveIntensity: 0,
+    roughness: 0.9,
+    metalness: 0,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   mesh.userData['booleanGroupId'] = nodes[0]?.groupId ?? '';
   return mesh;
 }

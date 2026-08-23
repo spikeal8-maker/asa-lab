@@ -1810,6 +1810,162 @@ button.asa3d-save-recovery {
   border-radius: 3px;
 }
 
+.asa3d-compact-text-field select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 24px;
+  padding: 0 5px;
+  color: #334c5d;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #d0dade;
+  border-radius: 3px;
+}
+
+.asa3d-sketch-edit-button {
+  width: 100%;
+  min-height: 30px;
+  margin: 2px 0 5px;
+  color: #087ca8;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid #8fcfe5;
+  border-radius: 4px;
+}
+
+.asa3d-sketch-overlay {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(22 38 55 / 28%);
+}
+
+.asa3d-sketch-editor {
+  width: min(620px, calc(100vw - 30px));
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #c5d4db;
+  border-radius: 7px;
+  box-shadow: 0 16px 44px rgb(19 47 60 / 22%);
+}
+
+.asa3d-sketch-editor > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: #263f50;
+}
+
+.asa3d-sketch-editor > header span {
+  color: #607887;
+  font-size: 12px;
+}
+
+.asa3d-sketch-editor svg {
+  display: block;
+  width: 100%;
+  height: min(420px, 54vh);
+  touch-action: none;
+  background: #f8fdff;
+  border: 1px solid #b9dbe7;
+  border-radius: 4px;
+  cursor: crosshair;
+}
+
+.asa3d-sketch-editor polygon {
+  fill: rgb(0 163 204 / 16%);
+  stroke: #008fbd;
+  stroke-width: 2;
+}
+
+.asa3d-sketch-editor polygon.revolve {
+  fill: rgb(111 181 87 / 18%);
+  stroke: #559b42;
+}
+
+.asa3d-sketch-editor circle {
+  fill: #fff;
+  stroke: #173f53;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.asa3d-sketch-axis {
+  stroke: #8643a6;
+  stroke-dasharray: 5 4;
+  stroke-width: 2;
+}
+
+.asa3d-sketch-editor > footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.asa3d-sketch-editor > footer span {
+  margin-right: auto;
+  color: #607887;
+  font-size: 12px;
+}
+
+.asa3d-sketch-editor > footer button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: #334c5d;
+  background: #fff;
+  border: 1px solid #c5d4db;
+  border-radius: 4px;
+}
+
+.asa3d-sketch-editor > footer button.primary {
+  color: #fff;
+  background: #078fbe;
+  border-color: #078fbe;
+}
+
+@media (max-width: 600px) {
+  .asa3d-sketch-overlay {
+    padding: 8px;
+  }
+
+  .asa3d-sketch-editor {
+    width: calc(100vw - 16px);
+    padding: 9px;
+  }
+
+  .asa3d-sketch-editor > header {
+    display: grid;
+    gap: 3px;
+  }
+
+  .asa3d-sketch-editor svg {
+    height: min(390px, 50vh);
+  }
+
+  .asa3d-sketch-editor > footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .asa3d-sketch-editor > footer span {
+    grid-column: 1 / -1;
+  }
+
+  .asa3d-sketch-editor > footer button {
+    min-width: 0;
+    padding-inline: 6px;
+  }
+}
+
 .asa3d-compact-range input[type='number']::-webkit-inner-spin-button,
 .asa3d-compact-range input[type='number']::-webkit-outer-spin-button {
   margin: 0;

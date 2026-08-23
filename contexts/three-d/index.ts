@@ -18,6 +18,7 @@ export {
   type ThreeDShapeParameters,
   type ThreeDRulerSettings,
   type ThreeDTransform,
+  type Vector2Value,
   type Vector3Value,
 } from './domain/document.js';
 export {

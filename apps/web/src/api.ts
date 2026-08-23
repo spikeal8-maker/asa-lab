@@ -901,6 +901,7 @@ export interface ComponentResult {
   lit?: boolean;
   energized?: boolean;
   currentUtilizationPercent?: number;
+  powerUtilizationPercent?: number;
   stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
   operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   baseCurrent?: number;

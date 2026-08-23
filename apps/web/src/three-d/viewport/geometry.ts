@@ -1,70 +1,32 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-import type { Font } from 'three/addons/loaders/FontLoader.js';
+import { FontLoader, type Font } from 'three/addons/loaders/FontLoader.js';
 import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
+import notoSansTypeface from '../fonts/noto-sans.typeface.json';
+import notoSerifTypeface from '../fonts/noto-serif.typeface.json';
+import notoSansMonoTypeface from '../fonts/noto-sans-mono.typeface.json';
 
-const MODEL_EDGE_COLOR = '#17242a';
+const MODEL_EDGE_COLOR = '#263d47';
 const MODEL_EDGE_THRESHOLD_DEGREES = 24;
-const MODEL_SILHOUETTE_WIDTH_MM = 0.22;
 
 export const MODEL_EDGE_NAME = 'ASA model hard edges';
-export const MODEL_SILHOUETTE_NAME = 'ASA model silhouette';
 
 /**
- * Gives every viewport shape the same readable visual hierarchy as a simple CAD
- * model: a dark outside silhouette plus crisp lines on real hard edges. These
- * helpers are children of the mesh so they follow every transform without
- * changing the saved geometry or the printable/exported model.
+ * Adds only real hard edges. A back-face silhouette mesh used to cover whole
+ * faces at common camera angles, making bright solids appear almost black.
+ * Edges remain children of the mesh and do not affect saved/printable geometry.
  */
 export function addModelOutlines(
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material | THREE.Material[]>,
   operation: ThreeDNode['operation'] = 'solid',
 ): void {
-  if (operation === 'solid') {
-    const silhouette = new THREE.Mesh(
-      mesh.geometry.clone(),
-      new THREE.ShaderMaterial({
-        uniforms: {
-          outlineWidth: { value: MODEL_SILHOUETTE_WIDTH_MM },
-          outlineColor: { value: new THREE.Color(MODEL_EDGE_COLOR) },
-          outlineOpacity: { value: 0.82 },
-        },
-        vertexShader: `
-          uniform float outlineWidth;
-          void main() {
-            vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-            vec3 viewNormal = normalize(normalMatrix * normal);
-            viewPosition.xyz += viewNormal * outlineWidth;
-            gl_Position = projectionMatrix * viewPosition;
-          }
-        `,
-        fragmentShader: `
-          uniform vec3 outlineColor;
-          uniform float outlineOpacity;
-          void main() {
-            gl_FragColor = vec4(outlineColor, outlineOpacity);
-          }
-        `,
-        side: THREE.BackSide,
-        transparent: true,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    );
-    silhouette.name = MODEL_SILHOUETTE_NAME;
-    silhouette.renderOrder = 2;
-    silhouette.raycast = () => {};
-    silhouette.userData['modelOutline'] = true;
-    mesh.add(silhouette);
-  }
-
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(mesh.geometry, MODEL_EDGE_THRESHOLD_DEGREES),
     new THREE.LineBasicMaterial({
       color: operation === 'hole' ? '#526169' : MODEL_EDGE_COLOR,
       transparent: true,
-      opacity: operation === 'hole' ? 0.62 : 0.78,
+      opacity: operation === 'hole' ? 0.52 : 0.66,
       depthWrite: false,
       toneMapped: false,
     }),
@@ -104,12 +66,14 @@ function roofGeometry(): THREE.BufferGeometry {
 function extrudedShapeGeometry(
   points: readonly (readonly [number, number])[],
   depth = 1,
+  steps = 1,
 ): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   points.forEach(([x, y], index) => (index === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
   shape.closePath();
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth,
+    steps: Math.max(1, Math.min(64, steps)),
     bevelEnabled: false,
     curveSegments: 16,
   });
@@ -117,11 +81,11 @@ function extrudedShapeGeometry(
   return geometry;
 }
 
-function starGeometry(pointsCount = 5): THREE.BufferGeometry {
+function starGeometry(pointsCount = 5, innerRatio = 0.44): THREE.BufferGeometry {
   const points: [number, number][] = [];
   for (let index = 0; index < pointsCount * 2; index += 1) {
     const angle = -Math.PI / 2 + (index * Math.PI) / pointsCount;
-    const radius = index % 2 === 0 ? 0.5 : 0.22;
+    const radius = index % 2 === 0 ? 0.5 : 0.5 * innerRatio;
     points.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
   }
   return extrudedShapeGeometry(points, 0.24);
@@ -133,119 +97,91 @@ function roundRoofGeometry(sides: number): THREE.BufferGeometry {
   return geometry;
 }
 
-function revolveSketchGeometry(sides: number): THREE.BufferGeometry {
+function revolveSketchGeometry(
+  sides: number,
+  sketchPoints: ThreeDNode['parameters']['sketchPoints'] = [],
+): THREE.BufferGeometry {
+  const source =
+    sketchPoints.length >= 3
+      ? sketchPoints
+      : [
+          { x: 0.2, y: -1 },
+          { x: 0.8, y: -0.5 },
+          { x: 0.5, y: 1 },
+        ];
   const profile = [
-    new THREE.Vector2(0, -0.5),
-    new THREE.Vector2(0.31, -0.5),
-    new THREE.Vector2(0.42, -0.28),
-    new THREE.Vector2(0.26, 0.02),
-    new THREE.Vector2(0.36, 0.3),
-    new THREE.Vector2(0.2, 0.5),
-    new THREE.Vector2(0, 0.5),
+    new THREE.Vector2(0, source[0]?.y ?? -1),
+    ...source.map((point) => new THREE.Vector2(Math.max(0.02, point.x), point.y)),
+    new THREE.Vector2(0, source.at(-1)?.y ?? 1),
   ];
   return new THREE.LatheGeometry(profile, sides);
 }
 
-const PIXEL_GLYPHS: Readonly<Record<string, string>> = {
-  A: '01110/10001/10001/11111/10001/10001/10001',
-  B: '11110/10001/10001/11110/10001/10001/11110',
-  C: '01111/10000/10000/10000/10000/10000/01111',
-  D: '11110/10001/10001/10001/10001/10001/11110',
-  E: '11111/10000/10000/11110/10000/10000/11111',
-  F: '11111/10000/10000/11110/10000/10000/10000',
-  G: '01111/10000/10000/10111/10001/10001/01111',
-  H: '10001/10001/10001/11111/10001/10001/10001',
-  I: '11111/00100/00100/00100/00100/00100/11111',
-  J: '00111/00010/00010/00010/10010/10010/01100',
-  K: '10001/10010/10100/11000/10100/10010/10001',
-  L: '10000/10000/10000/10000/10000/10000/11111',
-  M: '10001/11011/10101/10101/10001/10001/10001',
-  N: '10001/11001/10101/10011/10001/10001/10001',
-  O: '01110/10001/10001/10001/10001/10001/01110',
-  P: '11110/10001/10001/11110/10000/10000/10000',
-  Q: '01110/10001/10001/10001/10101/10010/01101',
-  R: '11110/10001/10001/11110/10100/10010/10001',
-  S: '01111/10000/10000/01110/00001/00001/11110',
-  T: '11111/00100/00100/00100/00100/00100/00100',
-  U: '10001/10001/10001/10001/10001/10001/01110',
-  V: '10001/10001/10001/10001/10001/01010/00100',
-  W: '10001/10001/10001/10101/10101/10101/01010',
-  X: '10001/10001/01010/00100/01010/10001/10001',
-  Y: '10001/10001/01010/00100/00100/00100/00100',
-  Z: '11111/00001/00010/00100/01000/10000/11111',
-  '0': '01110/10001/10011/10101/11001/10001/01110',
-  '1': '00100/01100/00100/00100/00100/00100/01110',
-  '2': '01110/10001/00001/00010/00100/01000/11111',
-  '3': '11110/00001/00001/01110/00001/00001/11110',
-  '4': '00010/00110/01010/10010/11111/00010/00010',
-  '5': '11111/10000/10000/11110/00001/00001/11110',
-  '6': '01110/10000/10000/11110/10001/10001/01110',
-  '7': '11111/00001/00010/00100/01000/01000/01000',
-  '8': '01110/10001/10001/01110/10001/10001/01110',
-  '9': '01110/10001/10001/01111/00001/00001/01110',
-  '?': '01110/10001/00001/00010/00100/00000/00100',
+function sketchExtrudeGeometry(
+  sketchPoints: ThreeDNode['parameters']['sketchPoints'],
+  topScale = 1,
+  baseScale = 1,
+  twist = 0,
+  steps = 1,
+): THREE.BufferGeometry {
+  const points = sketchPoints.map((point) => [point.x, point.y] as const);
+  const geometry = extrudedShapeGeometry(points, 1, steps);
+  const positions = geometry.getAttribute('position');
+  for (let index = 0; index < positions.count; index += 1) {
+    const depthPosition = Math.min(1, Math.max(0, -positions.getY(index)));
+    const scale = baseScale + (topScale - baseScale) * depthPosition;
+    const angle = THREE.MathUtils.degToRad(twist * depthPosition);
+    const x = positions.getX(index) * scale;
+    const z = positions.getZ(index) * scale;
+    positions.setXYZ(
+      index,
+      x * Math.cos(angle) - z * Math.sin(angle),
+      positions.getY(index),
+      x * Math.sin(angle) + z * Math.cos(angle),
+    );
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+const fontLoader = new FontLoader();
+const TEXT_FONTS: Readonly<Record<ThreeDNode['parameters']['font'], Font>> = {
+  sans: fontLoader.parse(notoSansTypeface),
+  serif: fontLoader.parse(notoSerifTypeface),
+  mono: fontLoader.parse(notoSansMonoTypeface),
 };
 
-const CYRILLIC_GLYPH_ALIASES: Readonly<Record<string, string>> = {
-  А: 'A',
-  В: 'B',
-  Е: 'E',
-  К: 'K',
-  М: 'M',
-  Н: 'H',
-  О: 'O',
-  Р: 'P',
-  С: 'C',
-  Т: 'T',
-  У: 'Y',
-  Х: 'X',
-};
-
-const textFont = {
-  generateShapes(value: string, size: number): THREE.Shape[] {
-    const shapes: THREE.Shape[] = [];
-    let cursor = 0;
-    const pixel = size / 7;
-    for (const rawCharacter of value.toLocaleUpperCase('ru')) {
-      if (rawCharacter === ' ') {
-        cursor += pixel * 4;
-        continue;
-      }
-      const character = CYRILLIC_GLYPH_ALIASES[rawCharacter] ?? rawCharacter;
-      const rows = (PIXEL_GLYPHS[character] ?? PIXEL_GLYPHS['?'] ?? '').split('/');
-      rows.forEach((row, rowIndex) => {
-        [...row].forEach((filled, columnIndex) => {
-          if (filled !== '1') return;
-          const left = cursor + columnIndex * pixel;
-          const bottom = (6 - rowIndex) * pixel;
-          const shape = new THREE.Shape();
-          shape.moveTo(left, bottom);
-          shape.lineTo(left + pixel * 0.86, bottom);
-          shape.lineTo(left + pixel * 0.86, bottom + pixel * 0.86);
-          shape.lineTo(left, bottom + pixel * 0.86);
-          shape.closePath();
-          shapes.push(shape);
-        });
-      });
-      cursor += pixel * 6;
-    }
-    return shapes;
-  },
-} as Font;
-
-function textGeometry(text: string, bevel: number): THREE.BufferGeometry {
+function textGeometry(
+  text: string,
+  bevel: number,
+  segments = 0,
+  fontStyle: ThreeDNode['parameters']['font'] = 'sans',
+): THREE.BufferGeometry {
   const geometry = new TextGeometry(text.trim() || 'TEXT', {
-    font: textFont,
+    font: TEXT_FONTS[fontStyle],
     size: 1,
     depth: 0.22,
     curveSegments: 8,
     bevelEnabled: bevel > 0,
     bevelSize: Math.min(0.08, bevel / 100),
     bevelThickness: Math.min(0.08, bevel / 100),
-    bevelSegments: 2,
+    bevelSegments: Math.max(1, Math.min(5, segments)),
   });
   geometry.rotateX(-Math.PI / 2);
   return geometry;
+}
+
+export function measureTextWidthAtHeight(
+  text: string,
+  fontStyle: ThreeDNode['parameters']['font'] = 'sans',
+): number {
+  const geometry = textGeometry(text, 0, 0, fontStyle);
+  geometry.computeBoundingBox();
+  const size = geometry.boundingBox?.getSize(new THREE.Vector3());
+  geometry.dispose();
+  if (!size || size.z <= 0.0001) return 1;
+  return Math.max(0.1, size.x / size.z);
 }
 
 function heartGeometry(): THREE.BufferGeometry {
@@ -291,16 +227,27 @@ function roundedBoxGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
-function tubeGeometry(): THREE.BufferGeometry {
+function tubeGeometry(
+  radius = 10,
+  wallThickness = 2.5,
+  sides = 48,
+  bevel = 0,
+  bevelSegments = 1,
+): THREE.BufferGeometry {
+  const safeRadius = Math.max(0.1, radius);
+  const innerRatio = Math.max(0.02, 1 - Math.min(wallThickness, safeRadius * 0.98) / safeRadius);
   const shape = new THREE.Shape();
   shape.absarc(0, 0, 0.5, 0, Math.PI * 2, false);
   const opening = new THREE.Path();
-  opening.absarc(0, 0, 0.28, 0, Math.PI * 2, true);
+  opening.absarc(0, 0, 0.5 * innerRatio, 0, Math.PI * 2, true);
   shape.holes.push(opening);
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: 1,
-    bevelEnabled: false,
-    curveSegments: 32,
+    bevelEnabled: bevel > 0,
+    bevelSize: Math.min(0.2, bevel / (safeRadius * 2)),
+    bevelThickness: Math.min(0.2, bevel / (safeRadius * 2)),
+    bevelSegments: Math.max(1, Math.min(10, bevelSegments)),
+    curveSegments: Math.max(3, sides),
   });
   geometry.rotateX(Math.PI / 2);
   return geometry;
@@ -429,6 +376,37 @@ export function createPrimitiveGeometryForKind(
   return normaliseToUnitBox(geometry);
 }
 
+function beveledPrismGeometry(node: ThreeDNode, sides: number): THREE.BufferGeometry {
+  if (node.bevel <= 0) return new THREE.CylinderGeometry(0.5, 0.5, 1, sides);
+  const minimumDimension = Math.max(
+    0.001,
+    Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height),
+  );
+  const bevel = Math.min(0.24, node.bevel / minimumDimension);
+  const segments = Math.max(1, Math.min(10, node.parameters.bevelSegments));
+  const profile: THREE.Vector2[] = [new THREE.Vector2(0, -0.5)];
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = -Math.PI / 2 + (index / segments) * (Math.PI / 2);
+    profile.push(
+      new THREE.Vector2(
+        0.5 - bevel + bevel * Math.cos(angle),
+        -0.5 + bevel + bevel * Math.sin(angle),
+      ),
+    );
+  }
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = (index / segments) * (Math.PI / 2);
+    profile.push(
+      new THREE.Vector2(
+        0.5 - bevel + bevel * Math.cos(angle),
+        0.5 - bevel + bevel * Math.sin(angle),
+      ),
+    );
+  }
+  profile.push(new THREE.Vector2(0, 0.5));
+  return new THREE.LatheGeometry(profile, sides);
+}
+
 export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry {
   if (node.primitive === 'box' && node.bevel > 0) {
     const minimumDimension = Math.max(
@@ -440,34 +418,8 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
       new RoundedBoxGeometry(1, 1, 1, Math.max(1, Math.min(12, node.sides)), radius),
     );
   }
-  if (node.primitive === 'cylinder' && node.bevel > 0) {
-    const minimumDimension = Math.max(
-      0.001,
-      Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height),
-    );
-    const bevel = Math.min(0.24, node.bevel / minimumDimension);
-    const segments = Math.max(1, Math.min(10, node.parameters.bevelSegments));
-    const profile: THREE.Vector2[] = [new THREE.Vector2(0, -0.5)];
-    for (let index = 0; index <= segments; index += 1) {
-      const angle = -Math.PI / 2 + (index / segments) * (Math.PI / 2);
-      profile.push(
-        new THREE.Vector2(
-          0.5 - bevel + bevel * Math.cos(angle),
-          -0.5 + bevel + bevel * Math.sin(angle),
-        ),
-      );
-    }
-    for (let index = 0; index <= segments; index += 1) {
-      const angle = (index / segments) * (Math.PI / 2);
-      profile.push(
-        new THREE.Vector2(
-          0.5 - bevel + bevel * Math.cos(angle),
-          0.5 - bevel + bevel * Math.sin(angle),
-        ),
-      );
-    }
-    profile.push(new THREE.Vector2(0, 0.5));
-    return normaliseToUnitBox(new THREE.LatheGeometry(profile, node.sides));
+  if (node.primitive === 'cylinder') {
+    return normaliseToUnitBox(beveledPrismGeometry(node, node.sides));
   }
   if (node.primitive === 'cone') {
     return normaliseToUnitBox(
@@ -480,7 +432,68 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
     );
   }
   if (node.primitive === 'text') {
-    return normaliseToUnitBox(textGeometry(node.parameters.text, node.bevel));
+    return normaliseToUnitBox(
+      textGeometry(
+        node.parameters.text,
+        node.bevel,
+        node.parameters.segments,
+        node.parameters.font,
+      ),
+    );
+  }
+  if (node.primitive === 'sphere') {
+    const steps = Math.max(3, Math.min(64, node.parameters.steps));
+    return normaliseToUnitBox(new THREE.SphereGeometry(0.5, steps, Math.max(3, steps)));
+  }
+  if (node.primitive === 'pyramid') {
+    return normaliseToUnitBox(new THREE.CylinderGeometry(0, 0.5, 1, node.sides));
+  }
+  if (node.primitive === 'polygon') {
+    return normaliseToUnitBox(beveledPrismGeometry(node, node.sides));
+  }
+  if (node.primitive === 'torus') {
+    const radius = Math.max(0.1, node.parameters.radius);
+    const tube = Math.max(0.1, node.parameters.tubeRadius);
+    const total = radius + tube;
+    const geometry = new THREE.TorusGeometry(
+      radius / total,
+      tube / total,
+      Math.max(3, node.sides),
+      Math.max(3, node.parameters.steps),
+    );
+    geometry.rotateX(Math.PI / 2);
+    return normaliseToUnitBox(geometry);
+  }
+  if (node.primitive === 'tube') {
+    return normaliseToUnitBox(
+      tubeGeometry(
+        node.parameters.radius,
+        node.parameters.wallThickness,
+        node.sides,
+        node.bevel,
+        node.parameters.bevelSegments,
+      ),
+    );
+  }
+  if (node.primitive === 'star') {
+    return normaliseToUnitBox(starGeometry(node.parameters.points, node.parameters.innerRatio));
+  }
+  if (node.primitive === 'extrude-sketch') {
+    return normaliseToUnitBox(
+      sketchExtrudeGeometry(
+        node.parameters.sketchPoints,
+        node.parameters.topScale,
+        node.parameters.baseScale,
+        node.parameters.twist,
+        node.parameters.smoothTwist ? 32 : node.parameters.twistSteps,
+      ),
+    );
+  }
+  if (node.primitive === 'scribble') {
+    return normaliseToUnitBox(sketchExtrudeGeometry(node.parameters.sketchPoints));
+  }
+  if (node.primitive === 'revolve-sketch') {
+    return normaliseToUnitBox(revolveSketchGeometry(node.sides, node.parameters.sketchPoints));
   }
   return createPrimitiveGeometryForKind(node.primitive, node.sides);
 }
@@ -491,8 +504,10 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   group.userData['nodeId'] = node.id;
   const material = new THREE.MeshStandardMaterial({
     color: node.operation === 'hole' ? '#b9c4cc' : node.color,
-    roughness: 0.48,
-    metalness: 0.015,
+    emissive: '#000000',
+    emissiveIntensity: 0,
+    roughness: 0.9,
+    metalness: 0,
     transparent: node.operation === 'hole',
     opacity: node.operation === 'hole' ? 0.36 : 1,
     depthWrite: node.operation !== 'hole',
@@ -501,8 +516,8 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   mesh.name = `${node.name}:mesh`;
   mesh.userData['nodeId'] = node.id;
   mesh.scale.set(node.dimensions.width, node.dimensions.height, node.dimensions.depth);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   addModelOutlines(mesh, node.operation);
   group.add(mesh);
   applyNodeTransform(group, node);

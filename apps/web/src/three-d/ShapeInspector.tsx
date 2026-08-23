@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type {
   BooleanOperation,
   PrimitiveKind,
   ThreeDCommand,
   ThreeDDimensions,
   ThreeDNode,
+  Vector2Value,
 } from '@asa-lab/three-d';
 import { ChevronIcon, ViewIcon } from '../electronics/workbench-icons';
+import { measureTextWidthAtHeight } from './viewport/geometry';
 
 interface GroupSelection {
   readonly id: string;
@@ -203,6 +205,7 @@ export function ShapeInspector({ node, group, execute }: ShapeInspectorProps): J
             </section>
           ) : (
             <ShapeProperties
+              key={(node as ThreeDNode).id}
               node={node as ThreeDNode}
               execute={execute}
               replaceDimension={replaceDimension}
@@ -221,6 +224,10 @@ interface ShapePropertiesProps {
 }
 
 function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesProps): JSX.Element {
+  const [sketchOpen, setSketchOpen] = useState(
+    !node.parameters.sketchAccepted &&
+      ['extrude-sketch', 'revolve-sketch', 'scribble'].includes(node.primitive),
+  );
   const maximumRadius = Math.max(
     0,
     Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height) / 2,
@@ -229,8 +236,31 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
     0,
     Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height) / 8,
   );
+  const basicShape = [
+    'box',
+    'cylinder',
+    'sphere',
+    'extrude-sketch',
+    'revolve-sketch',
+    'scribble',
+    'cone',
+    'pyramid',
+    'roof',
+    'text',
+    'round-roof',
+    'half-sphere',
+    'torus',
+    'tube',
+    'ring',
+    'wedge',
+    'polygon',
+    'icosahedron',
+    'star',
+    'star-6',
+    'heart',
+  ].includes(node.primitive);
   const dimensionRows = (
-    node.primitive === 'cone' || node.primitive === 'cylinder'
+    basicShape
       ? []
       : [
           ['width', node.primitive === 'box' ? 'Длина' : 'Ширина'],
@@ -238,6 +268,12 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
           ['height', 'Высота'],
         ]
   ) as readonly (readonly [keyof ThreeDDimensions, string])[];
+  const replaceParameters = (values: Partial<ThreeDNode['parameters']>): void => {
+    execute({
+      type: 'replace-node',
+      node: { ...node, parameters: { ...node.parameters, ...values } },
+    });
+  };
   const replaceConeRadius = (parameter: 'topRadius' | 'baseRadius', value: number): void => {
     const parameters = { ...node.parameters, [parameter]: value };
     const diameter = Math.max(parameters.topRadius, parameters.baseRadius) * 2;
@@ -298,6 +334,7 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
             min={3}
             max={24}
             step={1}
+            unit=""
             disabled={node.locked}
             onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
           />
@@ -391,44 +428,447 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
       {node.primitive === 'text' && (
         <>
           <label className="asa3d-compact-text-field">
-            <span>Текст</span>
+            <span>Text</span>
             <input
               type="text"
               maxLength={128}
               value={node.parameters.text}
               disabled={node.locked}
-              onChange={(event) =>
+              onChange={(event) => {
+                const text = event.currentTarget.value;
                 execute({
                   type: 'replace-node',
                   node: {
                     ...node,
-                    parameters: { ...node.parameters, text: event.currentTarget.value },
+                    parameters: { ...node.parameters, text },
+                    dimensions: {
+                      ...node.dimensions,
+                      width:
+                        measureTextWidthAtHeight(text, node.parameters.font) *
+                        node.parameters.fontSize,
+                    },
                   },
-                })
-              }
+                });
+              }}
             />
           </label>
+          <label className="asa3d-compact-text-field">
+            <span>Шрифт</span>
+            <select
+              value={node.parameters.font}
+              disabled={node.locked}
+              onChange={(event) => {
+                const font = event.currentTarget.value as ThreeDNode['parameters']['font'];
+                execute({
+                  type: 'replace-node',
+                  node: {
+                    ...node,
+                    parameters: { ...node.parameters, font },
+                    dimensions: {
+                      ...node.dimensions,
+                      width:
+                        measureTextWidthAtHeight(node.parameters.text, font) *
+                        node.parameters.fontSize,
+                    },
+                  },
+                });
+              }}
+            >
+              <option value="sans">Многоязычный</option>
+              <option value="serif">С засечками</option>
+              <option value="mono">Моноширинный</option>
+            </select>
+          </label>
+          <RangeProperty
+            label="Высота"
+            value={node.parameters.fontSize}
+            min={0.1}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) =>
+              execute({
+                type: 'replace-node',
+                node: {
+                  ...node,
+                  parameters: { ...node.parameters, fontSize: value },
+                  dimensions: {
+                    ...node.dimensions,
+                    width: Math.max(
+                      0.1,
+                      node.dimensions.width * (value / node.parameters.fontSize),
+                    ),
+                    depth: value,
+                  },
+                },
+              })
+            }
+          />
           <RangeProperty
             label="Скос"
             value={node.bevel}
             min={0}
-            max={8}
-            step={0.5}
+            max={2.5}
+            step={0.1}
             disabled={node.locked}
             onChange={(value) => execute({ type: 'replace-node', node: { ...node, bevel: value } })}
+          />
+          <RangeProperty
+            label="Сегменты"
+            value={node.parameters.segments}
+            min={0}
+            max={5}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ segments: value })}
           />
         </>
       )}
 
       {node.primitive === 'sphere' && (
         <RangeProperty
-          label="Стороны"
-          value={node.sides}
-          min={8}
+          label="Шаги"
+          value={node.parameters.steps}
+          min={3}
           max={64}
           step={1}
+          unit=""
+          disabled={node.locked}
+          onChange={(value) => replaceParameters({ steps: value })}
+        />
+      )}
+
+      {node.primitive === 'pyramid' && (
+        <RangeProperty
+          label="Стороны"
+          value={node.sides}
+          min={3}
+          max={28}
+          step={1}
+          unit=""
           disabled={node.locked}
           onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+        />
+      )}
+
+      {node.primitive === 'torus' && (
+        <>
+          <RangeProperty
+            label="Радиус"
+            value={node.parameters.radius}
+            min={0.1}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => {
+              const diameter = 2 * (value + node.parameters.tubeRadius);
+              execute({
+                type: 'replace-node',
+                node: {
+                  ...node,
+                  parameters: { ...node.parameters, radius: value },
+                  dimensions: { ...node.dimensions, width: diameter, depth: diameter },
+                },
+              });
+            }}
+          />
+          <RangeProperty
+            label="Труба"
+            value={node.parameters.tubeRadius}
+            min={0.1}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => {
+              const diameter = 2 * (node.parameters.radius + value);
+              execute({
+                type: 'replace-node',
+                node: {
+                  ...node,
+                  parameters: { ...node.parameters, tubeRadius: value },
+                  dimensions: {
+                    ...node.dimensions,
+                    width: diameter,
+                    depth: diameter,
+                    height: value * 2,
+                  },
+                },
+              });
+            }}
+          />
+          <RangeProperty
+            label="Стороны"
+            value={node.sides}
+            min={3}
+            max={64}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+          />
+          <RangeProperty
+            label="Шаги"
+            value={node.parameters.steps}
+            min={3}
+            max={128}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ steps: value })}
+          />
+        </>
+      )}
+
+      {node.primitive === 'tube' && (
+        <>
+          <RangeProperty
+            label="Радиус"
+            value={node.parameters.radius}
+            min={0.1}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) =>
+              execute({
+                type: 'replace-node',
+                node: {
+                  ...node,
+                  parameters: { ...node.parameters, radius: value },
+                  dimensions: { ...node.dimensions, width: value * 2, depth: value * 2 },
+                },
+              })
+            }
+          />
+          <RangeProperty
+            label="Толщина стенки"
+            value={node.parameters.wallThickness}
+            min={0.1}
+            max={30}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ wallThickness: value })}
+          />
+          <RangeProperty
+            label="Стороны"
+            value={node.sides}
+            min={3}
+            max={128}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+          />
+          <RangeProperty
+            label="Скос"
+            value={node.bevel}
+            min={0}
+            max={5}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, bevel: value } })}
+          />
+          <RangeProperty
+            label="Сегменты скоса"
+            value={node.parameters.bevelSegments}
+            min={1}
+            max={10}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ bevelSegments: value })}
+          />
+        </>
+      )}
+
+      {node.primitive === 'ring' && (
+        <RangeProperty
+          label="Стороны"
+          value={node.sides}
+          min={3}
+          max={128}
+          step={1}
+          unit=""
+          disabled={node.locked}
+          onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+        />
+      )}
+
+      {node.primitive === 'polygon' && (
+        <>
+          <RangeProperty
+            label="Стороны"
+            value={node.sides}
+            min={3}
+            max={12}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+          />
+          <RangeProperty
+            label="Скос"
+            value={node.bevel}
+            min={0}
+            max={2.5}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, bevel: value } })}
+          />
+          <RangeProperty
+            label="Сегменты"
+            value={node.parameters.bevelSegments}
+            min={1}
+            max={10}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ bevelSegments: value })}
+          />
+        </>
+      )}
+
+      {node.primitive === 'star' && (
+        <>
+          <RangeProperty
+            label="Точки"
+            value={node.parameters.points}
+            min={3}
+            max={30}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ points: value })}
+          />
+          <RangeProperty
+            label="Радиус"
+            value={node.parameters.radius}
+            min={1}
+            max={50}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) =>
+              execute({
+                type: 'replace-node',
+                node: {
+                  ...node,
+                  parameters: { ...node.parameters, radius: value },
+                  dimensions: { ...node.dimensions, width: value * 2, depth: value * 2 },
+                },
+              })
+            }
+          />
+          <RangeProperty
+            label="Внутренний радиус (%)"
+            value={node.parameters.innerRatio}
+            min={0.01}
+            max={1}
+            step={0.01}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ innerRatio: value })}
+          />
+        </>
+      )}
+
+      {(node.primitive === 'extrude-sketch' ||
+        node.primitive === 'revolve-sketch' ||
+        node.primitive === 'scribble') && (
+        <>
+          <button
+            type="button"
+            className="asa3d-sketch-edit-button"
+            disabled={node.locked}
+            onClick={() => setSketchOpen(true)}
+          >
+            Редактировать эскиз
+          </button>
+          {node.primitive === 'extrude-sketch' && (
+            <>
+              <RangeProperty
+                label="Верхний масштаб"
+                value={node.parameters.topScale}
+                min={0.1}
+                max={2}
+                step={0.05}
+                unit=""
+                disabled={node.locked}
+                onChange={(value) => replaceParameters({ topScale: value })}
+              />
+              <RangeProperty
+                label="Нижний масштаб"
+                value={node.parameters.baseScale}
+                min={0.1}
+                max={2}
+                step={0.05}
+                unit=""
+                disabled={node.locked}
+                onChange={(value) => replaceParameters({ baseScale: value })}
+              />
+              <RangeProperty
+                label="Скручивание"
+                value={node.parameters.twist}
+                min={-360}
+                max={360}
+                step={1}
+                unit="°"
+                disabled={node.locked}
+                onChange={(value) => replaceParameters({ twist: value })}
+              />
+              <RangeProperty
+                label="Шаги скручивания"
+                value={node.parameters.twistSteps}
+                min={1}
+                max={32}
+                step={1}
+                unit=""
+                disabled={node.locked}
+                onChange={(value) => replaceParameters({ twistSteps: value })}
+              />
+              <label className="asa3d-compact-text-field">
+                <span>Режим</span>
+                <select
+                  value={node.parameters.smoothTwist ? 'smooth' : 'steps'}
+                  disabled={node.locked}
+                  onChange={(event) =>
+                    replaceParameters({ smoothTwist: event.currentTarget.value === 'smooth' })
+                  }
+                >
+                  <option value="steps">По шагам</option>
+                  <option value="smooth">Плавный</option>
+                </select>
+              </label>
+            </>
+          )}
+          {node.primitive === 'revolve-sketch' && (
+            <RangeProperty
+              label="Стороны"
+              value={node.sides}
+              min={3}
+              max={128}
+              step={1}
+              unit=""
+              disabled={node.locked}
+              onChange={(value) =>
+                execute({ type: 'replace-node', node: { ...node, sides: value } })
+              }
+            />
+          )}
+        </>
+      )}
+
+      {sketchOpen && (
+        <SketchEditor
+          primitive={node.primitive}
+          initialPoints={node.parameters.sketchPoints}
+          onCancel={() => {
+            replaceParameters({ sketchAccepted: true });
+            setSketchOpen(false);
+          }}
+          onApply={(sketchPoints) => {
+            replaceParameters({ sketchPoints, sketchAccepted: true });
+            setSketchOpen(false);
+          }}
         />
       )}
 
@@ -445,6 +885,136 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
         />
       ))}
     </section>
+  );
+}
+
+interface SketchEditorProps {
+  readonly primitive: PrimitiveKind;
+  readonly initialPoints: readonly Vector2Value[];
+  readonly onCancel: () => void;
+  readonly onApply: (points: readonly Vector2Value[]) => void;
+}
+
+function SketchEditor({
+  primitive,
+  initialPoints,
+  onCancel,
+  onApply,
+}: SketchEditorProps): JSX.Element {
+  const [points, setPoints] = useState<readonly Vector2Value[]>(initialPoints);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const revolve = primitive === 'revolve-sketch';
+  const toPoint = (event: ReactPointerEvent<SVGSVGElement>): Vector2Value => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const screenX = ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 320;
+    const screenY = ((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 220;
+    return revolve
+      ? {
+          x: Math.min(1, Math.max(0.02, (screenX - 40) / 240)),
+          y: Math.min(1, Math.max(-1, (110 - screenY) / 90)),
+        }
+      : {
+          x: Math.min(1, Math.max(-1, (screenX - 160) / 120)),
+          y: Math.min(1, Math.max(-1, (110 - screenY) / 90)),
+        };
+  };
+  const screenPoint = (point: Vector2Value): { x: number; y: number } => ({
+    x: revolve ? 40 + point.x * 240 : 160 + point.x * 120,
+    y: 110 - point.y * 90,
+  });
+  const updatePoint = (index: number, point: Vector2Value): void => {
+    setPoints((current) => current.map((item, itemIndex) => (itemIndex === index ? point : item)));
+  };
+
+  return (
+    <div
+      className="asa3d-sketch-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Редактор эскиза"
+    >
+      <section className="asa3d-sketch-editor">
+        <header>
+          <strong>
+            {revolve ? 'Revolve sketch' : primitive === 'scribble' ? 'Scribble' : 'Extrude sketch'}
+          </strong>
+          <span>Щёлкните для точки, перетаскивайте существующие точки.</span>
+        </header>
+        <svg
+          viewBox="0 0 320 220"
+          aria-label="Область эскиза"
+          onPointerDown={(event) => {
+            if (event.target !== event.currentTarget || points.length >= 256) return;
+            setPoints((current) => [...current, toPoint(event)]);
+          }}
+          onPointerMove={(event) => {
+            if (dragIndex === null) return;
+            updatePoint(dragIndex, toPoint(event));
+          }}
+          onPointerUp={() => setDragIndex(null)}
+          onPointerLeave={() => setDragIndex(null)}
+        >
+          <defs>
+            <pattern id="asa3d-sketch-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#d7edf4" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <rect width="320" height="220" fill="url(#asa3d-sketch-grid)" pointerEvents="none" />
+          {revolve && <line x1="40" y1="15" x2="40" y2="205" className="asa3d-sketch-axis" />}
+          <polygon
+            points={points
+              .map((point) => {
+                const screen = screenPoint(point);
+                return `${screen.x},${screen.y}`;
+              })
+              .join(' ')}
+            className={revolve ? 'revolve' : ''}
+            pointerEvents="none"
+          />
+          {points.map((point, index) => {
+            const screen = screenPoint(point);
+            return (
+              <circle
+                key={`${index}-${point.x}-${point.y}`}
+                cx={screen.x}
+                cy={screen.y}
+                r="6"
+                tabIndex={0}
+                aria-label={`Точка ${index + 1}`}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  setDragIndex(index);
+                }}
+              />
+            );
+          })}
+        </svg>
+        <footer>
+          <span>{points.length} точек</span>
+          <button
+            type="button"
+            disabled={points.length <= 3}
+            onClick={() => setPoints((current) => current.slice(0, -1))}
+          >
+            Удалить последнюю
+          </button>
+          <button type="button" onClick={() => setPoints(initialPoints)}>
+            Сбросить
+          </button>
+          <button type="button" onClick={onCancel}>
+            Отмена
+          </button>
+          <button
+            type="button"
+            className="primary"
+            disabled={points.length < 3}
+            onClick={() => onApply(points)}
+          >
+            Принять эскиз
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }
 

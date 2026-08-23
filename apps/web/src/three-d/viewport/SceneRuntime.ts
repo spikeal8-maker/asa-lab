@@ -193,11 +193,10 @@ export class SceneRuntime {
       throw new Error(message);
     }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.04;
+    this.renderer.toneMappingExposure = 0.98;
     this.renderer.domElement.className = 'asa3d-canvas';
     this.renderer.domElement.setAttribute('aria-label', 'Рабочая область 3D-моделирования');
     this.container.append(this.renderer.domElement);
@@ -233,18 +232,15 @@ export class SceneRuntime {
       },
     );
 
-    const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 2.05);
+    const ambient = new THREE.AmbientLight('#ffffff', 0.7);
+    this.scene.add(ambient);
+    const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 1.15);
     this.scene.add(hemisphere);
-    const key = new THREE.DirectionalLight('#ffffff', 3.15);
+    const key = new THREE.DirectionalLight('#ffffff', 1.62);
     key.position.set(-110, 210, 155);
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    key.shadow.camera.left = -170;
-    key.shadow.camera.right = 170;
-    key.shadow.camera.top = 170;
-    key.shadow.camera.bottom = -170;
+    key.castShadow = false;
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight('#bcecff', 0.9);
+    const fill = new THREE.DirectionalLight('#bcecff', 0.55);
     fill.position.set(155, 105, -120);
     this.scene.add(fill);
     this.scene.add(this.gridRoot, this.booleanRoot, this.rulerRoot);
@@ -480,20 +476,6 @@ export class SceneRuntime {
     plane.position.y = -0.03;
     this.gridRoot.add(plane);
 
-    const shadowCatcher = new THREE.Mesh(
-      new THREE.PlaneGeometry(document.grid.width, document.grid.depth),
-      new THREE.ShadowMaterial({
-        color: '#71838b',
-        transparent: true,
-        opacity: 0.13,
-        depthWrite: false,
-      }),
-    );
-    shadowCatcher.rotation.x = -Math.PI / 2;
-    shadowCatcher.position.y = -0.018;
-    shadowCatcher.receiveShadow = true;
-    this.gridRoot.add(shadowCatcher);
-
     const maximumDimension = Math.max(document.grid.width, document.grid.depth);
     const fineStep = Math.max(document.grid.snap, maximumDimension / 400);
     this.gridRoot.add(
@@ -687,7 +669,7 @@ export class SceneRuntime {
           material.opacity = operation === 'hole' ? 0.42 : 0.72;
           material.depthWrite = false;
         }
-        child.castShadow = true;
+        child.castShadow = false;
         child.receiveShadow = false;
         child.renderOrder = 18;
       });

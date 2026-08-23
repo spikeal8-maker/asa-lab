@@ -280,7 +280,7 @@ function defaults(componentId: string): {
     return {
       value: 220,
       unit: 'Ом',
-      properties: { tolerancePercent: 5, resistanceUnit: 'Ω' },
+      properties: { tolerancePercent: 5, resistanceUnit: 'Ω', powerRatingWatt: 0.25 },
     };
   if (componentId === 'led-5mm')
     return {

@@ -3,11 +3,11 @@ import * as THREE from 'three';
 import { createThreeDNode, PRIMITIVE_KINDS } from '@asa-lab/three-d';
 import {
   MODEL_EDGE_NAME,
-  MODEL_SILHOUETTE_NAME,
   createNodeObject,
   createPrimitiveGeometry,
   createPrimitiveGeometryForKind,
   disposeObject,
+  measureTextWidthAtHeight,
 } from '../viewport/geometry';
 import { createBooleanGeometry } from '../viewport/csg';
 
@@ -24,16 +24,14 @@ describe('ASA 3D primitive geometry', () => {
     disposeObject(object);
   });
 
-  it('adds crisp CAD edges and a silhouette without changing printable geometry', () => {
+  it('adds readable hard edges without a face-covering silhouette or changing geometry', () => {
     const object = createNodeObject(createThreeDNode('box', 'outlined-box'));
     const mesh = object.children[0] as THREE.Mesh;
     const hardEdges = mesh.getObjectByName(MODEL_EDGE_NAME);
-    const silhouette = mesh.getObjectByName(MODEL_SILHOUETTE_NAME);
 
     expect(hardEdges).toBeInstanceOf(THREE.LineSegments);
-    expect(silhouette).toBeInstanceOf(THREE.Mesh);
     expect(hardEdges?.userData['modelOutline']).toBe(true);
-    expect(silhouette?.userData['modelOutline']).toBe(true);
+    expect(mesh.children).toHaveLength(1);
     expect(mesh.geometry.getAttribute('position').count).toBe(24);
     disposeObject(object);
   });
@@ -45,6 +43,44 @@ describe('ASA 3D primitive geometry', () => {
     expect(mesh.material.transparent).toBe(true);
     expect(mesh.material.depthWrite).toBe(false);
     disposeObject(object);
+  });
+
+  it('keeps CAD color matte without self-illumination or cast shadows', () => {
+    const object = createNodeObject(createThreeDNode('box', 'bright-box'));
+    const mesh = object.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+
+    expect(mesh.material.color.getHexString()).toBe('d71920');
+    expect(mesh.material.emissive.getHexString()).toBe('000000');
+    expect(mesh.material.emissiveIntensity).toBe(0);
+    expect(mesh.material.roughness).toBe(0.9);
+    expect(mesh.castShadow).toBe(false);
+    expect(mesh.receiveShadow).toBe(false);
+    expect(mesh.children).toHaveLength(1);
+    expect(mesh.children[0]?.name).toBe(MODEL_EDGE_NAME);
+    disposeObject(object);
+  });
+
+  it('builds editable Latin and Cyrillic text from real glyph contours', () => {
+    const text = createThreeDNode('text', 'real-text');
+    const latin = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'ASA Lab' },
+    });
+    const cyrillic = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'Привет, мир!' },
+    });
+    const positions = cyrillic.getAttribute('position');
+    const fractionalCoordinates = Array.from(positions.array).filter(
+      (value) => Math.abs(value - Math.round(value)) > 0.001,
+    );
+
+    expect(latin.getAttribute('position').count).toBeGreaterThan(100);
+    expect(cyrillic.getAttribute('position').count).toBeGreaterThan(300);
+    expect(fractionalCoordinates.length).toBeGreaterThan(100);
+    expect(measureTextWidthAtHeight('Привет')).toBeGreaterThan(measureTextWidthAtHeight('Я'));
+    latin.dispose();
+    cyrillic.dispose();
   });
 
   it('uses the saved radius and steps for a rounded parallelepiped', () => {
@@ -112,6 +148,105 @@ describe('ASA 3D primitive geometry', () => {
     }
     plainGeometry.dispose();
     beveledGeometry.dispose();
+  });
+
+  it('uses the saved Tinkercad step counts for sphere and torus geometry', () => {
+    const sphere = createThreeDNode('sphere', 'sphere-steps');
+    const coarseSphere = createPrimitiveGeometry({
+      ...sphere,
+      parameters: { ...sphere.parameters, steps: 6 },
+    });
+    const smoothSphere = createPrimitiveGeometry({
+      ...sphere,
+      parameters: { ...sphere.parameters, steps: 48 },
+    });
+    const torus = createThreeDNode('torus', 'torus-steps');
+    const coarseTorus = createPrimitiveGeometry({
+      ...torus,
+      sides: 6,
+      parameters: { ...torus.parameters, steps: 8 },
+    });
+    const smoothTorus = createPrimitiveGeometry({
+      ...torus,
+      sides: 32,
+      parameters: { ...torus.parameters, steps: 64 },
+    });
+
+    expect(smoothSphere.getAttribute('position').count).toBeGreaterThan(
+      coarseSphere.getAttribute('position').count,
+    );
+    expect(smoothTorus.getAttribute('position').count).toBeGreaterThan(
+      coarseTorus.getAttribute('position').count,
+    );
+    coarseSphere.dispose();
+    smoothSphere.dispose();
+    coarseTorus.dispose();
+    smoothTorus.dispose();
+  });
+
+  it('rebuilds tube, polygon and star meshes from their individual parameters', () => {
+    const tube = createThreeDNode('tube', 'tube-parameters');
+    const tubeGeometry = createPrimitiveGeometry({
+      ...tube,
+      bevel: 2,
+      parameters: { ...tube.parameters, wallThickness: 5, bevelSegments: 6 },
+    });
+    const polygon = createThreeDNode('polygon', 'polygon-parameters');
+    const beveledPolygon = createPrimitiveGeometry({
+      ...polygon,
+      bevel: 1.5,
+      parameters: { ...polygon.parameters, bevelSegments: 5 },
+    });
+    const star = createThreeDNode('star', 'star-parameters');
+    const fivePointStar = createPrimitiveGeometry(star);
+    const twelvePointStar = createPrimitiveGeometry({
+      ...star,
+      parameters: { ...star.parameters, points: 12, innerRatio: 0.25 },
+    });
+
+    expect(tubeGeometry.getAttribute('position').count).toBeGreaterThan(0);
+    expect(beveledPolygon.getAttribute('position').count).toBeGreaterThan(0);
+    expect(twelvePointStar.getAttribute('position').count).toBeGreaterThan(
+      fivePointStar.getAttribute('position').count,
+    );
+    tubeGeometry.dispose();
+    beveledPolygon.dispose();
+    fivePointStar.dispose();
+    twelvePointStar.dispose();
+  });
+
+  it('turns saved sketch points and twist into printable geometry', () => {
+    const extrude = createThreeDNode('extrude-sketch', 'extrude-sketch');
+    const plain = createPrimitiveGeometry(extrude);
+    const twisted = createPrimitiveGeometry({
+      ...extrude,
+      parameters: {
+        ...extrude.parameters,
+        twist: 180,
+        twistSteps: 12,
+        topScale: 0.5,
+        sketchPoints: [
+          { x: -1, y: -1 },
+          { x: 1, y: -1 },
+          { x: 0.7, y: 0.2 },
+          { x: 0, y: 1 },
+          { x: -0.7, y: 0.2 },
+        ],
+      },
+    });
+    const revolve = createThreeDNode('revolve-sketch', 'revolve-sketch');
+    const revolved = createPrimitiveGeometry(revolve);
+
+    expect(twisted.getAttribute('position').count).toBeGreaterThan(
+      plain.getAttribute('position').count,
+    );
+    expect(revolved.getAttribute('position').count).toBeGreaterThan(0);
+    for (const geometry of [plain, twisted, revolved]) {
+      for (const value of geometry.getAttribute('position').array) {
+        expect(Number.isFinite(value)).toBe(true);
+      }
+      geometry.dispose();
+    }
   });
 
   it('subtracts a hole from a solid into printable boolean geometry', () => {
