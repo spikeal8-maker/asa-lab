@@ -198,14 +198,35 @@ export function rotateSelectionInDocument(
 ): SchematicDocument | null {
   if (selection?.kind !== 'component') return null;
   const ids = new Set(selection.ids);
-  return {
+  let rotated: SchematicDocument = {
     ...document,
-    components: document.components.map((item) =>
-      ids.has(item.id)
-        ? { ...item, rotation: (((item.rotation ?? 0) + 90) % 360) as 0 | 90 | 180 | 270 }
-        : item,
-    ),
+    components: document.components.map((item) => {
+      if (!ids.has(item.id)) return item;
+      const entry = catalogEntry(item);
+      const rotation = (((item.rotation ?? 0) + 45) % 360) as NonNullable<
+        SchematicComponent['rotation']
+      >;
+      if (!entry) return { ...item, rotation };
+      const previousSize = renderedSize(entry, item.rotation ?? 0);
+      const nextSize = renderedSize(entry, rotation ?? 0);
+      const center = {
+        x: item.position.x + previousSize.width / 2,
+        y: item.position.y + previousSize.height / 2,
+      };
+      const withoutBindings = { ...item };
+      delete withoutBindings.holeBindings;
+      return {
+        ...withoutBindings,
+        rotation,
+        position: {
+          x: center.x - nextSize.width / 2,
+          y: center.y - nextSize.height / 2,
+        },
+      };
+    }),
   };
+  for (const id of ids) rotated = snapComponentToBreadboard(rotated, id);
+  return rotated;
 }
 
 export function mirrorSelectionInDocument(
@@ -532,7 +553,9 @@ export function reconnectWireEndpoint(
 }
 
 function hasFlexibleBreadboardLeads(component: SchematicComponent): boolean {
-  return catalogEntry(component)?.familyId === 'battery-holder-aa';
+  return ['battery', 'battery-holder-aa', 'piezo'].includes(
+    catalogEntry(component)?.familyId ?? '',
+  );
 }
 
 function snapFlexibleLeadsToBreadboard(
@@ -636,10 +659,11 @@ export function snapComponentToBreadboard(
   const footprintOffsetWorld = ([rawX, rawY]: readonly [number, number]): Point => {
     const x = rawX * mirrorX * WORLD_UNITS_PER_MM;
     const y = rawY * mirrorY * WORLD_UNITS_PER_MM;
-    if (normalizedRotation === 90) return { x: -y, y: x };
-    if (normalizedRotation === 180) return { x: -x, y: -y };
-    if (normalizedRotation === 270) return { x: y, y: -x };
-    return { x, y };
+    const radians = (normalizedRotation * Math.PI) / 180;
+    return {
+      x: x * Math.cos(radians) - y * Math.sin(radians),
+      y: x * Math.sin(radians) + y * Math.cos(radians),
+    };
   };
   const footprintOffsets = offsets.map(footprintOffsetWorld);
   const rigidFootprint = ['rectangle', 'dual-inline'].includes(entry.footprint?.kind ?? '');

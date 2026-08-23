@@ -29976,7 +29976,7 @@
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
-      "isDefaultVariant": true,
+      "isDefaultVariant": false,
       "displayName": "Пьезоэлемент",
       "sourceOwnerArchive": "reference-lab-zip",
       "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/piezo.svg",
@@ -30044,7 +30044,7 @@
         "source": "owner_direct_upload",
         "artNotTrusted": false
       },
-      "isDefaultVariant": false,
+      "isDefaultVariant": true,
       "displayName": "Пьезодиск",
       "sourceOwnerArchive": "owner-upload-2026-08-23",
       "sourceOwnerPath": "piezo-disc-v3.svg",

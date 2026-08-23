@@ -132,6 +132,26 @@ describe('schema-versioned Electronics document', () => {
     expect(parsed.ok && parsed.document.viewport.zoom).toBe(1.5);
   });
 
+  it('persists 45-degree rotations and rejects angles outside the editor step', () => {
+    const accepted = parseElectronicsDocument({
+      schemaVersion: 3,
+      components: [component('r1', 'resistor', 100, { rotation: 45 })],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    });
+    expect(accepted.ok && accepted.document.components[0]?.rotation).toBe(45);
+    expect(
+      parseElectronicsDocument({
+        schemaVersion: 3,
+        components: [{ ...component('r1', 'resistor', 100), rotation: 30 }],
+        connections: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        simulation: { running: false, maxIterations: 24 },
+      }).ok,
+    ).toBe(false);
+  });
+
   it('rejects malformed documents and dangling endpoint ids', () => {
     expect(parseElectronicsDocument({ schemaVersion: 9, components: [], connections: [] }).ok).toBe(
       false,

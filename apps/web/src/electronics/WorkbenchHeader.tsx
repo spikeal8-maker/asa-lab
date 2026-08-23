@@ -261,7 +261,7 @@ export function WorkbenchHeader({
             </button>
             <span className="workbench-toolbar-gap rotate" />
             <ToolButton
-              label="Повернуть (R)"
+              label="Повернуть на 45° (R)"
               onClick={c.rotateSelected}
               disabled={!hasComponentSelection}
             >
@@ -281,7 +281,7 @@ export function WorkbenchHeader({
             {view === 'schematic' ? (
               <>
                 <ToolButton
-                  label="Повернуть (R)"
+                  label="Повернуть на 45° (R)"
                   onClick={c.rotateSelected}
                   disabled={!hasComponentSelection}
                 >

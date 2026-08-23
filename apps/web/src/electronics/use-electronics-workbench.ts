@@ -508,7 +508,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function rotateSelected(): void {
     if (!document) return;
     const next = rotateSelectionInDocument(document, selection);
-    if (next) commitDocument(next, 'Элемент повернут на 90° — провода обновлены.');
+    if (next) commitDocument(next, 'Элемент повернут на 45° вокруг центра — провода обновлены.');
   }
 
   function mirrorSelected(axis: 'horizontal' | 'vertical'): void {

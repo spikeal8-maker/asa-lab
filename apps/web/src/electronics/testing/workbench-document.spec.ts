@@ -7,7 +7,12 @@ import {
   productionBreadboard,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
-import { componentPointPosition, terminalPosition } from '../component-catalog';
+import {
+  catalogEntry,
+  componentPointPosition,
+  renderedSize,
+  terminalPosition,
+} from '../component-catalog';
 import {
   addComponentToDocument,
   componentsBoundToBreadboard,
@@ -165,6 +170,53 @@ describe('Electronics M1 editor document operations', () => {
     expect(after).toEqual(before ? { x: before.x + 80, y: before.y + 40 } : null);
   });
 
+  it('plugs both lead ends of both owner piezo variants into breadboard holes', () => {
+    for (const [componentTypeId, negativeHole] of [
+      ['piezo-disc', 'J11'],
+      ['piezo-passive-buzzer', 'J12'],
+    ] as const) {
+      let document = addComponentToDocument(
+        EMPTY,
+        'breadboard-medium',
+        { x: 600, y: 500 },
+        'board',
+      ).document;
+      document = addComponentToDocument(
+        document,
+        componentTypeId,
+        { x: 600, y: 500 },
+        'piezo',
+      ).document;
+      const boardComponent = document.components.find((item) => item.id === 'board');
+      const piezo = document.components.find((item) => item.id === 'piezo');
+      const board = productionBreadboard('breadboard-medium');
+      const targetHole = board?.holes.find((hole) => hole.id === 'J8');
+      const targetPoint =
+        boardComponent && targetHole
+          ? componentPointPosition(boardComponent, boardComponent.position, targetHole, 0)
+          : null;
+      const positive = piezo
+        ? terminalPosition(piezo, piezo.position, 'positive', piezo.rotation ?? 0)
+        : null;
+      expect(targetPoint).not.toBeNull();
+      expect(positive).not.toBeNull();
+      if (!piezo || !targetPoint || !positive) continue;
+      document = moveComponentInDocument(document, 'piezo', {
+        x: piezo.position.x + targetPoint.x - positive.x,
+        y: piezo.position.y + targetPoint.y - positive.y,
+      });
+      document = snapComponentToBreadboard(document, 'piezo');
+      expect(
+        document.components.find((item) => item.id === 'piezo')?.holeBindings,
+        componentTypeId,
+      ).toEqual({
+        positive: { breadboardComponentId: 'board', holeId: 'J8' },
+        negative: { breadboardComponentId: 'board', holeId: negativeHole },
+      });
+      expect(componentsBoundToBreadboard(document, 'board')).not.toContain('piezo');
+    }
+  });
+
   it('keeps free user points by default and applies 90-degree locking only on demand', () => {
     expect(
       wirePoints({ x: 100, y: 100 }, { x: 300, y: 260 }, [
@@ -245,7 +297,7 @@ describe('Electronics M1 editor document operations', () => {
     expect(
       rotated?.components
         .filter((item) => selection.ids.includes(item.id))
-        .every((item) => item.rotation === 90),
+        .every((item) => item.rotation === 45),
     ).toBe(true);
     const duplicated = duplicateComponentInDocument(
       rotated as SchematicDocument,
@@ -258,6 +310,35 @@ describe('Electronics M1 editor document operations', () => {
     const removed = removeSelectionFromDocument(document, selection);
     expect(removed.components.some((item) => selection.ids.includes(item.id))).toBe(false);
     expect(removed.connections).toHaveLength(0);
+  });
+
+  it('rotates a non-square component by 45 degrees around its unchanged centre', () => {
+    const document = populated();
+    const source = document.components.find((item) => item.id === 'source');
+    expect(source).toBeDefined();
+    if (!source) return;
+    const entry = catalogEntry(source);
+    expect(entry).toBeDefined();
+    if (!entry) return;
+    const beforeSize = renderedSize(entry, source.rotation ?? 0);
+    const beforeCenter = {
+      x: source.position.x + beforeSize.width / 2,
+      y: source.position.y + beforeSize.height / 2,
+    };
+    const rotated = rotateSelectionInDocument(document, {
+      kind: 'component',
+      id: 'source',
+      ids: ['source'],
+    });
+    const next = rotated?.components.find((item) => item.id === 'source');
+    expect(next?.rotation).toBe(45);
+    if (!next) return;
+    const nextEntry = catalogEntry(next);
+    expect(nextEntry).toBeDefined();
+    if (!nextEntry) return;
+    const nextSize = renderedSize(nextEntry, next.rotation ?? 0);
+    expect(next.position.x + nextSize.width / 2).toBeCloseTo(beforeCenter.x, 8);
+    expect(next.position.y + nextSize.height / 2).toBeCloseTo(beforeCenter.y, 8);
   });
 
   it('changes component name, value, contact state and potentiometer wiper', () => {
