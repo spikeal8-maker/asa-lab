@@ -19,11 +19,13 @@ describe('PublicEntryPage licensing notice', () => {
     expect(html).toContain('>Уже есть аккаунт</button>');
   });
 
-  it('distinguishes active modules from environments still in development', () => {
+  it('keeps projects primary without presenting blocks or drawing as future modules', () => {
     const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
 
-    expect(html).toContain('Блочное программирование и рисование находятся в разработке.');
-    expect(html).toContain('В разработке: алгоритмы');
-    expect(html).toContain('В разработке: иллюстрация');
+    expect(html).not.toMatch(/STEM-лаборатория для школы|в разработке|будущая среда|планируется/i);
+    expect(html).toContain('собственного проекта');
+    expect(html).toContain('Посмотреть возможности');
+    expect(html).toContain('Визуальные алгоритмы');
+    expect(html).toContain('Рисование и черчение');
   });
 });

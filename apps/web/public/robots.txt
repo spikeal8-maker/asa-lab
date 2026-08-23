@@ -5,8 +5,6 @@ Content-Signal: search=yes,ai-input=yes,ai-train=no,use=reference
 Allow: /
 Disallow: /api/
 Disallow: /health/
-Disallow: /projects/
-Disallow: /max-login
 
 # OpenAI search is separate from model training. Allow citations in ChatGPT
 # while GPTBot remains excluded below.

@@ -44,13 +44,13 @@ const pages = [
     file: resolve(publicRoot, 'features', 'block-programming', 'index.html'),
     url: 'https://asa-lab.ru/features/block-programming/',
     image: socialImage('asa-lab-block-programming.png'),
-    availability: 'development',
+    creatableRoute: false,
   },
   {
     file: resolve(publicRoot, 'features', 'drawing', 'index.html'),
     url: 'https://asa-lab.ru/features/drawing/',
     image: socialImage('asa-lab-drawing.png'),
-    availability: 'development',
+    creatableRoute: false,
   },
   {
     file: resolve(publicRoot, 'features', '3d-modeling', 'index.html'),
@@ -197,11 +197,10 @@ for (const page of pages) {
     html.includes('href="/seo.css"') && html.includes('href="/asa-lab-mark.svg"'),
     `${page.url}: shared public CSS or brand icon is missing`,
   );
-  if (page.availability === 'development') {
-    expect(/в разработке/i.test(html), `${page.url}: development status is not disclosed`);
+  if (page.creatableRoute === false) {
     expect(
-      !html.includes('href="/#/sign-up"') && !/>\s*Создать проект\s*</i.test(html),
-      `${page.url}: unavailable module must not link to project creation`,
+      !/>\s*(?:Открыть|Начать|Создать)(?:\s+[^<]*)?\s*</i.test(html),
+      `${page.url}: page without a creatable route must not show a false open/start/create CTA`,
     );
   }
   titles.add(title);
@@ -237,11 +236,75 @@ for (const page of pages) {
 }
 
 const rootHtml = readFileSync(resolve(web, 'index.html'), 'utf8');
+const publicEntrySource = readFileSync(resolve(web, 'src', 'pages', 'PublicEntryPage.tsx'), 'utf8');
+const readme = readFileSync(resolve(root, 'README.md'), 'utf8');
+const globalPages = pages.filter(
+  (page) => !page.url.endsWith('/for-teachers/') && !page.url.endsWith('/for-schools/'),
+);
+const schoolOnlyPositioning = /(?:STEM[- ]лаборатори\w*|цифров\w+\s+лаборатори\w*)\s+для\s+школ/i;
+const unavailableCopy = /в\s+разработке|будущ\w*\s+сред\w*|планиру\w*|скоро|развива\w*\s+сред/i;
+for (const page of globalPages) {
+  const html = readFileSync(page.file, 'utf8');
+  const title = capture(html, /<title>([^<]+)<\/title>/i);
+  const ogTitle = capture(html, /<meta\s+property="og:title"\s+content="([^"]+)"\s*\/?\s*>/i);
+  const h1 = capture(html, /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>/i);
+  expect(
+    !schoolOnlyPositioning.test(`${title} ${ogTitle} ${h1}`),
+    `${page.url}: global title, Open Graph title or H1 has school-only positioning`,
+  );
+}
+for (const page of pages.filter((item) => item.creatableRoute === false)) {
+  const html = readFileSync(page.file, 'utf8');
+  expect(
+    !unavailableCopy.test(html),
+    `${page.url}: module is described as future or in development`,
+  );
+}
+expect(
+  !schoolOnlyPositioning.test(publicEntrySource) && !schoolOnlyPositioning.test(readme),
+  'public entry UI or README still defines ASA Lab as a school-only product',
+);
+expect(
+  !unavailableCopy.test(publicEntrySource) && !unavailableCopy.test(readme),
+  'public entry UI or README still describes a module as future or in development',
+);
+const capabilitySection = publicEntrySource
+  .split('id="capabilities"')[1]
+  ?.split('id="teachers"')[0];
+expect(
+  capabilitySection?.indexOf('Блочное программирование') <
+    capabilitySection?.indexOf('Классы и задания'),
+  'public entry capability cards must put project tools before classes and assignments',
+);
 expect(rootHtml.includes('"@type": "Organization"'), 'root JSON-LD has no Organization entity');
 expect(rootHtml.includes('"@type": "WebSite"'), 'root JSON-LD has no WebSite entity');
 expect(
   rootHtml.includes('"@type": "SoftwareApplication"'),
   'root JSON-LD has no SoftwareApplication entity',
+);
+const rootJsonLd = captures(
+  rootHtml,
+  /<script\s+type="application\/ld\+json">([\s\S]*?)<\/script>/gi,
+).map((block) => JSON.parse(block));
+const rootGraph = rootJsonLd.flatMap((entry) => entry['@graph'] ?? [entry]);
+const rootApplication = rootGraph.find((entry) => entry['@type'] === 'SoftwareApplication');
+expect(rootApplication, 'root JSON-LD SoftwareApplication entity cannot be parsed');
+expect(
+  !rootApplication?.audience,
+  'root JSON-LD must not narrow the product to an educational audience',
+);
+expect(
+  rootApplication?.applicationCategory !== 'EducationalApplication',
+  'root JSON-LD applicationCategory still defines ASA Lab only as educational software',
+);
+const featureList = rootApplication?.featureList ?? [];
+expect(
+  featureList.includes('Блочное программирование') && featureList.includes('Рисование и черчение'),
+  'root JSON-LD omits block programming or drawing and drafting',
+);
+expect(
+  featureList.at(-1)?.includes('Классы и задания'),
+  'root JSON-LD must list classes and assignments after the core tools',
 );
 expect(
   rootHtml
@@ -271,9 +334,11 @@ for (const value of captures(sitemap, /<lastmod>([^<]+)<\/lastmod>/g)) {
 
 const robots = readFileSync(resolve(publicRoot, 'robots.txt'), 'utf8');
 expect(robots.includes('Sitemap: https://asa-lab.ru/sitemap.xml'), 'robots.txt has no sitemap');
+const defaultRobotsGroup = robots.split(/User-agent:\s*OAI-SearchBot/i)[0];
 expect(
-  robots.includes('Disallow: /max-login'),
-  'robots.txt does not exclude the login application',
+  !defaultRobotsGroup.includes('Disallow: /projects/') &&
+    !defaultRobotsGroup.includes('Disallow: /max-login'),
+  'default crawler group blocks application routes before it can observe X-Robots-Tag noindex',
 );
 expect(robots.includes('User-agent: OAI-SearchBot'), 'robots.txt does not name OAI-SearchBot');
 expect(robots.includes('User-agent: GPTBot\nDisallow: /'), 'robots.txt does not exclude training');
@@ -284,9 +349,12 @@ const llms = readFileSync(resolve(publicRoot, 'llms.txt'), 'utf8');
 for (const page of pages.slice(1)) {
   expect(llms.includes(page.url), `llms.txt is missing ${page.url}`);
 }
+expect(!schoolOnlyPositioning.test(llms), 'llms.txt defines ASA Lab as a school-only product');
+expect(!unavailableCopy.test(llms), 'llms.txt describes a module as future or in development');
 expect(
-  llms.includes('are in development') && llms.includes('are not yet creatable'),
-  'llms.txt must disclose non-creatable block programming and drawing modules',
+  /personal projects|creating personal projects/i.test(llms) &&
+    /classes and assignments are an optional way/i.test(llms),
+  'llms.txt does not make personal projects primary and classes secondary',
 );
 
 const caddy = readFileSync(resolve(root, 'docker', 'web', 'Caddyfile'), 'utf8');
