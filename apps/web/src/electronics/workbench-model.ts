@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { SchematicComponent, SchematicDocument, Terminal } from '../api';
-import { catalogEntry } from './component-catalog';
-import { physicalToWorld } from './production-asset-contracts';
+import { catalogEntry, renderedSize } from './component-catalog';
 import type { Point, Viewport } from './workbench-geometry';
 
 export const STAGE_WIDTH = 1600;
@@ -129,17 +128,16 @@ export function initials(name: string): string {
 export function componentTransform(component: SchematicComponent): string {
   const entry = catalogEntry(component);
   if (!entry) return `translate(${component.position.x} ${component.position.y})`;
-  const { width: baseWidth, height: baseHeight } = physicalToWorld(entry.physicalSizeMm);
+  const baseSize = renderedSize(entry, 0);
   const rotation = component.rotation ?? 0;
-  const renderedWidth = rotation % 180 === 0 ? baseWidth : baseHeight;
-  const renderedHeight = rotation % 180 === 0 ? baseHeight : baseWidth;
+  const rendered = renderedSize(entry, rotation);
   const mirrorX = component.stateProperties?.['mirrorX'] === true ? -1 : 1;
   const mirrorY = component.stateProperties?.['mirrorY'] === true ? -1 : 1;
   return [
-    `translate(${component.position.x + renderedWidth / 2} ${component.position.y + renderedHeight / 2})`,
+    `translate(${component.position.x + rendered.width / 2} ${component.position.y + rendered.height / 2})`,
     `rotate(${rotation})`,
     `scale(${mirrorX} ${mirrorY})`,
-    `translate(${-baseWidth / 2} ${-baseHeight / 2})`,
+    `translate(${-baseSize.width / 2} ${-baseSize.height / 2})`,
   ].join(' ');
 }
 

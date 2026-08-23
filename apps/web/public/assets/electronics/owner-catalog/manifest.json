@@ -29921,19 +29921,19 @@
       "previousInventoryClassification": "owner_supplied"
     },
     {
-      "componentId": "piezo",
+      "componentId": "piezo-passive-buzzer",
       "familyId": "piezo",
       "familyLabelRu": "Пьезоэлемент",
       "familyLabelEn": "Piezo element",
-      "variantId": "piezo",
-      "variantLabelRu": "Пьезо",
-      "variantLabelEn": "Piezo element",
+      "variantId": "piezo-passive-buzzer",
+      "variantLabelRu": "Закрытый корпус",
+      "variantLabelEn": "Enclosed buzzer",
       "category": "output",
       "subcategoryId": "sound",
       "catalogOrder": 28,
-      "appearsInBasic": false,
-      "searchAliases": ["piezo", "Пьезоэлемент", "Piezo element"],
-      "displayNameEn": "Piezo element",
+      "appearsInBasic": true,
+      "searchAliases": ["piezo", "пьезо", "пассивный зуммер", "buzzer", "passive buzzer"],
+      "displayNameEn": "Passive piezo buzzer",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 22.133,
       "physicalHeightMm": 22,
@@ -29969,9 +29969,9 @@
         "active": "boolean",
         "driver": "simulation_state"
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "passive_piezo_arduino_tone_v1",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
@@ -29983,8 +29983,76 @@
       "sourceSha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
       "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/piezo.svg",
       "runtimeSha256": "e6ad834fd09e14bffaede832b7b7501dfe34e4b5849f3e5c09e854bec57e6d96",
-      "status": "disabled_missing_model",
+      "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
+    },
+    {
+      "componentId": "piezo-disc",
+      "familyId": "piezo",
+      "familyLabelRu": "Пьезоэлемент",
+      "familyLabelEn": "Piezo element",
+      "variantId": "piezo-disc",
+      "variantLabelRu": "Открытый диск",
+      "variantLabelEn": "Open piezo disc",
+      "category": "output",
+      "subcategoryId": "sound",
+      "catalogOrder": 28.1,
+      "appearsInBasic": true,
+      "searchAliases": ["piezo", "пьезодиск", "пьезопластина", "piezo disc"],
+      "displayNameEn": "Open piezo disc",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 24,
+      "physicalHeightMm": 24,
+      "viewBox": [0, 0, 240, 240],
+      "assetFit": "meet",
+      "pins": [
+        {
+          "id": "positive",
+          "xMm": 8.8,
+          "yMm": 19.6,
+          "electricalRole": "positive",
+          "toleranceMm": 0
+        },
+        {
+          "id": "negative",
+          "xMm": 15.6,
+          "yMm": 19.6,
+          "electricalRole": "negative",
+          "toleranceMm": 0
+        }
+      ],
+      "footprint": null,
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "simulation_state",
+          "decorativeLoop": false,
+          "channels": ["frequencyHz", "soundLevel"]
+        }
+      ],
+      "stateContract": {
+        "type": "passive_piezo",
+        "frequencyHz": [20, 20000],
+        "soundLevel": [0, 1],
+        "driver": "arduino_tone_or_digital_toggle"
+      },
+      "simulationSupport": "passive_piezo_arduino_tone_v1",
+      "blockReason": null,
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": false,
+      "displayName": "Пьезодиск",
+      "sourceOwnerArchive": "owner-upload-2026-08-23",
+      "sourceOwnerPath": "piezo-disc-v3.svg",
+      "sourceSha256": "449d64bb59ca5de6cfc3518bf4f43ca6f29457e239eb4b34c8c4b7e5f0d50632",
+      "runtimePath": "/assets/electronics/owner-approved/piezo-disc-v3.svg",
+      "runtimeSha256": "449d64bb59ca5de6cfc3518bf4f43ca6f29457e239eb4b34c8c4b7e5f0d50632",
+      "status": "enabled",
+      "previousInventoryClassification": "owner_supplied"
     },
     {
       "componentId": "multimeter",

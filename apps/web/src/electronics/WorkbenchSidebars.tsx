@@ -254,6 +254,52 @@ export function WorkbenchSidebars({
                         </span>
                       ) : null}
                     </button>
+                    {family.variants.length > 1 ? (
+                      <button
+                        type="button"
+                        className="workbench-catalog-variants"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          c.toggleLibraryVariantPopover(family.familyId);
+                        }}
+                        aria-label={`Выбрать вариант: ${family.familyLabel}`}
+                        aria-expanded={c.libraryVariantPopover === family.familyId}
+                      >
+                        Варианты: {family.variants.length}
+                        <span aria-hidden="true">⌄</span>
+                      </button>
+                    ) : null}
+                    {c.libraryVariantPopover === family.familyId ? (
+                      <div
+                        className="workbench-variant-popover"
+                        onPointerDown={(event) => event.stopPropagation()}
+                      >
+                        <strong>Выберите вариант</strong>
+                        <div className="workbench-variant-options">
+                          {family.variants.map((variant) => (
+                            <button
+                              type="button"
+                              key={variant.variantId}
+                              className={
+                                selectedVariant.variantId === variant.variantId ? 'selected' : ''
+                              }
+                              disabled={!variant.enabled}
+                              onClick={() => {
+                                c.setLibraryVariant(family.familyId, variant.variantId);
+                                c.setLibraryVariantPopover(null);
+                              }}
+                            >
+                              {projectVariantLabel(
+                                family.familyId,
+                                variant.variantId,
+                                variant.variantLabel,
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
@@ -356,6 +402,24 @@ export function WorkbenchSidebars({
                     {helpOpen
                       ? 'Подробные выводы раскрыты ниже.'
                       : 'Нажмите ?, чтобы раскрыть выводы и измерения.'}
+                  </small>
+                </div>
+              ) : null}
+              {c.selectedComponent.kind === 'piezo' ? (
+                <div className="workbench-piezo-summary" data-testid="piezo-runtime-summary">
+                  <strong>
+                    {c.resultByComponent.get(c.selectedComponent.id)?.energized
+                      ? 'Звук воспроизводится'
+                      : 'Нет переменного сигнала'}
+                  </strong>
+                  <span>
+                    Частота:{' '}
+                    {Math.round(c.resultByComponent.get(c.selectedComponent.id)?.frequencyHz ?? 0)}{' '}
+                    Гц
+                  </span>
+                  <small>
+                    Пассивный пьезоэлемент звучит от tone() или быстрого переключения вывода, но не
+                    от постоянного уровня.
                   </small>
                 </div>
               ) : null}

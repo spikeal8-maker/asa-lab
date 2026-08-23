@@ -257,6 +257,44 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  # Owner-activated ASA Learning M0 state-convergence lane. The repository
+  # task id follows the control-plane schema; its first and only active Work
+  # Queue item is LRN-M0-001. M1-M7 remain outside this activation.
+  - id: learning
+    worktree_id: learning-m0-state-convergence
+    owned_paths:
+      - docs/product/learning/**
+    task:
+      id: TASK-LEARNING-M0-001
+      issue: 136
+      branch: agent/learning-m0-state-convergence
+      base_branch: main
+      pr: 137
+      pr_draft: false
+      status: done
+      checkpoint: lrn_m0_001_done
+      owner_acceptance: accepted
+    revisions:
+      convergence_baseline_sha: cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef
+      head_sha: 301416349b8e79d806076f4d610488b881185e13
+      owner_accepted_sha: 7040169ba3c783d853bd47c9101968a9e2af0933
+      product_merge_sha: 7040169ba3c783d853bd47c9101968a9e2af0933
+    execution_lease:
+      executor_id: codex-learning-m0
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+
 integration:
   owner_lane: admin-auth
   shared_paths:

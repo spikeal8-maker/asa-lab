@@ -11,6 +11,7 @@ export type ElectricalModelId =
   | 'spdt-switch'
   | 'potentiometer'
   | 'photoresistor'
+  | 'passive-piezo'
   | 'diode'
   | 'npn-transistor'
   | 'incandescent-lamp'
@@ -113,6 +114,13 @@ const MODELS: Readonly<Record<ComponentKind, ElectricalModelDescriptor>> = {
     support: 'supported',
     topology: 'two-terminal',
     requiredTerminals: ['a', 'b'],
+  },
+  piezo: {
+    id: 'passive-piezo',
+    kind: 'piezo',
+    support: 'supported',
+    topology: 'two-terminal',
+    requiredTerminals: ['positive', 'negative'],
   },
   diode: {
     id: 'diode',

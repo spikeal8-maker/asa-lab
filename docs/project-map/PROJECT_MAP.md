@@ -20,6 +20,21 @@ checkpoint production_restart_verified_max_secret_pending
 execution direct_main
 ```
 
+## Parallel ASA Learning M0 lane
+
+The owner activated `TASK-LEARNING-M0-001` as the control-plane wrapper for
+Work Queue task `LRN-M0-001 — Current Learning Architecture Audit`; PR #137
+merged its evidence and the task is done. The primary Admin/Auth task remains
+active and unchanged. The next Work Queue task is not activated. Learning M0
+does not authorize migrations, product runtime changes, learner-identity
+decisions, UI/Gradebook fixes or M1-M7 work without a new owner transition.
+
+The CURRENT repository already contains course, direct-assignment, quiz,
+attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,
+`CTX-ACTIVITIES` and `CTX-ASSESSMENT` are no longer labelled as future-only;
+M0 exists to document and reconcile their parallel sources of truth before any
+new architecture is selected.
+
 The owner activated an independent educational Russian-draughts system. 3D M0
 is preserved in `main` after PR #95 and remains outside the Checkers writable
 scope. Electronics PR #92 stays paused; Chess remains a separate subject module.

@@ -831,6 +831,7 @@ export type ComponentKind =
   | 'switch'
   | 'potentiometer'
   | 'photoresistor'
+  | 'piezo'
   | 'diode'
   | 'transistor'
   | 'lamp'
@@ -852,7 +853,7 @@ export interface SchematicComponent {
   variantId?: string;
   position: { x: number; y: number };
   value: number;
-  rotation?: 0 | 90 | 180 | 270;
+  rotation?: 0 | 45 | 90 | 135 | 180 | 225 | 270 | 315;
   name?: string;
   state?: boolean;
   wiperPosition?: number;
@@ -907,6 +908,8 @@ export interface ComponentResult {
   baseCurrent?: number;
   collectorCurrent?: number;
   emitterCurrent?: number;
+  frequencyHz?: number;
+  soundLevel?: number;
 }
 
 export interface SolveResult {

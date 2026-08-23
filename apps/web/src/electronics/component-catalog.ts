@@ -41,6 +41,13 @@ const RGB_PIN_LAYOUTS: Readonly<Record<string, readonly string[]>> = {
   BRCG: ['blue', 'red', 'common', 'green'],
 };
 
+function stableTrig(value: number): number {
+  if (Math.abs(value) < 1e-12) return 0;
+  if (Math.abs(value - 1) < 1e-12) return 1;
+  if (Math.abs(value + 1) < 1e-12) return -1;
+  return value;
+}
+
 export interface CatalogVariant {
   readonly variantId: string;
   readonly variantLabel: string;
@@ -325,17 +332,27 @@ export function componentPointPosition(
   const py =
     component?.stateProperties?.['mirrorY'] === true ? baseHeight - originalPy : originalPy;
   const normalized = ((rotation % 360) + 360) % 360;
-  if (normalized === 90) return { x: origin.x + baseHeight - py, y: origin.y + px };
-  if (normalized === 180) return { x: origin.x + baseWidth - px, y: origin.y + baseHeight - py };
-  if (normalized === 270) return { x: origin.x + py, y: origin.y + baseWidth - px };
-  return { x: origin.x + px, y: origin.y + py };
+  const radians = (normalized * Math.PI) / 180;
+  const cos = stableTrig(Math.cos(radians));
+  const sin = stableTrig(Math.sin(radians));
+  const rendered = renderedSize(entry, normalized);
+  const relativeX = px - baseWidth / 2;
+  const relativeY = py - baseHeight / 2;
+  return {
+    x: origin.x + rendered.width / 2 + relativeX * cos - relativeY * sin,
+    y: origin.y + rendered.height / 2 + relativeX * sin + relativeY * cos,
+  };
 }
 
 export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number; height: number } {
   const original = physicalToWorld(entry.physicalSizeMm);
-  return Math.abs(rotation % 180) === 90
-    ? { width: original.height, height: original.width }
-    : original;
+  const radians = ((((rotation % 360) + 360) % 360) * Math.PI) / 180;
+  const cos = Math.abs(stableTrig(Math.cos(radians)));
+  const sin = Math.abs(stableTrig(Math.sin(radians)));
+  return {
+    width: original.width * cos + original.height * sin,
+    height: original.width * sin + original.height * cos,
+  };
 }
 
 export function terminalPosition(
@@ -357,6 +374,7 @@ export function terminalPosition(
     switch: { a: 'common', b: component?.state === true ? 'throw-right' : 'throw-left' },
     potentiometer: { a: 'terminal-1', b: 'terminal-2', wiper: 'wiper' },
     diode: { a: 'anode', b: 'cathode' },
+    piezo: { a: 'positive', b: 'negative' },
     lamp: { a: 'L1', b: 'L2' },
   };
   const resolved = entry?.terminals[terminal]

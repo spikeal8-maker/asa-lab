@@ -83,7 +83,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).not.toContain('workbench-family-variant-label');
     expect(sidebarSource).not.toContain('<small>В разработке</small>');
     expect(sidebarSource).not.toContain('workbench-catalog-blocked');
-    expect(sidebarSource).not.toContain('workbench-variant-popover');
+    expect(sidebarSource).toContain('workbench-catalog-variants');
+    expect(sidebarSource).toContain('workbench-variant-popover');
+    expect(sidebarSource).toContain('c.toggleLibraryVariantPopover(family.familyId)');
+    expect(sidebarSource).toContain('c.setLibraryVariant(family.familyId, variant.variantId)');
     expect(sidebarSource).toContain('workbench-catalog-copy');
     expect(sidebarSource).toContain('selectedVariant.entry.description');
     expect(sidebarSource).toContain('c.beginFamilyPlacement(family.familyId)');

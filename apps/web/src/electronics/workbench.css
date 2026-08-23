@@ -483,6 +483,59 @@
   display: block;
   overflow: visible;
 }
+.workbench-piezo-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #d4e3eb;
+  border-radius: 4px;
+  background: #f5fbfe;
+  color: #344f5f;
+}
+.workbench-piezo-summary small {
+  color: #687b87;
+  line-height: 1.35;
+}
+.workbench-piezo-visual.is-sounding > image {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: workbench-piezo-vibrate 72ms ease-in-out infinite alternate;
+}
+.workbench-piezo-waves path {
+  fill: none;
+  stroke: #3184a4;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  animation: workbench-piezo-wave 560ms ease-out infinite;
+}
+.workbench-piezo-waves path:nth-child(2) {
+  animation-delay: 140ms;
+}
+@keyframes workbench-piezo-vibrate {
+  from {
+    transform: translateX(-0.45px) rotate(-0.18deg);
+  }
+  to {
+    transform: translateX(0.45px) rotate(0.18deg);
+  }
+}
+@keyframes workbench-piezo-wave {
+  from {
+    opacity: 0.25;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-piezo-visual.is-sounding > image,
+  .workbench-piezo-waves path {
+    animation: none;
+  }
+}
 .workbench-breadboard-hole {
   fill: #1596ce;
   stroke: #fff;
@@ -929,6 +982,28 @@
 }
 .workbench-catalog-add:disabled {
   cursor: default;
+}
+.workbench-catalog-variants {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 21px;
+  padding: 2px 5px;
+  border: 1px solid #cbd6dc;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #3c5a6c;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.workbench-catalog-variants:hover,
+.workbench-catalog-variants[aria-expanded='true'] {
+  border-color: #1596ce;
+  color: #136d94;
 }
 .workbench-catalog-name {
   display: -webkit-box;

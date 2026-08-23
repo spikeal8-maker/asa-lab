@@ -194,6 +194,14 @@ export function ProductionComponentVisual({
     simulationRunning &&
     ((simulationTimeMs >= 300 && simulationTimeMs < 420) ||
       (simulationTimeMs >= 740 && simulationTimeMs < 860));
+  const piezoFrequencyHz = entry.familyId === 'piezo' ? Number(result?.frequencyHz ?? 0) : 0;
+  const piezoSoundLevel = entry.familyId === 'piezo' ? Number(result?.soundLevel ?? 0) : 0;
+  const piezoActive =
+    entry.familyId === 'piezo' &&
+    simulationRunning &&
+    result?.energized === true &&
+    piezoFrequencyHz >= 20 &&
+    piezoSoundLevel > 0;
   const usesMeasuredTinkercadGeometry = [
     'resistor-axial',
     'diode-do35',
@@ -209,7 +217,11 @@ export function ProductionComponentVisual({
               visualState === 'reverse' ? ' is-reverse' : ''
             }`
           : ''
-      }${entry.key === 'rgb-led' ? ` workbench-rgb-led-visual${rgbIsLit ? ' is-lit' : ''}` : ''}`}
+      }${entry.key === 'rgb-led' ? ` workbench-rgb-led-visual${rgbIsLit ? ' is-lit' : ''}` : ''}${
+        entry.familyId === 'piezo'
+          ? ` workbench-piezo-visual${piezoActive ? ' is-sounding' : ''}`
+          : ''
+      }`}
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -222,6 +234,8 @@ export function ProductionComponentVisual({
       data-rgb-blue={entry.key === 'rgb-led' ? Math.round(rgbBlue) : undefined}
       data-rgb-colour={entry.key === 'rgb-led' ? rgbColour : undefined}
       data-rgb-runtime-state={rgbRuntimeState}
+      data-piezo-frequency={entry.familyId === 'piezo' ? piezoFrequencyHz : undefined}
+      data-piezo-sounding={entry.familyId === 'piezo' ? String(piezoActive) : undefined}
       style={
         rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
       }
@@ -569,6 +583,21 @@ export function ProductionComponentVisual({
           pointerEvents="none"
         />
       )}
+
+      {entry.familyId === 'piezo' ? (
+        <g
+          className="workbench-piezo-waves"
+          data-testid="piezo-sound-waves"
+          opacity={piezoActive ? 1 : 0}
+          transform={`translate(${width * 0.76} ${height * 0.28})`}
+          pointerEvents="none"
+        >
+          <path d={`M0 0 Q${width * 0.09} ${height * 0.08} 0 ${height * 0.16}`} />
+          <path
+            d={`M${width * 0.06} ${-height * 0.04} Q${width * 0.19} ${height * 0.08} ${width * 0.06} ${height * 0.2}`}
+          />
+        </g>
+      ) : null}
 
       {entry.key === 'rgb-led' ? (
         <ellipse

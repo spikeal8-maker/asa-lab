@@ -9,6 +9,7 @@ export type ComponentKind =
   | 'switch'
   | 'potentiometer'
   | 'photoresistor'
+  | 'piezo'
   | 'diode'
   | 'transistor'
   | 'lamp'
@@ -16,7 +17,7 @@ export type ComponentKind =
   | 'visual'
   | 'wire';
 export type Terminal = string;
-export type Rotation = 0 | 90 | 180 | 270;
+export type Rotation = 0 | 45 | 90 | 135 | 180 | 225 | 270 | 315;
 export type ProductionStateValue = string | number | boolean | readonly string[];
 
 export interface ComponentPosition {
@@ -98,6 +99,7 @@ const KINDS: readonly ComponentKind[] = [
   'switch',
   'potentiometer',
   'photoresistor',
+  'piezo',
   'diode',
   'transistor',
   'lamp',
@@ -105,7 +107,7 @@ const KINDS: readonly ComponentKind[] = [
   'visual',
   'wire',
 ];
-const ROTATIONS = new Set([0, 90, 180, 270]);
+const ROTATIONS = new Set<Rotation>([0, 45, 90, 135, 180, 225, 270, 315]);
 const MAX_COMPONENTS = 300;
 const MAX_CONNECTIONS = 800;
 const MAX_WIRE_VERTICES = 48;
@@ -208,9 +210,9 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     }
     if (
       rotation !== undefined &&
-      (!Number.isInteger(rotation) || !ROTATIONS.has(rotation as number))
+      (!Number.isInteger(rotation) || !ROTATIONS.has(rotation as Rotation))
     ) {
-      return { ok: false, message: 'component rotation must be 0, 90, 180 or 270' };
+      return { ok: false, message: 'component rotation must use 45-degree steps' };
     }
     if (name !== undefined && (typeof name !== 'string' || name.length > 120)) {
       return { ok: false, message: 'component name must be at most 120 characters' };

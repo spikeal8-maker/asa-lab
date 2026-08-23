@@ -11,6 +11,7 @@ import {
 import { WORLD_UNITS_PER_MM } from '../production-asset-contracts';
 import {
   configureProductionLibrary,
+  defaultProductionType,
   productionBreadboard,
   productionCatalog,
   type OwnerCatalogManifest,
@@ -59,6 +60,8 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'transistor-pnp': [5.79, 9.6371],
   'transistor-fet': [5.79, 9.6371],
   'arduino-uno': [78.74, 58.816875],
+  'piezo-passive-buzzer': [22.133, 22],
+  'piezo-disc': [24, 24],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -265,6 +268,16 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(families.find((family) => family.familyId === 'breadboard')?.defaultVariantId).toBe(
       'breadboard-medium',
     );
+    expect(families.find((family) => family.familyId === 'piezo')).toMatchObject({
+      defaultVariantId: 'piezo-passive-buzzer',
+      enabled: true,
+    });
+    expect(
+      families
+        .find((family) => family.familyId === 'piezo')
+        ?.variants.map((variant) => variant.variantId),
+    ).toEqual(['piezo-passive-buzzer', 'piezo-disc']);
+    expect(defaultProductionType('piezo')).toBe('piezo-passive-buzzer');
     expect(
       families
         .find((family) => family.familyId === 'diode')
