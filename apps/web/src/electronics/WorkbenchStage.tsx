@@ -531,15 +531,21 @@ export function WorkbenchStage({
                     <foreignObject
                       className="workbench-photoresistor-control-object"
                       data-testid="photoresistor-light-control"
-                      x={(baseSize.width - 150) / 2}
-                      y={-52}
-                      width={150}
-                      height={44}
+                      x={(baseSize.width - 180) / 2}
+                      y={-62}
+                      width={180}
+                      height={54}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <label className="workbench-photoresistor-control">
                         <span className="workbench-photoresistor-level" aria-hidden="true" />
+                        <output>
+                          {Math.round(
+                            Number(component.stateProperties?.['illumination'] ?? 0.5) * 100,
+                          )}
+                          %
+                        </output>
                         <input
                           aria-label="Освещённость фоторезистора"
                           type="range"
@@ -560,12 +566,6 @@ export function WorkbenchStage({
                           <circle cx="12" cy="12" r="4" />
                           <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
                         </svg>
-                        <output>
-                          {Math.round(
-                            Number(component.stateProperties?.['illumination'] ?? 0.5) * 100,
-                          )}
-                          %
-                        </output>
                       </label>
                     </foreignObject>
                   ) : null}

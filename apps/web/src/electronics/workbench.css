@@ -2539,30 +2539,31 @@
 }
 .workbench-photoresistor-control {
   box-sizing: border-box;
-  width: 150px;
-  height: 38px;
-  padding: 6px 8px;
+  width: 180px;
+  height: 48px;
   display: grid;
-  grid-template-columns: 13px minmax(0, 1fr) 24px 28px;
+  grid-template-columns: 14px minmax(0, 1fr) 26px;
+  grid-template-rows: 18px 26px;
   align-items: center;
-  gap: 6px;
-  border: 1px solid #aeb5bc;
-  border-radius: 19px;
-  background: #f8f9fa;
+  column-gap: 6px;
+  row-gap: 0;
   color: #32363a;
-  box-shadow: 0 3px 9px rgba(35, 42, 47, 0.22);
   cursor: default;
   font:
     600 11px/1 system-ui,
     sans-serif;
 }
 .workbench-photoresistor-level {
+  grid-column: 1;
+  grid-row: 2;
   width: 12px;
   height: 12px;
   border-radius: 50%;
   background: #35383b;
 }
 .workbench-photoresistor-control input {
+  grid-column: 2;
+  grid-row: 2;
   width: 100%;
   min-width: 0;
   margin: 0;
@@ -2570,6 +2571,8 @@
   cursor: ew-resize;
 }
 .workbench-photoresistor-control svg {
+  grid-column: 3;
+  grid-row: 2;
   width: 24px;
   height: 24px;
   fill: none;
@@ -2581,8 +2584,13 @@
   fill: none;
 }
 .workbench-photoresistor-control output {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  line-height: 18px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
 }
 
 /* Tinkercad-style detailed catalog rows contain useful component information. */
