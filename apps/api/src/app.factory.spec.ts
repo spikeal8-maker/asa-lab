@@ -1,12 +1,20 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import { createApiApp, shouldServeSpaDocument } from './app.factory.js';
 
 const apps: Array<Awaited<ReturnType<typeof createApiApp>>> = [];
+const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   while (apps.length > 0) {
     await apps.pop()?.close();
+  }
+  while (temporaryDirectories.length > 0) {
+    const directory = temporaryDirectories.pop();
+    if (directory) await rm(directory, { recursive: true, force: true });
   }
 });
 
@@ -19,6 +27,34 @@ describe('API application factory', () => {
     expect(shouldServeSpaDocument('/features/unknown-product-page')).toBe(false);
     expect(shouldServeSpaDocument('/definitely-not-a-page')).toBe(false);
     expect(shouldServeSpaDocument('/api/unknown')).toBe(false);
+  });
+
+  it('marks application documents noindex while preserving the public root and real 404s', async () => {
+    const webDist = await mkdtemp(join(tmpdir(), 'asa-lab-seo-routes-'));
+    temporaryDirectories.push(webDist);
+    await writeFile(
+      join(webDist, 'index.html'),
+      '<!doctype html><html><body>ASA Lab</body></html>',
+    );
+
+    const app = await createApiApp({ pool: null, webDist });
+    apps.push(app);
+    const fastify = app.getHttpAdapter().getInstance();
+
+    const root = await fastify.inject({ method: 'GET', url: '/' });
+    expect(root.statusCode).toBe(200);
+    expect(root.headers['x-robots-tag']).toBeUndefined();
+
+    for (const url of ['/max-login', '/projects/project-1/electronics/edit']) {
+      const applicationRoute = await fastify.inject({ method: 'GET', url });
+      expect(applicationRoute.statusCode).toBe(200);
+      expect(applicationRoute.headers['x-robots-tag']).toBe('noindex, nofollow');
+    }
+
+    const unknownPublic = await fastify.inject({ method: 'GET', url: '/not-a-real-page' });
+    expect(unknownPublic.statusCode).toBe(404);
+    const unknownApi = await fastify.inject({ method: 'GET', url: '/api/not-a-real-endpoint' });
+    expect(unknownApi.statusCode).toBe(404);
   });
 
   it('constructs a health-only app without a database and reports 503 readiness', async () => {
