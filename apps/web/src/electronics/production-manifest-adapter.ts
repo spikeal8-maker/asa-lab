@@ -163,6 +163,7 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
   button: 'button-tactile-6mm',
   switch: 'switch-spdt',
   potentiometer: 'potentiometer',
+  photoresistor: 'photoresistor',
   diode: 'diode-do35',
   lamp: 'incandescent-lamp',
 };
@@ -181,6 +182,7 @@ const SIMULATED_TYPES = new Set([
   'button-tactile-6mm',
   'switch-spdt',
   'potentiometer',
+  'photoresistor',
   'diode-do35',
   'diode-do41',
   'transistor-npn',
@@ -227,6 +229,7 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (componentId === 'button-tactile-6mm') return 'button';
   if (componentId === 'switch-spdt') return 'switch';
   if (componentId === 'potentiometer') return 'potentiometer';
+  if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId.startsWith('diode-')) return 'diode';
   if (componentId.startsWith('transistor-')) return 'transistor';
   if (componentId === 'incandescent-lamp') return 'lamp';
@@ -313,6 +316,12 @@ function defaults(componentId: string): {
       unit: 'Ом',
       wiperPosition: 0.5,
       properties: { resistanceUnit: 'kΩ' },
+    };
+  if (componentId === 'photoresistor')
+    return {
+      value: 31_622.776601683792,
+      unit: 'Ом',
+      properties: { illumination: 0.5, resistanceUnit: 'kΩ' },
     };
   if (componentId.startsWith('diode-')) return { value: 0.7, unit: 'В', properties: {} };
   if (componentId === 'transistor-npn' || componentId === 'transistor-pnp')

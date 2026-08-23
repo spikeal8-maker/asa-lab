@@ -107,10 +107,10 @@
     },
     {
       "componentId": "photoresistor",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/photoresistor.svg",
-      "sha256": "8e35a05c98393686de51247b7c1a8efb69290f93e2530fec012b60a20c304d87",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-upload-2026-08-23",
+      "sourceFile": "photoresistor_component_transparent.svg",
+      "sha256": "9d4ad8754adfffd7a824d324ea7ed2ed7dee3587dd0f2509ecaf68b685b5936b",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "piezo",
@@ -29623,30 +29623,36 @@
       "category": "sensors",
       "subcategoryId": "light-sensors",
       "catalogOrder": 26,
-      "appearsInBasic": false,
+      "appearsInBasic": true,
       "searchAliases": ["photoresistor", "Фоторезистор", "Photoresistor"],
       "displayNameEn": "Photoresistor",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 8.133,
-      "physicalHeightMm": 12.133,
-      "viewBox": [0, 0, 8.133, 12.133],
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 10.2973,
+      "physicalHeightMm": 12.1508,
+      "viewBox": [0, 0, 150, 177],
       "pins": [
         {
           "id": "lead-1",
-          "xMm": 4.9873,
-          "yMm": 10.3829,
+          "xMm": 6.7447,
+          "yMm": 10.0914,
           "electricalRole": "lead-1",
           "toleranceMm": 0
         },
         {
           "id": "lead-2",
-          "xMm": 2.735,
-          "yMm": 10.3829,
+          "xMm": 4.2047,
+          "yMm": 10.0914,
           "electricalRole": "lead-2",
           "toleranceMm": 0
         }
       ],
-      "footprint": null,
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [-2.54, 0]
+        ]
+      },
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -29660,21 +29666,21 @@
         "type": "sensor_input",
         "illumination": [0, 1]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "photoresistor_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "metadataOnlyProof": {
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
       "isDefaultVariant": true,
       "displayName": "Фоторезистор",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/photoresistor.svg",
-      "sourceSha256": "8e35a05c98393686de51247b7c1a8efb69290f93e2530fec012b60a20c304d87",
-      "runtimePath": "/assets/electronics/owner-audit/components/reference-candidates/photoresistor.svg",
-      "runtimeSha256": "8e35a05c98393686de51247b7c1a8efb69290f93e2530fec012b60a20c304d87",
-      "status": "disabled_missing_model",
+      "sourceOwnerArchive": "owner-upload-2026-08-23",
+      "sourceOwnerPath": "photoresistor_component_transparent.svg",
+      "sourceSha256": "9d4ad8754adfffd7a824d324ea7ed2ed7dee3587dd0f2509ecaf68b685b5936b",
+      "runtimePath": "/assets/electronics/owner-approved/photoresistor_component_transparent.svg",
+      "runtimeSha256": "9d4ad8754adfffd7a824d324ea7ed2ed7dee3587dd0f2509ecaf68b685b5936b",
+      "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
@@ -30079,6 +30085,14 @@
         [0, 0],
         [5.08, 0],
         [2.54, 0]
+      ]
+    },
+    {
+      "componentId": "photoresistor",
+      "kind": "inline",
+      "pinOffsetsMm": [
+        [0, 0],
+        [-2.54, 0]
       ]
     },
     {

@@ -33,6 +33,7 @@ describe('owner SVG runtime catalog adapter', () => {
       'battery-9v',
       'diode-do35',
       'diode-do41',
+      'photoresistor',
       'seven-segment-display',
       'transistor-npn',
       'transistor-pnp',

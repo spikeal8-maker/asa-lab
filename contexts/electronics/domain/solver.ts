@@ -5,6 +5,7 @@ import {
   type Terminal,
 } from './document.js';
 import { arduinoOutputBranches, isArduinoUno } from './arduino-model.js';
+import { photoresistorResistanceOhm } from './photoresistor-model.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import {
   unsupportedElectricalComponents,
@@ -383,7 +384,8 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
     const negative = component.pinIds?.includes('BAT-') ? 'BAT-' : 'negative';
     return terminal === 'a' ? positive : negative;
   }
-  if (component.kind === 'resistor') return terminal === 'a' ? 'lead-1' : 'lead-2';
+  if (component.kind === 'resistor' || component.kind === 'photoresistor')
+    return terminal === 'a' ? 'lead-1' : 'lead-2';
   if (component.kind === 'led' || component.kind === 'diode') {
     return terminal === 'a' ? 'anode' : 'cathode';
   }
@@ -820,6 +822,8 @@ export function solveCircuit(
       const b = nodeIndex(component, 'b');
       if (component.kind === 'resistor') {
         stampConductance(a, b, 1 / Math.max(CLOSED_RESISTANCE, component.value));
+      } else if (component.kind === 'photoresistor') {
+        stampConductance(a, b, 1 / photoresistorResistanceOhm(component));
       } else if (component.kind === 'lamp') {
         stampConductance(a, b, 1 / component.value);
       } else if (component.kind === 'switch') {
@@ -1213,6 +1217,8 @@ export function solveCircuit(
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
       else if (component.kind === 'resistor')
         current = voltageDrop / Math.max(CLOSED_RESISTANCE, component.value);
+      else if (component.kind === 'photoresistor')
+        current = voltageDrop / photoresistorResistanceOhm(component);
       else if (component.kind === 'lamp') current = voltageDrop / component.value;
       else if (component.kind === 'switch')
         current = component.componentTypeId

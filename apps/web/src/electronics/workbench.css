@@ -2534,6 +2534,56 @@
 .workbench-potentiometer-hit:active {
   cursor: grabbing;
 }
+.workbench-photoresistor-control-object {
+  overflow: visible;
+}
+.workbench-photoresistor-control {
+  box-sizing: border-box;
+  width: 150px;
+  height: 38px;
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) 24px 28px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #aeb5bc;
+  border-radius: 19px;
+  background: #f8f9fa;
+  color: #32363a;
+  box-shadow: 0 3px 9px rgba(35, 42, 47, 0.22);
+  cursor: default;
+  font:
+    600 11px/1 system-ui,
+    sans-serif;
+}
+.workbench-photoresistor-level {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #35383b;
+}
+.workbench-photoresistor-control input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  accent-color: #34383c;
+  cursor: ew-resize;
+}
+.workbench-photoresistor-control svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.workbench-photoresistor-control svg circle {
+  fill: none;
+}
+.workbench-photoresistor-control output {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 
 /* Tinkercad-style detailed catalog rows contain useful component information. */
 .workbench-catalog-copy {

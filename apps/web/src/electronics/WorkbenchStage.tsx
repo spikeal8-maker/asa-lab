@@ -527,6 +527,48 @@ export function WorkbenchStage({
                       aria-label="Повернуть ручку потенциометра"
                     />
                   ) : null}
+                  {component.kind === 'photoresistor' && c.simulationRunning && selected ? (
+                    <foreignObject
+                      className="workbench-photoresistor-control-object"
+                      data-testid="photoresistor-light-control"
+                      x={(baseSize.width - 150) / 2}
+                      y={-52}
+                      width={150}
+                      height={44}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <label className="workbench-photoresistor-control">
+                        <span className="workbench-photoresistor-level" aria-hidden="true" />
+                        <input
+                          aria-label="Освещённость фоторезистора"
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={Math.round(
+                            Number(component.stateProperties?.['illumination'] ?? 0.5) * 100,
+                          )}
+                          onChange={(event) =>
+                            c.setSelectedProperties(
+                              { illumination: Number(event.currentTarget.value) / 100 },
+                              `Освещённость: ${event.currentTarget.value}%.`,
+                            )
+                          }
+                        />
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="4" />
+                          <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
+                        </svg>
+                        <output>
+                          {Math.round(
+                            Number(component.stateProperties?.['illumination'] ?? 0.5) * 100,
+                          )}
+                          %
+                        </output>
+                      </label>
+                    </foreignObject>
+                  ) : null}
                 </g>
                 {/* Several hundred invisible hover targets, each recomputing its
                     world position from the board's. While something is being

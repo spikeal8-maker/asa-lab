@@ -18,6 +18,11 @@ import {
   type RgbLedChannel,
 } from '../domain/led-model';
 import { solveCircuit } from '../domain/solver';
+import {
+  photoresistorResistanceOhm,
+  PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,
+  PHOTORESISTOR_DARK_RESISTANCE_OHM,
+} from '../domain/photoresistor-model';
 
 function component(
   id: string,
@@ -138,6 +143,39 @@ describe('schema-versioned Electronics document', () => {
         connections: [connect('w1', 'r1', 'a', 'missing', 'b')],
       }).ok,
     ).toBe(false);
+  });
+});
+
+describe('photoresistor electrical model', () => {
+  it('maps the light control monotonically to a finite resistance', () => {
+    const ldr = component('ldr', 'photoresistor', 0);
+    expect(photoresistorResistanceOhm({ ...ldr, stateProperties: { illumination: 0 } })).toBe(
+      PHOTORESISTOR_DARK_RESISTANCE_OHM,
+    );
+    expect(
+      photoresistorResistanceOhm({ ...ldr, stateProperties: { illumination: 1 } }),
+    ).toBeCloseTo(PHOTORESISTOR_BRIGHT_RESISTANCE_OHM, 10);
+    const midpoint = photoresistorResistanceOhm({
+      ...ldr,
+      stateProperties: { illumination: 0.5 },
+    });
+    expect(Number.isFinite(midpoint)).toBe(true);
+    expect(midpoint).toBeLessThan(PHOTORESISTOR_DARK_RESISTANCE_OHM);
+    expect(midpoint).toBeGreaterThan(PHOTORESISTOR_BRIGHT_RESISTANCE_OHM);
+  });
+
+  it('increases circuit current when illumination increases', () => {
+    const dark = resultFor(
+      series([component('ldr', 'photoresistor', 0, { stateProperties: { illumination: 0 } })]),
+      'ldr',
+    );
+    const bright = resultFor(
+      series([component('ldr', 'photoresistor', 0, { stateProperties: { illumination: 1 } })]),
+      'ldr',
+    );
+    expect(dark?.current).toBeCloseTo(5 / PHOTORESISTOR_DARK_RESISTANCE_OHM, 12);
+    expect(bright?.current).toBeCloseTo(5 / PHOTORESISTOR_BRIGHT_RESISTANCE_OHM, 8);
+    expect(Math.abs(bright?.current ?? 0)).toBeGreaterThan(Math.abs(dark?.current ?? 0));
   });
 });
 

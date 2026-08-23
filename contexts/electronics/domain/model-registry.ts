@@ -10,6 +10,7 @@ export type ElectricalModelId =
   | 'momentary-button'
   | 'spdt-switch'
   | 'potentiometer'
+  | 'photoresistor'
   | 'diode'
   | 'npn-transistor'
   | 'incandescent-lamp'
@@ -106,6 +107,13 @@ const MODELS: Readonly<Record<ComponentKind, ElectricalModelDescriptor>> = {
     topology: 'three-terminal',
     requiredTerminals: ['a', 'b', 'wiper'],
   },
+  photoresistor: {
+    id: 'photoresistor',
+    kind: 'photoresistor',
+    support: 'supported',
+    topology: 'two-terminal',
+    requiredTerminals: ['a', 'b'],
+  },
   diode: {
     id: 'diode',
     kind: 'diode',
@@ -181,7 +189,8 @@ function productionRequiredTerminals(component: SchematicComponent): readonly Te
     if (pins.has('positive') || pins.has('negative')) return ['negative', 'positive'];
     return ['BAT-', 'BAT+'];
   }
-  if (component.kind === 'resistor') return ['lead-1', 'lead-2'];
+  if (component.kind === 'resistor' || component.kind === 'photoresistor')
+    return ['lead-1', 'lead-2'];
   if (component.kind === 'led' || component.kind === 'diode') return ['anode', 'cathode'];
   if (component.kind === 'transistor') {
     const pins = new Set(component.pinIds ?? []);

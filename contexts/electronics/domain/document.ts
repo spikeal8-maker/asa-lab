@@ -8,6 +8,7 @@ export type ComponentKind =
   | 'button'
   | 'switch'
   | 'potentiometer'
+  | 'photoresistor'
   | 'diode'
   | 'transistor'
   | 'lamp'
@@ -96,6 +97,7 @@ const KINDS: readonly ComponentKind[] = [
   'button',
   'switch',
   'potentiometer',
+  'photoresistor',
   'diode',
   'transistor',
   'lamp',

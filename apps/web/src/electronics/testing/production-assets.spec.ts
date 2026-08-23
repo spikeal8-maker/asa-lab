@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -90,6 +91,24 @@ describe('Electronics owner SVG foundation', () => {
       (potentiometer?.terminals['terminal-2']?.xMm ?? 0) -
         (potentiometer?.terminals.wiper?.xMm ?? 0),
     ).toBeCloseTo(2.54, 4);
+
+    const photoresistor = catalog.find((item) => item.key === 'photoresistor');
+    expect(photoresistor).toMatchObject({
+      enabled: true,
+      simulationSupported: true,
+      provenance: 'owner_supplied',
+      defaultStateProperties: { illumination: 0.5 },
+      viewBox: { x: 0, y: 0, width: 150, height: 177 },
+    });
+    expect(
+      (photoresistor?.terminals['lead-1']?.xMm ?? 0) -
+        (photoresistor?.terminals['lead-2']?.xMm ?? 0),
+    ).toBeCloseTo(2.54, 4);
+    expect(
+      createHash('sha256')
+        .update(readFileSync(runtimePath(photoresistor?.asset ?? '')))
+        .digest('hex'),
+    ).toBe('9d4ad8754adfffd7a824d324ea7ed2ed7dee3587dd0f2509ecaf68b685b5936b');
 
     const transistor = catalog.find((item) => item.key === 'transistor-npn');
     expect(transistor?.assetFit).toBe('meet');

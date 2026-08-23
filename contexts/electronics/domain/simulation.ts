@@ -59,7 +59,8 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
     const negative = component.pinIds?.includes('BAT-') ? 'BAT-' : 'negative';
     return terminal === 'a' ? positive : negative;
   }
-  if (component.kind === 'resistor') return terminal === 'a' ? 'lead-1' : 'lead-2';
+  if (component.kind === 'resistor' || component.kind === 'photoresistor')
+    return terminal === 'a' ? 'lead-1' : 'lead-2';
   if (component.kind === 'led' || component.kind === 'diode') {
     return terminal === 'a' ? 'anode' : 'cathode';
   }
@@ -202,6 +203,7 @@ function verifyQuality(
     }
     if (
       component.kind === 'resistor' ||
+      component.kind === 'photoresistor' ||
       component.kind === 'lamp' ||
       component.kind === 'switch' ||
       component.kind === 'button'

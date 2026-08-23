@@ -38,6 +38,13 @@ export {
   type ElectricalTerminalContractResult,
 } from './domain/model-registry.js';
 export {
+  photoresistorIllumination,
+  photoresistorResistanceOhm,
+  PHOTORESISTOR_BRIGHT_RESISTANCE_OHM,
+  PHOTORESISTOR_DARK_RESISTANCE_OHM,
+  PHOTORESISTOR_DEFAULT_ILLUMINATION,
+} from './domain/photoresistor-model.js';
+export {
   solveCircuit,
   type ComponentResult,
   type Diagnostic,
