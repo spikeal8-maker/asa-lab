@@ -26,7 +26,7 @@ export function addModelOutlines(
     new THREE.LineBasicMaterial({
       color: operation === 'hole' ? '#526169' : MODEL_EDGE_COLOR,
       transparent: true,
-      opacity: operation === 'hole' ? 0.52 : 0.58,
+      opacity: operation === 'hole' ? 0.52 : 0.66,
       depthWrite: false,
       toneMapped: false,
     }),
@@ -504,9 +504,9 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   group.userData['nodeId'] = node.id;
   const material = new THREE.MeshStandardMaterial({
     color: node.operation === 'hole' ? '#b9c4cc' : node.color,
-    emissive: node.operation === 'hole' ? '#000000' : node.color,
-    emissiveIntensity: node.operation === 'hole' ? 0 : 0.1,
-    roughness: 0.62,
+    emissive: '#000000',
+    emissiveIntensity: 0,
+    roughness: 0.9,
     metalness: 0,
     transparent: node.operation === 'hole',
     opacity: node.operation === 'hole' ? 0.36 : 1,
@@ -516,8 +516,8 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   mesh.name = `${node.name}:mesh`;
   mesh.userData['nodeId'] = node.id;
   mesh.scale.set(node.dimensions.width, node.dimensions.height, node.dimensions.depth);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   addModelOutlines(mesh, node.operation);
   group.add(mesh);
   applyNodeTransform(group, node);

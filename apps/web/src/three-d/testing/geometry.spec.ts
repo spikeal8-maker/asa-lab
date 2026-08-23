@@ -45,13 +45,16 @@ describe('ASA 3D primitive geometry', () => {
     disposeObject(object);
   });
 
-  it('keeps bright CAD color readable without a face-covering outline mesh', () => {
+  it('keeps CAD color matte without self-illumination or cast shadows', () => {
     const object = createNodeObject(createThreeDNode('box', 'bright-box'));
     const mesh = object.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
 
     expect(mesh.material.color.getHexString()).toBe('d71920');
-    expect(mesh.material.emissive.getHexString()).toBe('d71920');
-    expect(mesh.material.emissiveIntensity).toBe(0.1);
+    expect(mesh.material.emissive.getHexString()).toBe('000000');
+    expect(mesh.material.emissiveIntensity).toBe(0);
+    expect(mesh.material.roughness).toBe(0.9);
+    expect(mesh.castShadow).toBe(false);
+    expect(mesh.receiveShadow).toBe(false);
     expect(mesh.children).toHaveLength(1);
     expect(mesh.children[0]?.name).toBe(MODEL_EDGE_NAME);
     disposeObject(object);

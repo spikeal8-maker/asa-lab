@@ -336,14 +336,14 @@ export function createBooleanMesh(
   const color = nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1';
   const material = new THREE.MeshStandardMaterial({
     color,
-    emissive: color,
-    emissiveIntensity: 0.1,
-    roughness: 0.62,
+    emissive: '#000000',
+    emissiveIntensity: 0,
+    roughness: 0.9,
     metalness: 0,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   mesh.userData['booleanGroupId'] = nodes[0]?.groupId ?? '';
   return mesh;
 }
