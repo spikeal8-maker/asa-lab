@@ -1617,6 +1617,246 @@ button.asa3d-save-recovery {
   border-color: #abd6df;
 }
 
+/* Compact shape card: the canvas remains primary, as in Tinkercad. */
+.asa3d-inspector {
+  top: 14px;
+  right: 18px;
+  width: min(258px, calc(100% - 130px));
+  max-height: calc(100% - 76px);
+  overflow-x: hidden;
+  border-color: #d7e0e4;
+  border-radius: 3px;
+  box-shadow: 0 3px 8px rgba(27, 47, 58, 0.16);
+}
+
+.asa3d-inspector > header {
+  grid-template-columns: 30px minmax(0, 1fr) 30px 30px;
+  gap: 2px;
+  min-height: 42px;
+  padding: 3px 6px;
+  background: #fff;
+}
+
+.asa3d-inspector > header input,
+.asa3d-inspector > header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #334c5d;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa3d-inspector > header input {
+  height: 28px;
+  padding: 0 4px;
+  background: transparent;
+}
+
+.asa3d-inspector > header button {
+  width: 28px;
+  height: 28px;
+  color: #506b7d;
+}
+
+.asa3d-inspector > header button.active {
+  color: #0a8eba;
+  background: #edf8fb;
+  border-radius: 4px;
+}
+
+.asa3d-inspector > header .asa3d-inspector-expand {
+  width: 28px;
+  height: 28px;
+}
+
+.asa3d-inspector .asa3d-operation-picker {
+  gap: 4px;
+  padding: 9px 12px;
+  background: #f8fafb;
+}
+
+.asa3d-operation-picker button {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 3px;
+  min-height: 82px;
+  padding: 7px 4px 5px;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  background: #fff;
+  border-color: transparent;
+  border-radius: 7px;
+}
+
+.asa3d-operation-picker button.selected {
+  color: #0a8eba;
+  background: #fff;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.asa3d-operation-picker i {
+  width: 42px;
+  height: 42px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #c8d1d6;
+}
+
+.asa3d-operation-picker button.selected i {
+  box-shadow: 0 0 0 2px #20a8df;
+}
+
+.asa3d-compact-properties {
+  padding: 9px 12px 12px !important;
+  background: #f8fafb;
+}
+
+.asa3d-compact-properties h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.asa3d-property-caption {
+  display: block;
+  margin-bottom: 8px;
+  color: #607482;
+  font-size: 11px;
+}
+
+.asa3d-compact-colors {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.asa3d-compact-colors > button,
+.asa3d-compact-colors .asa3d-custom-color {
+  position: relative;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #cbd5da;
+}
+
+.asa3d-compact-colors > button.selected {
+  box-shadow: 0 0 0 2px #168fca;
+}
+
+.asa3d-compact-colors .asa3d-custom-color span {
+  width: 12px;
+  height: 12px;
+  font-size: 10px;
+}
+
+.asa3d-compact-range {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  color: #526978;
+  font-size: 11px;
+}
+
+.asa3d-compact-range input[type='range'] {
+  min-width: 0;
+  accent-color: #079cca;
+}
+
+.asa3d-compact-range input[type='number'] {
+  box-sizing: border-box;
+  width: 46px;
+  height: 24px;
+  padding: 0 3px;
+  color: #4e6573;
+  font: inherit;
+  text-align: center;
+  background: #fff;
+  border: 1px solid #d0dade;
+  border-radius: 12px;
+  appearance: textfield;
+}
+
+.asa3d-compact-range input[type='number']::-webkit-inner-spin-button,
+.asa3d-compact-range input[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.asa3d-boolean-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.asa3d-boolean-buttons button {
+  display: grid;
+  height: 42px;
+  padding: 0;
+  place-items: center;
+  background: #fff;
+  border: 1px solid #d3dde1;
+  border-radius: 5px;
+}
+
+.asa3d-boolean-buttons button.selected {
+  background: #f4f9ff;
+  border-color: #2d83e5;
+  box-shadow: inset 0 0 0 1px #2d83e5;
+}
+
+.boolean-icon {
+  position: relative;
+  display: block;
+  width: 27px;
+  height: 22px;
+}
+
+.boolean-icon::before,
+.boolean-icon::after {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  content: '';
+  background: rgba(90, 175, 218, 0.46);
+  border: 1px solid #42667a;
+}
+
+.boolean-icon::before {
+  top: 2px;
+  left: 2px;
+}
+
+.boolean-icon::after {
+  right: 2px;
+  bottom: 2px;
+  border-radius: 50%;
+}
+
+.boolean-icon.difference::after {
+  background: repeating-linear-gradient(135deg, #fff 0, #fff 3px, #aebbc2 3px, #aebbc2 5px);
+}
+
+.boolean-icon.intersection::before,
+.boolean-icon.intersection::after {
+  background: transparent;
+}
+
+.asa3d-inspector.compact {
+  overflow: hidden;
+}
+
 .asa3d-grid-panel {
   position: absolute;
   right: 12px;

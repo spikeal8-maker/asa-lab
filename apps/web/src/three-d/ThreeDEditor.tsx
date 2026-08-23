@@ -394,11 +394,20 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             </button>
           </nav>
 
-          {controller.selectedNode && (
+          {(controller.selectedNode || controller.selectedGroupId) && (
             <ShapeInspector
-              node={controller.selectedNode}
+              node={controller.selectedNode ?? undefined}
+              group={
+                controller.selectedGroupId
+                  ? {
+                      id: controller.selectedGroupId,
+                      nodes: controller.selectedNodes,
+                      operation: controller.selectedNodes[0]?.groupOperation ?? 'union',
+                      onOperationChange: controller.setSelectedGroupOperation,
+                    }
+                  : undefined
+              }
               execute={controller.execute}
-              onClose={() => controller.setSelectedId(null)}
             />
           )}
 
