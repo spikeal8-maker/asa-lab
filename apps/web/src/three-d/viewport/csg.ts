@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BooleanOperation, ThreeDNode } from '@asa-lab/three-d';
-import { createPrimitiveGeometry } from './geometry';
+import { createCadSurfaceColor, createPrimitiveGeometry } from './geometry';
 
 const EPSILON = 1e-5;
 
@@ -335,9 +335,9 @@ export function createBooleanMesh(
   }
   const color = nodes.find((node) => node.operation === 'solid')?.color ?? '#27a9e1';
   const material = new THREE.MeshStandardMaterial({
-    color,
-    emissive: '#000000',
-    emissiveIntensity: 0,
+    color: createCadSurfaceColor(color),
+    emissive: '#8bd0e0',
+    emissiveIntensity: 0.04,
     roughness: 0.9,
     metalness: 0,
   });

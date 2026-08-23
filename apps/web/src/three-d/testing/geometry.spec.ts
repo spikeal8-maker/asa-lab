@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { createThreeDNode, PRIMITIVE_KINDS } from '@asa-lab/three-d';
 import {
   MODEL_EDGE_NAME,
+  createCadSurfaceColor,
   createNodeObject,
   createPrimitiveGeometry,
   createPrimitiveGeometryForKind,
@@ -45,13 +46,15 @@ describe('ASA 3D primitive geometry', () => {
     disposeObject(object);
   });
 
-  it('keeps CAD color matte without self-illumination or cast shadows', () => {
+  it('uses calibrated CAD surface tint without cast shadows', () => {
     const object = createNodeObject(createThreeDNode('box', 'bright-box'));
     const mesh = object.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
 
-    expect(mesh.material.color.getHexString()).toBe('d71920');
-    expect(mesh.material.emissive.getHexString()).toBe('000000');
-    expect(mesh.material.emissiveIntensity).toBe(0);
+    expect(mesh.material.color.getHexString()).toBe(
+      createCadSurfaceColor('#d71920').getHexString(),
+    );
+    expect(mesh.material.emissive.getHexString()).toBe('8bd0e0');
+    expect(mesh.material.emissiveIntensity).toBe(0.04);
     expect(mesh.material.roughness).toBe(0.9);
     expect(mesh.castShadow).toBe(false);
     expect(mesh.receiveShadow).toBe(false);

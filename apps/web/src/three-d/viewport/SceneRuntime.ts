@@ -232,16 +232,19 @@ export class SceneRuntime {
       },
     );
 
-    const ambient = new THREE.AmbientLight('#ffffff', 0.7);
+    const ambient = new THREE.AmbientLight('#ffffff', 0.25);
     this.scene.add(ambient);
-    const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 1.15);
+    const hemisphere = new THREE.HemisphereLight('#ffffff', '#aebac0', 1);
     this.scene.add(hemisphere);
-    const key = new THREE.DirectionalLight('#ffffff', 1.62);
-    key.position.set(-110, 210, 155);
+    const key = new THREE.DirectionalLight('#ffffff', 1.75);
+    key.position.set(110, 240, -60);
     key.castShadow = false;
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight('#bcecff', 0.55);
-    fill.position.set(155, 105, -120);
+    const overhead = new THREE.DirectionalLight('#ff0000', 0.3);
+    overhead.position.set(0, 260, 0);
+    this.scene.add(overhead);
+    const fill = new THREE.DirectionalLight('#bcecff', 0.12);
+    fill.position.set(-100, 80, 160);
     this.scene.add(fill);
     this.scene.add(this.gridRoot, this.booleanRoot, this.rulerRoot);
 
