@@ -74,6 +74,7 @@ describe('ASA 3D document', () => {
     delete legacy['groupId'];
     delete legacy['groupOperation'];
     delete legacy['bundleId'];
+    delete legacy['parameters'];
     const legacyDocument = { ...document } as Record<string, unknown>;
     delete legacyDocument['ruler'];
     const parsed = parseThreeDDocument({ ...legacyDocument, nodes: [legacy] });
@@ -84,6 +85,7 @@ describe('ASA 3D document', () => {
       groupId: null,
       groupOperation: null,
     });
+    expect(parsed.value.nodes[0]?.parameters.sketchPoints.length).toBeGreaterThanOrEqual(3);
     expect(parsed.value.ruler).toEqual({
       visible: false,
       origin: { x: 0, y: 0, z: 0 },

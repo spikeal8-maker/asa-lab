@@ -104,12 +104,14 @@ function roofGeometry(): THREE.BufferGeometry {
 function extrudedShapeGeometry(
   points: readonly (readonly [number, number])[],
   depth = 1,
+  steps = 1,
 ): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   points.forEach(([x, y], index) => (index === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
   shape.closePath();
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth,
+    steps: Math.max(1, Math.min(64, steps)),
     bevelEnabled: false,
     curveSegments: 16,
   });
@@ -117,11 +119,11 @@ function extrudedShapeGeometry(
   return geometry;
 }
 
-function starGeometry(pointsCount = 5): THREE.BufferGeometry {
+function starGeometry(pointsCount = 5, innerRatio = 0.44): THREE.BufferGeometry {
   const points: [number, number][] = [];
   for (let index = 0; index < pointsCount * 2; index += 1) {
     const angle = -Math.PI / 2 + (index * Math.PI) / pointsCount;
-    const radius = index % 2 === 0 ? 0.5 : 0.22;
+    const radius = index % 2 === 0 ? 0.5 : 0.5 * innerRatio;
     points.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
   }
   return extrudedShapeGeometry(points, 0.24);
@@ -133,17 +135,52 @@ function roundRoofGeometry(sides: number): THREE.BufferGeometry {
   return geometry;
 }
 
-function revolveSketchGeometry(sides: number): THREE.BufferGeometry {
+function revolveSketchGeometry(
+  sides: number,
+  sketchPoints: ThreeDNode['parameters']['sketchPoints'] = [],
+): THREE.BufferGeometry {
+  const source =
+    sketchPoints.length >= 3
+      ? sketchPoints
+      : [
+          { x: 0.2, y: -1 },
+          { x: 0.8, y: -0.5 },
+          { x: 0.5, y: 1 },
+        ];
   const profile = [
-    new THREE.Vector2(0, -0.5),
-    new THREE.Vector2(0.31, -0.5),
-    new THREE.Vector2(0.42, -0.28),
-    new THREE.Vector2(0.26, 0.02),
-    new THREE.Vector2(0.36, 0.3),
-    new THREE.Vector2(0.2, 0.5),
-    new THREE.Vector2(0, 0.5),
+    new THREE.Vector2(0, source[0]?.y ?? -1),
+    ...source.map((point) => new THREE.Vector2(Math.max(0.02, point.x), point.y)),
+    new THREE.Vector2(0, source.at(-1)?.y ?? 1),
   ];
   return new THREE.LatheGeometry(profile, sides);
+}
+
+function sketchExtrudeGeometry(
+  sketchPoints: ThreeDNode['parameters']['sketchPoints'],
+  topScale = 1,
+  baseScale = 1,
+  twist = 0,
+  steps = 1,
+): THREE.BufferGeometry {
+  const points = sketchPoints.map((point) => [point.x, point.y] as const);
+  const geometry = extrudedShapeGeometry(points, 1, steps);
+  const positions = geometry.getAttribute('position');
+  for (let index = 0; index < positions.count; index += 1) {
+    const depthPosition = Math.min(1, Math.max(0, -positions.getY(index)));
+    const scale = baseScale + (topScale - baseScale) * depthPosition;
+    const angle = THREE.MathUtils.degToRad(twist * depthPosition);
+    const x = positions.getX(index) * scale;
+    const z = positions.getZ(index) * scale;
+    positions.setXYZ(
+      index,
+      x * Math.cos(angle) - z * Math.sin(angle),
+      positions.getY(index),
+      x * Math.sin(angle) + z * Math.cos(angle),
+    );
+  }
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 const PIXEL_GLYPHS: Readonly<Record<string, string>> = {
@@ -201,48 +238,56 @@ const CYRILLIC_GLYPH_ALIASES: Readonly<Record<string, string>> = {
   Х: 'X',
 };
 
-const textFont = {
-  generateShapes(value: string, size: number): THREE.Shape[] {
-    const shapes: THREE.Shape[] = [];
-    let cursor = 0;
-    const pixel = size / 7;
-    for (const rawCharacter of value.toLocaleUpperCase('ru')) {
-      if (rawCharacter === ' ') {
-        cursor += pixel * 4;
-        continue;
-      }
-      const character = CYRILLIC_GLYPH_ALIASES[rawCharacter] ?? rawCharacter;
-      const rows = (PIXEL_GLYPHS[character] ?? PIXEL_GLYPHS['?'] ?? '').split('/');
-      rows.forEach((row, rowIndex) => {
-        [...row].forEach((filled, columnIndex) => {
-          if (filled !== '1') return;
-          const left = cursor + columnIndex * pixel;
-          const bottom = (6 - rowIndex) * pixel;
-          const shape = new THREE.Shape();
-          shape.moveTo(left, bottom);
-          shape.lineTo(left + pixel * 0.86, bottom);
-          shape.lineTo(left + pixel * 0.86, bottom + pixel * 0.86);
-          shape.lineTo(left, bottom + pixel * 0.86);
-          shape.closePath();
-          shapes.push(shape);
+function textFont(style: ThreeDNode['parameters']['font']): Font {
+  return {
+    generateShapes(value: string, size: number): THREE.Shape[] {
+      const shapes: THREE.Shape[] = [];
+      let cursor = 0;
+      const pixel = size / 7;
+      for (const rawCharacter of value.toLocaleUpperCase('ru')) {
+        if (rawCharacter === ' ') {
+          cursor += pixel * 4;
+          continue;
+        }
+        const character = CYRILLIC_GLYPH_ALIASES[rawCharacter] ?? rawCharacter;
+        const rows = (PIXEL_GLYPHS[character] ?? PIXEL_GLYPHS['?'] ?? '').split('/');
+        rows.forEach((row, rowIndex) => {
+          [...row].forEach((filled, columnIndex) => {
+            if (filled !== '1') return;
+            const left = cursor + columnIndex * pixel;
+            const bottom = (6 - rowIndex) * pixel;
+            const shape = new THREE.Shape();
+            shape.moveTo(left, bottom);
+            const cellFill = style === 'mono' ? 0.72 : style === 'serif' ? 0.96 : 0.86;
+            shape.lineTo(left + pixel * cellFill, bottom);
+            shape.lineTo(left + pixel * cellFill, bottom + pixel * 0.86);
+            shape.lineTo(left, bottom + pixel * 0.86);
+            shape.closePath();
+            shapes.push(shape);
+          });
         });
-      });
-      cursor += pixel * 6;
-    }
-    return shapes;
-  },
-} as Font;
+        cursor += pixel * 6;
+      }
+      return shapes;
+    },
+  } as Font;
+}
 
-function textGeometry(text: string, bevel: number): THREE.BufferGeometry {
+function textGeometry(
+  text: string,
+  bevel: number,
+  segments = 0,
+  fontStyle: ThreeDNode['parameters']['font'] = 'sans',
+): THREE.BufferGeometry {
   const geometry = new TextGeometry(text.trim() || 'TEXT', {
-    font: textFont,
+    font: textFont(fontStyle),
     size: 1,
     depth: 0.22,
     curveSegments: 8,
     bevelEnabled: bevel > 0,
     bevelSize: Math.min(0.08, bevel / 100),
     bevelThickness: Math.min(0.08, bevel / 100),
-    bevelSegments: 2,
+    bevelSegments: Math.max(1, Math.min(5, segments)),
   });
   geometry.rotateX(-Math.PI / 2);
   return geometry;
@@ -291,16 +336,27 @@ function roundedBoxGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
-function tubeGeometry(): THREE.BufferGeometry {
+function tubeGeometry(
+  radius = 10,
+  wallThickness = 2.5,
+  sides = 48,
+  bevel = 0,
+  bevelSegments = 1,
+): THREE.BufferGeometry {
+  const safeRadius = Math.max(0.1, radius);
+  const innerRatio = Math.max(0.02, 1 - Math.min(wallThickness, safeRadius * 0.98) / safeRadius);
   const shape = new THREE.Shape();
   shape.absarc(0, 0, 0.5, 0, Math.PI * 2, false);
   const opening = new THREE.Path();
-  opening.absarc(0, 0, 0.28, 0, Math.PI * 2, true);
+  opening.absarc(0, 0, 0.5 * innerRatio, 0, Math.PI * 2, true);
   shape.holes.push(opening);
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: 1,
-    bevelEnabled: false,
-    curveSegments: 32,
+    bevelEnabled: bevel > 0,
+    bevelSize: Math.min(0.2, bevel / (safeRadius * 2)),
+    bevelThickness: Math.min(0.2, bevel / (safeRadius * 2)),
+    bevelSegments: Math.max(1, Math.min(10, bevelSegments)),
+    curveSegments: Math.max(3, sides),
   });
   geometry.rotateX(Math.PI / 2);
   return geometry;
@@ -429,6 +485,37 @@ export function createPrimitiveGeometryForKind(
   return normaliseToUnitBox(geometry);
 }
 
+function beveledPrismGeometry(node: ThreeDNode, sides: number): THREE.BufferGeometry {
+  if (node.bevel <= 0) return new THREE.CylinderGeometry(0.5, 0.5, 1, sides);
+  const minimumDimension = Math.max(
+    0.001,
+    Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height),
+  );
+  const bevel = Math.min(0.24, node.bevel / minimumDimension);
+  const segments = Math.max(1, Math.min(10, node.parameters.bevelSegments));
+  const profile: THREE.Vector2[] = [new THREE.Vector2(0, -0.5)];
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = -Math.PI / 2 + (index / segments) * (Math.PI / 2);
+    profile.push(
+      new THREE.Vector2(
+        0.5 - bevel + bevel * Math.cos(angle),
+        -0.5 + bevel + bevel * Math.sin(angle),
+      ),
+    );
+  }
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = (index / segments) * (Math.PI / 2);
+    profile.push(
+      new THREE.Vector2(
+        0.5 - bevel + bevel * Math.cos(angle),
+        0.5 - bevel + bevel * Math.sin(angle),
+      ),
+    );
+  }
+  profile.push(new THREE.Vector2(0, 0.5));
+  return new THREE.LatheGeometry(profile, sides);
+}
+
 export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry {
   if (node.primitive === 'box' && node.bevel > 0) {
     const minimumDimension = Math.max(
@@ -440,34 +527,8 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
       new RoundedBoxGeometry(1, 1, 1, Math.max(1, Math.min(12, node.sides)), radius),
     );
   }
-  if (node.primitive === 'cylinder' && node.bevel > 0) {
-    const minimumDimension = Math.max(
-      0.001,
-      Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height),
-    );
-    const bevel = Math.min(0.24, node.bevel / minimumDimension);
-    const segments = Math.max(1, Math.min(10, node.parameters.bevelSegments));
-    const profile: THREE.Vector2[] = [new THREE.Vector2(0, -0.5)];
-    for (let index = 0; index <= segments; index += 1) {
-      const angle = -Math.PI / 2 + (index / segments) * (Math.PI / 2);
-      profile.push(
-        new THREE.Vector2(
-          0.5 - bevel + bevel * Math.cos(angle),
-          -0.5 + bevel + bevel * Math.sin(angle),
-        ),
-      );
-    }
-    for (let index = 0; index <= segments; index += 1) {
-      const angle = (index / segments) * (Math.PI / 2);
-      profile.push(
-        new THREE.Vector2(
-          0.5 - bevel + bevel * Math.cos(angle),
-          0.5 - bevel + bevel * Math.sin(angle),
-        ),
-      );
-    }
-    profile.push(new THREE.Vector2(0, 0.5));
-    return normaliseToUnitBox(new THREE.LatheGeometry(profile, node.sides));
+  if (node.primitive === 'cylinder') {
+    return normaliseToUnitBox(beveledPrismGeometry(node, node.sides));
   }
   if (node.primitive === 'cone') {
     return normaliseToUnitBox(
@@ -480,7 +541,68 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
     );
   }
   if (node.primitive === 'text') {
-    return normaliseToUnitBox(textGeometry(node.parameters.text, node.bevel));
+    return normaliseToUnitBox(
+      textGeometry(
+        node.parameters.text,
+        node.bevel,
+        node.parameters.segments,
+        node.parameters.font,
+      ),
+    );
+  }
+  if (node.primitive === 'sphere') {
+    const steps = Math.max(3, Math.min(64, node.parameters.steps));
+    return normaliseToUnitBox(new THREE.SphereGeometry(0.5, steps, Math.max(3, steps)));
+  }
+  if (node.primitive === 'pyramid') {
+    return normaliseToUnitBox(new THREE.CylinderGeometry(0, 0.5, 1, node.sides));
+  }
+  if (node.primitive === 'polygon') {
+    return normaliseToUnitBox(beveledPrismGeometry(node, node.sides));
+  }
+  if (node.primitive === 'torus') {
+    const radius = Math.max(0.1, node.parameters.radius);
+    const tube = Math.max(0.1, node.parameters.tubeRadius);
+    const total = radius + tube;
+    const geometry = new THREE.TorusGeometry(
+      radius / total,
+      tube / total,
+      Math.max(3, node.sides),
+      Math.max(3, node.parameters.steps),
+    );
+    geometry.rotateX(Math.PI / 2);
+    return normaliseToUnitBox(geometry);
+  }
+  if (node.primitive === 'tube') {
+    return normaliseToUnitBox(
+      tubeGeometry(
+        node.parameters.radius,
+        node.parameters.wallThickness,
+        node.sides,
+        node.bevel,
+        node.parameters.bevelSegments,
+      ),
+    );
+  }
+  if (node.primitive === 'star') {
+    return normaliseToUnitBox(starGeometry(node.parameters.points, node.parameters.innerRatio));
+  }
+  if (node.primitive === 'extrude-sketch') {
+    return normaliseToUnitBox(
+      sketchExtrudeGeometry(
+        node.parameters.sketchPoints,
+        node.parameters.topScale,
+        node.parameters.baseScale,
+        node.parameters.twist,
+        node.parameters.smoothTwist ? 32 : node.parameters.twistSteps,
+      ),
+    );
+  }
+  if (node.primitive === 'scribble') {
+    return normaliseToUnitBox(sketchExtrudeGeometry(node.parameters.sketchPoints));
+  }
+  if (node.primitive === 'revolve-sketch') {
+    return normaliseToUnitBox(revolveSketchGeometry(node.sides, node.parameters.sketchPoints));
   }
   return createPrimitiveGeometryForKind(node.primitive, node.sides);
 }

@@ -12,9 +12,9 @@ describe('ASA 3D compact shape inspector', () => {
     expect(markup).toContain('data-testid="asa3d-shape-inspector"');
     expect(markup).toContain('Радиус');
     expect(markup).toContain('Шаги');
-    expect(markup).toContain('Длина');
-    expect(markup).toContain('Глубина');
-    expect(markup).toContain('Высота');
+    expect(markup).not.toContain('Длина');
+    expect(markup).not.toContain('Глубина');
+    expect(markup).not.toContain('Высота');
     expect(markup).not.toContain('Положение');
     expect(markup).not.toContain('Поворот');
   });
@@ -75,7 +75,41 @@ describe('ASA 3D compact shape inspector', () => {
     const markup = renderToStaticMarkup(createElement(ShapeInspector, { node, execute: vi.fn() }));
 
     expect(markup).toContain('value="TEXT"');
+    expect(markup).toContain('Шрифт');
+    expect(markup).toContain('Многоязычный');
     expect(markup).toContain('Скос');
     expect(markup).toContain('Высота');
+    expect(markup).toContain('min="0" max="5"');
+  });
+
+  it('matches the confirmed Tinkercad parameter matrix for remaining generators', () => {
+    const render = (primitive: Parameters<typeof createThreeDNode>[0]): string =>
+      renderToStaticMarkup(
+        createElement(ShapeInspector, {
+          node: createThreeDNode(primitive, primitive),
+          execute: vi.fn(),
+        }),
+      );
+
+    expect(render('sphere')).toContain('Шаги');
+    expect(render('torus')).toContain('Труба');
+    expect(render('tube')).toContain('Толщина стенки');
+    expect(render('tube')).toContain('Сегменты скоса');
+    expect(render('polygon')).toContain('min="3" max="12"');
+    expect(render('star')).toContain('Внутренний радиус (%)');
+    expect(render('pyramid')).toContain('min="3" max="28"');
+    expect(render('ring')).toContain('min="3" max="128"');
+  });
+
+  it('offers a persisted sketch editor for all three sketch generators', () => {
+    for (const primitive of ['extrude-sketch', 'revolve-sketch', 'scribble'] as const) {
+      const markup = renderToStaticMarkup(
+        createElement(ShapeInspector, {
+          node: createThreeDNode(primitive, primitive),
+          execute: vi.fn(),
+        }),
+      );
+      expect(markup).toContain('Редактировать эскиз');
+    }
   });
 });

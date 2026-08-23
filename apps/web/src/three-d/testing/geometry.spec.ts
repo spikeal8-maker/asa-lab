@@ -114,6 +114,105 @@ describe('ASA 3D primitive geometry', () => {
     beveledGeometry.dispose();
   });
 
+  it('uses the saved Tinkercad step counts for sphere and torus geometry', () => {
+    const sphere = createThreeDNode('sphere', 'sphere-steps');
+    const coarseSphere = createPrimitiveGeometry({
+      ...sphere,
+      parameters: { ...sphere.parameters, steps: 6 },
+    });
+    const smoothSphere = createPrimitiveGeometry({
+      ...sphere,
+      parameters: { ...sphere.parameters, steps: 48 },
+    });
+    const torus = createThreeDNode('torus', 'torus-steps');
+    const coarseTorus = createPrimitiveGeometry({
+      ...torus,
+      sides: 6,
+      parameters: { ...torus.parameters, steps: 8 },
+    });
+    const smoothTorus = createPrimitiveGeometry({
+      ...torus,
+      sides: 32,
+      parameters: { ...torus.parameters, steps: 64 },
+    });
+
+    expect(smoothSphere.getAttribute('position').count).toBeGreaterThan(
+      coarseSphere.getAttribute('position').count,
+    );
+    expect(smoothTorus.getAttribute('position').count).toBeGreaterThan(
+      coarseTorus.getAttribute('position').count,
+    );
+    coarseSphere.dispose();
+    smoothSphere.dispose();
+    coarseTorus.dispose();
+    smoothTorus.dispose();
+  });
+
+  it('rebuilds tube, polygon and star meshes from their individual parameters', () => {
+    const tube = createThreeDNode('tube', 'tube-parameters');
+    const tubeGeometry = createPrimitiveGeometry({
+      ...tube,
+      bevel: 2,
+      parameters: { ...tube.parameters, wallThickness: 5, bevelSegments: 6 },
+    });
+    const polygon = createThreeDNode('polygon', 'polygon-parameters');
+    const beveledPolygon = createPrimitiveGeometry({
+      ...polygon,
+      bevel: 1.5,
+      parameters: { ...polygon.parameters, bevelSegments: 5 },
+    });
+    const star = createThreeDNode('star', 'star-parameters');
+    const fivePointStar = createPrimitiveGeometry(star);
+    const twelvePointStar = createPrimitiveGeometry({
+      ...star,
+      parameters: { ...star.parameters, points: 12, innerRatio: 0.25 },
+    });
+
+    expect(tubeGeometry.getAttribute('position').count).toBeGreaterThan(0);
+    expect(beveledPolygon.getAttribute('position').count).toBeGreaterThan(0);
+    expect(twelvePointStar.getAttribute('position').count).toBeGreaterThan(
+      fivePointStar.getAttribute('position').count,
+    );
+    tubeGeometry.dispose();
+    beveledPolygon.dispose();
+    fivePointStar.dispose();
+    twelvePointStar.dispose();
+  });
+
+  it('turns saved sketch points and twist into printable geometry', () => {
+    const extrude = createThreeDNode('extrude-sketch', 'extrude-sketch');
+    const plain = createPrimitiveGeometry(extrude);
+    const twisted = createPrimitiveGeometry({
+      ...extrude,
+      parameters: {
+        ...extrude.parameters,
+        twist: 180,
+        twistSteps: 12,
+        topScale: 0.5,
+        sketchPoints: [
+          { x: -1, y: -1 },
+          { x: 1, y: -1 },
+          { x: 0.7, y: 0.2 },
+          { x: 0, y: 1 },
+          { x: -0.7, y: 0.2 },
+        ],
+      },
+    });
+    const revolve = createThreeDNode('revolve-sketch', 'revolve-sketch');
+    const revolved = createPrimitiveGeometry(revolve);
+
+    expect(twisted.getAttribute('position').count).toBeGreaterThan(
+      plain.getAttribute('position').count,
+    );
+    expect(revolved.getAttribute('position').count).toBeGreaterThan(0);
+    for (const geometry of [plain, twisted, revolved]) {
+      for (const value of geometry.getAttribute('position').array) {
+        expect(Number.isFinite(value)).toBe(true);
+      }
+      geometry.dispose();
+    }
+  });
+
   it('subtracts a hole from a solid into printable boolean geometry', () => {
     const solid = createThreeDNode('box', 'solid');
     const hole = {
