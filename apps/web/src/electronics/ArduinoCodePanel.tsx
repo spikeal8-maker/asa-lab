@@ -32,6 +32,12 @@ import {
   type ArduinoProgramState,
   type ArduinoVariableChoice,
 } from './arduino-blocks';
+import {
+  arduinoCompletionsAt,
+  tokenizeArduinoSource,
+  type ArduinoCompletion,
+  type ArduinoSourceToken,
+} from './arduino-source-language';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
 const CATEGORY_ITEMS: readonly {
@@ -748,47 +754,18 @@ function ScratchWorkspace({
   );
 }
 
-function highlightedLine(line: string, lineIndex: number): ReactNode {
-  const commentStart = line.indexOf('//');
-  const code = commentStart >= 0 ? line.slice(0, commentStart) : line;
-  const comment = commentStart >= 0 ? line.slice(commentStart) : '';
-  const parts = code.split(
-    /(\b(?:void|int|float|long|bool|char|if|else|for|while|return|true|false|HIGH|LOW|OUTPUT|INPUT)\b|\b\d+(?:\.\d+)?\b|"(?:[^"\\]|\\.)*")/g,
-  );
+function highlightedLine(tokens: readonly ArduinoSourceToken[], lineIndex: number): ReactNode {
   return (
     <span className="arduino-code-line" key={lineIndex}>
-      {parts.map((part, index) => {
-        if (/^(void|int|float|long|bool|char|if|else|for|while|return|true|false)$/.test(part)) {
-          return (
-            <span className="token-keyword" key={index}>
-              {part}
-            </span>
-          );
-        }
-        if (/^(HIGH|LOW|OUTPUT|INPUT)$/.test(part)) {
-          return (
-            <span className="token-constant" key={index}>
-              {part}
-            </span>
-          );
-        }
-        if (/^\d/.test(part)) {
-          return (
-            <span className="token-number" key={index}>
-              {part}
-            </span>
-          );
-        }
-        if (part.startsWith('"')) {
-          return (
-            <span className="token-string" key={index}>
-              {part}
-            </span>
-          );
-        }
-        return part;
-      })}
-      {comment ? <span className="token-comment">{comment}</span> : null}
+      {tokens.map((token, index) =>
+        token.kind === 'plain' ? (
+          token.text
+        ) : (
+          <span className={`token-${token.kind}`} key={index}>
+            {token.text}
+          </span>
+        ),
+      )}
       {'\n'}
     </span>
   );
@@ -805,20 +782,87 @@ function ArduinoSourceEditor({
   fontSize: number;
   onChange: (source: string) => void;
 }): JSX.Element {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const lines = source.split('\n');
+  const highlightedLines = useMemo(() => tokenizeArduinoSource(source), [source]);
+  const [cursor, setCursor] = useState(0);
+  const [scroll, setScroll] = useState({ left: 0, top: 0 });
+  const [completionIndex, setCompletionIndex] = useState(0);
+  const completion = useMemo(
+    () => (readOnly ? null : arduinoCompletionsAt(source, cursor)),
+    [cursor, readOnly, source],
+  );
+  const beforeCursor = source.slice(0, cursor);
+  const cursorLine = beforeCursor.split('\n').length - 1;
+  const cursorColumn = beforeCursor.length - (beforeCursor.lastIndexOf('\n') + 1);
+  const editorWidth = editorRef.current?.clientWidth ?? 600;
+  const editorHeight = editorRef.current?.clientHeight ?? 400;
+  const suggestionPosition = {
+    left: Math.max(
+      52,
+      Math.min(editorWidth - 280, 56 + cursorColumn * fontSize * 0.61 - scroll.left),
+    ),
+    top: Math.max(
+      8,
+      Math.min(editorHeight - 210, 10 + (cursorLine + 1) * fontSize * 1.45 - scroll.top),
+    ),
+  };
+
+  useEffect(() => setCompletionIndex(0), [completion?.from, completion?.items]);
+
   function syncScroll(target: HTMLTextAreaElement): void {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = target.scrollTop;
       highlightRef.current.scrollLeft = target.scrollLeft;
     }
     if (gutterRef.current) gutterRef.current.scrollTop = target.scrollTop;
+    setScroll({ left: target.scrollLeft, top: target.scrollTop });
+  }
+
+  function applyCompletion(item: ArduinoCompletion): void {
+    if (!completion) return;
+    const next = source.slice(0, completion.from) + item.label + source.slice(cursor);
+    const nextCursor = completion.from + item.label.length;
+    onChange(next);
+    setCursor(nextCursor);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
+  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (!completion) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      setCompletionIndex(
+        (current) => (current + direction + completion.items.length) % completion.items.length,
+      );
+      return;
+    }
+    if (event.key === 'Tab' || event.key === 'Enter') {
+      event.preventDefault();
+      applyCompletion(
+        completion.items[
+          Math.min(completionIndex, completion.items.length - 1)
+        ] as ArduinoCompletion,
+      );
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setCursor(0);
+    }
   }
   return (
     <div
       className={`arduino-source-editor${readOnly ? ' read-only' : ''}`}
       style={{ '--arduino-code-size': `${fontSize}px` } as React.CSSProperties}
+      ref={editorRef}
     >
       <div className="arduino-code-gutter" ref={gutterRef} aria-hidden="true">
         {lines.map((_, index) => (
@@ -826,16 +870,52 @@ function ArduinoSourceEditor({
         ))}
       </div>
       <pre className="arduino-code-highlight" ref={highlightRef} aria-hidden="true">
-        {lines.map(highlightedLine)}
+        {highlightedLines.map(highlightedLine)}
       </pre>
       <textarea
+        ref={textareaRef}
         value={source}
         readOnly={readOnly}
         spellCheck={false}
         aria-label={readOnly ? 'Сгенерированный код Arduino' : 'Код Arduino C++'}
-        onChange={(event) => onChange(event.target.value)}
+        aria-describedby="arduino-source-editor-status"
+        onChange={(event) => {
+          onChange(event.target.value);
+          setCursor(event.currentTarget.selectionStart);
+        }}
+        onClick={(event) => setCursor(event.currentTarget.selectionStart)}
+        onKeyDown={handleEditorKeyDown}
+        onKeyUp={(event) => setCursor(event.currentTarget.selectionStart)}
+        onSelect={(event) => setCursor(event.currentTarget.selectionStart)}
         onScroll={(event) => syncScroll(event.currentTarget)}
       />
+      {completion ? (
+        <div
+          className="arduino-code-suggestions"
+          role="listbox"
+          aria-label="Подсказки Arduino"
+          style={suggestionPosition}
+        >
+          {completion.items.map((item, index) => (
+            <button
+              type="button"
+              key={item.label}
+              className={index === completionIndex ? 'active' : ''}
+              role="option"
+              aria-selected={index === completionIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyCompletion(item)}
+            >
+              <code>{item.label}</code>
+              <span>{item.detail}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="arduino-source-status" id="arduino-source-editor-status">
+        <span>Arduino C++</span>
+        <span>{completion ? '↑↓ выбрать · Tab вставить' : 'Подсветка и автодополнение'}</span>
+      </div>
     </div>
   );
 }

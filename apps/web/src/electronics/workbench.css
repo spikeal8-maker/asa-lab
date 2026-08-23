@@ -3024,9 +3024,15 @@ html.arduino-palette-resizing * {
 .arduino-block-editor .blocklyText,
 .arduino-block-editor .blocklyHtmlInput {
   font-family: Arial, sans-serif !important;
+  font-weight: 500 !important;
+}
+.arduino-block-editor .blocklyLabelField > .blocklyText,
+.arduino-block-editor .blocklyDropdownField > .blocklyText {
+  text-shadow: 0 1px 1px rgba(48, 51, 39, 0.42);
 }
 .arduino-block-editor .blocklyFlyoutButton .blocklyText {
   fill: #43536a !important;
+  text-shadow: none;
 }
 .arduino-block-editor-active .blocklyWidgetDiv .blocklyHtmlInput {
   box-sizing: border-box;
@@ -3255,17 +3261,92 @@ html.arduino-palette-resizing * {
   min-height: calc(var(--arduino-code-size) * 1.45);
 }
 .token-keyword {
-  color: #92278f;
+  color: #7b269b;
+  font-weight: 500;
+}
+.token-type {
+  color: #087f8c;
+}
+.token-builtin {
+  color: #006699;
+  font-weight: 500;
 }
 .token-constant,
 .token-number {
-  color: #0d6b9e;
+  color: #0b6b9b;
 }
 .token-string {
-  color: #246d36;
+  color: #2d6f37;
 }
 .token-comment {
-  color: #c05b11;
+  color: #a95616;
+  font-style: italic;
+}
+.token-preprocessor {
+  color: #7952a8;
+}
+.arduino-code-suggestions {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  width: min(310px, calc(100% - 64px));
+  max-height: 196px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid #aebac3;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(24, 43, 56, 0.22);
+}
+.arduino-code-suggestions > button {
+  display: grid;
+  grid-template-columns: minmax(104px, auto) 1fr;
+  gap: 12px;
+  min-height: 32px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #283d4a;
+  text-align: left;
+  cursor: pointer;
+}
+.arduino-code-suggestions > button.active,
+.arduino-code-suggestions > button:hover {
+  background: #dceef8;
+}
+.arduino-code-suggestions code {
+  color: #006699;
+  font: inherit;
+  font-weight: 600;
+}
+.arduino-code-suggestions span {
+  overflow: hidden;
+  color: #647784;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arduino-source-status {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  gap: 14px;
+  padding: 3px 7px;
+  border: 1px solid rgba(174, 186, 195, 0.72);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #6d7d87;
+  font-size: 10px;
+  line-height: 1.25;
+  pointer-events: none;
+}
+.arduino-source-status > span:first-child {
+  color: #087f8c;
+  font-weight: 600;
 }
 .arduino-serial-monitor {
   position: relative;

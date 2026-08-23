@@ -37,7 +37,28 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain("text: 'Текст'");
     expect(panelSource).toContain('Закрыть редактор блоков?');
     expect(css).toContain('.arduino-block-editor .blocklyFlyoutBackground');
+    expect(css).toContain('font-weight: 500 !important');
+    expect(css).toContain('.arduino-block-editor .blocklyLabelField > .blocklyText');
+    expect(css).toContain('text-shadow: 0 1px 1px');
     expect(css).toContain('grid-template-columns: minmax(500px, 2fr) minmax(330px, 1fr)');
+  });
+
+  it('provides Arduino C++ syntax highlighting and contextual completions', () => {
+    expect(panelSource).toContain('tokenizeArduinoSource(source)');
+    expect(panelSource).toContain('arduinoCompletionsAt(source, cursor)');
+    expect(panelSource).toContain('aria-label="Подсказки Arduino"');
+    expect(panelSource).toContain('↑↓ выбрать · Tab вставить');
+    for (const token of [
+      '.token-keyword',
+      '.token-type',
+      '.token-builtin',
+      '.token-constant',
+      '.token-string',
+      '.token-comment',
+      '.token-preprocessor',
+    ]) {
+      expect(css).toContain(token);
+    }
   });
 
   it('opens as independent resizable drawer and palette without moving the circuit', () => {
