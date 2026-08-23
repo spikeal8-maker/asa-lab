@@ -91,10 +91,7 @@ function collectTriangles(
     // Calibrated against the visible Tinkercad basic-shape shelf: the lightest
     // red face stays near #c41825 and the two receding faces near #a91420 and
     // #9b1520 for ASA's canonical #d71920 red.
-    const intensity = Math.min(
-      0.98,
-      0.46 + diffuse * 0.4 + diffuse * diffuse * 0.11 + rim * 0.06,
-    );
+    const intensity = Math.min(0.98, 0.46 + diffuse * 0.4 + diffuse * diffuse * 0.11 + rim * 0.06);
     triangles.push({
       color: shadeColor(base, intensity),
       depth: center.distanceToSquared(camera.position),
