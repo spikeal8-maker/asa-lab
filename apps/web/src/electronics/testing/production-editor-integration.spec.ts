@@ -347,6 +347,28 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(afterPositive?.y).toBeCloseTo(beforePositive?.y ?? 0, 3);
   });
 
+  it.each([
+    ['battery-holder-aa-1', 1.5, 1],
+    ['battery-holder-aa-2', 3, 2],
+    ['battery-holder-aa-3', 4.5, 3],
+    ['battery-holder-aa-4', 6, 4],
+    ['battery-holder-aa-6', 9, 6],
+    ['battery-holder-aa-8', 12, 8],
+  ] as const)('maps %s to its physical series voltage', (componentTypeId, voltage, cells) => {
+    const entry = productionCatalog().find((candidate) => candidate.key === componentTypeId);
+    expect(entry).toMatchObject({
+      defaultValue: voltage,
+      defaultStateProperties: { cells },
+      unit: 'В',
+      simulationSupported: true,
+    });
+  });
+
+  it('gives the standard axial resistor a visible quarter-watt rating', () => {
+    const entry = productionCatalog().find((candidate) => candidate.key === 'resistor-axial');
+    expect(entry?.defaultStateProperties).toMatchObject({ powerRatingWatt: 0.25 });
+  });
+
   it('persists the Tinkercad RGB pin layout and maps terminal names onto physical legs', () => {
     let document = addComponentToDocument(EMPTY, 'rgb-led', { x: 300, y: 240 }, 'rgb').document;
     expect(document.components[0]?.stateProperties).toMatchObject({

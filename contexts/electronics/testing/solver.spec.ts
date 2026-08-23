@@ -1123,6 +1123,100 @@ describe('deterministic DC solver', () => {
     expect(reverse.diagnostics.map((item) => item.code)).toContain('reverse_polarity');
   });
 
+  it.each([
+    [1, 1.5],
+    [2, 3],
+    [3, 4.5],
+    [4, 6],
+    [6, 9],
+    [8, 12],
+  ] as const)('applies %d AA cells as a real %.1f V series source', (cells, voltage) => {
+    const source = component('battery', 'source', voltage, {
+      componentTypeId: `battery-holder-aa-${cells}`,
+      pinIds: ['BAT-', 'BAT+'],
+      stateProperties: { cells },
+    });
+    const resistor = component('resistor', 'resistor', 220, {
+      componentTypeId: 'resistor-axial',
+      pinIds: ['lead-1', 'lead-2'],
+      stateProperties: { powerRatingWatt: 0.25 },
+    });
+    const led = component('led', 'led', 2, {
+      componentTypeId: 'led-5mm',
+      pinIds: ['anode', 'cathode'],
+      stateProperties: { ledColour: 'red' },
+    });
+    const result = solveCircuit(
+      doc(
+        [source, resistor, led],
+        [
+          connect('positive', 'battery', 'BAT+', 'resistor', 'lead-1'),
+          connect('limited', 'resistor', 'lead-2', 'led', 'anode'),
+          connect('negative', 'led', 'cathode', 'battery', 'BAT-'),
+        ],
+      ),
+    );
+    const sourceResult = result.components.find((item) => item.componentId === 'battery');
+    const resistorResult = result.components.find((item) => item.componentId === 'resistor');
+    const ledResult = result.components.find((item) => item.componentId === 'led');
+
+    expect(result).toMatchObject({ solved: true, status: 'solved' });
+    expect(sourceResult?.voltageDrop).toBeCloseTo(voltage, 9);
+    expect(resistorResult?.current).toBeCloseTo(ledResult?.current ?? 0, 6);
+    expect(sourceResult?.current).toBeCloseTo(resistorResult?.current ?? 0, 6);
+    expect((resistorResult?.voltageDrop ?? 0) + (ledResult?.voltageDrop ?? 0)).toBeCloseTo(
+      voltage,
+      6,
+    );
+  });
+
+  it('reports quarter-watt resistor loading and clears it for a higher rated part', () => {
+    const nearLimit = solveCircuit(
+      series(
+        [
+          component('resistor', 'resistor', 220, {
+            stateProperties: { powerRatingWatt: 0.25 },
+          }),
+        ],
+        7.2,
+      ),
+    );
+    const overloaded = solveCircuit(
+      series(
+        [
+          component('resistor', 'resistor', 220, {
+            stateProperties: { powerRatingWatt: 0.25 },
+          }),
+        ],
+        12,
+      ),
+    );
+    const uprated = solveCircuit(
+      series(
+        [
+          component('resistor', 'resistor', 220, {
+            stateProperties: { powerRatingWatt: 1 },
+          }),
+        ],
+        12,
+      ),
+    );
+    const overloadedResistor = overloaded.components.find(
+      (item) => item.componentId === 'resistor',
+    );
+    const nearLimitResistor = nearLimit.components.find((item) => item.componentId === 'resistor');
+    const upratedResistor = uprated.components.find((item) => item.componentId === 'resistor');
+
+    expect(nearLimitResistor?.stressState).toBe('warning');
+    expect(nearLimit.diagnostics.map((item) => item.code)).toContain('resistor_near_limit');
+    expect(overloadedResistor?.power).toBeCloseTo(144 / 220, 9);
+    expect(overloadedResistor?.powerUtilizationPercent).toBeCloseTo((144 / 220 / 0.25) * 100, 2);
+    expect(overloadedResistor?.stressState).toBe('burned');
+    expect(overloaded.diagnostics.map((item) => item.code)).toContain('resistor_overload');
+    expect(upratedResistor).toMatchObject({ stressState: 'normal' });
+    expect(uprated.diagnostics.map((item) => item.code)).not.toContain('resistor_overload');
+  });
+
   it('solves a complete LED circuit through breadboard contact groups', () => {
     const board = component('board', 'breadboard', 0, {
       componentTypeId: 'breadboard-small',

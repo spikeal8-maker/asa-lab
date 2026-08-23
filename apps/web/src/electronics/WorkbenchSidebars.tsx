@@ -409,25 +409,48 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
               {c.selectedEntry.key === 'resistor-axial' ? (
-                <label>
-                  <span>Допуск</span>
-                  <select
-                    aria-label="Допуск резистора"
-                    value={String(c.selectedComponent.stateProperties?.['tolerancePercent'] ?? 5)}
-                    onChange={(event) =>
-                      c.setSelectedProperties(
-                        { tolerancePercent: Number(event.target.value) },
-                        'Допуск резистора изменён.',
-                      )
-                    }
-                  >
-                    {[1, 2, 5, 10].map((tolerance) => (
-                      <option key={tolerance} value={tolerance}>
-                        ±{tolerance}%
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <>
+                  <label>
+                    <span>Допуск</span>
+                    <select
+                      aria-label="Допуск резистора"
+                      value={String(c.selectedComponent.stateProperties?.['tolerancePercent'] ?? 5)}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { tolerancePercent: Number(event.target.value) },
+                          'Допуск резистора изменён.',
+                        )
+                      }
+                    >
+                      {[1, 2, 5, 10].map((tolerance) => (
+                        <option key={tolerance} value={tolerance}>
+                          ±{tolerance}%
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Допустимая мощность</span>
+                    <select
+                      aria-label="Допустимая мощность резистора"
+                      value={String(
+                        c.selectedComponent.stateProperties?.['powerRatingWatt'] ?? 0.25,
+                      )}
+                      onChange={(event) =>
+                        c.setSelectedProperties(
+                          { powerRatingWatt: Number(event.target.value) },
+                          'Допустимая мощность резистора изменена.',
+                        )
+                      }
+                    >
+                      {[0.125, 0.25, 0.5, 1, 2].map((watts) => (
+                        <option key={watts} value={watts}>
+                          {watts} Вт
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
               ) : null}
               {c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button' ? (
                 <label className="workbench-toggle-property">
@@ -729,6 +752,13 @@ export function WorkbenchSidebars({
                     <div>
                       <dt>Мощность</dt>
                       <dd>{measurement.power.toFixed(3)} Вт</dd>
+                    </div>
+                  ) : null}
+                  {c.selectedComponent.kind === 'resistor' &&
+                  measurement.powerUtilizationPercent !== undefined ? (
+                    <div>
+                      <dt>Нагрузка по мощности</dt>
+                      <dd>{measurement.powerUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
                   {measurement.brightness !== undefined &&

@@ -28,6 +28,8 @@ export type DiagnosticCode =
   | 'invalid_terminal_contract'
   | 'conflicting_sources'
   | 'reverse_polarity'
+  | 'resistor_near_limit'
+  | 'resistor_overload'
   | 'led_near_limit'
   | 'led_overcurrent'
   | 'led_burnout'
@@ -68,6 +70,7 @@ export interface ComponentResult {
   readonly lit?: boolean;
   readonly energized?: boolean;
   readonly currentUtilizationPercent?: number;
+  readonly powerUtilizationPercent?: number;
   readonly stressState?: 'normal' | 'warning' | 'overcurrent' | 'burned';
   readonly operatingRegion?: 'cutoff' | 'active' | 'saturation' | 'ohmic';
   readonly baseCurrent?: number;
@@ -104,6 +107,8 @@ const DIODE_ON_RESISTANCE = 2;
 const SEVEN_SEGMENT_ON_RESISTANCE = 8;
 const LED_NOMINAL_CURRENT_A = 0.02;
 const LED_WARNING_RATIO = 0.8;
+const RESISTOR_WARNING_RATIO = 0.8;
+const DEFAULT_RESISTOR_POWER_RATING_W = 0.25;
 const LAMP_MIN_POWER_W = 0.001;
 const LAMP_NOMINAL_POWER_W = 1.5;
 const SHORT_CIRCUIT_CURRENT_A = 5;
@@ -528,6 +533,13 @@ function propertyError(component: SchematicComponent): string | null {
   if (component.kind === 'potentiometer' && (component.wiperPosition ?? 0.5) > 1)
     return 'Положение движка должно быть от 0 до 1.';
   return null;
+}
+
+function resistorPowerRatingWatt(component: SchematicComponent): number {
+  const configured = Number(component.stateProperties?.['powerRatingWatt']);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_RESISTOR_POWER_RATING_W;
 }
 
 function withDiagnosticAnchors(diagnostic: Diagnostic): Diagnostic {
@@ -1286,6 +1298,10 @@ export function solveCircuit(
         component.kind === 'lamp'
           ? Math.min(100, Math.pow(power / LAMP_NOMINAL_POWER_W, 0.55) * 100)
           : Math.max(0, ...Object.values(branchBrightness));
+      const resistorPowerRating =
+        component.kind === 'resistor' ? resistorPowerRatingWatt(component) : undefined;
+      const powerUtilizationPercent =
+        resistorPowerRating === undefined ? undefined : (power / resistorPowerRating) * 100;
       const currentUtilizationPercent =
         branches.length > 0
           ? Math.max(
@@ -1296,24 +1312,33 @@ export function solveCircuit(
             )
           : undefined;
       const stressState =
-        branches.length === 0
-          ? undefined
-          : branchResults.some(
-                ({ branch, current: branchCurrent }) => Math.abs(branchCurrent) > branch.maxCurrent,
-              )
+        powerUtilizationPercent !== undefined
+          ? powerUtilizationPercent > 200
             ? 'burned'
+            : powerUtilizationPercent > 100
+              ? 'overcurrent'
+              : powerUtilizationPercent >= RESISTOR_WARNING_RATIO * 100
+                ? 'warning'
+                : 'normal'
+          : branches.length === 0
+            ? undefined
             : branchResults.some(
                   ({ branch, current: branchCurrent }) =>
-                    Math.abs(branchCurrent) > branch.nominalCurrent,
+                    Math.abs(branchCurrent) > branch.maxCurrent,
                 )
-              ? 'overcurrent'
+              ? 'burned'
               : branchResults.some(
                     ({ branch, current: branchCurrent }) =>
-                      branch.nearLimitWarning &&
-                      Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
+                      Math.abs(branchCurrent) > branch.nominalCurrent,
                   )
-                ? 'warning'
-                : 'normal';
+                ? 'overcurrent'
+                : branchResults.some(
+                      ({ branch, current: branchCurrent }) =>
+                        branch.nearLimitWarning &&
+                        Math.abs(branchCurrent) >= branch.nominalCurrent * LED_WARNING_RATIO,
+                    )
+                  ? 'warning'
+                  : 'normal';
       return {
         componentId: component.id,
         voltageDrop: round(voltageDrop),
@@ -1331,8 +1356,11 @@ export function solveCircuit(
           ? {}
           : {
               currentUtilizationPercent: round(currentUtilizationPercent, 2),
-              stressState,
             }),
+        ...(powerUtilizationPercent === undefined
+          ? {}
+          : { powerUtilizationPercent: round(powerUtilizationPercent, 2) }),
+        ...(stressState === undefined ? {} : { stressState }),
         ...(component.kind === 'led' ||
         component.kind === 'rgb-led' ||
         component.kind === 'seven-segment'
@@ -1356,6 +1384,31 @@ export function solveCircuit(
           : {}),
       };
     });
+
+  for (const component of document.components.filter((item) => item.kind === 'resistor')) {
+    const result = components.find((entry) => entry.componentId === component.id);
+    if (!result) continue;
+    const rating = resistorPowerRatingWatt(component);
+    const utilization = result.powerUtilizationPercent ?? 0;
+    if (utilization > 100) {
+      diagnostics.push({
+        code: 'resistor_overload',
+        severity: 'error',
+        message: `${component.name ?? component.id}: мощность ${result.power?.toFixed(3) ?? '0.000'} Вт превышает номинал ${rating.toFixed(3)} Вт. Резистор перегревается и может выйти из строя.`,
+        componentIds: [component.id],
+        suggestedAction:
+          'Увеличьте сопротивление или допустимую мощность резистора либо уменьшите напряжение питания.',
+      });
+    } else if (utilization >= RESISTOR_WARNING_RATIO * 100) {
+      diagnostics.push({
+        code: 'resistor_near_limit',
+        severity: 'warning',
+        message: `${component.name ?? component.id}: мощность ${result.power?.toFixed(3) ?? '0.000'} Вт близка к номиналу ${rating.toFixed(3)} Вт.`,
+        componentIds: [component.id],
+        suggestedAction: 'Оставьте запас по мощности или выберите более мощный резистор.',
+      });
+    }
+  }
 
   for (const component of document.components.filter(
     (item) => componentDiodeBranches(item).length > 0,
