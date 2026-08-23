@@ -61,6 +61,51 @@ describe('ASA 3D direct-manipulation math', () => {
     expect(result.centerOffset - result.height / 2).toBe(-10);
   });
 
+  it('scales a footprint uniformly when Shift is held', () => {
+    const result = calculateAnchoredResize({
+      initialWidth: 20,
+      initialDepth: 10,
+      pointerX: 20,
+      pointerZ: 7,
+      xSign: 1,
+      zSign: 1,
+      snapStep: 1,
+      uniform: true,
+    });
+
+    expect(result.width).toBe(30);
+    expect(result.depth).toBe(15);
+    expect(result.centerOffsetX).toBe(5);
+    expect(result.centerOffsetZ).toBe(2.5);
+  });
+
+  it('scales a footprint around its centre when Alt is held', () => {
+    const result = calculateAnchoredResize({
+      initialWidth: 20,
+      initialDepth: 12,
+      pointerX: -14.8,
+      pointerZ: 0,
+      xSign: -1,
+      zSign: 0,
+      snapStep: 1,
+      centered: true,
+    });
+
+    expect(result).toEqual({
+      width: 30,
+      depth: 12,
+      centerOffsetX: 0,
+      centerOffsetZ: 0,
+    });
+  });
+
+  it('grows height equally above and below the centre when Alt is held', () => {
+    expect(calculateHeightResize(20, 5, 1, 1, true)).toEqual({
+      height: 30,
+      centerOffset: 0,
+    });
+  });
+
   it('does not allow lifting through the workplane', () => {
     expect(calculateLiftPosition(10, -30, 10, 1)).toBe(10);
     expect(calculateLiftPosition(10, 4.4, 10, 1)).toBe(14);

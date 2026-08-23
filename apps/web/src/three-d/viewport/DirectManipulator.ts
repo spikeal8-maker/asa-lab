@@ -261,6 +261,7 @@ export class DirectManipulator {
   private readonly dimensionRoot = new THREE.Group();
   private readonly overlay: HTMLDivElement;
   private readonly selectionBox: HTMLDivElement;
+  private readonly modifierHint: HTMLDivElement;
   private readonly rotationTexture = createRotationArrowTexture();
   private readonly squareTexture = createSquareHandleTexture();
   private readonly liftTexture = createLiftHandleTexture();
@@ -275,6 +276,13 @@ export class DirectManipulator {
   private drag: DragState | null = null;
   private labelAnchors: LabelAnchor[] = [];
   private handlePositionSignature = '';
+
+  private readonly handleModifierKey = (event: KeyboardEvent): void => {
+    const kind = this.drag?.descriptor.kind;
+    if (kind === 'resize' || kind === 'height') {
+      this.updateModifierHint(event.shiftKey, event.altKey);
+    }
+  };
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -324,12 +332,46 @@ export class DirectManipulator {
     this.selectionBox.hidden = true;
     this.overlay.append(this.selectionBox);
 
+    this.modifierHint = globalThis.document.createElement('div');
+    this.modifierHint.className = 'asa3d-modifier-hint';
+    this.modifierHint.dataset['testid'] = 'asa3d-modifier-hint';
+    this.modifierHint.hidden = true;
+    this.modifierHint.append(
+      globalThis.document.createTextNode('Удерживайте нажатой клавишу '),
+      this.modifierKey('SHIFT'),
+      globalThis.document.createTextNode(' для равномерного масштабирования. Нажмите '),
+      this.modifierKey('ALT'),
+      globalThis.document.createTextNode(' для масштабирования от центра'),
+    );
+    this.overlay.append(this.modifierHint);
+
     this.canvas.addEventListener('pointerdown', this.handlePointerDown, true);
     this.canvas.addEventListener('pointermove', this.handlePointerMove, true);
     this.canvas.addEventListener('pointerup', this.handlePointerUp, true);
     this.canvas.addEventListener('pointercancel', this.handlePointerCancel, true);
     this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
+    this.container.ownerDocument.defaultView?.addEventListener('keydown', this.handleModifierKey);
+    this.container.ownerDocument.defaultView?.addEventListener('keyup', this.handleModifierKey);
     this.canvas.style.cursor = 'default';
+  }
+
+  private modifierKey(label: 'SHIFT' | 'ALT'): HTMLElement {
+    const key = globalThis.document.createElement('kbd');
+    key.dataset['modifier'] = label.toLowerCase();
+    key.textContent = label;
+    return key;
+  }
+
+  private updateModifierHint(shiftKey: boolean, altKey: boolean): void {
+    this.modifierHint.hidden = false;
+    this.modifierHint.dataset['shiftActive'] = String(shiftKey);
+    this.modifierHint.dataset['altActive'] = String(altKey);
+  }
+
+  private hideModifierHint(): void {
+    this.modifierHint.hidden = true;
+    delete this.modifierHint.dataset['shiftActive'];
+    delete this.modifierHint.dataset['altActive'];
   }
 
   private addSquareHandle(descriptor: HandleDescriptor): void {
@@ -565,7 +607,19 @@ export class DirectManipulator {
     const maxX = bounds.max.x;
     const minZ = bounds.min.z;
     const maxZ = bounds.max.z;
-    const signature = [minX, maxX, minZ, maxZ, this.workplaneY]
+    const guideEntry = entries.length === 1 ? entries[0] : undefined;
+    const guideDimensions = guideEntry ? this.effectiveDimensions(guideEntry) : null;
+    const signature = [
+      minX,
+      maxX,
+      minZ,
+      maxZ,
+      this.workplaneY,
+      guideEntry?.object.position.x ?? 0,
+      guideEntry?.object.position.y ?? 0,
+      guideEntry?.object.position.z ?? 0,
+      guideDimensions?.y ?? 0,
+    ]
       .map((value) => round(value, 3))
       .join(':');
     this.footprintRoot.visible = true;
@@ -574,27 +628,7 @@ export class DirectManipulator {
     disposeGraph(this.footprintRoot);
     this.footprintRoot.clear();
 
-    const width = Math.max(0.01, maxX - minX);
-    const depth = Math.max(0.01, maxZ - minZ);
-    const centreX = (minX + maxX) / 2;
-    const centreZ = (minZ + maxZ) / 2;
     const y = this.workplaneY + 0.055;
-    const fill = new THREE.Mesh(
-      new THREE.PlaneGeometry(width, depth),
-      new THREE.MeshBasicMaterial({
-        color: '#19a9cf',
-        transparent: true,
-        opacity: 0.055,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false,
-        side: THREE.DoubleSide,
-      }),
-    );
-    fill.position.set(centreX, y, centreZ);
-    fill.rotation.x = -Math.PI / 2;
-    fill.renderOrder = 48;
-    this.footprintRoot.add(fill);
 
     const points = [
       new THREE.Vector3(minX, y, minZ),
@@ -605,10 +639,6 @@ export class DirectManipulator {
       new THREE.Vector3(minX, y, maxZ),
       new THREE.Vector3(minX, y, maxZ),
       new THREE.Vector3(minX, y, minZ),
-      new THREE.Vector3(minX, y, centreZ),
-      new THREE.Vector3(maxX, y, centreZ),
-      new THREE.Vector3(centreX, y, minZ),
-      new THREE.Vector3(centreX, y, maxZ),
     ];
     const outline = new THREE.LineSegments(
       new THREE.BufferGeometry().setFromPoints(points),
@@ -626,6 +656,28 @@ export class DirectManipulator {
     outline.computeLineDistances();
     outline.renderOrder = 54;
     this.footprintRoot.add(outline);
+
+    if (guideEntry && guideDimensions) {
+      const guide = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          guideEntry.object.position.clone(),
+          this.worldFromLocal(guideEntry, new THREE.Vector3(0, guideDimensions.y / 2, 0)),
+        ]),
+        new THREE.LineDashedMaterial({
+          color: '#30383d',
+          transparent: true,
+          opacity: 0.58,
+          dashSize: 1.15,
+          gapSize: 0.85,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      );
+      guide.computeLineDistances();
+      guide.renderOrder = 55;
+      this.footprintRoot.add(guide);
+    }
   }
 
   private publishHandlePositions(entry: DirectManipulationEntry | null): void {
@@ -1011,6 +1063,9 @@ export class DirectManipulator {
     this.canvas.setPointerCapture(event.pointerId);
     this.canvas.style.cursor = 'default';
     if (descriptor.kind !== 'move') this.setHoveredHandle(descriptor.id);
+    if (descriptor.kind === 'resize' || descriptor.kind === 'height') {
+      this.updateModifierHint(event.shiftKey, event.altKey);
+    }
     this.showMeasurements(descriptor);
   }
 
@@ -1064,6 +1119,8 @@ export class DirectManipulator {
         xSign: drag.descriptor.xSign ?? 0,
         zSign: drag.descriptor.zSign ?? 0,
         snapStep: this.gridSnap,
+        centered: event.altKey,
+        uniform: event.shiftKey,
       });
       object.scale.set(
         result.width / drag.entry.node.dimensions.width,
@@ -1076,11 +1133,22 @@ export class DirectManipulator {
       object.position.copy(centreOffset);
     } else if (drag.descriptor.kind === 'height') {
       const axisDelta = delta.dot(drag.axisWorld as THREE.Vector3);
-      const result = calculateHeightResize(drag.initialHeight, axisDelta, this.gridSnap);
+      const result = calculateHeightResize(
+        drag.initialHeight,
+        axisDelta,
+        this.gridSnap,
+        Math.max(this.gridSnap, 0.05),
+        event.altKey,
+      );
+      const uniformFactor = result.height / drag.initialHeight;
       object.scale.set(
-        drag.startScale.x,
+        event.shiftKey
+          ? (drag.initialWidth * uniformFactor) / drag.entry.node.dimensions.width
+          : drag.startScale.x,
         result.height / drag.entry.node.dimensions.height,
-        drag.startScale.z,
+        event.shiftKey
+          ? (drag.initialDepth * uniformFactor) / drag.entry.node.dimensions.depth
+          : drag.startScale.z,
       );
       object.position
         .copy(drag.startPosition)
@@ -1110,6 +1178,9 @@ export class DirectManipulator {
     }
 
     object.updateMatrixWorld(true);
+    if (drag.descriptor.kind === 'resize' || drag.descriptor.kind === 'height') {
+      this.updateModifierHint(event.shiftKey, event.altKey);
+    }
     drag.moved = this.transformChanged(drag);
     this.update();
     this.showMeasurements(drag.descriptor);
@@ -1135,6 +1206,7 @@ export class DirectManipulator {
     if (this.canvas.hasPointerCapture(drag.pointerId))
       this.canvas.releasePointerCapture(drag.pointerId);
     this.drag = null;
+    this.hideModifierHint();
     this.orbit.enabled = true;
     delete this.container.dataset['manipulating'];
     delete this.container.dataset['manipulationCount'];
@@ -1346,7 +1418,6 @@ export class DirectManipulator {
     this.rotationRingAxis = null;
     delete this.rotationRing.userData['directHandleId'];
     disposeGraph(this.rotationRing);
-    disposeGraph(this.footprintRoot);
     this.rotationRing.clear();
     this.rotationRing.visible = false;
   }
@@ -1356,7 +1427,7 @@ export class DirectManipulator {
     this.dimensionRoot.clear();
     // Measurement labels are transient, but the marquee is a permanent child
     // used for every future box-selection gesture.
-    this.overlay.replaceChildren(this.selectionBox);
+    this.overlay.replaceChildren(this.selectionBox, this.modifierHint);
     this.labelAnchors = [];
   }
 
@@ -1373,11 +1444,8 @@ export class DirectManipulator {
     const offset = Math.max(2, Math.max(dimensions.x, dimensions.y, dimensions.z) * 0.1);
 
     if (descriptor.kind === 'move') {
-      this.addLabel(
-        `X ${this.formatMillimetres(entry.object.position.x)} · Y ${this.formatMillimetres(entry.object.position.z)}`,
-        this.worldFromLocal(entry, new THREE.Vector3(0, halfHeight + offset, 0)),
-        'asa3d-position-value',
-      );
+      const moveDrag = this.drag?.descriptor.kind === 'move' ? this.drag : null;
+      if (moveDrag) this.addMoveDimensions(moveDrag.startPosition, entry.object.position);
       return;
     }
 
@@ -1471,6 +1539,58 @@ export class DirectManipulator {
     this.addWorldDimension(localPoints.map((point) => this.worldFromLocal(entry, point)));
   }
 
+  private addMoveDimensions(start: THREE.Vector3, current: THREE.Vector3): void {
+    const deltaX = round(current.x - start.x, 2);
+    const deltaZ = round(current.z - start.z, 2);
+    const y = this.workplaneY + 0.12;
+    const origin = new THREE.Vector3(start.x, y, start.z);
+    const elbow = new THREE.Vector3(current.x, y, start.z);
+    const target = new THREE.Vector3(current.x, y, current.z);
+    const arrow = Math.max(0.8, this.gridSnap * 1.25);
+
+    if (Math.abs(deltaX) > 0.001) {
+      const direction = Math.sign(deltaX) || 1;
+      this.addWorldDimension([
+        origin,
+        elbow,
+        origin,
+        new THREE.Vector3(origin.x + direction * arrow, y, origin.z + arrow * 0.45),
+        origin,
+        new THREE.Vector3(origin.x + direction * arrow, y, origin.z - arrow * 0.45),
+        elbow,
+        new THREE.Vector3(elbow.x - direction * arrow, y, elbow.z + arrow * 0.45),
+        elbow,
+        new THREE.Vector3(elbow.x - direction * arrow, y, elbow.z - arrow * 0.45),
+      ]);
+      this.addLabel(
+        this.formatMillimetres(deltaX),
+        origin.clone().lerp(elbow, 0.5),
+        'asa3d-move-x-value',
+      );
+    }
+
+    if (Math.abs(deltaZ) > 0.001) {
+      const direction = Math.sign(deltaZ) || 1;
+      this.addWorldDimension([
+        elbow,
+        target,
+        elbow,
+        new THREE.Vector3(elbow.x + arrow * 0.45, y, elbow.z + direction * arrow),
+        elbow,
+        new THREE.Vector3(elbow.x - arrow * 0.45, y, elbow.z + direction * arrow),
+        target,
+        new THREE.Vector3(target.x + arrow * 0.45, y, target.z - direction * arrow),
+        target,
+        new THREE.Vector3(target.x - arrow * 0.45, y, target.z - direction * arrow),
+      ]);
+      this.addLabel(
+        this.formatMillimetres(deltaZ),
+        elbow.clone().lerp(target, 0.5),
+        'asa3d-move-z-value',
+      );
+    }
+  }
+
   private addWorldDimension(points: THREE.Vector3[]): void {
     const line = new THREE.LineSegments(
       new THREE.BufferGeometry().setFromPoints(points),
@@ -1518,6 +1638,11 @@ export class DirectManipulator {
     this.canvas.removeEventListener('pointerup', this.handlePointerUp, true);
     this.canvas.removeEventListener('pointercancel', this.handlePointerCancel, true);
     this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+    this.container.ownerDocument.defaultView?.removeEventListener(
+      'keydown',
+      this.handleModifierKey,
+    );
+    this.container.ownerDocument.defaultView?.removeEventListener('keyup', this.handleModifierKey);
     this.orbit.enabled = true;
     this.overlay.remove();
     this.rotationTexture.dispose();
@@ -1527,6 +1652,7 @@ export class DirectManipulator {
     disposeGraph(this.rotationRing);
     disposeGraph(this.dimensionRoot);
     disposeGraph(this.centreMarker);
+    disposeGraph(this.footprintRoot);
     this.scene.remove(
       this.footprintRoot,
       this.handleRoot,

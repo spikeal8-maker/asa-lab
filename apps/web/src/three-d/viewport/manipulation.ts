@@ -7,6 +7,8 @@ export interface AnchoredResizeInput {
   readonly zSign: -1 | 0 | 1;
   readonly snapStep: number;
   readonly minimumSize?: number;
+  readonly centered?: boolean;
+  readonly uniform?: boolean;
 }
 
 export interface AnchoredResizeResult {
@@ -35,20 +37,38 @@ export function calculateAnchoredResize(input: AnchoredResizeInput): AnchoredRes
   const anchorX = input.xSign === 0 ? 0 : (-input.xSign * input.initialWidth) / 2;
   const anchorZ = input.zSign === 0 ? 0 : (-input.zSign * input.initialDepth) / 2;
 
-  const width =
+  let width =
     input.xSign === 0
       ? input.initialWidth
-      : snappedSize((input.pointerX - anchorX) * input.xSign, input.snapStep, minimumSize);
-  const depth =
+      : snappedSize(
+          input.centered ? Math.abs(input.pointerX) * 2 : (input.pointerX - anchorX) * input.xSign,
+          input.snapStep,
+          minimumSize,
+        );
+  let depth =
     input.zSign === 0
       ? input.initialDepth
-      : snappedSize((input.pointerZ - anchorZ) * input.zSign, input.snapStep, minimumSize);
+      : snappedSize(
+          input.centered ? Math.abs(input.pointerZ) * 2 : (input.pointerZ - anchorZ) * input.zSign,
+          input.snapStep,
+          minimumSize,
+        );
+
+  if (input.uniform) {
+    const factors = [
+      ...(input.xSign === 0 ? [] : [width / input.initialWidth]),
+      ...(input.zSign === 0 ? [] : [depth / input.initialDepth]),
+    ];
+    const factor = factors.sort((left, right) => Math.abs(right - 1) - Math.abs(left - 1))[0] ?? 1;
+    width = snappedSize(input.initialWidth * factor, input.snapStep, minimumSize);
+    depth = snappedSize(input.initialDepth * factor, input.snapStep, minimumSize);
+  }
 
   return {
     width,
     depth,
-    centerOffsetX: input.xSign === 0 ? 0 : anchorX + (input.xSign * width) / 2,
-    centerOffsetZ: input.zSign === 0 ? 0 : anchorZ + (input.zSign * depth) / 2,
+    centerOffsetX: input.centered || input.xSign === 0 ? 0 : anchorX + (input.xSign * width) / 2,
+    centerOffsetZ: input.centered || input.zSign === 0 ? 0 : anchorZ + (input.zSign * depth) / 2,
   };
 }
 
@@ -57,9 +77,10 @@ export function calculateHeightResize(
   axisDelta: number,
   snapStep: number,
   minimumSize = Math.max(snapStep, 0.05),
+  centered = false,
 ): { readonly height: number; readonly centerOffset: number } {
-  const height = snappedSize(initialHeight + axisDelta, snapStep, minimumSize);
-  return { height, centerOffset: (height - initialHeight) / 2 };
+  const height = snappedSize(initialHeight + axisDelta * (centered ? 2 : 1), snapStep, minimumSize);
+  return { height, centerOffset: centered ? 0 : (height - initialHeight) / 2 };
 }
 
 export function calculateLiftPosition(

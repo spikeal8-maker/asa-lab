@@ -510,6 +510,60 @@ button.asa3d-save-recovery {
   transform: translate(-50%, -50%);
 }
 
+.asa3d-modifier-hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  max-width: calc(100% - 40px);
+  padding: 7px 13px;
+  color: #405568;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #d5dfe4;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(35, 52, 61, 0.14);
+  transform: translateX(-50%);
+}
+
+.asa3d-modifier-hint[hidden] {
+  display: none;
+}
+
+.asa3d-modifier-hint kbd {
+  display: inline-block;
+  min-width: 40px;
+  margin: 0 3px;
+  padding: 2px 5px;
+  color: #2478b7;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  background: #eef7ff;
+  border: 1px solid #8dc8f3;
+  border-radius: 3px;
+}
+
+.asa3d-modifier-hint[data-shift-active='true'] kbd[data-modifier='shift'],
+.asa3d-modifier-hint[data-alt-active='true'] kbd[data-modifier='alt'] {
+  color: #fff;
+  background: #168fca;
+  border-color: #168fca;
+}
+
+@media (max-width: 720px) {
+  .asa3d-modifier-hint {
+    top: 8px;
+    max-width: calc(100% - 20px);
+    padding: 6px 9px;
+    overflow: hidden;
+    font-size: 10px;
+    text-overflow: ellipsis;
+  }
+}
+
 .asa3d-webgl-error,
 .asa3d-loading {
   display: grid;
