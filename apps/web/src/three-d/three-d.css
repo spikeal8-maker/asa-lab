@@ -1929,6 +1929,16 @@ button.asa3d-save-recovery {
     transform: scale(0.82) rotateX(var(--asa3d-cube-pitch)) rotateY(var(--asa3d-cube-yaw));
   }
 
+  .asa3d-view-cube-zone {
+    width: 22px;
+    height: 22px;
+  }
+
+  .asa3d-view-cube-zone.edge {
+    width: 26px;
+    height: 18px;
+  }
+
   .asa3d-view-tools {
     top: 90px;
     left: 8px;
