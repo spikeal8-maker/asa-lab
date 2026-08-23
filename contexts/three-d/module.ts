@@ -27,6 +27,9 @@ const ROUND_FOOTPRINT = new Set<PrimitiveKind>([
   'tube',
   'paraboloid',
   'polygon',
+  'ring',
+  'icosahedron',
+  'revolve-sketch',
 ]);
 
 /**

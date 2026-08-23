@@ -19,6 +19,14 @@ export const PRIMITIVE_KINDS = [
   'diamond',
   'capsule',
   'paraboloid',
+  'extrude-sketch',
+  'revolve-sketch',
+  'scribble',
+  'text',
+  'round-roof',
+  'ring',
+  'icosahedron',
+  'star-6',
 ] as const;
 
 export type PrimitiveKind = (typeof PRIMITIVE_KINDS)[number];
@@ -44,6 +52,15 @@ export interface ThreeDDimensions {
   readonly height: number;
 }
 
+export interface ThreeDShapeParameters {
+  readonly topRadius: number;
+  readonly baseRadius: number;
+  readonly innerRadius: number;
+  readonly text: string;
+  readonly font: 'sans' | 'serif' | 'mono';
+  readonly bevelSegments: number;
+}
+
 export interface ThreeDNode {
   readonly id: string;
   readonly kind: 'primitive';
@@ -55,6 +72,7 @@ export interface ThreeDNode {
   readonly dimensions: ThreeDDimensions;
   readonly sides: number;
   readonly bevel: number;
+  readonly parameters: ThreeDShapeParameters;
   readonly visible: boolean;
   readonly locked: boolean;
   /** A lightweight, non-boolean bundle. Members keep their own geometry and colour. */
@@ -147,6 +165,16 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
       return { width: 24, depth: 18, height: 12 };
     case 'capsule':
       return { width: 14, depth: 14, height: 28 };
+    case 'text':
+      return { width: 32, depth: 12, height: 4 };
+    case 'round-roof':
+      return { width: 20, depth: 20, height: 10 };
+    case 'ring':
+      return { width: 24, depth: 24, height: 5 };
+    case 'extrude-sketch':
+    case 'scribble':
+    case 'star-6':
+      return { width: 24, depth: 20, height: 5 };
     default:
       return { width: 20, depth: 20, height: 20 };
   }
@@ -170,11 +198,19 @@ const SHAPE_NAMES: Readonly<Record<PrimitiveKind, string>> = {
   diamond: 'Ромб',
   capsule: 'Капсула',
   paraboloid: 'Параболоид',
+  'extrude-sketch': 'Extrude sketch',
+  'revolve-sketch': 'Revolve sketch',
+  scribble: 'Scribble',
+  text: 'Текст',
+  'round-roof': 'Круглая кровля',
+  ring: 'Кольцо',
+  icosahedron: 'Икосаэдр',
+  'star-6': 'Звезда 6-конечная',
 };
 
 const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
   box: '#d71920',
-  cylinder: '#f68b1f',
+  cylinder: '#f5831f',
   sphere: '#27a9e1',
   cone: '#8a4bb8',
   torus: '#00a5c8',
@@ -190,7 +226,26 @@ const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
   diamond: '#d82633',
   capsule: '#00a5c8',
   paraboloid: '#7fb34d',
+  'extrude-sketch': '#8492bd',
+  'revolve-sketch': '#9bd765',
+  scribble: '#91a9bd',
+  text: '#d71920',
+  'round-roof': '#68b9c0',
+  ring: '#8c6b45',
+  icosahedron: '#d82633',
+  'star-6': '#e0bd16',
 };
+
+function defaultShapeParameters(primitive: PrimitiveKind): ThreeDShapeParameters {
+  return {
+    topRadius: primitive === 'cone' ? 0 : 10,
+    baseRadius: 10,
+    innerRadius: primitive === 'ring' ? 8 : 6,
+    text: 'TEXT',
+    font: 'sans',
+    bevelSegments: 1,
+  };
+}
 
 export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNode {
   const dimensions = defaultDimensions(primitive);
@@ -213,9 +268,10 @@ export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNo
         : primitive === 'pyramid'
           ? 4
           : primitive === 'cylinder' || primitive === 'cone'
-            ? 32
+            ? 48
             : 24,
     bevel: 0,
+    parameters: defaultShapeParameters(primitive),
     visible: true,
     locked: false,
     bundleId: null,
@@ -253,6 +309,28 @@ function isBooleanOperation(value: unknown): value is BooleanOperation {
   return value === 'union' || value === 'difference' || value === 'intersection';
 }
 
+function isShapeParameters(value: unknown): value is ThreeDShapeParameters {
+  return (
+    isRecord(value) &&
+    isFiniteNumber(value['topRadius']) &&
+    value['topRadius'] >= 0 &&
+    value['topRadius'] <= 5_000 &&
+    isFiniteNumber(value['baseRadius']) &&
+    value['baseRadius'] >= 0.1 &&
+    value['baseRadius'] <= 5_000 &&
+    isFiniteNumber(value['innerRadius']) &&
+    value['innerRadius'] >= 0 &&
+    value['innerRadius'] <= 5_000 &&
+    typeof value['text'] === 'string' &&
+    value['text'].length <= 128 &&
+    (value['font'] === 'sans' || value['font'] === 'serif' || value['font'] === 'mono') &&
+    (value['bevelSegments'] === undefined ||
+      (Number.isInteger(value['bevelSegments']) &&
+        (value['bevelSegments'] as number) >= 1 &&
+        (value['bevelSegments'] as number) <= 10))
+  );
+}
+
 function isNode(value: unknown): value is ThreeDNode {
   if (!isRecord(value) || value['kind'] !== 'primitive' || !isPrimitive(value['primitive'])) {
     return false;
@@ -279,6 +357,7 @@ function isNode(value: unknown): value is ThreeDNode {
     (value['sides'] as number) <= 128 &&
     isFiniteNumber(value['bevel']) &&
     (value['bevel'] as number) >= 0 &&
+    (value['parameters'] === undefined || isShapeParameters(value['parameters'])) &&
     typeof value['visible'] === 'boolean' &&
     typeof value['locked'] === 'boolean' &&
     (value['bundleId'] === undefined ||
@@ -311,6 +390,10 @@ export function parseThreeDDocument(value: unknown): DocumentParseResult {
   }
   const normalizedNodes = nodes.map((node) => ({
     ...node,
+    parameters: {
+      ...defaultShapeParameters(node.primitive),
+      ...(node.parameters ?? {}),
+    },
     bundleId: node.bundleId ?? null,
     groupId: node.groupId ?? null,
     groupOperation: node.groupId ? (node.groupOperation ?? 'union') : null,
@@ -371,6 +454,7 @@ export function cloneThreeDDocument(document: ThreeDDocument): ThreeDDocument {
     ...document,
     nodes: document.nodes.map((node) => ({
       ...node,
+      parameters: { ...node.parameters },
       dimensions: { ...node.dimensions },
       transform: {
         position: { ...node.transform.position },

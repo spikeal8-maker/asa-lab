@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import type { Font } from 'three/addons/loaders/FontLoader.js';
 import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
 
 const MODEL_EDGE_COLOR = '#17242a';
@@ -115,14 +117,135 @@ function extrudedShapeGeometry(
   return geometry;
 }
 
-function starGeometry(): THREE.BufferGeometry {
+function starGeometry(pointsCount = 5): THREE.BufferGeometry {
   const points: [number, number][] = [];
-  for (let index = 0; index < 10; index += 1) {
-    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+  for (let index = 0; index < pointsCount * 2; index += 1) {
+    const angle = -Math.PI / 2 + (index * Math.PI) / pointsCount;
     const radius = index % 2 === 0 ? 0.5 : 0.22;
     points.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
   }
   return extrudedShapeGeometry(points, 0.24);
+}
+
+function roundRoofGeometry(sides: number): THREE.BufferGeometry {
+  const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, sides, 1, false, 0, Math.PI);
+  geometry.rotateZ(Math.PI / 2);
+  return geometry;
+}
+
+function revolveSketchGeometry(sides: number): THREE.BufferGeometry {
+  const profile = [
+    new THREE.Vector2(0, -0.5),
+    new THREE.Vector2(0.31, -0.5),
+    new THREE.Vector2(0.42, -0.28),
+    new THREE.Vector2(0.26, 0.02),
+    new THREE.Vector2(0.36, 0.3),
+    new THREE.Vector2(0.2, 0.5),
+    new THREE.Vector2(0, 0.5),
+  ];
+  return new THREE.LatheGeometry(profile, sides);
+}
+
+const PIXEL_GLYPHS: Readonly<Record<string, string>> = {
+  A: '01110/10001/10001/11111/10001/10001/10001',
+  B: '11110/10001/10001/11110/10001/10001/11110',
+  C: '01111/10000/10000/10000/10000/10000/01111',
+  D: '11110/10001/10001/10001/10001/10001/11110',
+  E: '11111/10000/10000/11110/10000/10000/11111',
+  F: '11111/10000/10000/11110/10000/10000/10000',
+  G: '01111/10000/10000/10111/10001/10001/01111',
+  H: '10001/10001/10001/11111/10001/10001/10001',
+  I: '11111/00100/00100/00100/00100/00100/11111',
+  J: '00111/00010/00010/00010/10010/10010/01100',
+  K: '10001/10010/10100/11000/10100/10010/10001',
+  L: '10000/10000/10000/10000/10000/10000/11111',
+  M: '10001/11011/10101/10101/10001/10001/10001',
+  N: '10001/11001/10101/10011/10001/10001/10001',
+  O: '01110/10001/10001/10001/10001/10001/01110',
+  P: '11110/10001/10001/11110/10000/10000/10000',
+  Q: '01110/10001/10001/10001/10101/10010/01101',
+  R: '11110/10001/10001/11110/10100/10010/10001',
+  S: '01111/10000/10000/01110/00001/00001/11110',
+  T: '11111/00100/00100/00100/00100/00100/00100',
+  U: '10001/10001/10001/10001/10001/10001/01110',
+  V: '10001/10001/10001/10001/10001/01010/00100',
+  W: '10001/10001/10001/10101/10101/10101/01010',
+  X: '10001/10001/01010/00100/01010/10001/10001',
+  Y: '10001/10001/01010/00100/00100/00100/00100',
+  Z: '11111/00001/00010/00100/01000/10000/11111',
+  '0': '01110/10001/10011/10101/11001/10001/01110',
+  '1': '00100/01100/00100/00100/00100/00100/01110',
+  '2': '01110/10001/00001/00010/00100/01000/11111',
+  '3': '11110/00001/00001/01110/00001/00001/11110',
+  '4': '00010/00110/01010/10010/11111/00010/00010',
+  '5': '11111/10000/10000/11110/00001/00001/11110',
+  '6': '01110/10000/10000/11110/10001/10001/01110',
+  '7': '11111/00001/00010/00100/01000/01000/01000',
+  '8': '01110/10001/10001/01110/10001/10001/01110',
+  '9': '01110/10001/10001/01111/00001/00001/01110',
+  '?': '01110/10001/00001/00010/00100/00000/00100',
+};
+
+const CYRILLIC_GLYPH_ALIASES: Readonly<Record<string, string>> = {
+  А: 'A',
+  В: 'B',
+  Е: 'E',
+  К: 'K',
+  М: 'M',
+  Н: 'H',
+  О: 'O',
+  Р: 'P',
+  С: 'C',
+  Т: 'T',
+  У: 'Y',
+  Х: 'X',
+};
+
+const textFont = {
+  generateShapes(value: string, size: number): THREE.Shape[] {
+    const shapes: THREE.Shape[] = [];
+    let cursor = 0;
+    const pixel = size / 7;
+    for (const rawCharacter of value.toLocaleUpperCase('ru')) {
+      if (rawCharacter === ' ') {
+        cursor += pixel * 4;
+        continue;
+      }
+      const character = CYRILLIC_GLYPH_ALIASES[rawCharacter] ?? rawCharacter;
+      const rows = (PIXEL_GLYPHS[character] ?? PIXEL_GLYPHS['?'] ?? '').split('/');
+      rows.forEach((row, rowIndex) => {
+        [...row].forEach((filled, columnIndex) => {
+          if (filled !== '1') return;
+          const left = cursor + columnIndex * pixel;
+          const bottom = (6 - rowIndex) * pixel;
+          const shape = new THREE.Shape();
+          shape.moveTo(left, bottom);
+          shape.lineTo(left + pixel * 0.86, bottom);
+          shape.lineTo(left + pixel * 0.86, bottom + pixel * 0.86);
+          shape.lineTo(left, bottom + pixel * 0.86);
+          shape.closePath();
+          shapes.push(shape);
+        });
+      });
+      cursor += pixel * 6;
+    }
+    return shapes;
+  },
+} as Font;
+
+function textGeometry(text: string, bevel: number): THREE.BufferGeometry {
+  const geometry = new TextGeometry(text.trim() || 'TEXT', {
+    font: textFont,
+    size: 1,
+    depth: 0.22,
+    curveSegments: 8,
+    bevelEnabled: bevel > 0,
+    bevelSize: Math.min(0.08, bevel / 100),
+    bevelThickness: Math.min(0.08, bevel / 100),
+    bevelSegments: 2,
+  });
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
 }
 
 function heartGeometry(): THREE.BufferGeometry {
@@ -277,6 +400,31 @@ export function createPrimitiveGeometryForKind(
     case 'paraboloid':
       geometry = paraboloidGeometry(sides);
       break;
+    case 'extrude-sketch':
+      geometry = starGeometry(7);
+      break;
+    case 'revolve-sketch':
+      geometry = revolveSketchGeometry(sides);
+      break;
+    case 'scribble':
+      geometry = heartGeometry();
+      break;
+    case 'text':
+      geometry = textGeometry('TEXT', 0);
+      break;
+    case 'round-roof':
+      geometry = roundRoofGeometry(sides);
+      break;
+    case 'ring':
+      geometry = new THREE.TorusGeometry(0.38, 0.12, Math.max(8, Math.floor(sides / 3)), sides);
+      geometry.rotateX(Math.PI / 2);
+      break;
+    case 'icosahedron':
+      geometry = new THREE.IcosahedronGeometry(0.5, 0);
+      break;
+    case 'star-6':
+      geometry = starGeometry(6);
+      break;
   }
   return normaliseToUnitBox(geometry);
 }
@@ -291,6 +439,48 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
     return normaliseToUnitBox(
       new RoundedBoxGeometry(1, 1, 1, Math.max(1, Math.min(12, node.sides)), radius),
     );
+  }
+  if (node.primitive === 'cylinder' && node.bevel > 0) {
+    const minimumDimension = Math.max(
+      0.001,
+      Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height),
+    );
+    const bevel = Math.min(0.24, node.bevel / minimumDimension);
+    const segments = Math.max(1, Math.min(10, node.parameters.bevelSegments));
+    const profile: THREE.Vector2[] = [new THREE.Vector2(0, -0.5)];
+    for (let index = 0; index <= segments; index += 1) {
+      const angle = -Math.PI / 2 + (index / segments) * (Math.PI / 2);
+      profile.push(
+        new THREE.Vector2(
+          0.5 - bevel + bevel * Math.cos(angle),
+          -0.5 + bevel + bevel * Math.sin(angle),
+        ),
+      );
+    }
+    for (let index = 0; index <= segments; index += 1) {
+      const angle = (index / segments) * (Math.PI / 2);
+      profile.push(
+        new THREE.Vector2(
+          0.5 - bevel + bevel * Math.cos(angle),
+          0.5 - bevel + bevel * Math.sin(angle),
+        ),
+      );
+    }
+    profile.push(new THREE.Vector2(0, 0.5));
+    return normaliseToUnitBox(new THREE.LatheGeometry(profile, node.sides));
+  }
+  if (node.primitive === 'cone') {
+    return normaliseToUnitBox(
+      new THREE.CylinderGeometry(
+        Math.max(0, node.parameters.topRadius),
+        Math.max(0.1, node.parameters.baseRadius),
+        1,
+        node.sides,
+      ),
+    );
+  }
+  if (node.primitive === 'text') {
+    return normaliseToUnitBox(textGeometry(node.parameters.text, node.bevel));
   }
   return createPrimitiveGeometryForKind(node.primitive, node.sides);
 }

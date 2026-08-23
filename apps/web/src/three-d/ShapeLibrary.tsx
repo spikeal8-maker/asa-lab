@@ -37,22 +37,30 @@ const SHAPES: readonly {
   category: ShapeCategory;
 }[] = [
   { primitive: 'box', label: 'Параллелепипед', color: '#d71920', category: 'basic' },
-  { primitive: 'cylinder', label: 'Цилиндр', color: '#df7414', category: 'basic' },
+  { primitive: 'cylinder', label: 'Цилиндр', color: '#f5831f', category: 'basic' },
   { primitive: 'sphere', label: 'Сфера', color: '#0099c6', category: 'basic' },
+  { primitive: 'extrude-sketch', label: 'Extrude sketch', color: '#8492bd', category: 'basic' },
+  { primitive: 'revolve-sketch', label: 'Revolve sketch', color: '#9bd765', category: 'basic' },
+  { primitive: 'scribble', label: 'Scribble', color: '#91a9bd', category: 'basic' },
   { primitive: 'cone', label: 'Конус', color: '#6e2786', category: 'basic' },
-  { primitive: 'torus', label: 'Тор', color: '#0098c7', category: 'basic' },
-  { primitive: 'wedge', label: 'Клин', color: '#2f7d3a', category: 'basic' },
-  { primitive: 'roof', label: 'Крыша', color: '#58a84f', category: 'basic' },
   { primitive: 'pyramid', label: 'Пирамида', color: '#f2c313', category: 'basic' },
-  { primitive: 'half-sphere', label: 'Полусфера', color: '#d94693', category: 'round' },
-  { primitive: 'tube', label: 'Труба', color: '#e68117', category: 'round' },
+  { primitive: 'roof', label: 'Крыша', color: '#58a84f', category: 'basic' },
+  { primitive: 'text', label: 'Текст', color: '#d71920', category: 'basic' },
+  { primitive: 'round-roof', label: 'Круглая кровля', color: '#68b9c0', category: 'basic' },
+  { primitive: 'half-sphere', label: 'Полусфера', color: '#d94693', category: 'basic' },
+  { primitive: 'torus', label: 'Тор', color: '#0098c7', category: 'basic' },
+  { primitive: 'tube', label: 'Труба', color: '#e68117', category: 'basic' },
+  { primitive: 'ring', label: 'Кольцо', color: '#8c6b45', category: 'basic' },
+  { primitive: 'wedge', label: 'Клин', color: '#2f7d3a', category: 'basic' },
+  { primitive: 'polygon', label: 'Многоугольник', color: '#304c97', category: 'basic' },
+  { primitive: 'icosahedron', label: 'Икосаэдр', color: '#d82633', category: 'basic' },
+  { primitive: 'star', label: 'Звезда', color: '#f2c313', category: 'basic' },
+  { primitive: 'star-6', label: 'Звезда', color: '#e0bd16', category: 'basic' },
+  { primitive: 'heart', label: 'Сердце', color: '#b7653f', category: 'basic' },
   { primitive: 'rounded-box', label: 'Скруглённый блок', color: '#1e70c9', category: 'round' },
-  { primitive: 'polygon', label: 'Многоугольник', color: '#304c97', category: 'generators' },
   { primitive: 'capsule', label: 'Капсула', color: '#00a5c8', category: 'round' },
   { primitive: 'paraboloid', label: 'Параболоид', color: '#7fb34d', category: 'generators' },
   { primitive: 'diamond', label: 'Ромб', color: '#d82633', category: 'symbols' },
-  { primitive: 'star', label: 'Звезда', color: '#f2c313', category: 'symbols' },
-  { primitive: 'heart', label: 'Сердце', color: '#b7653f', category: 'symbols' },
 ];
 
 function beginDrag(
@@ -193,6 +201,8 @@ export function ShapeLibrary({
             type="button"
             className={`asa3d-shape-card shape-${primitive}`}
             key={primitive}
+            data-primitive={primitive}
+            data-category={category}
             draggable
             onDragStart={(event) => {
               beginDrag(event, primitive, 'solid');

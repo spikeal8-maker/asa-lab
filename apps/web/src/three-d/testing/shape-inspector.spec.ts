@@ -48,4 +48,34 @@ describe('ASA 3D compact shape inspector', () => {
     expect(markup).toContain('Вычитание');
     expect(markup).toContain('Пересечение');
   });
+
+  it('exposes both cone radii so the frustum can be reversed', () => {
+    const node = createThreeDNode('cone', 'cone-1');
+    const markup = renderToStaticMarkup(createElement(ShapeInspector, { node, execute: vi.fn() }));
+
+    expect(markup).toContain('Верхний радиус');
+    expect(markup).toContain('Радиус основания');
+    expect(markup).toContain('Стороны');
+    expect(markup).not.toContain('Глубина');
+  });
+
+  it('exposes the same cylinder generator controls as Tinkercad', () => {
+    const node = createThreeDNode('cylinder', 'cylinder-1');
+    const markup = renderToStaticMarkup(createElement(ShapeInspector, { node, execute: vi.fn() }));
+
+    expect(markup).toContain('min="12" max="128"');
+    expect(markup).toContain('Скос');
+    expect(markup).toContain('min="1" max="10"');
+    expect(markup).toContain('Сегменты');
+    expect(markup).not.toContain('Ширина');
+  });
+
+  it('provides editable content and bevel controls for text', () => {
+    const node = createThreeDNode('text', 'text-1');
+    const markup = renderToStaticMarkup(createElement(ShapeInspector, { node, execute: vi.fn() }));
+
+    expect(markup).toContain('value="TEXT"');
+    expect(markup).toContain('Скос');
+    expect(markup).toContain('Высота');
+  });
 });

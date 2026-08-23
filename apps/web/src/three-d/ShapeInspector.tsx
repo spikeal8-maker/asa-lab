@@ -45,6 +45,14 @@ function primitiveTitle(node: ThreeDNode): string {
     wedge: 'Клин',
     roof: 'Крыша',
     pyramid: 'Пирамида',
+    text: 'Текст',
+    'round-roof': 'Круглая кровля',
+    ring: 'Кольцо',
+    icosahedron: 'Икосаэдр',
+    'star-6': 'Звезда',
+    'extrude-sketch': 'Extrude sketch',
+    'revolve-sketch': 'Revolve sketch',
+    scribble: 'Scribble',
   };
   return node.name.trim() || labels[node.primitive] || 'Форма';
 }
@@ -217,11 +225,31 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
     0,
     Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height) / 2,
   );
-  const dimensionRows = [
-    ['width', node.primitive === 'box' ? 'Длина' : 'Ширина'],
-    ['depth', 'Глубина'],
-    ['height', 'Высота'],
-  ] as const;
+  const maximumCylinderBevel = Math.max(
+    0,
+    Math.min(node.dimensions.width, node.dimensions.depth, node.dimensions.height) / 8,
+  );
+  const dimensionRows = (
+    node.primitive === 'cone' || node.primitive === 'cylinder'
+      ? []
+      : [
+          ['width', node.primitive === 'box' ? 'Длина' : 'Ширина'],
+          ['depth', 'Глубина'],
+          ['height', 'Высота'],
+        ]
+  ) as readonly (readonly [keyof ThreeDDimensions, string])[];
+  const replaceConeRadius = (parameter: 'topRadius' | 'baseRadius', value: number): void => {
+    const parameters = { ...node.parameters, [parameter]: value };
+    const diameter = Math.max(parameters.topRadius, parameters.baseRadius) * 2;
+    execute({
+      type: 'replace-node',
+      node: {
+        ...node,
+        parameters,
+        dimensions: { ...node.dimensions, width: diameter, depth: diameter },
+      },
+    });
+  };
 
   return (
     <section className="asa3d-compact-properties">
@@ -276,9 +304,123 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
         </>
       )}
 
-      {(node.primitive === 'cylinder' ||
-        node.primitive === 'cone' ||
-        node.primitive === 'sphere') && (
+      {node.primitive === 'cone' && (
+        <>
+          <RangeProperty
+            label="Верхний радиус"
+            value={node.parameters.topRadius}
+            min={0}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => replaceConeRadius('topRadius', value)}
+          />
+          <RangeProperty
+            label="Радиус основания"
+            value={node.parameters.baseRadius}
+            min={0.1}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => replaceConeRadius('baseRadius', value)}
+          />
+          <RangeProperty
+            label="Высота"
+            value={node.dimensions.height}
+            min={0.1}
+            max={100}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => replaceDimension('height', String(value))}
+          />
+          <RangeProperty
+            label="Стороны"
+            value={node.sides}
+            min={3}
+            max={128}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+          />
+        </>
+      )}
+
+      {node.primitive === 'cylinder' && (
+        <>
+          <RangeProperty
+            label="Стороны"
+            value={node.sides}
+            min={12}
+            max={128}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, sides: value } })}
+          />
+          <RangeProperty
+            label="Скос"
+            value={Math.min(node.bevel, maximumCylinderBevel)}
+            min={0}
+            max={maximumCylinderBevel}
+            step={0.1}
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, bevel: value } })}
+          />
+          <RangeProperty
+            label="Сегменты"
+            value={node.parameters.bevelSegments}
+            min={1}
+            max={10}
+            step={1}
+            unit=""
+            disabled={node.locked}
+            onChange={(value) =>
+              execute({
+                type: 'replace-node',
+                node: {
+                  ...node,
+                  parameters: { ...node.parameters, bevelSegments: value },
+                },
+              })
+            }
+          />
+        </>
+      )}
+
+      {node.primitive === 'text' && (
+        <>
+          <label className="asa3d-compact-text-field">
+            <span>Текст</span>
+            <input
+              type="text"
+              maxLength={128}
+              value={node.parameters.text}
+              disabled={node.locked}
+              onChange={(event) =>
+                execute({
+                  type: 'replace-node',
+                  node: {
+                    ...node,
+                    parameters: { ...node.parameters, text: event.currentTarget.value },
+                  },
+                })
+              }
+            />
+          </label>
+          <RangeProperty
+            label="Скос"
+            value={node.bevel}
+            min={0}
+            max={8}
+            step={0.5}
+            disabled={node.locked}
+            onChange={(value) => execute({ type: 'replace-node', node: { ...node, bevel: value } })}
+          />
+        </>
+      )}
+
+      {node.primitive === 'sphere' && (
         <RangeProperty
           label="Стороны"
           value={node.sides}
@@ -313,6 +455,7 @@ interface RangePropertyProps {
   readonly max: number;
   readonly step: number;
   readonly disabled: boolean;
+  readonly unit?: string;
   readonly onChange: (value: number) => void;
 }
 
@@ -323,6 +466,7 @@ function RangeProperty({
   max,
   step,
   disabled,
+  unit = 'мм',
   onChange,
 }: RangePropertyProps): JSX.Element {
   const safeMaximum = Math.max(min, max);
@@ -345,7 +489,7 @@ function RangeProperty({
         step={step}
         value={Number(value.toFixed(step < 1 ? 1 : 0))}
         disabled={disabled}
-        aria-label={`${label}, мм`}
+        aria-label={unit ? `${label}, ${unit}` : label}
         onChange={(event) => onChange(numeric(event.currentTarget.value, value, min))}
       />
     </label>

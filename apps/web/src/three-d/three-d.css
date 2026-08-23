@@ -1682,8 +1682,8 @@ button.asa3d-save-recovery {
   grid-template-columns: 1fr;
   justify-items: center;
   gap: 3px;
-  min-height: 82px;
-  padding: 7px 4px 5px;
+  min-height: 66px;
+  padding: 4px;
   font-size: 11px;
   font-weight: 500;
   text-align: center;
@@ -1700,8 +1700,8 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-operation-picker i {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border: 2px solid #fff;
   border-radius: 50%;
   box-shadow: 0 0 0 1px #c8d1d6;
@@ -1712,12 +1712,12 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-compact-properties {
-  padding: 9px 12px 12px !important;
+  padding: 7px 10px 9px !important;
   background: #f8fafb;
 }
 
 .asa3d-compact-properties h3 {
-  margin: 0 0 8px;
+  margin: 0 0 5px;
   font-size: 12px;
   letter-spacing: 0;
   text-transform: none;
@@ -1733,7 +1733,7 @@ button.asa3d-save-recovery {
 .asa3d-compact-colors {
   display: flex;
   gap: 5px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .asa3d-compact-colors > button,
@@ -1761,10 +1761,10 @@ button.asa3d-save-recovery {
 
 .asa3d-compact-range {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 46px;
+  grid-template-columns: 74px minmax(0, 1fr) 43px;
   align-items: center;
-  gap: 6px;
-  min-height: 31px;
+  gap: 4px;
+  min-height: 26px;
   color: #526978;
   font-size: 11px;
 }
@@ -1776,8 +1776,8 @@ button.asa3d-save-recovery {
 
 .asa3d-compact-range input[type='number'] {
   box-sizing: border-box;
-  width: 46px;
-  height: 24px;
+  width: 43px;
+  height: 22px;
   padding: 0 3px;
   color: #4e6573;
   font: inherit;
@@ -1786,6 +1786,28 @@ button.asa3d-save-recovery {
   border: 1px solid #d0dade;
   border-radius: 12px;
   appearance: textfield;
+}
+
+.asa3d-compact-text-field {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  color: #526978;
+  font-size: 11px;
+}
+
+.asa3d-compact-text-field input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  color: #334c5d;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #d0dade;
+  border-radius: 3px;
 }
 
 .asa3d-compact-range input[type='number']::-webkit-inner-spin-button,

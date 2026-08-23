@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { createThreeDNode, type PrimitiveKind } from '@asa-lab/three-d';
+import { createThreeDNode, PRIMITIVE_KINDS } from '@asa-lab/three-d';
 import {
   MODEL_EDGE_NAME,
   MODEL_SILHOUETTE_NAME,
@@ -60,26 +60,7 @@ describe('ASA 3D primitive geometry', () => {
   });
 
   it('normalises every catalog primitive to exact width, height and depth', () => {
-    const primitives: PrimitiveKind[] = [
-      'box',
-      'cylinder',
-      'sphere',
-      'cone',
-      'torus',
-      'wedge',
-      'roof',
-      'pyramid',
-      'half-sphere',
-      'tube',
-      'rounded-box',
-      'polygon',
-      'star',
-      'heart',
-      'diamond',
-      'capsule',
-      'paraboloid',
-    ];
-    for (const primitive of primitives) {
+    for (const primitive of PRIMITIVE_KINDS) {
       const geometry = createPrimitiveGeometryForKind(primitive, 48);
       geometry.computeBoundingBox();
       const size = geometry.boundingBox?.getSize(new THREE.Vector3());
@@ -89,6 +70,48 @@ describe('ASA 3D primitive geometry', () => {
       expect(size?.z, primitive).toBeCloseTo(1, 5);
       geometry.dispose();
     }
+  });
+
+  it('builds a reversible frustum from independent cone radii', () => {
+    const cone = {
+      ...createThreeDNode('cone', 'frustum'),
+      parameters: {
+        ...createThreeDNode('cone', 'frustum').parameters,
+        topRadius: 10,
+        baseRadius: 4,
+      },
+    };
+    const geometry = createPrimitiveGeometry(cone);
+    const positions = geometry.getAttribute('position');
+    let topRadius = 0;
+    let baseRadius = 0;
+    for (let index = 0; index < positions.count; index += 1) {
+      const radius = Math.hypot(positions.getX(index), positions.getZ(index));
+      if (positions.getY(index) > 0.49) topRadius = Math.max(topRadius, radius);
+      if (positions.getY(index) < -0.49) baseRadius = Math.max(baseRadius, radius);
+    }
+    expect(topRadius).toBeCloseTo(0.5, 2);
+    expect(baseRadius).toBeCloseTo(0.2, 2);
+    geometry.dispose();
+  });
+
+  it('builds real beveled cylinder geometry from inspector parameters', () => {
+    const node = createThreeDNode('cylinder', 'cylinder-bevel');
+    const plainGeometry = createPrimitiveGeometry(node);
+    const beveledGeometry = createPrimitiveGeometry({
+      ...node,
+      bevel: 2.5,
+      parameters: { ...node.parameters, bevelSegments: 6 },
+    });
+
+    expect(beveledGeometry.getAttribute('position').count).toBeGreaterThan(
+      plainGeometry.getAttribute('position').count,
+    );
+    for (const value of beveledGeometry.getAttribute('position').array) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+    plainGeometry.dispose();
+    beveledGeometry.dispose();
   });
 
   it('subtracts a hole from a solid into printable boolean geometry', () => {

@@ -15,6 +15,7 @@ export {
   type ThreeDDocument,
   type ThreeDGridSettings,
   type ThreeDNode,
+  type ThreeDShapeParameters,
   type ThreeDRulerSettings,
   type ThreeDTransform,
   type Vector3Value,
