@@ -1035,42 +1035,94 @@ button.asa3d-save-recovery {
 
 .asa3d-view-cube {
   position: absolute;
-  top: 25px;
-  left: 30px;
-  z-index: 5;
-  width: 72px;
-  filter: drop-shadow(0 3px 3px rgba(28, 53, 69, 0.13));
+  top: 23px;
+  left: 24px;
+  z-index: 7;
+  width: 76px;
+  height: 76px;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  filter: drop-shadow(0 4px 5px rgba(28, 53, 69, 0.18));
 }
 
-.asa3d-view-cube button {
-  padding: 0;
-  color: var(--ink-muted);
-  font-size: 8px;
-  font-weight: 700;
-  background: linear-gradient(#fff, #e4e8ea);
-  border: 1px solid #c8d0d4;
-  cursor: pointer;
+.asa3d-view-cube[data-dragging='true'] {
+  cursor: grabbing;
 }
 
-.asa3d-view-cube > button {
-  width: 72px;
-  height: 28px;
-  clip-path: polygon(11% 0, 89% 0, 100% 100%, 0 100%);
+.asa3d-view-cube-scene {
+  width: 100%;
+  height: 100%;
+  perspective: 260px;
+  pointer-events: none;
 }
 
-.asa3d-view-cube div {
+.asa3d-view-cube-body {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 56px;
+  height: 56px;
+  transform: rotateX(var(--asa3d-cube-pitch)) rotateY(var(--asa3d-cube-yaw));
+  transform-style: preserve-3d;
+  transition: transform 90ms linear;
+}
+
+.asa3d-view-cube[data-dragging='true'] .asa3d-view-cube-body {
+  transition: none;
+}
+
+.asa3d-view-cube-face {
+  position: absolute;
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 3px;
+  overflow: hidden;
+  color: #60717c;
+  font:
+    700 7px/1 Arial,
+    sans-serif;
+  letter-spacing: -0.15px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(225, 232, 236, 0.96));
+  border: 1px solid #aebbc2;
+  border-radius: 3px;
+  backface-visibility: visible;
+  pointer-events: auto;
+  cursor: inherit;
 }
 
-.asa3d-view-cube div button {
-  height: 34px;
+.asa3d-view-cube-face:hover,
+.asa3d-view-cube-face:focus-visible {
+  color: #047fa8;
+  background: #e5f7fb;
+  border-color: #00a9cf;
+  outline: 2px solid rgba(0, 169, 207, 0.25);
 }
 
-.asa3d-view-cube div button:last-child {
-  color: var(--ink-muted);
-  font-size: 16px;
-  background: linear-gradient(90deg, #eef1f2, #dfe4e6);
+.asa3d-view-cube-face.front {
+  transform: translateZ(28px);
+}
+
+.asa3d-view-cube-face.back {
+  transform: rotateY(180deg) translateZ(28px);
+}
+
+.asa3d-view-cube-face.right {
+  transform: rotateY(90deg) translateZ(28px);
+}
+
+.asa3d-view-cube-face.left {
+  transform: rotateY(-90deg) translateZ(28px);
+}
+
+.asa3d-view-cube-face.top {
+  transform: rotateX(90deg) translateZ(28px);
+}
+
+.asa3d-view-cube-face.bottom {
+  transform: rotateX(-90deg) translateZ(28px);
 }
 
 .asa3d-view-tools {
@@ -1836,8 +1888,14 @@ button.asa3d-save-recovery {
   .asa3d-view-cube {
     top: 12px;
     left: 12px;
-    transform: scale(0.8);
-    transform-origin: top left;
+    width: 64px;
+    height: 64px;
+  }
+
+  .asa3d-view-cube-body {
+    top: 8px;
+    left: 8px;
+    transform: scale(0.82) rotateX(var(--asa3d-cube-pitch)) rotateY(var(--asa3d-cube-yaw));
   }
 
   .asa3d-view-tools {

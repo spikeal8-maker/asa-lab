@@ -13,6 +13,8 @@ import { ThreeDToolbar } from './ThreeDToolbar';
 import { useThreeDProject } from './use-three-d-project';
 import { VersionHistory } from '../components/VersionHistory';
 import { ThreeViewport, type ThreeViewportHandle } from './viewport/ThreeViewport';
+import { ViewCube } from './viewport/ViewCube';
+import type { CameraViewState } from './viewport/SceneRuntime';
 import { registerProjectSnapshotSource, startProjectSnapshots } from '../modules/project-snapshot';
 import './three-d.css';
 
@@ -56,6 +58,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
   const [mirrorOpen, setMirrorOpen] = useState(false);
   const [cruiseActive, setCruiseActive] = useState(false);
   const [workplaneY, setWorkplaneY] = useState(0);
+  const [cameraView, setCameraView] = useState<CameraViewState>({ yaw: 0, pitch: 45 });
   const [draggedPlacement, setDraggedPlacement] = useState<{
     readonly primitive: PrimitiveKind;
     readonly operation: ShapeOperation;
@@ -362,30 +365,14 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             onTransformCommitMany={controller.commitTransforms}
             onDropPrimitive={controller.addPrimitive}
             activePlacement={draggedPlacement}
+            onCameraChange={setCameraView}
           />
 
-          <div className="asa3d-view-cube" aria-label="Стандартные виды">
-            <button
-              type="button"
-              className="top"
-              onClick={() => viewportRef.current?.setView('top')}
-            >
-              СВЕРХУ
-            </button>
-            <div>
-              <button type="button" onClick={() => viewportRef.current?.setView('front')}>
-                СПЕРЕДИ
-              </button>
-              <button
-                type="button"
-                aria-label="Справа"
-                title="Справа"
-                onClick={() => viewportRef.current?.setView('right')}
-              >
-                <span aria-hidden="true">›</span>
-              </button>
-            </div>
-          </div>
+          <ViewCube
+            orientation={cameraView}
+            onOrbit={(deltaX, deltaY) => viewportRef.current?.orbitBy(deltaX, deltaY)}
+            onSetView={(view) => viewportRef.current?.setView(view)}
+          />
 
           <nav className="asa3d-view-tools" aria-label="Управление камерой">
             <button
@@ -457,17 +444,14 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             </section>
           )}
 
-          {controller.selectedNodes.length > 0 &&
-            (alignmentOpen || controller.selectedGroupId || document.ruler.visible) && (
-              <SelectionTools
-                nodes={controller.selectedNodes}
-                groupId={controller.selectedGroupId}
-                ruler={document.ruler}
-                onAlign={controller.alignSelected}
-                onGroupOperation={controller.setSelectedGroupOperation}
-                onRulerOrigin={controller.setRulerOriginFromSelection}
-              />
-            )}
+          {controller.selectedNodes.length > 0 && (alignmentOpen || document.ruler.visible) && (
+            <SelectionTools
+              nodes={controller.selectedNodes}
+              ruler={document.ruler}
+              onAlign={controller.alignSelected}
+              onRulerOrigin={controller.setRulerOriginFromSelection}
+            />
+          )}
 
           {gridSettingsOpen && (
             <section className="asa3d-grid-panel" aria-label="Параметры рабочей плоскости">

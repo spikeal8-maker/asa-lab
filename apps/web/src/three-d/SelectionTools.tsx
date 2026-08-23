@@ -2,17 +2,14 @@ import {
   selectionBounds,
   type AlignmentAxis,
   type AlignmentMode,
-  type BooleanOperation,
   type ThreeDNode,
   type ThreeDRulerSettings,
 } from '@asa-lab/three-d';
 
 interface SelectionToolsProps {
   readonly nodes: readonly ThreeDNode[];
-  readonly groupId: string | null;
   readonly ruler: ThreeDRulerSettings;
   readonly onAlign: (axis: AlignmentAxis, mode: AlignmentMode) => void;
-  readonly onGroupOperation: (operation: BooleanOperation) => void;
   readonly onRulerOrigin: () => void;
 }
 
@@ -30,36 +27,18 @@ const MODES: readonly { mode: AlignmentMode; label: string }[] = [
 
 export function SelectionTools({
   nodes,
-  groupId,
   ruler,
   onAlign,
-  onGroupOperation,
   onRulerOrigin,
 }: SelectionToolsProps): JSX.Element {
   const bounds = selectionBounds(nodes);
-  const operation = nodes[0]?.groupOperation ?? 'union';
   const precision = ruler.precision;
   return (
     <aside className="asa3d-selection-tools" aria-label="Инструменты выбранных объектов">
       <header>
-        <strong>
-          {groupId ? `Булева группа · ${nodes.length}` : `Выбрано объектов · ${nodes.length}`}
-        </strong>
+        <strong>Выбрано объектов · {nodes.length}</strong>
       </header>
-      {groupId && (
-        <label className="asa3d-boolean-mode">
-          <span>Булева операция</span>
-          <select
-            value={operation}
-            onChange={(event) => onGroupOperation(event.currentTarget.value as BooleanOperation)}
-          >
-            <option value="union">Объединение</option>
-            <option value="difference">Вычитание отверстий</option>
-            <option value="intersection">Пересечение тел</option>
-          </select>
-        </label>
-      )}
-      {!groupId && nodes.length > 1 && (
+      {nodes.length > 1 && (
         <section>
           <h3>Выравнивание</h3>
           {AXES.map(({ axis, label }) => (

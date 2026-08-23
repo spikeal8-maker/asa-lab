@@ -197,6 +197,25 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(viewport).not.toHaveAttribute('data-camera-state', initialCamera);
   await page.getByTitle('Домой').click();
 
+  const viewCube = page.getByTestId('asa3d-view-cube');
+  await expect(viewCube).toHaveAttribute('aria-label', /мышью или пальцем/);
+  const cubeBounds = await viewCube.boundingBox();
+  const beforeCubeOrbit = await viewport.getAttribute('data-camera-state');
+  if (!cubeBounds || !beforeCubeOrbit) throw new Error('Interactive ViewCube unavailable');
+  await page.mouse.move(cubeBounds.x + cubeBounds.width / 2, cubeBounds.y + cubeBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    cubeBounds.x + cubeBounds.width / 2 + 22,
+    cubeBounds.y + cubeBounds.height / 2 - 90,
+    { steps: 8 },
+  );
+  await expect(viewCube).toHaveAttribute('data-dragging', 'true');
+  await page.mouse.up();
+  const afterCubeOrbit = await viewport.getAttribute('data-camera-state');
+  expect(afterCubeOrbit).not.toBe(beforeCubeOrbit);
+  expect(Number(afterCubeOrbit?.split(',')[1])).toBeLessThan(0);
+  await page.getByTitle('Домой').click();
+
   const beforePan = await viewport.getAttribute('data-camera-state');
   await page.mouse.move(emptyPoint.x, emptyPoint.y);
   await page.mouse.down({ button: 'middle' });
@@ -275,9 +294,8 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   });
   await expect(groupButton).toBeEnabled();
   await page.getByRole('button', { name: 'Сгруппировать выбранные объекты' }).click();
-  await expect(page.getByText(/Булева группа · 2/)).toBeVisible();
-  await expect(page.getByLabel('Булева операция')).toHaveValue('difference');
-  await page.getByLabel('Булева операция').selectOption('difference');
+  await expect(page.getByText(/Булева группа/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' })).toBeEnabled();
   await page.getByRole('button', { name: 'Разгруппировать (Ctrl+Shift+G)' }).click();
 
   const marqueeStart = {

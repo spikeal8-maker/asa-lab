@@ -7,11 +7,12 @@ import {
   type ThreeDDocument,
   type ThreeDTransform,
 } from '@asa-lab/three-d';
-import { SceneRuntime } from './SceneRuntime';
+import { SceneRuntime, type CameraViewState, type StandardCameraView } from './SceneRuntime';
 import type { DirectManipulationCommit } from './DirectManipulator';
 
 export interface ThreeViewportHandle {
-  readonly setView: (view: 'home' | 'top' | 'front' | 'right') => void;
+  readonly setView: (view: StandardCameraView) => void;
+  readonly orbitBy: (deltaX: number, deltaY: number) => void;
   readonly zoom: (direction: 1 | -1) => void;
   readonly fit: () => void;
   /**
@@ -43,6 +44,7 @@ interface ThreeViewportProps {
     readonly primitive: PrimitiveKind;
     readonly operation: ShapeOperation;
   } | null;
+  readonly onCameraChange?: (state: CameraViewState) => void;
 }
 
 const PRIMITIVES = new Set<PrimitiveKind>(PRIMITIVE_KINDS);
@@ -73,6 +75,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
               propsRef.current.onTransformCommit(nodeId, transform, dimensions),
             onTransformCommitMany: (commits) => propsRef.current.onTransformCommitMany(commits),
             onWebGlError: setWebGlError,
+            onCameraChange: (state) => propsRef.current.onCameraChange?.(state),
           });
           runtimeRef.current.setDocument(propsRef.current.document, propsRef.current.selectedIds);
           runtimeRef.current.setWorkplaneY(propsRef.current.workplaneY);
@@ -128,6 +131,7 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, ThreeViewportProps>
       ref,
       () => ({
         setView: (view) => runtimeRef.current?.setView(view),
+        orbitBy: (deltaX, deltaY) => runtimeRef.current?.orbitBy(deltaX, deltaY),
         zoom: (direction) => runtimeRef.current?.zoom(direction),
         fit: () => runtimeRef.current?.fitToScene(),
         captureFrame: () => runtimeRef.current?.captureFrame() ?? null,

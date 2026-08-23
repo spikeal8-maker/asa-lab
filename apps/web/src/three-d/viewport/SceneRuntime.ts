@@ -26,6 +26,14 @@ export interface SceneRuntimeCallbacks {
   ) => void;
   readonly onTransformCommitMany: (commits: readonly DirectManipulationCommit[]) => void;
   readonly onWebGlError: (message: string) => void;
+  readonly onCameraChange?: (state: CameraViewState) => void;
+}
+
+export type StandardCameraView = 'home' | 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right';
+
+export interface CameraViewState {
+  readonly yaw: number;
+  readonly pitch: number;
 }
 
 interface SceneEntry extends DirectManipulationEntry {
@@ -138,6 +146,7 @@ export class SceneRuntime {
   private workplaneY = 0;
   private animationFrame = 0;
   private readonly resizeObserver: ResizeObserver;
+  private readonly onCameraChange: ((state: CameraViewState) => void) | undefined;
 
   private readonly publishCameraState = (): void => {
     const values = [
@@ -149,12 +158,18 @@ export class SceneRuntime {
       this.orbit.target.z,
     ].map((value) => Math.round(value * 1000) / 1000);
     this.container.dataset['cameraState'] = values.join(',');
+    const offset = this.camera.position.clone().sub(this.orbit.target);
+    this.onCameraChange?.({
+      yaw: THREE.MathUtils.radToDeg(Math.atan2(offset.x, offset.z)),
+      pitch: THREE.MathUtils.radToDeg(Math.atan2(offset.y, Math.hypot(offset.x, offset.z))),
+    });
   };
 
   constructor(
     private readonly container: HTMLElement,
     callbacks: SceneRuntimeCallbacks,
   ) {
+    this.onCameraChange = callbacks.onCameraChange;
     this.scene.background = new THREE.Color('#fafafa');
     this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
     this.camera = new THREE.PerspectiveCamera(HOME_CAMERA_FOV, 1, 0.5, 2400);
@@ -186,7 +201,8 @@ export class SceneRuntime {
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.08;
     this.orbit.screenSpacePanning = true;
-    this.orbit.maxPolarAngle = Math.PI * 0.495;
+    this.orbit.minPolarAngle = 0.001;
+    this.orbit.maxPolarAngle = Math.PI - 0.001;
     this.orbit.minDistance = 35;
     this.orbit.maxDistance = 1200;
     // Tinkercad-style desktop navigation: the primary button belongs only to
@@ -688,15 +704,33 @@ export class SceneRuntime {
     delete this.container.dataset['placementPreview'];
   }
 
-  setView(view: 'home' | 'top' | 'front' | 'right'): void {
+  setView(view: StandardCameraView): void {
     const position = {
       home: HOME_CAMERA_POSITION,
       top: new THREE.Vector3(0, ORTHOGONAL_CAMERA_DISTANCE, 0.001),
+      bottom: new THREE.Vector3(0, -ORTHOGONAL_CAMERA_DISTANCE, 0.001),
       front: new THREE.Vector3(0, 95, ORTHOGONAL_CAMERA_DISTANCE),
+      back: new THREE.Vector3(0, 95, -ORTHOGONAL_CAMERA_DISTANCE),
+      left: new THREE.Vector3(-ORTHOGONAL_CAMERA_DISTANCE, 95, 0),
       right: new THREE.Vector3(ORTHOGONAL_CAMERA_DISTANCE, 95, 0),
     }[view];
     this.camera.position.copy(position);
     this.orbit.target.set(0, 0, 0);
+    this.orbit.update();
+  }
+
+  orbitBy(deltaX: number, deltaY: number): void {
+    const offset = this.camera.position.clone().sub(this.orbit.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+    spherical.theta -= deltaX * 0.012;
+    spherical.phi = THREE.MathUtils.clamp(
+      spherical.phi - deltaY * 0.012,
+      this.orbit.minPolarAngle,
+      this.orbit.maxPolarAngle,
+    );
+    offset.setFromSpherical(spherical);
+    this.camera.position.copy(this.orbit.target).add(offset);
+    this.camera.lookAt(this.orbit.target);
     this.orbit.update();
   }
 

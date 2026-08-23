@@ -104,7 +104,6 @@ interface LabelAnchor {
 
 const HANDLE_COLOR = new THREE.Color('#e8ecee');
 const HANDLE_ACTIVE = new THREE.Color('#ef3b32');
-const OUTLINE_COLOR = '#00a9cf';
 const DIMENSION_COLOR = '#30383d';
 const RING_COLOR = '#15a9d1';
 
@@ -246,9 +245,6 @@ function disposeGraph(root: THREE.Object3D): void {
 export class DirectManipulator {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
-  private readonly outline: THREE.LineSegments;
-  private readonly multiOutlineRoot = new THREE.Group();
-  private readonly multiOutlines: THREE.LineSegments[] = [];
   private readonly centreMarker: THREE.Mesh;
   private readonly handleRoot = new THREE.Group();
   private readonly handles = new Map<string, HandleVisual>();
@@ -282,23 +278,6 @@ export class DirectManipulator {
     this.rotationRing.name = 'ASA direct-manipulation rotation ring';
     this.dimensionRoot.name = 'ASA direct-manipulation dimensions';
     this.scene.add(this.handleRoot, this.rotationRing, this.dimensionRoot);
-
-    this.outline = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-      new THREE.LineBasicMaterial({
-        color: OUTLINE_COLOR,
-        depthTest: false,
-        transparent: true,
-        opacity: 0.98,
-        toneMapped: false,
-      }),
-    );
-    this.outline.name = 'ASA selected-object outline';
-    this.outline.renderOrder = 50;
-    this.outline.visible = false;
-    this.multiOutlineRoot.name = 'ASA multi-selection object outlines';
-    this.multiOutlineRoot.visible = false;
-    this.scene.add(this.outline, this.multiOutlineRoot);
 
     this.centreMarker = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -442,15 +421,6 @@ export class DirectManipulator {
   update(): void {
     const selectedEntries = this.selectedEntries();
     if (selectedEntries.length > 1) {
-      const bounds = new THREE.Box3();
-      selectedEntries.forEach((selected) => bounds.expandByObject(selected.object));
-      const size = bounds.getSize(new THREE.Vector3());
-      const center = bounds.getCenter(new THREE.Vector3());
-      this.outline.visible = !bounds.isEmpty();
-      this.outline.position.copy(center);
-      this.outline.quaternion.identity();
-      this.outline.scale.copy(size).multiplyScalar(1.003);
-      this.updateMultiOutlines(selectedEntries);
       this.centreMarker.visible = false;
       this.handleRoot.visible = false;
       this.rotationRing.visible = false;
@@ -459,9 +429,7 @@ export class DirectManipulator {
       return;
     }
     const entry = this.selectedEntry();
-    this.hideMultiOutlines();
     if (!entry || !entry.object.visible) {
-      this.outline.visible = false;
       this.centreMarker.visible = false;
       this.handleRoot.visible = false;
       this.rotationRing.visible = false;
@@ -474,11 +442,6 @@ export class DirectManipulator {
     const halfWidth = dimensions.x / 2;
     const halfHeight = dimensions.y / 2;
     const halfDepth = dimensions.z / 2;
-    this.outline.visible = true;
-    this.outline.position.copy(entry.object.position);
-    this.outline.quaternion.copy(entry.object.quaternion);
-    this.outline.scale.copy(dimensions).multiplyScalar(1.003);
-
     const frontCentre = this.worldFromLocal(entry, new THREE.Vector3(0, 0, halfDepth));
     const centreUnit = this.worldUnitsPerPixel(frontCentre);
     this.centreMarker.visible = true;
@@ -569,40 +532,6 @@ export class DirectManipulator {
     this.updateRotationRingTransform(entry);
     this.publishHandlePositions(entry);
     this.updateLabelPositions();
-  }
-
-  private updateMultiOutlines(entries: readonly DirectManipulationEntry[]): void {
-    while (this.multiOutlines.length < entries.length) {
-      const outline = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-        new THREE.LineBasicMaterial({
-          color: '#007fa8',
-          depthTest: false,
-          transparent: true,
-          opacity: 1,
-          toneMapped: false,
-        }),
-      );
-      outline.renderOrder = 51;
-      this.multiOutlineRoot.add(outline);
-      this.multiOutlines.push(outline);
-    }
-    this.multiOutlineRoot.visible = true;
-    this.multiOutlines.forEach((outline, index) => {
-      const entry = entries[index];
-      outline.visible = Boolean(entry);
-      if (!entry) return;
-      outline.position.copy(entry.object.position);
-      outline.quaternion.copy(entry.object.quaternion);
-      outline.scale.copy(this.effectiveDimensions(entry)).multiplyScalar(1.008);
-    });
-  }
-
-  private hideMultiOutlines(): void {
-    this.multiOutlineRoot.visible = false;
-    this.multiOutlines.forEach((outline) => {
-      outline.visible = false;
-    });
   }
 
   private publishHandlePositions(entry: DirectManipulationEntry | null): void {
@@ -1483,17 +1412,8 @@ export class DirectManipulator {
     disposeGraph(this.handleRoot);
     disposeGraph(this.rotationRing);
     disposeGraph(this.dimensionRoot);
-    disposeGraph(this.outline);
-    disposeGraph(this.multiOutlineRoot);
     disposeGraph(this.centreMarker);
-    this.scene.remove(
-      this.handleRoot,
-      this.rotationRing,
-      this.dimensionRoot,
-      this.outline,
-      this.multiOutlineRoot,
-      this.centreMarker,
-    );
+    this.scene.remove(this.handleRoot, this.rotationRing, this.dimensionRoot, this.centreMarker);
     this.handles.clear();
     this.labelAnchors = [];
   }
