@@ -23,6 +23,10 @@ apps/web/public/assets/electronics/owner-audit/breadboard-footprint-map.json
 apps/web/public/assets/electronics/owner-audit/manifest.json
 apps/web/public/assets/electronics/owner-audit/state-family-map.json
 
+# Three.js typefaces are deterministic generated assets. Pretty-printing their
+# per-glyph paths multiplies bundle source size without changing font geometry.
+apps/web/src/three-d/fonts/*.typeface.json
+
 # Recovery files contain explicit long owner-archive paths. They remain subject to
 # ESLint, strict TypeScript checks and focused tests; only reflow is suppressed.
 apps/web/src/electronics/production-manifest-adapter.ts
