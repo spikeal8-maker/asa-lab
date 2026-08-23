@@ -24,6 +24,7 @@ const WIDTH = 92;
 const HEIGHT = 70;
 const KEY_POSITION = new THREE.Vector3(-3.2, 5.5, 4.2);
 const RIM_POSITION = new THREE.Vector3(4, 2, -4);
+const AMBIENT_TINT = new THREE.Color('#b7d7ff');
 
 function projectPoint(point: THREE.Vector3, camera: THREE.OrthographicCamera): ProjectedPoint {
   const projected = point.clone().project(camera);
@@ -34,7 +35,7 @@ function projectPoint(point: THREE.Vector3, camera: THREE.OrthographicCamera): P
 }
 
 function shadeColor(base: THREE.Color, intensity: number): string {
-  const shaded = base.clone().multiplyScalar(intensity);
+  const shaded = base.clone().multiplyScalar(intensity).lerp(AMBIENT_TINT, 0.008);
   shaded.r = THREE.MathUtils.clamp(shaded.r, 0, 1);
   shaded.g = THREE.MathUtils.clamp(shaded.g, 0, 1);
   shaded.b = THREE.MathUtils.clamp(shaded.b, 0, 1);
@@ -91,7 +92,10 @@ function collectTriangles(
     // Calibrated against the visible Tinkercad basic-shape shelf: the lightest
     // red face stays near #c41825 and the two receding faces near #a91420 and
     // #9b1520 for ASA's canonical #d71920 red.
-    const intensity = Math.min(0.98, 0.46 + diffuse * 0.4 + diffuse * diffuse * 0.11 + rim * 0.06);
+    const intensity = Math.min(
+      0.98,
+      0.49 + diffuse * 0.1 + 4 * Math.pow(diffuse, 8) + 6 * Math.pow(diffuse, 12) + rim * 0.03,
+    );
     triangles.push({
       color: shadeColor(base, intensity),
       depth: center.distanceToSquared(camera.position),
