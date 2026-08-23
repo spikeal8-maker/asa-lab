@@ -102,7 +102,6 @@ nodes:
   - {id: PHASE-R10, label: R10 3D Foundation, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "The ASA-native 3D M0 slice is merged and deployed; later R10 CAD capabilities remain blocked pending separate owner activation."}
   - {id: PHASE-R11, label: R11 Educational Checkers, kind: roadmap_phase, layer: roadmap, status: done, summary: "Independent Russian-draughts rules, learning, assignments, bots, review and safe class play."}
   - {id: PHASE-PILOT, label: School Pilot, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Admin, durable authentication and MAX production readiness are active before the school pilot."}
-  - {id: PHASE-LEARNING-M0, label: ASA Learning M0 State Convergence, kind: roadmap_phase, layer: roadmap, status: in_progress, summary: "Owner-activated audit and data-lineage convergence milestone; no M1 runtime implementation is authorized."}
 
   - {id: TASK-BOOT-001, label: Bootstrap, kind: task, layer: delivery, status: done, summary: "Monorepo foundation.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/2}
   - {id: TASK-PRODUCT-DOC-001, label: Product Documentation, kind: task, layer: delivery, status: done, summary: "Product contracts accepted.", phase: PHASE-0, issue: https://github.com/spikeal8-maker/asa-lab/issues/19}
@@ -114,7 +113,6 @@ nodes:
   - {id: TASK-3D-M0-001, label: R10-M1 3D Foundation, kind: task, layer: delivery, status: done, summary: "PR #95 merged into main; the Portal creates ASA 3D projects and the saved WebGL scene reloads through Project Core.", phase: PHASE-R10, issue: https://github.com/spikeal8-maker/asa-lab/issues/94}
   - {id: TASK-CHECKERS-M1-001, label: R11-M1 Educational Russian Draughts, kind: task, layer: delivery, status: done, summary: "Independent Checkers system from Issue #98: rules, learning, teacher work, bots, review and safe class play.", phase: PHASE-R11, issue: https://github.com/spikeal8-maker/asa-lab/issues/98}
   - {id: TASK-ADMIN-AUTH-STABILITY-001, label: Admin Auth and MAX Stability, kind: task, layer: delivery, status: in_progress, summary: "Integrated Admin access, durable sessions, production MAX verification and reproducible runtime recovery.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/135}
-  - {id: TASK-LEARNING-M0-001, label: ASA Learning M0 Current Architecture Audit, kind: task, layer: delivery, status: in_progress, summary: "Governance wrapper for Work Queue task LRN-M0-001: evidence-backed CURRENT identity, course, assignment, quiz, result and gradebook audit only.", phase: PHASE-LEARNING-M0, issue: https://github.com/spikeal8-maker/asa-lab/issues/136}
   - {id: TASK-R3, label: R3 Project Lifecycle, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R3, issue: https://github.com/spikeal8-maker/asa-lab/issues/37}
   - {id: TASK-R4, label: R4 Electronics Parity, kind: task, layer: delivery, status: blocked, summary: "Roadmap alias; not executable.", phase: PHASE-R4, issue: https://github.com/spikeal8-maker/asa-lab/issues/63}
   - {id: TASK-SEAT, label: StudentSeat, kind: task, layer: delivery, status: blocked, summary: "Future School Pilot task.", phase: PHASE-PILOT, issue: https://github.com/spikeal8-maker/asa-lab/issues/7}
@@ -205,7 +203,6 @@ edges:
   - {from: TRACK-ROADMAP, to: TASK-3D-M0-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-CHECKERS-M1-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-ADMIN-AUTH-STABILITY-001, type: contains}
-  - {from: TRACK-ROADMAP, to: TASK-LEARNING-M0-001, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R3, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-R4, type: contains}
   - {from: TRACK-ROADMAP, to: TASK-SEAT, type: contains}
@@ -232,7 +229,6 @@ edges:
   - {from: TASK-3D-M0-001, to: PHASE-R10, type: implements}
   - {from: TASK-CHECKERS-M1-001, to: PHASE-R11, type: implements}
   - {from: TASK-ADMIN-AUTH-STABILITY-001, to: PHASE-PILOT, type: implements}
-  - {from: TASK-LEARNING-M0-001, to: PHASE-LEARNING-M0, type: implements}
   - {from: TASK-R3, to: PHASE-R3, type: implements}
   - {from: TASK-R4, to: PHASE-R4, type: implements}
   - {from: TASK-SEAT, to: PHASE-PILOT, type: implements}
