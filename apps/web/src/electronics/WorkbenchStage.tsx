@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
@@ -404,6 +405,10 @@ export function WorkbenchStage({
             const visualState = c.componentVisualState(component);
             const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
             const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
+            const photoresistorPercent = Math.round(
+              Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) *
+                100,
+            );
             return (
               <g
                 key={component.id}
@@ -540,28 +545,35 @@ export function WorkbenchStage({
                     >
                       <label className="workbench-photoresistor-control">
                         <span className="workbench-photoresistor-level" aria-hidden="true" />
-                        <output>
-                          {Math.round(
-                            Number(component.stateProperties?.['illumination'] ?? 0.5) * 100,
-                          )}
-                          %
-                        </output>
-                        <input
-                          aria-label="Освещённость фоторезистора"
-                          type="range"
-                          min="0"
-                          max="100"
-                          step="1"
-                          value={Math.round(
-                            Number(component.stateProperties?.['illumination'] ?? 0.5) * 100,
-                          )}
-                          onChange={(event) =>
-                            c.setSelectedProperties(
-                              { illumination: Number(event.currentTarget.value) / 100 },
-                              `Освещённость: ${event.currentTarget.value}%.`,
-                            )
+                        <output>{photoresistorPercent}%</output>
+                        <span
+                          className="workbench-photoresistor-range"
+                          style={
+                            {
+                              '--photoresistor-position': `${photoresistorPercent}%`,
+                              '--photoresistor-thumb-shift': `-${photoresistorPercent}%`,
+                              '--photoresistor-fill-adjustment': `${(26 * photoresistorPercent) / 100}px`,
+                            } as CSSProperties
                           }
-                        />
+                        >
+                          <span className="workbench-photoresistor-rail" aria-hidden="true" />
+                          <span className="workbench-photoresistor-fill" aria-hidden="true" />
+                          <span className="workbench-photoresistor-thumb" aria-hidden="true" />
+                          <input
+                            aria-label="Освещённость фоторезистора"
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={photoresistorPercent}
+                            onChange={(event) =>
+                              c.setSelectedProperties(
+                                { illumination: Number(event.currentTarget.value) / 100 },
+                                `Освещённость: ${event.currentTarget.value}%.`,
+                              )
+                            }
+                          />
+                        </span>
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <circle cx="12" cy="12" r="4" />
                           <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
