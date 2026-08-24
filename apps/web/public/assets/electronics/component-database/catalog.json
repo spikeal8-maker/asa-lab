@@ -102,10 +102,17 @@
     },
     {
       "componentId": "multimeter",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/multimeter.svg",
-      "sha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "multimeter_strict_path_only.svg",
+      "sha256": "962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
+    },
+    {
+      "componentId": "oscilloscope",
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "осциллограф_компонент_без_подложки.svg",
+      "sha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "photoresistor",
@@ -130,10 +137,10 @@
     },
     {
       "componentId": "regulated-power-supply",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/regulated-power-supply.svg",
-      "sha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "reg_power_supply.svg",
+      "sha256": "869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "resistor-axial",
@@ -148,6 +155,13 @@
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/servo-motor.svg",
       "sha256": "52e1c9ca3f926b76c4795855eafcacd37a71df73d4cee3112a150a663d523bd3",
       "ownerDecision": "approved_exact_owner_svg_for_runtime"
+    },
+    {
+      "componentId": "signal-generator",
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "генератор_сигналов.svg",
+      "sha256": "9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "transistor-npn",
@@ -16989,40 +17003,8 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "electrolytic-capacitor",
-      "familyId": "capacitor",
-      "familyLabelRu": "Конденсатор",
-      "familyLabelEn": "Electrolytic capacitor",
-      "variantId": "electrolytic-capacitor",
-      "variantLabelRu": "Электролитический",
-      "variantLabelEn": "Electrolytic capacitor",
-      "category": "passives",
-      "subcategoryId": "capacitors",
-      "catalogOrder": 5,
       "appearsInBasic": true,
-      "searchAliases": ["electrolytic-capacitor", "Конденсатор", "Electrolytic capacitor"],
-      "displayNameEn": "Electrolytic capacitor",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 8.667,
-      "physicalHeightMm": 14.133,
-      "viewBox": [0, 0, 8.667, 14.133],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 2.4876,
-          "yMm": 12.4038,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 6.4019,
-          "yMm": 12.3891,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
+      "provenance": "owner_supplied",
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -17032,27 +17014,64 @@
           "channels": []
         }
       ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "electrolytic-capacitor",
+      "familyId": "capacitor",
+      "familyLabelRu": "Конденсатор",
+      "familyLabelEn": "Capacitor",
+      "variantId": "electrolytic-capacitor",
+      "variantLabelRu": "Электролитический",
+      "variantLabelEn": "Electrolytic",
+      "category": "passives",
+      "subcategoryId": "capacitors",
+      "catalogOrder": 5,
+      "searchAliases": ["electrolytic-capacitor", "конденсатор", "электролитический", "capacitor"],
+      "displayNameEn": "Electrolytic capacitor",
+      "physicalWidthMm": 16.91,
+      "physicalHeightMm": 19.2,
+      "viewBox": [0, 0, 273, 310],
+      "pins": [
+        {
+          "id": "negative",
+          "xMm": 6.07,
+          "yMm": 15.61,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "positive",
+          "xMm": 11.15,
+          "yMm": 15.61,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [5.08, 0]
+        ]
+      },
       "stateContract": {
         "type": "static",
         "state": "static"
       },
-      "simulationSupport": "visual_and_contacts_only",
-      "blockReason": "Отрисовка и 31 контакт доступны; электрическая модель Arduino ещё не реализована",
-      "catalogTier": "core",
-      "ownerApproval": {
-        "source": "direct_owner_file",
-        "artTrusted": true,
-        "approvedAt": "2026-08-10"
-      },
-      "isDefaultVariant": true,
       "displayName": "Электролитический конденсатор",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/electrolytic-capacitor.svg",
-      "sourceSha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/electrolytic-capacitor.svg",
-      "runtimeSha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "sourceOwnerPath": "capacitor_electrolytic.svg",
+      "sourceSha256": "d7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09",
+      "runtimePath": "/assets/electronics/component-database/components/passives/electrolytic-capacitor/component.svg",
+      "runtimeSha256": "d7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09"
     },
     {
       "componentId": "switch-spdt",
@@ -17160,80 +17179,19 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "battery-1.5v",
-      "familyId": "battery",
-      "familyLabelRu": "Батарея",
-      "familyLabelEn": "Батарея",
-      "variantId": "battery-1.5v",
-      "variantLabelRu": "1,5 В",
-      "variantLabelEn": "1,5 В",
-      "category": "power",
-      "subcategoryId": "batteries",
-      "catalogOrder": 7.1,
-      "appearsInBasic": true,
-      "searchAliases": ["battery-1.5v", "Батарея", "1,5 В"],
-      "displayNameEn": "battery-1.5v",
-      "provenance": "owner_supplied",
-      "physicalWidthMm": 23.524,
-      "physicalHeightMm": 66.87,
-      "viewBox": [0, 0, 23.524, 66.87],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 8.2334,
-          "yMm": 0,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 15.2906,
-          "yMm": 0,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [
-        {
-          "driver": "none",
-          "decorativeLoop": false,
-          "channels": []
-        }
-      ],
-      "stateContract": {
-        "type": "dc_source",
-        "polarity": ["positive", "negative"]
-      },
-      "simulationSupport": "existing_model",
-      "blockReason": null,
-      "catalogTier": "core",
-      "isDefaultVariant": false,
-      "displayName": "Батарея 1,5 В",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/svg/батарея 1,5 вольт.svg",
-      "sourceSha256": "4d7ef90203ffa9b70f9a21a87d216dff9cfdd3591d8750973b58c4b52874aeb0",
-      "runtimePath": "/assets/electronics/component-database/components/battery/battery-1.5v/component.svg",
-      "runtimeSha256": "4d7ef90203ffa9b70f9a21a87d216dff9cfdd3591d8750973b58c4b52874aeb0",
-      "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
-    },
-    {
       "componentId": "battery-3v",
       "familyId": "battery",
-      "familyLabelRu": "Батарея",
-      "familyLabelEn": "Батарея",
+      "familyLabelRu": "Батарея 3 В",
+      "familyLabelEn": "3 V battery",
       "variantId": "battery-3v",
-      "variantLabelRu": "CR2032, 3 В",
-      "variantLabelEn": "CR2032, 3 V",
+      "variantLabelRu": "3 В",
+      "variantLabelEn": "3 V",
       "category": "power",
       "subcategoryId": "batteries",
       "catalogOrder": 7.2,
       "appearsInBasic": true,
-      "searchAliases": ["battery-3v", "Батарея", "3 В", "CR2032", "кнопочная батарея", "coin cell"],
-      "displayNameEn": "CR2032 coin battery 3 V",
+      "searchAliases": ["battery-3v", "Батарея", "3 В"],
+      "displayNameEn": "3 V battery",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 24,
       "physicalHeightMm": 28.6,
@@ -17272,73 +17230,12 @@
       "blockReason": null,
       "catalogTier": "core",
       "isDefaultVariant": false,
-      "displayName": "Кнопочная батарея CR2032 3 В",
+      "displayName": "Батарея 3 В",
       "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
       "sourceOwnerPath": "cr2032_coin_battery_holder.svg",
       "sourceSha256": "e4407e650802233542cf810d02f341934ff231f19a7e4e1aa43b4de1591687e5",
       "runtimePath": "/assets/electronics/component-database/components/power/battery-3v/component.svg",
       "runtimeSha256": "e4407e650802233542cf810d02f341934ff231f19a7e4e1aa43b4de1591687e5",
-      "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
-    },
-    {
-      "componentId": "battery-6v",
-      "familyId": "battery",
-      "familyLabelRu": "Батарея",
-      "familyLabelEn": "Батарея",
-      "variantId": "battery-6v",
-      "variantLabelRu": "6 В",
-      "variantLabelEn": "6 В",
-      "category": "power",
-      "subcategoryId": "batteries",
-      "catalogOrder": 7.3,
-      "appearsInBasic": true,
-      "searchAliases": ["battery-6v", "Батарея", "6 В"],
-      "displayNameEn": "battery-6v",
-      "provenance": "owner_supplied",
-      "physicalWidthMm": 68.507,
-      "physicalHeightMm": 65.043,
-      "viewBox": [0, 0, 68.507, 65.043],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 28.7729,
-          "yMm": 0,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 39.7341,
-          "yMm": 0,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [
-        {
-          "driver": "none",
-          "decorativeLoop": false,
-          "channels": []
-        }
-      ],
-      "stateContract": {
-        "type": "dc_source",
-        "polarity": ["positive", "negative"]
-      },
-      "simulationSupport": "existing_model",
-      "blockReason": null,
-      "catalogTier": "core",
-      "isDefaultVariant": false,
-      "displayName": "Батарея 6 В",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/svg/батарея 6 вольт.svg",
-      "sourceSha256": "5ce973b1623801c15589039f4c0eb4bf6f940b957ab1767777fe73d271bc5d9a",
-      "runtimePath": "/assets/electronics/component-database/components/battery/battery-6v/component.svg",
-      "runtimeSha256": "5ce973b1623801c15589039f4c0eb4bf6f940b957ab1767777fe73d271bc5d9a",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
@@ -28171,6 +28068,28 @@
       "previousInventoryClassification": "replaced_by_direct_owner_svg"
     },
     {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
       "componentId": "vibration-motor",
       "familyId": "vibration-motor",
       "familyLabelRu": "Вибромотор",
@@ -28181,35 +28100,43 @@
       "category": "motors",
       "subcategoryId": "motors",
       "catalogOrder": 13,
-      "appearsInBasic": true,
-      "searchAliases": ["vibration-motor", "Вибромотор", "Vibration motor"],
+      "searchAliases": ["vibration-motor", "вибромотор", "vibration motor"],
       "displayNameEn": "Vibration motor",
-      "provenance": "missing_owner_source",
-      "physicalWidthMm": null,
-      "physicalHeightMm": null,
-      "viewBox": null,
-      "pins": [],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [],
-      "stateContract": null,
-      "simulationSupport": "not_available",
-      "blockReason": "отдельный owner-файл не найден; DC motor не используется как подмена",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+      "physicalWidthMm": 7.43,
+      "physicalHeightMm": 22.92,
+      "viewBox": [0, 0, 120, 370],
+      "pins": [
+        {
+          "id": "negative",
+          "xMm": 2.43,
+          "yMm": 22.86,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "positive",
+          "xMm": 4.97,
+          "yMm": 22.86,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0]
+        ]
       },
-      "isDefaultVariant": true,
+      "stateContract": {
+        "type": "motor",
+        "speed": [0, 1]
+      },
       "displayName": "Вибромотор",
-      "sourceOwnerArchive": null,
-      "sourceOwnerPath": null,
-      "sourceSha256": null,
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "missing_owner_source"
+      "sourceOwnerPath": "ASA_Lab_vibration_motor.svg",
+      "sourceSha256": "f17c24306a12af8c14fa5e6caee11c343bf69a67ecadbd91b3f0afbf0eaf1c1d",
+      "runtimePath": "/assets/electronics/component-database/components/motors/vibration-motor/component.svg",
+      "runtimeSha256": "f17c24306a12af8c14fa5e6caee11c343bf69a67ecadbd91b3f0afbf0eaf1c1d"
     },
     {
       "componentId": "dc-motor",
@@ -28348,6 +28275,78 @@
       "runtimeSha256": "2227b5058f77028eae3909ba63f129cec1931e9be2962e2ff87f61c551fdd964",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
+    },
+    {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "gearmotor",
+      "familyId": "gearmotor",
+      "familyLabelRu": "Мотор-редуктор",
+      "familyLabelEn": "Gearmotor",
+      "variantId": "gearmotor",
+      "variantLabelRu": "Мотор-редуктор",
+      "variantLabelEn": "Gearmotor",
+      "category": "motors",
+      "subcategoryId": "motors",
+      "catalogOrder": 15.1,
+      "searchAliases": ["gearmotor", "мотор-редуктор", "TT motor"],
+      "displayNameEn": "Gearmotor",
+      "physicalWidthMm": 43.52,
+      "physicalHeightMm": 68.58,
+      "viewBox": [0, 0, 514, 810],
+      "pins": [
+        {
+          "id": "negative",
+          "xMm": 10.33,
+          "yMm": 47.88,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "positive",
+          "xMm": 10.33,
+          "yMm": 50.42,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [0, 2.54]
+        ]
+      },
+      "stateContract": {
+        "type": "dc_motor",
+        "speed": [0, 1],
+        "direction": ["clockwise", "counterclockwise", "stopped"]
+      },
+      "displayName": "Мотор-редуктор",
+      "sourceOwnerPath": "мотор_редуктор_arduino.svg",
+      "sourceSha256": "03a40143d0b91ae5bd3f87f559a521f61ad1b161536d5b849899cf15296117dd",
+      "runtimePath": "/assets/electronics/component-database/components/motors/gearmotor/component.svg",
+      "runtimeSha256": "03a40143d0b91ae5bd3f87f559a521f61ad1b161536d5b849899cf15296117dd"
     },
     {
       "componentId": "battery-holder-aa-1",
@@ -29533,44 +29532,8 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "regulated-power-supply",
-      "familyId": "regulated-power-supply",
-      "familyLabelRu": "Регулируемый источник питания",
-      "familyLabelEn": "Regulated power supply",
-      "variantId": "regulated-power-supply",
-      "variantLabelRu": "Лабораторный",
-      "variantLabelEn": "Regulated power supply",
-      "category": "power",
-      "subcategoryId": "power-supplies",
-      "catalogOrder": 25,
       "appearsInBasic": false,
-      "searchAliases": [
-        "regulated-power-supply",
-        "Регулируемый источник питания",
-        "Regulated power supply"
-      ],
-      "displayNameEn": "Regulated power supply",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 28.667,
-      "physicalHeightMm": 22.8,
-      "viewBox": [0, 0, 28.667, 22.8],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 15.4203,
-          "yMm": 18.6812,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 13.2206,
-          "yMm": 18.718,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
+      "provenance": "owner_supplied",
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -29580,27 +29543,59 @@
           "channels": []
         }
       ],
-      "stateContract": {
-        "type": "power_supply",
-        "voltage": [0, 30],
-        "currentLimit": [0, 5]
-      },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
       "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
       },
       "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "regulated-power-supply",
+      "familyId": "regulated-power-supply",
+      "familyLabelRu": "Регулируемый источник питания",
+      "familyLabelEn": "Regulated power supply",
+      "variantId": "regulated-power-supply",
+      "variantLabelRu": "Лабораторный",
+      "variantLabelEn": "Laboratory",
+      "category": "power",
+      "subcategoryId": "power-supplies",
+      "catalogOrder": 25,
+      "searchAliases": ["regulated-power-supply", "регулируемый источник питания", "блок питания"],
       "displayName": "Регулируемый источник питания",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/regulated-power-supply.svg",
-      "sourceSha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/regulated-power-supply.svg",
-      "runtimeSha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "displayNameEn": "Regulated power supply",
+      "physicalWidthMm": 29.4,
+      "physicalHeightMm": 23.7,
+      "viewBox": [0, 0, 294, 237],
+      "pins": [
+        {
+          "id": "positive",
+          "xMm": 13.35,
+          "yMm": 21.45,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "negative",
+          "xMm": 16,
+          "yMm": 21.45,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": null,
+      "stateContract": {
+        "type": "adjustable_power_supply",
+        "voltageRange": [0, 30],
+        "currentRange": [0, 5]
+      },
+      "sourceOwnerPath": "reg_power_supply.svg",
+      "sourceSha256": "869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b",
+      "runtimePath": "/assets/electronics/component-database/components/power/regulated-power-supply/component.svg",
+      "runtimeSha256": "869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b"
     },
     {
       "componentId": "photoresistor",
@@ -29672,6 +29667,85 @@
       "runtimeSha256": "9d4ad8754adfffd7a824d324ea7ed2ed7dee3587dd0f2509ecaf68b685b5936b",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
+    },
+    {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "soil-moisture-sensor",
+      "familyId": "soil-moisture-sensor",
+      "familyLabelRu": "Датчик влажности почвы",
+      "familyLabelEn": "Soil moisture sensor",
+      "variantId": "soil-moisture-sensor",
+      "variantLabelRu": "Датчик влажности почвы",
+      "variantLabelEn": "Soil moisture sensor",
+      "category": "sensors",
+      "subcategoryId": "environment-sensors",
+      "catalogOrder": 26.01,
+      "searchAliases": ["soil-moisture-sensor", "датчик влажности почвы", "soil sensor"],
+      "displayNameEn": "Soil moisture sensor",
+      "physicalWidthMm": 15.83,
+      "physicalHeightMm": 42.33,
+      "viewBox": [0, 0, 268, 716],
+      "pins": [
+        {
+          "id": "vcc",
+          "xMm": 5.32,
+          "yMm": 2.42,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "gnd",
+          "xMm": 7.86,
+          "yMm": 2.42,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "signal",
+          "xMm": 10.4,
+          "yMm": 2.42,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0],
+          [5.08, 0]
+        ]
+      },
+      "stateContract": {
+        "type": "sensor_input",
+        "moisturePercent": [0, 100]
+      },
+      "displayName": "Датчик влажности почвы",
+      "sourceOwnerPath": "soil_moisture_sensor (2).svg",
+      "sourceSha256": "09de32dc6f5dd345bf4dabdfc05496e4a188264a3e8b8f123061b766decf6bf3",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/soil-moisture-sensor/component.svg",
+      "runtimeSha256": "09de32dc6f5dd345bf4dabdfc05496e4a188264a3e8b8f123061b766decf6bf3"
     },
     {
       "componentId": "ultrasonic-sensor",
@@ -29752,6 +29826,177 @@
       "runtimeSha256": "fcca7e406eb6a949ea3c0edd7c46c10c4a4235bf9d880ae2dd1622d37c59d96f",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
+    },
+    {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": false,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "ultrasonic-hc-sr04",
+      "familyId": "ultrasonic-sensor",
+      "familyLabelRu": "Ультразвуковой датчик расстояния",
+      "familyLabelEn": "Ultrasonic distance sensor",
+      "variantId": "ultrasonic-hc-sr04",
+      "variantLabelRu": "HC-SR04, 4 вывода",
+      "variantLabelEn": "HC-SR04, 4 pin",
+      "category": "sensors",
+      "subcategoryId": "distance-sensors",
+      "catalogOrder": 26.11,
+      "searchAliases": [
+        "ultrasonic-hc-sr04",
+        "HC-SR04",
+        "ультразвуковой датчик",
+        "датчик расстояния"
+      ],
+      "displayNameEn": "HC-SR04 ultrasonic distance sensor",
+      "physicalWidthMm": 44.63,
+      "physicalHeightMm": 25.1,
+      "viewBox": [0, 0, 738, 415],
+      "pins": [
+        {
+          "id": "vcc",
+          "xMm": 18.57,
+          "yMm": 25.04,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "trigger",
+          "xMm": 21.11,
+          "yMm": 25.04,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "echo",
+          "xMm": 23.65,
+          "yMm": 25.04,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "gnd",
+          "xMm": 26.19,
+          "yMm": 25.04,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0],
+          [5.08, 0],
+          [7.62, 0]
+        ]
+      },
+      "stateContract": {
+        "type": "sensor_input",
+        "distanceMeters": [0.02, 4]
+      },
+      "displayName": "Ультразвуковой датчик HC-SR04",
+      "sourceOwnerPath": "HC_SR04_sensor_v2.svg",
+      "sourceSha256": "5120ca5300c1b86c618d7dd9c5d2c88eb6c52ba4478d2b3f5bb9d9b5b5ca65be",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/ultrasonic-hc-sr04/component.svg",
+      "runtimeSha256": "5120ca5300c1b86c618d7dd9c5d2c88eb6c52ba4478d2b3f5bb9d9b5b5ca65be"
+    },
+    {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "pir-sensor",
+      "familyId": "pir-sensor",
+      "familyLabelRu": "Пироэлектрический ИК-датчик",
+      "familyLabelEn": "PIR sensor",
+      "variantId": "pir-sensor",
+      "variantLabelRu": "PIR",
+      "variantLabelEn": "PIR sensor",
+      "category": "sensors",
+      "subcategoryId": "motion-sensors",
+      "catalogOrder": 26.15,
+      "searchAliases": ["pir-sensor", "PIR", "датчик движения", "пироэлектрический датчик"],
+      "displayNameEn": "PIR motion sensor",
+      "physicalWidthMm": 44.53,
+      "physicalHeightMm": 43.52,
+      "viewBox": [0, 0, 526, 514],
+      "pins": [
+        {
+          "id": "vcc",
+          "xMm": 19.56,
+          "yMm": 35.64,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "signal",
+          "xMm": 22.1,
+          "yMm": 35.64,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "gnd",
+          "xMm": 24.64,
+          "yMm": 35.64,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0],
+          [5.08, 0]
+        ]
+      },
+      "stateContract": {
+        "type": "sensor_input",
+        "motionDetected": [false, true]
+      },
+      "displayName": "Пироэлектрический ИК-датчик",
+      "sourceOwnerPath": "pir_sensor_555-28027_pure_vector.svg",
+      "sourceSha256": "11b415352c2cf216d04e7f0caa6f290a6fa2da44a2c3879e82702e7a6e9223dc",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/pir-sensor/component.svg",
+      "runtimeSha256": "11b415352c2cf216d04e7f0caa6f290a6fa2da44a2c3879e82702e7a6e9223dc"
     },
     {
       "componentId": "temperature-sensor",
@@ -30204,40 +30449,8 @@
       "previousInventoryClassification": "owner_supplied"
     },
     {
-      "componentId": "multimeter",
-      "familyId": "multimeter",
-      "familyLabelRu": "Мультиметр",
-      "familyLabelEn": "Multimeter",
-      "variantId": "multimeter",
-      "variantLabelRu": "Цифровой",
-      "variantLabelEn": "Multimeter",
-      "category": "instruments",
-      "subcategoryId": "meters",
-      "catalogOrder": 29,
       "appearsInBasic": false,
-      "searchAliases": ["multimeter", "Мультиметр", "Multimeter"],
-      "displayNameEn": "Multimeter",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 36.4,
-      "physicalHeightMm": 14,
-      "viewBox": [0, 0, 36.4, 14],
-      "pins": [
-        {
-          "id": "com",
-          "xMm": 16.7844,
-          "yMm": 12.1787,
-          "electricalRole": "com",
-          "toleranceMm": 0
-        },
-        {
-          "id": "v-ohm-ma",
-          "xMm": 19.126,
-          "yMm": 12.1407,
-          "electricalRole": "v-ohm-ma",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
+      "provenance": "owner_supplied",
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -30247,27 +30460,197 @@
           "channels": []
         }
       ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "multimeter",
+      "familyId": "multimeter",
+      "familyLabelRu": "Мультиметр",
+      "familyLabelEn": "Multimeter",
+      "variantId": "multimeter",
+      "variantLabelRu": "Цифровой",
+      "variantLabelEn": "Digital",
+      "category": "instruments",
+      "subcategoryId": "meters",
+      "catalogOrder": 29,
+      "searchAliases": ["multimeter", "мультиметр", "тестер"],
+      "displayName": "Мультиметр",
+      "displayNameEn": "Multimeter",
+      "physicalWidthMm": 44.59,
+      "physicalHeightMm": 23.24,
+      "viewBox": [0, 0, 474, 247],
+      "pins": [
+        {
+          "id": "com",
+          "xMm": 20.93,
+          "yMm": 18.16,
+          "electricalRole": "com",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "v-ohm-ma",
+          "xMm": 23.47,
+          "yMm": 18.16,
+          "electricalRole": "measurement",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0]
+        ]
+      },
       "stateContract": {
         "type": "measurement_display",
         "value": "number",
         "unit": "typed"
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "sourceOwnerPath": "multimeter_strict_path_only.svg",
+      "sourceSha256": "962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333",
+      "runtimePath": "/assets/electronics/component-database/components/instruments/multimeter/component.svg",
+      "runtimeSha256": "962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333"
+    },
+    {
+      "appearsInBasic": false,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
       "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
       },
       "isDefaultVariant": true,
-      "displayName": "Мультиметр",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/multimeter.svg",
-      "sourceSha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/multimeter.svg",
-      "runtimeSha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "signal-generator",
+      "familyId": "signal-generator",
+      "familyLabelRu": "Генератор сигналов",
+      "familyLabelEn": "Signal generator",
+      "variantId": "signal-generator",
+      "variantLabelRu": "Функциональный",
+      "variantLabelEn": "Function generator",
+      "category": "instruments",
+      "subcategoryId": "signal-instruments",
+      "catalogOrder": 29.1,
+      "searchAliases": ["signal-generator", "генератор сигналов", "генератор частоты"],
+      "displayName": "Генератор сигналов",
+      "displayNameEn": "Signal generator",
+      "physicalWidthMm": 57.9,
+      "physicalHeightMm": 40.5,
+      "viewBox": [0, 0, 579, 405],
+      "pins": [
+        {
+          "id": "signal",
+          "xMm": 27.3,
+          "yMm": 33.4,
+          "electricalRole": "signal",
+          "toleranceMm": 0.5
+        },
+        {
+          "id": "ground",
+          "xMm": 30,
+          "yMm": 33.4,
+          "electricalRole": "ground",
+          "toleranceMm": 0.5
+        }
+      ],
+      "footprint": null,
+      "stateContract": {
+        "type": "signal_source",
+        "waveform": "selectable",
+        "frequency": "adjustable"
+      },
+      "sourceOwnerPath": "генератор_сигналов.svg",
+      "sourceSha256": "9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196",
+      "runtimePath": "/assets/electronics/component-database/components/instruments/signal-generator/component.svg",
+      "runtimeSha256": "9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196"
+    },
+    {
+      "appearsInBasic": false,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "oscilloscope",
+      "familyId": "oscilloscope",
+      "familyLabelRu": "Осциллограф",
+      "familyLabelEn": "Oscilloscope",
+      "variantId": "oscilloscope",
+      "variantLabelRu": "Двухклеммный",
+      "variantLabelEn": "Two-terminal",
+      "category": "instruments",
+      "subcategoryId": "signal-instruments",
+      "catalogOrder": 29.2,
+      "searchAliases": ["oscilloscope", "осциллограф", "измерение сигнала"],
+      "displayName": "Осциллограф",
+      "displayNameEn": "Oscilloscope",
+      "physicalWidthMm": 54.5,
+      "physicalHeightMm": 56.6,
+      "viewBox": [0, 0, 545, 566],
+      "pins": [
+        {
+          "id": "ground",
+          "xMm": 24.7,
+          "yMm": 51.75,
+          "electricalRole": "ground",
+          "toleranceMm": 0.5
+        },
+        {
+          "id": "signal",
+          "xMm": 27.4,
+          "yMm": 51.75,
+          "electricalRole": "signal",
+          "toleranceMm": 0.5
+        }
+      ],
+      "footprint": null,
+      "stateContract": {
+        "type": "waveform_display",
+        "input": "signal",
+        "reference": "ground"
+      },
+      "sourceOwnerPath": "осциллограф_компонент_без_подложки.svg",
+      "sourceSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8",
+      "runtimePath": "/assets/electronics/component-database/components/instruments/oscilloscope/component.svg",
+      "runtimeSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8"
     }
   ],
   "breadboardPlacementRules": {

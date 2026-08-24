@@ -62,6 +62,17 @@ function New-PrivateEnvironment {
     if ($existing -match 'replace-with|CHANGE_ME|change-me') {
       throw '.env still contains placeholder credentials; replace them or remove .env and rerun.'
     }
+    $requiredMigrationSettings = @(
+      'MIGRATION_DATABASE_URL',
+      'MIGRATION_EXPECT_DATABASE',
+      'MIGRATION_CONFIRM'
+    )
+    $missingMigrationSettings = @(
+      $requiredMigrationSettings | Where-Object { $existing -notmatch "(?m)^$([regex]::Escape($_))=\S" }
+    )
+    if ($missingMigrationSettings.Count -gt 0) {
+      throw "Legacy .env is missing the dedicated migration target guard ($($missingMigrationSettings -join ', ')). Add all three settings and use MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted."
+    }
     return
   }
 
@@ -79,7 +90,9 @@ POSTGRES_DB=asalab
 POSTGRES_USER=asalab_admin
 POSTGRES_PASSWORD=$adminPassword
 ASA_APP_DB_PASSWORD=$runtimePassword
-DATABASE_URL=postgres://asalab_admin:$adminPassword@postgres:5432/asalab
+MIGRATION_DATABASE_URL=postgres://asalab_admin:$adminPassword@postgres:5432/asalab
+MIGRATION_EXPECT_DATABASE=asalab
+MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtimePassword@postgres:5432/asalab
 
 ASA_WEB_PORT=4610

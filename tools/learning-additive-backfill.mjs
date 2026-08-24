@@ -151,7 +151,10 @@ async function main() {
     const versions = await client.query(
       'SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1',
     );
-    if (Number.parseInt(versions.rows[0]?.version || '0', 10) < 87) fail('migration_0087_required');
+    if (Number.parseInt(versions.rows[0]?.version || '0', 10) < 88) fail('migration_0088_required');
+    await client.query(
+      `SELECT set_config('app.learning_m0_006_environment', 'isolated_test', false)`,
+    );
     const beforePhysical = await readPhysicalCounts(client, args.batchKey);
     const schools = await client.query('SELECT id FROM schools ORDER BY id');
     const firstCreated = zeroCounts();

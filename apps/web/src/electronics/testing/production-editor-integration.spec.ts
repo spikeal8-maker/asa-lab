@@ -36,9 +36,7 @@ const EMPTY: SchematicDocument = {
 };
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
-  'battery-1.5v': [23.524, 66.87],
   'battery-3v': [24, 28.6],
-  'battery-6v': [68.507, 65.043],
   'battery-9v': [23.5763, 52.667],
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
@@ -67,8 +65,18 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'piezo-passive-buzzer': [22.133, 22],
   'piezo-disc': [24, 24],
   'servo-motor': [15.2, 39.1668],
+  gearmotor: [43.52, 68.58],
+  'vibration-motor': [7.43, 22.92],
+  'electrolytic-capacitor': [16.91, 19.2],
+  'soil-moisture-sensor': [15.83, 42.33],
   'ultrasonic-sensor': [44.83, 26.42],
+  'ultrasonic-hc-sr04': [44.63, 25.1],
+  'pir-sensor': [44.53, 43.52],
   'temperature-sensor': [5.79, 9.6371],
+  multimeter: [44.59, 23.24],
+  'regulated-power-supply': [29.4, 23.7],
+  'signal-generator': [57.9, 40.5],
+  oscilloscope: [54.5, 56.6],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -84,8 +92,15 @@ const BREADBOARD_MOUNTABLE = [
   ['seven-segment-display', 'top-1', 'F1'],
   ['incandescent-lamp', 'L1', 'J1'],
   ['transistor-npn', 'base', 'J2'],
+  ['electrolytic-capacitor', 'negative', 'J1'],
+  ['vibration-motor', 'negative', 'J1'],
+  ['gearmotor', 'negative', 'J1'],
+  ['soil-moisture-sensor', 'vcc', 'J1'],
   ['ultrasonic-sensor', 'gnd', 'J1'],
+  ['ultrasonic-hc-sr04', 'vcc', 'J1'],
+  ['pir-sensor', 'vcc', 'J1'],
   ['temperature-sensor', 'pin-1', 'J1'],
+  ['multimeter', 'com', 'J1'],
 ] as const;
 
 beforeAll(() => {
@@ -236,6 +251,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'capacitor',
       'spdt-switch',
       'battery-9v',
+      'battery-3v',
       'battery-holder-aa',
       'breadboard',
       'arduino-uno',
@@ -310,6 +326,29 @@ describe('owner SVG integration in the real Electronics document', () => {
       enabled: true,
       simulationStatus: 'not_yet_supported',
     });
+    expect(
+      families
+        .find((family) => family.familyId === 'ultrasonic-sensor')
+        ?.variants.map((variant) => variant.variantId),
+    ).toEqual(['ultrasonic-sensor', 'ultrasonic-hc-sr04']);
+    for (const componentId of [
+      'electrolytic-capacitor',
+      'vibration-motor',
+      'gearmotor',
+      'soil-moisture-sensor',
+      'ultrasonic-hc-sr04',
+      'pir-sensor',
+      'multimeter',
+      'regulated-power-supply',
+      'signal-generator',
+      'oscilloscope',
+    ]) {
+      expect(productionCatalogEntry(componentId), componentId).toMatchObject({
+        enabled: true,
+        simulationSupported: false,
+        catalogStatus: 'enabled',
+      });
+    }
     expect(families.find((family) => family.familyId === 'temperature-sensor')).toMatchObject({
       defaultVariantId: 'temperature-sensor',
       enabled: true,
@@ -327,29 +366,20 @@ describe('owner SVG integration in the real Electronics document', () => {
       productionCatalogEntry('diode-do41')?.physicalSizeMm,
     );
     expect(
-      ['battery-9v', 'battery-3v', 'battery-1.5v'].map((familyId) =>
+      ['battery-9v', 'battery-3v'].map((familyId) =>
         families.find((family) => family.familyId === familyId),
       ),
     ).toMatchObject([
       { familyLabel: 'Батарея 9 В', defaultVariantId: 'battery-9v', enabled: true },
       {
-        familyLabel: 'Кнопочная батарея 3 В',
+        familyLabel: 'Батарея 3 В',
         defaultVariantId: 'battery-3v',
         enabled: true,
-        appearsInBasic: false,
-      },
-      {
-        familyLabel: 'Батарея 1,5 В',
-        defaultVariantId: 'battery-1.5v',
-        enabled: true,
-        appearsInBasic: false,
+        appearsInBasic: true,
       },
     ]);
-    expect(families.find((family) => family.familyId === 'battery-6v')).toMatchObject({
-      familyLabel: 'Батарея 6 В',
-      appearsInBasic: false,
-      enabled: true,
-    });
+    expect(families.find((family) => family.familyId === 'battery-1.5v')).toBeUndefined();
+    expect(families.find((family) => family.familyId === 'battery-6v')).toBeUndefined();
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -417,9 +447,7 @@ describe('owner SVG integration in the real Electronics document', () => {
   });
 
   it.each([
-    ['battery-1.5v', 1.5],
     ['battery-3v', 3],
-    ['battery-6v', 6],
     ['battery-9v', 9],
   ] as const)('maps %s to its nominal source voltage', (componentTypeId, voltage) => {
     const entry = productionCatalog().find((candidate) => candidate.key === componentTypeId);

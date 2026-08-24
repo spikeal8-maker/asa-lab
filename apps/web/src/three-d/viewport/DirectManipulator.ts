@@ -102,6 +102,20 @@ interface LabelAnchor {
   readonly point: THREE.Vector3;
 }
 
+type MeasurementDescriptor = HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' };
+
+interface PinnedMeasurement {
+  readonly descriptor: MeasurementDescriptor;
+  readonly moveStart?: THREE.Vector3;
+}
+
+interface MeasurementEdit {
+  readonly value: number;
+  readonly step: number;
+  readonly unit?: string;
+  readonly onCommit: (value: number) => void;
+}
+
 const HANDLE_COLOR = new THREE.Color('#e8ecee');
 const HANDLE_ACTIVE = new THREE.Color('#ef3b32');
 const DIMENSION_COLOR = '#30383d';
@@ -274,6 +288,8 @@ export class DirectManipulator {
   private gridSnap = 1;
   private marquee: MarqueeState | null = null;
   private drag: DragState | null = null;
+  private pinnedMeasurement: PinnedMeasurement | null = null;
+  private measurementEditingEnabled = false;
   private labelAnchors: LabelAnchor[] = [];
   private handlePositionSignature = '';
 
@@ -445,6 +461,7 @@ export class DirectManipulator {
     }
     this.container.dataset['selectedNodeId'] = nodeId ?? '';
     this.container.dataset['selectedNodeIds'] = this.selectedIds.join(',');
+    this.pinnedMeasurement = null;
     this.clearDimensionVisuals();
     this.setHoveredHandle(null);
     this.update();
@@ -563,7 +580,7 @@ export class DirectManipulator {
         );
         rotateY.root.visible = true;
         rotateY.root.position.copy(world);
-        rotateY.root.scale.set(unit * 34, unit * 34, 1);
+        rotateY.root.scale.set(unit * 26, unit * 26, 1);
       }
 
       const rotateX = this.handles.get('rotate-x');
@@ -576,7 +593,7 @@ export class DirectManipulator {
         );
         rotateX.root.visible = true;
         rotateX.root.position.copy(world);
-        rotateX.root.scale.set(unit * 34, unit * 34, 1);
+        rotateX.root.scale.set(unit * 26, unit * 26, 1);
       }
 
       const rotateZ = this.handles.get('rotate-z');
@@ -586,7 +603,7 @@ export class DirectManipulator {
         const world = this.worldFromLocal(entry, new THREE.Vector3(0, halfHeight + unit * 29, 0));
         rotateZ.root.visible = true;
         rotateZ.root.position.copy(world);
-        rotateZ.root.scale.set(unit * 34, unit * 34, 1);
+        rotateZ.root.scale.set(unit * 26, unit * 26, 1);
       }
     }
 
@@ -961,6 +978,7 @@ export class DirectManipulator {
     entry: DirectManipulationEntry,
     descriptor: HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' },
   ): void {
+    this.pinnedMeasurement = null;
     const object = entry.object;
     const startPosition = object.position.clone();
     const startQuaternion = object.quaternion.clone();
@@ -1217,6 +1235,7 @@ export class DirectManipulator {
           drag.moveEntries.map((moving) => this.createCommit(moving.nodeId, moving.entry.object)),
         );
         this.clearDimensionVisuals();
+        this.pinnedMeasurement = null;
         this.setHoveredHandle(null);
         this.update();
         return;
@@ -1233,9 +1252,14 @@ export class DirectManipulator {
       }
       this.commitEntry(drag.nodeId, drag.entry.object, dimensions);
     }
+    this.pinnedMeasurement = {
+      descriptor: drag.descriptor,
+      ...(drag.descriptor.kind === 'move' ? { moveStart: drag.startPosition.clone() } : {}),
+    };
     this.clearDimensionVisuals();
     this.setHoveredHandle(null);
     this.update();
+    this.showPinnedMeasurements();
   }
 
   private commitEntry(nodeId: string, object: THREE.Object3D, dimensions?: ThreeDDimensions): void {
@@ -1299,7 +1323,14 @@ export class DirectManipulator {
         this.canvas.style.cursor = 'ns-resize';
       }
     }
-    this.showMeasurements(descriptor ?? null);
+    this.showMeasurements(descriptor ?? this.pinnedMeasurement?.descriptor ?? null);
+  }
+
+  private showPinnedMeasurements(): void {
+    this.showMeasurements(
+      this.pinnedMeasurement?.descriptor ?? null,
+      this.pinnedMeasurement?.moveStart,
+    );
   }
 
   private showRotationRing(axis: RotationAxis, handleId: string): void {
@@ -1309,12 +1340,12 @@ export class DirectManipulator {
     this.rotationRingAxis = axis;
     this.rotationRing.userData['directHandleId'] = handleId;
     const dimensions = this.effectiveDimensions(entry);
-    const radius = Math.max(dimensions.x, dimensions.y, dimensions.z) * 1.55;
-    const inner = radius * 0.69;
+    const radius = Math.max(dimensions.x, dimensions.y, dimensions.z) * 0.92;
+    const inner = radius * 0.8;
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: RING_COLOR,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.14,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
@@ -1328,7 +1359,7 @@ export class DirectManipulator {
     // A wider invisible bridge joins the small arrow to the visible band, so the
     // ring remains interactive while the pointer moves away from the arrow.
     const hitBand = new THREE.Mesh(
-      new THREE.RingGeometry(radius * 0.43, radius * 1.08, 96),
+      new THREE.RingGeometry(radius * 0.68, radius * 1.14, 96),
       new THREE.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
@@ -1354,8 +1385,8 @@ export class DirectManipulator {
     };
     addCircle(inner);
     addCircle(radius);
-    for (let index = 0; index < 24; index += 1) {
-      const angle = (index / 24) * Math.PI * 2;
+    for (let index = 0; index < 12; index += 1) {
+      const angle = (index / 12) * Math.PI * 2;
       linePoints.push(
         new THREE.Vector3(Math.cos(angle) * inner, Math.sin(angle) * inner, 0),
         new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0),
@@ -1369,8 +1400,8 @@ export class DirectManipulator {
       const inward = tip
         .clone()
         .normalize()
-        .multiplyScalar(-radius * 0.14);
-      const back = tangent.multiplyScalar(-radius * 0.2);
+        .multiplyScalar(-radius * 0.09);
+      const back = tangent.multiplyScalar(-radius * 0.13);
       linePoints.push(
         tip,
         tip.clone().add(back).add(inward),
@@ -1432,9 +1463,13 @@ export class DirectManipulator {
   }
 
   private showMeasurements(
-    descriptor: HandleDescriptor | { readonly id: 'move'; readonly kind: 'move' } | null,
+    descriptor: MeasurementDescriptor | null,
+    pinnedMoveStart?: THREE.Vector3,
   ): void {
     this.clearDimensionVisuals();
+    this.measurementEditingEnabled = Boolean(
+      !this.drag && descriptor && descriptor.id === this.pinnedMeasurement?.descriptor.id,
+    );
     const entry = this.selectedEntry();
     if (!entry || !descriptor) return;
     const dimensions = this.effectiveDimensions(entry);
@@ -1445,7 +1480,8 @@ export class DirectManipulator {
 
     if (descriptor.kind === 'move') {
       const moveDrag = this.drag?.descriptor.kind === 'move' ? this.drag : null;
-      if (moveDrag) this.addMoveDimensions(moveDrag.startPosition, entry.object.position);
+      const moveStart = moveDrag?.startPosition ?? pinnedMoveStart;
+      if (moveStart) this.addMoveDimensions(moveStart, entry.object.position, entry);
       return;
     }
 
@@ -1464,6 +1500,7 @@ export class DirectManipulator {
           this.formatMillimetres(dimensions.x),
           this.worldFromLocal(entry, new THREE.Vector3(0, -halfHeight, z + offset * 0.42)),
           'asa3d-width-value',
+          this.dimensionEdit(entry, 'width', dimensions.x),
         );
       }
       if ((descriptor.zSign ?? 0) !== 0) {
@@ -1480,6 +1517,7 @@ export class DirectManipulator {
           this.formatMillimetres(dimensions.z),
           this.worldFromLocal(entry, new THREE.Vector3(x - offset * 0.42, -halfHeight, 0)),
           'asa3d-depth-value',
+          this.dimensionEdit(entry, 'depth', dimensions.z),
         );
       }
       return;
@@ -1499,6 +1537,7 @@ export class DirectManipulator {
         this.formatMillimetres(dimensions.y),
         this.worldFromLocal(entry, new THREE.Vector3(x + offset * 0.5, 0, 0)),
         'asa3d-height-value',
+        this.dimensionEdit(entry, 'height', dimensions.y),
       );
       return;
     }
@@ -1522,16 +1561,29 @@ export class DirectManipulator {
           entry.object.position.z,
         ),
         'asa3d-lift-value',
+        {
+          value: Math.max(0, bounds.min.y),
+          step: this.gridSnap,
+          unit: 'мм',
+          onCommit: (value) => this.commitLiftValue(entry, value),
+        },
       );
       return;
     }
 
     const rotationVisual = this.handles.get(descriptor.id);
-    const angle = this.drag?.descriptor.kind === 'rotate' ? this.drag.currentAngleDegrees : 0;
+    const axis = descriptor.axis ?? 'y';
+    const angle = normaliseDegrees(THREE.MathUtils.radToDeg(entry.object.rotation[axis]));
     this.addLabel(
       `${round(angle, 1)}°`,
       rotationVisual?.root.position.clone() ?? entry.object.position.clone(),
       'asa3d-angle-value',
+      {
+        value: round(angle, 1),
+        step: 1,
+        unit: '°',
+        onCommit: (value) => this.commitRotationValue(entry, axis, value),
+      },
     );
   }
 
@@ -1539,7 +1591,11 @@ export class DirectManipulator {
     this.addWorldDimension(localPoints.map((point) => this.worldFromLocal(entry, point)));
   }
 
-  private addMoveDimensions(start: THREE.Vector3, current: THREE.Vector3): void {
+  private addMoveDimensions(
+    start: THREE.Vector3,
+    current: THREE.Vector3,
+    entry: DirectManipulationEntry,
+  ): void {
     const deltaX = round(current.x - start.x, 2);
     const deltaZ = round(current.z - start.z, 2);
     const y = this.workplaneY + 0.12;
@@ -1566,6 +1622,12 @@ export class DirectManipulator {
         this.formatMillimetres(deltaX),
         origin.clone().lerp(elbow, 0.5),
         'asa3d-move-x-value',
+        {
+          value: deltaX,
+          step: this.gridSnap,
+          unit: 'мм',
+          onCommit: (value) => this.commitMoveValue(entry, start, 'x', value),
+        },
       );
     }
 
@@ -1587,6 +1649,12 @@ export class DirectManipulator {
         this.formatMillimetres(deltaZ),
         elbow.clone().lerp(target, 0.5),
         'asa3d-move-z-value',
+        {
+          value: deltaZ,
+          step: this.gridSnap,
+          unit: 'мм',
+          onCommit: (value) => this.commitMoveValue(entry, start, 'z', value),
+        },
       );
     }
   }
@@ -1606,14 +1674,126 @@ export class DirectManipulator {
     this.dimensionRoot.add(line);
   }
 
-  private addLabel(text: string, point: THREE.Vector3, testId: string): void {
+  private addLabel(
+    text: string,
+    point: THREE.Vector3,
+    testId: string,
+    edit?: MeasurementEdit,
+  ): void {
     const element = globalThis.document.createElement('div');
     element.className = 'asa3d-measurement-label';
     element.dataset['testid'] = testId;
-    element.textContent = text;
+    if (edit && this.measurementEditingEnabled) {
+      element.dataset['editable'] = 'true';
+      const input = globalThis.document.createElement('input');
+      input.type = 'number';
+      input.step = String(edit.step);
+      input.value = String(round(edit.value, 3));
+      input.setAttribute('aria-label', text);
+      const original = input.value;
+      const stopPointer = (event: Event): void => event.stopPropagation();
+      input.addEventListener('pointerdown', stopPointer);
+      input.addEventListener('click', stopPointer);
+      input.addEventListener('keydown', (event) => {
+        event.stopPropagation();
+        if (event.key === 'Enter') input.blur();
+        if (event.key === 'Escape') {
+          input.value = original;
+          input.blur();
+        }
+      });
+      input.addEventListener('blur', () => {
+        const value = Number(input.value);
+        if (Number.isFinite(value) && input.value !== original) edit.onCommit(value);
+      });
+      element.append(input);
+      if (edit.unit) {
+        const unit = globalThis.document.createElement('span');
+        unit.textContent = edit.unit;
+        element.append(unit);
+      }
+    } else {
+      element.textContent = text;
+    }
     this.overlay.append(element);
     this.labelAnchors.push({ element, point });
     this.updateLabelPositions();
+  }
+
+  private dimensionEdit(
+    entry: DirectManipulationEntry,
+    dimension: keyof ThreeDDimensions,
+    value: number,
+  ): MeasurementEdit {
+    return {
+      value,
+      step: this.gridSnap,
+      unit: 'мм',
+      onCommit: (next) => this.commitDimensionValue(entry, dimension, next),
+    };
+  }
+
+  private commitDimensionValue(
+    entry: DirectManipulationEntry,
+    dimension: keyof ThreeDDimensions,
+    value: number,
+  ): void {
+    if (!Number.isFinite(value) || value <= 0) return;
+    const current = this.effectiveDimensions(entry);
+    const dimensions: ThreeDDimensions = {
+      width: dimension === 'width' ? value : current.x,
+      depth: dimension === 'depth' ? value : current.z,
+      height: dimension === 'height' ? value : current.y,
+    };
+    entry.object.scale.set(1, 1, 1);
+    this.commitEntry(entry.node.id, entry.object, dimensions);
+    // Keep the edited value visible until React replaces this runtime entry
+    // with geometry built from the committed dimensions.
+    entry.object.scale.set(
+      dimensions.width / entry.node.dimensions.width,
+      dimensions.height / entry.node.dimensions.height,
+      dimensions.depth / entry.node.dimensions.depth,
+    );
+    entry.object.updateMatrixWorld(true);
+    this.update();
+    this.showPinnedMeasurements();
+  }
+
+  private commitLiftValue(entry: DirectManipulationEntry, value: number): void {
+    if (!Number.isFinite(value)) return;
+    const bounds = new THREE.Box3().setFromObject(entry.object);
+    entry.object.position.y += Math.max(0, value) - bounds.min.y;
+    entry.object.updateMatrixWorld(true);
+    this.commitEntry(entry.node.id, entry.object);
+    this.update();
+    this.showPinnedMeasurements();
+  }
+
+  private commitRotationValue(
+    entry: DirectManipulationEntry,
+    axis: RotationAxis,
+    value: number,
+  ): void {
+    if (!Number.isFinite(value)) return;
+    entry.object.rotation[axis] = THREE.MathUtils.degToRad(normaliseDegrees(value));
+    entry.object.updateMatrixWorld(true);
+    this.commitEntry(entry.node.id, entry.object);
+    this.update();
+    this.showPinnedMeasurements();
+  }
+
+  private commitMoveValue(
+    entry: DirectManipulationEntry,
+    start: THREE.Vector3,
+    axis: 'x' | 'z',
+    value: number,
+  ): void {
+    if (!Number.isFinite(value)) return;
+    entry.object.position[axis] = start[axis] + value;
+    entry.object.updateMatrixWorld(true);
+    this.commitEntry(entry.node.id, entry.object);
+    this.update();
+    this.showPinnedMeasurements();
   }
 
   private formatMillimetres(value: number): string {

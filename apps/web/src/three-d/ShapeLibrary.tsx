@@ -242,10 +242,10 @@ export function ShapeLibrary({
               onDragEnd={() => onDragStateChange(null)}
               onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'hole')}
               aria-label={`Отверстие: ${label}`}
-              title={`Добавить отверстие: ${label}`}
+              title={`Отверстие: ${label}`}
             >
               <ShapeThumbnail primitive={primitive} color="#aeb9c0" operation="hole" />
-              <small>Отверстие</small>
+              <small>{`Отверстие: ${label}`}</small>
             </button>
           ))}
         {filteredShapes.map(({ primitive, label, color }) => (
@@ -263,7 +263,7 @@ export function ShapeLibrary({
             onDragEnd={() => onDragStateChange(null)}
             onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
             aria-label={label}
-            title={`Добавить: ${label}`}
+            title={label}
           >
             <ShapeThumbnail primitive={primitive} color={color} />
             <small>{label}</small>

@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="268" height="716" viewBox="0 0 268 716" fill="none">
+  <defs>
+    <style>
+      .label{font-family:"Trebuchet MS","Arial Rounded MT Bold","Verdana","DejaVu Sans",sans-serif; fill:#F3F3F3}
+      .mono{font-family:"Trebuchet MS","Arial Rounded MT Bold","Verdana","DejaVu Sans",sans-serif; fill:#F3F3F3}
+      .thin{stroke:#F3F3F3; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+    </style>
+    <g id="probe-holes-left" fill="#B8B9BA">
+      <circle cx="14" cy="208" r="4"/>
+      <circle cx="44" cy="208" r="4"/>
+      <circle cx="74" cy="208" r="4"/>
+      <circle cx="29" cy="268" r="4"/>
+      <circle cx="59" cy="268" r="4"/>
+      <circle cx="14" cy="327" r="4"/>
+      <circle cx="44" cy="327" r="4"/>
+      <circle cx="74" cy="327" r="4"/>
+      <circle cx="29" cy="387" r="4"/>
+      <circle cx="59" cy="387" r="4"/>
+      <circle cx="14" cy="447" r="4"/>
+      <circle cx="44" cy="447" r="4"/>
+      <circle cx="74" cy="447" r="4"/>
+      <circle cx="29" cy="506" r="4"/>
+      <circle cx="59" cy="506" r="4"/>
+      <circle cx="14" cy="566" r="4"/>
+      <circle cx="44" cy="566" r="4"/>
+      <circle cx="74" cy="566" r="4"/>
+      <circle cx="29" cy="626" r="4"/>
+      <circle cx="59" cy="626" r="4"/>
+      <circle cx="44" cy="685" r="4"/>
+    </g>
+  </defs>
+
+  <!-- Probes -->
+  <path d="M0 194H88V626L59 714H29L0 626Z" fill="#CDCECF" stroke="#E0B783" stroke-width="3"/>
+  <path d="M179 194H267V626L238 714H208L179 626Z" fill="#CDCECF" stroke="#E0B783" stroke-width="3"/>
+  <use href="#probe-holes-left"/>
+  <g transform="translate(179 0)"><use href="#probe-holes-left"/></g>
+
+  <!-- Red top board -->
+  <path d="M0 22C0 10 10 0 22 0H245C257 0 267 10 267 22V194H179V189C179 179 171 171 161 171H106C96 171 88 179 88 189V194H0Z" fill="#D82416"/>
+
+  <!-- Big mounting holes -->
+  <circle cx="29" cy="29" r="20" fill="#E3E4E5"/>
+  <circle cx="238" cy="29" r="20" fill="#E3E4E5"/>
+
+  <!-- Small white marker dots -->
+  <circle cx="14" cy="58" r="5" fill="#EAEAEA"/>
+  <circle cx="252" cy="132" r="5" fill="#EAEAEA"/>
+
+  <!-- Connector frame -->
+  <g class="thin">
+    <path d="M65 2V82H202V2"/>
+    <path d="M89 24H188V56H89Z"/>
+    <path d="M89 49V104H177V49"/>
+    <path d="M104 88H163V104H104Z"/>
+    <line x1="133" y1="2" x2="133" y2="24"/>
+    <line x1="202" y1="8" x2="202" y2="18"/>
+  </g>
+
+  <!-- Connector text -->
+  <g class="label" font-size="15" font-weight="700">
+    <text x="78" y="18">VCC</text>
+    <text x="121" y="18">GND</text>
+    <text x="165" y="18">SIG</text>
+  </g>
+
+  <!-- Connector pads -->
+  <g>
+    <g fill="#CDCECF" stroke="#F3F3F3" stroke-width="2">
+      <circle cx="90" cy="41" r="10"/>
+      <circle cx="133" cy="41" r="10"/>
+      <circle cx="176" cy="41" r="8"/>
+      <circle cx="104" cy="73" r="10"/>
+      <circle cx="133" cy="73" r="10"/>
+      <circle cx="163" cy="73" r="10"/>
+    </g>
+    <g fill="#F0F0F0">
+      <circle cx="90" cy="41" r="4.5"/>
+      <circle cx="133" cy="41" r="4.5"/>
+      <circle cx="176" cy="41" r="3.5"/>
+      <circle cx="104" cy="73" r="4"/>
+      <circle cx="133" cy="73" r="4.5"/>
+      <circle cx="163" cy="73" r="4"/>
+    </g>
+  </g>
+
+  <!-- Logo / icon -->
+  <path d="M226 71C214 77 210 91 216 102C220 109 227 112 235 111C230 104 232 95 240 92C246 90 251 93 253 98C258 95 260 89 258 83C255 76 249 72 243 72C240 67 235 68 232 71C230 73 229 76 229 80C225 79 223 75 226 71ZM222 99C216 100 212 105 212 112V126L224 113C230 107 227 98 222 99Z" fill="#EAEAEA"/>
+
+  <!-- Chip group -->
+  <g>
+    <rect x="116" y="125" width="36" height="17" rx="2" fill="#3C4042"/>
+    <rect x="100" y="128" width="9" height="14" rx="1" fill="#3C4042"/>
+    <rect x="159" y="128" width="9" height="14" rx="1" fill="#3C4042"/>
+    <rect x="131" y="113" width="5" height="11" rx="1" fill="#EAEAEA"/>
+    <rect x="118" y="142" width="4" height="8" rx="1" fill="#EAEAEA"/>
+    <rect x="129" y="142" width="4" height="8" rx="1" fill="#EAEAEA"/>
+    <rect x="140" y="142" width="4" height="8" rx="1" fill="#EAEAEA"/>
+    <rect x="150" y="142" width="4" height="8" rx="1" fill="#EAEAEA"/>
+  </g>
+
+  <!-- Title -->
+  <text x="11" y="171" class="mono" font-size="17" font-weight="500" letter-spacing="0.2">Soil Moisture Sensor</text>
+</svg>

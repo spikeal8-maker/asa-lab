@@ -510,6 +510,39 @@ button.asa3d-save-recovery {
   transform: translate(-50%, -50%);
 }
 
+.asa3d-measurement-label[data-editable='true'] {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 4px;
+  pointer-events: auto;
+}
+
+.asa3d-measurement-label input {
+  width: 54px;
+  padding: 2px 3px;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  outline: none;
+}
+
+.asa3d-measurement-label input:hover,
+.asa3d-measurement-label input:focus {
+  background: #fff;
+  border-color: #1ca6d1;
+}
+
+.asa3d-measurement-label span {
+  color: #65757d;
+  font-size: 10px;
+}
+
 .asa3d-modifier-hint {
   position: absolute;
   top: 14px;
@@ -1024,6 +1057,7 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-shape-card {
+  position: relative;
   display: grid;
   grid-template-rows: 1fr;
   align-items: center;
@@ -1055,14 +1089,34 @@ button.asa3d-save-recovery {
 
 .asa3d-shape-card small {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
+  right: 3px;
+  bottom: 3px;
+  left: 3px;
+  z-index: 2;
+  padding: 3px 4px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  color: #304956;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  border: 0;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(37, 48, 54, 0.12);
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 80ms ease,
+    transform 80ms ease;
+}
+
+.asa3d-shape-card:hover small,
+.asa3d-shape-card:focus-visible small {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .asa3d-shape-thumbnail {

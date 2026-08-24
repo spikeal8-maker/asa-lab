@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="294" height="237" viewBox="0 0 294 237" fill="none">
+  <defs>
+    <style>
+      .dark{fill:#4E5251}
+      .dark-stroke{stroke:#4E5251}
+      .panel{fill:#DDDDDD;stroke:#D1D1D1;stroke-width:2}
+      .lcd{fill:#C5CFD2}
+      .light-label{fill:#C4C4C4;font-family:Arial,Helvetica,sans-serif;font-size:8px}
+      .label{fill:#4E5251;font-family:Arial,Helvetica,sans-serif;font-size:8px}
+      .label-small{fill:#4E5251;font-family:Arial,Helvetica,sans-serif;font-size:6px}
+      .label-off{fill:#5D6160;font-family:Arial,Helvetica,sans-serif;font-size:9px;font-weight:700}
+    </style>
+    <g id="tick">
+      <line x1="0" y1="-29" x2="0" y2="-33" stroke="#4E5251" stroke-width="1" stroke-linecap="round"/>
+    </g>
+    <g id="knob-face">
+      <circle r="29" fill="#C4C4C4"/>
+      <circle r="29" stroke="#B8B8B8" stroke-width="1" fill="none"/>
+    </g>
+  </defs>
+
+  <!-- main enclosure -->
+  <rect x="1" y="1" width="292" height="235" rx="6" class="panel"/>
+
+  <!-- top display -->
+  <rect x="13" y="15" width="172" height="79" rx="2" fill="#4E5251"/>
+  <rect x="20" y="22" width="158" height="65" rx="1.5" class="lcd"/>
+
+  <!-- bottom display -->
+  <rect x="13" y="104" width="172" height="80" rx="2" fill="#4E5251"/>
+  <rect x="20" y="111" width="158" height="65" rx="1.5" class="lcd"/>
+
+  <!-- upper indicator -->
+  <circle cx="266" cy="20" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>
+  <text x="273" y="23" class="label-small">VC</text>
+
+  <!-- upper knob -->
+  <g transform="translate(234 53)">
+    <!-- ticks -->
+    <g>
+      <use href="#tick" transform="rotate(0)"/>
+      <use href="#tick" transform="rotate(6.923)"/>
+      <use href="#tick" transform="rotate(13.846)"/>
+      <use href="#tick" transform="rotate(20.769)"/>
+      <use href="#tick" transform="rotate(27.692)"/>
+      <use href="#tick" transform="rotate(34.615)"/>
+      <use href="#tick" transform="rotate(41.538)"/>
+      <use href="#tick" transform="rotate(48.461)"/>
+      <use href="#tick" transform="rotate(55.384)"/>
+      <use href="#tick" transform="rotate(62.307)"/>
+      <use href="#tick" transform="rotate(69.23)"/>
+      <use href="#tick" transform="rotate(76.153)"/>
+      <use href="#tick" transform="rotate(83.076)"/>
+      <use href="#tick" transform="rotate(90)"/>
+      <use href="#tick" transform="rotate(96.923)"/>
+      <use href="#tick" transform="rotate(103.846)"/>
+      <use href="#tick" transform="rotate(110.769)"/>
+      <use href="#tick" transform="rotate(117.692)"/>
+      <use href="#tick" transform="rotate(124.615)"/>
+      <use href="#tick" transform="rotate(131.538)"/>
+      <use href="#tick" transform="rotate(138.461)"/>
+      <use href="#tick" transform="rotate(145.384)"/>
+      <use href="#tick" transform="rotate(152.307)"/>
+      <use href="#tick" transform="rotate(159.23)"/>
+      <use href="#tick" transform="rotate(166.153)"/>
+      <use href="#tick" transform="rotate(173.076)"/>
+      <use href="#tick" transform="rotate(180)"/>
+      <use href="#tick" transform="rotate(186.923)"/>
+      <use href="#tick" transform="rotate(193.846)"/>
+      <use href="#tick" transform="rotate(200.769)"/>
+      <use href="#tick" transform="rotate(207.692)"/>
+      <use href="#tick" transform="rotate(214.615)"/>
+      <use href="#tick" transform="rotate(221.538)"/>
+      <use href="#tick" transform="rotate(228.461)"/>
+      <use href="#tick" transform="rotate(235.384)"/>
+      <use href="#tick" transform="rotate(242.307)"/>
+      <use href="#tick" transform="rotate(249.23)"/>
+      <use href="#tick" transform="rotate(256.153)"/>
+      <use href="#tick" transform="rotate(263.076)"/>
+      <use href="#tick" transform="rotate(270)"/>
+      <use href="#tick" transform="rotate(276.923)"/>
+      <use href="#tick" transform="rotate(283.846)"/>
+      <use href="#tick" transform="rotate(290.769)"/>
+      <use href="#tick" transform="rotate(297.692)"/>
+      <use href="#tick" transform="rotate(304.615)"/>
+      <use href="#tick" transform="rotate(311.538)"/>
+      <use href="#tick" transform="rotate(318.461)"/>
+      <use href="#tick" transform="rotate(325.384)"/>
+      <use href="#tick" transform="rotate(332.307)"/>
+      <use href="#tick" transform="rotate(339.23)"/>
+      <use href="#tick" transform="rotate(346.153)"/>
+      <use href="#tick" transform="rotate(353.076)"/>
+    </g>
+    <use href="#knob-face"/>
+    <circle cx="-21.5" cy="0.5" r="3" fill="#4E5251"/>
+  </g>
+  <text x="201" y="87" class="label-small">0</text>
+  <text x="260" y="87" class="label-small">30 V</text>
+
+  <!-- lower indicator -->
+  <circle cx="266" cy="109" r="4" fill="#D8D8D8" stroke="#BEBEBE" stroke-width="1"/>
+  <text x="273" y="112" class="label-small">CC</text>
+
+  <!-- lower knob -->
+  <g transform="translate(234 145)">
+    <g>
+      <use href="#tick" transform="rotate(0)"/>
+      <use href="#tick" transform="rotate(6.923)"/>
+      <use href="#tick" transform="rotate(13.846)"/>
+      <use href="#tick" transform="rotate(20.769)"/>
+      <use href="#tick" transform="rotate(27.692)"/>
+      <use href="#tick" transform="rotate(34.615)"/>
+      <use href="#tick" transform="rotate(41.538)"/>
+      <use href="#tick" transform="rotate(48.461)"/>
+      <use href="#tick" transform="rotate(55.384)"/>
+      <use href="#tick" transform="rotate(62.307)"/>
+      <use href="#tick" transform="rotate(69.23)"/>
+      <use href="#tick" transform="rotate(76.153)"/>
+      <use href="#tick" transform="rotate(83.076)"/>
+      <use href="#tick" transform="rotate(90)"/>
+      <use href="#tick" transform="rotate(96.923)"/>
+      <use href="#tick" transform="rotate(103.846)"/>
+      <use href="#tick" transform="rotate(110.769)"/>
+      <use href="#tick" transform="rotate(117.692)"/>
+      <use href="#tick" transform="rotate(124.615)"/>
+      <use href="#tick" transform="rotate(131.538)"/>
+      <use href="#tick" transform="rotate(138.461)"/>
+      <use href="#tick" transform="rotate(145.384)"/>
+      <use href="#tick" transform="rotate(152.307)"/>
+      <use href="#tick" transform="rotate(159.23)"/>
+      <use href="#tick" transform="rotate(166.153)"/>
+      <use href="#tick" transform="rotate(173.076)"/>
+      <use href="#tick" transform="rotate(180)"/>
+      <use href="#tick" transform="rotate(186.923)"/>
+      <use href="#tick" transform="rotate(193.846)"/>
+      <use href="#tick" transform="rotate(200.769)"/>
+      <use href="#tick" transform="rotate(207.692)"/>
+      <use href="#tick" transform="rotate(214.615)"/>
+      <use href="#tick" transform="rotate(221.538)"/>
+      <use href="#tick" transform="rotate(228.461)"/>
+      <use href="#tick" transform="rotate(235.384)"/>
+      <use href="#tick" transform="rotate(242.307)"/>
+      <use href="#tick" transform="rotate(249.23)"/>
+      <use href="#tick" transform="rotate(256.153)"/>
+      <use href="#tick" transform="rotate(263.076)"/>
+      <use href="#tick" transform="rotate(270)"/>
+      <use href="#tick" transform="rotate(276.923)"/>
+      <use href="#tick" transform="rotate(283.846)"/>
+      <use href="#tick" transform="rotate(290.769)"/>
+      <use href="#tick" transform="rotate(297.692)"/>
+      <use href="#tick" transform="rotate(304.615)"/>
+      <use href="#tick" transform="rotate(311.538)"/>
+      <use href="#tick" transform="rotate(318.461)"/>
+      <use href="#tick" transform="rotate(325.384)"/>
+      <use href="#tick" transform="rotate(332.307)"/>
+      <use href="#tick" transform="rotate(339.23)"/>
+      <use href="#tick" transform="rotate(346.153)"/>
+      <use href="#tick" transform="rotate(353.076)"/>
+    </g>
+    <use href="#knob-face"/>
+    <circle cx="15" cy="15" r="3" fill="#4E5251"/>
+  </g>
+  <text x="201" y="179" class="label-small">0</text>
+  <text x="262" y="179" class="label-small">5 A</text>
+
+  <!-- divider -->
+  <line x1="0" y1="193" x2="294" y2="193" stroke="#D1D1D1" stroke-width="2"/>
+
+  <!-- power switch -->
+  <rect x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>
+  <rect x="14" y="202" width="35" height="26" rx="13" fill="#4E5251"/>
+  <text x="56" y="218" class="label-off">OFF</text>
+
+  <!-- terminals -->
+  <g>
+    <circle cx="133.5" cy="214.5" r="12" fill="#AF1C1C"/>
+    <circle cx="133.5" cy="214.5" r="3" fill="#383838"/>
+    <circle cx="160" cy="214.5" r="12" fill="#4E5251"/>
+    <circle cx="160" cy="214.5" r="3" fill="#383838"/>
+  </g>
+
+  <!-- pale label -->
+  <text x="215" y="213" class="light-label">VOLTAGE</text>
+  <text x="216" y="222" class="light-label">SUPPLY</text>
+
+  <!-- lightning icon -->
+  <path d="M273 201L265 214H271L268 227L279 212H273L277 201H273Z" fill="#C4C4C4"/>
+</svg>

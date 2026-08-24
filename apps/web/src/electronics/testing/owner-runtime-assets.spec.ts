@@ -38,9 +38,10 @@ describe('owner SVG runtime catalog adapter', () => {
 
     expect(ownerCatalogItems().some((entry) => entry.key === 'microbit')).toBe(false);
     const vibrationMotor = ownerCatalogItems().find((entry) => entry.key === 'vibration-motor');
-    expect(vibrationMotor?.catalogStatus).toBe('disabled_missing_svg');
-    expect(vibrationMotor?.enabled).toBe(false);
-    expect(vibrationMotor?.asset).toBe('');
+    expect(vibrationMotor?.catalogStatus).toBe('enabled');
+    expect(vibrationMotor?.enabled).toBe(true);
+    expect(vibrationMotor?.simulationSupported).toBe(false);
+    expect(vibrationMotor?.sourceOwnerPath).toBe('ASA_Lab_vibration_motor.svg');
 
     const substitution = structuredClone(manifest) as unknown as {
       components: Array<{ status: string; runtimeSha256: string }>;

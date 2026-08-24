@@ -111,6 +111,12 @@ describe('ASA 3D direct-manipulation math', () => {
     expect(calculateLiftPosition(10, 4.4, 10, 1)).toBe(14);
   });
 
+  it('snaps the bottom face instead of the centre for odd-height shapes', () => {
+    expect(calculateLiftPosition(7.5, 4.4, 7.5, 1)).toBe(11.5);
+    expect(calculateLiftPosition(7.5, 4.6, 7.5, 1)).toBe(12.5);
+    expect(calculateLiftPosition(17.5, -30, 7.5, 1)).toBe(7.5);
+  });
+
   it('normalises and snaps rotation angles', () => {
     expect(normaliseDegrees(450)).toBe(90);
     expect(normaliseDegrees(-540)).toBe(-180);

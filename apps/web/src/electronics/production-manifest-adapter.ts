@@ -173,9 +173,7 @@ const LEGACY_TYPE_BY_KIND: Readonly<Partial<Record<ComponentKind, string>>> = {
 
 const SIMULATED_TYPES = new Set([
   'arduino-uno',
-  'battery-1.5v',
   'battery-3v',
-  'battery-6v',
   'battery-9v',
   'battery-holder-aa-1',
   'battery-holder-aa-2',
@@ -212,6 +210,7 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   breadboard: 'Макетная плата для сборки цепей без пайки. Отверстия соединены группами.',
   'arduino-uno': 'Микроконтроллерная плата Arduino Uno.',
   'vibration-motor': 'Миниатюрный двигатель, создающий вибрацию.',
+  gearmotor: 'Двигатель постоянного тока со встроенным редуктором.',
   'dc-motor': 'Двигатель постоянного тока с управлением скоростью и направлением.',
   servo: 'Сервопривод с управляемым углом поворота.',
   'battery-holder-aa': 'Батарейный отсек AA: выберите количество элементов после размещения.',
@@ -221,8 +220,12 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   lamp: 'Лампа накаливания, яркость которой зависит от питания цепи.',
   'regulated-power-supply': 'Регулируемый лабораторный источник питания.',
   photoresistor: 'Фоторезистор изменяет сопротивление в зависимости от освещения.',
+  'soil-moisture-sensor':
+    'Трёхвыводный датчик влажности почвы. Размещение и соединение доступны; математическая модель готовится.',
   'ultrasonic-sensor':
-    'Ультразвуковой датчик расстояния PING с выводами GND, 5V и SIG. Размещение и соединение доступны; математическая модель готовится.',
+    'Ультразвуковой датчик расстояния PING или HC-SR04. Размещение и соединение доступны; математическая модель готовится.',
+  'pir-sensor':
+    'Пироэлектрический ИК-датчик движения. Размещение и соединение доступны; математическая модель готовится.',
   'temperature-sensor':
     'Трёхвыводный датчик температуры TMP. Размещение и соединение доступны; математическая модель готовится.',
   'transistor-npn': 'NPN-транзистор для усиления и переключения электрического сигнала.',
@@ -230,6 +233,10 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
     'Транзистор для усиления и переключения сигнала: NPN, PNP или полевой (N-канал). Тип выбирается в панели настроек.',
   piezo: 'Пьезоизлучатель преобразует электрический сигнал в звук.',
   multimeter: 'Измерительный прибор для напряжения, тока и сопротивления.',
+  'signal-generator':
+    'Функциональный генератор сигналов. Размещение и соединение доступны; математическая модель готовится.',
+  oscilloscope:
+    'Осциллограф для наблюдения формы сигнала. Размещение и соединение доступны; математическая модель готовится.',
 };
 
 const BATTERY_CATALOG_PRESENTATION: Readonly<
@@ -245,18 +252,9 @@ const BATTERY_CATALOG_PRESENTATION: Readonly<
   'battery-9v': { familyId: 'battery-9v', familyLabel: 'Батарея 9 В', appearsInBasic: true },
   'battery-3v': {
     familyId: 'battery-3v',
-    familyLabel: 'Кнопочная батарея 3 В',
-    appearsInBasic: false,
+    familyLabel: 'Батарея 3 В',
+    appearsInBasic: true,
   },
-  'battery-1.5v': {
-    familyId: 'battery-1.5v',
-    familyLabel: 'Батарея 1,5 В',
-    appearsInBasic: false,
-  },
-  // The owner has supplied this source, but it is not on Tinkercad's Basic
-  // shelf. It remains available under All/Power without being folded into the
-  // 9 V battery card.
-  'battery-6v': { familyId: 'battery-6v', familyLabel: 'Батарея 6 В', appearsInBasic: false },
 };
 
 function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
@@ -454,6 +452,14 @@ function pinLabel(componentId: string, pinId: string): string {
     gate: 'Затвор',
     source: 'Исток',
     drain: 'Сток',
+    vcc: 'VCC',
+    gnd: 'GND',
+    signal: 'Сигнал',
+    ground: 'GND',
+    trigger: 'TRIG',
+    echo: 'ECHO',
+    com: 'COM',
+    'v-ohm-ma': 'V/Ω/mA',
   };
   const arduinoLabels: Readonly<Record<string, string>> = {
     a0: 'A0',

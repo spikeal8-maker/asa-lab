@@ -11,7 +11,20 @@
 
 **Production:** untouched
 
-## Result
+## Revised acceptance result
+
+Owner review rejected three semantics in the first `0087` implementation:
+inferred `100/60` grading, timestamp-only ProjectVersion reconstruction and the
+claim that disabling artifacts behaviorally rolls immutable synthetic evidence
+back for CURRENT readers. Those claims are withdrawn.
+
+Published `0086/0087` checksums are unchanged. Corrective migration `0088` is
+now authoritative: compatibility ActivityVersions are explicitly ungraded and
+non-reusable, every legacy-only submission stays unresolved, and the procedure
+cannot run without an isolated-test session attestation. Production convergence
+remains prohibited until M0-007 reader cutover is separately accepted.
+
+## Original population evidence
 
 The additive identity/activity convergence completed against a clone of the
 current isolated test population. Migrations advanced the disposable schema
@@ -57,26 +70,53 @@ learning-unit classifier; the new tables cover the complete school seat set.
 | persisted seat Account link | attach one Account link per physical school | 19 links; no cross-school merge |
 | persisted direct/course assignment without Activity mapping | create deterministic Activity, immutable Version and mapping | 16473 mappings; no learner Attempt |
 | assigned/not_started learner unit | no Attempt/Submission operation | no fabricated work evidence |
-| legacy submitted without exact ProjectVersion | diagnostic `legacy_unresolved` artifact only | all 79 remain submitted compatibility rows with null result |
+| legacy submitted without persisted canonical Submission linkage | diagnostic `legacy_unresolved` artifact only | all 79 remain submitted compatibility rows with null result |
 | existing exact Attempt/Submission/ProjectVersion | map existing evidence | three canaries; zero duplicates |
 | legacy feedback | preserve source metadata and provenance | 178 preserved; zero grades |
 
-## Exact-evidence fixture proof
+## Submission-linkage proof
 
-The focused PostgreSQL fixture separately proves both sides of MIG-003:
+The corrected PostgreSQL fixtures prove MIG-003 fail-closed:
 
-- a legacy work row with exactly one immutable ProjectVersion at/before its
-  submitted timestamp, exact assignment/seat/learner/project owner lineage and
-  no Attempt/Result conflict creates exactly one `submitted` Attempt and one
-  Submission referencing that existing version;
-- the otherwise equivalent row without an immutable ProjectVersion creates
-  neither Attempt nor Submission and receives `legacy_unresolved` metadata;
+- a legacy work row with exactly one immutable ProjectVersion before its
+  submitted timestamp, matching project ownership and complete tenant lineage
+  still creates neither Attempt nor Submission because no persisted linkage
+  proves those exact bytes were submitted;
+- the equivalent cross-tenant Account-owned project case also remains
+  `legacy_unresolved`;
+- a row without any immutable ProjectVersion has the same unresolved outcome;
 - no Evaluation, AssessmentResult, Gradebook pointer, numeric grade or display
   grade is created by this operation.
 
 The current population itself produced zero new Attempts/Submissions because
-all 79 legacy-only rows failed the exact ProjectVersion precondition. This is
-the required truthful outcome, not a failure to reduce the unresolved count.
+all 79 legacy-only rows lacked persisted canonical Submission linkage. A
+timestamp is never promoted to exact evidence.
+
+## Migration compatibility content
+
+Generated assignment snapshots are registered in
+`learning_migration_compatibility_activity_versions` with:
+
+```text
+grading_semantics = unknown
+reusable_authored_content = false
+```
+
+The underlying CURRENT schema requires positive `max_points`, so the structural
+value is `1`; it is not a scale. `scoring_policy.kind` is
+`migration_compatibility`, includes `gradingSemantics=unknown` and contains no
+`passThreshold`. The registry explicitly excludes these versions from the
+canonical reusable-authored-content contract; M0-007 readers must enforce that
+classification when surfaces are cut over.
+
+If 0087 was previously executed and persisted one of its deterministic
+compatibility ActivityVersions with inferred manual 100/60 policy, 0088 aborts
+transactionally. Those immutable rows are not relabeled as trustworthy or
+rewritten in place; that database requires an explicit reader-aware replacement
+mapping/remediation before 0088 can install.
+The guard follows retained `map_activity_version` migration artifacts, not only
+the live classroom mapping, so an immutable compatibility version orphaned by
+an 0087 rollback is blocked as well.
 
 ## Physical learner identity model
 
@@ -110,7 +150,8 @@ source report digest, explicit `asOf`, state and lifecycle timestamps.
 automatic/manual mode, redacted persisted evidence and disabled state. Normal
 future product writes can leave migration attribution null.
 
-The runtime role has no direct table privileges and no EXECUTE privilege on
+The runtime role has no direct table privileges, including on the compatibility
+registry, and no EXECUTE privilege on
 apply/rollback/report procedures. Procedures are owner-only,
 `SECURITY DEFINER`, fixed-search-path functions. All new tables use forced RLS;
 seat/school and Attempt/learner triggers reject incoherent physical lineage.
@@ -129,6 +170,9 @@ seat/school and Attempt/learner triggers reject incoherent physical lineage.
 - rollback marks only its batch/artifacts disabled, deactivates only batch-owned
   identity links/identities, removes only safe unreferenced batch mappings, and
   deletes zero immutable Attempts/Submissions;
+- M0-006 creates no legacy Attempt/Submission at all: behavioral rollback
+  against CURRENT readers is not claimed, and production backfill is forbidden
+  until M0-007 cutover;
 - rerun after rollback restores the same deterministic learner IDs and produces
   no second historical evidence row;
 - legacy assignments/work/feedback and unrelated/native evidence remain.
@@ -164,6 +208,39 @@ Focused negative tests prove:
 - same Account in two schools resolves to two learner IDs;
 - two conflicting persisted seat identities are not guessed/merged;
 - suspended and removed seats retain mappings/history.
+- direct convergence without isolated-test session attestation is rejected;
+- `--apply` ignores generic `DATABASE_URL` and requires a dedicated URL, exact
+  database name and exact `APPLY:<name>` confirmation before connecting.
+- the migration Compose container does not receive generic `DATABASE_URL`;
+  migration, role provisioning and optional dev seed share the attested
+  `MIGRATION_DATABASE_URL` only. Compose validation injects deliberately
+  different generic/dedicated URLs and fails if the generic value leaks in.
+- a pre-existing bootstrap `.env` that lacks any non-empty dedicated migration
+  URL/name/confirmation stops before Compose with an actionable upgrade error;
+  base Compose also has no migration URL/password fallback. Empty direct-
+  Compose values reach the fail-closed runner and are rejected before connect;
+  explicit test/staging overlays remain renderable.
+- dev API/Vite child-process builders strip all `MIGRATION_*` attestations, so
+  an admin migration credential loaded from `.env.local` cannot reach runtime
+  children.
+
+## Corrected acceptance evidence
+
+Fresh disposable database: `asalab_learning_m0_006_acceptance_test`.
+
+```text
+schema migration: 0001..0088 PASS
+focused migration/RLS/tooling/resolver/compatibility: 10 files, 72 tests PASS
+full data gate: 155 files / 1069 tests PASS; focused RLS 15/15 PASS
+uncached code gate: PASS; Nx cache skipped
+fixture convergence: identities 22 -> 28; mappings 14 -> 14
+legacy unresolved after: 6
+legacy Attempts created: 0
+legacy Submissions created: 0
+grade conversions: 0
+second-run creations: 0
+productionTouched: false
+```
 
 ## Evidence files and commands
 
@@ -172,9 +249,9 @@ directory. The committed report contains only aggregate counts.
 
 ```text
 pnpm learning:migration:dry-run (0085 pre-report)
-node tools/migrate.mjs --apply (two migrations, disposable DB)
+node tools/migrate.mjs --apply (explicit URL/name/confirmation, disposable DB)
 node tools/learning-additive-backfill.mjs (first run + idempotent second run)
-pnpm learning:migration:dry-run (0087 post-report)
+pnpm learning:migration:dry-run (0088 post-report)
 pnpm vitest run tests/courses/learning-additive-backfill.pg.spec.ts
                  tests/courses/learning-identity-rls.pg.spec.ts
 pnpm vitest run contexts/learning/testing/canonical-learning-state.spec.ts
@@ -187,13 +264,17 @@ pnpm vitest run contexts/learning/testing/canonical-learning-state.spec.ts
   resolver and prove browser agreement; M0-006 performs no cutover.
 - CURRENT native writers still create seat-owned Attempts; only the additive
   learner FK and compatibility adapter foundation exist here.
-- Batch-disabled immutable exact evidence remains physically retained by
-  design; canonical migration authority ignores it, and no production apply has
-  occurred.
+- M0-006 intentionally has no legacy Attempt/Submission production backfill;
+  an accepted submission-linkage contract and CURRENT-reader cutover are still
+  required before such a migration can be reconsidered.
 - Schema-only migrations were inadvertently applied once to local
   `asalab_dev` while diagnosing review feedback because the migration runner
-  reads `DATABASE_URL`; no convergence/backfill procedure ran there. Production
-  was untouched. The final evidence cycle explicitly bound all admin/runtime,
-  test and Learning URLs to `asalab_learning_m0_006_test`.
+  previously read `DATABASE_URL`; no convergence/backfill procedure ran there.
+  Production was untouched. The corrected runner never treats `DATABASE_URL`
+  as an apply target, the migration container does not receive it, and three
+  matching target attestations are required.
+- Any database where 0087 already materialized inferred 100/60 compatibility
+  versions is deliberately blocked by 0088 pending immutable-version,
+  reader-aware remediation; automatic in-place mutation is not permitted.
 - `MIG-005`, `MIG-001` and Gradebook projection convergence remain
   `in_progress` until surface convergence/acceptance.

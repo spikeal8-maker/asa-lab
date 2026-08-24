@@ -34,6 +34,13 @@ create_environment() {
       echo ".env still contains placeholder credentials; replace them or remove .env and rerun." >&2
       exit 78
     fi
+    if ! grep -Eq '^MIGRATION_DATABASE_URL=[^[:space:]]' .env ||
+       ! grep -Eq '^MIGRATION_EXPECT_DATABASE=[^[:space:]]' .env ||
+       ! grep -Eq '^MIGRATION_CONFIRM=[^[:space:]]' .env; then
+      echo "Legacy .env is missing the dedicated migration target guard." >&2
+      echo "Add MIGRATION_DATABASE_URL, MIGRATION_EXPECT_DATABASE and MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted." >&2
+      exit 78
+    fi
     return
   fi
 
@@ -55,7 +62,9 @@ POSTGRES_DB=asalab
 POSTGRES_USER=asalab_admin
 POSTGRES_PASSWORD=$admin_password
 ASA_APP_DB_PASSWORD=$runtime_password
-DATABASE_URL=postgres://asalab_admin:$admin_password@postgres:5432/asalab
+MIGRATION_DATABASE_URL=postgres://asalab_admin:$admin_password@postgres:5432/asalab
+MIGRATION_EXPECT_DATABASE=asalab
+MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtime_password@postgres:5432/asalab
 
 ASA_WEB_PORT=4610

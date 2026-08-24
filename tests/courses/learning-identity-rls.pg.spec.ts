@@ -49,6 +49,7 @@ describe('LRN-M0-006 learner identity least privilege', () => {
     'learner_identity_links',
     'learning_migration_batches',
     'learning_migration_artifacts',
+    'learning_migration_compatibility_activity_versions',
   ])('denies direct runtime UUID enumeration of %s', async (table) => {
     await expect(app.query(`SELECT * FROM ${table} LIMIT 1`)).rejects.toThrow(/permission denied/);
   });

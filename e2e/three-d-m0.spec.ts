@@ -246,7 +246,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByRole('button', { name: 'Сфера', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Полусфера', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Поиск форм' }).click();
-  await expect(page.locator('.asa3d-shape-card')).toHaveCount(11);
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(21);
 
   await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
   await expect(page.getByLabel('Параметры выбранной формы')).toBeVisible();
@@ -334,6 +334,8 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByTestId('asa3d-depth-value')).toHaveText(/^(19|20|21)\.00$/);
   await page.mouse.move(enlargedCorner.x, enlargedCorner.y, { steps: 8 });
   await page.mouse.up();
+  await expect(page.getByTestId('asa3d-width-value').locator('input')).toBeVisible();
+  await expect(page.getByTestId('asa3d-depth-value').locator('input')).toBeVisible();
   await expect(page.getByLabel('Ширина, мм')).not.toHaveValue('20');
   await expect(page.getByLabel('Глубина, мм')).not.toHaveValue('20');
   await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
@@ -357,6 +359,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.down();
   await page.mouse.move(lift.handle.x, lift.handle.y - 36, { steps: 8 });
   await page.mouse.up();
+  await expect(page.getByTestId('asa3d-lift-value').locator('input')).toBeVisible();
   await expect(page.getByLabel('Положение Y, мм')).not.toHaveValue('10');
   await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
   await expect(page.getByLabel('Положение Y, мм')).toHaveValue('10');
@@ -377,6 +380,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await page.mouse.down();
   await page.mouse.move(rotated.x, rotated.y, { steps: 10 });
   await page.mouse.up();
+  await expect(page.getByTestId('asa3d-angle-value').locator('input')).toBeVisible();
   await expect(page.getByLabel('Поворот Y, градусов')).not.toHaveValue('0');
   await page.getByRole('button', { name: 'Отменить (Ctrl+Z)' }).click();
   await expect(page.getByLabel('Поворот Y, градусов')).toHaveValue('0');

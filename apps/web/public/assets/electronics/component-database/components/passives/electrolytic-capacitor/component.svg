@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="273" height="310" viewBox="0 0 273 310"
+     fill="none" preserveAspectRatio="xMidYMid meet"
+     role="img" aria-labelledby="title desc"
+     data-component="electrolytic-capacitor">
+  <title id="title">Electrolytic capacitor</title>
+  <desc id="desc">Clean vector reconstruction of the supplied capacitor illustration.</desc>
+
+  <g id="capacitor" shape-rendering="geometricPrecision">
+    <!-- Leads: behind the can -->
+    <rect id="lead-left" x="94" y="220" width="8" height="32" rx="4" fill="#8C8C8C"/>
+    <rect id="lead-right" x="176" y="220" width="8" height="32" rx="4" fill="#8C8C8C"/>
+
+    <!-- Main cylindrical can: smooth Bezier contour, no polygon triangulation -->
+    <path id="can-body"
+          d="M 138.5 44
+             C 104.8 44 79 57.1 79 75
+             L 79 176.5
+             C 79 183 81.9 189.5 85.3 195.1
+             C 81.8 200.6 79 204.9 79 209.3
+             C 79 227.6 104.7 242 138.5 242
+             C 172.3 242 198 227.6 198 209.3
+             C 198 204.9 195.2 200.6 192.7 195.1
+             C 196.1 189.5 198 183 198 176.5
+             L 198 75
+             C 198 57.1 172.2 44 138.5 44
+             Z"
+          fill="#333333"/>
+
+    <!-- Left cool-grey reflection strip -->
+    <path id="side-highlight"
+          d="M 95.5 82.7
+             L 84 88.7
+             L 84 178.6
+             C 84 185 86 190.1 89.3 195.8
+             C 87 199.4 84 203.4 84 207.6
+             L 84 218.6
+             C 86.8 223.6 91 227.5 97 230.6
+             L 97 216.1
+             C 91.9 212.7 88.3 209.3 88.3 205.4
+             C 88.3 201.3 92.2 197.4 97 192.5
+             L 97 99.1
+             L 107.7 92.3
+             L 95.5 82.7
+             Z"
+          fill="#818890"/>
+
+    <!-- Top face -->
+    <ellipse id="top-face" cx="138.5" cy="76.5" rx="44.5" ry="22.5" fill="#BFBFBF"/>
+  </g>
+</svg>

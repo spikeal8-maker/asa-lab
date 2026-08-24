@@ -5,13 +5,14 @@
 //   --check            Validate the migration set locally (names, order,
 //                      checksums) without any database connection. Exit 0 on
 //                      success.
-//   --apply            Apply pending migrations to the database in DATABASE_URL.
+//   --apply            Apply pending migrations only through the dedicated
+//                      MIGRATION_DATABASE_URL plus two exact target attestations.
 //   --smoke (default)  Apply pending migrations to the ISOLATED test database
 //                      (TEST_DATABASE_URL, name must end in _test), then verify
 //                      a second run applies nothing (idempotency). The smoke
 //                      never touches the development database.
 //
-// When a database is required but DATABASE_URL is unset, the runner exits with
+// When an explicit migration target is incomplete, the runner exits with
 // code 78 (EX_CONFIG) so the task runner records the test as BLOCKED — an
 // honest "environment unavailable", not a false PASS/FAIL.
 import { createHash } from 'node:crypto';
@@ -183,6 +184,7 @@ function runCheck() {
 
 async function runApply(smoke) {
   let databaseUrl;
+  let expectedDatabase;
   if (smoke) {
     databaseUrl = process.env.TEST_DATABASE_URL;
     if (!databaseUrl) {
@@ -199,15 +201,42 @@ async function runApply(smoke) {
       return EX_CONFIG;
     }
   } else {
-    databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
+    databaseUrl = process.env.MIGRATION_DATABASE_URL;
+    expectedDatabase = process.env.MIGRATION_EXPECT_DATABASE;
+    if (!databaseUrl || !expectedDatabase) {
       console.error(
-        'BLOCKED: DATABASE_URL is not set; a live PostgreSQL is required to apply migrations.',
+        'BLOCKED: MIGRATION_DATABASE_URL and MIGRATION_EXPECT_DATABASE are required; DATABASE_URL is never an implicit migration target.',
+      );
+      return EX_CONFIG;
+    }
+    const urlDatabase = new URL(databaseUrl).pathname.replace(/^\//, '');
+    if (urlDatabase !== expectedDatabase) {
+      console.error(
+        `BLOCKED: migration URL targets "${urlDatabase}" but MIGRATION_EXPECT_DATABASE is "${expectedDatabase}".`,
+      );
+      return EX_CONFIG;
+    }
+    if (process.env.MIGRATION_CONFIRM !== `APPLY:${expectedDatabase}`) {
+      console.error(
+        `BLOCKED: set MIGRATION_CONFIRM exactly to "APPLY:${expectedDatabase}" for this target.`,
       );
       return EX_CONFIG;
     }
   }
-  const firstPass = await applyMigrations(databaseUrl);
+  const planned = planMigrations();
+  const firstPass = await withClient(databaseUrl, async (client) => {
+    const connected = await client.query('SELECT current_database() AS name');
+    const connectedDatabase = connected.rows[0]?.name;
+    if (!smoke && connectedDatabase !== expectedDatabase) {
+      throw Object.assign(
+        new Error(
+          `connected database "${connectedDatabase}" does not match attested target "${expectedDatabase}"`,
+        ),
+        { exitCode: EX_CONFIG },
+      );
+    }
+    return applyPlan(client, planned);
+  });
   console.log(`Applied ${firstPass} migration(s).`);
   if (smoke) {
     const secondPass = await applyMigrations(databaseUrl);
@@ -230,7 +259,7 @@ export async function main(argv) {
     return await runApply(smoke);
   } catch (error) {
     console.error(`db:migrate FAIL: ${error instanceof Error ? error.message : String(error)}`);
-    return 1;
+    return error?.exitCode || 1;
   }
 }
 
