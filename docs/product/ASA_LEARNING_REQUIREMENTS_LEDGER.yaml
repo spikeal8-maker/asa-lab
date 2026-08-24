@@ -12,10 +12,11 @@ status_values:
 requirements:
 - id: DB-000
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Prove existing contracts cannot safely satisfy required semantics before adding a table
   evidence:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   tests: []
 - id: MIG-001
   milestone: M0
@@ -26,31 +27,35 @@ requirements:
   tests: []
 - id: IDN-001
   milestone: M0
-  status: target
+  status: in_progress
   summary: Stable logical learner identity independent of StudentSeat/account login
-  evidence: []
+  evidence:
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   tests:
   - E2E-016
 - id: IDN-002
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Audit existing Identity/Classroom model before creating a new learner identity
     table
   evidence:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   tests: []
   decision: ADR-LEARNER-IDENTITY-001
 - id: IDN-003
   milestone: M0
-  status: target
+  status: in_progress
   summary: Learning runtime references the ADR-selected stable learner key
-  evidence: []
+  evidence:
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   tests: []
 - id: IDN-004
   milestone: M0
-  status: target
+  status: in_progress
   summary: StudentSeat to Account linking preserves one logical learner history
-  evidence: []
+  evidence:
+  - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   tests:
   - E2E-016
 - id: MIG-003
@@ -215,4 +220,3 @@ requirements:
   evidence: []
   tests:
   - SEC-NEGATIVE-MATRIX
-
