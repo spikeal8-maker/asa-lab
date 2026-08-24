@@ -280,7 +280,7 @@ parallel_lanes:
       pr_draft: false
       status: done
       checkpoint: lrn_m0_005_evidence_published
-      owner_acceptance: pending
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 481f1d406f2322ce7999f1aab47c4f4eaff7fd77
       head_sha: e2d7dd8ecc761317a22efa0a399779bbaa0effd5
