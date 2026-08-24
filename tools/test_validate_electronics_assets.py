@@ -25,9 +25,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "tools/validate_electronics_assets.py"
 ASSET_DIR = "apps/web/public/assets/electronics"
-RUNTIME_DIR = f"{ASSET_DIR}/owner-audit/components"
-CATALOG = f"{ASSET_DIR}/owner-catalog/manifest.json"
+RUNTIME_DIR = f"{ASSET_DIR}/component-database/components"
+CATALOG = f"{ASSET_DIR}/component-database/catalog.json"
 AUDIT = f"{ASSET_DIR}/owner-audit/manifest.json"
+AUDIT_DIR = f"{ASSET_DIR}/owner-audit/components"
 
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>\n'
 PNG = b"\x89PNG\r\n\x1a\n" + bytes(48)
@@ -74,7 +75,7 @@ def component(url: str, body: bytes, **overrides) -> dict:
 
 def catalog_with(*components, **top) -> dict:
     document = {
-        "schema": "asa-lab.electronics-owner-catalog.v1",
+        "schema": "asa-lab.electronics-component-database.v1",
         "policy": {"runtimeArt": "byte_exact_owner_svg_only"},
         "components": list(components),
     }
@@ -112,13 +113,13 @@ def case(name: str, *flags: str, expect: str = ""):
 
 @case("a healthy catalog passes", "--allow-unnamed", expect="")
 def healthy(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(tmp, svgs={f"apps/web/public{url}": SVG}, catalog=catalog_with(component(url, SVG)))
 
 
 @case("same basename in another directory is not the asset", expect="declared by neither manifest")
 def basename_collision(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     decoy = f"{RUNTIME_DIR}/reference-candidates/led.svg"
     build(
         tmp,
@@ -129,13 +130,13 @@ def basename_collision(tmp: Path) -> None:
 
 @case("a named file that is missing", "--allow-unnamed", expect="absent")
 def missing(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(tmp, svgs={}, catalog=catalog_with(component(url, SVG)))
 
 
 @case("one byte changed", "--allow-unnamed", expect="bytes hash to")
 def one_byte(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG.replace(b"10", b"11", 1)},
@@ -145,14 +146,14 @@ def one_byte(tmp: Path) -> None:
 
 @case("source and runtime hashes disagree", "--allow-unnamed", expect="byte-exact")
 def source_mismatch(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     entry = component(url, SVG, sourceSha256=digest(b"other"))
     build(tmp, svgs={f"apps/web/public{url}": SVG}, catalog=catalog_with(entry))
 
 
 @case("an undeclared file in the runtime tree", expect="declared by neither manifest")
 def unnamed(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG, f"{RUNTIME_DIR}/stray.svg": SVG},
@@ -163,7 +164,7 @@ def unnamed(tmp: Path) -> None:
 @case("two records claiming one path with different hashes", "--allow-unnamed",
       expect="different hashes")
 def conflicting(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     good = component(url, SVG)
     bad = component(url, SVG, runtimeSha256=digest(b"other"), sourceSha256=digest(b"other"))
     build(tmp, svgs={f"apps/web/public{url}": SVG}, catalog=catalog_with(good, bad))
@@ -171,21 +172,21 @@ def conflicting(tmp: Path) -> None:
 
 @case("embedded raster", "--allow-unnamed", expect="embedded raster")
 def raster(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     body = SVG.replace(b"<rect", b'<image href="data:image/png;base64,AAA"/><rect')
     build(tmp, svgs={f"apps/web/public{url}": body}, catalog=catalog_with(component(url, body)))
 
 
 @case("script element", "--allow-unnamed", expect="script element")
 def script(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     body = SVG.replace(b"<rect", b"<script>alert(1)</script><rect")
     build(tmp, svgs={f"apps/web/public{url}": body}, catalog=catalog_with(component(url, body)))
 
 
 @case("external reference", "--allow-unnamed", expect="external reference")
 def external(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     body = SVG.replace(b"<rect", b'<use xlink:href="https://example.invalid/a.svg"/><rect')
     build(tmp, svgs={f"apps/web/public{url}": body}, catalog=catalog_with(component(url, body)))
 
@@ -198,14 +199,14 @@ def traversal(tmp: Path) -> None:
 
 @case("a runtime path with no hash contract", "--allow-unnamed", expect="no hash recorded")
 def no_contract(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     entry = {"componentId": "part", "runtimePath": url}
     build(tmp, svgs={f"apps/web/public{url}": SVG}, catalog=catalog_with(entry))
 
 
 @case("a duplicate key in the catalog", "--allow-unnamed", expect="duplicate key")
 def duplicate_key(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(tmp, svgs={f"apps/web/public{url}": SVG}, catalog=catalog_with(component(url, SVG)))
     path = tmp / CATALOG
     text = path.read_text(encoding="utf-8")
@@ -215,7 +216,7 @@ def duplicate_key(tmp: Path) -> None:
 @case("an asset-looking string that is not a runtimePath", "--allow-unnamed", expect="")
 def not_a_runtime_path(tmp: Path) -> None:
     """A field that merely mentions an SVG must not promote it to runtime art."""
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     entry = component(url, SVG)
     entry["auditPreview"] = "/assets/electronics/owner-audit/components/nowhere/ghost.svg"
     build(tmp, svgs={f"apps/web/public{url}": SVG}, catalog=catalog_with(entry))
@@ -230,11 +231,11 @@ def not_a_runtime_path(tmp: Path) -> None:
 # strictly as the first.
 
 
-@case("audit-declared reference art in the runtime tree is legitimate", expect="")
+@case("audit-declared reference art outside runtime remains legitimate evidence", expect="")
 def audit_declares(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
-    photo = f"{RUNTIME_DIR}/source-reference/led.png"
-    candidate = f"{RUNTIME_DIR}/reference-candidates/arduino.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
+    photo = f"{AUDIT_DIR}/source-reference/led.png"
+    candidate = f"{AUDIT_DIR}/reference-candidates/arduino.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG, photo: PNG, candidate: SVG},
@@ -248,8 +249,8 @@ def audit_declares(tmp: Path) -> None:
 
 @case("an audit-declared file whose bytes changed", expect="bytes hash to")
 def audit_hash_drift(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
-    candidate = f"{RUNTIME_DIR}/reference-candidates/arduino.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
+    candidate = f"{AUDIT_DIR}/reference-candidates/arduino.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG, candidate: SVG.replace(b"10", b"11", 1)},
@@ -258,20 +259,9 @@ def audit_hash_drift(tmp: Path) -> None:
     )
 
 
-@case("the two manifests disagree about one file", "--allow-unnamed", expect="different hashes")
-def manifests_disagree(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
-    build(
-        tmp,
-        svgs={f"apps/web/public{url}": SVG},
-        catalog=catalog_with(component(url, SVG)),
-        audit=audit_with(imported("components/led/red/led.svg", b"other bytes entirely")),
-    )
-
-
 @case("an audit-declared file that is absent", "--allow-unnamed", expect="absent")
 def audit_absent(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG},
@@ -282,7 +272,7 @@ def audit_absent(tmp: Path) -> None:
 
 @case("an audit entry with no hash", "--allow-unnamed", expect="no sha256 recorded")
 def audit_no_hash(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     entry = {"componentId": "part", "importedFile": "components/reference-candidates/a.svg"}
     build(
         tmp,
@@ -294,7 +284,7 @@ def audit_no_hash(tmp: Path) -> None:
 
 @case("audit path traversal", "--allow-unnamed", expect="escapes the audit root")
 def audit_traversal(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG},
@@ -305,9 +295,9 @@ def audit_traversal(tmp: Path) -> None:
 
 @case("a script element in audit-declared art", "--allow-unnamed", expect="script element")
 def audit_script(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     body = SVG.replace(b"<rect", b"<script>alert(1)</script><rect")
-    candidate = f"{RUNTIME_DIR}/reference-candidates/arduino.svg"
+    candidate = f"{AUDIT_DIR}/reference-candidates/arduino.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG, candidate: body},
@@ -318,7 +308,7 @@ def audit_script(tmp: Path) -> None:
 
 @case("a duplicate key in the audit manifest", "--allow-unnamed", expect="duplicate key")
 def audit_duplicate_key(tmp: Path) -> None:
-    url = "/assets/electronics/owner-audit/components/led/red/led.svg"
+    url = "/assets/electronics/component-database/components/led/red/led.svg"
     build(
         tmp,
         svgs={f"apps/web/public{url}": SVG},

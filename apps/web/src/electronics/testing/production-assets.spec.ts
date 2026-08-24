@@ -22,7 +22,10 @@ function runtimePath(asset: string): string {
 beforeAll(() => {
   configureProductionLibrary(
     JSON.parse(
-      readFileSync(resolve(publicRoot, 'assets/electronics/owner-catalog/manifest.json'), 'utf8'),
+      readFileSync(
+        resolve(publicRoot, 'assets/electronics/component-database/catalog.json'),
+        'utf8',
+      ),
     ) as OwnerCatalogManifest,
   );
 });
@@ -35,12 +38,48 @@ describe('Electronics owner SVG foundation', () => {
     expect(existsSync(resolve(publicRoot, 'assets/electronics/owner-audit'))).toBe(true);
   });
 
+  it('keeps the two direct owner uploads byte-exact in the component database', () => {
+    const imports = JSON.parse(
+      readFileSync(
+        resolve(publicRoot, 'assets/electronics/component-database/owner-imports.json'),
+        'utf8',
+      ),
+    ) as {
+      imports: Array<{
+        componentId: string;
+        originalFileName: string;
+        sha256: string;
+        runtimePath: string;
+        transformation: string;
+      }>;
+    };
+    expect(imports.imports).toMatchObject([
+      {
+        componentId: 'battery-3v',
+        originalFileName: 'cr2032_coin_battery_holder.svg',
+        sha256: 'e4407e650802233542cf810d02f341934ff231f19a7e4e1aa43b4de1591687e5',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'servo-motor',
+        originalFileName: 'servo_motor_top_clean_v2.svg',
+        sha256: '2227b5058f77028eae3909ba63f129cec1931e9be2962e2ff87f61c551fdd964',
+        transformation: 'none_byte_exact_copy',
+      },
+    ]);
+    for (const item of imports.imports) {
+      expect(
+        createHash('sha256').update(readFileSync(runtimePath(item.runtimePath))).digest('hex'),
+      ).toBe(item.sha256);
+    }
+  });
+
   it('routes every runtime component to an owner SVG rather than generated production art', () => {
     const itemsWithOwnerArt = ownerCatalogItems().filter((item) => item.asset);
     expect(itemsWithOwnerArt.length).toBeGreaterThan(20);
     for (const item of itemsWithOwnerArt) {
       expect(item.asset, item.key).toMatch(
-        /^\/assets\/electronics\/(owner-audit|owner-approved)\/.*\.svg$/,
+        /^\/assets\/electronics\/component-database\/components\/.*\.svg$/,
       );
       expect(item.asset, item.key).not.toContain('/production/');
       expect(item.asset, item.key).not.toContain('/source-reference/');
@@ -50,6 +89,15 @@ describe('Electronics owner SVG foundation', () => {
       expect(svg, item.key).toMatch(/<svg\b/i);
       expect(svg, item.key).not.toMatch(/<image\b|data:image|base64|<foreignObject\b|<script\b/i);
       expect(svg, item.key).not.toMatch(/(?:href|xlink:href)=["']https?:\/\//i);
+    }
+  });
+
+  it('never exposes raster artwork through component cards or state assets', () => {
+    for (const item of ownerCatalogItems()) {
+      for (const asset of [item.asset, ...Object.values(item.stateAssets)].filter(Boolean)) {
+        expect(asset, item.key).toMatch(/\.svg$/i);
+        expect(asset, item.key).not.toMatch(/\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i);
+      }
     }
   });
 
@@ -193,7 +241,7 @@ describe('Electronics owner SVG foundation', () => {
     };
 
     expect(visualAsset(led!, component, 'default')).toBe(
-      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
+      '/assets/electronics/component-database/components/led/blue/led_blue_i000.svg',
     );
     expect(
       visualAsset(
@@ -201,12 +249,14 @@ describe('Electronics owner SVG foundation', () => {
         { ...component, stateProperties: { ...component.stateProperties, ledColour: 'green' } },
         'default',
       ),
-    ).toBe('/assets/electronics/owner-audit/components/led/green/led_green_i000.svg');
+    ).toBe(
+      '/assets/electronics/component-database/components/led/green/led_green_i000.svg',
+    );
     expect(visualAsset(led!, component, 'off')).toBe(
-      '/assets/electronics/owner-audit/components/led/blue/led_blue_i000.svg',
+      '/assets/electronics/component-database/components/led/blue/led_blue_i000.svg',
     );
     expect(visualAsset(led!, component, 'reverse')).toBe(
-      '/assets/electronics/owner-audit/components/led/special/led_red_reverse_polarity.svg',
+      '/assets/electronics/component-database/components/led/special/led_red_reverse_polarity.svg',
     );
     expect(
       visualAsset(
@@ -221,18 +271,20 @@ describe('Electronics owner SVG foundation', () => {
         },
         'overcurrent',
       ),
-    ).toBe('/assets/electronics/owner-audit/components/led/blue/led_blue_i060.svg');
+    ).toBe(
+      '/assets/electronics/component-database/components/led/blue/led_blue_i060.svg',
+    );
     expect(visualAsset(led!, component, 'burned')).toBe(
-      '/assets/electronics/owner-audit/components/led/special/led_red_burned.svg',
+      '/assets/electronics/component-database/components/led/special/led_red_burned.svg',
     );
   });
 
-  it('uses the complete owner LED state family directly from owner-audit', () => {
+  it('uses the complete owner LED state family from the component database', () => {
     for (const colour of ['blue', 'green', 'orange', 'red', 'white', 'yellow'] as const) {
       for (const brightness of [0, 1, 25, 50, 75, 100]) {
         const asset = ordinaryLedAsset(ordinaryLedState(colour, brightness));
         expect(asset).toBe(
-          `/assets/electronics/owner-audit/components/led/${colour}/led_${colour}_i${String(
+          `/assets/electronics/component-database/components/led/${colour}/led_${colour}_i${String(
             brightness,
           ).padStart(3, '0')}.svg`,
         );
@@ -249,7 +301,9 @@ describe('Electronics owner SVG foundation', () => {
   it('uses the owner battery SVGs while keeping genuinely missing artwork disabled', () => {
     for (const componentId of ['battery-1.5v', 'battery-3v', 'battery-6v']) {
       const item = ownerCatalogItems().find((candidate) => candidate.key === componentId);
-      expect(item?.asset).toBe(`/assets/electronics/owner-approved/${componentId}.svg`);
+      expect(item?.asset).toMatch(
+        /^\/assets\/electronics\/component-database\/components\/.*\.svg$/,
+      );
       expect(item).toMatchObject({ enabled: true, simulationSupported: true });
     }
     expect(ownerCatalogItems().find((item) => item.key === 'vibration-motor')?.asset).toBe('');

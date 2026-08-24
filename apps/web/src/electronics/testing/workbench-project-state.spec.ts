@@ -9,9 +9,9 @@ import {
 import { normalizeLoadedDocument } from '../use-workbench-project-state';
 
 beforeAll(() => {
-  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog');
+  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/component-database');
   configureProductionLibrary(
-    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as OwnerCatalogManifest,
+    JSON.parse(readFileSync(resolve(root, 'catalog.json'), 'utf8')) as OwnerCatalogManifest,
   );
 });
 

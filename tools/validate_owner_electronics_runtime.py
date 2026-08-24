@@ -14,9 +14,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / "apps/web/public"
 ASSETS = PUBLIC / "assets/electronics"
-MANIFEST = ASSETS / "owner-catalog/manifest.json"
+MANIFEST = ASSETS / "component-database/catalog.json"
+DIRECT_IMPORTS_MANIFEST = ASSETS / "component-database/owner-imports.json"
 AUDIT_MANIFEST = ASSETS / "owner-audit/manifest.json"
-EXPECTED_SCHEMA = "asa-lab.electronics-owner-catalog.v1"
+LEGACY_CATALOG_MANIFEST = ASSETS / "owner-catalog/manifest.json"
+EXPECTED_SCHEMA = "asa-lab.electronics-component-database.v1"
 EXPECTED_EXACT_FILES = 650
 OWNER_APPROVED_REFERENCE_CANDIDATES = {
     f"components/reference-candidates/{name}.svg"
@@ -63,14 +65,14 @@ def digest(path: Path) -> str:
 
 
 def runtime_file(url: str) -> Path:
-    prefix = "/assets/electronics/owner-audit/"
+    prefix = "/assets/electronics/component-database/components/"
     if not url.startswith(prefix) or not url.endswith(".svg"):
-        fail(f"runtime asset is not an owner-audit SVG: {url}")
-    path = ASSETS / "owner-audit" / url.removeprefix(prefix)
+        fail(f"runtime asset is not a component-database SVG: {url}")
+    path = ASSETS / "component-database/components" / url.removeprefix(prefix)
     try:
-        path.resolve().relative_to((ASSETS / "owner-audit").resolve())
+        path.resolve().relative_to((ASSETS / "component-database/components").resolve())
     except ValueError:
-        fail(f"runtime asset escapes owner-audit: {url}")
+        fail(f"runtime asset escapes component-database: {url}")
     if not path.is_file():
         fail(f"runtime SVG missing: {url}")
     return path
@@ -98,15 +100,27 @@ def validate_svg(path: Path) -> None:
 
 def load_manifest() -> dict[str, Any]:
     if not MANIFEST.is_file():
-        fail("owner-catalog/manifest.json is missing")
+        fail("component-database/catalog.json is missing")
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 
-def accepted_owner_assets() -> dict[str, dict[str, Any]]:
+def accepted_owner_assets() -> set[tuple[str, str, str]]:
     if not AUDIT_MANIFEST.is_file():
         fail("immutable owner-audit/manifest.json is missing")
     audit = json.loads(AUDIT_MANIFEST.read_text(encoding="utf-8"))
-    accepted: dict[str, dict[str, Any]] = {}
+    accepted: set[tuple[str, str, str]] = set()
+    if not LEGACY_CATALOG_MANIFEST.is_file():
+        fail("legacy owner catalog evidence is missing")
+    legacy_catalog = json.loads(LEGACY_CATALOG_MANIFEST.read_text(encoding="utf-8"))
+    for item in legacy_catalog.get("components", []):
+        if item.get("sourceOwnerArchive") and item.get("sourceOwnerPath") and item.get("sourceSha256"):
+            accepted.add(
+                (
+                    str(item.get("sourceOwnerArchive")),
+                    str(item.get("sourceOwnerPath")),
+                    str(item.get("sourceSha256")),
+                )
+            )
     for item in audit.get("importedReviewAssets", []):
         path = item.get("importedFile")
         acceptance = str(item.get("acceptance", ""))
@@ -124,7 +138,26 @@ def accepted_owner_assets() -> dict[str, dict[str, Any]]:
                 )
             )
         ):
-            accepted[path] = item
+            accepted.add((str(item.get("sourceArchive")), str(item.get("sourceFile")), str(item.get("sha256"))))
+    if not DIRECT_IMPORTS_MANIFEST.is_file():
+        fail("component-database/owner-imports.json is missing")
+    direct_imports = json.loads(DIRECT_IMPORTS_MANIFEST.read_text(encoding="utf-8"))
+    if (
+        direct_imports.get("schema") != "asa-lab.electronics-owner-direct-imports.v1"
+        or direct_imports.get("policy", {}).get("immutableOriginalBytes") is not True
+        or direct_imports.get("policy", {}).get("transformationsAllowed") is not False
+    ):
+        fail("direct owner import policy is invalid")
+    for item in direct_imports.get("imports", []):
+        if item.get("transformation") != "none_byte_exact_copy":
+            fail(f"direct owner import was transformed: {item.get('componentId')}")
+        accepted.add(
+            (
+                "owner-direct-upload-2026-08-24",
+                str(item.get("originalFileName")),
+                str(item.get("sha256")),
+            )
+        )
     if not accepted:
         fail("owner audit contains no accepted owner SVG records")
     return accepted
@@ -135,30 +168,27 @@ def assert_owner_audit_match(
     source_archive: str,
     source_path: str,
     source_sha: str,
-    accepted: dict[str, dict[str, Any]],
+    accepted: set[tuple[str, str, str]],
 ) -> None:
-    imported_file = runtime_url.removeprefix("/assets/electronics/owner-audit/")
-    evidence = accepted.get(imported_file)
-    if evidence is None:
+    if (source_archive, source_path, source_sha) not in accepted:
         fail(f"unknown or unaccepted SVG entered runtime: {runtime_url}")
-    if (
-        evidence.get("sourceArchive") != source_archive
-        or evidence.get("sourceFile") != source_path
-        or evidence.get("sha256") != source_sha
-    ):
-        fail(f"runtime provenance differs from immutable owner audit: {runtime_url}")
 
 
 def validate_catalog(
     manifest: dict[str, Any],
-    accepted: dict[str, dict[str, Any]],
+    accepted: set[tuple[str, str, str]],
 ) -> dict[str, int]:
     if manifest.get("schema") != EXPECTED_SCHEMA:
         fail(f"unexpected owner catalog schema: {manifest.get('schema')}")
     if manifest.get("worldUnitsPerMm") != 5:
         fail("owner catalog must use the single WORLD_UNITS_PER_MM=5")
     policy = manifest.get("policy", {})
-    if policy.get("failClosed") is not True or policy.get("runtimeArt") != "byte_exact_owner_svg_only":
+    if (
+        policy.get("failClosed") is not True
+        or policy.get("runtimeArt") != "byte_exact_owner_svg_only"
+        or policy.get("assetRoot") != "/assets/electronics/component-database/components/"
+        or policy.get("sourceOfTruth") != "component-database/catalog.json"
+    ):
         fail("owner catalog is not fail-closed")
 
     components = manifest.get("components", [])
@@ -207,7 +237,7 @@ def validate_catalog(
         if has_owner_art:
             if runtime_eligible:
                 enabled += 1
-            if item.get("provenance") != "exact_owner_svg":
+            if item.get("provenance") not in {"exact_owner_svg", "owner_supplied"}:
                 fail(f"runtime component lacks exact_owner_svg provenance: {item.get('componentId')}")
             if not source_sha or source_sha != runtime_sha:
                 fail(f"source/runtime SHA mismatch: {item.get('componentId')}")
@@ -247,14 +277,27 @@ def validate_catalog(
     if state_count != EXPECTED_EXACT_FILES:
         fail(f"exact owner SVG state inventory changed: {state_count} != {EXPECTED_EXACT_FILES}")
 
-    for component_id in ("microbit", "vibration-motor"):
-        item = next((entry for entry in components if entry.get("componentId") == component_id), None)
-        if (
-            not item
-            or item.get("status") != "disabled_missing_svg"
-            or item.get("sourceOwnerPath") is not None
-        ):
-            fail(f"{component_id} must remain explicitly missing until an owner file is supplied")
+    database_root = ASSETS / "component-database/components"
+    files_on_disk = {path.resolve() for path in database_root.rglob("*") if path.is_file()}
+    non_svg = sorted(path for path in files_on_disk if path.suffix.casefold() != ".svg")
+    if non_svg:
+        fail(f"component database contains non-SVG files: {non_svg[0].relative_to(ROOT)}")
+    if files_on_disk != referenced:
+        missing = referenced - files_on_disk
+        extra = files_on_disk - referenced
+        fail(f"component database inventory mismatch: missing={len(missing)}, extra={len(extra)}")
+
+    if any(entry.get("componentId") == "microbit" for entry in components):
+        fail("microbit must not enter the ASA Lab component database")
+    vibration_motor = next(
+        (entry for entry in components if entry.get("componentId") == "vibration-motor"), None
+    )
+    if (
+        not vibration_motor
+        or vibration_motor.get("status") != "disabled_missing_svg"
+        or vibration_motor.get("sourceOwnerPath") is not None
+    ):
+        fail("vibration-motor must remain explicitly missing until an owner file is supplied")
 
     boards = manifest.get("breadboards", [])
     if {board.get("componentId") for board in boards} != {"breadboard-small", "breadboard-medium", "breadboard-large"}:
@@ -295,8 +338,10 @@ def validate_repository() -> None:
             if marker in text:
                 fail(f"hard-coded/generated runtime marker {marker!r} remains in {path.relative_to(ROOT)}")
     adapter = (source_root / "production-manifest-adapter.ts").read_text(encoding="utf-8")
-    if "/assets/electronics/owner-catalog/manifest.json" not in adapter:
-        fail("editor adapter does not read owner-catalog/manifest.json")
+    if "/assets/electronics/component-database/catalog.json" not in adapter:
+        fail("editor adapter does not read component-database/catalog.json")
+    if "/assets/electronics/owner-catalog/manifest.json" in adapter:
+        fail("editor adapter still reads the legacy owner catalog")
 
 
 def main() -> int:

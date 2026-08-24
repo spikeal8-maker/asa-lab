@@ -163,7 +163,8 @@ function previewModelMatrix(primitive: PrimitiveKind): THREE.Matrix4 {
                 : primitive === 'heart'
                   ? 0.35
                   : 1;
-  const matrix = new THREE.Matrix4().makeRotationY(-0.16);
+  const rotation = primitive === 'roof' ? Math.PI / 2 - 0.1 : -0.1;
+  const matrix = new THREE.Matrix4().makeRotationY(rotation);
   matrix.scale(new THREE.Vector3(widthRatio, heightRatio, 1));
   matrix.setPosition(0, (heightRatio - 1) / 2, 0);
   return matrix;
@@ -185,8 +186,8 @@ function renderThumbnail(
   context.lineJoin = 'round';
   drawShadow(context);
 
-  const camera = new THREE.OrthographicCamera(-1.08, 1.08, 0.82, -0.82, 0.1, 20);
-  camera.position.set(2.5, 2.05, 2.8);
+  const camera = new THREE.OrthographicCamera(-0.95, 0.95, 0.85, -0.85, 0.1, 20);
+  camera.position.set(2.65, 2.2, 3.05);
   camera.lookAt(0, 0, 0);
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld();

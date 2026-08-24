@@ -21,3 +21,6 @@ apps/web/public/assets/electronics/owner-supplied/*.svg binary
 
 # Keep the audited owner archive imports byte-identical to their manifest hashes.
 apps/web/public/assets/electronics/owner-audit/components/** binary
+
+# The runtime component database is an immutable, byte-exact projection of owner SVG files.
+apps/web/public/assets/electronics/component-database/components/** binary

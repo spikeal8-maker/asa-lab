@@ -108,29 +108,112 @@ export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'potentiometer',
   'capacitor',
   'spdt-switch',
-  'battery',
+  'battery-9v',
   'battery-holder-aa',
   'breadboard',
   'arduino-uno',
   'vibration-motor',
   'dc-motor',
   'servo',
+  'gearmotor',
   'transistor',
   'rgb-led',
   'diode',
   'photoresistor',
+  'soil-moisture-sensor',
+  'ultrasonic-sensor',
+  'pir-sensor',
   'piezo',
+  'temperature-sensor',
   'multimeter',
-  'seven-segment',
-  'lamp',
-  'regulated-power-supply',
 ] as const;
 const TINKERCAD_BASIC_FAMILY_INDEX = new Map<string, number>(
   TINKERCAD_BASIC_FAMILY_ORDER.map((familyId, index) => [familyId, index]),
 );
 
+const TINKERCAD_REFERENCE_PLACEHOLDERS: readonly {
+  readonly familyId: string;
+  readonly familyLabel: string;
+  readonly categoryId: SemanticComponentCategory;
+}[] = [
+  { familyId: 'gearmotor', familyLabel: 'Мотор-редуктор', categoryId: 'motors' },
+  {
+    familyId: 'soil-moisture-sensor',
+    familyLabel: 'Датчик влажности почвы',
+    categoryId: 'sensors',
+  },
+  {
+    familyId: 'ultrasonic-sensor',
+    familyLabel: 'Ультразвуковой датчик',
+    categoryId: 'sensors',
+  },
+  {
+    familyId: 'pir-sensor',
+    familyLabel: 'Пироэлектрический ИК-датчик',
+    categoryId: 'sensors',
+  },
+  {
+    familyId: 'temperature-sensor',
+    familyLabel: 'Датчик температуры',
+    categoryId: 'sensors',
+  },
+];
+
+function referencePlaceholderItem(
+  definition: (typeof TINKERCAD_REFERENCE_PLACEHOLDERS)[number],
+): ProductionCatalogItem {
+  const catalogOrder = TINKERCAD_BASIC_FAMILY_INDEX.get(definition.familyId) ?? 999;
+  const blockReason = 'Ожидается подтверждённый SVG и электрическая модель.';
+  return {
+    key: definition.familyId,
+    familyId: definition.familyId,
+    familyLabel: definition.familyLabel,
+    variantId: definition.familyId,
+    isDefaultVariant: true,
+    variantLabel: definition.familyLabel,
+    subcategoryId: definition.categoryId,
+    catalogOrder,
+    catalogTier: 'preview',
+    appearsInBasic: true,
+    blockReason,
+    kind: 'visual',
+    label: definition.familyLabel,
+    semanticCategory: definition.categoryId,
+    category: 'other',
+    description: blockReason,
+    keywords: [definition.familyId, definition.familyLabel],
+    preview: 'visual',
+    asset: '',
+    stateAssets: {},
+    viewBox: { x: 0, y: 0, width: 20, height: 16 },
+    physicalSizeMm: { width: 20, height: 16 },
+    assetFit: 'meet',
+    terminals: {},
+    footprint: null,
+    defaultValue: 0,
+    defaultStateProperties: {},
+    unit: '',
+    provenance: 'missing_owner_source',
+    catalogStatus: 'disabled_missing_svg',
+    sourceOwnerPath: '',
+    sourceSha256: '',
+    runtimePath: '',
+    runtimeSha256: '',
+    sourceFile: '',
+    simulationSupported: false,
+    enabled: false,
+  };
+}
+
 export function workbenchCatalog(): readonly ComponentFamily[] {
-  const ownerItems = ownerCatalogItems();
+  const manifestItems = ownerCatalogItems();
+  const manifestFamilyIds = new Set(manifestItems.map((item) => item.familyId));
+  const ownerItems = [
+    ...manifestItems,
+    ...TINKERCAD_REFERENCE_PLACEHOLDERS.filter(
+      (definition) => !manifestFamilyIds.has(definition.familyId),
+    ).map(referencePlaceholderItem),
+  ];
   const familiesWithOwnerArt = new Set(
     ownerItems.filter((item) => item.asset).map((item) => item.familyId),
   );
@@ -230,10 +313,10 @@ export function familyMatchesCategory(
   family: ComponentFamily,
   category: ComponentCategory,
 ): boolean {
-  // "Основные" is the default shelf, so it must never make an available owner
-  // component disappear. The catalog sort above keeps the Tinkercad-inspired
-  // order while still appending any future confirmed families safely.
-  if (category === 'basic') return true;
+  // Basic is a stable Tinkercad-parity shelf, not an alias for the whole
+  // manifest. Extra owner components remain available under All and their
+  // semantic category without continuously reshuffling the reference shelf.
+  if (category === 'basic') return TINKERCAD_BASIC_FAMILY_INDEX.has(family.familyId);
   if (category === 'all') return true;
   if (category === 'preview') return !family.enabled;
   return family.categoryId === category;

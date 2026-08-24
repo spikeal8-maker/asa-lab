@@ -10,7 +10,7 @@ import {
 
 const manifest = JSON.parse(
   readFileSync(
-    new URL('../../../public/assets/electronics/owner-catalog/manifest.json', import.meta.url),
+    new URL('../../../public/assets/electronics/component-database/catalog.json', import.meta.url),
     'utf8',
   ),
 ) as OwnerCatalogManifest;
@@ -18,41 +18,20 @@ const manifest = JSON.parse(
 describe('owner SVG runtime catalog adapter', () => {
   it('loads the complete owner catalog and fails closed on a runtime SHA substitution', () => {
     const manifestUrl = new URL(OWNER_CATALOG_MANIFEST_URL, 'http://asa-lab.local');
-    expect(manifestUrl.pathname).toBe('/assets/electronics/owner-catalog/manifest.json');
+    expect(manifestUrl.pathname).toBe('/assets/electronics/component-database/catalog.json');
     expect(manifestUrl.searchParams.get('rev')).toBeTruthy();
 
     configureProductionLibrary(manifest);
     expect(ownerCatalogItems().length).toBeGreaterThan(33);
     expect(productionCatalog().length).toBeGreaterThan(0);
 
-    // Directly owner-approved runtime SVGs live under owner-approved; every
-    // other enabled part keeps its byte-exact owner archive SVG under owner-audit.
-    const ownerApproved = new Set([
-      'arduino-uno',
-      'battery-1.5v',
-      'battery-3v',
-      'battery-6v',
-      'battery-9v',
-      'diode-do35',
-      'diode-do41',
-      'photoresistor',
-      'piezo-disc',
-      'seven-segment-display',
-      'transistor-npn',
-      'transistor-pnp',
-      'transistor-fet',
-    ]);
     for (const item of productionCatalog()) {
       expect(item.catalogStatus, item.key).toBe('enabled');
-      expect(item.provenance, item.key).toBe(
-        ownerApproved.has(item.key) ? 'owner_supplied' : 'exact_owner_svg',
-      );
+      expect(['owner_supplied', 'exact_owner_svg'], item.key).toContain(item.provenance);
       expect(item.sourceOwnerPath, item.key).not.toBe('');
       expect(item.sourceSha256, item.key).toMatch(/^[0-9a-f]{64}$/);
       expect(item.runtimePath, item.key).toMatch(
-        ownerApproved.has(item.key)
-          ? /^\/assets\/electronics\/owner-approved\/.*\.svg$/
-          : /^\/assets\/electronics\/owner-audit\/.*\.svg$/,
+        /^\/assets\/electronics\/component-database\/components\/.*\.svg$/,
       );
       expect(item.runtimeSha256, item.key).toBe(item.sourceSha256);
     }

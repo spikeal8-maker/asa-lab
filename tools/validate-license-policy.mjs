@@ -72,6 +72,7 @@ for (const excludedPath of [
   'apps/web/public/assets/electronics/owner-supplied/',
   'apps/web/public/assets/electronics/owner-audit/',
   'apps/web/public/assets/electronics/owner-catalog/manifest.json',
+  'apps/web/public/assets/electronics/component-database/',
   'apps/web/public/asa-lab-mark.svg',
   'e2e/artifacts/',
   'docs/product/',
@@ -105,6 +106,11 @@ requireText(
   'apps/web/public/assets/electronics/ASSETS_NOTICE.md',
   electronicsAssetsNotice,
   'owner-supplied/',
+);
+requireText(
+  'apps/web/public/assets/electronics/ASSETS_NOTICE.md',
+  electronicsAssetsNotice,
+  'component-database/',
 );
 requireText(
   'e2e/artifacts/ASSETS_NOTICE.md',

@@ -481,11 +481,21 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
                 });
               }}
             >
-              <option value="sans">Многоязычный</option>
-              <option value="serif">С засечками</option>
-              <option value="mono">Моноширинный</option>
+              <option value="sans">Noto Sans · АБВ / ABC</option>
+              <option value="serif">Noto Serif · АБВ / ABC</option>
+              <option value="mono">Noto Mono · АБВ / ABC</option>
             </select>
           </label>
+          <RangeProperty
+            label="Изгиб"
+            value={node.parameters.curveAngle}
+            min={-180}
+            max={180}
+            step={5}
+            unit="°"
+            disabled={node.locked}
+            onChange={(value) => replaceParameters({ curveAngle: value })}
+          />
           <RangeProperty
             label="Высота"
             value={node.parameters.fontSize}
@@ -731,49 +741,6 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
             unit=""
             disabled={node.locked}
             onChange={(value) => replaceParameters({ bevelSegments: value })}
-          />
-        </>
-      )}
-
-      {node.primitive === 'star-6' && (
-        <>
-          <RangeProperty
-            label="Точки"
-            value={node.parameters.points}
-            min={3}
-            max={30}
-            step={1}
-            unit=""
-            disabled={node.locked}
-            onChange={(value) => replaceParameters({ points: value })}
-          />
-          <RangeProperty
-            label="Радиус"
-            value={node.parameters.radius}
-            min={1}
-            max={50}
-            step={0.1}
-            disabled={node.locked}
-            onChange={(value) =>
-              execute({
-                type: 'replace-node',
-                node: {
-                  ...node,
-                  parameters: { ...node.parameters, radius: value },
-                  dimensions: { ...node.dimensions, width: value * 2, depth: value * 2 },
-                },
-              })
-            }
-          />
-          <RangeProperty
-            label="Внутренний радиус (%)"
-            value={node.parameters.innerRatio}
-            min={0.01}
-            max={1}
-            step={0.01}
-            unit=""
-            disabled={node.locked}
-            onChange={(value) => replaceParameters({ innerRatio: value })}
           />
         </>
       )}

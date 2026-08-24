@@ -76,7 +76,9 @@ describe('ASA 3D compact shape inspector', () => {
 
     expect(markup).toContain('value="TEXT"');
     expect(markup).toContain('Шрифт');
-    expect(markup).toContain('Многоязычный');
+    expect(markup).toContain('Noto Sans · АБВ / ABC');
+    expect(markup).toContain('Изгиб');
+    expect(markup).toContain('min="-180" max="180"');
     expect(markup).toContain('Скос');
     expect(markup).toContain('Высота');
     expect(markup).toContain('min="0" max="5"');
@@ -97,7 +99,7 @@ describe('ASA 3D compact shape inspector', () => {
     expect(render('tube')).toContain('Сегменты скоса');
     expect(render('polygon')).toContain('min="3" max="12"');
     expect(render('star')).not.toContain('Внутренний радиус (%)');
-    expect(render('star-6')).toContain('Внутренний радиус (%)');
+    expect(render('star-6')).not.toContain('Внутренний радиус (%)');
     expect(render('pyramid')).toContain('min="3" max="28"');
     expect(render('ring')).toContain('min="3" max="128"');
   });

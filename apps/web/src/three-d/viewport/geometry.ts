@@ -48,8 +48,10 @@ function wedgeGeometry(): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
+  const flatGeometry = geometry.toNonIndexed();
+  geometry.dispose();
+  flatGeometry.computeVertexNormals();
+  return flatGeometry;
 }
 
 function roofGeometry(): THREE.BufferGeometry {
@@ -60,8 +62,10 @@ function roofGeometry(): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
+  const flatGeometry = geometry.toNonIndexed();
+  geometry.dispose();
+  flatGeometry.computeVertexNormals();
+  return flatGeometry;
 }
 
 function extrudedShapeGeometry(
@@ -203,6 +207,7 @@ function textGeometry(
   bevel: number,
   segments = 0,
   fontStyle: ThreeDNode['parameters']['font'] = 'sans',
+  curveAngle = 0,
 ): THREE.BufferGeometry {
   const geometry = new TextGeometry(text.trim() || 'TEXT', {
     font: TEXT_FONTS[fontStyle],
@@ -215,7 +220,39 @@ function textGeometry(
     bevelSegments: Math.max(1, Math.min(5, segments)),
   });
   geometry.rotateX(-Math.PI / 2);
+  bendTextGeometry(geometry, curveAngle);
   return geometry;
+}
+
+/**
+ * Bends the glyph line around the Y axis while preserving its extrusion.
+ * Positive and negative values create opposite arcs, which lets the same text
+ * sit outside a cup or curve inward around a circular feature.
+ */
+function bendTextGeometry(geometry: THREE.BufferGeometry, curveAngle: number): void {
+  const angle = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(curveAngle, -180, 180));
+  if (Math.abs(angle) < 0.0001) return;
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  const position = geometry.getAttribute('position');
+  if (!bounds || !(position instanceof THREE.BufferAttribute)) return;
+  const width = Math.max(0.0001, bounds.max.x - bounds.min.x);
+  const centerX = (bounds.min.x + bounds.max.x) / 2;
+  const centerZ = (bounds.min.z + bounds.max.z) / 2;
+  const direction = Math.sign(angle);
+  const radius = width / Math.abs(angle);
+  for (let index = 0; index < position.count; index += 1) {
+    const localX = position.getX(index) - centerX;
+    const localZ = position.getZ(index) - centerZ;
+    const theta = (localX / radius) * direction;
+    const radial = radius + localZ * direction;
+    position.setX(index, Math.sin(theta) * radial);
+    position.setZ(index, centerZ + direction * (radius - Math.cos(theta) * radial));
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
 }
 
 export function measureTextWidthAtHeight(
@@ -484,6 +521,7 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
         node.bevel,
         node.parameters.segments,
         node.parameters.font,
+        node.parameters.curveAngle,
       ),
     );
   }

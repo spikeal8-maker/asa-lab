@@ -183,8 +183,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const [libraryQuery, setLibraryQuery] = useState('');
   const [category, setCategory] = useState<ComponentCategory>('basic');
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
-  const [libraryVariants, setLibraryVariants] = useState<Readonly<Record<string, string>>>({});
-  const [libraryVariantPopover, setLibraryVariantPopover] = useState<string | null>(null);
   const [catalogPlacement, setCatalogPlacement] = useState<CatalogPlacement | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [panning, setPanning] = useState(false);
@@ -361,33 +359,10 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelection({ kind: 'component', id: added.component.id, ids: [added.component.id] });
   }
 
-  function libraryVariant(familyId: string): string | null {
-    const family = familyById(familyId);
-    if (!family) return null;
-    return selectedFamilyVariant(family, libraryVariants[familyId]).variantId;
-  }
-
-  function setLibraryVariant(familyId: string, variantId: string): void {
-    const family = familyById(familyId);
-    if (
-      !family?.enabled ||
-      !family.variants.some((variant) => variant.variantId === variantId && variant.enabled)
-    ) {
-      return;
-    }
-    setLibraryVariants((current) => ({ ...current, [familyId]: variantId }));
-  }
-
-  function toggleLibraryVariantPopover(familyId: string): void {
-    const family = familyById(familyId);
-    if (!family?.enabled || family.variants.length < 2) return;
-    setLibraryVariantPopover((current) => (current === familyId ? null : familyId));
-  }
-
   function addFamily(familyId: string, at?: Point): void {
     const family = familyById(familyId);
     if (!family?.enabled) return;
-    addComponent(selectedFamilyVariant(family, libraryVariants[familyId]).componentTypeId, at);
+    addComponent(selectedFamilyVariant(family, null).componentTypeId, at);
   }
 
   function beginFamilyPlacement(
@@ -396,7 +371,7 @@ export function useElectronicsWorkbench(projectId: string) {
   ): void {
     const family = familyById(familyId);
     if (!family?.enabled) return;
-    const variant = selectedFamilyVariant(family, libraryVariants[familyId]);
+    const variant = selectedFamilyVariant(family, null);
     const next: CatalogPlacement = {
       componentTypeId: variant.componentTypeId,
       point: pointer
@@ -408,7 +383,6 @@ export function useElectronicsWorkbench(projectId: string) {
       mode: pointer ? 'pointer' : 'keyboard',
     };
     setCatalogPlacementState(next);
-    setLibraryVariantPopover(null);
     setSelection(null);
     setPendingTerminal(null);
     setWirePreviewEnd(null);
@@ -1497,10 +1471,6 @@ export function useElectronicsWorkbench(projectId: string) {
     );
   }, [category, libraryQuery]);
 
-  useEffect(() => {
-    setLibraryVariantPopover(null);
-  }, [category, libraryQuery, libraryView]);
-
   const selectedComponent =
     selection?.kind === 'component'
       ? (document?.components.find((item) => item.id === selection.id) ?? null)
@@ -1688,11 +1658,6 @@ export function useElectronicsWorkbench(projectId: string) {
     setCategory,
     libraryView,
     setLibraryView,
-    libraryVariant,
-    setLibraryVariant,
-    libraryVariantPopover,
-    setLibraryVariantPopover,
-    toggleLibraryVariantPopover,
     viewport,
     projectTitle,
     setProjectTitle,

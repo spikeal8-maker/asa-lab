@@ -14,6 +14,7 @@ import {
   defaultProductionType,
   productionBreadboard,
   productionCatalog,
+  productionCatalogEntry,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
 import {
@@ -36,7 +37,7 @@ const EMPTY: SchematicDocument = {
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
   'battery-1.5v': [23.524, 66.87],
-  'battery-3v': [31.423, 56.855],
+  'battery-3v': [24, 28.6],
   'battery-6v': [68.507, 65.043],
   'battery-9v': [23.5763, 52.667],
   'resistor-axial': [2.54, 11.582],
@@ -65,6 +66,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'arduino-uno': [78.74, 58.816875],
   'piezo-passive-buzzer': [22.133, 22],
   'piezo-disc': [24, 24],
+  'servo-motor': [15.2, 39.1668],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -83,9 +85,9 @@ const BREADBOARD_MOUNTABLE = [
 ] as const;
 
 beforeAll(() => {
-  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog');
+  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/component-database');
   configureProductionLibrary(
-    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as OwnerCatalogManifest,
+    JSON.parse(readFileSync(resolve(root, 'catalog.json'), 'utf8')) as OwnerCatalogManifest,
   );
 });
 
@@ -183,7 +185,9 @@ describe('owner SVG integration in the real Electronics document', () => {
   it('anchors all Arduino contacts to the real 2.54 mm header centres', () => {
     const arduino = productionCatalog().find((entry) => entry.key === 'arduino-uno');
     expect(arduino).toBeDefined();
-    expect(arduino?.runtimePath).toBe('/assets/electronics/owner-approved/arduino-uno.svg');
+    expect(arduino?.runtimePath).toBe(
+      '/assets/electronics/component-database/components/arduino-uno/arduino-uno/component.svg',
+    );
     expect(arduino?.runtimeSha256).toBe(
       'c4bba011bb122735bf8e1d23d266e2c545e2575c5f17c650294ad0015117027d',
     );
@@ -227,26 +231,29 @@ describe('owner SVG integration in the real Electronics document', () => {
       'potentiometer',
       'capacitor',
       'spdt-switch',
-      'battery',
+      'battery-9v',
       'battery-holder-aa',
       'breadboard',
       'arduino-uno',
       'vibration-motor',
       'dc-motor',
       'servo',
+      'gearmotor',
       'transistor',
       'rgb-led',
       'diode',
       'photoresistor',
+      'soil-moisture-sensor',
+      'ultrasonic-sensor',
+      'pir-sensor',
       'piezo',
+      'temperature-sensor',
       'multimeter',
-      'seven-segment',
-      'lamp',
-      'regulated-power-supply',
     ]);
     expect(basicFamilies.some((family) => family.familyId === 'microbit')).toBe(false);
-    expect(basicFamilies).toHaveLength(families.length);
+    expect(basicFamilies.every((family) => !family.familyLabel.includes('Варианты:'))).toBe(true);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
+      familyLabel: 'Батарейный отсек AA',
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
       enabled: true,
@@ -271,6 +278,10 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(families.find((family) => family.familyId === 'breadboard')?.defaultVariantId).toBe(
       'breadboard-medium',
     );
+    expect(families.find((family) => family.familyId === 'capacitor')).toMatchObject({
+      defaultVariantId: 'electrolytic-capacitor',
+      familyLabel: 'Конденсатор',
+    });
     expect(families.find((family) => family.familyId === 'piezo')).toMatchObject({
       defaultVariantId: 'piezo-passive-buzzer',
       enabled: true,
@@ -281,21 +292,47 @@ describe('owner SVG integration in the real Electronics document', () => {
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['piezo-passive-buzzer', 'piezo-disc']);
     expect(defaultProductionType('piezo')).toBe('piezo-passive-buzzer');
+    expect(families.find((family) => family.familyId === 'servo')).toMatchObject({
+      defaultVariantId: 'servo-motor',
+      enabled: true,
+    });
+    expect(productionCatalogEntry('servo-motor')).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+      catalogStatus: 'enabled',
+    });
     expect(
       families
         .find((family) => family.familyId === 'diode')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['diode-do35', 'diode-do41']);
-    expect(families.find((family) => family.familyId === 'battery')).toMatchObject({
-      enabled: true,
-      appearsInBasic: true,
-      simulationStatus: 'supported',
-      defaultVariantId: 'battery-9v',
-    });
-    // Every battery variant here is backed by the owner's original SVG.
+    expect(productionCatalogEntry('diode-do35')?.physicalSizeMm).not.toEqual(
+      productionCatalogEntry('diode-do41')?.physicalSizeMm,
+    );
     expect(
-      families.find((family) => family.familyId === 'battery')?.variants.map((v) => v.variantId),
-    ).toEqual(['battery-1.5v', 'battery-3v', 'battery-6v', 'battery-9v']);
+      ['battery-9v', 'battery-3v', 'battery-1.5v'].map((familyId) =>
+        families.find((family) => family.familyId === familyId),
+      ),
+    ).toMatchObject([
+      { familyLabel: 'Батарея 9 В', defaultVariantId: 'battery-9v', enabled: true },
+      {
+        familyLabel: 'Кнопочная батарея 3 В',
+        defaultVariantId: 'battery-3v',
+        enabled: true,
+        appearsInBasic: false,
+      },
+      {
+        familyLabel: 'Батарея 1,5 В',
+        defaultVariantId: 'battery-1.5v',
+        enabled: true,
+        appearsInBasic: false,
+      },
+    ]);
+    expect(families.find((family) => family.familyId === 'battery-6v')).toMatchObject({
+      familyLabel: 'Батарея 6 В',
+      appearsInBasic: false,
+      enabled: true,
+    });
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -308,12 +345,12 @@ describe('owner SVG integration in the real Electronics document', () => {
         const entry = variant.entry;
         if (entry.asset) {
           expect(entry.asset, variant.variantId).toMatch(
-            /^\/assets\/electronics\/(owner-supplied|owner-approved|owner-audit\/components)\/.*\.svg$/,
+            /^\/assets\/electronics\/component-database\/components\/.*\.svg$/,
           );
           expect(entry.asset, variant.variantId).not.toContain('/production/');
           expect(entry.asset, variant.variantId).not.toContain('/source-reference/');
         } else {
-          expect(['vibration-motor']).toContain(entry.preview);
+          expect(['vibration-motor', 'visual']).toContain(entry.preview);
           expect(family.enabled).toBe(false);
         }
         expect(renderedSize(entry)).toEqual({

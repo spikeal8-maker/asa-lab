@@ -4,7 +4,7 @@ import { BREADBOARD_PITCH_MM, WORLD_UNITS_PER_MM } from './production-asset-cont
 
 const OWNER_CATALOG_REVISION =
   typeof __ASA_BUILD_REVISION__ === 'undefined' ? 'development' : __ASA_BUILD_REVISION__;
-export const OWNER_CATALOG_MANIFEST_URL = `/assets/electronics/owner-catalog/manifest.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
+export const OWNER_CATALOG_MANIFEST_URL = `/assets/electronics/component-database/catalog.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
 
 export interface ProductionPin {
   readonly id: string;
@@ -83,12 +83,14 @@ export interface RuntimeBreadboardDefinition {
 }
 
 export interface OwnerCatalogManifest {
-  readonly schema: 'asa-lab.electronics-owner-catalog.v1';
+  readonly schema: 'asa-lab.electronics-component-database.v1';
   readonly worldUnitsPerMm: number;
   readonly policy: {
     readonly runtimeArt: 'byte_exact_owner_svg_only';
     readonly failClosed: true;
     readonly forbidden: readonly string[];
+    readonly assetRoot: '/assets/electronics/component-database/components/';
+    readonly sourceOfTruth: 'component-database/catalog.json';
   };
   readonly breadboards: readonly RuntimeBreadboardDefinition[];
   readonly components: readonly OwnerCatalogComponent[];
@@ -224,6 +226,33 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
     'Транзистор для усиления и переключения сигнала: NPN, PNP или полевой (N-канал). Тип выбирается в панели настроек.',
   piezo: 'Пьезоизлучатель преобразует электрический сигнал в звук.',
   multimeter: 'Измерительный прибор для напряжения, тока и сопротивления.',
+};
+
+const BATTERY_CATALOG_PRESENTATION: Readonly<
+  Record<
+    string,
+    {
+      readonly familyId: string;
+      readonly familyLabel: string;
+      readonly appearsInBasic: boolean;
+    }
+  >
+> = {
+  'battery-9v': { familyId: 'battery-9v', familyLabel: 'Батарея 9 В', appearsInBasic: true },
+  'battery-3v': {
+    familyId: 'battery-3v',
+    familyLabel: 'Кнопочная батарея 3 В',
+    appearsInBasic: false,
+  },
+  'battery-1.5v': {
+    familyId: 'battery-1.5v',
+    familyLabel: 'Батарея 1,5 В',
+    appearsInBasic: false,
+  },
+  // The owner has supplied this source, but it is not on Tinkercad's Basic
+  // shelf. It remains available under All/Power without being folded into the
+  // 9 V battery card.
+  'battery-6v': { familyId: 'battery-6v', familyLabel: 'Батарея 6 В', appearsInBasic: false },
 };
 
 function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
@@ -475,10 +504,7 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
     }
     return;
   }
-  const runtimePrefix =
-    item.provenance === 'owner_supplied'
-      ? '/assets/electronics/owner-approved/'
-      : '/assets/electronics/owner-audit/';
+  const runtimePrefix = '/assets/electronics/component-database/components/';
   if (
     !['exact_owner_svg', 'owner_supplied'].includes(item.provenance) ||
     !item.sourceOwnerPath ||
@@ -524,7 +550,7 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
   }
   for (const state of item.stateAssets) {
     if (
-      !state.runtimePath.startsWith('/assets/electronics/owner-audit/') ||
+      !state.runtimePath.startsWith(runtimePrefix) ||
       !state.runtimePath.endsWith('.svg') ||
       state.runtimeSha256 !== state.sourceSha256
     ) {
@@ -539,26 +565,29 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
   assertFailClosed(item);
   const kind = componentKind(item.componentId);
   const configured = defaults(item.componentId);
+  const presentation = BATTERY_CATALOG_PRESENTATION[item.componentId];
+  const familyId = presentation?.familyId ?? item.familyId;
   const width = item.physicalWidthMm ?? 20;
   const height = item.physicalHeightMm ?? 16;
   const viewBox = item.viewBox ?? [0, 0, width, height];
   return {
     key: item.componentId,
-    familyId: item.familyId,
-    familyLabel: item.familyLabelRu,
+    familyId,
+    familyLabel: presentation?.familyLabel ?? item.familyLabelRu,
     variantId: item.variantId,
     isDefaultVariant: item.isDefaultVariant,
     variantLabel: item.variantLabelRu,
     subcategoryId: item.subcategoryId,
     catalogOrder: item.catalogOrder,
     catalogTier: item.catalogTier,
-    appearsInBasic: item.appearsInBasic,
+    appearsInBasic: presentation?.appearsInBasic ?? item.appearsInBasic,
     blockReason: item.blockReason,
     kind,
     label: item.displayName,
     semanticCategory: item.category,
     category: category(item.category),
     description:
+      COMPONENT_DESCRIPTIONS[familyId] ??
       COMPONENT_DESCRIPTIONS[item.familyId] ??
       (item.status === 'enabled'
         ? 'Компонент из подтверждённого комплекта владельца.'
@@ -602,7 +631,12 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
 }
 
 export function configureProductionLibrary(manifest: OwnerCatalogManifest): void {
-  if (manifest.schema !== 'asa-lab.electronics-owner-catalog.v1' || !manifest.policy.failClosed) {
+  if (
+    manifest.schema !== 'asa-lab.electronics-component-database.v1' ||
+    !manifest.policy.failClosed ||
+    manifest.policy.assetRoot !== '/assets/electronics/component-database/components/' ||
+    manifest.policy.sourceOfTruth !== 'component-database/catalog.json'
+  ) {
     throw new Error('fail-closed owner Electronics catalog is unavailable');
   }
   if (manifest.worldUnitsPerMm !== WORLD_UNITS_PER_MM) {

@@ -258,31 +258,35 @@ parallel_lanes:
           - pnpm gate:repository
 
   # Owner-activated ASA Learning M0 state-convergence lane. The repository
-  # task id follows the control-plane schema; its only active Work Queue item
-  # is LRN-M0-003. M0-004 and M1-M7 remain outside this activation.
+  # task id follows the control-plane schema; its completed Work Queue item is
+  # LRN-M0-005. M0-006 and M1-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m0-status-divergence
+    worktree_id: learning-m0-legacy-dry-run
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
       - docs/product/learning/**
       - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+      - tools/learning-migration-dry-run.mjs
+      - tools/learning-migration-dry-run-v1.schema.json
+      - tests/courses/learning-migration-dry-run.unit.spec.ts
+      - tests/courses/learning-migration-dry-run.pg.spec.ts
     task:
-      id: TASK-LEARNING-M0-003
-      issue: 140
-      branch: agent/learning-m0-status-divergence
+      id: TASK-LEARNING-M0-005
+      issue: 145
+      branch: agent/learning-m0-legacy-dry-run
       base_branch: main
-      pr: 141
+      pr: 146
       pr_draft: false
       status: done
-      checkpoint: lrn_m0_003_evidence_published
+      checkpoint: lrn_m0_005_evidence_published
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb
-      head_sha: 4537e859622b5520eccaf7efb6afb122fe244e0b
-      product_merge_sha: 63785803b1dc47561cac8992f43e1d44593426bc
+      convergence_baseline_sha: 481f1d406f2322ce7999f1aab47c4f4eaff7fd77
+      head_sha: e2d7dd8ecc761317a22efa0a399779bbaa0effd5
+      product_merge_sha: 118a9981f6d1deb86324b0c378e61b0418f5280e
     execution_lease:
-      executor_id: codex-learning-m0-divergence
+      executor_id: codex-learning-m0-legacy-dry-run
       holder: unassigned
       acquired_at: null
       expires_at: null

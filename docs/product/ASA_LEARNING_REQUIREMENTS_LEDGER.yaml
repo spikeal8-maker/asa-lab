@@ -26,12 +26,49 @@ requirements:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
   tests: []
-- id: MIG-005
+- id: MIG-002
+  milestone: M0
+  status: proven
+  summary: Run a repeatable non-mutating migration dry-run before any Learning backfill
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  - tools/learning-migration-dry-run-v1.schema.json
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+  - tests/courses/learning-migration-dry-run.pg.spec.ts
+- id: MIG-004
+  milestone: M0
+  status: in_progress
+  summary: Preserve excellent/good/progress/redo as legacy metadata without automatic grade conversion
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+- id: MIG-006
+  milestone: M0
+  status: proven
+  summary: Emit required migration totals, conflict counts and direct/course/quiz breakdown
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run-v1.schema.json
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+- id: MIG-007
   milestone: M0
   status: target
+  summary: Keep future migration additive and reversible until canonical cutover
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  tests: []
+- id: MIG-005
+  milestone: M0
+  status: in_progress
   summary: After accepted migration derive runtime status from Participation, Attempt and Result rather than parallel legacy flags
   evidence:
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   tests: []
 - id: IDN-001
   milestone: M0
@@ -39,6 +76,7 @@ requirements:
   summary: Stable logical learner identity independent of StudentSeat/account login
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   tests:
   - E2E-016
 - id: IDN-002
@@ -57,6 +95,7 @@ requirements:
   summary: Learning runtime references the ADR-selected stable learner key
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   tests: []
 - id: IDN-004
   milestone: M0
@@ -68,9 +107,11 @@ requirements:
   - E2E-016
 - id: MIG-003
   milestone: M0
-  status: target
+  status: in_progress
   summary: Never fabricate historical immutable submission evidence
-  evidence: []
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
   tests:
   - TST-INT-015
 - id: ARCH-002
@@ -80,6 +121,13 @@ requirements:
   evidence: []
   tests:
   - TST-INT-002
+- id: ARCH-003
+  milestone: M0
+  status: in_progress
+  summary: Gradebook is a canonical projection and not independent grade storage
+  evidence:
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  tests: []
 - id: RUN-005
   milestone: M1
   status: target
@@ -171,11 +219,19 @@ requirements:
   tests:
   - E2E-013
   - TST-INT-011
+- id: GRD-002
+  milestone: M3
+  status: in_progress
+  summary: Gradebook matrix is built from one canonical server projection
+  evidence:
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  tests: []
 - id: GRD-005
   milestone: M3
-  status: target
+  status: in_progress
   summary: Gradebook cell separates workflowState, selectedResult and flags
-  evidence: []
+  evidence:
+  - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   tests:
   - E2E-005
 - id: GRD-007

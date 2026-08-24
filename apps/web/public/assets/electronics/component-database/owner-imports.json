@@ -1,0 +1,27 @@
+{
+  "schema": "asa-lab.electronics-owner-direct-imports.v1",
+  "policy": {
+    "immutableOriginalBytes": true,
+    "transformationsAllowed": false
+  },
+  "imports": [
+    {
+      "componentId": "battery-3v",
+      "originalFileName": "cr2032_coin_battery_holder.svg",
+      "sha256": "e4407e650802233542cf810d02f341934ff231f19a7e4e1aa43b4de1591687e5",
+      "bytes": 11945,
+      "runtimePath": "/assets/electronics/component-database/components/power/battery-3v/component.svg",
+      "importedAt": "2026-08-24",
+      "transformation": "none_byte_exact_copy"
+    },
+    {
+      "componentId": "servo-motor",
+      "originalFileName": "servo_motor_top_clean_v2.svg",
+      "sha256": "2227b5058f77028eae3909ba63f129cec1931e9be2962e2ff87f61c551fdd964",
+      "bytes": 8252,
+      "runtimePath": "/assets/electronics/component-database/components/motors/servo-motor/component.svg",
+      "importedAt": "2026-08-24",
+      "transformation": "none_byte_exact_copy"
+    }
+  ]
+}

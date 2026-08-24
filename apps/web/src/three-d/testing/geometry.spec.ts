@@ -138,6 +138,47 @@ describe('ASA 3D primitive geometry', () => {
     cyrillic.dispose();
   });
 
+  it('bends multilingual text in both directions without changing its solid contract', () => {
+    const text = createThreeDNode('text', 'curved-text');
+    const flat = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'ASA Лаб', curveAngle: 0 },
+    });
+    const outward = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'ASA Лаб', curveAngle: 120 },
+    });
+    const inward = createPrimitiveGeometry({
+      ...text,
+      parameters: { ...text.parameters, text: 'ASA Лаб', curveAngle: -120 },
+    });
+    const flatPositions = Array.from(flat.getAttribute('position').array);
+    const outwardPositions = Array.from(outward.getAttribute('position').array);
+    const inwardPositions = Array.from(inward.getAttribute('position').array);
+
+    expect(outwardPositions).not.toEqual(flatPositions);
+    expect(inwardPositions).not.toEqual(flatPositions);
+    expect(outwardPositions).not.toEqual(inwardPositions);
+    expect(outward.getAttribute('normal').count).toBe(outward.getAttribute('position').count);
+    flat.dispose();
+    outward.dispose();
+    inward.dispose();
+  });
+
+  it.each(['roof', 'wedge'] as const)('keeps every %s face flat-shaded', (primitive) => {
+    const geometry = createPrimitiveGeometry(createThreeDNode(primitive, `${primitive}-flat`));
+    expect(geometry.getIndex()).toBeNull();
+    const normals = geometry.getAttribute('normal');
+    for (let offset = 0; offset < normals.count; offset += 3) {
+      const a = new THREE.Vector3().fromBufferAttribute(normals, offset);
+      const b = new THREE.Vector3().fromBufferAttribute(normals, offset + 1);
+      const c = new THREE.Vector3().fromBufferAttribute(normals, offset + 2);
+      expect(a.distanceTo(b)).toBeLessThan(0.000001);
+      expect(a.distanceTo(c)).toBeLessThan(0.000001);
+    }
+    geometry.dispose();
+  });
+
   it('uses the saved radius and steps for a rounded parallelepiped', () => {
     const node = { ...createThreeDNode('box', 'rounded-box'), bevel: 3, sides: 8 };
     const geometry = createPrimitiveGeometry(node);

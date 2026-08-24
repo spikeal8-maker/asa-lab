@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="155" height="258"
+     viewBox="118 54 155 258"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Транзистор PNP</title>
+  <desc id="desc">Чистая векторная вариация PNP-транзистора в стиле исходного референса. Холст 411×395.</desc>
+
+  <g id="transistor">
+    <path id="pin-left" fill="#8c8c8c" d="
+      M147 244 H160 V258
+      C160 267 155 272 147 277
+      L140 282
+      C137 284 136 288 136 293
+      V304
+      C136 309 134 312 130 312
+      C126 312 123 309 123 305
+      V285
+      C123 277 127 271 134 266
+      L141 261
+      C145 258 147 255 147 251
+      Z"/>
+
+    <rect id="pin-middle" x="190" y="244" width="12" height="68" rx="6" fill="#8c8c8c"/>
+
+    <path id="pin-right" fill="#8c8c8c" d="
+      M232 244 H245 V251
+      C245 255 247 258 251 261
+      L258 266
+      C265 271 269 277 269 285
+      V305
+      C269 309 266 312 262 312
+      C258 312 256 309 256 304
+      V293
+      C256 288 255 284 252 282
+      L245 277
+      C237 272 232 267 232 258
+      Z"/>
+
+    <path id="package" fill="#595959" d="
+      M118 94
+      C118 71 152 54 196 54
+      C240 54 273 71 273 94
+      V230
+      C273 237 271 242 268 247
+      H124
+      C121 242 118 237 118 230
+      Z"/>
+
+    <path id="top-face" fill="#333333" d="
+      M129 92
+      C129 76 158 64 196 64
+      C234 64 263 76 263 92
+      V102
+      H129
+      Z"/>
+
+    <rect id="front-face" x="134" y="113" width="124" height="122" fill="#333333"/>
+    <path id="left-edge" fill="#333333" d="M118 97 L124 107 V235 L118 230 Z"/>
+    <path id="right-edge" fill="#333333" d="M268 107 L273 97 V230 L268 235 Z"/>
+
+    <path id="mark-p"
+          d="M183 181 V137 H204 C214 137 220 144 220 155 C220 166 214 173 204 173 H183"
+          fill="none"
+          stroke="#e3e3e3"
+          stroke-width="9"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <g fill="#666666"
+       font-family="Arial, Helvetica, sans-serif"
+       font-size="24"
+       font-weight="700"
+       text-anchor="middle">
+      <text id="mark-left" x="204" y="226" transform="translate(153 0) scale(.75 1) translate(-204 0)">C</text>
+      <text id="mark-middle" x="261.333" y="226" transform="translate(196 0) scale(.75 1) translate(-261.333 0)">B</text>
+      <text id="mark-right" x="318.667" y="226" transform="translate(239 0) scale(.75 1) translate(-318.667 0)">E</text>
+    </g>
+  </g>
+</svg>

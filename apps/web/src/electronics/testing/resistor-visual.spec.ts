@@ -9,14 +9,14 @@ import {
 
 const OWNER_CATALOG = JSON.parse(
   readFileSync(
-    new URL('../../../public/assets/electronics/owner-catalog/manifest.json', import.meta.url),
+    new URL('../../../public/assets/electronics/component-database/catalog.json', import.meta.url),
     'utf8',
   ),
 ) as OwnerCatalogManifest;
 
 const OWNER_RESISTOR = readFileSync(
   new URL(
-    '../../../public/assets/electronics/owner-audit/components/reference-candidates/resistor-axial.svg',
+    '../../../public/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg',
     import.meta.url,
   ),
   'utf8',
@@ -32,7 +32,7 @@ beforeAll(() => configureProductionLibrary(OWNER_CATALOG));
 describe('owner axial resistor visual', () => {
   it('uses the owner archive SVG directly', () => {
     expect(productionCatalogEntry('resistor-axial')?.asset).toBe(
-      '/assets/electronics/owner-audit/components/reference-candidates/resistor-axial.svg',
+      '/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg',
     );
   });
 

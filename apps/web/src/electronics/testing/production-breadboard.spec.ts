@@ -18,7 +18,7 @@ interface OwnerCatalogManifest {
 
 const manifest = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog/manifest.json'),
+    resolve(process.cwd(), 'apps/web/public/assets/electronics/component-database/catalog.json'),
     'utf8',
   ),
 ) as OwnerCatalogManifest;
