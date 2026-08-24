@@ -6,10 +6,10 @@
 
 **Baseline SHA:** `481f1d406f2322ce7999f1aab47c4f4eaff7fd77`
 
-**Analyzer implementation SHA:** `6ad79ae6ab6b25c08f88f670d6f1f23f6fb9af2d`
+**Analyzer implementation SHA:** `17e617e6caeb420d562dd42dd24187b4e4efc8d7`
 
 **Analyzer:** `1.0.0`, SHA-256
-`d726f16c8890c4377a096fe319df963c2ca49a92a1d3a6bb7ab9fb3ac9257076`
+`81f2e8363c4c217369107e5f44ca60ddca2743743f5e1c990c7293bda08d38e6`
 
 **Schema:** `asa-learning-migration-dry-run/v1`
 
@@ -92,12 +92,12 @@ Snapshot: fixed as-of 2026-08-24T00:00:00.000Z, PostgreSQL 16.10, migration
 | legacy_unresolved | 79 | 0 | 0 | 79 |
 | selection_conflict | 0 | 0 | 0 | 0 |
 | visibility_only | 0 | 0 | 0 | 0 |
-| auto_reconcilable | 2,688 | 1 | 0 | 2,689 |
-| clean_canonical | 0 | 0 | 1 | 1 |
-| **total** | **2,767** | **1** | **1** | **2,769** |
+| auto_reconcilable | 2,689 | 2 | 0 | 2,691 |
+| clean_canonical | 0 | 0 | 2 | 2 |
+| **total** | **2,768** | **2** | **2** | **2,772** |
 
-The populated integration database contained 2 mapped activity assignments,
-1 mapped run, 1 exact recoverable legacy submission, 79 unresolved legacy
+The populated integration database contained 4 mapped activity assignments,
+2 mapped runs, 2 exact recoverable legacy submissions, 79 unresolved legacy
 submissions and 79 manual-review conflicts. It is isolated test data, not a
 claim about production.
 
@@ -105,10 +105,10 @@ claim about production.
 
 | Aggregate | Local-dev | Test |
 |---|---:|---:|
-| future identities deterministically seedable | 19 | 276 |
-| seat links deterministically seedable | 19 | 276 |
+| future identities deterministically seedable | 19 | 279 |
+| seat links deterministically seedable | 19 | 279 |
 | account links deterministically seedable | 0 | 19 |
-| email-free seat seeds | 19 | 257 |
+| email-free seat seeds | 19 | 260 |
 | same-school multi-seat accounts | 0 | 0 |
 | cross-school account splits | 0 | 0 |
 | unresolved identity units | 0 | 0 |
@@ -122,7 +122,7 @@ merge evidence. No future `learner_identities.id` value is generated.
 
 ## 6. Result selection and lifecycle
 
-The test scan found two units with a result and valid persisted pointer; no
+The test scan found four units with a result and valid persisted pointer; no
 missing/broken/cross-scope pointer in the current test population. Fixtures
 separately prove missing pointer and broken/cross-scope pointer become
 `selection_conflict`, while an older valid selected Attempt plus a newer
@@ -130,11 +130,11 @@ in-progress Attempt remains valid and is reported as a secondary revision fact.
 
 | Seat lifecycle units | Local-dev | Test |
 |---|---:|---:|
-| active | 20 | 492 |
+| active | 20 | 495 |
 | issued | 170 | 10 |
 | suspended | 0 | 2,267 |
 | removed | 0 | 0 |
-| ended classroom/assignment | 0 | 1 |
+| ended classroom/assignment | 0 | 2 |
 
 `visibility_only` is used only when evidence and selection are coherent and the
 remaining difference is lifecycle access. Suspended/removed/ended history is
@@ -144,13 +144,13 @@ counted even when a unit has a higher-priority migration problem.
 
 | Feedback | Local-dev | Test |
 |---|---:|---:|
-| total preserved as metadata | 1 | 176 |
-| excellent | 1 | 53 |
+| total preserved as metadata | 1 | 177 |
+| excellent | 1 | 54 |
 | good | 0 | 123 |
 | progress | 0 | 0 |
 | redo | 0 | 0 |
 | linked to assignment work | 1 | 37 |
-| orphan/inconsistent link | 0 | 139 |
+| orphan/inconsistent link | 0 | 140 |
 | converted to school grade | **0** | **0** |
 
 All four allowed legacy values are covered by deterministic fixtures. The
@@ -176,8 +176,8 @@ assignment/seat unit.
 
 | Evidence | Units | Queries | Elapsed |
 |---|---:|---:|---:|
-| test database | 2,769 | 4 | 53.16 ms |
-| local-dev database | 190 | 5 | 28.79 ms |
+| test database | 2,772 | 4 | 68.90 ms |
+| local-dev database | 190 | 5 | 30.81 ms |
 | synthetic 30 learners × 100 activities | 3,000 | N/A pure pass | < 2,000 ms assertion |
 
 ## 10. Fixture and test evidence
@@ -193,7 +193,7 @@ Commands passed:
 
 ```text
 pnpm vitest run tests/courses/learning-migration-dry-run.unit.spec.ts
-  22/22 tests PASS
+  23/23 tests PASS
 
 pnpm vitest run tests/courses/learning-migration-dry-run.pg.spec.ts
   2/2 tests PASS

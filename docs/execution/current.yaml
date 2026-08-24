@@ -283,7 +283,7 @@ parallel_lanes:
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 481f1d406f2322ce7999f1aab47c4f4eaff7fd77
-      head_sha: 6ad79ae6ab6b25c08f88f670d6f1f23f6fb9af2d
+      head_sha: 17e617e6caeb420d562dd42dd24187b4e4efc8d7
     execution_lease:
       executor_id: codex-learning-m0-legacy-dry-run
       holder: unassigned

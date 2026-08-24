@@ -279,7 +279,7 @@ Published evidence:
 docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
 tools/learning-migration-dry-run.mjs
 tools/learning-migration-dry-run-v1.schema.json
-tests/courses/learning-migration-dry-run.unit.spec.ts — 22 PASS
+tests/courses/learning-migration-dry-run.unit.spec.ts — 23 PASS
 tests/courses/learning-migration-dry-run.pg.spec.ts — 2 PASS
 gate:code — PASS with NX cache skipped
 gate:data — FAIL outside Learning scope: one persistent Admin/Auth timeout;
