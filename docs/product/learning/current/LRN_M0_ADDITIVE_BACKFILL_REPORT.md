@@ -215,9 +215,10 @@ Focused negative tests prove:
   migration, role provisioning and optional dev seed share the attested
   `MIGRATION_DATABASE_URL` only. Compose validation injects deliberately
   different generic/dedicated URLs and fails if the generic value leaks in.
-- a pre-existing bootstrap `.env` that lacks any dedicated migration URL/name/
-  confirmation stops before Compose with an actionable upgrade error; it cannot
-  silently use the old generic URL or the hard-coded local fallback password.
+- a pre-existing bootstrap `.env` that lacks any non-empty dedicated migration
+  URL/name/confirmation stops before Compose with an actionable upgrade error;
+  base Compose also requires all three and has no migration URL/password
+  fallback.
 
 ## Corrected acceptance evidence
 

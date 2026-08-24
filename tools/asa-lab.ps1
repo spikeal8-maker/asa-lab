@@ -68,7 +68,7 @@ function New-PrivateEnvironment {
       'MIGRATION_CONFIRM'
     )
     $missingMigrationSettings = @(
-      $requiredMigrationSettings | Where-Object { $existing -notmatch "(?m)^$([regex]::Escape($_))=" }
+      $requiredMigrationSettings | Where-Object { $existing -notmatch "(?m)^$([regex]::Escape($_))=\S" }
     )
     if ($missingMigrationSettings.Count -gt 0) {
       throw "Legacy .env is missing the dedicated migration target guard ($($missingMigrationSettings -join ', ')). Add all three settings and use MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted."
