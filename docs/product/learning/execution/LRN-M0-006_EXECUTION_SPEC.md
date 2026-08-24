@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-006`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** READY FOR IMPLEMENTATION  
+**Status:** IMPLEMENTED — OFFICIAL CI PENDING
 **Baseline SHA:** `9290ab18490f376460a3b5f396f8b8a4fd905488`  
 **Issue:** `#147`  
 **Pull request:** `#148` (draft until evidence is complete)  
@@ -544,33 +544,33 @@ git diff --check
 
 ## 23. Acceptance checklist
 
-- [ ] M0-005 accepted and only M0-006 active
-- [ ] physical school learner model and exact constraints implemented
-- [ ] migration batches/artifacts persistent and app-inaccessible
-- [ ] ordinary assigned/not_started units create no Attempt
-- [ ] exact-evidence gate creates/matches only truthful immutable evidence
-- [ ] all baseline legacy-unresolved rows remain truthful
-- [ ] feedback-to-grade conversions equal zero
-- [ ] pure resolver and three adapters implemented once
-- [ ] idempotency and concurrent uniqueness proven in DB
-- [ ] rollback and deterministic rerun proven
-- [ ] RLS/security negative matrix PASS
-- [ ] BEFORE/AFTER/DELTA report published
+- [x] M0-005 accepted and only M0-006 active
+- [x] physical school learner model and exact constraints implemented
+- [x] migration batches/artifacts persistent and app-inaccessible
+- [x] ordinary assigned/not_started units create no Attempt
+- [x] exact-evidence gate creates/matches only truthful immutable evidence
+- [x] all baseline legacy-unresolved rows remain truthful
+- [x] feedback-to-grade conversions equal zero
+- [x] pure resolver and three adapters implemented once
+- [x] idempotency and concurrent uniqueness proven in DB
+- [x] rollback and deterministic rerun proven
+- [x] RLS/security negative matrix PASS
+- [x] BEFORE/AFTER/DELTA report published
 - [ ] migrations/checksums, focused and full gates complete
 - [ ] official PostgreSQL/RLS CI PASS
-- [ ] production untouched
-- [ ] ledger updated only to the evidence actually proven
-- [ ] stop without M0-007
+- [x] production untouched
+- [x] ledger updated only to the evidence actually proven
+- [x] stop without M0-007
 
 ## 24. Evidence (fill after implementation)
 
 ```text
-final SHA: pending
-migration evidence: pending
-focused tests: pending
-full gates: pending
+final SHA: pending publication
+migration evidence: 0086/0087 applied in disposable asalab_learning_m0_006_test; checksums valid; second run created zero rows
+focused tests: PASS — 7 files / 54 tests, including PostgreSQL, RLS, rollback, rerun, adapters and resolver
+full gates: contracts/control-plane/governance/gate:code PASS uncached; gate:data 1056/1061 tests PASS with five 5-second timeout failures, all M0-006 tests PASS; four affected files repeated serially with 28/29 PASS and the remaining pre-existing Admin/Auth query PASS at 7.1 seconds under a 20-second diagnostic timeout
 official CI: pending
 browser: N/A — no surface change
 production: untouched
-known gaps: M0-007 surface convergence remains separately blocked
+known gaps: M0-007 surface convergence remains separately blocked; local full gate is not claimed PASS because the repository-wide 5-second timeout gate remained red
 ```
