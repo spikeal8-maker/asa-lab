@@ -217,8 +217,9 @@ Focused negative tests prove:
   different generic/dedicated URLs and fails if the generic value leaks in.
 - a pre-existing bootstrap `.env` that lacks any non-empty dedicated migration
   URL/name/confirmation stops before Compose with an actionable upgrade error;
-  base Compose also requires all three and has no migration URL/password
-  fallback.
+  base Compose also has no migration URL/password fallback. Empty direct-
+  Compose values reach the fail-closed runner and are rejected before connect;
+  explicit test/staging overlays remain renderable.
 
 ## Corrected acceptance evidence
 

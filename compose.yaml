@@ -37,9 +37,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?set a dedicated migration URL}
-      MIGRATION_EXPECT_DATABASE: ${MIGRATION_EXPECT_DATABASE:?attest the exact database name}
-      MIGRATION_CONFIRM: ${MIGRATION_CONFIRM:?confirm the exact database as APPLY:name}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL-}
+      MIGRATION_EXPECT_DATABASE: ${MIGRATION_EXPECT_DATABASE-}
+      MIGRATION_CONFIRM: ${MIGRATION_CONFIRM-}
       ASA_APP_DB_PASSWORD: ${ASA_APP_DB_PASSWORD:-asa-local-runtime-change-me}
       ASA_SEED_DEV: ${ASA_SEED_DEV:-false}
       ASA_SEED_WORKSPACE: ${ASA_SEED_WORKSPACE:-school-1580}

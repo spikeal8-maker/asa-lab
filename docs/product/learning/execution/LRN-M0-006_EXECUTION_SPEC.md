@@ -364,8 +364,9 @@ Runtime-role provisioning and the optional dev seed use that same dedicated
 URL; a generic `DATABASE_URL` cannot redirect any step after the runner guard.
 Existing bootstrap `.env` files missing any of the three migration attestations,
 or declaring one with an empty value, stop with an actionable compatibility
-error before Compose starts. Base Compose requires all three values and has no
-migration target/password fallback.
+error before Compose starts. Base Compose has no migration target/password
+fallback; an empty direct-Compose value is rejected by the runner before it
+connects, while explicit test/staging overlays remain renderable.
 
 ### 8.5 Determinism and constraints
 
