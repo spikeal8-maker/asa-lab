@@ -68,6 +68,40 @@ function addCounts(target, source) {
   for (const key of Object.keys(target)) target[key] += Number(source?.[key] || 0);
 }
 
+async function readPhysicalCounts(client, batchKey) {
+  const counts = await client.query(
+    `SELECT
+       (SELECT count(*)::integer FROM learner_identities WHERE state='active') AS learner_identities,
+       (SELECT count(*)::integer FROM learner_identity_links
+         WHERE status='active' AND link_kind='student_seat') AS seat_links,
+       (SELECT count(*)::integer FROM learner_identity_links
+         WHERE status='active' AND link_kind='account') AS account_links,
+       (SELECT count(*)::integer FROM classroom_activity_versions) AS activity_mappings,
+       (SELECT count(DISTINCT artifact.artifact_id)::integer
+          FROM learning_migration_artifacts artifact
+          JOIN learning_migration_batches batch ON batch.id=artifact.batch_id
+         WHERE left(batch.batch_key, length($1) + 1) = $1 || ':'
+           AND artifact.disabled_at IS NULL
+           AND artifact.operation_type='backfill_exact_attempt') AS attempts_backfilled,
+       (SELECT count(DISTINCT artifact.artifact_id)::integer
+          FROM learning_migration_artifacts artifact
+          JOIN learning_migration_batches batch ON batch.id=artifact.batch_id
+         WHERE left(batch.batch_key, length($1) + 1) = $1 || ':'
+           AND artifact.disabled_at IS NULL
+           AND artifact.operation_type='backfill_exact_submission') AS submissions_backfilled`,
+    [batchKey],
+  );
+  const row = counts.rows[0];
+  return {
+    learnerIdentities: Number(row.learner_identities),
+    seatLinks: Number(row.seat_links),
+    accountLinks: Number(row.account_links),
+    activityMappings: Number(row.activity_mappings),
+    attemptsBackfilled: Number(row.attempts_backfilled),
+    submissionsBackfilled: Number(row.submissions_backfilled),
+  };
+}
+
 function renderMarkdown(result) {
   const before = result.before;
   const after = result.after;
@@ -83,12 +117,12 @@ This report is redacted. It contains aggregate counts only. Production was not r
 
 | Metric | Before | After | Delta |
 |---|---:|---:|---:|
-| learner identities | 0 | ${after.learnerIdentities} | ${after.learnerIdentities} |
-| seat links | 0 | ${after.seatLinks} | ${after.seatLinks} |
-| account links | 0 | ${after.accountLinks} | ${after.accountLinks} |
-| activities mapped | ${before.mappedActivities} | ${after.activityMappings} | ${after.activityMappings - before.mappedActivities} |
-| exact Attempts backfilled | 0 | ${after.attemptsBackfilled} | ${after.attemptsBackfilled} |
-| exact Submissions backfilled | 0 | ${after.submissionsBackfilled} | ${after.submissionsBackfilled} |
+| learner identities | ${before.learnerIdentities} | ${after.learnerIdentities} | ${after.learnerIdentities - before.learnerIdentities} |
+| seat links | ${before.seatLinks} | ${after.seatLinks} | ${after.seatLinks - before.seatLinks} |
+| account links | ${before.accountLinks} | ${after.accountLinks} | ${after.accountLinks - before.accountLinks} |
+| activities mapped | ${before.activityMappings} | ${after.activityMappings} | ${after.activityMappings - before.activityMappings} |
+| exact Attempts backfilled | ${before.attemptsBackfilled} | ${after.attemptsBackfilled} | ${after.attemptsBackfilled - before.attemptsBackfilled} |
+| exact Submissions backfilled | ${before.submissionsBackfilled} | ${after.submissionsBackfilled} | ${after.submissionsBackfilled - before.submissionsBackfilled} |
 | legacy unresolved | ${before.legacyUnresolved} | ${after.legacyUnresolved} | ${after.legacyUnresolved - before.legacyUnresolved} |
 | selection conflicts | ${before.selectionConflicts} | ${after.selectionConflicts} | ${after.selectionConflicts - before.selectionConflicts} |
 | feedback preserved | ${before.feedbackPreserved} | ${after.feedbackPreserved} | ${after.feedbackPreserved - before.feedbackPreserved} |
@@ -110,10 +144,15 @@ async function main() {
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   try {
+    const database = await client.query('SELECT current_database() AS name');
+    const connectedFingerprint = sha256(database.rows[0].name).slice(0, 16);
+    if (preReport?.metadata?.database?.fingerprint !== connectedFingerprint)
+      fail('pre_report_database_mismatch');
     const versions = await client.query(
       'SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1',
     );
     if (Number.parseInt(versions.rows[0]?.version || '0', 10) < 87) fail('migration_0087_required');
+    const beforePhysical = await readPhysicalCounts(client, args.batchKey);
     const schools = await client.query('SELECT id FROM schools ORDER BY id');
     const firstCreated = zeroCounts();
     let exactExisting = 0;
@@ -162,13 +201,14 @@ async function main() {
         aggregate[key] += Number(reported.rows[0].result[key] || 0);
       }
     }
+    const afterPhysical = await readPhysicalCounts(client, args.batchKey);
     const result = {
       schema: 'asa-learning-additive-backfill/v1',
       environment: 'test',
       asOf: new Date(args.asOf).toISOString(),
       migrationVersion: versions.rows[0].version,
       before: {
-        mappedActivities: preReport.deterministic.totals.mappedActivities,
+        ...beforePhysical,
         legacyUnresolved: preReport.deterministic.classifications.legacy_unresolved,
         selectionConflicts: preReport.deterministic.classifications.selection_conflict,
         feedbackPreserved: preReport.deterministic.feedback.total,
@@ -176,8 +216,7 @@ async function main() {
       firstRunCreated: firstCreated,
       after: {
         ...aggregate,
-        activityMappings:
-          preReport.deterministic.totals.mappedActivities + firstCreated.activityMappings,
+        ...afterPhysical,
         selectionConflicts: preReport.deterministic.classifications.selection_conflict,
       },
       canaries: { exactExisting, legacyUnresolved, feedbackPreserved },

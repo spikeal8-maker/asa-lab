@@ -269,6 +269,88 @@ describe('LRN-M0-006 additive learner convergence', () => {
     expect(grades.rows[0].results).toBe(0);
   });
 
+  it('preserves exact Account-owned project evidence across classroom and project tenants', async () => {
+    const remote = await seedTeacher(admin, 'learning-m0-006-cross-tenant-evidence');
+    const remoteClass = await admin.query(
+      `INSERT INTO classrooms
+         (tenant_id,school_id,academic_period_id,title,created_by)
+       VALUES ($1,$2,$3,'Cross tenant evidence class',$4) RETURNING id`,
+      [remote.tenantId, remote.schoolId, remote.periodId, remote.teacherId],
+    );
+    const seat = await admin.query(
+      `INSERT INTO classroom_student_seats
+         (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+          safe_mode,status,created_by,account_id)
+       VALUES ($1,$2,'Account learner','cross-tenant-evidence','cross-tenant-evidence',
+               true,'active',$3,$4) RETURNING id`,
+      [remote.tenantId, remoteClass.rows[0].id, remote.teacherId, accountId],
+    );
+    const remoteTeacherPrincipal = await admin.query(
+      `SELECT principal_id FROM legacy_user_account_links WHERE user_id=$1`,
+      [remote.teacherId],
+    );
+    const task = await admin.query(
+      `INSERT INTO teacher_assignments
+         (tenant_id,owner_principal_id,title,brief,module_key,visibility)
+       VALUES ($1,$2,'Cross tenant exact','Exact persisted task','electronics','private')
+       RETURNING id`,
+      [remote.tenantId, remoteTeacherPrincipal.rows[0].principal_id],
+    );
+    const assignment = await admin.query(
+      `INSERT INTO classroom_assignments
+         (tenant_id,classroom_id,assignment_id,due_at,status,created_by,created_at)
+       VALUES ($1,$2,$3,'2026-08-24T11:00:00.000Z','open',$4,
+               '2026-08-24T09:00:00.000Z') RETURNING id`,
+      [remote.tenantId, remoteClass.rows[0].id, task.rows[0].id, remote.teacherId],
+    );
+    const accountPrincipal = await admin.query(
+      `SELECT id FROM principals WHERE account_id=$1 AND kind='account' ORDER BY created_at LIMIT 1`,
+      [accountId],
+    );
+    const project = await admin.query(
+      `INSERT INTO projects
+         (tenant_id,project_scope,module_key,title,owner_principal_id)
+       VALUES ($1,'personal','electronics','Home tenant evidence',$2) RETURNING id`,
+      [teacher.tenantId, accountPrincipal.rows[0].id],
+    );
+    const version = await admin.query(
+      `INSERT INTO project_versions
+         (tenant_id,project_id,version_no,document_json,label,
+          created_by_principal_id,created_at)
+       VALUES ($1,$2,1,'{"schemaVersion":1,"components":[]}'::jsonb,
+               'Cross tenant exact checkpoint',$3,'2026-08-24T10:30:00.000Z')
+       RETURNING id`,
+      [teacher.tenantId, project.rows[0].id, accountPrincipal.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id,started_at,submitted_at)
+       VALUES ($1,$2,$3,$4,'2026-08-24T10:00:00.000Z','2026-08-24T11:30:00.000Z')`,
+      [remote.tenantId, assignment.rows[0].id, seat.rows[0].id, project.rows[0].id],
+    );
+
+    const result = await admin.query(
+      `SELECT learning_m0_convergence_apply($1,$2,$3,$4) AS result`,
+      ['lrm0-006-cross-tenant-exact', remote.schoolId, '9'.repeat(64), AS_OF],
+    );
+    expect(result.rows[0].result.created.attempts).toBe(1);
+    expect(result.rows[0].result.created.submissions).toBe(1);
+    const submission = await admin.query(
+      `SELECT submission.tenant_id,submission.project_tenant_id,
+              submission.project_id,submission.project_version_id
+         FROM learning_submissions submission
+         JOIN learning_attempts attempt ON attempt.id=submission.attempt_id
+        WHERE attempt.classroom_assignment_id=$1 AND attempt.seat_id=$2`,
+      [assignment.rows[0].id, seat.rows[0].id],
+    );
+    expect(submission.rows[0]).toMatchObject({
+      tenant_id: remote.tenantId,
+      project_tenant_id: teacher.tenantId,
+      project_id: project.rows[0].id,
+      project_version_id: version.rows[0].id,
+    });
+  });
+
   it('is idempotent and concurrent-safe, rolls back only batch authority, and reruns deterministically', async () => {
     const seat = await createSeat('Rollback learner');
     const assignment = await createAssignment('Rollback assignment');

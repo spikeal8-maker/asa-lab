@@ -433,6 +433,7 @@ BEGIN
                work.seat_id, work.project_id, work.started_at, work.submitted_at,
                assignment.classroom_id, assignment.due_at,
                mapping.learning_activity_version_id,
+               project.tenant_id AS project_tenant_id,
                candidate.project_version_id, candidate.document_json,
                link.learner_identity_id
           FROM public.classroom_assignment_work work
@@ -443,8 +444,7 @@ BEGIN
             ON link.seat_id = work.seat_id AND link.status = 'active'
           JOIN public.classroom_activity_versions mapping
             ON mapping.classroom_assignment_id = work.assignment_id
-          JOIN public.projects project
-            ON project.tenant_id = work.tenant_id AND project.id = work.project_id
+          JOIN public.projects project ON project.id = work.project_id
           JOIN LATERAL (
               SELECT (array_agg(version.id ORDER BY version.created_at, version.id))[1]
                          AS project_version_id,
@@ -452,7 +452,7 @@ BEGIN
                          AS document_json,
                      count(*) AS version_count
                 FROM public.project_versions version
-               WHERE version.tenant_id = work.tenant_id
+               WHERE version.tenant_id = project.tenant_id
                  AND version.project_id = work.project_id
                  AND version.created_at <= work.submitted_at
           ) candidate ON candidate.version_count = 1
@@ -502,11 +502,12 @@ BEGIN
         IF FOUND THEN v_created_attempts := v_created_attempts + 1; END IF;
 
         INSERT INTO public.learning_submissions (
-            id, tenant_id, attempt_id, project_id, project_version_id,
+            id, tenant_id, attempt_id, project_tenant_id, project_id, project_version_id,
             payload_manifest, payload_digest, client_request_id, late_state,
             submitted_at
         ) VALUES (
-            v_submission, v_row.tenant_id, v_attempt, v_row.project_id,
+            v_submission, v_row.tenant_id, v_attempt, v_row.project_tenant_id,
+            v_row.project_id,
             v_project_version,
             jsonb_build_object('kind', 'project', 'projectVersionId', v_project_version),
             v_digest, 'm0-006:' || v_row.work_id,

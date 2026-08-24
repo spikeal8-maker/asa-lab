@@ -96,6 +96,12 @@ School, Organization or authentication system was added. One Account can link
 to different learner IDs in different schools. Suspension/removal does not
 delete identity or history. Project Principal ownership is unchanged.
 
+`learning_submissions.project_tenant_id` preserves the separate lineage of an
+Account-owned personal project when its classroom assignment belongs to another
+tenant. The classroom tenant remains on Attempt/Submission; the project tenant,
+project and immutable ProjectVersion are checked together. A focused PostgreSQL
+fixture proves this cross-tenant exact-evidence path.
+
 ## Migration batch model
 
 `learning_migration_batches` stores the school, batch key, operation, mode,
@@ -113,6 +119,10 @@ seat/school and Attempt/learner triggers reject incoherent physical lineage.
 
 - repeated full-population apply: `created=0` for identities, links,
   Activities, Versions, mappings, Attempts and Submissions;
+- a complete rerun reports physical BEFORE equal to AFTER instead of presenting
+  the existing identity/link population as newly created;
+- a pre-report from a different `_test` database is rejected by database
+  fingerprint before any migration operation runs;
 - concurrent identical fixture calls serialize through a school/batch advisory
   lock and database uniqueness; one call performs the insert and the other
   creates no duplicates;
@@ -180,5 +190,10 @@ pnpm vitest run contexts/learning/testing/canonical-learning-state.spec.ts
 - Batch-disabled immutable exact evidence remains physically retained by
   design; canonical migration authority ignores it, and no production apply has
   occurred.
+- Schema-only migrations were inadvertently applied once to local
+  `asalab_dev` while diagnosing review feedback because the migration runner
+  reads `DATABASE_URL`; no convergence/backfill procedure ran there. Production
+  was untouched. The final evidence cycle explicitly bound all admin/runtime,
+  test and Learning URLs to `asalab_learning_m0_006_test`.
 - `MIG-005`, `MIG-001` and Gradebook projection convergence remain
   `in_progress` until surface convergence/acceptance.

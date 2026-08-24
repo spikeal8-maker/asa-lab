@@ -144,6 +144,72 @@ CREATE INDEX learning_attempts_learner_identity_idx
     ON learning_attempts (tenant_id, learner_identity_id, classroom_assignment_id)
     WHERE learner_identity_id IS NOT NULL;
 
+-- Classroom evidence belongs to the classroom tenant, while an Account-owned
+-- personal project may remain in the Account's home tenant. Store the project
+-- lineage explicitly instead of forcing it into the classroom tenant.
+ALTER TABLE learning_submissions
+    ADD COLUMN project_tenant_id uuid;
+
+ALTER TABLE learning_submissions DISABLE TRIGGER learning_submissions_immutable;
+UPDATE learning_submissions submission
+   SET project_tenant_id = project.tenant_id
+  FROM projects project
+ WHERE project.id = submission.project_id;
+ALTER TABLE learning_submissions ENABLE TRIGGER learning_submissions_immutable;
+
+ALTER TABLE learning_submissions
+    DROP CONSTRAINT IF EXISTS learning_submissions_tenant_id_project_id_fkey;
+ALTER TABLE learning_submissions
+    ADD CONSTRAINT learning_submissions_project_scope_check CHECK (
+        (project_id IS NULL AND project_version_id IS NULL AND project_tenant_id IS NULL)
+        OR (project_id IS NOT NULL AND project_version_id IS NOT NULL
+                                   AND project_tenant_id IS NOT NULL)
+    ),
+    ADD CONSTRAINT learning_submissions_project_tenant_fkey
+        FOREIGN KEY (project_tenant_id, project_id)
+        REFERENCES projects(tenant_id, id);
+
+CREATE OR REPLACE FUNCTION learning_submission_project_scope_guard()
+RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE
+    v_project_tenant uuid;
+BEGIN
+    IF NEW.project_id IS NULL THEN
+        IF NEW.project_version_id IS NOT NULL OR NEW.project_tenant_id IS NOT NULL THEN
+            RAISE EXCEPTION 'submission project lineage is incomplete';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    SELECT project.tenant_id INTO v_project_tenant
+      FROM public.projects project
+     WHERE project.id = NEW.project_id;
+    IF v_project_tenant IS NULL THEN
+        RAISE EXCEPTION 'submission project does not exist';
+    END IF;
+    IF NEW.project_tenant_id IS NULL THEN
+        NEW.project_tenant_id := v_project_tenant;
+    ELSIF NEW.project_tenant_id <> v_project_tenant THEN
+        RAISE EXCEPTION 'submission project tenant lineage is incoherent';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM public.project_versions version
+         WHERE version.tenant_id = NEW.project_tenant_id
+           AND version.project_id = NEW.project_id
+           AND version.id = NEW.project_version_id
+    ) THEN
+        RAISE EXCEPTION 'submission project version lineage is incoherent';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER learning_submissions_project_scope_guard
+    BEFORE INSERT OR UPDATE OF project_id, project_version_id, project_tenant_id
+    ON learning_submissions
+    FOR EACH ROW EXECUTE FUNCTION learning_submission_project_scope_guard();
+
 CREATE OR REPLACE FUNCTION learner_identity_key_immutable()
 RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
@@ -272,3 +338,4 @@ CREATE POLICY learning_migration_artifacts_tenant ON learning_migration_artifact
 REVOKE ALL ON FUNCTION learner_identity_key_immutable() FROM PUBLIC;
 REVOKE ALL ON FUNCTION learner_identity_link_scope_guard() FROM PUBLIC;
 REVOKE ALL ON FUNCTION learning_attempt_learner_scope_guard() FROM PUBLIC;
+REVOKE ALL ON FUNCTION learning_submission_project_scope_guard() FROM PUBLIC;

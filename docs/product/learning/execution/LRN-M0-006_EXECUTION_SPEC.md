@@ -567,10 +567,10 @@ git diff --check
 ```text
 final SHA: pending publication
 migration evidence: 0086/0087 applied in disposable asalab_learning_m0_006_test; checksums valid; second run created zero rows
-focused tests: PASS — 7 files / 54 tests, including PostgreSQL, RLS, rollback, rerun, adapters and resolver
+focused tests: PASS — 7 files / 55 tests, including PostgreSQL, RLS, cross-tenant project evidence, rollback, rerun, adapters and resolver; existing project/quiz writer compatibility 2/2 PASS
 full gates: contracts/control-plane/governance/gate:code PASS uncached; gate:data 1056/1061 tests PASS with five 5-second timeout failures, all M0-006 tests PASS; four affected files repeated serially with 28/29 PASS and the remaining pre-existing Admin/Auth query PASS at 7.1 seconds under a 20-second diagnostic timeout
 official CI: pending
 browser: N/A — no surface change
 production: untouched
-known gaps: M0-007 surface convergence remains separately blocked; local full gate is not claimed PASS because the repository-wide 5-second timeout gate remained red
+known gaps: M0-007 surface convergence remains separately blocked; local full gate is not claimed PASS because the repository-wide 5-second timeout gate remained red; schema-only 0086/0087 were inadvertently applied to local asalab_dev during review diagnosis, but no backfill ran there and production was untouched
 ```
