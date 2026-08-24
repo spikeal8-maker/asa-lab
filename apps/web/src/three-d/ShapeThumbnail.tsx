@@ -152,17 +152,17 @@ function previewModelMatrix(primitive: PrimitiveKind): THREE.Matrix4 {
       ? 7 / 24
       : primitive === 'half-sphere' || primitive === 'round-roof'
         ? 0.5
-      : primitive === 'roof'
-        ? 15 / 20
-        : primitive === 'text'
-          ? 0.2
-          : primitive === 'star'
-            ? 0.32
-            : primitive === 'star-6'
-              ? 0.24
-              : primitive === 'heart'
-                ? 0.35
-                : 1;
+        : primitive === 'roof'
+          ? 15 / 20
+          : primitive === 'text'
+            ? 0.2
+            : primitive === 'star'
+              ? 0.32
+              : primitive === 'star-6'
+                ? 0.24
+                : primitive === 'heart'
+                  ? 0.35
+                  : 1;
   const matrix = new THREE.Matrix4().makeRotationY(-0.16);
   matrix.scale(new THREE.Vector3(widthRatio, heightRatio, 1));
   matrix.setPosition(0, (heightRatio - 1) / 2, 0);
