@@ -22,6 +22,10 @@ pnpm install --frozen-lockfile --prefer-offline
 echo "focused persistence: building the Electronics provider used by the API"
 pnpm nx run electronics:build
 echo "focused persistence: applying migrations to isolated test database"
+export MIGRATION_DATABASE_URL="${TEST_DATABASE_URL}"
+export MIGRATION_EXPECT_DATABASE="${TEST_DATABASE_URL%%\?*}"
+export MIGRATION_EXPECT_DATABASE="${MIGRATION_EXPECT_DATABASE##*/}"
+export MIGRATION_CONFIRM="APPLY:${MIGRATION_EXPECT_DATABASE}"
 node tools/migrate.mjs --apply
 echo "focused persistence: running Project API and RLS suite"
 pnpm vitest run tests/portal/projects-api.spec.ts

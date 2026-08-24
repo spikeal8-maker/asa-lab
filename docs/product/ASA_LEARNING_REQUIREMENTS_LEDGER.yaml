@@ -46,6 +46,7 @@ requirements:
   - tools/learning-migration-dry-run.mjs
   - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   - migrations/0087_learning_additive_backfill.sql
+  - migrations/0088_learning_m0_006_acceptance_corrections.sql
   tests:
   - tests/courses/learning-migration-dry-run.unit.spec.ts
   - tests/courses/learning-additive-backfill.pg.spec.ts
@@ -67,6 +68,7 @@ requirements:
   - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   - migrations/0086_learning_identity_foundation.sql
   - migrations/0087_learning_additive_backfill.sql
+  - migrations/0088_learning_m0_006_acceptance_corrections.sql
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: MIG-005
@@ -131,6 +133,7 @@ requirements:
   - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
   - tools/learning-migration-dry-run.mjs
   - migrations/0087_learning_additive_backfill.sql
+  - migrations/0088_learning_m0_006_acceptance_corrections.sql
   - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts

@@ -104,6 +104,67 @@ describe('migration smoke isolation', () => {
   });
 });
 
+describe('explicit migration apply target', () => {
+  function migrationEnv(overrides: Record<string, string | undefined>): Record<string, string> {
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (
+        value !== undefined &&
+        ![
+          'DATABASE_URL',
+          'MIGRATION_DATABASE_URL',
+          'MIGRATION_EXPECT_DATABASE',
+          'MIGRATION_CONFIRM',
+        ].includes(key)
+      ) {
+        env[key] = value;
+      }
+    }
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value !== undefined) env[key] = value;
+    }
+    return env;
+  }
+
+  it('never treats DATABASE_URL as an implicit --apply target', () => {
+    const result = spawnSync('node', ['tools/migrate.mjs', '--apply'], {
+      env: migrationEnv({ DATABASE_URL: 'postgres://admin:x@127.0.0.1:5433/asalab_dev' }),
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('DATABASE_URL is never an implicit migration target');
+  });
+
+  it('rejects a URL whose database differs from the attested target', () => {
+    const result = spawnSync('node', ['tools/migrate.mjs', '--apply'], {
+      env: migrationEnv({
+        MIGRATION_DATABASE_URL: 'postgres://admin:x@127.0.0.1:5433/asalab_dev',
+        MIGRATION_EXPECT_DATABASE: 'asalab_test',
+        MIGRATION_CONFIRM: 'APPLY:asalab_test',
+      }),
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('asalab_dev');
+    expect(result.stderr).toContain('asalab_test');
+  });
+
+  it('requires an exact destructive-action confirmation for the attested database', () => {
+    const result = spawnSync('node', ['tools/migrate.mjs', '--apply'], {
+      env: migrationEnv({
+        MIGRATION_DATABASE_URL: 'postgres://admin:x@127.0.0.1:5433/asalab_test',
+        MIGRATION_EXPECT_DATABASE: 'asalab_test',
+      }),
+      encoding: 'utf8',
+      timeout: 20000,
+    });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain('MIGRATION_CONFIRM');
+  });
+});
+
 describe('verified tenant context', () => {
   it('SET LOCAL app.tenant_id clears before the connection returns to the pool', async () => {
     const client = await runtime.connect();

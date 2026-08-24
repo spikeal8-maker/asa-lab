@@ -93,13 +93,27 @@ async function createLegacyWork(input: {
 }
 
 async function apply(batchKey: string, digest = DIGEST_A): Promise<Record<string, any>> {
-  const result = await admin.query(`SELECT learning_m0_convergence_apply($1,$2,$3,$4) AS result`, [
-    batchKey,
-    teacher.schoolId,
-    digest,
-    AS_OF,
-  ]);
-  return result.rows[0].result as Record<string, any>;
+  return applyForSchool(batchKey, teacher.schoolId, digest);
+}
+
+async function applyForSchool(
+  batchKey: string,
+  schoolId: string,
+  digest = DIGEST_A,
+): Promise<Record<string, any>> {
+  const client = await admin.connect();
+  try {
+    await client.query(
+      `SELECT set_config('app.learning_m0_006_environment', 'isolated_test', false)`,
+    );
+    const result = await client.query(
+      `SELECT learning_m0_convergence_apply($1,$2,$3,$4) AS result`,
+      [batchKey, schoolId, digest, AS_OF],
+    );
+    return result.rows[0].result as Record<string, any>;
+  } finally {
+    client.release();
+  }
 }
 
 beforeAll(async () => {
@@ -179,12 +193,7 @@ describe('LRN-M0-006 additive learner convergence', () => {
                true,'active',$3,$4) RETURNING id`,
       [other.tenantId, otherClass.rows[0].id, other.teacherId, accountId],
     );
-    await admin.query(`SELECT learning_m0_convergence_apply($1,$2,$3,$4)`, [
-      'lrm0-006-cross-school',
-      other.schoolId,
-      DIGEST_A,
-      AS_OF,
-    ]);
+    await applyForSchool('lrm0-006-cross-school', other.schoolId);
     const identities = await admin.query(
       `SELECT school_id,learner_identity_id FROM learner_identity_links
         WHERE account_id=$1 ORDER BY school_id`,
@@ -205,7 +214,53 @@ describe('LRN-M0-006 additive learner convergence', () => {
     expect(lifecycleLinks.rows.every((row) => row.status === 'active')).toBe(true);
   });
 
-  it('backfills only an exact immutable ProjectVersion and leaves missing evidence unresolved', async () => {
+  it('marks generated versions as ungraded migration compatibility content', async () => {
+    const assignment = await createAssignment('Compatibility snapshot');
+    await apply('lrm0-006-compatibility-content', '8'.repeat(64));
+    const version = await admin.query(
+      `SELECT activity.max_points, activity.scoring_policy,
+              compatibility.grading_semantics,
+              compatibility.reusable_authored_content
+         FROM classroom_activity_versions mapping
+         JOIN learning_activity_versions activity
+           ON activity.id=mapping.learning_activity_version_id
+         JOIN learning_migration_compatibility_activity_versions compatibility
+           ON compatibility.classroom_assignment_id=mapping.classroom_assignment_id
+        WHERE mapping.classroom_assignment_id=$1`,
+      [assignment],
+    );
+    expect(version.rows).toHaveLength(1);
+    expect(version.rows[0]).toMatchObject({
+      max_points: 1,
+      grading_semantics: 'unknown',
+      reusable_authored_content: false,
+    });
+    expect(version.rows[0].scoring_policy).toEqual({
+      kind: 'migration_compatibility',
+      gradingSemantics: 'unknown',
+      reusableAuthoredContent: false,
+    });
+    expect(version.rows[0].scoring_policy).not.toHaveProperty('passThreshold');
+  });
+
+  it('rejects direct convergence calls without isolated-test attestation', async () => {
+    const client = await admin.connect();
+    try {
+      await client.query(`RESET app.learning_m0_006_environment`);
+      await expect(
+        client.query(`SELECT learning_m0_convergence_apply($1,$2,$3,$4)`, [
+          'lrm0-006-no-attestation',
+          teacher.schoolId,
+          '7'.repeat(64),
+          AS_OF,
+        ]),
+      ).rejects.toThrow(/attested isolated test database/);
+    } finally {
+      client.release();
+    }
+  });
+
+  it('does not infer submission linkage from ProjectVersion timestamps', async () => {
     const exactSeat = await createSeat('Exact evidence learner');
     const exactAssignment = await createAssignment('Exact backfill assignment');
     const exact = await createLegacyWork({
@@ -228,8 +283,8 @@ describe('LRN-M0-006 additive learner convergence', () => {
     );
 
     const first = await apply('lrm0-006-exact-backfill', 'd'.repeat(64));
-    expect(first.created.attempts).toBe(1);
-    expect(first.created.submissions).toBe(1);
+    expect(first.created.attempts).toBe(0);
+    expect(first.created.submissions).toBe(0);
     expect(first.classified.gradeConversions).toBe(0);
     const exactRows = await admin.query(
       `SELECT attempt.state,attempt.learner_identity_id,submission.project_version_id,
@@ -241,18 +296,20 @@ describe('LRN-M0-006 additive learner convergence', () => {
         WHERE work.id=$1`,
       [exact.workId],
     );
-    expect(exactRows.rows[0]).toMatchObject({
-      state: 'submitted',
-      submitted_at: exactRows.rows[0].legacy_submitted_at,
-    });
-    expect(exactRows.rows[0].learner_identity_id).toBeTruthy();
-    expect(exactRows.rows[0].project_version_id).toBeTruthy();
+    expect(exactRows.rows).toHaveLength(0);
     const unresolvedRows = await admin.query(
       `SELECT count(*)::integer AS attempts FROM learning_attempts attempt
         WHERE attempt.classroom_assignment_id=$1 AND attempt.seat_id=$2`,
       [unresolvedAssignment, unresolvedSeat],
     );
     expect(unresolvedRows.rows[0].attempts).toBe(0);
+    const exactDiagnostic = await admin.query(
+      `SELECT source_evidence FROM learning_migration_artifacts
+        WHERE source_table='classroom_assignment_work' AND source_id=$1
+          AND artifact_kind='legacy_unresolved'`,
+      [exact.workId],
+    );
+    expect(exactDiagnostic.rows).toHaveLength(1);
     const diagnostic = await admin.query(
       `SELECT source_evidence FROM learning_migration_artifacts
         WHERE source_table='classroom_assignment_work' AND source_id=$1
@@ -269,7 +326,7 @@ describe('LRN-M0-006 additive learner convergence', () => {
     expect(grades.rows[0].results).toBe(0);
   });
 
-  it('preserves exact Account-owned project evidence across classroom and project tenants', async () => {
+  it('does not infer cross-tenant submission linkage from a timestamped ProjectVersion', async () => {
     const remote = await seedTeacher(admin, 'learning-m0-006-cross-tenant-evidence');
     const remoteClass = await admin.query(
       `INSERT INTO classrooms
@@ -329,12 +386,13 @@ describe('LRN-M0-006 additive learner convergence', () => {
       [remote.tenantId, assignment.rows[0].id, seat.rows[0].id, project.rows[0].id],
     );
 
-    const result = await admin.query(
-      `SELECT learning_m0_convergence_apply($1,$2,$3,$4) AS result`,
-      ['lrm0-006-cross-tenant-exact', remote.schoolId, '9'.repeat(64), AS_OF],
+    const result = await applyForSchool(
+      'lrm0-006-cross-tenant-exact',
+      remote.schoolId,
+      '9'.repeat(64),
     );
-    expect(result.rows[0].result.created.attempts).toBe(1);
-    expect(result.rows[0].result.created.submissions).toBe(1);
+    expect(result.created.attempts).toBe(0);
+    expect(result.created.submissions).toBe(0);
     const submission = await admin.query(
       `SELECT submission.tenant_id,submission.project_tenant_id,
               submission.project_id,submission.project_version_id
@@ -343,12 +401,17 @@ describe('LRN-M0-006 additive learner convergence', () => {
         WHERE attempt.classroom_assignment_id=$1 AND attempt.seat_id=$2`,
       [assignment.rows[0].id, seat.rows[0].id],
     );
-    expect(submission.rows[0]).toMatchObject({
-      tenant_id: remote.tenantId,
-      project_tenant_id: teacher.tenantId,
-      project_id: project.rows[0].id,
-      project_version_id: version.rows[0].id,
-    });
+    expect(submission.rows).toHaveLength(0);
+    const diagnostic = await admin.query(
+      `SELECT source_evidence FROM learning_migration_artifacts
+        WHERE source_table='classroom_assignment_work'
+          AND source_id=(SELECT id FROM classroom_assignment_work
+                          WHERE assignment_id=$1 AND seat_id=$2)
+          AND artifact_kind='legacy_unresolved'`,
+      [assignment.rows[0].id, seat.rows[0].id],
+    );
+    expect(diagnostic.rows).toHaveLength(1);
+    expect(version.rows[0].id).toBeTruthy();
   });
 
   it('is idempotent and concurrent-safe, rolls back only batch authority, and reruns deterministically', async () => {

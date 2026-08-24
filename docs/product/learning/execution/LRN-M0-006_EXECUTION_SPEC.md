@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-006`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** DONE — EVIDENCE PUBLISHED
+**Status:** IN PROGRESS — OWNER CHANGES REQUIRED
 **Baseline SHA:** `9290ab18490f376460a3b5f396f8b8a4fd905488`  
 **Issue:** `#147`  
 **Pull request:** `#148` (draft until evidence is complete)  
@@ -45,6 +45,25 @@ IDN-004 — persisted seat-to-Account continuity within one school
 surface authority belongs to M0-007. `IDN-001/003/004` may become proven only
 for the physical mapping and tested linking invariants, not for future M1
 runtime ownership.
+
+### 3.1 Owner acceptance correction, 2026-08-24
+
+The first published implementation is not accepted as the final M0-006
+baseline. Migration `0088_learning_m0_006_acceptance_corrections.sql` must:
+
+1. classify generated assignment ActivityVersions as migration compatibility
+   snapshots with unknown grading semantics and no authored-content reuse;
+2. remove inferred `maxPoints=100` and `passThreshold=60` semantics;
+3. treat a ProjectVersion timestamp as circumstantial provenance, never as a
+   persisted submission linkage;
+4. create no legacy Attempt/Submission before M0-007 reader cutover, making
+   production convergence explicitly forbidden rather than claiming a
+   behavioral rollback that CURRENT readers cannot honor;
+5. require an attested isolated test database both in the migration runner and
+   in the owner-only SQL convergence procedure.
+
+Published migrations `0086` and `0087` remain checksum-immutable. `0088` is
+the additive corrective migration and authoritative final procedure definition.
 
 ## 4. CURRENT evidence and baseline
 
@@ -97,6 +116,9 @@ docs/product/learning/execution/LRN-M0-006_EXECUTION_SPEC.md
 docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
 migrations/0086_learning_identity_foundation.sql
 migrations/0087_learning_additive_backfill.sql
+migrations/0088_learning_m0_006_acceptance_corrections.sql
+tools/migrate.mjs
+tools/provision-test-db.mjs
 tools/learning-migration-dry-run.mjs
 tools/learning-additive-backfill.mjs
 contexts/learning/package.json
@@ -118,7 +140,7 @@ tests/courses/learning-identity-rls.pg.spec.ts
 schemas/openapi.yaml
 apps/api/src/**
 apps/web/src/**
-existing migrations 0001..0085
+existing published migrations 0001..0087 (checksum immutable)
 Project Principal ownership and project_versions contents
 Gradebook UI/read functions
 M1-M7 runtime entities
@@ -277,6 +299,10 @@ native write may populate the stable key without migration-batch semantics.
 
 ### 8.3 Migration `0087_learning_additive_backfill.sql`
 
+This is the published first definition. Its timestamp-derived synthetic
+Attempt/Submission branch and inferred grading policy are explicitly
+superseded by `0088`; they are not accepted runtime semantics.
+
 This migration defines, but never invokes, owner-only procedures:
 
 ```text
@@ -298,33 +324,37 @@ a disabled/rolled-back batch is reactivated. It then performs:
 | any persisted seat in school | deterministic identity + seat link | one `learner_identity`, one seat link | seat/class/school FKs are exact | links/identity deactivated if batch-owned | stable learner provenance; workflow unchanged |
 | persisted `seat.account_id`, no conflict | attach/reuse same school Account link | one account link per school | only persisted authenticated link; no label/email guess | batch link deactivated | same learner across classes in school |
 | same Account in another school | separate identity/link | independent school learner | school is in deterministic seed and FK | independently reversible | no cross-school merge |
-| assignment missing activity mapping | deterministic Activity/Version/Mapping from persisted assignment/course source | mapping only, no Attempt | assignment lineage is exact; one mapping PK | batch mapping removed; immutable orphan version retained and disabled in provenance | assigned unit remains not_started without fake work |
-| legacy submitted + no direct exact ProjectVersion | diagnostic artifact only | `legacy_unresolved` artifact | immutable content is absent | diagnostic disabled | `submitted`, null result, legacy flags |
-| legacy submitted + exactly one immutable ProjectVersion at/before submit, exact project/owner/school lineage, no Attempt/result/pointer conflict | deterministic Attempt #1 and Submission to that exact existing version | Attempt + Submission only; no Result/grade | all mandatory IDs/timestamp/digest derive from immutable persisted evidence | artifacts disabled; no legacy row deleted | `submitted`, no selected result |
+| assignment missing activity mapping | deterministic migration-compatibility Activity/Version/Mapping from persisted assignment/course source | mapping plus explicit compatibility classification, no Attempt | assignment lineage is exact; grading and reuse are explicitly unknown/false | batch mapping removed; immutable compatibility snapshot retained | assigned unit remains not_started without fake work |
+| legacy submitted with or without a timestamped ProjectVersion but without persisted Submission linkage | diagnostic artifact only | `legacy_unresolved` artifact | timestamp/ownership are circumstantial and cannot identify submitted bytes | diagnostic disabled | `submitted`, null result, legacy flags |
 | existing exact Attempt/Submission (the two M0-005 canaries) | map existing evidence to identity/provenance | artifact record only | duplicate Submission is forbidden and unnecessary | artifact disabled | same canonical state, legacy no longer authoritative when batch active |
 | legacy feedback with exact work lineage | record metadata provenance only | no grade/result | badge remains original metadata | artifact disabled | workflow/result unchanged |
 | ambiguous/orphan feedback | preserve source and diagnostic count | no target evidence | target is not guessed | N/A | unchanged |
 
-Exact historical backfill preconditions are conjunctive:
+No historical Attempt/Submission reconstruction is permitted in M0-006.
+Project ownership, a single version and `created_at <= submitted_at` establish
+only possible provenance; none proves that those exact bytes were submitted.
+Only an already persisted canonical Attempt/Submission/ProjectVersion chain is
+recorded as existing evidence. Every legacy-only submission remains
+`legacy_unresolved`. Production convergence is forbidden until M0-007 switches
+CURRENT readers and a separate accepted contract defines behavioral rollback.
 
-1. exact school/tenant/assignment/seat/learner link;
-2. mapped immutable ActivityVersion;
-3. legacy work has persisted `submitted_at` and project ID;
-4. exactly one existing immutable ProjectVersion for that exact project with
-   `created_at <= submitted_at`;
-5. ProjectVersion/Project tenant and ID agree;
-6. Project owner equals persisted seat Principal or persisted Account Principal;
-7. no Attempt for assignment+seat, no Submission, Result or Gradebook pointer;
-8. deterministic attempt number is 1 and unique constraint accepts it;
-9. deterministic client request ID/source-work unique artifact is absent;
-10. persisted due time determines late state; no wall clock is used.
+### 8.4 Migration `0088_learning_m0_006_acceptance_corrections.sql`
 
-If any condition fails, only `legacy_unresolved` diagnostic metadata is written.
-No ProjectVersion, mutable draft snapshot, Evaluation, Result, grade or feedback
-conversion is created. On the baseline test snapshot condition 4 fails for all
-79 legacy-only submissions, so exact Attempt/Submission delta is expected 0.
+`0088` is the authoritative final procedure definition. It:
 
-### 8.4 Determinism and constraints
+- creates `learning_migration_compatibility_activity_versions`, a forced-RLS,
+  app-inaccessible registry that states `grading_semantics='unknown'` and
+  `reusable_authored_content=false`;
+- generates compatibility versions with structural `max_points=1` only because
+  the CURRENT schema requires a positive integer; the scoring policy explicitly
+  says unknown and contains no pass threshold;
+- removes timestamp-only Attempt/Submission creation from the procedure;
+- refuses to install over any database where the superseded synthetic artifact
+  operations already ran, requiring explicit reader-aware remediation;
+- requires the session attestation
+  `app.learning_m0_006_environment=isolated_test` before apply.
+
+### 8.5 Determinism and constraints
 
 UUIDs use one migration-owned immutable SHA-256 namespace function with RFC-4122
 version/variant bits over stable persisted keys. Deterministic keys plus table
@@ -332,9 +362,9 @@ uniqueness are the second line of defense; `INSERT ... ON CONFLICT` is not the
 only protection. Concurrent calls serialize per school/batch and all uniqueness
 constraints remain authoritative.
 
-### 8.5 RLS, grants and ownership
+### 8.6 RLS, grants and ownership
 
-All four new tables:
+All identity/migration tables, including the compatibility registry:
 
 - `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`;
 - `REVOKE ALL ... FROM PUBLIC, asalab_app`;
@@ -415,7 +445,7 @@ control, not a user feature flag.`
 ### Roll forward
 
 1. run M0-005 analyzer on a disposable/test DB and save pre-report;
-2. apply 0086/0087 schema to that database;
+2. apply 0086/0087/0088 schema through an explicitly attested migration target;
 3. invoke the owner-only tool with explicit test environment, batch key,
    source digest and `asOf`;
 4. run report and canonical consistency tests.
@@ -426,8 +456,9 @@ control, not a user feature flag.`
 sets artifact `disabled_at`, deactivates only batch-owned identity links and
 identities that have no independent/native link, and removes only
 batch-created `classroom_activity_versions` mappings that no Attempt references.
-Immutable Activity/Version or exact Submission evidence is never deleted;
-disabled provenance prevents it becoming canonical migration authority. Legacy
+Immutable Activity/Version evidence is never deleted. M0-006 creates no legacy
+Attempt/Submission, because CURRENT readers cannot behaviorally roll such rows
+back. Existing native/canonical submissions remain unrelated evidence. Legacy
 rows and unrelated/native evidence remain unchanged.
 
 ### Re-run after rollback
@@ -486,7 +517,7 @@ LRN-M0-006-I03 one Account/two classes/same school => one learner
 LRN-M0-006-I04 same Account/two schools => two learners
 LRN-M0-006-I05 ambiguous/conflicting identity remains unresolved
 LRN-M0-006-I06 baseline legacy submitted/no ProjectVersion remains unresolved
-LRN-M0-006-I07 synthetic exact immutable ProjectVersion case backfills once
+LRN-M0-006-I07 timestamped ProjectVersion without persisted linkage remains unresolved
 LRN-M0-006-I08 existing two exact canaries map and create no duplicate
 LRN-M0-006-I09 second apply creates zero duplicates
 LRN-M0-006-I10 concurrent apply creates zero duplicates
@@ -496,6 +527,8 @@ LRN-M0-006-I13 legacy feedback count preserved and grade conversions = 0
 LRN-M0-006-I14 valid selection/pointer not changed
 LRN-M0-006-I15 suspended/removed identity/history retained
 LRN-M0-006-I16 migration checksum and analyzer repeatability
+LRN-M0-006-I17 generated compatibility version has unknown grading and no reuse
+LRN-M0-006-I18 unattested SQL/tool migration targets fail before mutation
 ```
 
 All write tests use a disposable `*_test` database. No local-dev write is
@@ -548,12 +581,12 @@ git diff --check
 - [x] physical school learner model and exact constraints implemented
 - [x] migration batches/artifacts persistent and app-inaccessible
 - [x] ordinary assigned/not_started units create no Attempt
-- [x] exact-evidence gate creates/matches only truthful immutable evidence
+- [x] timestamp-only evidence creates no Attempt/Submission; only existing canonical evidence is mapped
 - [x] all baseline legacy-unresolved rows remain truthful
 - [x] feedback-to-grade conversions equal zero
 - [x] pure resolver and three adapters implemented once
 - [x] idempotency and concurrent uniqueness proven in DB
-- [x] rollback and deterministic rerun proven
+- [x] identity/mapping rollback and deterministic rerun proven; legacy Attempt/Submission production backfill forbidden before M0-007
 - [x] RLS/security negative matrix PASS
 - [x] BEFORE/AFTER/DELTA report published
 - [x] migrations/checksums, focused and full gates complete
@@ -574,4 +607,21 @@ official CI: PASS — ASA Lab Governance and Code Gates run 32755986486; Postgre
 browser: N/A — no surface change
 production: untouched
 known gaps: M0-007 surface convergence remains separately blocked; local full gate is not claimed PASS because the repository-wide 5-second timeout gate remained red; schema-only 0086/0087 were inadvertently applied to local asalab_dev during review diagnosis, but no backfill ran there and production was untouched
+```
+
+Corrective acceptance evidence for `0088`:
+
+```text
+fresh database: asalab_learning_m0_006_acceptance_test
+migrations: 0001..0088 PASS; smoke rerun applied 0
+focused suites run without shared-DB overlap: 10 files / 72 tests PASS
+full gate:data: 155 files / 1069 tests PASS; test:rls 15/15 PASS
+NX_SKIP_NX_CACHE=true gate:code: PASS; lint/typecheck/build cache skipped
+timestamp-only same-tenant and cross-tenant fixtures: Attempts 0, Submissions 0
+compatibility versions: grading unknown, reusable authored content false, no pass threshold
+final fixture convergence: identities 22 -> 28; mappings 14 -> 14; legacy unresolved 6
+grade conversions: 0; second-run creations: 0; productionTouched: false
+environment guards: generic DATABASE_URL, target mismatch, missing confirmation and unattested SQL call rejected
+browser: N/A — no surface change
+production: untouched; production backfill forbidden before accepted M0-007 cutover
 ```

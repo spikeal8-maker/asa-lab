@@ -56,6 +56,9 @@ POSTGRES_USER=asalab_admin
 POSTGRES_PASSWORD=$admin_password
 ASA_APP_DB_PASSWORD=$runtime_password
 DATABASE_URL=postgres://asalab_admin:$admin_password@postgres:5432/asalab
+MIGRATION_DATABASE_URL=postgres://asalab_admin:$admin_password@postgres:5432/asalab
+MIGRATION_EXPECT_DATABASE=asalab
+MIGRATION_CONFIRM=APPLY:asalab
 APP_DATABASE_URL=postgres://asalab_app:$runtime_password@postgres:5432/asalab
 
 ASA_WEB_PORT=4610

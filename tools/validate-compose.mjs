@@ -200,6 +200,10 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       ASA_APP_DB_PASSWORD: 'compose-validation-runtime-password',
       DATABASE_URL:
         'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab',
+      MIGRATION_DATABASE_URL:
+        'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab',
+      MIGRATION_EXPECT_DATABASE: 'asalab',
+      MIGRATION_CONFIRM: 'APPLY:asalab',
       APP_DATABASE_URL:
         'postgres://asalab_app:compose-validation-runtime-password@postgres:5432/asalab',
     },

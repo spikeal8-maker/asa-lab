@@ -26,12 +26,18 @@ validation fails closed unless these variables are set:
 ```text
 POSTGRES_PASSWORD
 DATABASE_URL
+MIGRATION_DATABASE_URL
+MIGRATION_EXPECT_DATABASE
+MIGRATION_CONFIRM
 ASA_APP_DB_PASSWORD
 APP_DATABASE_URL
 ```
 
-Use URL-safe passwords and keep `DATABASE_URL` and `APP_DATABASE_URL`
-consistent with them. Protect the file:
+Use URL-safe passwords. `MIGRATION_DATABASE_URL` must target the exact database
+named by `MIGRATION_EXPECT_DATABASE`, and `MIGRATION_CONFIRM` must equal
+`APPLY:<that-name>`. The migration runner verifies the connected database before
+creating its tracking table or applying SQL. Keep runtime `APP_DATABASE_URL`
+consistent with the provisioned runtime-role password. Protect the file:
 
 ```bash
 cp .env.docker.example .env

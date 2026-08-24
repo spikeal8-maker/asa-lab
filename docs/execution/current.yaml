@@ -270,6 +270,9 @@ parallel_lanes:
       - contexts/learning/**
       - migrations/0086_learning_identity_foundation.sql
       - migrations/0087_learning_additive_backfill.sql
+      - migrations/0088_learning_m0_006_acceptance_corrections.sql
+      - tools/migrate.mjs
+      - tools/provision-test-db.mjs
       - tools/learning-migration-dry-run.mjs
       - tools/learning-migration-dry-run-v1.schema.json
       - tools/learning-additive-backfill.mjs
@@ -277,12 +280,12 @@ parallel_lanes:
     task:
       id: TASK-LEARNING-M0-006
       issue: 147
-      branch: agent/learning-m0-additive-backfill
+      branch: agent/learning-m0-006-acceptance-fixes
       base_branch: main
       pr: 148
       pr_draft: false
-      status: done
-      checkpoint: lrn_m0_006_evidence_published
+      status: in_progress
+      checkpoint: lrn_m0_006_owner_changes_required
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9290ab18490f376460a3b5f396f8b8a4fd905488

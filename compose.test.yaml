@@ -12,6 +12,9 @@ services:
   migration:
     environment:
       DATABASE_URL: postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test
+      MIGRATION_DATABASE_URL: postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test
+      MIGRATION_EXPECT_DATABASE: asalab_test
+      MIGRATION_CONFIRM: APPLY:asalab_test
       ASA_APP_DB_PASSWORD: asa-local-test-runtime-change-me
       ASA_SEED_DEV: 'false'
 
