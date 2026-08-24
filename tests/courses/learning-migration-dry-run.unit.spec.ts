@@ -187,6 +187,19 @@ describe('LRN-M0-005 pure migration classifier', () => {
     expect(classifyUnit(normalizeUnit(allConflicts))).toBe('identity_unresolved');
   });
 
+  it('classifies a malformed persisted pointer even when the unit has no local result', () => {
+    const row = base({
+      result_count: 0,
+      gradebook_entry_id: id('14'),
+      accepted_attempt_id: id('15'),
+      selected_result_id: id('16'),
+      selected_result_attempt_id: id('15'),
+      selected_attempt_assignment_id: id('99'),
+      selected_attempt_seat_id: id('6'),
+    });
+    expect(classifyUnit(normalizeUnit(row))).toBe('selection_conflict');
+  });
+
   it('produces byte-identical deterministic output for the same rows', () => {
     const rows = fixtures.map(([, row]) => row).reverse();
     const first = JSON.stringify(buildDeterministicReport(rows));
@@ -231,11 +244,21 @@ describe('LRN-M0-005 pure migration classifier', () => {
   });
 
   it('fails closed for missing environment/output and unauthorized production', () => {
-    expect(() => parseArgs([])).toThrow('environment_required');
-    expect(() => parseArgs(['--environment', 'test'])).toThrow('output_paths_required');
-    expect(() =>
-      parseArgs(['--environment', 'production', '--output', 'a', '--markdown', 'b']),
-    ).toThrow('production_not_authorized');
+    for (const [argv, message] of [
+      [[], 'environment_required'],
+      [['--environment', 'test'], 'output_paths_required'],
+      [
+        ['--environment', 'production', '--output', 'a', '--markdown', 'b'],
+        'production_not_authorized',
+      ],
+    ] as const) {
+      try {
+        parseArgs([...argv]);
+        throw new Error('expected configuration error');
+      } catch (error) {
+        expect(error).toMatchObject({ message, exitCode: 78 });
+      }
+    }
   });
 
   it('classifies 30 x 100 units deterministically within a bounded pure pass', () => {

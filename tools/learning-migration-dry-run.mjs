@@ -130,13 +130,13 @@ export function normalizeUnit(row) {
         (!row.legacy_project_id || row.legacy_project_id === row.submission_project_id))),
   );
   const selectionConflict =
-    Number(row.result_count || 0) > 0 &&
-    (!row.gradebook_entry_id ||
-      !row.selected_result_id ||
-      !row.accepted_attempt_id ||
-      row.selected_result_attempt_id !== row.accepted_attempt_id ||
-      row.selected_attempt_assignment_id !== row.assignment_id ||
-      row.selected_attempt_seat_id !== row.seat_id);
+    (Number(row.result_count || 0) > 0 && !row.gradebook_entry_id) ||
+    (Boolean(row.gradebook_entry_id) &&
+      (!row.selected_result_id ||
+        !row.accepted_attempt_id ||
+        row.selected_result_attempt_id !== row.accepted_attempt_id ||
+        row.selected_attempt_assignment_id !== row.assignment_id ||
+        row.selected_attempt_seat_id !== row.seat_id));
   const lifecycleRestricted =
     row.seat_status !== 'active' ||
     row.classroom_status !== 'active' ||
@@ -494,8 +494,15 @@ export function renderMarkdown(report) {
     `Guessed identity merges: ${d.autoReconciliationPlan.guessedIdentityMerges}; fabricated immutable evidence: ${d.autoReconciliationPlan.fabricatedImmutableEvidence}; grade conversions: ${d.autoReconciliationPlan.gradeConversions}.\n\n` +
     `## Safety and performance\n\n` +
     `Read-only repeatable-read transaction; ${report.metadata.performance.queryCount} set-based queries; ` +
-    `${report.metadata.performance.scannedUnits} units in ${report.metadata.performance.elapsedMs} ms. Production was not scanned.\n`
+    `${report.metadata.performance.scannedUnits} units in ${report.metadata.performance.elapsedMs} ms. ` +
+    (report.metadata.environmentKind === 'production'
+      ? 'Production was scanned under the explicit production invocation boundary.\n'
+      : 'Production was not scanned.\n')
   );
+}
+
+function configurationError(message) {
+  return Object.assign(new Error(message), { exitCode: EX_CONFIG });
 }
 
 export function parseArgs(argv) {
@@ -509,10 +516,10 @@ export function parseArgs(argv) {
     } else throw new Error(`unknown_argument:${token}`);
   }
   if (!['test', 'local-dev', 'production'].includes(args.environment))
-    throw new Error('environment_required');
-  if (!args.output || !args.markdown) throw new Error('output_paths_required');
+    throw configurationError('environment_required');
+  if (!args.output || !args.markdown) throw configurationError('output_paths_required');
   if (args.environment === 'production' && !args.allowProduction)
-    throw new Error('production_not_authorized');
+    throw configurationError('production_not_authorized');
   if (args.asOf && Number.isNaN(Date.parse(args.asOf))) throw new Error('invalid_as_of');
   return args;
 }
