@@ -246,10 +246,13 @@ describe('Electronics owner SVG foundation', () => {
     }
   });
 
-  it('keeps known missing components missing instead of substituting a traced PNG', () => {
-    for (const componentId of ['battery-1.5v', 'battery-3v', 'battery-6v', 'vibration-motor']) {
-      expect(ownerCatalogItems().find((item) => item.key === componentId)?.asset).toBe('');
+  it('uses the owner battery SVGs while keeping genuinely missing artwork disabled', () => {
+    for (const componentId of ['battery-1.5v', 'battery-3v', 'battery-6v']) {
+      const item = ownerCatalogItems().find((candidate) => candidate.key === componentId);
+      expect(item?.asset).toBe(`/assets/electronics/owner-approved/${componentId}.svg`);
+      expect(item).toMatchObject({ enabled: true, simulationSupported: true });
     }
+    expect(ownerCatalogItems().find((item) => item.key === 'vibration-motor')?.asset).toBe('');
     expect(ownerCatalogItems().some((item) => item.key === 'microbit')).toBe(false);
   });
 

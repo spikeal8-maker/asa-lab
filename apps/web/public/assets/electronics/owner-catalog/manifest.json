@@ -17205,22 +17205,18 @@
         "type": "dc_source",
         "polarity": ["positive", "negative"]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
-      },
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "isDefaultVariant": false,
       "displayName": "Батарея 1,5 В",
       "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/батарея 1,5 вольт.png",
-      "sourceSha256": "529bfdcb89bc596b3a31e01a60b9b7eb78259c4dae24cccc7bf629c0077f8412",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerPath": "Компоненты/svg/батарея 1,5 вольт.svg",
+      "sourceSha256": "4d7ef90203ffa9b70f9a21a87d216dff9cfdd3591d8750973b58c4b52874aeb0",
+      "runtimePath": "/assets/electronics/owner-approved/battery-1.5v.svg",
+      "runtimeSha256": "4d7ef90203ffa9b70f9a21a87d216dff9cfdd3591d8750973b58c4b52874aeb0",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "battery-3v",
@@ -17270,22 +17266,18 @@
         "type": "dc_source",
         "polarity": ["positive", "negative"]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
-      },
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "isDefaultVariant": false,
       "displayName": "Батарея 3 В",
       "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/Батарея 3 вольта.png",
-      "sourceSha256": "dae93db9a63a8541426c17d4e9cc92ebbafb23c26dc69c2af85e8ad194e57686",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerPath": "Компоненты/svg/Батарея 3 вольта.svg",
+      "sourceSha256": "ea66dec397349314eb70d3d585b4e507bc2e112a743f8330bfab967b5e6b97b2",
+      "runtimePath": "/assets/electronics/owner-approved/battery-3v.svg",
+      "runtimeSha256": "ea66dec397349314eb70d3d585b4e507bc2e112a743f8330bfab967b5e6b97b2",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "battery-6v",
@@ -17335,22 +17327,18 @@
         "type": "dc_source",
         "polarity": ["positive", "negative"]
       },
-      "simulationSupport": "not_available",
-      "blockReason": "найден только owner PNG; raster и auto-trace запрещены в runtime",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
-      },
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
       "isDefaultVariant": false,
       "displayName": "Батарея 6 В",
       "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/Компоненты PNG/батарея 6 вольт.png",
-      "sourceSha256": "1ac29161ca9ea59b0f0a287427a42b9077d07e23b5a4c9ce78a3364724bd4a3b",
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "owner_reference_png_only"
+      "sourceOwnerPath": "Компоненты/svg/батарея 6 вольт.svg",
+      "sourceSha256": "5ce973b1623801c15589039f4c0eb4bf6f940b957ab1767777fe73d271bc5d9a",
+      "runtimePath": "/assets/electronics/owner-approved/battery-6v.svg",
+      "runtimeSha256": "5ce973b1623801c15589039f4c0eb4bf6f940b957ab1767777fe73d271bc5d9a",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg"
     },
     {
       "componentId": "battery-9v",
