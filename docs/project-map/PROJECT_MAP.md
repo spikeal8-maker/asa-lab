@@ -22,12 +22,12 @@ execution direct_main
 
 ## Parallel ASA Learning M0 lane
 
-The owner activated `TASK-LEARNING-M0-001` as the control-plane wrapper for
-Work Queue task `LRN-M0-001 — Current Learning Architecture Audit`; PR #137
-merged its evidence and the task is done. The primary Admin/Auth task remains
-active and unchanged. The next Work Queue task is not activated. Learning M0
-does not authorize migrations, product runtime changes, learner-identity
-decisions, UI/Gradebook fixes or M1-M7 work without a new owner transition.
+The owner accepted `LRN-M0-001 — Current Learning Architecture Audit` and
+activated `TASK-LEARNING-M0-002` as the control-plane wrapper for the
+architecture-decision-only `LRN-M0-002 — Learner Identity ADR` in draft PR
+#139. The primary Admin/Auth task remains active and unchanged. M0-003 and
+M1-M7 are not activated; this lane does not authorize migrations, product
+runtime, UI/Gradebook or Quiz Engine changes.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,
