@@ -73,8 +73,10 @@ function renderMarkdown(result) {
   const after = result.after;
   return `# ASA Learning M0 Additive Backfill — isolated test evidence
 
-Environment: \`test\`  
-As-of: \`${result.asOf}\`  
+Environment: \`test\`
+
+As-of: \`${result.asOf}\`
+
 Migration: \`${result.migrationVersion}\`
 
 This report is redacted. It contains aggregate counts only. Production was not read or written.
@@ -92,7 +94,8 @@ This report is redacted. It contains aggregate counts only. Production was not r
 | feedback preserved | ${before.feedbackPreserved} | ${after.feedbackPreserved} | ${after.feedbackPreserved - before.feedbackPreserved} |
 | grade conversions | 0 | ${after.gradeConversions} | ${after.gradeConversions} |
 
-Second-run duplicate creations: ${result.idempotency.secondRunCreated}.  
+Second-run duplicate creations: ${result.idempotency.secondRunCreated}.
+
 Production status: untouched.
 `;
 }

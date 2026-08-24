@@ -1,10 +1,14 @@
 # ASA Learning M0 Additive Backfill Report
 
-**Task:** `LRN-M0-006`  
-**Baseline:** `9290ab18490f376460a3b5f396f8b8a4fd905488`  
+**Task:** `LRN-M0-006`
+
+**Baseline:** `9290ab18490f376460a3b5f396f8b8a4fd905488`
+
 **Environment:** isolated disposable PostgreSQL database
-`asalab_learning_m0_006_test`  
-**Explicit asOf:** `2026-08-24T17:00:00.000Z`  
+`asalab_learning_m0_006_test`
+
+**Explicit asOf:** `2026-08-24T17:00:00.000Z`
+
 **Production:** untouched
 
 ## Result
