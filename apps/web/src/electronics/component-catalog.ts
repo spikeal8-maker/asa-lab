@@ -109,6 +109,7 @@ export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'capacitor',
   'spdt-switch',
   'battery-9v',
+  'battery-3v',
   'battery-holder-aa',
   'breadboard',
   'arduino-uno',

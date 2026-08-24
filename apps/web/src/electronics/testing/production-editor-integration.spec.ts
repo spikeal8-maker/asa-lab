@@ -36,9 +36,7 @@ const EMPTY: SchematicDocument = {
 };
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
-  'battery-1.5v': [23.524, 66.87],
   'battery-3v': [24, 28.6],
-  'battery-6v': [68.507, 65.043],
   'battery-9v': [23.5763, 52.667],
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
@@ -76,6 +74,9 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'pir-sensor': [44.53, 43.52],
   'temperature-sensor': [5.79, 9.6371],
   multimeter: [44.59, 23.24],
+  'regulated-power-supply': [29.4, 23.7],
+  'signal-generator': [57.9, 40.5],
+  oscilloscope: [54.5, 56.6],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -250,6 +251,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'capacitor',
       'spdt-switch',
       'battery-9v',
+      'battery-3v',
       'battery-holder-aa',
       'breadboard',
       'arduino-uno',
@@ -337,6 +339,9 @@ describe('owner SVG integration in the real Electronics document', () => {
       'ultrasonic-hc-sr04',
       'pir-sensor',
       'multimeter',
+      'regulated-power-supply',
+      'signal-generator',
+      'oscilloscope',
     ]) {
       expect(productionCatalogEntry(componentId), componentId).toMatchObject({
         enabled: true,
@@ -361,29 +366,20 @@ describe('owner SVG integration in the real Electronics document', () => {
       productionCatalogEntry('diode-do41')?.physicalSizeMm,
     );
     expect(
-      ['battery-9v', 'battery-3v', 'battery-1.5v'].map((familyId) =>
+      ['battery-9v', 'battery-3v'].map((familyId) =>
         families.find((family) => family.familyId === familyId),
       ),
     ).toMatchObject([
       { familyLabel: 'Батарея 9 В', defaultVariantId: 'battery-9v', enabled: true },
       {
-        familyLabel: 'Кнопочная батарея 3 В',
+        familyLabel: 'Батарея 3 В',
         defaultVariantId: 'battery-3v',
         enabled: true,
-        appearsInBasic: false,
-      },
-      {
-        familyLabel: 'Батарея 1,5 В',
-        defaultVariantId: 'battery-1.5v',
-        enabled: true,
-        appearsInBasic: false,
+        appearsInBasic: true,
       },
     ]);
-    expect(families.find((family) => family.familyId === 'battery-6v')).toMatchObject({
-      familyLabel: 'Батарея 6 В',
-      appearsInBasic: false,
-      enabled: true,
-    });
+    expect(families.find((family) => family.familyId === 'battery-1.5v')).toBeUndefined();
+    expect(families.find((family) => family.familyId === 'battery-6v')).toBeUndefined();
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -451,9 +447,7 @@ describe('owner SVG integration in the real Electronics document', () => {
   });
 
   it.each([
-    ['battery-1.5v', 1.5],
     ['battery-3v', 3],
-    ['battery-6v', 6],
     ['battery-9v', 9],
   ] as const)('maps %s to its nominal source voltage', (componentTypeId, voltage) => {
     const entry = productionCatalog().find((candidate) => candidate.key === componentTypeId);

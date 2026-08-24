@@ -74,8 +74,14 @@ describe('Electronics owner SVG foundation', () => {
       },
       {
         componentId: 'multimeter',
-        originalFileName: 'multimeter_component_pure_vector.svg',
-        sha256: 'ac74479c633f4ffd2f9faa49eee3349b4655b2bbdc6c00779bcf349e108f6733',
+        originalFileName: 'multimeter_strict_path_only.svg',
+        sha256: '962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'oscilloscope',
+        originalFileName: 'осциллограф_компонент_без_подложки.svg',
+        sha256: 'c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8',
         transformation: 'none_byte_exact_copy',
       },
       {
@@ -85,9 +91,21 @@ describe('Electronics owner SVG foundation', () => {
         transformation: 'none_byte_exact_copy',
       },
       {
+        componentId: 'regulated-power-supply',
+        originalFileName: 'reg_power_supply.svg',
+        sha256: '869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
         componentId: 'servo-motor',
         originalFileName: 'servo_motor_top_clean_v2.svg',
         sha256: '2227b5058f77028eae3909ba63f129cec1931e9be2962e2ff87f61c551fdd964',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'signal-generator',
+        originalFileName: 'генератор_сигналов.svg',
+        sha256: '9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196',
         transformation: 'none_byte_exact_copy',
       },
       {
@@ -349,13 +367,15 @@ describe('Electronics owner SVG foundation', () => {
   });
 
   it('uses the owner battery SVGs while keeping genuinely missing artwork disabled', () => {
-    for (const componentId of ['battery-1.5v', 'battery-3v', 'battery-6v']) {
+    for (const componentId of ['battery-3v']) {
       const item = ownerCatalogItems().find((candidate) => candidate.key === componentId);
       expect(item?.asset).toMatch(
         /^\/assets\/electronics\/component-database\/components\/.*\.svg$/,
       );
       expect(item).toMatchObject({ enabled: true, simulationSupported: true });
     }
+    expect(ownerCatalogItems().some((item) => item.key === 'battery-1.5v')).toBe(false);
+    expect(ownerCatalogItems().some((item) => item.key === 'battery-6v')).toBe(false);
     expect(ownerCatalogItems().find((item) => item.key === 'vibration-motor')).toMatchObject({
       enabled: true,
       simulationSupported: false,

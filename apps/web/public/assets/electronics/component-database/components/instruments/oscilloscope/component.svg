@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="545" height="566" viewBox="0 0 545 566" fill="none">
+  <title>Oscilloscope Component</title>
+  <desc>Clean SVG vector component of a stylized oscilloscope display panel with grid, time and voltage labels, and two bottom terminals.</desc>
+  <defs>
+    <style>
+      .body { fill: #F2AE16; }
+      .screen-frame { fill: #4E5251; }
+      .screen { fill: #C5CFD2; }
+      .grid { stroke: #AEB7B9; stroke-width: 1; opacity: 0.95; }
+      .axis { stroke: #959D9F; stroke-width: 1.5; opacity: 0.95; }
+      .measure { stroke: #D19613; stroke-width: 1.2; stroke-linecap: round; }
+      .label { fill: #4E5251; font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: 700; }
+      .pin-metal { fill: #8C8C8C; }
+      .pin-black-dark { fill: #242424; }
+      .pin-black { fill: #333333; }
+      .pin-red-dark { fill: #7B1414; }
+      .pin-red { fill: #AF1C1C; }
+    </style>
+  </defs>
+
+
+  <g id="oscilloscope-component">
+    <!-- main body -->
+    <rect class="body" x="38" y="33" width="465" height="465" rx="12"/>
+
+    <!-- screen frame and screen -->
+    <rect class="screen-frame" x="54" y="49" width="414" height="414" rx="1.5"/>
+    <rect class="screen" x="60" y="55" width="402" height="402"/>
+
+    <!-- grid -->
+    <line class="grid" x1="100" y1="55" x2="100" y2="457"/>    <line class="grid" x1="140" y1="55" x2="140" y2="457"/>    <line class="grid" x1="180" y1="55" x2="180" y2="457"/>    <line class="grid" x1="221" y1="55" x2="221" y2="457"/>    <line class="axis" x1="261" y1="55" x2="261" y2="457"/>    <line class="grid" x1="301" y1="55" x2="301" y2="457"/>    <line class="grid" x1="341" y1="55" x2="341" y2="457"/>    <line class="grid" x1="382" y1="55" x2="382" y2="457"/>    <line class="grid" x1="422" y1="55" x2="422" y2="457"/>    <line class="grid" x1="60" y1="95" x2="462" y2="95"/>    <line class="grid" x1="60" y1="135" x2="462" y2="135"/>    <line class="grid" x1="60" y1="175" x2="462" y2="175"/>    <line class="grid" x1="60" y1="216" x2="462" y2="216"/>    <line class="axis" x1="60" y1="256" x2="462" y2="256"/>    <line class="grid" x1="60" y1="296" x2="462" y2="296"/>    <line class="grid" x1="60" y1="337" x2="462" y2="337"/>    <line class="grid" x1="60" y1="377" x2="462" y2="377"/>    <line class="grid" x1="60" y1="417" x2="462" y2="417"/>
+    <!-- right-side voltage measure -->
+    <line class="measure" x1="485" y1="55" x2="485" y2="210"/>
+    <line class="measure" x1="481.5" y1="55" x2="488.5" y2="55"/>
+    <line class="measure" x1="481.5" y1="210" x2="488.5" y2="210"/>
+    <line class="measure" x1="485" y1="303" x2="485" y2="457"/>
+    <line class="measure" x1="481.5" y1="303" x2="488.5" y2="303"/>
+    <line class="measure" x1="481.5" y1="457" x2="488.5" y2="457"/>
+    <text class="label" x="486" y="257" text-anchor="middle" transform="rotate(-90 486 257)">Voltage</text>
+
+    <!-- bottom time measure -->
+    <line class="measure" x1="60" y1="480" x2="215" y2="480"/>
+    <line class="measure" x1="307" y1="480" x2="462" y2="480"/>
+    <line class="measure" x1="60" y1="476.5" x2="60" y2="483.5"/>
+    <line class="measure" x1="462" y1="476.5" x2="462" y2="483.5"/>
+    <text class="label" x="261" y="485" text-anchor="middle">Time</text>
+
+    <!-- bottom terminals -->
+    <g id="black-terminal">
+      <rect class="pin-black-dark" x="240" y="499" width="14" height="4" rx="1.5"/>
+      <rect class="pin-black" x="240" y="503" width="14" height="11" rx="2"/>
+      <rect class="pin-metal" x="244" y="514" width="6" height="7" rx="2"/>
+    </g>
+
+    <g id="red-terminal">
+      <rect class="pin-red-dark" x="267" y="499" width="14" height="4" rx="1.5"/>
+      <rect class="pin-red" x="267" y="503" width="14" height="11" rx="2"/>
+      <rect class="pin-metal" x="271" y="514" width="6" height="7" rx="2"/>
+    </g>
+  </g>
+</svg>
