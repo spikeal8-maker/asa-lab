@@ -16,14 +16,20 @@ describe('PublicEntryPage licensing notice', () => {
     const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
 
     expect(html.match(/>Войти<\/button>/g)).toHaveLength(1);
+    expect(html).toContain('data-testid="entry-header-sign-up"');
+    expect(html).toContain('>Зарегистрироваться</button>');
     expect(html).toContain('>Уже есть аккаунт</button>');
   });
 
-  it('distinguishes active modules from environments still in development', () => {
+  it('keeps projects primary without presenting blocks or drawing as future modules', () => {
     const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
 
-    expect(html).toContain('Блочное программирование и рисование находятся в разработке.');
-    expect(html).toContain('В разработке: алгоритмы');
-    expect(html).toContain('В разработке: иллюстрация');
+    expect(html).not.toMatch(/STEM-лаборатория для школы|в разработке|будущая среда|планируется/i);
+    expect(html).toContain('Придумывайте. Создавайте. Проверяйте.');
+    expect(html).toContain('/social/asa-lab-og.png');
+    expect(html).toContain('собственного проекта');
+    expect(html).toContain('Посмотреть возможности');
+    expect(html).toContain('Визуальные алгоритмы');
+    expect(html).toContain('Рисование и черчение');
   });
 });

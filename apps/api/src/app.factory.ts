@@ -268,6 +268,9 @@ export async function createApiApp(
         await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
         return;
       }
+      if (path !== '/') {
+        void reply.header('X-Robots-Tag', 'noindex, nofollow');
+      }
       // The entry document names the hashed chunks, so it must never be held:
       // a cached index.html would point at files a deploy has already replaced.
       await reply

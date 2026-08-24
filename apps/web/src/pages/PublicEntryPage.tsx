@@ -18,25 +18,37 @@ export function PublicEntryPage({
           <a href="#teachers">Преподавателям</a>
           <a href="#safety">Безопасность</a>
         </nav>
-        <button
-          type="button"
-          className="btn-secondary public-entry-sign-in"
-          data-testid="entry-sign-in"
-          onClick={() => onChoose('sign-in')}
-        >
-          Войти
-        </button>
+        <div className="public-entry-header-actions" aria-label="Аккаунт">
+          <button
+            type="button"
+            className="btn-secondary public-entry-sign-in"
+            data-testid="entry-sign-in"
+            onClick={() => onChoose('sign-in')}
+          >
+            Войти
+          </button>
+          <button
+            type="button"
+            className="btn-primary public-entry-register"
+            data-testid="entry-header-sign-up"
+            onClick={() => onChoose('sign-up')}
+          >
+            Зарегистрироваться
+          </button>
+        </div>
       </header>
 
       <main>
         <section className="public-entry-hero">
+          <div className="public-entry-hero-visual" aria-hidden="true">
+            <img src="/social/asa-lab-og.png" alt="" />
+          </div>
           <div className="public-entry-hero-copy">
-            <p className="entry-kicker">Учиться не по инструкции, а через действие</p>
-            <h1>ASA Lab — цифровая STEM-лаборатория для школы</h1>
+            <p className="entry-kicker">ASA Lab · цифровая лаборатория</p>
+            <h1>Придумывайте. Создавайте. Проверяйте.</h1>
             <p className="public-entry-lead">
-              Одна безопасная среда, где ученики создают 3D-модели, собирают электронные схемы,
-              играют и разбирают партии, а педагог видит проекты, попытки и реальный путь решения.
-              Блочное программирование и рисование находятся в разработке.
+              3D-моделирование, виртуальная электроника, блочное программирование, рисование,
+              шахматы и шашки — в одной среде, где идея становится собственным проектом.
             </p>
             <div className="public-entry-actions">
               <button
@@ -45,34 +57,17 @@ export function PublicEntryPage({
                 data-testid="entry-sign-up"
                 onClick={() => onChoose('sign-up')}
               >
-                Создать аккаунт
+                Начать проект
               </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                data-testid="entry-class-code"
-                onClick={() => onChoose('class-code')}
-              >
-                Войти по коду класса
-              </button>
+              <a className="btn-secondary" href="/features/">
+                Посмотреть возможности
+              </a>
             </div>
             <p className="public-entry-action-note">
-              Педагогу — пространство для классов и заданий. Ученику — собственные проекты и вход по
-              коду класса.
+              Собственные проекты — основной сценарий. Классы и задания можно подключить для
+              совместной или учебной работы.
             </p>
           </div>
-          <aside className="public-entry-hero-board" aria-label="Возможности ASA Lab">
-            <span className="entry-board-chip entry-board-chip-code">Блоки</span>
-            <span className="entry-board-chip entry-board-chip-art">Рисование</span>
-            <span className="entry-board-chip entry-board-chip-3d">3D</span>
-            <span className="entry-board-chip entry-board-chip-circuit">Электроника</span>
-            <span className="entry-board-chip entry-board-chip-game">Шахматы · шашки</span>
-            <div className="entry-board-centre">
-              <AsaLabWordmark compact />
-              <strong>Идея → проект → разбор</strong>
-              <span>Всё в одной учебной среде</span>
-            </div>
-          </aside>
         </section>
 
         <section
@@ -80,29 +75,24 @@ export function PublicEntryPage({
           id="capabilities"
           aria-labelledby="capabilities-title"
         >
-          <p className="entry-kicker">Предметные среды</p>
-          <h2 id="capabilities-title">От первой идеи до работающего проекта</h2>
+          <p className="entry-kicker">Инструменты</p>
+          <h2 id="capabilities-title">Всё, что нужно, чтобы придумать, собрать и проверить</h2>
           <p className="public-entry-section-lead">
             ASA Lab объединяет практические направления, которые обычно разбросаны по разным
-            сервисам. Результат остаётся в проекте и может стать частью занятия, задания или
-            портфолио ученика.
+            сервисам. Результат остаётся в собственном проекте, который можно проверять, сохранять и
+            улучшать.
           </p>
           <div className="public-entry-grid">
             <article>
               <span aria-hidden="true">⌘</span>
               <h3>Блочное программирование</h3>
-              <p>
-                В разработке: алгоритмы, условия, циклы и переменные в будущей визуальной среде.
-              </p>
+              <p>Визуальные алгоритмы, последовательности, условия, циклы и переменные.</p>
               <a href="/features/block-programming/">Подробнее о программировании</a>
             </article>
             <article>
               <span aria-hidden="true">✦</span>
-              <h3>Рисование и визуальные проекты</h3>
-              <p>
-                В разработке: иллюстрация, композиция и цифровое творчество в общем проектном
-                контуре.
-              </p>
+              <h3>Рисование и черчение</h3>
+              <p>Эскизы, рисунки, схемы и конструкции из линий, форм и визуальных элементов.</p>
               <a href="/features/drawing/">Подробнее о рисовании</a>
             </article>
             <article>
@@ -126,17 +116,15 @@ export function PublicEntryPage({
             <article>
               <span aria-hidden="true">♟</span>
               <h3>Шахматы и русские шашки</h3>
-              <p>
-                Партии, задачи, разбор решений, обучение с ботами и безопасная игра внутри класса.
-              </p>
+              <p>Партии, задачи, анализ позиций и проверка разных стратегий и вариантов решения.</p>
               <a href="/features/chess-and-checkers/">Подробнее об игровых модулях</a>
             </article>
             <article>
               <span aria-hidden="true">✓</span>
-              <h3>Классы и доказуемый прогресс</h3>
+              <h3>Классы и задания</h3>
               <p>
-                Выдача работы, история попыток и обратная связь, привязанная к конкретному проекту,
-                решению или ходу.
+                Дополнительный способ объединить участников и организовать совместную проектную
+                работу.
               </p>
               <a href="/for-teachers/">Возможности для педагогов</a>
             </article>
@@ -149,12 +137,12 @@ export function PublicEntryPage({
           aria-labelledby="teachers-title"
         >
           <div>
-            <p className="entry-kicker">Для педагогов</p>
-            <h2 id="teachers-title">Видеть не только оценку, а путь ученика</h2>
+            <p className="entry-kicker">Для совместной работы</p>
+            <h2 id="teachers-title">Проекты можно объединять в классы и задания</h2>
             <p>
-              Создайте класс, подготовьте задание и предложите ученикам выполнить его в той же
-              среде, где живут их проекты. ASA Lab сохраняет контекст работы, чтобы разбор был
-              предметным, а прогресс — подтверждённым.
+              Если ASA Lab используется на занятии, в кружке или в команде, проекты можно связать с
+              классом и заданием. Преподаватель организует работу и видит её результат, но основой
+              остаётся сам проект и процесс его создания.
             </p>
             <a className="public-entry-text-link" href="/for-teachers/">
               Как ASA Lab помогает проводить занятия
@@ -177,8 +165,8 @@ export function PublicEntryPage({
         </section>
 
         <section className="public-entry-section" id="safety" aria-labelledby="safety-title">
-          <p className="entry-kicker">Безопасная образовательная среда</p>
-          <h2 id="safety-title">Сделано для школы, а не адаптировано постфактум</h2>
+          <p className="entry-kicker">Безопасность и контроль</p>
+          <h2 id="safety-title">Проекты и данные под контролем</h2>
           <div className="public-entry-safety-grid">
             <article>
               <h3>Без рекламы</h3>
@@ -203,12 +191,12 @@ export function PublicEntryPage({
 
         <section className="public-entry-cta" aria-labelledby="cta-title">
           <div>
-            <p className="entry-kicker">ASA Lab уже открыт для первых пользователей</p>
-            <h2 id="cta-title">Начните с собственного проекта или школьного класса</h2>
+            <p className="entry-kicker">От идеи к работающему проекту</p>
+            <h2 id="cta-title">Начните с собственного проекта</h2>
           </div>
           <div className="public-entry-actions">
             <button type="button" className="btn-primary" onClick={() => onChoose('sign-up')}>
-              Создать аккаунт
+              Начать проект
             </button>
             <button type="button" className="btn-secondary" onClick={() => onChoose('sign-in')}>
               Уже есть аккаунт
@@ -218,7 +206,7 @@ export function PublicEntryPage({
       </main>
 
       <footer className="entry-legal public-entry-footer">
-        <span>© ASA Lab · Учиться через действие.</span>
+        <span>© ASA Lab · От идеи к работающему проекту.</span>
         <a href="/features/">Все возможности</a>
         <a href="/for-teachers/">Преподавателям</a>
         <a href="/for-schools/">Для школ</a>

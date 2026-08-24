@@ -1,6 +1,6 @@
 # ASA Lab
 
-> ASA Lab is a Russian-language educational STEM platform for schools. Its active project environments are 3D modelling, virtual electronics, chess and Russian draughts. Block programming, drawing and visual projects are in development.
+> ASA Lab is a digital laboratory for design and invention. It combines 3D modelling, virtual electronics, block programming, drawing and drafting, chess and Russian draughts. The primary scenario is creating personal projects, experimenting and finding solutions. Classes and assignments are an optional way to organize collaborative or educational work.
 
 Canonical website: https://asa-lab.ru/
 Primary language: Russian (ru-RU)
@@ -14,19 +14,19 @@ Source repository: https://github.com/spikeal8-maker/asa-lab
 - [Safety principles](https://asa-lab.ru/safety/)
 - [About ASA Lab](https://asa-lab.ru/about/)
 - [Frequently asked questions](https://asa-lab.ru/faq/)
-- [Block programming — in development](https://asa-lab.ru/features/block-programming/)
-- [Drawing and visual projects — in development](https://asa-lab.ru/features/drawing/)
+- [Block programming](https://asa-lab.ru/features/block-programming/)
+- [Drawing and drafting](https://asa-lab.ru/features/drawing/)
 - [3D modelling](https://asa-lab.ru/features/3d-modeling/)
 - [Virtual electronics](https://asa-lab.ru/features/electronics/)
 - [Chess and Russian draughts](https://asa-lab.ru/features/chess-and-checkers/)
 
 ## Key facts
 
-- Audience: school students, teachers and authors of educational materials.
-- Learning model: students create and investigate; teachers review the actual project, attempt, move, model or measurement behind the result.
+- Primary use: people create, investigate, test and improve their own digital projects.
+- Collaboration: teachers, classes and assignments can organize shared or educational project work.
 - Safety: no advertising, no open child chat with strangers, role- and class-scoped access.
 - Product principle: unsupported or unverified results are diagnosed explicitly instead of being presented as successful.
-- Availability: 3D modelling, virtual electronics, chess and Russian draughts are active; block programming and drawing are not yet creatable.
+- Tools: 3D modelling, virtual electronics, block programming, drawing and drafting, chess and Russian draughts.
 - Brand spelling: ASA Lab. Russian alternate name: АСА Лаб.
 
 ## Crawler policy

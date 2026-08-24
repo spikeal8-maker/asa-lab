@@ -5,7 +5,6 @@ Content-Signal: search=yes,ai-input=yes,ai-train=no,use=reference
 Allow: /
 Disallow: /api/
 Disallow: /health/
-Disallow: /projects/
 
 # OpenAI search is separate from model training. Allow citations in ChatGPT
 # while GPTBot remains excluded below.
@@ -14,12 +13,14 @@ Allow: /
 Disallow: /api/
 Disallow: /health/
 Disallow: /projects/
+Disallow: /max-login
 
 User-agent: ChatGPT-User
 Allow: /
 Disallow: /api/
 Disallow: /health/
 Disallow: /projects/
+Disallow: /max-login
 
 # Do not grant permission to collect ASA Lab content for model training.
 User-agent: GPTBot

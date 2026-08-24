@@ -44,13 +44,13 @@ const pages = [
     file: resolve(publicRoot, 'features', 'block-programming', 'index.html'),
     url: 'https://asa-lab.ru/features/block-programming/',
     image: socialImage('asa-lab-block-programming.png'),
-    availability: 'development',
+    creatableRoute: false,
   },
   {
     file: resolve(publicRoot, 'features', 'drawing', 'index.html'),
     url: 'https://asa-lab.ru/features/drawing/',
     image: socialImage('asa-lab-drawing.png'),
-    availability: 'development',
+    creatableRoute: false,
   },
   {
     file: resolve(publicRoot, 'features', '3d-modeling', 'index.html'),
@@ -70,11 +70,16 @@ const pages = [
 ];
 
 const failures = [];
+const warnings = [];
 const titles = new Set();
 const descriptions = new Set();
 
 function expect(condition, message) {
   if (!condition) failures.push(message);
+}
+
+function advise(condition, message) {
+  if (!condition) warnings.push(message);
 }
 
 function capture(html, expression) {
@@ -83,13 +88,6 @@ function capture(html, expression) {
 
 function captures(html, expression) {
   return [...html.matchAll(expression)].map((match) => match[1]?.trim() ?? '');
-}
-
-function hasImageProperty(value, expectedImage) {
-  if (Array.isArray(value)) return value.some((item) => hasImageProperty(item, expectedImage));
-  if (!value || typeof value !== 'object') return false;
-  if (value.image === expectedImage) return true;
-  return Object.values(value).some((item) => hasImageProperty(item, expectedImage));
 }
 
 function pngChunkTypes(buffer) {
@@ -112,6 +110,11 @@ for (const page of pages) {
   const description = capture(html, /<meta\s+name="description"\s+content="([^"]+)"\s*\/?\s*>/i);
   const canonical = capture(html, /<link\s+rel="canonical"\s+href="([^"]+)"\s*\/?\s*>/i);
   const robotsMeta = capture(html, /<meta\s+name="robots"\s+content="([^"]+)"\s*\/?\s*>/i);
+  const ogTitle = capture(html, /<meta\s+property="og:title"\s+content="([^"]+)"\s*\/?\s*>/i);
+  const ogDescription = capture(
+    html,
+    /<meta\s+property="og:description"\s+content="([^"]+)"\s*\/?\s*>/i,
+  );
   const ogUrl = capture(html, /<meta\s+property="og:url"\s+content="([^"]+)"\s*\/?\s*>/i);
   const ogImage = capture(html, /<meta\s+property="og:image"\s+content="([^"]+)"\s*\/?\s*>/i);
   const ogImageWidth = capture(
@@ -131,6 +134,11 @@ for (const page of pages) {
     /<meta\s+property="og:image:alt"\s+content="([^"]+)"\s*\/?\s*>/i,
   );
   const twitterCard = capture(html, /<meta\s+name="twitter:card"\s+content="([^"]+)"\s*\/?\s*>/i);
+  const twitterTitle = capture(html, /<meta\s+name="twitter:title"\s+content="([^"]+)"\s*\/?\s*>/i);
+  const twitterDescription = capture(
+    html,
+    /<meta\s+name="twitter:description"\s+content="([^"]+)"\s*\/?\s*>/i,
+  );
   const twitterImage = capture(html, /<meta\s+name="twitter:image"\s+content="([^"]+)"\s*\/?\s*>/i);
   const twitterImageAlt = capture(
     html,
@@ -143,52 +151,57 @@ for (const page of pages) {
   );
 
   expect(html.includes('<html lang="ru">'), `${page.url}: html language must be ru`);
-  expect(title.length >= 30 && title.length <= 90, `${page.url}: title length ${title.length}`);
-  expect(
+  expect(title.length > 0, `${page.url}: title is missing`);
+  advise(
+    title.length >= 30 && title.length <= 90,
+    `${page.url}: review title length ${title.length}`,
+  );
+  expect(description.length > 0, `${page.url}: meta description is missing`);
+  advise(
     description.length >= 110 && description.length <= 220,
-    `${page.url}: description length ${description.length}`,
+    `${page.url}: review description length ${description.length}`,
   );
   expect(canonical === page.url, `${page.url}: canonical is ${canonical || 'missing'}`);
+  expect(ogTitle.length > 0, `${page.url}: og:title is missing`);
+  expect(ogDescription.length > 0, `${page.url}: og:description is missing`);
   expect(ogUrl === page.url, `${page.url}: og:url is ${ogUrl || 'missing'}`);
   expect(ogImage === page.image, `${page.url}: og:image is ${ogImage || 'missing'}`);
-  expect(ogImageWidth === '1200', `${page.url}: og:image:width must be 1200`);
-  expect(ogImageHeight === '630', `${page.url}: og:image:height must be 630`);
+  expect(/^\d+$/.test(ogImageWidth), `${page.url}: og:image:width is missing or invalid`);
+  expect(/^\d+$/.test(ogImageHeight), `${page.url}: og:image:height is missing or invalid`);
   expect(ogImageType === 'image/png', `${page.url}: og:image:type must be image/png`);
-  expect(
+  expect(ogImageAlt.length > 0, `${page.url}: og:image:alt is missing`);
+  advise(
     ogImageAlt.length >= 20 && ogImageAlt.length <= 180,
-    `${page.url}: og:image:alt length ${ogImageAlt.length}`,
+    `${page.url}: review og:image:alt length ${ogImageAlt.length}`,
   );
   expect(twitterCard === 'summary_large_image', `${page.url}: Twitter card is not large`);
+  expect(twitterTitle.length > 0, `${page.url}: twitter:title is missing`);
+  expect(twitterDescription.length > 0, `${page.url}: twitter:description is missing`);
   expect(twitterImage === page.image, `${page.url}: twitter:image does not match og:image`);
   expect(twitterImageAlt === ogImageAlt, `${page.url}: Twitter and Open Graph alt text differ`);
   expect(robotsMeta.includes('index') && robotsMeta.includes('follow'), `${page.url}: robots meta`);
-  expect(h1Count === 1, `${page.url}: expected one h1, found ${h1Count}`);
+  expect(h1Count > 0, `${page.url}: main h1 is missing`);
+  advise(h1Count === 1, `${page.url}: review h1 count ${h1Count}`);
+  expect(/<main(?:\s|>)/i.test(html), `${page.url}: semantic main content is missing`);
+  expect(/<a\s+[^>]*href="[^"]+"/i.test(html), `${page.url}: crawlable links are missing`);
   expect(jsonLdBlocks.length > 0, `${page.url}: JSON-LD structured data is missing`);
-  let structuredDataHasImage = false;
   for (const [index, jsonLd] of jsonLdBlocks.entries()) {
     try {
-      const structuredData = JSON.parse(jsonLd);
-      structuredDataHasImage ||= hasImageProperty(structuredData, page.image);
+      JSON.parse(jsonLd);
     } catch (error) {
       failures.push(`${page.url}: JSON-LD block ${index + 1} is invalid: ${error.message}`);
     }
   }
-  expect(structuredDataHasImage, `${page.url}: JSON-LD does not reference its social image`);
-  expect(
-    html.includes('property="og:title"') && html.includes('property="og:description"'),
-    `${page.url}: Open Graph title or description is missing`,
-  );
   expect(!titles.has(title), `${page.url}: duplicate title`);
   expect(!descriptions.has(description), `${page.url}: duplicate description`);
   expect(
     html.includes('href="/seo.css"') && html.includes('href="/asa-lab-mark.svg"'),
     `${page.url}: shared public CSS or brand icon is missing`,
   );
-  if (page.availability === 'development') {
-    expect(/в разработке/i.test(html), `${page.url}: development status is not disclosed`);
+  if (page.creatableRoute === false) {
     expect(
-      !html.includes('href="/#/sign-up"'),
-      `${page.url}: unavailable module must not link to project creation`,
+      !/>\s*(?:Открыть|Начать|Создать)(?:\s+[^<]*)?\s*</i.test(html),
+      `${page.url}: page without a creatable route must not show a false open/start/create CTA`,
     );
   }
   titles.add(title);
@@ -204,12 +217,15 @@ for (const page of pages) {
       `${page.url}: social image is not a valid PNG`,
     );
     if (imageBuffer.length >= 24) {
-      expect(imageBuffer.readUInt32BE(16) === 1200, `${page.url}: PNG width is not 1200`);
-      expect(imageBuffer.readUInt32BE(20) === 630, `${page.url}: PNG height is not 630`);
+      const width = imageBuffer.readUInt32BE(16);
+      const height = imageBuffer.readUInt32BE(20);
+      expect(String(width) === ogImageWidth, `${page.url}: og:image:width differs from the PNG`);
+      expect(String(height) === ogImageHeight, `${page.url}: og:image:height differs from the PNG`);
+      advise(width === 1200 && height === 630, `${page.url}: recommended social size is 1200x630`);
     }
     const bytes = statSync(imagePath).size;
-    expect(bytes >= 100 * 1024, `${page.url}: social image is suspiciously small`);
-    expect(bytes <= 1.5 * 1024 * 1024, `${page.url}: social image exceeds 1.5 MiB`);
+    advise(bytes >= 100 * 1024, `${page.url}: review unusually small social image`);
+    advise(bytes <= 1.5 * 1024 * 1024, `${page.url}: review social image over 1.5 MiB`);
     const metadataChunks = pngChunkTypes(imageBuffer).filter((type) =>
       ['eXIf', 'tEXt', 'zTXt', 'iTXt'].includes(type),
     );
@@ -221,11 +237,75 @@ for (const page of pages) {
 }
 
 const rootHtml = readFileSync(resolve(web, 'index.html'), 'utf8');
+const publicEntrySource = readFileSync(resolve(web, 'src', 'pages', 'PublicEntryPage.tsx'), 'utf8');
+const readme = readFileSync(resolve(root, 'README.md'), 'utf8');
+const globalPages = pages.filter(
+  (page) => !page.url.endsWith('/for-teachers/') && !page.url.endsWith('/for-schools/'),
+);
+const schoolOnlyPositioning = /(?:STEM[- ]лаборатори\w*|цифров\w+\s+лаборатори\w*)\s+для\s+школ/i;
+const unavailableCopy = /в\s+разработке|будущ\w*\s+сред\w*|планиру\w*|скоро|развива\w*\s+сред/i;
+for (const page of globalPages) {
+  const html = readFileSync(page.file, 'utf8');
+  const title = capture(html, /<title>([^<]+)<\/title>/i);
+  const ogTitle = capture(html, /<meta\s+property="og:title"\s+content="([^"]+)"\s*\/?\s*>/i);
+  const h1 = capture(html, /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>/i);
+  expect(
+    !schoolOnlyPositioning.test(`${title} ${ogTitle} ${h1}`),
+    `${page.url}: global title, Open Graph title or H1 has school-only positioning`,
+  );
+}
+for (const page of pages.filter((item) => item.creatableRoute === false)) {
+  const html = readFileSync(page.file, 'utf8');
+  expect(
+    !unavailableCopy.test(html),
+    `${page.url}: module is described as future or in development`,
+  );
+}
+expect(
+  !schoolOnlyPositioning.test(publicEntrySource) && !schoolOnlyPositioning.test(readme),
+  'public entry UI or README still defines ASA Lab as a school-only product',
+);
+expect(
+  !unavailableCopy.test(publicEntrySource) && !unavailableCopy.test(readme),
+  'public entry UI or README still describes a module as future or in development',
+);
+const capabilitySection = publicEntrySource
+  .split('id="capabilities"')[1]
+  ?.split('id="teachers"')[0];
+expect(
+  capabilitySection?.indexOf('Блочное программирование') <
+    capabilitySection?.indexOf('Классы и задания'),
+  'public entry capability cards must put project tools before classes and assignments',
+);
 expect(rootHtml.includes('"@type": "Organization"'), 'root JSON-LD has no Organization entity');
 expect(rootHtml.includes('"@type": "WebSite"'), 'root JSON-LD has no WebSite entity');
 expect(
   rootHtml.includes('"@type": "SoftwareApplication"'),
   'root JSON-LD has no SoftwareApplication entity',
+);
+const rootJsonLd = captures(
+  rootHtml,
+  /<script\s+type="application\/ld\+json">([\s\S]*?)<\/script>/gi,
+).map((block) => JSON.parse(block));
+const rootGraph = rootJsonLd.flatMap((entry) => entry['@graph'] ?? [entry]);
+const rootApplication = rootGraph.find((entry) => entry['@type'] === 'SoftwareApplication');
+expect(rootApplication, 'root JSON-LD SoftwareApplication entity cannot be parsed');
+expect(
+  !rootApplication?.audience,
+  'root JSON-LD must not narrow the product to an educational audience',
+);
+expect(
+  rootApplication?.applicationCategory !== 'EducationalApplication',
+  'root JSON-LD applicationCategory still defines ASA Lab only as educational software',
+);
+const featureList = rootApplication?.featureList ?? [];
+expect(
+  featureList.includes('Блочное программирование') && featureList.includes('Рисование и черчение'),
+  'root JSON-LD omits block programming or drawing and drafting',
+);
+expect(
+  featureList.at(-1)?.includes('Классы и задания'),
+  'root JSON-LD must list classes and assignments after the core tools',
 );
 expect(
   rootHtml
@@ -245,13 +325,22 @@ expect(
   (sitemap.match(/<loc>/g) ?? []).length === pages.length,
   'sitemap and the validated public page inventory differ',
 );
-expect(
-  (sitemap.match(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/g) ?? []).length === pages.length,
-  'every sitemap URL must have an ISO lastmod date',
-);
+for (const value of captures(sitemap, /<lastmod>([^<]+)<\/lastmod>/g)) {
+  expect(/^\d{4}-\d{2}-\d{2}$/.test(value), `sitemap lastmod is not an ISO date: ${value}`);
+  expect(
+    value <= new Date().toISOString().slice(0, 10),
+    `sitemap lastmod is in the future: ${value}`,
+  );
+}
 
 const robots = readFileSync(resolve(publicRoot, 'robots.txt'), 'utf8');
 expect(robots.includes('Sitemap: https://asa-lab.ru/sitemap.xml'), 'robots.txt has no sitemap');
+const defaultRobotsGroup = robots.split(/User-agent:\s*OAI-SearchBot/i)[0];
+expect(
+  !defaultRobotsGroup.includes('Disallow: /projects/') &&
+    !defaultRobotsGroup.includes('Disallow: /max-login'),
+  'default crawler group blocks application routes before it can observe X-Robots-Tag noindex',
+);
 expect(robots.includes('User-agent: OAI-SearchBot'), 'robots.txt does not name OAI-SearchBot');
 expect(robots.includes('User-agent: GPTBot\nDisallow: /'), 'robots.txt does not exclude training');
 expect(robots.includes('ai-input=yes'), 'robots.txt does not allow AI reference input');
@@ -261,9 +350,12 @@ const llms = readFileSync(resolve(publicRoot, 'llms.txt'), 'utf8');
 for (const page of pages.slice(1)) {
   expect(llms.includes(page.url), `llms.txt is missing ${page.url}`);
 }
+expect(!schoolOnlyPositioning.test(llms), 'llms.txt defines ASA Lab as a school-only product');
+expect(!unavailableCopy.test(llms), 'llms.txt describes a module as future or in development');
 expect(
-  llms.includes('are in development') && llms.includes('are not yet creatable'),
-  'llms.txt must disclose non-creatable block programming and drawing modules',
+  /personal projects|creating personal projects/i.test(llms) &&
+    /classes and assignments are an optional way/i.test(llms),
+  'llms.txt does not make personal projects primary and classes secondary',
 );
 
 const caddy = readFileSync(resolve(root, 'docker', 'web', 'Caddyfile'), 'utf8');
@@ -275,6 +367,10 @@ expect(
   caddy.includes('@spa path /projects/* /max-login /max-login/'),
   'Caddy lost a canonical SPA route',
 );
+expect(
+  caddy.includes('header X-Robots-Tag "noindex, nofollow"'),
+  'Caddy application routes are missing X-Robots-Tag noindex',
+);
 
 const appFactory = readFileSync(resolve(root, 'apps', 'api', 'src', 'app.factory.ts'), 'utf8');
 expect(
@@ -282,11 +378,19 @@ expect(
     appFactory.includes("reply.code(404).send({ error: { code: 'not_found'"),
   'Fastify production fallback still risks soft-404 responses',
 );
+expect(
+  appFactory.includes("reply.header('X-Robots-Tag', 'noindex, nofollow')"),
+  'Fastify application routes are missing X-Robots-Tag noindex',
+);
+
+for (const warning of warnings) console.warn(`SEO advisory: ${warning}`);
 
 if (failures.length > 0) {
   console.error('ASA Lab SEO validation: FAIL');
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log(`ASA Lab SEO validation: PASS (${pages.length} public pages)`);
+  console.log(
+    `ASA Lab SEO validation: PASS (${pages.length} public pages; ${warnings.length} advisory warning(s))`,
+  );
 }

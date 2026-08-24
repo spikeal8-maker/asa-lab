@@ -32,6 +32,7 @@
 	handle @spa {
 		root * /srv
 		rewrite * /index.html
+		header X-Robots-Tag "noindex, nofollow"
 		# The entry document names the hashed chunks, so holding it would point
 		# visitors at files the next deploy has already replaced.
 		header Cache-Control "no-cache"
