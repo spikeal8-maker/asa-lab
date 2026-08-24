@@ -210,7 +210,9 @@ export function WorkbenchSidebars({
                     data-catalog-tier={family.catalogTier}
                     data-selected-variant={selectedVariant.variantId}
                   >
-                    {family.enabled && family.simulationStatus === 'not_yet_supported' ? (
+                    {family.enabled &&
+                    family.simulationStatus === 'not_yet_supported' &&
+                    selectedVariant.entry.blockReason ? (
                       <span
                         className="workbench-catalog-model-warning"
                         role="img"

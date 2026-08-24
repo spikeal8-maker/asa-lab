@@ -363,11 +363,10 @@ export function WorkbenchStage({
     .filter((component) => component.kind !== 'wire')
     .map((component) => {
       const entry = catalogEntry(component);
-      if (!entry?.asset || !entry.terminals || entry.simulationSupported) return null;
+      if (!entry?.asset || !entry.terminals || entry.simulationSupported || !entry.blockReason)
+        return null;
       const baseSize = renderedSize(entry, 0);
-      const warningText =
-        entry.blockReason ??
-        'Компонент можно размещать и соединять, но его математическая модель ещё не готова.';
+      const warningText = entry.blockReason;
       return (
         <g
           key={`unsupported:${component.id}`}

@@ -205,7 +205,7 @@ function SchematicView({
                   name: component.name ?? entry?.label ?? component.kind,
                 }}
               />
-              {entry?.asset && !entry.simulationSupported ? (
+              {entry?.asset && !entry.simulationSupported && entry.blockReason ? (
                 <g
                   className="workbench-schematic-model-warning"
                   transform="translate(78 -7)"
