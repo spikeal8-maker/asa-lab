@@ -260,10 +260,10 @@ export function ShapeLibrary({
               beginDrag(event, primitive, 'solid');
               onDragStateChange({ primitive, operation: 'solid' });
             }}
-              onDragEnd={() => onDragStateChange(null)}
-              onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
-              aria-label={label}
-              title={`Добавить: ${label}`}
+            onDragEnd={() => onDragStateChange(null)}
+            onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
+            aria-label={label}
+            title={`Добавить: ${label}`}
           >
             <ShapeThumbnail primitive={primitive} color={color} />
             <small>{label}</small>
