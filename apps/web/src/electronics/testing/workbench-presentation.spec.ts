@@ -301,4 +301,21 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(editorSource).toContain('<th>Количество</th>');
     expect(editorSource).toContain('<th>Компонент</th>');
   });
+
+  it('provides a real phone workbench with a bottom component sheet and touch targets', () => {
+    expect(workbenchCss).toContain('@media (max-width: 760px)');
+    expect(workbenchCss).toContain('--wb-library-open-height: min(44dvh, 360px)');
+    expect(workbenchCss).toContain('.workbench-library-handle-label');
+    expect(workbenchCss).toMatch(
+      /@media \(max-width: 760px\)[\s\S]*?\.workbench-library,[\s\S]*?\.workbench-library\.collapsed\s*\{[\s\S]*?bottom:\s*0;[\s\S]*?width:\s*100%;/,
+    );
+    expect(workbenchCss).toMatch(
+      /@media \(max-width: 760px\)[\s\S]*?\.workbench-stage,[\s\S]*?right:\s*0;/,
+    );
+    expect(sidebarSource).toContain("c.libraryOpen ? 'Скрыть компоненты' : 'Компоненты'");
+    expect(controllerModuleSource).toContain("window.matchMedia?.('(max-width: 760px)')");
+    expect(controllerModuleSource).toContain('Компонент выбран. Коснитесь места на рабочем поле');
+    expect(stageSource).toContain('coarseInteraction ? 14 : 8');
+    expect(stageSource).toContain('coarseInteraction ? 10 : 5');
+  });
 });

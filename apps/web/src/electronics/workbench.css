@@ -3686,3 +3686,322 @@ html.arduino-palette-resizing * {
   filter: drop-shadow(0 6px 14px rgba(20, 40, 60, 0.35));
   transform-origin: center;
 }
+
+/* Phone workbench: the circuit is the primary surface and the parts shelf is a
+   bottom sheet. A phone must never inherit the desktop's 980px-wide canvas or
+   require horizontal page scrolling just to reach the library. */
+.workbench-library-handle-label {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .workbench-shell {
+    --wb-header-height: 52px;
+    --wb-toolbar-height: 52px;
+    --wb-library-width: 0px;
+    --wb-library-open-height: min(44dvh, 360px);
+    --wb-library-closed-height: calc(54px + env(safe-area-inset-bottom));
+    min-width: 0;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .workbench-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: var(--wb-header-height);
+  }
+  .workbench-brand-zone {
+    min-width: 0;
+  }
+  .workbench-brand {
+    flex: 0 0 44px;
+    width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  .workbench-brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .workbench-brand-name,
+  .workbench-save-state {
+    display: none;
+  }
+  .workbench-title-input {
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    width: min(38vw, 150px);
+    min-width: 0;
+    height: 36px;
+    margin: 0 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .workbench-mode-buttons {
+    gap: 1px;
+    padding: 0 3px 0 0;
+  }
+  .workbench-mode-buttons > button {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 19px;
+  }
+  .workbench-mode-buttons > button span {
+    display: none;
+  }
+  .workbench-mode-buttons svg {
+    width: 21px;
+    height: 21px;
+  }
+  .workbench-avatar {
+    position: static;
+    width: 34px;
+    height: 34px;
+    margin: 0 2px;
+  }
+
+  .workbench-toolbar {
+    height: var(--wb-toolbar-height);
+    min-width: 0;
+    overflow: hidden;
+  }
+  .workbench-toolbar-group:not(.right) {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .workbench-toolbar-group:not(.right)::-webkit-scrollbar {
+    display: none;
+  }
+  .workbench-tool {
+    flex: 0 0 46px;
+    width: 46px;
+    height: 52px;
+  }
+  .workbench-toolbar-gap,
+  .workbench-toolbar-divider {
+    height: 52px;
+  }
+  .workbench-toolbar-spacer,
+  .workbench-simulation-time {
+    display: none;
+  }
+  .workbench-toolbar-group.right {
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 0 5px;
+    background: #fff;
+    box-shadow: -6px 0 10px rgba(44, 61, 73, 0.08);
+  }
+  .workbench-toolbar-group.right .workbench-pill:first-child,
+  .workbench-toolbar-group.right .workbench-pill.simulate {
+    width: 44px;
+    min-width: 44px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0;
+    line-height: 1;
+  }
+  .workbench-toolbar-group.right .workbench-pill:first-child svg,
+  .workbench-toolbar-group.right .workbench-pill.simulate svg {
+    width: 21px;
+    height: 21px;
+    margin: 0;
+  }
+  .workbench-toolbar-group.right .workbench-pill:last-child {
+    display: none;
+  }
+
+  .workbench-main {
+    height: calc(100dvh - var(--wb-header-height) - var(--wb-toolbar-height));
+  }
+  .workbench-stage,
+  .workbench-alternate-view {
+    inset: 0 0 var(--wb-library-closed-height) 0;
+    min-width: 0;
+    transition: bottom 180ms ease;
+  }
+  .workbench-shell:not(.library-collapsed) .workbench-stage,
+  .workbench-shell:not(.library-collapsed) .workbench-alternate-view {
+    bottom: var(--wb-library-open-height);
+  }
+  .workbench-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .workbench-library,
+  .workbench-library.collapsed {
+    position: absolute;
+    z-index: 40;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--wb-library-open-height);
+    padding-bottom: env(safe-area-inset-bottom);
+    border: 0;
+    border-top: 1px solid #cfd6dc;
+    border-radius: 14px 14px 0 0;
+    background: #e6e7eb;
+    box-shadow: 0 -8px 24px rgba(27, 42, 53, 0.16);
+    transition: height 180ms ease;
+  }
+  .workbench-library.collapsed {
+    height: var(--wb-library-closed-height);
+    background: #fff;
+  }
+  .workbench-library-collapse {
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 154px;
+    height: 34px;
+    border: 1px solid #cbd4da;
+    border-radius: 18px;
+    color: #314b5c;
+    font-size: 13px;
+    font-weight: 650;
+    box-shadow: 0 -3px 12px rgba(34, 49, 59, 0.12);
+  }
+  .workbench-library-collapse svg {
+    width: 18px;
+    height: 18px;
+  }
+  .workbench-library-handle-label {
+    display: inline;
+    white-space: nowrap;
+  }
+  .workbench-library-heading {
+    min-height: 52px;
+    padding-top: 8px;
+    border-radius: 14px 14px 0 0;
+  }
+  .workbench-library-heading > div {
+    padding: 7px 12px;
+  }
+  .workbench-library-search {
+    margin: 7px 10px;
+  }
+  .workbench-library-search input {
+    height: 40px;
+  }
+  .workbench-catalog-grid,
+  .workbench-catalog-grid.list-view {
+    box-sizing: border-box;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 8px;
+    height: calc(100% - 106px);
+    padding: 4px 10px calc(14px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .workbench-catalog-card,
+  .workbench-catalog-grid.list-view .workbench-catalog-card {
+    width: 100%;
+    height: 104px;
+    min-height: 104px;
+    touch-action: none;
+  }
+  .workbench-catalog-add,
+  .workbench-catalog-grid.list-view .workbench-catalog-add {
+    grid-template-columns: 1fr;
+    grid-template-rows: 70px 28px;
+    justify-items: center;
+    gap: 0;
+    padding: 3px 4px;
+    text-align: center;
+  }
+  .workbench-catalog-art,
+  .workbench-catalog-grid.list-view .workbench-catalog-art {
+    width: 100%;
+    height: 68px;
+  }
+  .workbench-variant-popover,
+  .workbench-catalog-card:nth-child(3n + 2) .workbench-variant-popover,
+  .workbench-catalog-card:nth-child(3n) .workbench-variant-popover {
+    position: fixed;
+    z-index: 95;
+    top: auto;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    width: auto;
+    max-height: min(52dvh, 420px);
+    overflow-y: auto;
+    transform: none;
+  }
+
+  .workbench-shell:not(.library-collapsed) .workbench-inspector {
+    display: none;
+  }
+  .workbench-inspector,
+  .workbench-inspector.library-hidden {
+    position: absolute;
+    z-index: 35;
+    top: auto;
+    right: 8px;
+    bottom: calc(var(--wb-library-closed-height) + 8px);
+    left: 8px;
+    box-sizing: border-box;
+    width: auto;
+    max-height: min(43dvh, 390px);
+    overflow-y: auto;
+    border-radius: 10px;
+  }
+  .workbench-inspector-heading {
+    min-height: 44px;
+  }
+  .workbench-inspector-heading button,
+  .workbench-inspector-actions button {
+    min-height: 44px;
+  }
+  .workbench-inspector-body > label,
+  .workbench-state-controls label {
+    min-height: 44px;
+  }
+  .workbench-inspector-body input,
+  .workbench-inspector-body select {
+    min-height: 40px;
+    font-size: 16px;
+  }
+
+  .workbench-utility-panel {
+    top: auto;
+    right: 8px;
+    bottom: calc(var(--wb-library-closed-height) + 8px);
+    left: 8px;
+    width: auto;
+    max-height: 55dvh;
+    border-radius: 10px;
+  }
+  .workbench-stage-controls {
+    left: 7px;
+    top: 7px;
+  }
+  .workbench-stage-controls button {
+    width: 42px;
+    height: 42px;
+  }
+  .workbench-wire-hit {
+    stroke-width: 30;
+  }
+  .workbench-wire-segment-hit {
+    stroke-width: 24;
+  }
+}

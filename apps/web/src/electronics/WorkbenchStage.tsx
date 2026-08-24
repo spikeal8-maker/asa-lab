@@ -128,6 +128,9 @@ export function WorkbenchStage({
   showGrid: boolean;
 }): JSX.Element {
   const document = c.document!;
+  const coarseInteraction =
+    (globalThis.matchMedia?.('(pointer: coarse)').matches ?? false) ||
+    (typeof window !== 'undefined' && window.innerWidth <= 760);
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<{
     boardId: string;
     groupId: string;
@@ -623,7 +626,7 @@ export function WorkbenchStage({
                               className="workbench-breadboard-hole-hit"
                               cx={point.x}
                               cy={point.y}
-                              r="5"
+                              r={(coarseInteraction ? 10 : 5) / c.viewport.zoom}
                               data-terminal-component-id={component.id}
                               data-terminal-id={hole.id}
                               role="button"
@@ -695,7 +698,7 @@ export function WorkbenchStage({
                     >
                       <circle
                         className="workbench-terminal-hit"
-                        r={8 / c.viewport.zoom}
+                        r={(coarseInteraction ? 14 : 8) / c.viewport.zoom}
                         data-terminal-component-id={component.id}
                         data-terminal-id={terminal}
                         onPointerDown={(e) => e.stopPropagation()}
