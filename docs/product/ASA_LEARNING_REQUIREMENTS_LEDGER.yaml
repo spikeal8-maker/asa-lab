@@ -12,7 +12,7 @@ status_values:
 requirements:
 - id: DB-000
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Prove existing contracts cannot safely satisfy required semantics before adding a table
   evidence:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
@@ -35,7 +35,7 @@ requirements:
   - E2E-016
 - id: IDN-002
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Audit existing Identity/Classroom model before creating a new learner identity
     table
   evidence:

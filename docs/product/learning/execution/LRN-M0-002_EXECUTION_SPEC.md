@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-002`
 **Milestone:** `M0`
-**Status:** READY FOR OWNER ACCEPTANCE — decision drafted; runtime unimplemented
+**Status:** DONE — architecture decision accepted; runtime remains unimplemented
 **Baseline SHA:** `6866e05d441e3f5e57e5b3125cd8470f1ccddaaa`
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
 **Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`
@@ -157,7 +157,7 @@ school, Account and StudentSeat links.
 - [x] OpenAPI N/A
 - [x] browser N/A
 - [x] governance/documentation gates pass
-- [x] ledger remains in progress until ADR acceptance; runtime is not implemented
+- [x] ledger proves DB-000/IDN-002 after ADR acceptance; runtime requirements remain in progress
 
 ## 22. Evidence
 

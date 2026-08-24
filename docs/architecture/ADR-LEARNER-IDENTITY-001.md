@@ -1,6 +1,6 @@
 # ADR-LEARNER-IDENTITY-001: school-scoped stable learner mapping
 
-**Статус:** proposed
+**Статус:** accepted
 **Дата:** 2026-08-24
 **Владелец:** ASA Lab owner
 **Task:** `LRN-M0-002`
@@ -303,7 +303,7 @@ sufficient.
 
 ## Проверка решения
 
-This architecture-only decision is ready for acceptance when:
+This architecture-only decision is accepted because:
 
 - CURRENT candidate matrix is evidence-backed and selects only B;
 - stable key and school/multi-school rules are exact;
