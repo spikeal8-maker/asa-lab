@@ -21,6 +21,13 @@ interface ProjectedTriangle {
   readonly points: readonly [ProjectedPoint, ProjectedPoint, ProjectedPoint];
 }
 
+interface ProjectedBounds {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
 const WIDTH = 92;
 const HEIGHT = 70;
 const KEY_POSITION = new THREE.Vector3(-3.2, 5.5, 4.2);
@@ -130,18 +137,64 @@ function drawTrianglePath(context: CanvasRenderingContext2D, triangle: Projected
   context.closePath();
 }
 
-function drawShadow(context: CanvasRenderingContext2D): void {
+function fitTriangles(triangles: readonly ProjectedTriangle[]): {
+  readonly triangles: ProjectedTriangle[];
+  readonly bounds: ProjectedBounds;
+} {
+  const points = triangles.flatMap((triangle) => triangle.points);
+  if (points.length === 0) {
+    return { triangles: [], bounds: { left: 6, top: 6, right: WIDTH - 6, bottom: HEIGHT - 6 } };
+  }
+  const source = {
+    left: Math.min(...points.map((point) => point.x)),
+    top: Math.min(...points.map((point) => point.y)),
+    right: Math.max(...points.map((point) => point.x)),
+    bottom: Math.max(...points.map((point) => point.y)),
+  };
+  const sourceWidth = Math.max(0.001, source.right - source.left);
+  const sourceHeight = Math.max(0.001, source.bottom - source.top);
+  const target = { left: 4, top: 3, right: WIDTH - 4, bottom: HEIGHT - 5 };
+  const scale = Math.min(
+    (target.right - target.left) / sourceWidth,
+    (target.bottom - target.top) / sourceHeight,
+  );
+  const offsetX = WIDTH / 2 - ((source.left + source.right) / 2) * scale;
+  const offsetY = (target.top + target.bottom) / 2 - ((source.top + source.bottom) / 2) * scale;
+  const transform = (point: ProjectedPoint): ProjectedPoint => ({
+    x: point.x * scale + offsetX,
+    y: point.y * scale + offsetY,
+  });
+  const fitted = triangles.map((triangle) => ({
+    ...triangle,
+    points: triangle.points.map(transform) as [ProjectedPoint, ProjectedPoint, ProjectedPoint],
+  }));
+  const fittedPoints = fitted.flatMap((triangle) => triangle.points);
+  return {
+    triangles: fitted,
+    bounds: {
+      left: Math.min(...fittedPoints.map((point) => point.x)),
+      top: Math.min(...fittedPoints.map((point) => point.y)),
+      right: Math.max(...fittedPoints.map((point) => point.x)),
+      bottom: Math.max(...fittedPoints.map((point) => point.y)),
+    },
+  };
+}
+
+function drawShadow(context: CanvasRenderingContext2D, bounds: ProjectedBounds): void {
+  const width = Math.max(12, bounds.right - bounds.left);
+  const centreX = (bounds.left + bounds.right) / 2 + width * 0.12;
+  const centreY = Math.min(HEIGHT - 3, bounds.bottom + 1);
   context.save();
   context.filter = 'blur(3px)';
   context.fillStyle = 'rgba(42, 61, 69, 0.2)';
   context.beginPath();
-  context.ellipse(59, 57, 20, 5.2, -0.08, 0, Math.PI * 2);
+  context.ellipse(centreX, centreY, width * 0.28, 4.2, -0.08, 0, Math.PI * 2);
   context.fill();
   context.restore();
 
   context.fillStyle = 'rgba(42, 61, 69, 0.12)';
   context.beginPath();
-  context.ellipse(49, 54, 12, 3.2, 0, 0, Math.PI * 2);
+  context.ellipse(centreX - width * 0.08, centreY - 1, width * 0.17, 2.5, 0, 0, Math.PI * 2);
   context.fill();
 }
 
@@ -153,7 +206,7 @@ function previewModelMatrix(primitive: PrimitiveKind): THREE.Matrix4 {
       : primitive === 'half-sphere' || primitive === 'round-roof'
         ? 0.5
         : primitive === 'roof'
-          ? 15 / 20
+          ? 12 / 20
           : primitive === 'text'
             ? 0.2
             : primitive === 'star'
@@ -184,8 +237,6 @@ function renderThumbnail(
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   context.clearRect(0, 0, WIDTH, HEIGHT);
   context.lineJoin = 'round';
-  drawShadow(context);
-
   const camera = new THREE.OrthographicCamera(-0.95, 0.95, 0.85, -0.85, 0.1, 20);
   camera.position.set(2.65, 2.2, 3.05);
   camera.lookAt(0, 0, 0);
@@ -194,7 +245,8 @@ function renderThumbnail(
 
   const modelMatrix = previewModelMatrix(primitive);
   const geometry = createPrimitiveGeometryForKind(primitive, 48);
-  const triangles = collectTriangles(geometry, camera, modelMatrix, color);
+  const fitted = fitTriangles(collectTriangles(geometry, camera, modelMatrix, color));
+  drawShadow(context, fitted.bounds);
   const stripeCanvas = globalThis.document.createElement('canvas');
   stripeCanvas.width = 12;
   stripeCanvas.height = 12;
@@ -212,7 +264,7 @@ function renderThumbnail(
     stripeContext.stroke();
   }
   const stripePattern = context.createPattern(stripeCanvas, 'repeat');
-  for (const triangle of triangles) {
+  for (const triangle of fitted.triangles) {
     context.fillStyle = operation === 'hole' && stripePattern ? stripePattern : triangle.color;
     context.strokeStyle = operation === 'hole' ? '#a5b0b6' : triangle.color;
     context.lineWidth = 1.1;

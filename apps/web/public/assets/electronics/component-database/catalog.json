@@ -102,10 +102,17 @@
     },
     {
       "componentId": "multimeter",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/multimeter.svg",
-      "sha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "multimeter_strict_path_only.svg",
+      "sha256": "962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
+    },
+    {
+      "componentId": "oscilloscope",
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "осциллограф_компонент_без_подложки.svg",
+      "sha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "photoresistor",
@@ -130,10 +137,10 @@
     },
     {
       "componentId": "regulated-power-supply",
-      "sourceArchive": "reference-lab-zip",
-      "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/regulated-power-supply.svg",
-      "sha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "ownerDecision": "approved_exact_owner_svg_for_runtime"
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "reg_power_supply.svg",
+      "sha256": "869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "resistor-axial",
@@ -148,6 +155,13 @@
       "sourceFile": "Electro-venik-reference-lab/visual-canon-lab/svg/servo-motor.svg",
       "sha256": "52e1c9ca3f926b76c4795855eafcacd37a71df73d4cee3112a150a663d523bd3",
       "ownerDecision": "approved_exact_owner_svg_for_runtime"
+    },
+    {
+      "componentId": "signal-generator",
+      "sourceArchive": "owner-direct-upload-2026-08-24",
+      "sourceFile": "генератор_сигналов.svg",
+      "sha256": "9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196",
+      "ownerDecision": "approved_owner_supplied_svg_for_runtime"
     },
     {
       "componentId": "transistor-npn",
@@ -17165,80 +17179,19 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "battery-1.5v",
-      "familyId": "battery",
-      "familyLabelRu": "Батарея",
-      "familyLabelEn": "Батарея",
-      "variantId": "battery-1.5v",
-      "variantLabelRu": "1,5 В",
-      "variantLabelEn": "1,5 В",
-      "category": "power",
-      "subcategoryId": "batteries",
-      "catalogOrder": 7.1,
-      "appearsInBasic": true,
-      "searchAliases": ["battery-1.5v", "Батарея", "1,5 В"],
-      "displayNameEn": "battery-1.5v",
-      "provenance": "owner_supplied",
-      "physicalWidthMm": 23.524,
-      "physicalHeightMm": 66.87,
-      "viewBox": [0, 0, 23.524, 66.87],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 8.2334,
-          "yMm": 0,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 15.2906,
-          "yMm": 0,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [
-        {
-          "driver": "none",
-          "decorativeLoop": false,
-          "channels": []
-        }
-      ],
-      "stateContract": {
-        "type": "dc_source",
-        "polarity": ["positive", "negative"]
-      },
-      "simulationSupport": "existing_model",
-      "blockReason": null,
-      "catalogTier": "core",
-      "isDefaultVariant": false,
-      "displayName": "Батарея 1,5 В",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/svg/батарея 1,5 вольт.svg",
-      "sourceSha256": "4d7ef90203ffa9b70f9a21a87d216dff9cfdd3591d8750973b58c4b52874aeb0",
-      "runtimePath": "/assets/electronics/component-database/components/battery/battery-1.5v/component.svg",
-      "runtimeSha256": "4d7ef90203ffa9b70f9a21a87d216dff9cfdd3591d8750973b58c4b52874aeb0",
-      "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
-    },
-    {
       "componentId": "battery-3v",
       "familyId": "battery",
-      "familyLabelRu": "Батарея",
-      "familyLabelEn": "Батарея",
+      "familyLabelRu": "Батарея 3 В",
+      "familyLabelEn": "3 V battery",
       "variantId": "battery-3v",
-      "variantLabelRu": "CR2032, 3 В",
-      "variantLabelEn": "CR2032, 3 V",
+      "variantLabelRu": "3 В",
+      "variantLabelEn": "3 V",
       "category": "power",
       "subcategoryId": "batteries",
       "catalogOrder": 7.2,
       "appearsInBasic": true,
-      "searchAliases": ["battery-3v", "Батарея", "3 В", "CR2032", "кнопочная батарея", "coin cell"],
-      "displayNameEn": "CR2032 coin battery 3 V",
+      "searchAliases": ["battery-3v", "Батарея", "3 В"],
+      "displayNameEn": "3 V battery",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 24,
       "physicalHeightMm": 28.6,
@@ -17277,73 +17230,12 @@
       "blockReason": null,
       "catalogTier": "core",
       "isDefaultVariant": false,
-      "displayName": "Кнопочная батарея CR2032 3 В",
+      "displayName": "Батарея 3 В",
       "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
       "sourceOwnerPath": "cr2032_coin_battery_holder.svg",
       "sourceSha256": "e4407e650802233542cf810d02f341934ff231f19a7e4e1aa43b4de1591687e5",
       "runtimePath": "/assets/electronics/component-database/components/power/battery-3v/component.svg",
       "runtimeSha256": "e4407e650802233542cf810d02f341934ff231f19a7e4e1aa43b4de1591687e5",
-      "status": "enabled",
-      "previousInventoryClassification": "exact_owner_svg"
-    },
-    {
-      "componentId": "battery-6v",
-      "familyId": "battery",
-      "familyLabelRu": "Батарея",
-      "familyLabelEn": "Батарея",
-      "variantId": "battery-6v",
-      "variantLabelRu": "6 В",
-      "variantLabelEn": "6 В",
-      "category": "power",
-      "subcategoryId": "batteries",
-      "catalogOrder": 7.3,
-      "appearsInBasic": true,
-      "searchAliases": ["battery-6v", "Батарея", "6 В"],
-      "displayNameEn": "battery-6v",
-      "provenance": "owner_supplied",
-      "physicalWidthMm": 68.507,
-      "physicalHeightMm": 65.043,
-      "viewBox": [0, 0, 68.507, 65.043],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 28.7729,
-          "yMm": 0,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 39.7341,
-          "yMm": 0,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [
-        {
-          "driver": "none",
-          "decorativeLoop": false,
-          "channels": []
-        }
-      ],
-      "stateContract": {
-        "type": "dc_source",
-        "polarity": ["positive", "negative"]
-      },
-      "simulationSupport": "existing_model",
-      "blockReason": null,
-      "catalogTier": "core",
-      "isDefaultVariant": false,
-      "displayName": "Батарея 6 В",
-      "sourceOwnerArchive": "components-zip",
-      "sourceOwnerPath": "Компоненты/svg/батарея 6 вольт.svg",
-      "sourceSha256": "5ce973b1623801c15589039f4c0eb4bf6f940b957ab1767777fe73d271bc5d9a",
-      "runtimePath": "/assets/electronics/component-database/components/battery/battery-6v/component.svg",
-      "runtimeSha256": "5ce973b1623801c15589039f4c0eb4bf6f940b957ab1767777fe73d271bc5d9a",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
     },
@@ -29640,44 +29532,8 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "regulated-power-supply",
-      "familyId": "regulated-power-supply",
-      "familyLabelRu": "Регулируемый источник питания",
-      "familyLabelEn": "Regulated power supply",
-      "variantId": "regulated-power-supply",
-      "variantLabelRu": "Лабораторный",
-      "variantLabelEn": "Regulated power supply",
-      "category": "power",
-      "subcategoryId": "power-supplies",
-      "catalogOrder": 25,
       "appearsInBasic": false,
-      "searchAliases": [
-        "regulated-power-supply",
-        "Регулируемый источник питания",
-        "Regulated power supply"
-      ],
-      "displayNameEn": "Regulated power supply",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 28.667,
-      "physicalHeightMm": 22.8,
-      "viewBox": [0, 0, 28.667, 22.8],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 15.4203,
-          "yMm": 18.6812,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 13.2206,
-          "yMm": 18.718,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
+      "provenance": "owner_supplied",
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -29687,27 +29543,59 @@
           "channels": []
         }
       ],
-      "stateContract": {
-        "type": "power_supply",
-        "voltage": [0, 30],
-        "currentLimit": [0, 5]
-      },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
       "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
       },
       "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "regulated-power-supply",
+      "familyId": "regulated-power-supply",
+      "familyLabelRu": "Регулируемый источник питания",
+      "familyLabelEn": "Regulated power supply",
+      "variantId": "regulated-power-supply",
+      "variantLabelRu": "Лабораторный",
+      "variantLabelEn": "Laboratory",
+      "category": "power",
+      "subcategoryId": "power-supplies",
+      "catalogOrder": 25,
+      "searchAliases": ["regulated-power-supply", "регулируемый источник питания", "блок питания"],
       "displayName": "Регулируемый источник питания",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/regulated-power-supply.svg",
-      "sourceSha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/regulated-power-supply.svg",
-      "runtimeSha256": "dbef02c4c6d6e818d902f7c1467e11d5fb01fdbf52509b8a0a6afa9da3f6c2d6",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "displayNameEn": "Regulated power supply",
+      "physicalWidthMm": 29.4,
+      "physicalHeightMm": 23.7,
+      "viewBox": [0, 0, 294, 237],
+      "pins": [
+        {
+          "id": "positive",
+          "xMm": 13.35,
+          "yMm": 21.45,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "negative",
+          "xMm": 16,
+          "yMm": 21.45,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": null,
+      "stateContract": {
+        "type": "adjustable_power_supply",
+        "voltageRange": [0, 30],
+        "currentRange": [0, 5]
+      },
+      "sourceOwnerPath": "reg_power_supply.svg",
+      "sourceSha256": "869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b",
+      "runtimePath": "/assets/electronics/component-database/components/power/regulated-power-supply/component.svg",
+      "runtimeSha256": "869a2535a195f531af6eeb2ed4c0ae2cf3c6a41411319c6e141ce549642bfe6b"
     },
     {
       "componentId": "photoresistor",
@@ -30594,6 +30482,7 @@
       "subcategoryId": "meters",
       "catalogOrder": 29,
       "searchAliases": ["multimeter", "мультиметр", "тестер"],
+      "displayName": "Мультиметр",
       "displayNameEn": "Multimeter",
       "physicalWidthMm": 44.59,
       "physicalHeightMm": 23.24,
@@ -30626,11 +30515,142 @@
         "value": "number",
         "unit": "typed"
       },
-      "displayName": "Мультиметр",
-      "sourceOwnerPath": "multimeter_component_pure_vector.svg",
-      "sourceSha256": "ac74479c633f4ffd2f9faa49eee3349b4655b2bbdc6c00779bcf349e108f6733",
+      "sourceOwnerPath": "multimeter_strict_path_only.svg",
+      "sourceSha256": "962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333",
       "runtimePath": "/assets/electronics/component-database/components/instruments/multimeter/component.svg",
-      "runtimeSha256": "ac74479c633f4ffd2f9faa49eee3349b4655b2bbdc6c00779bcf349e108f6733"
+      "runtimeSha256": "962775623d7e6a12fcc2b9ccc2ee0888aa0a4029f6d585524fb2e40a14bad333"
+    },
+    {
+      "appearsInBasic": false,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "signal-generator",
+      "familyId": "signal-generator",
+      "familyLabelRu": "Генератор сигналов",
+      "familyLabelEn": "Signal generator",
+      "variantId": "signal-generator",
+      "variantLabelRu": "Функциональный",
+      "variantLabelEn": "Function generator",
+      "category": "instruments",
+      "subcategoryId": "signal-instruments",
+      "catalogOrder": 29.1,
+      "searchAliases": ["signal-generator", "генератор сигналов", "генератор частоты"],
+      "displayName": "Генератор сигналов",
+      "displayNameEn": "Signal generator",
+      "physicalWidthMm": 57.9,
+      "physicalHeightMm": 40.5,
+      "viewBox": [0, 0, 579, 405],
+      "pins": [
+        {
+          "id": "signal",
+          "xMm": 27.3,
+          "yMm": 33.4,
+          "electricalRole": "signal",
+          "toleranceMm": 0.5
+        },
+        {
+          "id": "ground",
+          "xMm": 30,
+          "yMm": 33.4,
+          "electricalRole": "ground",
+          "toleranceMm": 0.5
+        }
+      ],
+      "footprint": null,
+      "stateContract": {
+        "type": "signal_source",
+        "waveform": "selectable",
+        "frequency": "adjustable"
+      },
+      "sourceOwnerPath": "генератор_сигналов.svg",
+      "sourceSha256": "9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196",
+      "runtimePath": "/assets/electronics/component-database/components/instruments/signal-generator/component.svg",
+      "runtimeSha256": "9bdc19304ef2bc128020364b245bd9bbdc6db2cc6f8bcf2ae640cbdfb71c6196"
+    },
+    {
+      "appearsInBasic": false,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "oscilloscope",
+      "familyId": "oscilloscope",
+      "familyLabelRu": "Осциллограф",
+      "familyLabelEn": "Oscilloscope",
+      "variantId": "oscilloscope",
+      "variantLabelRu": "Двухклеммный",
+      "variantLabelEn": "Two-terminal",
+      "category": "instruments",
+      "subcategoryId": "signal-instruments",
+      "catalogOrder": 29.2,
+      "searchAliases": ["oscilloscope", "осциллограф", "измерение сигнала"],
+      "displayName": "Осциллограф",
+      "displayNameEn": "Oscilloscope",
+      "physicalWidthMm": 54.5,
+      "physicalHeightMm": 56.6,
+      "viewBox": [0, 0, 545, 566],
+      "pins": [
+        {
+          "id": "ground",
+          "xMm": 24.7,
+          "yMm": 51.75,
+          "electricalRole": "ground",
+          "toleranceMm": 0.5
+        },
+        {
+          "id": "signal",
+          "xMm": 27.4,
+          "yMm": 51.75,
+          "electricalRole": "signal",
+          "toleranceMm": 0.5
+        }
+      ],
+      "footprint": null,
+      "stateContract": {
+        "type": "waveform_display",
+        "input": "signal",
+        "reference": "ground"
+      },
+      "sourceOwnerPath": "осциллограф_компонент_без_подложки.svg",
+      "sourceSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8",
+      "runtimePath": "/assets/electronics/component-database/components/instruments/oscilloscope/component.svg",
+      "runtimeSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8"
     }
   ],
   "breadboardPlacementRules": {
