@@ -8,7 +8,6 @@ services:
 
   migration:
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in the private staging environment}
       MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?set a dedicated migration URL in the private staging environment}
       MIGRATION_EXPECT_DATABASE: ${MIGRATION_EXPECT_DATABASE:?attest the exact staging database name}
       MIGRATION_CONFIRM: ${MIGRATION_CONFIRM:?confirm the exact staging database as APPLY:name}

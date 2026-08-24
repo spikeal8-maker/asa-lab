@@ -109,6 +109,12 @@ value is `1`; it is not a scale. `scoring_policy.kind` is
 canonical reusable-authored-content contract; M0-007 readers must enforce that
 classification when surfaces are cut over.
 
+If 0087 was previously executed and persisted one of its deterministic
+compatibility ActivityVersions with inferred manual 100/60 policy, 0088 aborts
+transactionally. Those immutable rows are not relabeled as trustworthy or
+rewritten in place; that database requires an explicit reader-aware replacement
+mapping/remediation before 0088 can install.
+
 ## Physical learner identity model
 
 ```text
@@ -202,6 +208,10 @@ Focused negative tests prove:
 - direct convergence without isolated-test session attestation is rejected;
 - `--apply` ignores generic `DATABASE_URL` and requires a dedicated URL, exact
   database name and exact `APPLY:<name>` confirmation before connecting.
+- the migration Compose container does not receive generic `DATABASE_URL`;
+  migration, role provisioning and optional dev seed share the attested
+  `MIGRATION_DATABASE_URL` only. Compose validation injects deliberately
+  different generic/dedicated URLs and fails if the generic value leaks in.
 
 ## Corrected acceptance evidence
 
@@ -250,6 +260,10 @@ pnpm vitest run contexts/learning/testing/canonical-learning-state.spec.ts
   `asalab_dev` while diagnosing review feedback because the migration runner
   previously read `DATABASE_URL`; no convergence/backfill procedure ran there.
   Production was untouched. The corrected runner never treats `DATABASE_URL`
-  as an apply target and requires three matching target attestations.
+  as an apply target, the migration container does not receive it, and three
+  matching target attestations are required.
+- Any database where 0087 already materialized inferred 100/60 compatibility
+  versions is deliberately blocked by 0088 pending immutable-version,
+  reader-aware remediation; automatic in-place mutation is not permitted.
 - `MIG-005`, `MIG-001` and Gradebook projection convergence remain
   `in_progress` until surface convergence/acceptance.

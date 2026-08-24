@@ -349,10 +349,17 @@ CURRENT readers and a separate accepted contract defines behavioral rollback.
   the CURRENT schema requires a positive integer; the scoring policy explicitly
   says unknown and contains no pass threshold;
 - removes timestamp-only Attempt/Submission creation from the procedure;
-- refuses to install over any database where the superseded synthetic artifact
-  operations already ran, requiring explicit reader-aware remediation;
+- refuses to install over any database where either the superseded synthetic
+  Attempt/Submission operations ran or 0087 already persisted deterministic
+  compatibility ActivityVersions carrying inferred manual 100/60 semantics;
+  immutable history is never silently rewritten and explicit reader-aware
+  remediation is required;
 - requires the session attestation
   `app.learning_m0_006_environment=isolated_test` before apply.
+
+The Compose migration container receives only `MIGRATION_DATABASE_URL`.
+Runtime-role provisioning and the optional dev seed use that same dedicated
+URL; a generic `DATABASE_URL` cannot redirect any step after the runner guard.
 
 ### 8.5 Determinism and constraints
 

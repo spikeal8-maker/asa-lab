@@ -1,10 +1,10 @@
 import pg from 'pg';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.MIGRATION_DATABASE_URL;
 const appPassword = process.env.ASA_APP_DB_PASSWORD;
 
 if (!databaseUrl || !appPassword) {
-  console.error('DATABASE_URL and ASA_APP_DB_PASSWORD are required');
+  console.error('MIGRATION_DATABASE_URL and ASA_APP_DB_PASSWORD are required');
   process.exit(78);
 }
 

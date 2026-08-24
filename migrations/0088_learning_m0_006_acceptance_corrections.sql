@@ -42,6 +42,30 @@ DECLARE
     v_finish integer;
     v_original text;
 BEGIN
+    -- 0087 may already have persisted deterministic compatibility versions
+    -- carrying its invented 100/60 grading policy. ActivityVersion rows are
+    -- immutable, so 0088 must not merely relabel those rows in the registry.
+    -- Such a database needs an explicit reader-aware remediation that replaces
+    -- the mapping without rewriting immutable history.
+    IF EXISTS (
+        SELECT 1
+          FROM classroom_activity_versions mapping
+          JOIN learning_activity_versions version
+            ON version.tenant_id = mapping.tenant_id
+           AND version.id = mapping.learning_activity_version_id
+         WHERE mapping.learning_activity_version_id = public.learning_m0_deterministic_uuid(
+                   'activity-version:assignment:' || mapping.classroom_assignment_id
+               )
+           AND (
+               version.max_points = 100
+               OR version.scoring_policy @> '{"passThreshold":60}'::jsonb
+               OR version.scoring_policy @> '{"kind":"manual"}'::jsonb
+           )
+    ) THEN
+        RAISE EXCEPTION
+            'M0-006 correction blocked: 0087 compatibility ActivityVersions with inferred grading semantics exist; reader-aware immutable-version remediation is required before 0088';
+    END IF;
+
     -- A database that already ran the unsafe timestamp-only evidence branch
     -- requires an explicit, reader-aware remediation. Do not silently relabel
     -- immutable history during a schema migration.

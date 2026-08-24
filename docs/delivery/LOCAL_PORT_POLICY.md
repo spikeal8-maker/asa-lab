@@ -95,9 +95,11 @@ one same-origin test server serves SPA + API
 
 Подключения передаются только через URL:
 
-- `DATABASE_URL` — seed/admin/provisioning tools; never an implicit migration target;
+- `DATABASE_URL` — non-Compose admin diagnostics only; never an implicit migration target;
 - `MIGRATION_DATABASE_URL` + `MIGRATION_EXPECT_DATABASE` + `MIGRATION_CONFIRM`
-  — explicit attested target for `db:migrate --apply`;
+  — explicit attested target for migration, runtime-role provisioning and the
+  optional Compose dev seed; the migration container does not receive generic
+  `DATABASE_URL`;
 - `APP_DATABASE_URL` — runtime API role;
 - `TEST_DATABASE_URL` — isolated automated tests.
 

@@ -37,8 +37,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://asalab_admin:asa-local-admin-change-me@postgres:5432/asalab}
-      MIGRATION_DATABASE_URL: ${DATABASE_URL:-postgres://asalab_admin:asa-local-admin-change-me@postgres:5432/asalab}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:-postgres://asalab_admin:asa-local-admin-change-me@postgres:5432/asalab}
       MIGRATION_EXPECT_DATABASE: ${MIGRATION_EXPECT_DATABASE:-asalab}
       MIGRATION_CONFIRM: ${MIGRATION_CONFIRM:-APPLY:asalab}
       ASA_APP_DB_PASSWORD: ${ASA_APP_DB_PASSWORD:-asa-local-runtime-change-me}
