@@ -274,13 +274,13 @@ parallel_lanes:
       base_branch: main
       pr: 144
       pr_draft: false
-      status: in_progress
+      status: done
       checkpoint: lrn_m0_004_evidence_published
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 879f659471709e36d6df6110ab6c0e0612a4c7c5
-      head_sha: b4f28eaded8ddfc1e69ad731870ab068bbc57845
-      owner_accepted_sha: 63785803b1dc47561cac8992f43e1d44593426bc
+      head_sha: 8675cfe2d8ce4dd6f1c03289e04b2e0dff46a0a2
+      product_merge_sha: 8275adc19adf49eaffaeeedf791e4aaf29d71653
     execution_lease:
       executor_id: codex-learning-m0-canonical-resolver
       holder: unassigned
