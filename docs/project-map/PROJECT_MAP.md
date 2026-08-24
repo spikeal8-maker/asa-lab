@@ -23,10 +23,11 @@ execution direct_main
 ## Parallel ASA Learning M0 lane
 
 The owner accepted `LRN-M0-001 — Current Learning Architecture Audit` and
-`LRN-M0-002 — Learner Identity ADR`. PR #139 merged the decision and the
-Learning lane records it done; the primary Admin/Auth task remains active and
-unchanged. M0-003 and M1-M7 are not activated, and no migration, product
-runtime, UI/Gradebook or Quiz Engine change was authorized by M0-002.
+`LRN-M0-002 — Learner Identity ADR`. `LRN-M0-003 — Status Divergence Trace` is
+now the only active Learning Work Queue item in parallel with the unchanged
+primary Admin/Auth task. M0-004 and M1-M7 are not activated; M0-003 authorizes
+diagnostic documentation and read-only evidence only, not migrations, product
+runtime, UI/Gradebook, OpenAPI or Quiz Engine changes.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,
