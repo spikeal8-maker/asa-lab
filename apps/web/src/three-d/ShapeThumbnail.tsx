@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
 import { createPrimitiveGeometryForKind } from './viewport/geometry';
+import { createCadShadedColor } from './viewport/cad-appearance';
 
 interface ShapeThumbnailProps {
   readonly color: string;
@@ -24,7 +25,6 @@ const WIDTH = 92;
 const HEIGHT = 70;
 const KEY_POSITION = new THREE.Vector3(-3.2, 5.5, 4.2);
 const RIM_POSITION = new THREE.Vector3(4, 2, -4);
-const AMBIENT_TINT = new THREE.Color('#b7d7ff');
 
 function projectPoint(point: THREE.Vector3, camera: THREE.OrthographicCamera): ProjectedPoint {
   const projected = point.clone().project(camera);
@@ -35,7 +35,7 @@ function projectPoint(point: THREE.Vector3, camera: THREE.OrthographicCamera): P
 }
 
 function shadeColor(base: THREE.Color, intensity: number): string {
-  const shaded = base.clone().multiplyScalar(intensity).lerp(AMBIENT_TINT, 0.008);
+  const shaded = createCadShadedColor(base, intensity);
   shaded.r = THREE.MathUtils.clamp(shaded.r, 0, 1);
   shaded.g = THREE.MathUtils.clamp(shaded.g, 0, 1);
   shaded.b = THREE.MathUtils.clamp(shaded.b, 0, 1);

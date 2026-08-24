@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { createThreeDNode, PRIMITIVE_KINDS } from '@asa-lab/three-d';
+import { createThreeDNode, PRIMITIVE_KINDS, THREE_D_SHAPE_COLORS } from '@asa-lab/three-d';
 import {
   MODEL_EDGE_NAME,
   createCadSurfaceColor,
@@ -10,7 +10,8 @@ import {
   disposeObject,
   measureTextWidthAtHeight,
 } from '../viewport/geometry';
-import { createBooleanGeometry } from '../viewport/csg';
+import { addCadSceneLights } from '../viewport/cad-appearance';
+import { createBooleanGeometry, createBooleanMesh } from '../viewport/csg';
 
 describe('ASA 3D primitive geometry', () => {
   it('keeps exact millimetre dimensions in the mesh transform', () => {
@@ -53,14 +54,65 @@ describe('ASA 3D primitive geometry', () => {
     expect(mesh.material.color.getHexString()).toBe(
       createCadSurfaceColor('#d71920').getHexString(),
     );
-    expect(mesh.material.emissive.getHexString()).toBe('8bd0e0');
-    expect(mesh.material.emissiveIntensity).toBe(0.04);
+    expect(mesh.material.emissive.getHexString()).toBe('000000');
+    expect(mesh.material.emissiveIntensity).toBe(0);
     expect(mesh.material.roughness).toBe(0.9);
+    expect(mesh.material.toneMapped).toBe(false);
     expect(mesh.castShadow).toBe(false);
     expect(mesh.receiveShadow).toBe(false);
     expect(mesh.children).toHaveLength(1);
     expect(mesh.children[0]?.name).toBe(MODEL_EDGE_NAME);
     disposeObject(object);
+  });
+
+  it('uses the canonical palette and calibrated material for every catalog primitive', () => {
+    for (const primitive of PRIMITIVE_KINDS) {
+      const node = createThreeDNode(primitive, `material-${primitive}`);
+      const object = createNodeObject(node);
+      const mesh = object.children[0] as THREE.Mesh<
+        THREE.BufferGeometry,
+        THREE.MeshStandardMaterial
+      >;
+
+      expect(node.color, primitive).toBe(THREE_D_SHAPE_COLORS[primitive]);
+      expect(mesh.material.color.getHexString(), primitive).toBe(
+        createCadSurfaceColor(THREE_D_SHAPE_COLORS[primitive]).getHexString(),
+      );
+      expect(mesh.material.emissive.getHexString(), primitive).toBe('000000');
+      expect(mesh.material.toneMapped, primitive).toBe(false);
+      expect(mesh.castShadow, primitive).toBe(false);
+      expect(mesh.receiveShadow, primitive).toBe(false);
+      disposeObject(object);
+    }
+  });
+
+  it('keeps every scene light neutral enough to preserve non-red shape hues', () => {
+    const scene = new THREE.Scene();
+    addCadSceneLights(scene);
+
+    const lights = scene.children.filter(
+      (child): child is THREE.Light => child instanceof THREE.Light,
+    );
+    expect(lights).toHaveLength(5);
+    for (const light of lights) {
+      const channels = light.color.toArray();
+      expect(Math.max(...channels) - Math.min(...channels), light.type).toBeLessThan(0.08);
+    }
+  });
+
+  it('uses the same calibrated material for boolean results', () => {
+    const box = createThreeDNode('box', 'boolean-box');
+    const cylinder = createThreeDNode('cylinder', 'boolean-cylinder');
+    const mesh = createBooleanMesh([box, cylinder], 'union');
+
+    expect(mesh).not.toBeNull();
+    const material = mesh?.material as THREE.MeshStandardMaterial;
+    expect(material.color.getHexString()).toBe(createCadSurfaceColor(box.color).getHexString());
+    expect(material.emissive.getHexString()).toBe('000000');
+    expect(mesh?.castShadow).toBe(false);
+    expect(mesh?.receiveShadow).toBe(false);
+    mesh?.geometry.dispose();
+    material.dispose();
   });
 
   it('builds editable Latin and Cyrillic text from real glyph contours', () => {

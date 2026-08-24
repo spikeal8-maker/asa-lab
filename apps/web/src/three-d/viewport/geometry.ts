@@ -6,16 +6,12 @@ import type { PrimitiveKind, ThreeDNode } from '@asa-lab/three-d';
 import notoSansTypeface from '../fonts/noto-sans.typeface.json';
 import notoSerifTypeface from '../fonts/noto-serif.typeface.json';
 import notoSansMonoTypeface from '../fonts/noto-sans-mono.typeface.json';
+import { createCadSolidMaterial } from './cad-appearance';
 
 const MODEL_EDGE_COLOR = '#263d47';
 const MODEL_EDGE_THRESHOLD_DEGREES = 24;
-const CAD_AMBIENT_TINT = new THREE.Color('#b7d7ff');
-
 export const MODEL_EDGE_NAME = 'ASA model hard edges';
-
-export function createCadSurfaceColor(color: string): THREE.Color {
-  return new THREE.Color(color).lerp(CAD_AMBIENT_TINT, 0.015);
-}
+export { createCadSurfaceColor } from './cad-appearance';
 
 /**
  * Adds only real hard edges. A back-face silhouette mesh used to cover whole
@@ -507,16 +503,19 @@ export function createNodeObject(node: ThreeDNode): THREE.Group {
   const group = new THREE.Group();
   group.name = node.name;
   group.userData['nodeId'] = node.id;
-  const material = new THREE.MeshStandardMaterial({
-    color: node.operation === 'hole' ? '#b9c4cc' : createCadSurfaceColor(node.color),
-    emissive: node.operation === 'hole' ? '#000000' : '#8bd0e0',
-    emissiveIntensity: node.operation === 'hole' ? 0 : 0.04,
-    roughness: 0.9,
-    metalness: 0,
-    transparent: node.operation === 'hole',
-    opacity: node.operation === 'hole' ? 0.36 : 1,
-    depthWrite: node.operation !== 'hole',
-  });
+  const material =
+    node.operation === 'hole'
+      ? new THREE.MeshStandardMaterial({
+          color: '#b9c4cc',
+          emissive: '#000000',
+          emissiveIntensity: 0,
+          roughness: 0.9,
+          metalness: 0,
+          transparent: true,
+          opacity: 0.36,
+          depthWrite: false,
+        })
+      : createCadSolidMaterial(node.color);
   const mesh = new THREE.Mesh(createPrimitiveGeometry(node), material);
   mesh.name = `${node.name}:mesh`;
   mesh.userData['nodeId'] = node.id;
