@@ -218,10 +218,11 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
   if ('DATABASE_URL' in migrationEnvironment) {
     errors.push(`${profile}/migration: generic DATABASE_URL must not enter the container`);
   }
-  if (
-    migrationEnvironment.MIGRATION_DATABASE_URL !==
-    'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab'
-  ) {
+  const expectedMigrationUrl =
+    profile === 'test'
+      ? 'postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test'
+      : 'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab';
+  if (migrationEnvironment.MIGRATION_DATABASE_URL !== expectedMigrationUrl) {
     errors.push(`${profile}/migration: dedicated MIGRATION_DATABASE_URL was not preserved`);
   }
   const published = [];
