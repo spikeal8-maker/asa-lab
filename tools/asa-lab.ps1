@@ -62,6 +62,17 @@ function New-PrivateEnvironment {
     if ($existing -match 'replace-with|CHANGE_ME|change-me') {
       throw '.env still contains placeholder credentials; replace them or remove .env and rerun.'
     }
+    $requiredMigrationSettings = @(
+      'MIGRATION_DATABASE_URL',
+      'MIGRATION_EXPECT_DATABASE',
+      'MIGRATION_CONFIRM'
+    )
+    $missingMigrationSettings = @(
+      $requiredMigrationSettings | Where-Object { $existing -notmatch "(?m)^$([regex]::Escape($_))=" }
+    )
+    if ($missingMigrationSettings.Count -gt 0) {
+      throw "Legacy .env is missing the dedicated migration target guard ($($missingMigrationSettings -join ', ')). Add all three settings and use MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted."
+    }
     return
   }
 

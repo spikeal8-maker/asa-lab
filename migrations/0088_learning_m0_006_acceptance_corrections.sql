@@ -49,13 +49,14 @@ BEGIN
     -- the mapping without rewriting immutable history.
     IF EXISTS (
         SELECT 1
-          FROM classroom_activity_versions mapping
+          FROM learning_migration_artifacts artifact
           JOIN learning_activity_versions version
-            ON version.tenant_id = mapping.tenant_id
-           AND version.id = mapping.learning_activity_version_id
-         WHERE mapping.learning_activity_version_id = public.learning_m0_deterministic_uuid(
-                   'activity-version:assignment:' || mapping.classroom_assignment_id
+            ON version.tenant_id = artifact.tenant_id
+           AND version.id = public.learning_m0_deterministic_uuid(
+                   'activity-version:assignment:' || artifact.source_id
                )
+         WHERE artifact.source_table = 'classroom_assignments'
+           AND artifact.operation_type = 'map_activity_version'
            AND (
                version.max_points = 100
                OR version.scoring_policy @> '{"passThreshold":60}'::jsonb
@@ -63,7 +64,7 @@ BEGIN
            )
     ) THEN
         RAISE EXCEPTION
-            'M0-006 correction blocked: 0087 compatibility ActivityVersions with inferred grading semantics exist; reader-aware immutable-version remediation is required before 0088';
+            'M0-006 correction blocked: 0087 compatibility ActivityVersions with inferred grading semantics exist (including rollback orphans); reader-aware immutable-version remediation is required before 0088';
     END IF;
 
     -- A database that already ran the unsafe timestamp-only evidence branch

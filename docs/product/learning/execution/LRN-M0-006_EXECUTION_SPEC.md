@@ -352,6 +352,8 @@ CURRENT readers and a separate accepted contract defines behavioral rollback.
 - refuses to install over any database where either the superseded synthetic
   Attempt/Submission operations ran or 0087 already persisted deterministic
   compatibility ActivityVersions carrying inferred manual 100/60 semantics;
+  the latter is traced through retained migration artifacts so an 0087
+  rollback orphan cannot evade the guard;
   immutable history is never silently rewritten and explicit reader-aware
   remediation is required;
 - requires the session attestation
@@ -360,6 +362,9 @@ CURRENT readers and a separate accepted contract defines behavioral rollback.
 The Compose migration container receives only `MIGRATION_DATABASE_URL`.
 Runtime-role provisioning and the optional dev seed use that same dedicated
 URL; a generic `DATABASE_URL` cannot redirect any step after the runner guard.
+Existing bootstrap `.env` files missing any of the three migration attestations
+stop with an actionable compatibility error before Compose starts; they never
+fall back to the legacy generic URL or a default password.
 
 ### 8.5 Determinism and constraints
 

@@ -34,6 +34,13 @@ create_environment() {
       echo ".env still contains placeholder credentials; replace them or remove .env and rerun." >&2
       exit 78
     fi
+    if ! grep -q '^MIGRATION_DATABASE_URL=' .env ||
+       ! grep -q '^MIGRATION_EXPECT_DATABASE=' .env ||
+       ! grep -q '^MIGRATION_CONFIRM=' .env; then
+      echo "Legacy .env is missing the dedicated migration target guard." >&2
+      echo "Add MIGRATION_DATABASE_URL, MIGRATION_EXPECT_DATABASE and MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted." >&2
+      exit 78
+    fi
     return
   fi
 

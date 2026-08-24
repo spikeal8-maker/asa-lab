@@ -114,6 +114,9 @@ compatibility ActivityVersions with inferred manual 100/60 policy, 0088 aborts
 transactionally. Those immutable rows are not relabeled as trustworthy or
 rewritten in place; that database requires an explicit reader-aware replacement
 mapping/remediation before 0088 can install.
+The guard follows retained `map_activity_version` migration artifacts, not only
+the live classroom mapping, so an immutable compatibility version orphaned by
+an 0087 rollback is blocked as well.
 
 ## Physical learner identity model
 
@@ -212,6 +215,9 @@ Focused negative tests prove:
   migration, role provisioning and optional dev seed share the attested
   `MIGRATION_DATABASE_URL` only. Compose validation injects deliberately
   different generic/dedicated URLs and fails if the generic value leaks in.
+- a pre-existing bootstrap `.env` that lacks any dedicated migration URL/name/
+  confirmation stops before Compose with an actionable upgrade error; it cannot
+  silently use the old generic URL or the hard-coded local fallback password.
 
 ## Corrected acceptance evidence
 
