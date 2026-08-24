@@ -11,6 +11,7 @@ Copyright (C) 2026 Alex Al and respective rights holders. All rights reserved.
 - `apps/web/public/assets/electronics/owner-audit/**`;
 - `apps/web/public/assets/electronics/owner-catalog/manifest.json` и материалы,
   на которые он ссылается;
+- `apps/web/public/assets/electronics/component-database/**`;
 - `apps/web/public/asa-lab-mark.svg`;
 - `e2e/artifacts/**`;
 - продуктовые спецификации, исследования, учебные тексты, курсы и эталонные

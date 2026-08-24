@@ -37,7 +37,7 @@ const EMPTY: SchematicDocument = {
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
   'battery-1.5v': [23.524, 66.87],
-  'battery-3v': [31.423, 56.855],
+  'battery-3v': [24, 28.6],
   'battery-6v': [68.507, 65.043],
   'battery-9v': [23.5763, 52.667],
   'resistor-axial': [2.54, 11.582],
@@ -66,6 +66,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'arduino-uno': [78.74, 58.816875],
   'piezo-passive-buzzer': [22.133, 22],
   'piezo-disc': [24, 24],
+  'servo-motor': [15.2, 39.1668],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -84,9 +85,9 @@ const BREADBOARD_MOUNTABLE = [
 ] as const;
 
 beforeAll(() => {
-  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog');
+  const root = resolve(process.cwd(), 'apps/web/public/assets/electronics/component-database');
   configureProductionLibrary(
-    JSON.parse(readFileSync(resolve(root, 'manifest.json'), 'utf8')) as OwnerCatalogManifest,
+    JSON.parse(readFileSync(resolve(root, 'catalog.json'), 'utf8')) as OwnerCatalogManifest,
   );
 });
 
@@ -184,7 +185,9 @@ describe('owner SVG integration in the real Electronics document', () => {
   it('anchors all Arduino contacts to the real 2.54 mm header centres', () => {
     const arduino = productionCatalog().find((entry) => entry.key === 'arduino-uno');
     expect(arduino).toBeDefined();
-    expect(arduino?.runtimePath).toBe('/assets/electronics/owner-approved/arduino-uno.svg');
+    expect(arduino?.runtimePath).toBe(
+      '/assets/electronics/component-database/components/arduino-uno/arduino-uno/component.svg',
+    );
     expect(arduino?.runtimeSha256).toBe(
       'c4bba011bb122735bf8e1d23d266e2c545e2575c5f17c650294ad0015117027d',
     );
@@ -289,6 +292,15 @@ describe('owner SVG integration in the real Electronics document', () => {
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['piezo-passive-buzzer', 'piezo-disc']);
     expect(defaultProductionType('piezo')).toBe('piezo-passive-buzzer');
+    expect(families.find((family) => family.familyId === 'servo')).toMatchObject({
+      defaultVariantId: 'servo-motor',
+      enabled: true,
+    });
+    expect(productionCatalogEntry('servo-motor')).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+      catalogStatus: 'enabled',
+    });
     expect(
       families
         .find((family) => family.familyId === 'diode')
@@ -333,7 +345,7 @@ describe('owner SVG integration in the real Electronics document', () => {
         const entry = variant.entry;
         if (entry.asset) {
           expect(entry.asset, variant.variantId).toMatch(
-            /^\/assets\/electronics\/(owner-supplied|owner-approved|owner-audit\/components)\/.*\.svg$/,
+            /^\/assets\/electronics\/component-database\/components\/.*\.svg$/,
           );
           expect(entry.asset, variant.variantId).not.toContain('/production/');
           expect(entry.asset, variant.variantId).not.toContain('/source-reference/');

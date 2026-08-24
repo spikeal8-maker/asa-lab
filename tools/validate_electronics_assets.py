@@ -3,7 +3,7 @@
 
 Two documents declare owner art, and a file is legitimate if either names it:
 
-  * `owner-catalog/manifest.json` — what the editor loads, one `runtimeSha256`
+  * `component-database/catalog.json` — what the editor loads, one `runtimeSha256`
     per `runtimePath`, under the `byte_exact_owner_svg_only` policy;
   * `owner-audit/manifest.json` — the import record, one `sha256` per
     `importedFile`, covering the catalogued art and the reference material
@@ -43,11 +43,11 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
-CATALOG_RELATIVE = "apps/web/public/assets/electronics/owner-catalog/manifest.json"
+CATALOG_RELATIVE = "apps/web/public/assets/electronics/component-database/catalog.json"
 AUDIT_RELATIVE = "apps/web/public/assets/electronics/owner-audit/manifest.json"
 AUDIT_ROOT_RELATIVE = "apps/web/public/assets/electronics/owner-audit"
 WEB_PUBLIC_RELATIVE = "apps/web/public"
-RUNTIME_TREE_RELATIVE = "apps/web/public/assets/electronics/owner-audit/components"
+RUNTIME_TREE_RELATIVE = "apps/web/public/assets/electronics/component-database/components"
 ASSET_URL_ROOT = "/assets/electronics/"
 
 FORBIDDEN_CONTENT = (

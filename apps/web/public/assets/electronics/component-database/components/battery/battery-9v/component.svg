@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="295" height="659" viewBox="0 0 295 659"
+     version="1.1" role="img" aria-labelledby="title desc">
+  <title id="title">9V battery — clean vector</title>
+  <desc id="desc">Pure SVG reconstruction matched to the supplied 776 by 411 reference. No embedded raster images.</desc>
+
+  <defs>
+    <clipPath id="bodyClip">
+      <rect x="160" y="53" width="541" height="295" rx="9" ry="9"/>
+    </clipPath>
+  </defs>
+
+  <g id="battery-9v" transform="translate(348 -42) rotate(90)">
+    <!-- Main battery body, matched to reference -->
+    <g id="body" clip-path="url(#bodyClip)">
+      <rect x="160" y="53" width="541" height="295" fill="#333333"/>
+      <rect x="160" y="53" width="161" height="295" fill="#d18d52"/>
+    </g>
+
+    <!-- Contact-side vertical plate -->
+    <rect id="contact-plate" x="85" y="64" width="26" height="269" rx="5" ry="5" fill="#333333"/>
+
+    <!-- Upper contact stack: narrow dark spacer + larger light block -->
+    <path id="upper-spacer" d="M111 90 H123 V174 H111 Z" fill="#8c8c8c"/>
+    <path id="upper-contact" d="M126 81 H160 V182 H123 V85 Q123 81 126 81 Z" fill="#bababa"/>
+
+    <!-- Lower contact stack: larger dark block + narrow light spacer to body -->
+    <path id="lower-contact" d="M111 209 H140 Q143 209 143 212 V306 Q143 309 140 309 H111 Z" fill="#8c8c8c"/>
+    <path id="lower-spacer" d="M143 240 H160 V302 H143 Z" fill="#bababa"/>
+
+    <!-- Polarity symbols -->
+    <g id="polarity-minus">
+      <circle cx="187" cy="132" r="18" fill="none" stroke="#b17b4c" stroke-width="2.2"/>
+      <rect x="185" y="120" width="4" height="24" rx="2" fill="#3b3b3b"/>
+    </g>
+    <g id="polarity-plus">
+      <circle cx="187" cy="260" r="18" fill="none" stroke="#b17b4c" stroke-width="2.2"/>
+      <rect x="175" y="258" width="24" height="4" rx="2" fill="#3b3b3b"/>
+      <rect x="185" y="248" width="4" height="24" rx="2" fill="#3b3b3b"/>
+    </g>
+
+    <!-- Upper black lead/terminal -->
+    <g id="terminal-black">
+      <rect x="42" y="183" width="10" height="6" rx="3" fill="#8c8c8c"/>
+      <path d="M50 183 Q53 180 57 180 H67 Q71 180 73 183 V190 Q70 193 66 193 H56 Q51 193 50 189 Z" fill="#383838"/>
+      <path d="M72 187 C76 187 79 185 82 184 C83 184 84 184 85 184" fill="none" stroke="#383838" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Lower red lead/terminal -->
+    <g id="terminal-red">
+      <rect x="42" y="212" width="10" height="6" rx="3" fill="#8c8c8c"/>
+      <path d="M50 211 Q53 208 57 208 H67 Q71 208 73 211 V218 Q70 221 66 222 H56 Q51 222 50 218 Z" fill="#af1c1c"/>
+      <path d="M72 216 C77 216 80 214 83 213 C84 213 85 213 85 213" fill="none" stroke="#af1c1c" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Vertical 9V label: V above 9 as in the reference -->
+    <g id="label-9v" transform="translate(481 201) rotate(-90)">
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="middle"
+            font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="400"
+            fill="#dddddd">9V</text>
+    </g>
+  </g>
+</svg>

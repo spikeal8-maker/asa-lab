@@ -4,7 +4,7 @@ import { BREADBOARD_PITCH_MM, WORLD_UNITS_PER_MM } from './production-asset-cont
 
 const OWNER_CATALOG_REVISION =
   typeof __ASA_BUILD_REVISION__ === 'undefined' ? 'development' : __ASA_BUILD_REVISION__;
-export const OWNER_CATALOG_MANIFEST_URL = `/assets/electronics/owner-catalog/manifest.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
+export const OWNER_CATALOG_MANIFEST_URL = `/assets/electronics/component-database/catalog.json?rev=${encodeURIComponent(OWNER_CATALOG_REVISION)}`;
 
 export interface ProductionPin {
   readonly id: string;
@@ -83,12 +83,14 @@ export interface RuntimeBreadboardDefinition {
 }
 
 export interface OwnerCatalogManifest {
-  readonly schema: 'asa-lab.electronics-owner-catalog.v1';
+  readonly schema: 'asa-lab.electronics-component-database.v1';
   readonly worldUnitsPerMm: number;
   readonly policy: {
     readonly runtimeArt: 'byte_exact_owner_svg_only';
     readonly failClosed: true;
     readonly forbidden: readonly string[];
+    readonly assetRoot: '/assets/electronics/component-database/components/';
+    readonly sourceOfTruth: 'component-database/catalog.json';
   };
   readonly breadboards: readonly RuntimeBreadboardDefinition[];
   readonly components: readonly OwnerCatalogComponent[];
@@ -502,10 +504,7 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
     }
     return;
   }
-  const runtimePrefix =
-    item.provenance === 'owner_supplied'
-      ? '/assets/electronics/owner-approved/'
-      : '/assets/electronics/owner-audit/';
+  const runtimePrefix = '/assets/electronics/component-database/components/';
   if (
     !['exact_owner_svg', 'owner_supplied'].includes(item.provenance) ||
     !item.sourceOwnerPath ||
@@ -551,7 +550,7 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
   }
   for (const state of item.stateAssets) {
     if (
-      !state.runtimePath.startsWith('/assets/electronics/owner-audit/') ||
+      !state.runtimePath.startsWith(runtimePrefix) ||
       !state.runtimePath.endsWith('.svg') ||
       state.runtimeSha256 !== state.sourceSha256
     ) {
@@ -632,7 +631,12 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
 }
 
 export function configureProductionLibrary(manifest: OwnerCatalogManifest): void {
-  if (manifest.schema !== 'asa-lab.electronics-owner-catalog.v1' || !manifest.policy.failClosed) {
+  if (
+    manifest.schema !== 'asa-lab.electronics-component-database.v1' ||
+    !manifest.policy.failClosed ||
+    manifest.policy.assetRoot !== '/assets/electronics/component-database/components/' ||
+    manifest.policy.sourceOfTruth !== 'component-database/catalog.json'
+  ) {
     throw new Error('fail-closed owner Electronics catalog is unavailable');
   }
   if (manifest.worldUnitsPerMm !== WORLD_UNITS_PER_MM) {

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240" fill="none">
+  <defs>
+    <linearGradient id="brassGrad" x1="120" y1="32" x2="120" y2="168" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C8AE58"/>
+      <stop offset="1" stop-color="#A5862E"/>
+    </linearGradient>
+    <linearGradient id="ceramicGrad" x1="120" y1="58" x2="120" y2="148" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DDD9CF"/>
+      <stop offset="1" stop-color="#BBB5A7"/>
+    </linearGradient>
+    <filter id="shadow" x="28" y="22" width="184" height="196" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g id="sound-waves" fill="none" stroke="#B39A4B" stroke-width="2.5" opacity="0.32">
+    <circle cx="120" cy="96" r="76"/>
+    <circle cx="120" cy="96" r="90" opacity="0.65"/>
+    <animate attributeName="opacity" values="0.2;0.4;0.2" dur="1.4s" repeatCount="indefinite"/>
+  </g>
+
+  <g id="component" filter="url(#shadow)">
+    <circle cx="120" cy="96" r="66" fill="url(#brassGrad)"/>
+    <circle cx="120" cy="96" r="63" stroke="#937424" stroke-width="2"/>
+    <circle cx="120" cy="96" r="46" fill="url(#ceramicGrad)" stroke="#D2CCBC" stroke-width="2"/>
+    <path d="M82 56C92 46 106 41 121 41" stroke="#E0CA84" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="100" cy="124" r="6.8" fill="#BFC2C6" stroke="#8C8F95" stroke-width="1.7"/>
+    <circle cx="141" cy="118" r="6.8" fill="#BFC2C6" stroke="#8C8F95" stroke-width="1.7"/>
+    <path d="M100 131C98 148 93 171 88 196" stroke="#D75850" stroke-width="4" stroke-linecap="round"/>
+    <path d="M141 125C146 144 151 168 156 196" stroke="#41444B" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
