@@ -229,8 +229,7 @@ describe('owner SVG integration in the real Electronics document', () => {
       'capacitor',
       'spdt-switch',
       'battery-9v',
-      'battery-3v',
-      'battery-1.5v',
+      'battery-holder-aa',
       'breadboard',
       'arduino-uno',
       'vibration-motor',
@@ -251,6 +250,7 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(basicFamilies.some((family) => family.familyId === 'microbit')).toBe(false);
     expect(basicFamilies.every((family) => !family.familyLabel.includes('Варианты:'))).toBe(true);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
+      familyLabel: 'Батарейный отсек AA',
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
       enabled: true,
@@ -307,8 +307,14 @@ describe('owner SVG integration in the real Electronics document', () => {
         familyLabel: 'Кнопочная батарея 3 В',
         defaultVariantId: 'battery-3v',
         enabled: true,
+        appearsInBasic: false,
       },
-      { familyLabel: 'Батарея 1,5 В', defaultVariantId: 'battery-1.5v', enabled: true },
+      {
+        familyLabel: 'Батарея 1,5 В',
+        defaultVariantId: 'battery-1.5v',
+        enabled: true,
+        appearsInBasic: false,
+      },
     ]);
     expect(families.find((family) => family.familyId === 'battery-6v')).toMatchObject({
       familyLabel: 'Батарея 6 В',

@@ -53,6 +53,15 @@ describe('Electronics owner SVG foundation', () => {
     }
   });
 
+  it('never exposes raster artwork through component cards or state assets', () => {
+    for (const item of ownerCatalogItems()) {
+      for (const asset of [item.asset, ...Object.values(item.stateAssets)].filter(Boolean)) {
+        expect(asset, item.key).toMatch(/\.svg$/i);
+        expect(asset, item.key).not.toMatch(/\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i);
+      }
+    }
+  });
+
   it('calibrates visual canvases to the breadboard while keeping pins on owner artwork', () => {
     const catalog = productionCatalog();
     const resistor = catalog.find((item) => item.key === 'resistor-axial');

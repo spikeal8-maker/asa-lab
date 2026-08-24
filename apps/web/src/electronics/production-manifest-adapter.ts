@@ -240,12 +240,12 @@ const BATTERY_CATALOG_PRESENTATION: Readonly<
   'battery-3v': {
     familyId: 'battery-3v',
     familyLabel: 'Кнопочная батарея 3 В',
-    appearsInBasic: true,
+    appearsInBasic: false,
   },
   'battery-1.5v': {
     familyId: 'battery-1.5v',
     familyLabel: 'Батарея 1,5 В',
-    appearsInBasic: true,
+    appearsInBasic: false,
   },
   // The owner has supplied this source, but it is not on Tinkercad's Basic
   // shelf. It remains available under All/Power without being folded into the
