@@ -4,7 +4,7 @@
 
 **Milestone:** `M0 — State Convergence`
 
-**Status:** IN_PROGRESS
+**Status:** DONE — evidence published; owner acceptance pending
 **Baseline SHA:** `879f659471709e36d6df6110ab6c0e0612a4c7c5`
 
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
@@ -158,25 +158,40 @@ performance is not measured in this documentation-only task.
 
 ## 21. Acceptance checklist
 
-- [ ] one canonical output DTO and allowed values
-- [ ] one deterministic input precedence/conflict table
-- [ ] all proven M0-003 conflicts receive exact outputs
-- [ ] legacy-only submitted remains truthful without fake evidence
-- [ ] selected result is orthogonal to current workflow
-- [ ] lifecycle visibility is orthogonal to evidence existence
-- [ ] direct/course/quiz share one semantic resolver contract
-- [ ] CURRENT seat and future learner identity inputs preserve the same output
-- [ ] exact M0-005 classifications and rules
-- [ ] future unit/integration/security fixture design for the full source matrix
-- [ ] ledger contains design evidence without false implementation claims
-- [ ] `git diff --check`
-- [ ] `pnpm control-plane:check`
-- [ ] `pnpm gate:governance`
-- [ ] `pnpm contracts:check`
+- [x] one canonical output DTO and allowed values
+- [x] one deterministic input precedence/conflict table
+- [x] all proven M0-003 conflicts receive exact outputs
+- [x] legacy-only submitted remains truthful without fake evidence
+- [x] selected result is orthogonal to current workflow
+- [x] lifecycle visibility is orthogonal to evidence existence
+- [x] direct/course/quiz share one semantic resolver contract
+- [x] CURRENT seat and future learner identity inputs preserve the same output
+- [x] exact M0-005 classifications and rules
+- [x] future unit/integration/security fixture design for the full source matrix
+- [x] ledger contains design evidence without false implementation claims
+- [x] `git diff --check`
+- [x] `pnpm control-plane:check`
+- [x] `pnpm gate:governance`
+- [x] `pnpm contracts:check`
 
 ## 22. Evidence
 
-Pending. Final evidence will identify the normative design document, exact
-commands, gate outcomes, final SHA and unresolved risks. Browser/runtime,
-migration and OpenAPI evidence are N/A because this task changes no product
-contract or runtime.
+Normative design evidence is
+`docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md` at
+`b4f28eaded8ddfc1e69ad731870ab068bbc57845`. It defines the DTO, precedence,
+CURRENT Attempt mapping, result-selection compatibility, 16-row source matrix,
+lifecycle rules, unified adapters, M0-005 classifications and future fixtures.
+
+Validation:
+
+```text
+pnpm contracts:check       PASS
+pnpm gate:governance       PASS
+pnpm control-plane:check   PASS
+git diff --check           PASS
+```
+
+Browser/runtime, migration, OpenAPI and product security execution are N/A:
+this task changes documentation/governance only. Security design evidence is
+the separation of server authorization from pure mapping, cross-school input
+rejection, and independent teacher-history/learner-current visibility rules.

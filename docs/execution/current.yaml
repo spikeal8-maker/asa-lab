@@ -128,7 +128,7 @@ parallel_lanes:
       base_branch: main
       pr: 116
       pr_draft: false
-      status: done
+      status: in_progress
       checkpoint: merged_to_main
       owner_acceptance: accepted
     revisions:
@@ -273,13 +273,13 @@ parallel_lanes:
       branch: agent/learning-m0-canonical-resolver
       base_branch: main
       pr: 144
-      pr_draft: true
-      status: in_progress
-      checkpoint: lrn_m0_004_design_activated
+      pr_draft: false
+      status: done
+      checkpoint: lrn_m0_004_evidence_published
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 879f659471709e36d6df6110ab6c0e0612a4c7c5
-      head_sha: 9df1b3bcb1bc42b3dc8af0aa7a6002bc1113a014
+      head_sha: b4f28eaded8ddfc1e69ad731870ab068bbc57845
       owner_accepted_sha: 63785803b1dc47561cac8992f43e1d44593426bc
     execution_lease:
       executor_id: codex-learning-m0-canonical-resolver
