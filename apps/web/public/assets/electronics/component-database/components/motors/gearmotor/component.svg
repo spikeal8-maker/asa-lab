@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="514" height="810" viewBox="0 0 514 810" fill="none">
+  <title>TT Motor Gearbox Front View</title>
+  <desc>Clean SVG vector component of a yellow Arduino-style TT gear motor, drawn with basic SVG shapes according to measured coordinates.</desc>
+
+  <defs>
+    <clipPath id="lowerHousingClip">
+      <rect x="144" y="443" width="176" height="86" rx="12" ry="12"/>
+    </clipPath>
+  </defs>
+
+  <g id="motor-reducer" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Rear transverse bar -->
+    <rect id="rear-bar" x="52" y="186" width="360" height="42" rx="8" fill="#F1F2F2" stroke="#D9DADB" stroke-width="3"/>
+    <rect id="rear-bar-highlight" x="59" y="190" width="346" height="10" rx="5" fill="#FFFFFF" opacity="0.55"/>
+
+    <!-- Top shaft -->
+    <rect id="top-shaft-outer" x="221" y="57" width="22" height="43" fill="#E2D747" stroke="#D5C93F" stroke-width="2"/>
+    <rect id="top-shaft-inner" x="225" y="61" width="14" height="37" fill="#FCE144"/>
+
+    <!-- Right side tab behind body edge -->
+    <rect id="side-tab-outer" x="327" y="323" width="11" height="42" fill="#E2D747" stroke="#D5C93F" stroke-width="2"/>
+    <rect id="side-tab-inner" x="330" y="327" width="4" height="34" fill="#FCE144"/>
+
+    <!-- Lower yellow housing -->
+    <rect id="lower-housing" x="144" y="443" width="176" height="86" rx="12" fill="#F4DC00" stroke="#E2C103" stroke-width="3"/>
+    <g id="lower-housing-face" clip-path="url(#lowerHousingClip)">
+      <rect x="149" y="444" width="165" height="21" fill="#AD9800"/>
+      <circle cx="232" cy="575" r="137" fill="#F4DC00"/>
+    </g>
+    <rect id="lower-tab-left" x="137" y="486" width="3" height="8" rx="1" fill="#E2C103"/>
+    <rect id="lower-tab-right" x="324" y="486" width="3" height="8" rx="1" fill="#E2C103"/>
+
+    <!-- Main gearbox body -->
+    <rect id="gearbox-body" x="135" y="99" width="194" height="345" rx="9" fill="#F4DC00" stroke="#E2C103" stroke-width="4"/>
+    <rect id="gearbox-top-band" x="139" y="103" width="186" height="14" rx="4" fill="#E2C103" opacity="0.9"/>
+
+    <!-- Outer motor shell -->
+    <path id="motor-shell"
+          d="M149 485 H315
+             Q320 485 321 492
+             Q323 560 315 650
+             H149
+             Q141 560 143 492
+             Q144 485 149 485 Z"
+          fill="#FFFFFF" opacity="0.18" stroke="#D8D9DB" stroke-width="4"/>
+
+    <!-- Inner motor chamber -->
+    <rect id="motor-chamber" x="170" y="528" width="124" height="82" fill="#F4F5F6"/>
+
+    <!-- Vertical motor rails -->
+    <rect id="rail-left-dark" x="161" y="528" width="5" height="82" fill="#939598"/>
+    <rect id="rail-left-light" x="167" y="528" width="2" height="82" fill="#BCBEC0"/>
+    <rect id="rail-right-light" x="295" y="528" width="2" height="82" fill="#BCBEC0"/>
+    <rect id="rail-right-dark" x="298" y="528" width="5" height="82" fill="#939598"/>
+
+    <!-- Bottom dark cap -->
+    <rect id="bottom-cap" x="160" y="610" width="144" height="37" fill="#414042"/>
+
+    <!-- Electrical terminals -->
+    <g id="terminal-black">
+      <rect x="122" y="563" width="8" height="5" rx="2.5" fill="#8C8C8C"/>
+      <rect x="130" y="557" width="11" height="17" rx="3" fill="#333333"/>
+      <rect x="144" y="557" width="15" height="17" rx="2" fill="#292929"/>
+      <rect x="158" y="557" width="2" height="29" fill="#292929"/>
+    </g>
+    <g id="terminal-red">
+      <rect x="122" y="593" width="8" height="5" rx="2.5" fill="#8C8C8C"/>
+      <rect x="130" y="587" width="11" height="17" rx="3" fill="#AF1C1C"/>
+      <rect x="144" y="587" width="15" height="17" rx="2" fill="#8C1616"/>
+      <rect x="158" y="587" width="3" height="55" fill="#AF1C1C"/>
+    </g>
+
+    <!-- Central motor bracket -->
+    <rect id="bracket-bridge" x="223" y="605" width="17" height="4" fill="#6D6E71"/>
+    <path id="bracket-left" d="M217 646 L221 599 H224 L224 646 Z" fill="#3D383A"/>
+    <path id="bracket-right" d="M246 646 L242 599 H239 L239 646 Z" fill="#3D383A"/>
+    <rect id="washer" x="212" y="650" width="43" height="5" rx="2.5" fill="#231F20"/>
+
+    <!-- Bottom shaft -->
+    <g id="bottom-shaft">
+      <rect x="226" y="656" width="4" height="67" fill="#D1D3D4"/>
+      <rect x="230" y="656" width="4" height="67" fill="#A7A9AC"/>
+      <rect x="234" y="656" width="4" height="67" fill="#939598"/>
+      <rect x="238" y="656" width="1" height="67" fill="#BCBEC0"/>
+    </g>
+  </g>
+</svg>

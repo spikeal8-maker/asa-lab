@@ -67,8 +67,15 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'piezo-passive-buzzer': [22.133, 22],
   'piezo-disc': [24, 24],
   'servo-motor': [15.2, 39.1668],
+  gearmotor: [43.52, 68.58],
+  'vibration-motor': [7.43, 22.92],
+  'electrolytic-capacitor': [16.91, 19.2],
+  'soil-moisture-sensor': [15.83, 42.33],
   'ultrasonic-sensor': [44.83, 26.42],
+  'ultrasonic-hc-sr04': [44.63, 25.1],
+  'pir-sensor': [44.53, 43.52],
   'temperature-sensor': [5.79, 9.6371],
+  multimeter: [44.59, 23.24],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -84,8 +91,15 @@ const BREADBOARD_MOUNTABLE = [
   ['seven-segment-display', 'top-1', 'F1'],
   ['incandescent-lamp', 'L1', 'J1'],
   ['transistor-npn', 'base', 'J2'],
+  ['electrolytic-capacitor', 'negative', 'J1'],
+  ['vibration-motor', 'negative', 'J1'],
+  ['gearmotor', 'negative', 'J1'],
+  ['soil-moisture-sensor', 'vcc', 'J1'],
   ['ultrasonic-sensor', 'gnd', 'J1'],
+  ['ultrasonic-hc-sr04', 'vcc', 'J1'],
+  ['pir-sensor', 'vcc', 'J1'],
   ['temperature-sensor', 'pin-1', 'J1'],
+  ['multimeter', 'com', 'J1'],
 ] as const;
 
 beforeAll(() => {
@@ -310,6 +324,26 @@ describe('owner SVG integration in the real Electronics document', () => {
       enabled: true,
       simulationStatus: 'not_yet_supported',
     });
+    expect(
+      families
+        .find((family) => family.familyId === 'ultrasonic-sensor')
+        ?.variants.map((variant) => variant.variantId),
+    ).toEqual(['ultrasonic-sensor', 'ultrasonic-hc-sr04']);
+    for (const componentId of [
+      'electrolytic-capacitor',
+      'vibration-motor',
+      'gearmotor',
+      'soil-moisture-sensor',
+      'ultrasonic-hc-sr04',
+      'pir-sensor',
+      'multimeter',
+    ]) {
+      expect(productionCatalogEntry(componentId), componentId).toMatchObject({
+        enabled: true,
+        simulationSupported: false,
+        catalogStatus: 'enabled',
+      });
+    }
     expect(families.find((family) => family.familyId === 'temperature-sensor')).toMatchObject({
       defaultVariantId: 'temperature-sensor',
       enabled: true,
