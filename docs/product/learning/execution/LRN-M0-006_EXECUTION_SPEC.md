@@ -5,7 +5,7 @@
 **Status:** IN PROGRESS — OWNER CHANGES REQUIRED
 **Baseline SHA:** `9290ab18490f376460a3b5f396f8b8a4fd905488`  
 **Issue:** `#147`  
-**Pull request:** `#148` (draft until evidence is complete)  
+**Pull requests:** `#148` (original merge), `#149` (acceptance corrections)
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
 **Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`
 
