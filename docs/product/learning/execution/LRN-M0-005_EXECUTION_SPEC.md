@@ -4,7 +4,7 @@
 
 **Milestone:** `M0 — State Convergence`
 
-**Status:** IN_PROGRESS
+**Status:** DONE — evidence complete; owner acceptance pending
 **Baseline SHA:** `481f1d406f2322ce7999f1aab47c4f4eaff7fd77`
 
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
@@ -190,8 +190,10 @@ LRN-DRY-PG-017 DB rejects write inside analyzer read-only boundary
 LRN-DRY-PG-018 30 learners x 100 activities, bounded query count and elapsed time
 ```
 
-Fixtures may write only to isolated `*_test` setup/cleanup outside the analyzer
-transaction. The analyzer itself receives no write callback in production code.
+The 16 classification fixtures are pure deterministic isolated inputs. The
+PostgreSQL suite proves the real read-only boundary and repeatability against a
+fully migrated `*_test` database. Fixture preparation, when needed, occurs
+outside the analyzer transaction; the analyzer itself has no write path.
 
 ## 18. Browser E2E
 
@@ -248,27 +250,41 @@ six classifications plus secondary facts and do not abort the scan.
 
 ## 23. Acceptance checklist
 
-- [ ] executable analyzer and one documented command
-- [ ] read-only transaction and DB-level negative proof
-- [ ] versioned deterministic JSON schema
-- [ ] exact six-class priority
-- [ ] required Master Spec counts and direct/course/quiz breakdown
-- [ ] identity mapping aggregates without guessing
-- [ ] missing immutable evidence -> legacy_unresolved
-- [ ] result-selection and lifecycle rules from M0-004
-- [ ] legacy feedback preserved without grade conversion
-- [ ] 16 required fixture families and expected classifications/counts
-- [ ] repeatability proof
-- [ ] 30 x 100 performance evidence and bounded query count
-- [ ] redacted test/local report; no PII committed
-- [ ] production not scanned
-- [ ] ledger drift repaired without false implementation claims
-- [ ] `git diff --check`
-- [ ] `pnpm contracts:check`
-- [ ] `pnpm control-plane:check`
-- [ ] `pnpm gate:governance`
-- [ ] relevant code/data gates
+- [x] executable analyzer and one documented command
+- [x] read-only transaction and DB-level negative proof
+- [x] versioned deterministic JSON schema
+- [x] exact six-class priority
+- [x] required Master Spec counts and direct/course/quiz breakdown
+- [x] identity mapping aggregates without guessing
+- [x] missing immutable evidence -> legacy_unresolved
+- [x] result-selection and lifecycle rules from M0-004
+- [x] legacy feedback preserved without grade conversion
+- [x] 16 required fixture families and expected classifications/counts
+- [x] repeatability proof
+- [x] 30 x 100 performance evidence and bounded query count
+- [x] redacted test/local report; no PII committed
+- [x] production not scanned
+- [x] ledger drift repaired without false implementation claims
+- [x] `git diff --check`
+- [x] `pnpm contracts:check`
+- [x] `pnpm control-plane:check`
+- [x] `pnpm gate:governance`
+- [x] relevant focused code/data tests
 
 ## 24. Evidence
 
-Pending implementation and isolated test/local-dev execution.
+Published evidence:
+
+```text
+docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+tools/learning-migration-dry-run.mjs
+tools/learning-migration-dry-run-v1.schema.json
+tests/courses/learning-migration-dry-run.unit.spec.ts — 22 PASS
+tests/courses/learning-migration-dry-run.pg.spec.ts — 2 PASS
+gate:code — PASS with NX cache skipped
+gate:data — FAIL outside Learning scope: one persistent Admin/Auth timeout;
+            Learning suites PASS
+```
+
+Production was not scanned. No browser evidence is applicable because this
+task adds no product runtime or UI.

@@ -259,30 +259,33 @@ parallel_lanes:
 
   # Owner-activated ASA Learning M0 state-convergence lane. The repository
   # task id follows the control-plane schema; its only active Work Queue item
-  # is LRN-M0-004. M0-005 and M1-M7 remain outside this activation.
+  # is LRN-M0-005. M0-006 and M1-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m0-canonical-resolver
+    worktree_id: learning-m0-legacy-dry-run
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
       - docs/product/learning/**
       - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+      - tools/learning-migration-dry-run.mjs
+      - tools/learning-migration-dry-run-v1.schema.json
+      - tests/courses/learning-migration-dry-run.unit.spec.ts
+      - tests/courses/learning-migration-dry-run.pg.spec.ts
     task:
-      id: TASK-LEARNING-M0-004
-      issue: 143
-      branch: agent/learning-m0-canonical-resolver
+      id: TASK-LEARNING-M0-005
+      issue: 145
+      branch: agent/learning-m0-legacy-dry-run
       base_branch: main
-      pr: 144
-      pr_draft: false
-      status: done
-      checkpoint: lrn_m0_004_evidence_published
+      pr: 146
+      pr_draft: true
+      status: in_progress
+      checkpoint: lrn_m0_005_analyzer_activated
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 879f659471709e36d6df6110ab6c0e0612a4c7c5
-      head_sha: 8675cfe2d8ce4dd6f1c03289e04b2e0dff46a0a2
-      product_merge_sha: 8275adc19adf49eaffaeeedf791e4aaf29d71653
+      convergence_baseline_sha: 481f1d406f2322ce7999f1aab47c4f4eaff7fd77
+      head_sha: 6ad79ae6ab6b25c08f88f670d6f1f23f6fb9af2d
     execution_lease:
-      executor_id: codex-learning-m0-canonical-resolver
+      executor_id: codex-learning-m0-legacy-dry-run
       holder: unassigned
       acquired_at: null
       expires_at: null
