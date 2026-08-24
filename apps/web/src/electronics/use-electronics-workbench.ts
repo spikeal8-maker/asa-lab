@@ -95,6 +95,11 @@ function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
 }
 
+function compactWorkbench(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(max-width: 760px)').matches ?? window.innerWidth <= 760;
+}
+
 export function useElectronicsWorkbench(projectId: string) {
   const projectState = useWorkbenchProjectState(projectId);
   const {
@@ -174,7 +179,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [libraryOpen, setLibraryOpen] = useState(() => !compactWorkbench());
   const [libraryQuery, setLibraryQuery] = useState('');
   const [category, setCategory] = useState<ComponentCategory>('basic');
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
@@ -398,6 +403,7 @@ export function useElectronicsWorkbench(projectId: string) {
         ? catalogPositionAtClient(variant.componentTypeId, pointer.clientX, pointer.clientY)
         : null,
       clientPoint: pointer ? { x: pointer.clientX, y: pointer.clientY } : null,
+      startClientPoint: pointer ? { x: pointer.clientX, y: pointer.clientY } : null,
       pointerId: pointer?.pointerId ?? null,
       mode: pointer ? 'pointer' : 'keyboard',
     };
@@ -427,12 +433,33 @@ export function useElectronicsWorkbench(projectId: string) {
     const current = catalogPlacementRef.current;
     if (current?.mode !== 'pointer' || current.pointerId !== pointerId) return;
     const point = catalogPositionAtClient(current.componentTypeId, clientX, clientY);
-    setCatalogPlacementState(null);
+    const travel = current.startClientPoint
+      ? Math.hypot(clientX - current.startClientPoint.x, clientY - current.startClientPoint.y)
+      : Number.POSITIVE_INFINITY;
     if (!point) {
+      // A phone tap cannot drag a part through the bottom sheet and onto a tiny
+      // canvas reliably. A short tap therefore picks the part up, closes the
+      // sheet and lets the learner tap the exact landing place next.
+      if (compactWorkbench() && travel <= 12) {
+        setCatalogPlacementState({
+          ...current,
+          point: null,
+          clientPoint: null,
+          startClientPoint: null,
+          pointerId: null,
+          mode: 'keyboard',
+        });
+        setLibraryOpen(false);
+        setNotice('Компонент выбран. Коснитесь места на рабочем поле, куда его поставить.');
+        return;
+      }
+      setCatalogPlacementState(null);
       setNotice('Размещение отменено: отпустите компонент над рабочим полем.');
       return;
     }
+    setCatalogPlacementState(null);
     addComponent(current.componentTypeId, point);
+    if (compactWorkbench()) setLibraryOpen(false);
   }
 
   function cancelFamilyPlacement(pointerId?: number): void {

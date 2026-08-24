@@ -57,6 +57,7 @@ export interface CatalogPlacement {
   componentTypeId: string;
   point: Point | null;
   clientPoint: Point | null;
+  startClientPoint: Point | null;
   pointerId: number | null;
   mode: 'pointer' | 'keyboard';
 }

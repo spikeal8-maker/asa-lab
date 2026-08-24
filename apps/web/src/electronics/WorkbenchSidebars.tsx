@@ -122,6 +122,9 @@ export function WorkbenchSidebars({
           aria-label={c.libraryOpen ? 'Свернуть библиотеку' : 'Открыть библиотеку'}
         >
           {c.libraryOpen ? <ExpandIcon /> : <CollapseIcon />}
+          <span className="workbench-library-handle-label">
+            {c.libraryOpen ? 'Скрыть компоненты' : 'Компоненты'}
+          </span>
         </button>
         {c.libraryOpen ? (
           <>
