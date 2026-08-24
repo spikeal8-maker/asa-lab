@@ -229,14 +229,14 @@ const SHAPE_NAMES: Readonly<Record<PrimitiveKind, string>> = {
   'star-6': 'Звезда 6-конечная',
 };
 
-const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
-  box: '#d71920',
+export const THREE_D_SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
+  box: '#e31c2b',
   cylinder: '#f5831f',
-  sphere: '#27a9e1',
-  cone: '#8a4bb8',
+  sphere: '#0099c6',
+  cone: '#6e2786',
   torus: '#00a5c8',
-  wedge: '#2f7de1',
-  roof: '#5fbf5f',
+  wedge: '#2f7d3a',
+  roof: '#58a84f',
   pyramid: '#f2c313',
   'half-sphere': '#d94693',
   tube: '#e68117',
@@ -250,7 +250,7 @@ const SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
   'extrude-sketch': '#8492bd',
   'revolve-sketch': '#9bd765',
   scribble: '#91a9bd',
-  text: '#d71920',
+  text: '#e31c2b',
   'round-roof': '#68b9c0',
   ring: '#8c6b45',
   icosahedron: '#d82633',
@@ -308,7 +308,7 @@ export function createThreeDNode(primitive: PrimitiveKind, id: string): ThreeDNo
     primitive,
     name: SHAPE_NAMES[primitive],
     operation: 'solid',
-    color: SHAPE_COLORS[primitive],
+    color: THREE_D_SHAPE_COLORS[primitive],
     transform: {
       position: { x: 0, y: dimensions.height / 2, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },

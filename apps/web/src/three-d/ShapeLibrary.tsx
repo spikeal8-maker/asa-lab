@@ -1,5 +1,5 @@
 import { useMemo, useState, type DragEvent } from 'react';
-import type { PrimitiveKind, ShapeOperation } from '@asa-lab/three-d';
+import { THREE_D_SHAPE_COLORS, type PrimitiveKind, type ShapeOperation } from '@asa-lab/three-d';
 import { CommentIcon, SearchIcon } from '../electronics/workbench-icons';
 import { ShapeThumbnail } from './ShapeThumbnail';
 import { GridIcon, RulerIcon } from './three-d-icons';
@@ -36,31 +36,96 @@ const SHAPES: readonly {
   color: string;
   category: ShapeCategory;
 }[] = [
-  { primitive: 'box', label: 'Параллелепипед', color: '#d71920', category: 'basic' },
-  { primitive: 'cylinder', label: 'Цилиндр', color: '#f5831f', category: 'basic' },
-  { primitive: 'sphere', label: 'Сфера', color: '#0099c6', category: 'basic' },
-  { primitive: 'extrude-sketch', label: 'Extrude sketch', color: '#8492bd', category: 'basic' },
-  { primitive: 'revolve-sketch', label: 'Revolve sketch', color: '#9bd765', category: 'basic' },
-  { primitive: 'scribble', label: 'Scribble', color: '#91a9bd', category: 'basic' },
-  { primitive: 'cone', label: 'Конус', color: '#6e2786', category: 'basic' },
-  { primitive: 'pyramid', label: 'Пирамида', color: '#f2c313', category: 'basic' },
-  { primitive: 'roof', label: 'Крыша', color: '#58a84f', category: 'basic' },
-  { primitive: 'text', label: 'Текст', color: '#d71920', category: 'basic' },
-  { primitive: 'round-roof', label: 'Круглая кровля', color: '#68b9c0', category: 'basic' },
-  { primitive: 'half-sphere', label: 'Полусфера', color: '#d94693', category: 'basic' },
-  { primitive: 'torus', label: 'Тор', color: '#0098c7', category: 'basic' },
-  { primitive: 'tube', label: 'Труба', color: '#e68117', category: 'basic' },
-  { primitive: 'ring', label: 'Кольцо', color: '#8c6b45', category: 'basic' },
-  { primitive: 'wedge', label: 'Клин', color: '#2f7d3a', category: 'basic' },
-  { primitive: 'polygon', label: 'Многоугольник', color: '#304c97', category: 'basic' },
-  { primitive: 'icosahedron', label: 'Икосаэдр', color: '#d82633', category: 'basic' },
-  { primitive: 'star', label: 'Звезда', color: '#f2c313', category: 'basic' },
-  { primitive: 'star-6', label: 'Звезда', color: '#e0bd16', category: 'basic' },
-  { primitive: 'heart', label: 'Сердце', color: '#b7653f', category: 'basic' },
-  { primitive: 'rounded-box', label: 'Скруглённый блок', color: '#1e70c9', category: 'round' },
-  { primitive: 'capsule', label: 'Капсула', color: '#00a5c8', category: 'round' },
-  { primitive: 'paraboloid', label: 'Параболоид', color: '#7fb34d', category: 'generators' },
-  { primitive: 'diamond', label: 'Ромб', color: '#d82633', category: 'symbols' },
+  { primitive: 'box', label: 'Параллелепипед', color: THREE_D_SHAPE_COLORS.box, category: 'basic' },
+  {
+    primitive: 'cylinder',
+    label: 'Цилиндр',
+    color: THREE_D_SHAPE_COLORS.cylinder,
+    category: 'basic',
+  },
+  { primitive: 'sphere', label: 'Сфера', color: THREE_D_SHAPE_COLORS.sphere, category: 'basic' },
+  {
+    primitive: 'extrude-sketch',
+    label: 'Extrude sketch',
+    color: THREE_D_SHAPE_COLORS['extrude-sketch'],
+    category: 'basic',
+  },
+  {
+    primitive: 'revolve-sketch',
+    label: 'Revolve sketch',
+    color: THREE_D_SHAPE_COLORS['revolve-sketch'],
+    category: 'basic',
+  },
+  {
+    primitive: 'scribble',
+    label: 'Scribble',
+    color: THREE_D_SHAPE_COLORS.scribble,
+    category: 'basic',
+  },
+  { primitive: 'cone', label: 'Конус', color: THREE_D_SHAPE_COLORS.cone, category: 'basic' },
+  {
+    primitive: 'pyramid',
+    label: 'Пирамида',
+    color: THREE_D_SHAPE_COLORS.pyramid,
+    category: 'basic',
+  },
+  { primitive: 'roof', label: 'Крыша', color: THREE_D_SHAPE_COLORS.roof, category: 'basic' },
+  { primitive: 'text', label: 'Текст', color: THREE_D_SHAPE_COLORS.text, category: 'basic' },
+  {
+    primitive: 'round-roof',
+    label: 'Круглая кровля',
+    color: THREE_D_SHAPE_COLORS['round-roof'],
+    category: 'basic',
+  },
+  {
+    primitive: 'half-sphere',
+    label: 'Полусфера',
+    color: THREE_D_SHAPE_COLORS['half-sphere'],
+    category: 'basic',
+  },
+  { primitive: 'torus', label: 'Тор', color: THREE_D_SHAPE_COLORS.torus, category: 'basic' },
+  { primitive: 'tube', label: 'Труба', color: THREE_D_SHAPE_COLORS.tube, category: 'basic' },
+  { primitive: 'ring', label: 'Кольцо', color: THREE_D_SHAPE_COLORS.ring, category: 'basic' },
+  { primitive: 'wedge', label: 'Клин', color: THREE_D_SHAPE_COLORS.wedge, category: 'basic' },
+  {
+    primitive: 'polygon',
+    label: 'Многоугольник',
+    color: THREE_D_SHAPE_COLORS.polygon,
+    category: 'basic',
+  },
+  {
+    primitive: 'icosahedron',
+    label: 'Икосаэдр',
+    color: THREE_D_SHAPE_COLORS.icosahedron,
+    category: 'basic',
+  },
+  { primitive: 'star', label: 'Звезда', color: THREE_D_SHAPE_COLORS.star, category: 'basic' },
+  {
+    primitive: 'star-6',
+    label: 'Звезда',
+    color: THREE_D_SHAPE_COLORS['star-6'],
+    category: 'basic',
+  },
+  { primitive: 'heart', label: 'Сердце', color: THREE_D_SHAPE_COLORS.heart, category: 'basic' },
+  {
+    primitive: 'rounded-box',
+    label: 'Скруглённый блок',
+    color: THREE_D_SHAPE_COLORS['rounded-box'],
+    category: 'round',
+  },
+  {
+    primitive: 'capsule',
+    label: 'Капсула',
+    color: THREE_D_SHAPE_COLORS.capsule,
+    category: 'round',
+  },
+  {
+    primitive: 'paraboloid',
+    label: 'Параболоид',
+    color: THREE_D_SHAPE_COLORS.paraboloid,
+    category: 'generators',
+  },
+  { primitive: 'diamond', label: 'Ромб', color: THREE_D_SHAPE_COLORS.diamond, category: 'symbols' },
 ];
 
 function beginDrag(
