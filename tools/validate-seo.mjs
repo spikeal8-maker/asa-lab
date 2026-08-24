@@ -184,6 +184,7 @@ for (const page of pages) {
   advise(h1Count === 1, `${page.url}: review h1 count ${h1Count}`);
   expect(/<main(?:\s|>)/i.test(html), `${page.url}: semantic main content is missing`);
   expect(/<a\s+[^>]*href="[^"]+"/i.test(html), `${page.url}: crawlable links are missing`);
+  expect(jsonLdBlocks.length > 0, `${page.url}: JSON-LD structured data is missing`);
   for (const [index, jsonLd] of jsonLdBlocks.entries()) {
     try {
       JSON.parse(jsonLd);
