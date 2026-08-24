@@ -1,8 +1,11 @@
 # LRN-M0-003 — CURRENT Status Divergence Report
 
-**Outcome:** `PROVEN`  
-**Baseline SHA:** `57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb`  
-**Governance activation SHA:** `e17d406`  
+**Outcome:** `PROVEN`
+
+**Baseline SHA:** `57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb`
+
+**Governance activation SHA:** `e17d406`
+
 **Scope:** CURRENT code, schema, existing tests and non-mutating local data
 diagnostics. No TARGET LearnerIdentity runtime exists.
 

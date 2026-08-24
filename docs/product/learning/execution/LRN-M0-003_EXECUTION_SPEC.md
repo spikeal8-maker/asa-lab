@@ -1,10 +1,14 @@
 # LRN-M0-003 — Status Divergence Trace Execution Spec
 
-**Task:** `LRN-M0-003`  
-**Milestone:** `M0 — State Convergence`  
+**Task:** `LRN-M0-003`
+
+**Milestone:** `M0 — State Convergence`
+
 **Status:** READY_FOR_OWNER_ACCEPTANCE
-**Baseline SHA:** `57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb`  
-**Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
+**Baseline SHA:** `57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb`
+
+**Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`
+
 **Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`
 
 ---
@@ -37,9 +41,9 @@ audit against the baseline descendant and cite exact evidence from:
 ```text
 docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
 docs/architecture/ADR-LEARNER-IDENTITY-001.md
-migrations/0033_classrooms.sql and subsequent classroom migrations
-migrations/0068_course_runtime.sql and subsequent course migrations
-migrations/0077_admin_auth_sessions.sql
+migrations/0033_classroom_assignments.sql and subsequent classroom migrations
+migrations/0068_classroom_course_runs.sql and subsequent course migrations
+migrations/0077_learning_assessment_foundation.sql
 migrations/0083_quiz_engine.sql
 migrations/0084_grade_scales_and_learner_results.sql
 apps/api/src/** learning/classroom/course controllers
