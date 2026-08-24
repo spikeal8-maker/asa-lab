@@ -9,9 +9,9 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL = process.env.MIGRATION_DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error('DATABASE_URL (admin/migration connection) is required');
+  console.error('MIGRATION_DATABASE_URL (admin/migration connection) is required');
   process.exit(78);
 }
 

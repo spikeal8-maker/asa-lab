@@ -198,8 +198,11 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       ASA_API_PORT: '4611',
       POSTGRES_PASSWORD: 'compose-validation-admin-password',
       ASA_APP_DB_PASSWORD: 'compose-validation-runtime-password',
-      DATABASE_URL:
+      DATABASE_URL: 'postgres://wrong-generic:wrong@elsewhere:5432/asalab',
+      MIGRATION_DATABASE_URL:
         'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab',
+      MIGRATION_EXPECT_DATABASE: 'asalab',
+      MIGRATION_CONFIRM: 'APPLY:asalab',
       APP_DATABASE_URL:
         'postgres://asalab_app:compose-validation-runtime-password@postgres:5432/asalab',
     },
@@ -211,6 +214,17 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
     continue;
   }
   const config = JSON.parse(result.stdout);
+  const migrationEnvironment = config.services?.migration?.environment ?? {};
+  if ('DATABASE_URL' in migrationEnvironment) {
+    errors.push(`${profile}/migration: generic DATABASE_URL must not enter the container`);
+  }
+  const expectedMigrationUrl =
+    profile === 'test'
+      ? 'postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test'
+      : 'postgres://asalab_admin:compose-validation-admin-password@postgres:5432/asalab';
+  if (migrationEnvironment.MIGRATION_DATABASE_URL !== expectedMigrationUrl) {
+    errors.push(`${profile}/migration: dedicated MIGRATION_DATABASE_URL was not preserved`);
+  }
   const published = [];
   for (const [name, service] of Object.entries(config.services ?? {})) {
     if (service.privileged === true) errors.push(`${profile}/${name}: privileged is forbidden`);

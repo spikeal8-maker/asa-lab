@@ -1,15 +1,25 @@
 // Child-process environment builders for the dev orchestrator.
-// The API child receives ONLY the runtime-role URL: admin (DATABASE_URL) and
-// test (TEST_DATABASE_URL) connection strings are stripped even when present
-// in the parent environment or .env.local. The web child gets no DB
-// credentials at all.
+// The API child receives ONLY the runtime-role URL: admin, migration and test
+// connection material is stripped even when present in the parent environment
+// or .env.local. The web child gets no DB credentials at all.
 
-const API_STRIP = ['DATABASE_URL', 'TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'];
+const MIGRATION_STRIP = [
+  'MIGRATION_DATABASE_URL',
+  'MIGRATION_EXPECT_DATABASE',
+  'MIGRATION_CONFIRM',
+];
+const API_STRIP = [
+  'DATABASE_URL',
+  'TEST_DATABASE_URL',
+  'APP_TEST_DATABASE_URL',
+  ...MIGRATION_STRIP,
+];
 const WEB_STRIP = [
   'DATABASE_URL',
   'TEST_DATABASE_URL',
   'APP_TEST_DATABASE_URL',
   'APP_DATABASE_URL',
+  ...MIGRATION_STRIP,
 ];
 
 export function apiChildEnv(base, apiPort) {

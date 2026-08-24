@@ -43,7 +43,12 @@ try {
 
 const migrate = spawnSync('node', ['tools/migrate.mjs', '--apply'], {
   stdio: 'inherit',
-  env: { ...process.env, DATABASE_URL: testUrl },
+  env: {
+    ...process.env,
+    MIGRATION_DATABASE_URL: testUrl,
+    MIGRATION_EXPECT_DATABASE: testDb,
+    MIGRATION_CONFIRM: `APPLY:${testDb}`,
+  },
 });
 if (migrate.status !== 0) {
   console.error('migrations failed on the test database');
