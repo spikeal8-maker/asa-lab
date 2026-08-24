@@ -63,6 +63,8 @@ export interface ThreeDShapeParameters {
   readonly innerRadius: number;
   readonly text: string;
   readonly font: 'sans' | 'serif' | 'mono';
+  /** Signed bend around a vertical cylinder: 0 is flat, negative reverses the arc. */
+  readonly curveAngle: number;
   readonly bevelSegments: number;
   readonly radius: number;
   readonly tubeRadius: number;
@@ -177,7 +179,7 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
     case 'tube':
       return { width: 20, depth: 20, height: 20 };
     case 'star':
-      return { width: 20, depth: 20, height: 5 };
+      return { width: 30, depth: 30, height: 7.5 };
     case 'heart':
       return { width: 24, depth: 20, height: 5 };
     case 'half-sphere':
@@ -196,7 +198,7 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
     case 'scribble':
       return { width: 24, depth: 20, height: 5 };
     case 'star-6':
-      return { width: 20, depth: 20, height: 5 };
+      return { width: 30, depth: 30, height: 7.5 };
     default:
       return { width: 20, depth: 20, height: 20 };
   }
@@ -284,6 +286,7 @@ function defaultShapeParameters(primitive: PrimitiveKind): ThreeDShapeParameters
     innerRadius: primitive === 'ring' ? 8 : 6,
     text: 'TEXT',
     font: 'sans',
+    curveAngle: 0,
     bevelSegments: 1,
     radius: primitive === 'torus' ? 7.5 : 10,
     tubeRadius: 2.5,
@@ -397,6 +400,7 @@ function isShapeParameters(value: unknown): value is ThreeDShapeParameters {
     typeof value['text'] === 'string' &&
     value['text'].length <= 128 &&
     (value['font'] === 'sans' || value['font'] === 'serif' || value['font'] === 'mono') &&
+    optionalNumber('curveAngle', -180, 180) &&
     (value['bevelSegments'] === undefined ||
       (Number.isInteger(value['bevelSegments']) &&
         (value['bevelSegments'] as number) >= 1 &&
