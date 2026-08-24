@@ -1,0 +1,218 @@
+schema_version: '1.0'
+document: docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+purpose: Machine-readable ledger of critical ASA Learning requirements. Full MUST
+  set remains in master spec; milestone execution specs extend this ledger.
+status_values:
+- target
+- in_progress
+- implemented
+- proven
+- deferred
+- blocked
+requirements:
+- id: DB-000
+  milestone: M0
+  status: in_progress
+  summary: Prove existing contracts cannot safely satisfy required semantics before adding a table
+  evidence:
+  - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  tests: []
+- id: MIG-001
+  milestone: M0
+  status: in_progress
+  summary: Resolve legacy classroom status and Attempt/Gradebook contradictions before Gradebook 2.0
+  evidence:
+  - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  tests: []
+- id: IDN-001
+  milestone: M0
+  status: target
+  summary: Stable logical learner identity independent of StudentSeat/account login
+  evidence: []
+  tests:
+  - E2E-016
+- id: IDN-002
+  milestone: M0
+  status: in_progress
+  summary: Audit existing Identity/Classroom model before creating a new learner identity
+    table
+  evidence:
+  - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  tests: []
+  decision: ADR-LEARNER-IDENTITY-001
+- id: IDN-003
+  milestone: M0
+  status: target
+  summary: Learning runtime references the ADR-selected stable learner key
+  evidence: []
+  tests: []
+- id: IDN-004
+  milestone: M0
+  status: target
+  summary: StudentSeat to Account linking preserves one logical learner history
+  evidence: []
+  tests:
+  - E2E-016
+- id: MIG-003
+  milestone: M0
+  status: target
+  summary: Never fabricate historical immutable submission evidence
+  evidence: []
+  tests:
+  - TST-INT-015
+- id: ARCH-002
+  milestone: M1
+  status: target
+  summary: Every executable activity has persistent ActivityRun
+  evidence: []
+  tests:
+  - TST-INT-002
+- id: RUN-005
+  milestone: M1
+  status: target
+  summary: CourseRun materializes persistent ActivityRuns exactly once
+  evidence: []
+  tests:
+  - E2E-003
+  - TST-INT-002
+- id: RUN-106
+  milestone: M1
+  status: target
+  summary: Deterministic precedence of learner override > run > course block > activity
+    defaults
+  evidence: []
+  tests:
+  - TST-INT-RUN-PRECEDENCE
+- id: AUD-203
+  milestone: M1
+  status: target
+  summary: New learner joins active dynamic audience exactly once
+  evidence: []
+  tests:
+  - TST-INT-003
+  - E2E-006
+- id: RUN-203
+  milestone: M1
+  status: target
+  summary: Bulk assignment retry is idempotent
+  evidence: []
+  tests:
+  - E2E-009
+- id: ATT-004
+  milestone: M2
+  status: target
+  summary: At most one non-terminal Attempt per participation
+  evidence: []
+  tests:
+  - TST-INT-005
+- id: QUIZ-102
+  milestone: M2
+  status: target
+  summary: Quiz answers persist server-side and recover after reload
+  evidence: []
+  tests:
+  - E2E-001
+  - TST-INT-006
+- id: QUIZ-104
+  milestone: M2
+  status: target
+  summary: Quiz timer is server-authoritative
+  evidence: []
+  tests:
+  - E2E-010
+  - TST-INT-007
+  - TST-INT-008
+- id: ASM-SEL-003
+  milestone: M2
+  status: target
+  summary: Best result selection has deterministic tie-break
+  evidence: []
+  tests:
+  - TST-UNIT-001
+- id: ASM-SEL-006
+  milestone: M2
+  status: target
+  summary: teacher_selected attempt is stored as audited pointer
+  evidence: []
+  tests:
+  - TST-INT-RESULT-SELECTION
+- id: QUIZ-110
+  milestone: M2
+  status: target
+  summary: Regrade scoped to ActivityRun, not global authoring quiz
+  evidence: []
+  tests:
+  - E2E-012
+- id: ASM-006
+  milestone: M3
+  status: target
+  summary: Published result correction is append-only
+  evidence: []
+  tests:
+  - TST-INT-010
+- id: ASM-007
+  milestone: M3
+  status: target
+  summary: Concurrent stale grading cannot overwrite latest result
+  evidence: []
+  tests:
+  - E2E-013
+  - TST-INT-011
+- id: GRD-005
+  milestone: M3
+  status: target
+  summary: Gradebook cell separates workflowState, selectedResult and flags
+  evidence: []
+  tests:
+  - E2E-005
+- id: GRD-007
+  milestone: M3
+  status: target
+  summary: No generic average without explicit aggregation policy
+  evidence: []
+  tests: []
+- id: CRS-002
+  milestone: M4
+  status: target
+  summary: CourseVersion freezes exact content/activity/media refs
+  evidence: []
+  tests:
+  - TST-INT-001
+- id: CRS-006
+  milestone: M4
+  status: target
+  summary: Prepublish validation blocks invalid/broken/cyclic course
+  evidence: []
+  tests:
+  - TST-UNIT-005
+- id: MED-002
+  milestone: M4
+  status: target
+  summary: Base MVP distinguishes immutable embedded image from external mutable media
+    links
+  evidence: []
+  tests:
+  - E2E-018
+- id: CAT-005
+  milestone: M5
+  status: target
+  summary: Course graph copy includes content graph but excludes all learner runtime
+  evidence: []
+  tests:
+  - TST-INT-013
+- id: MLT-007
+  milestone: M5
+  status: target
+  summary: Learner runtime belongs to target school tenant
+  evidence: []
+  tests:
+  - E2E-015
+  - TST-INT-012
+- id: SEC-CAP-001
+  milestone: M5
+  status: target
+  summary: Authorization uses concrete capabilities and resource scope
+  evidence: []
+  tests:
+  - SEC-NEGATIVE-MATRIX
+
