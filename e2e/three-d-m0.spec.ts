@@ -246,7 +246,7 @@ test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({
   await expect(page.getByRole('button', { name: 'Сфера', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Полусфера', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Поиск форм' }).click();
-  await expect(page.locator('.asa3d-shape-card')).toHaveCount(11);
+  await expect(page.locator('.asa3d-shape-card')).toHaveCount(21);
 
   await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
   await expect(page.getByLabel('Параметры выбранной формы')).toBeVisible();
