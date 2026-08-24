@@ -24,6 +24,14 @@ requirements:
   summary: Resolve legacy classroom status and Attempt/Gradebook contradictions before Gradebook 2.0
   evidence:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
+  - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
+  tests: []
+- id: MIG-005
+  milestone: M0
+  status: target
+  summary: After accepted migration derive runtime status from Participation, Attempt and Result rather than parallel legacy flags
+  evidence:
+  - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
   tests: []
 - id: IDN-001
   milestone: M0

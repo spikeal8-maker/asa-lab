@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-003`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** IN_PROGRESS  
+**Status:** READY_FOR_OWNER_ACCEPTANCE
 **Baseline SHA:** `57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
 **Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`
@@ -150,23 +150,27 @@ N/A — no runtime query changes or load are introduced.
 
 ## 21. Acceptance checklist
 
-- [ ] exact endpoint → SQL/query → table/field → UI map for every status surface
-- [ ] direct project, course-generated project and direct quiz paths traced
-- [ ] learner-result and Gradebook read models traced
-- [ ] required legacy/new/result-pointer and seat-lifecycle scenarios decided
-- [ ] conclusion is exactly `PROVEN` or `NOT REPRODUCED`
+- [x] exact endpoint → SQL/query → table/field → UI map for every status surface
+- [x] direct project, course-generated project and direct quiz paths traced
+- [x] learner-result and Gradebook read models traced
+- [x] required legacy/new/result-pointer and seat-lifecycle scenarios decided
+- [x] conclusion is exactly `PROVEN`
 - [x] migrations N/A — prohibited
 - [x] OpenAPI changes N/A — prohibited
 - [x] unit implementation tests N/A — no implementation
-- [ ] relevant existing integration evidence
+- [x] relevant existing integration evidence
 - [x] browser N/A unless required by unresolved lineage
-- [ ] security/read-visibility evidence
-- [ ] `git diff --check`
-- [ ] `pnpm control-plane:check`
-- [ ] `pnpm gate:governance`
-- [ ] ledger evidence/status accuracy updated
+- [x] security/read-visibility evidence
+- [x] `git diff --check`
+- [x] `pnpm control-plane:check`
+- [x] `pnpm gate:governance`
+- [x] ledger evidence/status accuracy updated
 
 ## 22. Evidence
 
-To be completed with final SHA, exact commands, test outputs, diagnostic data
-shape, known gaps and the accepted `PROVEN` or `NOT REPRODUCED` report.
+The `PROVEN` evidence, exact commands, setup failures, successful test outputs,
+aggregate data shapes and known gaps are recorded in
+`docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md`. Browser E2E
+is N/A because exact SQL reader calls reproduced both conflicting projections.
+`git diff --check`, `pnpm control-plane:check`, `pnpm gate:governance` and
+`pnpm contracts:check` pass on the documentation change set.
