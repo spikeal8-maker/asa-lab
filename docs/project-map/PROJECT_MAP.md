@@ -24,10 +24,10 @@ execution direct_main
 
 The owner accepted `LRN-M0-001 — Current Learning Architecture Audit` and
 `LRN-M0-002 — Learner Identity ADR`. `LRN-M0-003 — Status Divergence Trace` is
-now the only active Learning Work Queue item in parallel with the unchanged
-primary Admin/Auth task. M0-004 and M1-M7 are not activated; M0-003 authorizes
-diagnostic documentation and read-only evidence only, not migrations, product
-runtime, UI/Gradebook, OpenAPI or Quiz Engine changes.
+evidence-complete and published by merged PR #141; owner acceptance remains
+pending. The primary Admin/Auth task is unchanged. M0-004 and M1-M7 are not
+activated, and no migration, runtime, UI/Gradebook, OpenAPI or Quiz Engine
+change was made by M0-003.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,

@@ -273,13 +273,14 @@ parallel_lanes:
       branch: agent/learning-m0-status-divergence
       base_branch: main
       pr: 141
-      pr_draft: true
-      status: in_progress
-      checkpoint: lrn_m0_003_activated
+      pr_draft: false
+      status: done
+      checkpoint: lrn_m0_003_evidence_published
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 57a3dfa3dd392253d2c0c7b4e20f9411bf2fedcb
-      head_sha: c8a75722f4887eb56d5049f4de5bb03f8b7db656
+      head_sha: 4537e859622b5520eccaf7efb6afb122fe244e0b
+      product_merge_sha: 63785803b1dc47561cac8992f43e1d44593426bc
     execution_lease:
       executor_id: codex-learning-m0-divergence
       holder: unassigned
