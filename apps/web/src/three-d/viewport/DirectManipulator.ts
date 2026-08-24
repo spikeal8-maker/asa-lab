@@ -1747,6 +1747,15 @@ export class DirectManipulator {
     };
     entry.object.scale.set(1, 1, 1);
     this.commitEntry(entry.node.id, entry.object, dimensions);
+    // Keep the edited value visible until React replaces this runtime entry
+    // with geometry built from the committed dimensions.
+    entry.object.scale.set(
+      dimensions.width / entry.node.dimensions.width,
+      dimensions.height / entry.node.dimensions.height,
+      dimensions.depth / entry.node.dimensions.depth,
+    );
+    entry.object.updateMatrixWorld(true);
+    this.update();
     this.showPinnedMeasurements();
   }
 
