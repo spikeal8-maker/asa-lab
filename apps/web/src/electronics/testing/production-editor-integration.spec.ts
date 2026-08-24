@@ -35,6 +35,9 @@ const EMPTY: SchematicDocument = {
 };
 
 const ACTIVE_PHYSICAL_SIZE_MM = {
+  'battery-1.5v': [23.524, 66.87],
+  'battery-3v': [31.423, 56.855],
+  'battery-6v': [68.507, 65.043],
   'battery-9v': [23.5763, 52.667],
   'resistor-axial': [2.54, 11.582],
   'led-5mm': [4.8381, 8.0635],
@@ -289,11 +292,10 @@ describe('owner SVG integration in the real Electronics document', () => {
       simulationStatus: 'supported',
       defaultVariantId: 'battery-9v',
     });
-    // The confirmed 9 V «Крона» is the family's only variant with owner art;
-    // cells without confirmed SVG stay out of the family entirely.
+    // Every battery variant here is backed by the owner's original SVG.
     expect(
       families.find((family) => family.familyId === 'battery')?.variants.map((v) => v.variantId),
-    ).toEqual(['battery-9v']);
+    ).toEqual(['battery-1.5v', 'battery-3v', 'battery-6v', 'battery-9v']);
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -358,6 +360,27 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(afterNegative?.y).toBeCloseTo(beforeNegative?.y ?? 0, 3);
     expect(afterPositive?.x).toBeCloseTo(beforePositive?.x ?? 0, 3);
     expect(afterPositive?.y).toBeCloseTo(beforePositive?.y ?? 0, 3);
+  });
+
+  it.each([
+    ['battery-1.5v', 1.5],
+    ['battery-3v', 3],
+    ['battery-6v', 6],
+    ['battery-9v', 9],
+  ] as const)('maps %s to its nominal source voltage', (componentTypeId, voltage) => {
+    const entry = productionCatalog().find((candidate) => candidate.key === componentTypeId);
+    expect(entry).toMatchObject({
+      defaultValue: voltage,
+      unit: 'В',
+      simulationSupported: true,
+    });
+    const added = addComponentToDocument(EMPTY, componentTypeId, { x: 240, y: 180 }, 'source');
+    expect(added.document.components[0]).toMatchObject({
+      componentTypeId,
+      kind: 'source',
+      value: voltage,
+      pinIds: ['negative', 'positive'],
+    });
   });
 
   it.each([

@@ -273,13 +273,15 @@ parallel_lanes:
       branch: agent/learning-m0-identity-adr
       base_branch: main
       pr: 139
-      pr_draft: true
-      status: in_progress
-      checkpoint: lrn_m0_002_activated
-      owner_acceptance: pending
+      pr_draft: false
+      status: done
+      checkpoint: lrn_m0_002_done
+      owner_acceptance: accepted
     revisions:
       convergence_baseline_sha: 9a0e86a1a8dfdac9f48c2ec23e69b7e1b3c76581
       head_sha: 2454b8dd1907f7db96253169980da0e0a2431964
+      owner_accepted_sha: 3c6d20b680a7f1645c95fd0b1be6e8b4861f3f10
+      product_merge_sha: 3c6d20b680a7f1645c95fd0b1be6e8b4861f3f10
     execution_lease:
       executor_id: codex-learning-m0-identity
       holder: unassigned
