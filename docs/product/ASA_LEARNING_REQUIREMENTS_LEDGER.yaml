@@ -26,6 +26,42 @@ requirements:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
   tests: []
+- id: MIG-002
+  milestone: M0
+  status: proven
+  summary: Run a repeatable non-mutating migration dry-run before any Learning backfill
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  - tools/learning-migration-dry-run-v1.schema.json
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+  - tests/courses/learning-migration-dry-run.pg.spec.ts
+- id: MIG-004
+  milestone: M0
+  status: in_progress
+  summary: Preserve excellent/good/progress/redo as legacy metadata without automatic grade conversion
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+- id: MIG-006
+  milestone: M0
+  status: proven
+  summary: Emit required migration totals, conflict counts and direct/course/quiz breakdown
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run-v1.schema.json
+  tests:
+  - tests/courses/learning-migration-dry-run.unit.spec.ts
+- id: MIG-007
+  milestone: M0
+  status: target
+  summary: Keep future migration additive and reversible until canonical cutover
+  evidence:
+  - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
+  tests: []
 - id: MIG-005
   milestone: M0
   status: in_progress
@@ -71,9 +107,11 @@ requirements:
   - E2E-016
 - id: MIG-003
   milestone: M0
-  status: target
+  status: in_progress
   summary: Never fabricate historical immutable submission evidence
-  evidence: []
+  evidence:
+  - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
+  - tools/learning-migration-dry-run.mjs
   tests:
   - TST-INT-015
 - id: ARCH-002

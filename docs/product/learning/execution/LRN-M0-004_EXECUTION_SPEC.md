@@ -4,7 +4,7 @@
 
 **Milestone:** `M0 — State Convergence`
 
-**Status:** DONE — evidence published; owner acceptance pending
+**Status:** DONE — accepted by owner on 2026-08-24
 **Baseline SHA:** `879f659471709e36d6df6110ab6c0e0612a4c7c5`
 
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`

@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "asa-learning-migration-dry-run/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "metadata", "deterministic"],
+  "properties": {
+    "schema": { "const": "asa-learning-migration-dry-run/v1" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analyzerVersion",
+        "analyzerSha256",
+        "environmentKind",
+        "repositorySha",
+        "migrationVersion",
+        "generatedAt",
+        "asOf",
+        "database",
+        "performance"
+      ],
+      "properties": {
+        "analyzerVersion": { "type": "string" },
+        "analyzerSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "environmentKind": { "enum": ["test", "local-dev", "production"] },
+        "repositorySha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "migrationVersion": { "type": "string", "pattern": "^[0-9]{4}$" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "asOf": { "type": "string", "format": "date-time" },
+        "database": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fingerprint", "serverVersion"],
+          "properties": {
+            "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+            "serverVersion": { "type": "string" }
+          }
+        },
+        "performance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["queryCount", "scannedUnits", "elapsedMs"],
+          "properties": {
+            "queryCount": { "type": "integer", "minimum": 1 },
+            "scannedUnits": { "type": "integer", "minimum": 0 },
+            "elapsedMs": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "deterministic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "totals",
+        "byKind",
+        "classifications",
+        "identity",
+        "legacySubmission",
+        "selection",
+        "visibility",
+        "feedback",
+        "autoReconciliationPlan",
+        "conflicts",
+        "errors",
+        "warnings"
+      ],
+      "properties": {
+        "totals": { "type": "object" },
+        "byKind": { "type": "object" },
+        "classifications": { "$ref": "#/definitions/classificationCounts" },
+        "identity": { "type": "object" },
+        "legacySubmission": { "type": "object" },
+        "selection": { "type": "object" },
+        "visibility": { "type": "object" },
+        "feedback": { "type": "object" },
+        "autoReconciliationPlan": { "type": "object" },
+        "conflicts": { "type": "object" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "definitions": {
+    "classificationCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_unresolved",
+        "legacy_unresolved",
+        "selection_conflict",
+        "visibility_only",
+        "auto_reconcilable",
+        "clean_canonical"
+      ],
+      "properties": {
+        "identity_unresolved": { "type": "integer", "minimum": 0 },
+        "legacy_unresolved": { "type": "integer", "minimum": 0 },
+        "selection_conflict": { "type": "integer", "minimum": 0 },
+        "visibility_only": { "type": "integer", "minimum": 0 },
+        "auto_reconcilable": { "type": "integer", "minimum": 0 },
+        "clean_canonical": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
