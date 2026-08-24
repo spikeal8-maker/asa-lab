@@ -5,8 +5,8 @@
 **Status:** `DONE — EVIDENCE COMPLETE`
 **Baseline SHA:** `cf43a359eb6c99b5dfdd5f30623cfa5e2a5a46ef`
 **Activation SHA:** `374c54f59d72abbfae143b445aa32ede643437da`
-**Master Spec:** `01_ASA_LEARNING_TECHNICAL_SPEC.md` from `ASA_LEARNING_AGENT_PACKAGE_V1.zip`
-**Work Queue:** `03_ASA_LEARNING_AGENT_WORK_QUEUE.md` from the same package
+**Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md` (canonical repository copy)
+**Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md` (canonical repository copy)
 
 ---
 
@@ -92,7 +92,7 @@ apps/api/**
 apps/web/**
 tests/**
 e2e/**
-02_ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
+docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 ```
 
 ## 8. Database / migration

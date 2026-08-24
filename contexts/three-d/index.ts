@@ -2,6 +2,7 @@ export {
   THREE_D_SCHEMA_VERSION,
   THREE_D_UNITS,
   PRIMITIVE_KINDS,
+  THREE_D_SHAPE_COLORS,
   cloneThreeDDocument,
   createEmptyThreeDDocument,
   createThreeDNode,
