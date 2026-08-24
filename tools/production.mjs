@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { apiChildEnv } from './child-env.mjs';
+import { verifyWebArtifact } from './verify-web-artifact.mjs';
 
 function loadDotEnvLocal() {
   const file = '.env.local';
@@ -52,23 +53,15 @@ const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
   windowsHide: true,
 });
 const checkoutRevision = revision.stdout.trim();
-let webMetadata;
+let webArtifact;
 try {
-  webMetadata = JSON.parse(readFileSync(webMetadataEntry, 'utf8'));
-} catch {
-  console.error('Web build metadata is malformed. Rebuild before startup.');
-  process.exit(78);
-}
-if (
-  typeof webMetadata?.revision !== 'string' ||
-  typeof webMetadata?.builtAt !== 'string' ||
-  Number.isNaN(Date.parse(webMetadata.builtAt))
-) {
-  console.error('Web build metadata is incomplete. Rebuild before startup.');
-  process.exit(78);
-}
-if (!checkoutRevision || webMetadata.revision !== checkoutRevision) {
-  console.error('Web artifact revision does not match the checkout. Refusing stale production.');
+  if (!checkoutRevision) throw new Error('Cannot determine checkout revision');
+  webArtifact = verifyWebArtifact({
+    webDist: resolve('apps/web/dist'),
+    expectedRevision: checkoutRevision,
+  });
+} catch (error) {
+  console.error(`${String(error)}. Rebuild before startup.`);
   process.exit(78);
 }
 const migrationVersions = readdirSync(resolve('migrations'))
@@ -89,11 +82,20 @@ const pg = (await import('pg')).default;
 const preflightClient = new pg.Client({ connectionString: process.env.APP_DATABASE_URL });
 try {
   await preflightClient.connect();
-  const result = await preflightClient.query('SELECT runtime_owner_admin_ready($1) AS ready', [
-    ownerAdminEmail,
-  ]);
-  if (result.rows[0]?.ready !== true) {
+  const result = await preflightClient.query(
+    `SELECT runtime_owner_admin_ready($1) AS owner_ready,
+            (SELECT version FROM runtime_schema_version()) AS schema_version`,
+    [ownerAdminEmail],
+  );
+  if (result.rows[0]?.owner_ready !== true) {
     console.error('Owner platform_admin preflight failed. Production was not started.');
+    process.exit(78);
+  }
+  const actualSchemaVersion = Number(result.rows[0]?.schema_version);
+  if (actualSchemaVersion !== expectedSchemaVersion) {
+    console.error(
+      `Database schema mismatch: expected ${expectedSchemaVersion}, got ${String(result.rows[0]?.schema_version)}. Production was not started.`,
+    );
     process.exit(78);
   }
 } catch (error) {
@@ -109,8 +111,8 @@ const env = apiChildEnv(
     ASA_SECURE_COOKIES: '1',
     ASA_PUBLIC_WEB_ORIGINS:
       process.env.ASA_PUBLIC_WEB_ORIGINS ?? 'https://asa-lab.ru,https://www.asa-lab.ru',
-    ASA_BUILD_REVISION: webMetadata.revision,
-    ASA_BUILT_AT: webMetadata.builtAt,
+    ASA_BUILD_REVISION: webArtifact.metadata.revision,
+    ASA_BUILT_AT: webArtifact.metadata.builtAt,
     ASA_EXPECTED_SCHEMA_VERSION: String(expectedSchemaVersion),
   },
   port,

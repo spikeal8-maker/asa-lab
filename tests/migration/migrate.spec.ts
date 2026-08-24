@@ -43,6 +43,25 @@ describe('migration runner planning', () => {
     expect(modified).toEqual([]);
   });
 
+  it('accepts only the recorded published checksum lineage for migration 0086', () => {
+    const planned = planMigrations('migrations');
+    const migration = planned.find((item) => item.version === '0086');
+    expect(migration).toBeDefined();
+
+    const publishedChecksum = '9836902598ddea7071e43d365f5d82c611f93d5dfaab96b63beb5a9c683f7d8b';
+    expect(migration!.compatibleChecksums).toContain(publishedChecksum);
+    expect(
+      reconcile(new Map([['0086', { checksum: publishedChecksum }]]), [migration!]).modified,
+    ).toEqual([]);
+
+    const tamperedChecksum = `${publishedChecksum.slice(0, -1)}0`;
+    expect(
+      reconcile(new Map([['0086', { checksum: tamperedChecksum }]]), [migration!]).modified.map(
+        (item) => item.version,
+      ),
+    ).toEqual(['0086']);
+  });
+
   it('treats a correctly applied migration as neither pending nor modified', () => {
     const planned = planMigrations('migrations');
     const applied = new Map([[planned[0].version, { checksum: planned[0].checksum }]]);

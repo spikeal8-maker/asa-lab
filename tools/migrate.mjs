@@ -23,6 +23,16 @@ import { pathToFileURL } from 'node:url';
 const MIGRATIONS_DIR = 'migrations';
 const EX_CONFIG = 78;
 const ADVISORY_LOCK_KEY = 776_1001; // stable key for the migration advisory lock
+
+// 0086 was applied to the owner database from an intermediate, published SQL
+// artifact before the repository copy gained the project-tenant lineage guard.
+// The database records that exact checksum. Keep the lineage explicit and
+// version-scoped: accepting arbitrary historical checksums would turn the
+// tamper check into a bypass. Migration 0088 remains responsible for the later
+// additive correction; 0086 itself must never be rewritten in the database.
+const PUBLISHED_CHECKSUM_LINEAGE = new Map([
+  ['0086', new Set(['9836902598ddea7071e43d365f5d82c611f93d5dfaab96b63beb5a9c683f7d8b'])],
+]);
 const NAME_PATTERN = /^(\d{4})_([a-z0-9_]+)\.sql$/;
 
 function sha256(value) {
@@ -56,7 +66,11 @@ export function planMigrations(dir = MIGRATIONS_DIR) {
     const sql = readFileSync(join(dir, file), 'utf8');
     const checksum = sha256(sql);
     const lfSql = sql.replace(/\r\n/g, '\n');
-    const compatibleChecksums = new Set([sha256(lfSql), sha256(lfSql.replace(/\n/g, '\r\n'))]);
+    const compatibleChecksums = new Set([
+      sha256(lfSql),
+      sha256(lfSql.replace(/\n/g, '\r\n')),
+      ...(PUBLISHED_CHECKSUM_LINEAGE.get(version) ?? []),
+    ]);
     planned.push({ version, name, file, sql, checksum, compatibleChecksums });
   }
 
