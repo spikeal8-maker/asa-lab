@@ -168,10 +168,7 @@ export function WorkbenchSidebars({
               data-library-view={c.libraryView}
             >
               {c.filteredCatalog.map((family) => {
-                const selectedVariant = selectedFamilyVariant(
-                  family,
-                  null,
-                );
+                const selectedVariant = selectedFamilyVariant(family, null);
                 return (
                   <article
                     key={family.familyId}
