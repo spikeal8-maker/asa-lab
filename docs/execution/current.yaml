@@ -258,8 +258,8 @@ parallel_lanes:
           - pnpm gate:repository
 
   # Owner-activated ASA Learning M0 state-convergence lane. The repository
-  # task id follows the control-plane schema; its only active Work Queue item
-  # is LRN-M0-005. M0-006 and M1-M7 remain outside this activation.
+  # task id follows the control-plane schema; its completed Work Queue item is
+  # LRN-M0-005. M0-006 and M1-M7 remain outside this activation.
   - id: learning
     worktree_id: learning-m0-legacy-dry-run
     owned_paths:
@@ -277,13 +277,14 @@ parallel_lanes:
       branch: agent/learning-m0-legacy-dry-run
       base_branch: main
       pr: 146
-      pr_draft: true
-      status: in_progress
-      checkpoint: lrn_m0_005_analyzer_activated
+      pr_draft: false
+      status: done
+      checkpoint: lrn_m0_005_evidence_published
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 481f1d406f2322ce7999f1aab47c4f4eaff7fd77
-      head_sha: 17e617e6caeb420d562dd42dd24187b4e4efc8d7
+      head_sha: e2d7dd8ecc761317a22efa0a399779bbaa0effd5
+      product_merge_sha: 118a9981f6d1deb86324b0c378e61b0418f5280e
     execution_lease:
       executor_id: codex-learning-m0-legacy-dry-run
       holder: unassigned
