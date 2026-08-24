@@ -289,7 +289,7 @@ parallel_lanes:
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9290ab18490f376460a3b5f396f8b8a4fd905488
-      head_sha: 22483c730f49ced8ec54133b6f416b9984455ca6
+      head_sha: 9ab7297ce7d6f8e49bcce37ee6c828e48f1fbe0b
       product_merge_sha: dc1a445f0730b2648b6dbb01bfa06885d4020b8d
     execution_lease:
       executor_id: codex-learning-m0-additive-backfill
