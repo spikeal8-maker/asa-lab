@@ -280,13 +280,14 @@ parallel_lanes:
       branch: agent/learning-m0-additive-backfill
       base_branch: main
       pr: 148
-      pr_draft: true
-      status: in_progress
-      checkpoint: lrn_m0_006_execution_spec_in_progress
+      pr_draft: false
+      status: done
+      checkpoint: lrn_m0_006_evidence_published
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9290ab18490f376460a3b5f396f8b8a4fd905488
-      head_sha: 2f675d97448add51685de6a29c1d04892330b68e
+      head_sha: cc7743b7ebd9122befe9904c0f028f961ef26c8c
+      product_merge_sha: dc1a445f0730b2648b6dbb01bfa06885d4020b8d
     execution_lease:
       executor_id: codex-learning-m0-additive-backfill
       holder: unassigned

@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-006`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** IMPLEMENTED — OFFICIAL CI PENDING
+**Status:** DONE — EVIDENCE PUBLISHED
 **Baseline SHA:** `9290ab18490f376460a3b5f396f8b8a4fd905488`  
 **Issue:** `#147`  
 **Pull request:** `#148` (draft until evidence is complete)  
@@ -556,8 +556,8 @@ git diff --check
 - [x] rollback and deterministic rerun proven
 - [x] RLS/security negative matrix PASS
 - [x] BEFORE/AFTER/DELTA report published
-- [ ] migrations/checksums, focused and full gates complete
-- [ ] official PostgreSQL/RLS CI PASS
+- [x] migrations/checksums, focused and full gates complete
+- [x] official PostgreSQL/RLS CI PASS
 - [x] production untouched
 - [x] ledger updated only to the evidence actually proven
 - [x] stop without M0-007
@@ -565,11 +565,12 @@ git diff --check
 ## 24. Evidence (fill after implementation)
 
 ```text
-final SHA: pending publication
+implementation head SHA: cc7743b7ebd9122befe9904c0f028f961ef26c8c
+product merge SHA: dc1a445f0730b2648b6dbb01bfa06885d4020b8d
 migration evidence: 0086/0087 applied in disposable asalab_learning_m0_006_test; checksums valid; second run created zero rows
 focused tests: PASS — 7 files / 55 tests, including PostgreSQL, RLS, cross-tenant project evidence, rollback, rerun, adapters and resolver; existing project/quiz writer compatibility 2/2 PASS
 full gates: contracts/control-plane/governance/gate:code PASS uncached; gate:data 1056/1061 tests PASS with five 5-second timeout failures, all M0-006 tests PASS; four affected files repeated serially with 28/29 PASS and the remaining pre-existing Admin/Auth query PASS at 7.1 seconds under a 20-second diagnostic timeout
-official CI: pending
+official CI: PASS — ASA Lab Governance and Code Gates run 32755986486; PostgreSQL tests and RLS job 97525285459
 browser: N/A — no surface change
 production: untouched
 known gaps: M0-007 surface convergence remains separately blocked; local full gate is not claimed PASS because the repository-wide 5-second timeout gate remained red; schema-only 0086/0087 were inadvertently applied to local asalab_dev during review diagnosis, but no backfill ran there and production was untouched
