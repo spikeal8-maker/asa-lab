@@ -258,35 +258,37 @@ parallel_lanes:
           - pnpm gate:repository
 
   # Owner-activated ASA Learning M0 state-convergence lane. The repository
-  # task id follows the control-plane schema; its completed Work Queue item is
-  # LRN-M0-005. M0-006 and M1-M7 remain outside this activation.
+  # task id follows the control-plane schema; its only active Work Queue item is
+  # LRN-M0-006. M0-007 and M1-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m0-legacy-dry-run
+    worktree_id: learning-m0-additive-backfill
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
       - docs/product/learning/**
       - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+      - contexts/learning/**
+      - migrations/0086_learning_identity_foundation.sql
+      - migrations/0087_learning_additive_backfill.sql
       - tools/learning-migration-dry-run.mjs
       - tools/learning-migration-dry-run-v1.schema.json
-      - tests/courses/learning-migration-dry-run.unit.spec.ts
-      - tests/courses/learning-migration-dry-run.pg.spec.ts
+      - tools/learning-additive-backfill.mjs
+      - tests/courses/**
     task:
-      id: TASK-LEARNING-M0-005
-      issue: 145
-      branch: agent/learning-m0-legacy-dry-run
+      id: TASK-LEARNING-M0-006
+      issue: 147
+      branch: agent/learning-m0-additive-backfill
       base_branch: main
-      pr: 146
-      pr_draft: false
-      status: done
-      checkpoint: lrn_m0_005_evidence_published
-      owner_acceptance: accepted
+      pr: 148
+      pr_draft: true
+      status: in_progress
+      checkpoint: lrn_m0_006_execution_spec_in_progress
+      owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 481f1d406f2322ce7999f1aab47c4f4eaff7fd77
-      head_sha: e2d7dd8ecc761317a22efa0a399779bbaa0effd5
-      product_merge_sha: 118a9981f6d1deb86324b0c378e61b0418f5280e
+      convergence_baseline_sha: 9290ab18490f376460a3b5f396f8b8a4fd905488
+      head_sha: 2f675d97448add51685de6a29c1d04892330b68e
     execution_lease:
-      executor_id: codex-learning-m0-legacy-dry-run
+      executor_id: codex-learning-m0-additive-backfill
       holder: unassigned
       acquired_at: null
       expires_at: null
