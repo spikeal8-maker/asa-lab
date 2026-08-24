@@ -284,13 +284,13 @@ parallel_lanes:
       base_branch: main
       pr: 149
       pr_draft: false
-      status: in_progress
-      checkpoint: lrn_m0_006_review_fixes_published
+      status: done
+      checkpoint: lrn_m0_006_corrective_evidence_merged
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 9290ab18490f376460a3b5f396f8b8a4fd905488
       head_sha: 0fb8a6b743c93f9bcb35445069af520c514760e6
-      product_merge_sha: dc1a445f0730b2648b6dbb01bfa06885d4020b8d
+      product_merge_sha: 65c058c733669345e8cf178712921b1d71ef16b2
     execution_lease:
       executor_id: codex-learning-m0-additive-backfill
       holder: unassigned
