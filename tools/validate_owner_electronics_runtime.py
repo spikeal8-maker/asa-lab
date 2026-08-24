@@ -294,10 +294,10 @@ def validate_catalog(
     )
     if (
         not vibration_motor
-        or vibration_motor.get("status") != "disabled_missing_svg"
-        or vibration_motor.get("sourceOwnerPath") is not None
+        or vibration_motor.get("status") != "enabled"
+        or vibration_motor.get("sourceOwnerPath") != "ASA_Lab_vibration_motor.svg"
     ):
-        fail("vibration-motor must remain explicitly missing until an owner file is supplied")
+        fail("vibration-motor must use the byte-exact direct owner SVG")
 
     boards = manifest.get("breadboards", [])
     if {board.get("componentId") for board in boards} != {"breadboard-small", "breadboard-medium", "breadboard-large"}:

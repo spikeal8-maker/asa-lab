@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="474"
+     height="247"
+     viewBox="0 0 474 247"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Vector multimeter component</title>
+  <desc id="desc">Clean SVG model of a multimeter component based on measured coordinates from the provided reference image.</desc>
+
+  <defs>
+    <style>
+      .body { fill: #F2AE16; }
+      .frame { fill: #4E5251; }
+      .screen { fill: #C5CFD2; }
+      .dark { fill: #4E5251; }
+      .line-dark { stroke: #4E5251; }
+      .line-accent { stroke: #F2AE16; }
+      .terminal-black-main { fill: #333333; }
+      .terminal-black-top { fill: #242424; }
+      .terminal-red-main { fill: #AF1C1C; }
+      .terminal-red-top { fill: #7B1414; }
+      .pin-metal { fill: #8C8C8C; }
+    </style>
+  </defs>
+
+  <!-- Transparent background by default -->
+
+  <!-- Bottom terminals -->
+  <g id="terminals">
+    <g id="terminal-black">
+      <rect x="214" y="168" width="17" height="10" rx="2" class="terminal-black-top"/>
+      <rect x="215" y="170" width="15" height="8" rx="1.5" class="terminal-black-main"/>
+      <rect x="217" y="177" width="11" height="8" rx="1.5" class="terminal-black-main"/>
+      <rect x="220" y="185" width="5" height="8" rx="1.8" class="pin-metal"/>
+    </g>
+
+    <g id="terminal-red">
+      <rect x="241" y="168" width="17" height="10" rx="2" class="terminal-red-top"/>
+      <rect x="242" y="170" width="15" height="8" rx="1.5" class="terminal-red-main"/>
+      <rect x="244" y="177" width="11" height="8" rx="1.5" class="terminal-red-main"/>
+      <rect x="247" y="185" width="5" height="8" rx="1.8" class="pin-metal"/>
+    </g>
+  </g>
+
+  <!-- Main meter body -->
+  <g id="multimeter-body">
+    <rect x="45" y="45" width="382" height="124" rx="11" ry="11" class="body"/>
+  </g>
+
+  <!-- Display area -->
+  <g id="display-area">
+    <rect x="59" y="59" width="319" height="96" rx="2" ry="2" class="frame"/>
+    <rect x="65" y="64" width="307" height="85" rx="0.5" ry="0.5" class="screen"/>
+  </g>
+
+  <!-- Right-side mode buttons -->
+  <g id="controls" stroke-linecap="round" stroke-linejoin="round">
+    <!-- A -->
+    <g id="mode-a">
+      <circle cx="402" cy="72" r="13" fill="#F2AE16" stroke="#4E5251" stroke-width="2.5"/>
+      <path d="M397 78 L402 66 L407 78 M399.3 73 L404.7 73"
+            fill="none" stroke="#4E5251" stroke-width="2.2"/>
+    </g>
+
+    <!-- V -->
+    <g id="mode-v">
+      <circle cx="402" cy="107" r="13" class="dark"/>
+      <path d="M397 101 L402 113 L407 101"
+            fill="none" stroke="#F2AE16" stroke-width="2.4"/>
+    </g>
+
+    <!-- R -->
+    <g id="mode-r">
+      <circle cx="402" cy="139" r="13" fill="#F2AE16" stroke="#4E5251" stroke-width="2.5"/>
+      <path d="M398.5 145.5 L398.5 132.5
+               L402.8 132.5
+               C405.5 132.5 406.8 134.2 406.8 136.2
+               C406.8 138.8 404.9 140 402.6 140
+               L398.5 140
+               M402 140 L407 145.5"
+            fill="none" stroke="#4E5251" stroke-width="2.1"/>
+    </g>
+  </g>
+</svg>

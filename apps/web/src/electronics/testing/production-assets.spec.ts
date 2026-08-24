@@ -61,15 +61,57 @@ describe('Electronics owner SVG foundation', () => {
         transformation: 'none_byte_exact_copy',
       },
       {
+        componentId: 'electrolytic-capacitor',
+        originalFileName: 'capacitor_electrolytic.svg',
+        sha256: 'd7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'gearmotor',
+        originalFileName: 'мотор_редуктор_arduino.svg',
+        sha256: '03a40143d0b91ae5bd3f87f559a521f61ad1b161536d5b849899cf15296117dd',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'multimeter',
+        originalFileName: 'multimeter_component_pure_vector.svg',
+        sha256: 'ac74479c633f4ffd2f9faa49eee3349b4655b2bbdc6c00779bcf349e108f6733',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'pir-sensor',
+        originalFileName: 'pir_sensor_555-28027_pure_vector.svg',
+        sha256: '11b415352c2cf216d04e7f0caa6f290a6fa2da44a2c3879e82702e7a6e9223dc',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
         componentId: 'servo-motor',
         originalFileName: 'servo_motor_top_clean_v2.svg',
         sha256: '2227b5058f77028eae3909ba63f129cec1931e9be2962e2ff87f61c551fdd964',
         transformation: 'none_byte_exact_copy',
       },
       {
+        componentId: 'soil-moisture-sensor',
+        originalFileName: 'soil_moisture_sensor (2).svg',
+        sha256: '09de32dc6f5dd345bf4dabdfc05496e4a188264a3e8b8f123061b766decf6bf3',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'ultrasonic-hc-sr04',
+        originalFileName: 'HC_SR04_sensor_v2.svg',
+        sha256: '5120ca5300c1b86c618d7dd9c5d2c88eb6c52ba4478d2b3f5bb9d9b5b5ca65be',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
         componentId: 'ultrasonic-sensor',
         originalFileName: 'ASA_Lab_PING_3pin_sensor.svg',
         sha256: 'fcca7e406eb6a949ea3c0edd7c46c10c4a4235bf9d880ae2dd1622d37c59d96f',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'vibration-motor',
+        originalFileName: 'ASA_Lab_vibration_motor.svg',
+        sha256: 'f17c24306a12af8c14fa5e6caee11c343bf69a67ecadbd91b3f0afbf0eaf1c1d',
         transformation: 'none_byte_exact_copy',
       },
     ]);
@@ -314,7 +356,10 @@ describe('Electronics owner SVG foundation', () => {
       );
       expect(item).toMatchObject({ enabled: true, simulationSupported: true });
     }
-    expect(ownerCatalogItems().find((item) => item.key === 'vibration-motor')?.asset).toBe('');
+    expect(ownerCatalogItems().find((item) => item.key === 'vibration-motor')).toMatchObject({
+      enabled: true,
+      simulationSupported: false,
+    });
     expect(ownerCatalogItems().some((item) => item.key === 'microbit')).toBe(false);
   });
 

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="526" height="514" viewBox="0 0 526 514"
+     role="img" aria-label="PIR Sensor 555-28027 vector model">
+  <defs>
+    <clipPath id="lensClip">
+      <circle cx="260.5" cy="207.5" r="130.5"/>
+    </clipPath>
+
+    <linearGradient id="pinGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#C7C7C7"/>
+      <stop offset="0.5" stop-color="#D3D3D3"/>
+      <stop offset="1" stop-color="#BEBEBE"/>
+    </linearGradient>
+
+    <linearGradient id="mountGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D5D5D5"/>
+      <stop offset="1" stop-color="#BEBEBE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Pins behind the PCB -->
+  <g id="pins">
+    <rect x="227" y="361" width="8" height="60" rx="4" fill="url(#pinGrad)"/>
+    <rect x="257" y="361" width="8" height="60" rx="4" fill="url(#pinGrad)"/>
+    <rect x="287" y="361" width="8" height="60" rx="4" fill="url(#pinGrad)"/>
+  </g>
+
+  <!-- Bottom 3-pin connector -->
+  <g id="connector">
+    <rect x="216" y="354" width="90" height="13" fill="#111111"/>
+    <rect x="222" y="354" width="18" height="13" fill="#343434"/>
+    <rect x="247" y="354" width="17" height="13" fill="#5A5A5A"/>
+    <rect x="272" y="354" width="17" height="13" fill="#4A4A4A"/>
+    <rect x="296" y="354" width="10" height="13" fill="#666666"/>
+  </g>
+
+  <!-- PCB -->
+  <g id="pcb">
+    <rect x="52" y="61" width="418" height="293" fill="#005500"/>
+    <rect x="58" y="67" width="406" height="281" fill="#006600"/>
+
+    <!-- PIR window -->
+    <rect x="120.5" y="70.5" width="281" height="275" rx="9.5" fill="#F2F2F2"/>
+    <rect x="132.5" y="82.5" width="257" height="251" fill="#E0EEE0"/>
+
+    <!-- Left pads -->
+    <g id="small-pads">
+      <circle cx="81.5" cy="97.5" r="9" fill="#BEBEBE"/>
+      <circle cx="81.5" cy="97.5" r="4.1" fill="#E1E1E1"/>
+      <circle cx="79.7" cy="96.4" r="1.25" fill="#8F8F8F"/>
+
+      <circle cx="81.5" cy="121.5" r="9" fill="#BEBEBE"/>
+      <circle cx="81.5" cy="121.5" r="4.1" fill="#E1E1E1"/>
+      <circle cx="79.7" cy="120.4" r="1.25" fill="#8F8F8F"/>
+
+      <circle cx="81.5" cy="145.5" r="9" fill="#BEBEBE"/>
+      <circle cx="81.5" cy="145.5" r="4.1" fill="#E1E1E1"/>
+      <circle cx="79.7" cy="144.4" r="1.25" fill="#8F8F8F"/>
+    </g>
+
+    <!-- Mounting holes -->
+    <g id="mount-holes">
+      <circle cx="84.5" cy="207.5" r="22" fill="url(#mountGrad)"/>
+      <circle cx="84.5" cy="207.5" r="13.2" fill="#F4F5F6"/>
+      <circle cx="436.5" cy="207.5" r="22" fill="url(#mountGrad)"/>
+      <circle cx="436.5" cy="207.5" r="13.2" fill="#F4F5F6"/>
+    </g>
+
+    <!-- PCB lettering -->
+    <g id="labels" fill="#E7E7E7"
+       font-family="Arial, Helvetica, 'DejaVu Sans', sans-serif"
+       font-weight="600">
+      <text x="76.5" y="82.5" font-size="17">S</text>
+      <text x="76.5" y="171.5" font-size="17">L</text>
+
+      <text transform="translate(82.5 246.5) rotate(90)"
+            font-size="16" letter-spacing="0.2">PARALLAX</text>
+
+      <text transform="translate(424.5 88.5) rotate(90)"
+            font-size="15" letter-spacing="0.2">REV B</text>
+
+      <text transform="translate(449 73.5) rotate(90)"
+            font-size="15" letter-spacing="0.25">PIR SENSOR</text>
+
+      <text transform="translate(436 242.5) rotate(90)"
+            font-size="15" letter-spacing="0.35">555-28027</text>
+    </g>
+  </g>
+
+  <!-- PIR/Fresnel dome -->
+  <g id="pir-lens" clip-path="url(#lensClip)">
+    <!-- Outer white ring and main dome -->
+    <circle cx="260.5" cy="207.5" r="130.5" fill="#FAFAFA"/>
+    <circle cx="260.5" cy="207.5" r="121.5" fill="#E9E9E9"/>
+
+    <!-- Upper Fresnel segmentation -->
+    <circle cx="260.5" cy="207.5" r="95.5" fill="#E4E4E4"
+            stroke="#F7F7F7" stroke-width="1.7"/>
+    <line x1="296.50" y1="207.50" x2="381.50" y2="207.50" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="289.62" y1="228.66" x2="358.39" y2="278.62" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="271.62" y1="241.74" x2="297.89" y2="322.58" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="249.38" y1="241.74" x2="223.11" y2="322.58" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="231.38" y1="228.66" x2="162.61" y2="278.62" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="224.50" y1="207.50" x2="139.50" y2="207.50" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="231.38" y1="186.34" x2="162.61" y2="136.38" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="249.38" y1="173.26" x2="223.11" y2="92.42" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="271.62" y1="173.26" x2="297.89" y2="92.42" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="289.62" y1="186.34" x2="358.39" y2="136.38" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/>
+
+    <!-- Lower layered Fresnel bands. All are clipped to the circular dome. -->
+    <path d="M 129.8 207.5
+             Q 260.5 306.5 391.2 207.5
+             L 391.2 348
+             L 129.8 348 Z"
+          fill="#E1E1E1" opacity="0.82"/>
+
+    <path d="M 130.8 231
+             Q 260.5 326 390.2 231
+             L 390.2 349
+             L 130.8 349 Z"
+          fill="#D7D7D7" opacity="0.88"/>
+
+    <path d="M 136 255
+             Q 260.5 343 385 255
+             L 385 350
+             L 136 350 Z"
+          fill="#D1D1D1" opacity="0.87"/>
+
+    <path d="M 143 276
+             Q 260.5 355 378 276
+             L 378 351
+             L 143 351 Z"
+          fill="#DADADA" opacity="0.90"/>
+
+    <path d="M 153 294
+             Q 260.5 363 368 294
+             L 368 351
+             L 153 351 Z"
+          fill="#D0D0D0" opacity="0.91"/>
+
+    <!-- Side/underside grey-green shadow visible in the reference -->
+    <path d="M 129.8 208
+             C 136 284, 168 329, 214 347
+             C 186 338, 156 317, 140 283
+             C 131 264, 128 235, 129.8 208 Z"
+          fill="#AEB7AE" opacity="0.93"/>
+    <path d="M 391.2 208
+             C 385 284, 353 329, 307 347
+             C 335 338, 365 317, 381 283
+             C 390 264, 393 235, 391.2 208 Z"
+          fill="#AEB7AE" opacity="0.93"/>
+
+    <path d="M 170 322
+             Q 260.5 360 351 322
+             Q 334 342 307 352
+             Q 260.5 369 214 352
+             Q 187 342 170 322 Z"
+          fill="#B4B4B4"/>
+
+    <!-- Re-establish Fresnel guide lines over the soft lower bands -->
+    <circle cx="260.5" cy="207.5" r="95.5" fill="none"
+            stroke="#F5F5F5" stroke-width="1.55" opacity="0.82"/>
+    <line x1="296.50" y1="207.50" x2="381.50" y2="207.50" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="289.62" y1="228.66" x2="358.39" y2="278.62" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="271.62" y1="241.74" x2="297.89" y2="322.58" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="249.38" y1="241.74" x2="223.11" y2="322.58" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="231.38" y1="228.66" x2="162.61" y2="278.62" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="224.50" y1="207.50" x2="139.50" y2="207.50" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="231.38" y1="186.34" x2="162.61" y2="136.38" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="249.38" y1="173.26" x2="223.11" y2="92.42" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="271.62" y1="173.26" x2="297.89" y2="92.42" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/><line x1="289.62" y1="186.34" x2="358.39" y2="136.38" stroke="#F7F7F7" stroke-width="1.6" stroke-linecap="round"/>
+
+    <!-- Central detector facet -->
+    <circle cx="260.5" cy="207.5" r="35.5"
+            fill="#D9D9D9" stroke="#F5F5F5" stroke-width="1.45"/>
+    <circle cx="260.5" cy="207.5" r="3.0" fill="#EFEFEF"/>
+  </g>
+</svg>

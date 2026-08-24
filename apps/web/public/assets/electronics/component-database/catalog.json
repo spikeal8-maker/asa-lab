@@ -1356,40 +1356,244 @@
         }
       ],
       "groups": {
-        "terminal-upper-01": ["J1", "I1", "H1", "G1", "F1"],
-        "terminal-lower-01": ["E1", "D1", "C1", "B1", "A1"],
-        "terminal-upper-02": ["J2", "I2", "H2", "G2", "F2"],
-        "terminal-lower-02": ["E2", "D2", "C2", "B2", "A2"],
-        "terminal-upper-03": ["J3", "I3", "H3", "G3", "F3"],
-        "terminal-lower-03": ["E3", "D3", "C3", "B3", "A3"],
-        "terminal-upper-04": ["J4", "I4", "H4", "G4", "F4"],
-        "terminal-lower-04": ["E4", "D4", "C4", "B4", "A4"],
-        "terminal-upper-05": ["J5", "I5", "H5", "G5", "F5"],
-        "terminal-lower-05": ["E5", "D5", "C5", "B5", "A5"],
-        "terminal-upper-06": ["J6", "I6", "H6", "G6", "F6"],
-        "terminal-lower-06": ["E6", "D6", "C6", "B6", "A6"],
-        "terminal-upper-07": ["J7", "I7", "H7", "G7", "F7"],
-        "terminal-lower-07": ["E7", "D7", "C7", "B7", "A7"],
-        "terminal-upper-08": ["J8", "I8", "H8", "G8", "F8"],
-        "terminal-lower-08": ["E8", "D8", "C8", "B8", "A8"],
-        "terminal-upper-09": ["J9", "I9", "H9", "G9", "F9"],
-        "terminal-lower-09": ["E9", "D9", "C9", "B9", "A9"],
-        "terminal-upper-10": ["J10", "I10", "H10", "G10", "F10"],
-        "terminal-lower-10": ["E10", "D10", "C10", "B10", "A10"],
-        "terminal-upper-11": ["J11", "I11", "H11", "G11", "F11"],
-        "terminal-lower-11": ["E11", "D11", "C11", "B11", "A11"],
-        "terminal-upper-12": ["J12", "I12", "H12", "G12", "F12"],
-        "terminal-lower-12": ["E12", "D12", "C12", "B12", "A12"],
-        "terminal-upper-13": ["J13", "I13", "H13", "G13", "F13"],
-        "terminal-lower-13": ["E13", "D13", "C13", "B13", "A13"],
-        "terminal-upper-14": ["J14", "I14", "H14", "G14", "F14"],
-        "terminal-lower-14": ["E14", "D14", "C14", "B14", "A14"],
-        "terminal-upper-15": ["J15", "I15", "H15", "G15", "F15"],
-        "terminal-lower-15": ["E15", "D15", "C15", "B15", "A15"],
-        "terminal-upper-16": ["J16", "I16", "H16", "G16", "F16"],
-        "terminal-lower-16": ["E16", "D16", "C16", "B16", "A16"],
-        "terminal-upper-17": ["J17", "I17", "H17", "G17", "F17"],
-        "terminal-lower-17": ["E17", "D17", "C17", "B17", "A17"]
+        "terminal-upper-01": [
+          "J1",
+          "I1",
+          "H1",
+          "G1",
+          "F1"
+        ],
+        "terminal-lower-01": [
+          "E1",
+          "D1",
+          "C1",
+          "B1",
+          "A1"
+        ],
+        "terminal-upper-02": [
+          "J2",
+          "I2",
+          "H2",
+          "G2",
+          "F2"
+        ],
+        "terminal-lower-02": [
+          "E2",
+          "D2",
+          "C2",
+          "B2",
+          "A2"
+        ],
+        "terminal-upper-03": [
+          "J3",
+          "I3",
+          "H3",
+          "G3",
+          "F3"
+        ],
+        "terminal-lower-03": [
+          "E3",
+          "D3",
+          "C3",
+          "B3",
+          "A3"
+        ],
+        "terminal-upper-04": [
+          "J4",
+          "I4",
+          "H4",
+          "G4",
+          "F4"
+        ],
+        "terminal-lower-04": [
+          "E4",
+          "D4",
+          "C4",
+          "B4",
+          "A4"
+        ],
+        "terminal-upper-05": [
+          "J5",
+          "I5",
+          "H5",
+          "G5",
+          "F5"
+        ],
+        "terminal-lower-05": [
+          "E5",
+          "D5",
+          "C5",
+          "B5",
+          "A5"
+        ],
+        "terminal-upper-06": [
+          "J6",
+          "I6",
+          "H6",
+          "G6",
+          "F6"
+        ],
+        "terminal-lower-06": [
+          "E6",
+          "D6",
+          "C6",
+          "B6",
+          "A6"
+        ],
+        "terminal-upper-07": [
+          "J7",
+          "I7",
+          "H7",
+          "G7",
+          "F7"
+        ],
+        "terminal-lower-07": [
+          "E7",
+          "D7",
+          "C7",
+          "B7",
+          "A7"
+        ],
+        "terminal-upper-08": [
+          "J8",
+          "I8",
+          "H8",
+          "G8",
+          "F8"
+        ],
+        "terminal-lower-08": [
+          "E8",
+          "D8",
+          "C8",
+          "B8",
+          "A8"
+        ],
+        "terminal-upper-09": [
+          "J9",
+          "I9",
+          "H9",
+          "G9",
+          "F9"
+        ],
+        "terminal-lower-09": [
+          "E9",
+          "D9",
+          "C9",
+          "B9",
+          "A9"
+        ],
+        "terminal-upper-10": [
+          "J10",
+          "I10",
+          "H10",
+          "G10",
+          "F10"
+        ],
+        "terminal-lower-10": [
+          "E10",
+          "D10",
+          "C10",
+          "B10",
+          "A10"
+        ],
+        "terminal-upper-11": [
+          "J11",
+          "I11",
+          "H11",
+          "G11",
+          "F11"
+        ],
+        "terminal-lower-11": [
+          "E11",
+          "D11",
+          "C11",
+          "B11",
+          "A11"
+        ],
+        "terminal-upper-12": [
+          "J12",
+          "I12",
+          "H12",
+          "G12",
+          "F12"
+        ],
+        "terminal-lower-12": [
+          "E12",
+          "D12",
+          "C12",
+          "B12",
+          "A12"
+        ],
+        "terminal-upper-13": [
+          "J13",
+          "I13",
+          "H13",
+          "G13",
+          "F13"
+        ],
+        "terminal-lower-13": [
+          "E13",
+          "D13",
+          "C13",
+          "B13",
+          "A13"
+        ],
+        "terminal-upper-14": [
+          "J14",
+          "I14",
+          "H14",
+          "G14",
+          "F14"
+        ],
+        "terminal-lower-14": [
+          "E14",
+          "D14",
+          "C14",
+          "B14",
+          "A14"
+        ],
+        "terminal-upper-15": [
+          "J15",
+          "I15",
+          "H15",
+          "G15",
+          "F15"
+        ],
+        "terminal-lower-15": [
+          "E15",
+          "D15",
+          "C15",
+          "B15",
+          "A15"
+        ],
+        "terminal-upper-16": [
+          "J16",
+          "I16",
+          "H16",
+          "G16",
+          "F16"
+        ],
+        "terminal-lower-16": [
+          "E16",
+          "D16",
+          "C16",
+          "B16",
+          "A16"
+        ],
+        "terminal-upper-17": [
+          "J17",
+          "I17",
+          "H17",
+          "G17",
+          "F17"
+        ],
+        "terminal-lower-17": [
+          "E17",
+          "D17",
+          "C17",
+          "B17",
+          "A17"
+        ]
       },
       "powerRailGroups": [],
       "railBreaks": [],
@@ -4343,66 +4547,426 @@
         }
       ],
       "groups": {
-        "terminal-upper-01": ["J1", "I1", "H1", "G1", "F1"],
-        "terminal-lower-01": ["E1", "D1", "C1", "B1", "A1"],
-        "terminal-upper-02": ["J2", "I2", "H2", "G2", "F2"],
-        "terminal-lower-02": ["E2", "D2", "C2", "B2", "A2"],
-        "terminal-upper-03": ["J3", "I3", "H3", "G3", "F3"],
-        "terminal-lower-03": ["E3", "D3", "C3", "B3", "A3"],
-        "terminal-upper-04": ["J4", "I4", "H4", "G4", "F4"],
-        "terminal-lower-04": ["E4", "D4", "C4", "B4", "A4"],
-        "terminal-upper-05": ["J5", "I5", "H5", "G5", "F5"],
-        "terminal-lower-05": ["E5", "D5", "C5", "B5", "A5"],
-        "terminal-upper-06": ["J6", "I6", "H6", "G6", "F6"],
-        "terminal-lower-06": ["E6", "D6", "C6", "B6", "A6"],
-        "terminal-upper-07": ["J7", "I7", "H7", "G7", "F7"],
-        "terminal-lower-07": ["E7", "D7", "C7", "B7", "A7"],
-        "terminal-upper-08": ["J8", "I8", "H8", "G8", "F8"],
-        "terminal-lower-08": ["E8", "D8", "C8", "B8", "A8"],
-        "terminal-upper-09": ["J9", "I9", "H9", "G9", "F9"],
-        "terminal-lower-09": ["E9", "D9", "C9", "B9", "A9"],
-        "terminal-upper-10": ["J10", "I10", "H10", "G10", "F10"],
-        "terminal-lower-10": ["E10", "D10", "C10", "B10", "A10"],
-        "terminal-upper-11": ["J11", "I11", "H11", "G11", "F11"],
-        "terminal-lower-11": ["E11", "D11", "C11", "B11", "A11"],
-        "terminal-upper-12": ["J12", "I12", "H12", "G12", "F12"],
-        "terminal-lower-12": ["E12", "D12", "C12", "B12", "A12"],
-        "terminal-upper-13": ["J13", "I13", "H13", "G13", "F13"],
-        "terminal-lower-13": ["E13", "D13", "C13", "B13", "A13"],
-        "terminal-upper-14": ["J14", "I14", "H14", "G14", "F14"],
-        "terminal-lower-14": ["E14", "D14", "C14", "B14", "A14"],
-        "terminal-upper-15": ["J15", "I15", "H15", "G15", "F15"],
-        "terminal-lower-15": ["E15", "D15", "C15", "B15", "A15"],
-        "terminal-upper-16": ["J16", "I16", "H16", "G16", "F16"],
-        "terminal-lower-16": ["E16", "D16", "C16", "B16", "A16"],
-        "terminal-upper-17": ["J17", "I17", "H17", "G17", "F17"],
-        "terminal-lower-17": ["E17", "D17", "C17", "B17", "A17"],
-        "terminal-upper-18": ["J18", "I18", "H18", "G18", "F18"],
-        "terminal-lower-18": ["E18", "D18", "C18", "B18", "A18"],
-        "terminal-upper-19": ["J19", "I19", "H19", "G19", "F19"],
-        "terminal-lower-19": ["E19", "D19", "C19", "B19", "A19"],
-        "terminal-upper-20": ["J20", "I20", "H20", "G20", "F20"],
-        "terminal-lower-20": ["E20", "D20", "C20", "B20", "A20"],
-        "terminal-upper-21": ["J21", "I21", "H21", "G21", "F21"],
-        "terminal-lower-21": ["E21", "D21", "C21", "B21", "A21"],
-        "terminal-upper-22": ["J22", "I22", "H22", "G22", "F22"],
-        "terminal-lower-22": ["E22", "D22", "C22", "B22", "A22"],
-        "terminal-upper-23": ["J23", "I23", "H23", "G23", "F23"],
-        "terminal-lower-23": ["E23", "D23", "C23", "B23", "A23"],
-        "terminal-upper-24": ["J24", "I24", "H24", "G24", "F24"],
-        "terminal-lower-24": ["E24", "D24", "C24", "B24", "A24"],
-        "terminal-upper-25": ["J25", "I25", "H25", "G25", "F25"],
-        "terminal-lower-25": ["E25", "D25", "C25", "B25", "A25"],
-        "terminal-upper-26": ["J26", "I26", "H26", "G26", "F26"],
-        "terminal-lower-26": ["E26", "D26", "C26", "B26", "A26"],
-        "terminal-upper-27": ["J27", "I27", "H27", "G27", "F27"],
-        "terminal-lower-27": ["E27", "D27", "C27", "B27", "A27"],
-        "terminal-upper-28": ["J28", "I28", "H28", "G28", "F28"],
-        "terminal-lower-28": ["E28", "D28", "C28", "B28", "A28"],
-        "terminal-upper-29": ["J29", "I29", "H29", "G29", "F29"],
-        "terminal-lower-29": ["E29", "D29", "C29", "B29", "A29"],
-        "terminal-upper-30": ["J30", "I30", "H30", "G30", "F30"],
-        "terminal-lower-30": ["E30", "D30", "C30", "B30", "A30"],
+        "terminal-upper-01": [
+          "J1",
+          "I1",
+          "H1",
+          "G1",
+          "F1"
+        ],
+        "terminal-lower-01": [
+          "E1",
+          "D1",
+          "C1",
+          "B1",
+          "A1"
+        ],
+        "terminal-upper-02": [
+          "J2",
+          "I2",
+          "H2",
+          "G2",
+          "F2"
+        ],
+        "terminal-lower-02": [
+          "E2",
+          "D2",
+          "C2",
+          "B2",
+          "A2"
+        ],
+        "terminal-upper-03": [
+          "J3",
+          "I3",
+          "H3",
+          "G3",
+          "F3"
+        ],
+        "terminal-lower-03": [
+          "E3",
+          "D3",
+          "C3",
+          "B3",
+          "A3"
+        ],
+        "terminal-upper-04": [
+          "J4",
+          "I4",
+          "H4",
+          "G4",
+          "F4"
+        ],
+        "terminal-lower-04": [
+          "E4",
+          "D4",
+          "C4",
+          "B4",
+          "A4"
+        ],
+        "terminal-upper-05": [
+          "J5",
+          "I5",
+          "H5",
+          "G5",
+          "F5"
+        ],
+        "terminal-lower-05": [
+          "E5",
+          "D5",
+          "C5",
+          "B5",
+          "A5"
+        ],
+        "terminal-upper-06": [
+          "J6",
+          "I6",
+          "H6",
+          "G6",
+          "F6"
+        ],
+        "terminal-lower-06": [
+          "E6",
+          "D6",
+          "C6",
+          "B6",
+          "A6"
+        ],
+        "terminal-upper-07": [
+          "J7",
+          "I7",
+          "H7",
+          "G7",
+          "F7"
+        ],
+        "terminal-lower-07": [
+          "E7",
+          "D7",
+          "C7",
+          "B7",
+          "A7"
+        ],
+        "terminal-upper-08": [
+          "J8",
+          "I8",
+          "H8",
+          "G8",
+          "F8"
+        ],
+        "terminal-lower-08": [
+          "E8",
+          "D8",
+          "C8",
+          "B8",
+          "A8"
+        ],
+        "terminal-upper-09": [
+          "J9",
+          "I9",
+          "H9",
+          "G9",
+          "F9"
+        ],
+        "terminal-lower-09": [
+          "E9",
+          "D9",
+          "C9",
+          "B9",
+          "A9"
+        ],
+        "terminal-upper-10": [
+          "J10",
+          "I10",
+          "H10",
+          "G10",
+          "F10"
+        ],
+        "terminal-lower-10": [
+          "E10",
+          "D10",
+          "C10",
+          "B10",
+          "A10"
+        ],
+        "terminal-upper-11": [
+          "J11",
+          "I11",
+          "H11",
+          "G11",
+          "F11"
+        ],
+        "terminal-lower-11": [
+          "E11",
+          "D11",
+          "C11",
+          "B11",
+          "A11"
+        ],
+        "terminal-upper-12": [
+          "J12",
+          "I12",
+          "H12",
+          "G12",
+          "F12"
+        ],
+        "terminal-lower-12": [
+          "E12",
+          "D12",
+          "C12",
+          "B12",
+          "A12"
+        ],
+        "terminal-upper-13": [
+          "J13",
+          "I13",
+          "H13",
+          "G13",
+          "F13"
+        ],
+        "terminal-lower-13": [
+          "E13",
+          "D13",
+          "C13",
+          "B13",
+          "A13"
+        ],
+        "terminal-upper-14": [
+          "J14",
+          "I14",
+          "H14",
+          "G14",
+          "F14"
+        ],
+        "terminal-lower-14": [
+          "E14",
+          "D14",
+          "C14",
+          "B14",
+          "A14"
+        ],
+        "terminal-upper-15": [
+          "J15",
+          "I15",
+          "H15",
+          "G15",
+          "F15"
+        ],
+        "terminal-lower-15": [
+          "E15",
+          "D15",
+          "C15",
+          "B15",
+          "A15"
+        ],
+        "terminal-upper-16": [
+          "J16",
+          "I16",
+          "H16",
+          "G16",
+          "F16"
+        ],
+        "terminal-lower-16": [
+          "E16",
+          "D16",
+          "C16",
+          "B16",
+          "A16"
+        ],
+        "terminal-upper-17": [
+          "J17",
+          "I17",
+          "H17",
+          "G17",
+          "F17"
+        ],
+        "terminal-lower-17": [
+          "E17",
+          "D17",
+          "C17",
+          "B17",
+          "A17"
+        ],
+        "terminal-upper-18": [
+          "J18",
+          "I18",
+          "H18",
+          "G18",
+          "F18"
+        ],
+        "terminal-lower-18": [
+          "E18",
+          "D18",
+          "C18",
+          "B18",
+          "A18"
+        ],
+        "terminal-upper-19": [
+          "J19",
+          "I19",
+          "H19",
+          "G19",
+          "F19"
+        ],
+        "terminal-lower-19": [
+          "E19",
+          "D19",
+          "C19",
+          "B19",
+          "A19"
+        ],
+        "terminal-upper-20": [
+          "J20",
+          "I20",
+          "H20",
+          "G20",
+          "F20"
+        ],
+        "terminal-lower-20": [
+          "E20",
+          "D20",
+          "C20",
+          "B20",
+          "A20"
+        ],
+        "terminal-upper-21": [
+          "J21",
+          "I21",
+          "H21",
+          "G21",
+          "F21"
+        ],
+        "terminal-lower-21": [
+          "E21",
+          "D21",
+          "C21",
+          "B21",
+          "A21"
+        ],
+        "terminal-upper-22": [
+          "J22",
+          "I22",
+          "H22",
+          "G22",
+          "F22"
+        ],
+        "terminal-lower-22": [
+          "E22",
+          "D22",
+          "C22",
+          "B22",
+          "A22"
+        ],
+        "terminal-upper-23": [
+          "J23",
+          "I23",
+          "H23",
+          "G23",
+          "F23"
+        ],
+        "terminal-lower-23": [
+          "E23",
+          "D23",
+          "C23",
+          "B23",
+          "A23"
+        ],
+        "terminal-upper-24": [
+          "J24",
+          "I24",
+          "H24",
+          "G24",
+          "F24"
+        ],
+        "terminal-lower-24": [
+          "E24",
+          "D24",
+          "C24",
+          "B24",
+          "A24"
+        ],
+        "terminal-upper-25": [
+          "J25",
+          "I25",
+          "H25",
+          "G25",
+          "F25"
+        ],
+        "terminal-lower-25": [
+          "E25",
+          "D25",
+          "C25",
+          "B25",
+          "A25"
+        ],
+        "terminal-upper-26": [
+          "J26",
+          "I26",
+          "H26",
+          "G26",
+          "F26"
+        ],
+        "terminal-lower-26": [
+          "E26",
+          "D26",
+          "C26",
+          "B26",
+          "A26"
+        ],
+        "terminal-upper-27": [
+          "J27",
+          "I27",
+          "H27",
+          "G27",
+          "F27"
+        ],
+        "terminal-lower-27": [
+          "E27",
+          "D27",
+          "C27",
+          "B27",
+          "A27"
+        ],
+        "terminal-upper-28": [
+          "J28",
+          "I28",
+          "H28",
+          "G28",
+          "F28"
+        ],
+        "terminal-lower-28": [
+          "E28",
+          "D28",
+          "C28",
+          "B28",
+          "A28"
+        ],
+        "terminal-upper-29": [
+          "J29",
+          "I29",
+          "H29",
+          "G29",
+          "F29"
+        ],
+        "terminal-lower-29": [
+          "E29",
+          "D29",
+          "C29",
+          "B29",
+          "A29"
+        ],
+        "terminal-upper-30": [
+          "J30",
+          "I30",
+          "H30",
+          "G30",
+          "F30"
+        ],
+        "terminal-lower-30": [
+          "E30",
+          "D30",
+          "C30",
+          "B30",
+          "A30"
+        ],
         "rail-top-negative": [
           "top-negative-01",
           "top-negative-02",
@@ -10723,132 +11287,888 @@
         }
       ],
       "groups": {
-        "terminal-upper-01": ["J1", "I1", "H1", "G1", "F1"],
-        "terminal-lower-01": ["E1", "D1", "C1", "B1", "A1"],
-        "terminal-upper-02": ["J2", "I2", "H2", "G2", "F2"],
-        "terminal-lower-02": ["E2", "D2", "C2", "B2", "A2"],
-        "terminal-upper-03": ["J3", "I3", "H3", "G3", "F3"],
-        "terminal-lower-03": ["E3", "D3", "C3", "B3", "A3"],
-        "terminal-upper-04": ["J4", "I4", "H4", "G4", "F4"],
-        "terminal-lower-04": ["E4", "D4", "C4", "B4", "A4"],
-        "terminal-upper-05": ["J5", "I5", "H5", "G5", "F5"],
-        "terminal-lower-05": ["E5", "D5", "C5", "B5", "A5"],
-        "terminal-upper-06": ["J6", "I6", "H6", "G6", "F6"],
-        "terminal-lower-06": ["E6", "D6", "C6", "B6", "A6"],
-        "terminal-upper-07": ["J7", "I7", "H7", "G7", "F7"],
-        "terminal-lower-07": ["E7", "D7", "C7", "B7", "A7"],
-        "terminal-upper-08": ["J8", "I8", "H8", "G8", "F8"],
-        "terminal-lower-08": ["E8", "D8", "C8", "B8", "A8"],
-        "terminal-upper-09": ["J9", "I9", "H9", "G9", "F9"],
-        "terminal-lower-09": ["E9", "D9", "C9", "B9", "A9"],
-        "terminal-upper-10": ["J10", "I10", "H10", "G10", "F10"],
-        "terminal-lower-10": ["E10", "D10", "C10", "B10", "A10"],
-        "terminal-upper-11": ["J11", "I11", "H11", "G11", "F11"],
-        "terminal-lower-11": ["E11", "D11", "C11", "B11", "A11"],
-        "terminal-upper-12": ["J12", "I12", "H12", "G12", "F12"],
-        "terminal-lower-12": ["E12", "D12", "C12", "B12", "A12"],
-        "terminal-upper-13": ["J13", "I13", "H13", "G13", "F13"],
-        "terminal-lower-13": ["E13", "D13", "C13", "B13", "A13"],
-        "terminal-upper-14": ["J14", "I14", "H14", "G14", "F14"],
-        "terminal-lower-14": ["E14", "D14", "C14", "B14", "A14"],
-        "terminal-upper-15": ["J15", "I15", "H15", "G15", "F15"],
-        "terminal-lower-15": ["E15", "D15", "C15", "B15", "A15"],
-        "terminal-upper-16": ["J16", "I16", "H16", "G16", "F16"],
-        "terminal-lower-16": ["E16", "D16", "C16", "B16", "A16"],
-        "terminal-upper-17": ["J17", "I17", "H17", "G17", "F17"],
-        "terminal-lower-17": ["E17", "D17", "C17", "B17", "A17"],
-        "terminal-upper-18": ["J18", "I18", "H18", "G18", "F18"],
-        "terminal-lower-18": ["E18", "D18", "C18", "B18", "A18"],
-        "terminal-upper-19": ["J19", "I19", "H19", "G19", "F19"],
-        "terminal-lower-19": ["E19", "D19", "C19", "B19", "A19"],
-        "terminal-upper-20": ["J20", "I20", "H20", "G20", "F20"],
-        "terminal-lower-20": ["E20", "D20", "C20", "B20", "A20"],
-        "terminal-upper-21": ["J21", "I21", "H21", "G21", "F21"],
-        "terminal-lower-21": ["E21", "D21", "C21", "B21", "A21"],
-        "terminal-upper-22": ["J22", "I22", "H22", "G22", "F22"],
-        "terminal-lower-22": ["E22", "D22", "C22", "B22", "A22"],
-        "terminal-upper-23": ["J23", "I23", "H23", "G23", "F23"],
-        "terminal-lower-23": ["E23", "D23", "C23", "B23", "A23"],
-        "terminal-upper-24": ["J24", "I24", "H24", "G24", "F24"],
-        "terminal-lower-24": ["E24", "D24", "C24", "B24", "A24"],
-        "terminal-upper-25": ["J25", "I25", "H25", "G25", "F25"],
-        "terminal-lower-25": ["E25", "D25", "C25", "B25", "A25"],
-        "terminal-upper-26": ["J26", "I26", "H26", "G26", "F26"],
-        "terminal-lower-26": ["E26", "D26", "C26", "B26", "A26"],
-        "terminal-upper-27": ["J27", "I27", "H27", "G27", "F27"],
-        "terminal-lower-27": ["E27", "D27", "C27", "B27", "A27"],
-        "terminal-upper-28": ["J28", "I28", "H28", "G28", "F28"],
-        "terminal-lower-28": ["E28", "D28", "C28", "B28", "A28"],
-        "terminal-upper-29": ["J29", "I29", "H29", "G29", "F29"],
-        "terminal-lower-29": ["E29", "D29", "C29", "B29", "A29"],
-        "terminal-upper-30": ["J30", "I30", "H30", "G30", "F30"],
-        "terminal-lower-30": ["E30", "D30", "C30", "B30", "A30"],
-        "terminal-upper-31": ["J31", "I31", "H31", "G31", "F31"],
-        "terminal-lower-31": ["E31", "D31", "C31", "B31", "A31"],
-        "terminal-upper-32": ["J32", "I32", "H32", "G32", "F32"],
-        "terminal-lower-32": ["E32", "D32", "C32", "B32", "A32"],
-        "terminal-upper-33": ["J33", "I33", "H33", "G33", "F33"],
-        "terminal-lower-33": ["E33", "D33", "C33", "B33", "A33"],
-        "terminal-upper-34": ["J34", "I34", "H34", "G34", "F34"],
-        "terminal-lower-34": ["E34", "D34", "C34", "B34", "A34"],
-        "terminal-upper-35": ["J35", "I35", "H35", "G35", "F35"],
-        "terminal-lower-35": ["E35", "D35", "C35", "B35", "A35"],
-        "terminal-upper-36": ["J36", "I36", "H36", "G36", "F36"],
-        "terminal-lower-36": ["E36", "D36", "C36", "B36", "A36"],
-        "terminal-upper-37": ["J37", "I37", "H37", "G37", "F37"],
-        "terminal-lower-37": ["E37", "D37", "C37", "B37", "A37"],
-        "terminal-upper-38": ["J38", "I38", "H38", "G38", "F38"],
-        "terminal-lower-38": ["E38", "D38", "C38", "B38", "A38"],
-        "terminal-upper-39": ["J39", "I39", "H39", "G39", "F39"],
-        "terminal-lower-39": ["E39", "D39", "C39", "B39", "A39"],
-        "terminal-upper-40": ["J40", "I40", "H40", "G40", "F40"],
-        "terminal-lower-40": ["E40", "D40", "C40", "B40", "A40"],
-        "terminal-upper-41": ["J41", "I41", "H41", "G41", "F41"],
-        "terminal-lower-41": ["E41", "D41", "C41", "B41", "A41"],
-        "terminal-upper-42": ["J42", "I42", "H42", "G42", "F42"],
-        "terminal-lower-42": ["E42", "D42", "C42", "B42", "A42"],
-        "terminal-upper-43": ["J43", "I43", "H43", "G43", "F43"],
-        "terminal-lower-43": ["E43", "D43", "C43", "B43", "A43"],
-        "terminal-upper-44": ["J44", "I44", "H44", "G44", "F44"],
-        "terminal-lower-44": ["E44", "D44", "C44", "B44", "A44"],
-        "terminal-upper-45": ["J45", "I45", "H45", "G45", "F45"],
-        "terminal-lower-45": ["E45", "D45", "C45", "B45", "A45"],
-        "terminal-upper-46": ["J46", "I46", "H46", "G46", "F46"],
-        "terminal-lower-46": ["E46", "D46", "C46", "B46", "A46"],
-        "terminal-upper-47": ["J47", "I47", "H47", "G47", "F47"],
-        "terminal-lower-47": ["E47", "D47", "C47", "B47", "A47"],
-        "terminal-upper-48": ["J48", "I48", "H48", "G48", "F48"],
-        "terminal-lower-48": ["E48", "D48", "C48", "B48", "A48"],
-        "terminal-upper-49": ["J49", "I49", "H49", "G49", "F49"],
-        "terminal-lower-49": ["E49", "D49", "C49", "B49", "A49"],
-        "terminal-upper-50": ["J50", "I50", "H50", "G50", "F50"],
-        "terminal-lower-50": ["E50", "D50", "C50", "B50", "A50"],
-        "terminal-upper-51": ["J51", "I51", "H51", "G51", "F51"],
-        "terminal-lower-51": ["E51", "D51", "C51", "B51", "A51"],
-        "terminal-upper-52": ["J52", "I52", "H52", "G52", "F52"],
-        "terminal-lower-52": ["E52", "D52", "C52", "B52", "A52"],
-        "terminal-upper-53": ["J53", "I53", "H53", "G53", "F53"],
-        "terminal-lower-53": ["E53", "D53", "C53", "B53", "A53"],
-        "terminal-upper-54": ["J54", "I54", "H54", "G54", "F54"],
-        "terminal-lower-54": ["E54", "D54", "C54", "B54", "A54"],
-        "terminal-upper-55": ["J55", "I55", "H55", "G55", "F55"],
-        "terminal-lower-55": ["E55", "D55", "C55", "B55", "A55"],
-        "terminal-upper-56": ["J56", "I56", "H56", "G56", "F56"],
-        "terminal-lower-56": ["E56", "D56", "C56", "B56", "A56"],
-        "terminal-upper-57": ["J57", "I57", "H57", "G57", "F57"],
-        "terminal-lower-57": ["E57", "D57", "C57", "B57", "A57"],
-        "terminal-upper-58": ["J58", "I58", "H58", "G58", "F58"],
-        "terminal-lower-58": ["E58", "D58", "C58", "B58", "A58"],
-        "terminal-upper-59": ["J59", "I59", "H59", "G59", "F59"],
-        "terminal-lower-59": ["E59", "D59", "C59", "B59", "A59"],
-        "terminal-upper-60": ["J60", "I60", "H60", "G60", "F60"],
-        "terminal-lower-60": ["E60", "D60", "C60", "B60", "A60"],
-        "terminal-upper-61": ["J61", "I61", "H61", "G61", "F61"],
-        "terminal-lower-61": ["E61", "D61", "C61", "B61", "A61"],
-        "terminal-upper-62": ["J62", "I62", "H62", "G62", "F62"],
-        "terminal-lower-62": ["E62", "D62", "C62", "B62", "A62"],
-        "terminal-upper-63": ["J63", "I63", "H63", "G63", "F63"],
-        "terminal-lower-63": ["E63", "D63", "C63", "B63", "A63"],
+        "terminal-upper-01": [
+          "J1",
+          "I1",
+          "H1",
+          "G1",
+          "F1"
+        ],
+        "terminal-lower-01": [
+          "E1",
+          "D1",
+          "C1",
+          "B1",
+          "A1"
+        ],
+        "terminal-upper-02": [
+          "J2",
+          "I2",
+          "H2",
+          "G2",
+          "F2"
+        ],
+        "terminal-lower-02": [
+          "E2",
+          "D2",
+          "C2",
+          "B2",
+          "A2"
+        ],
+        "terminal-upper-03": [
+          "J3",
+          "I3",
+          "H3",
+          "G3",
+          "F3"
+        ],
+        "terminal-lower-03": [
+          "E3",
+          "D3",
+          "C3",
+          "B3",
+          "A3"
+        ],
+        "terminal-upper-04": [
+          "J4",
+          "I4",
+          "H4",
+          "G4",
+          "F4"
+        ],
+        "terminal-lower-04": [
+          "E4",
+          "D4",
+          "C4",
+          "B4",
+          "A4"
+        ],
+        "terminal-upper-05": [
+          "J5",
+          "I5",
+          "H5",
+          "G5",
+          "F5"
+        ],
+        "terminal-lower-05": [
+          "E5",
+          "D5",
+          "C5",
+          "B5",
+          "A5"
+        ],
+        "terminal-upper-06": [
+          "J6",
+          "I6",
+          "H6",
+          "G6",
+          "F6"
+        ],
+        "terminal-lower-06": [
+          "E6",
+          "D6",
+          "C6",
+          "B6",
+          "A6"
+        ],
+        "terminal-upper-07": [
+          "J7",
+          "I7",
+          "H7",
+          "G7",
+          "F7"
+        ],
+        "terminal-lower-07": [
+          "E7",
+          "D7",
+          "C7",
+          "B7",
+          "A7"
+        ],
+        "terminal-upper-08": [
+          "J8",
+          "I8",
+          "H8",
+          "G8",
+          "F8"
+        ],
+        "terminal-lower-08": [
+          "E8",
+          "D8",
+          "C8",
+          "B8",
+          "A8"
+        ],
+        "terminal-upper-09": [
+          "J9",
+          "I9",
+          "H9",
+          "G9",
+          "F9"
+        ],
+        "terminal-lower-09": [
+          "E9",
+          "D9",
+          "C9",
+          "B9",
+          "A9"
+        ],
+        "terminal-upper-10": [
+          "J10",
+          "I10",
+          "H10",
+          "G10",
+          "F10"
+        ],
+        "terminal-lower-10": [
+          "E10",
+          "D10",
+          "C10",
+          "B10",
+          "A10"
+        ],
+        "terminal-upper-11": [
+          "J11",
+          "I11",
+          "H11",
+          "G11",
+          "F11"
+        ],
+        "terminal-lower-11": [
+          "E11",
+          "D11",
+          "C11",
+          "B11",
+          "A11"
+        ],
+        "terminal-upper-12": [
+          "J12",
+          "I12",
+          "H12",
+          "G12",
+          "F12"
+        ],
+        "terminal-lower-12": [
+          "E12",
+          "D12",
+          "C12",
+          "B12",
+          "A12"
+        ],
+        "terminal-upper-13": [
+          "J13",
+          "I13",
+          "H13",
+          "G13",
+          "F13"
+        ],
+        "terminal-lower-13": [
+          "E13",
+          "D13",
+          "C13",
+          "B13",
+          "A13"
+        ],
+        "terminal-upper-14": [
+          "J14",
+          "I14",
+          "H14",
+          "G14",
+          "F14"
+        ],
+        "terminal-lower-14": [
+          "E14",
+          "D14",
+          "C14",
+          "B14",
+          "A14"
+        ],
+        "terminal-upper-15": [
+          "J15",
+          "I15",
+          "H15",
+          "G15",
+          "F15"
+        ],
+        "terminal-lower-15": [
+          "E15",
+          "D15",
+          "C15",
+          "B15",
+          "A15"
+        ],
+        "terminal-upper-16": [
+          "J16",
+          "I16",
+          "H16",
+          "G16",
+          "F16"
+        ],
+        "terminal-lower-16": [
+          "E16",
+          "D16",
+          "C16",
+          "B16",
+          "A16"
+        ],
+        "terminal-upper-17": [
+          "J17",
+          "I17",
+          "H17",
+          "G17",
+          "F17"
+        ],
+        "terminal-lower-17": [
+          "E17",
+          "D17",
+          "C17",
+          "B17",
+          "A17"
+        ],
+        "terminal-upper-18": [
+          "J18",
+          "I18",
+          "H18",
+          "G18",
+          "F18"
+        ],
+        "terminal-lower-18": [
+          "E18",
+          "D18",
+          "C18",
+          "B18",
+          "A18"
+        ],
+        "terminal-upper-19": [
+          "J19",
+          "I19",
+          "H19",
+          "G19",
+          "F19"
+        ],
+        "terminal-lower-19": [
+          "E19",
+          "D19",
+          "C19",
+          "B19",
+          "A19"
+        ],
+        "terminal-upper-20": [
+          "J20",
+          "I20",
+          "H20",
+          "G20",
+          "F20"
+        ],
+        "terminal-lower-20": [
+          "E20",
+          "D20",
+          "C20",
+          "B20",
+          "A20"
+        ],
+        "terminal-upper-21": [
+          "J21",
+          "I21",
+          "H21",
+          "G21",
+          "F21"
+        ],
+        "terminal-lower-21": [
+          "E21",
+          "D21",
+          "C21",
+          "B21",
+          "A21"
+        ],
+        "terminal-upper-22": [
+          "J22",
+          "I22",
+          "H22",
+          "G22",
+          "F22"
+        ],
+        "terminal-lower-22": [
+          "E22",
+          "D22",
+          "C22",
+          "B22",
+          "A22"
+        ],
+        "terminal-upper-23": [
+          "J23",
+          "I23",
+          "H23",
+          "G23",
+          "F23"
+        ],
+        "terminal-lower-23": [
+          "E23",
+          "D23",
+          "C23",
+          "B23",
+          "A23"
+        ],
+        "terminal-upper-24": [
+          "J24",
+          "I24",
+          "H24",
+          "G24",
+          "F24"
+        ],
+        "terminal-lower-24": [
+          "E24",
+          "D24",
+          "C24",
+          "B24",
+          "A24"
+        ],
+        "terminal-upper-25": [
+          "J25",
+          "I25",
+          "H25",
+          "G25",
+          "F25"
+        ],
+        "terminal-lower-25": [
+          "E25",
+          "D25",
+          "C25",
+          "B25",
+          "A25"
+        ],
+        "terminal-upper-26": [
+          "J26",
+          "I26",
+          "H26",
+          "G26",
+          "F26"
+        ],
+        "terminal-lower-26": [
+          "E26",
+          "D26",
+          "C26",
+          "B26",
+          "A26"
+        ],
+        "terminal-upper-27": [
+          "J27",
+          "I27",
+          "H27",
+          "G27",
+          "F27"
+        ],
+        "terminal-lower-27": [
+          "E27",
+          "D27",
+          "C27",
+          "B27",
+          "A27"
+        ],
+        "terminal-upper-28": [
+          "J28",
+          "I28",
+          "H28",
+          "G28",
+          "F28"
+        ],
+        "terminal-lower-28": [
+          "E28",
+          "D28",
+          "C28",
+          "B28",
+          "A28"
+        ],
+        "terminal-upper-29": [
+          "J29",
+          "I29",
+          "H29",
+          "G29",
+          "F29"
+        ],
+        "terminal-lower-29": [
+          "E29",
+          "D29",
+          "C29",
+          "B29",
+          "A29"
+        ],
+        "terminal-upper-30": [
+          "J30",
+          "I30",
+          "H30",
+          "G30",
+          "F30"
+        ],
+        "terminal-lower-30": [
+          "E30",
+          "D30",
+          "C30",
+          "B30",
+          "A30"
+        ],
+        "terminal-upper-31": [
+          "J31",
+          "I31",
+          "H31",
+          "G31",
+          "F31"
+        ],
+        "terminal-lower-31": [
+          "E31",
+          "D31",
+          "C31",
+          "B31",
+          "A31"
+        ],
+        "terminal-upper-32": [
+          "J32",
+          "I32",
+          "H32",
+          "G32",
+          "F32"
+        ],
+        "terminal-lower-32": [
+          "E32",
+          "D32",
+          "C32",
+          "B32",
+          "A32"
+        ],
+        "terminal-upper-33": [
+          "J33",
+          "I33",
+          "H33",
+          "G33",
+          "F33"
+        ],
+        "terminal-lower-33": [
+          "E33",
+          "D33",
+          "C33",
+          "B33",
+          "A33"
+        ],
+        "terminal-upper-34": [
+          "J34",
+          "I34",
+          "H34",
+          "G34",
+          "F34"
+        ],
+        "terminal-lower-34": [
+          "E34",
+          "D34",
+          "C34",
+          "B34",
+          "A34"
+        ],
+        "terminal-upper-35": [
+          "J35",
+          "I35",
+          "H35",
+          "G35",
+          "F35"
+        ],
+        "terminal-lower-35": [
+          "E35",
+          "D35",
+          "C35",
+          "B35",
+          "A35"
+        ],
+        "terminal-upper-36": [
+          "J36",
+          "I36",
+          "H36",
+          "G36",
+          "F36"
+        ],
+        "terminal-lower-36": [
+          "E36",
+          "D36",
+          "C36",
+          "B36",
+          "A36"
+        ],
+        "terminal-upper-37": [
+          "J37",
+          "I37",
+          "H37",
+          "G37",
+          "F37"
+        ],
+        "terminal-lower-37": [
+          "E37",
+          "D37",
+          "C37",
+          "B37",
+          "A37"
+        ],
+        "terminal-upper-38": [
+          "J38",
+          "I38",
+          "H38",
+          "G38",
+          "F38"
+        ],
+        "terminal-lower-38": [
+          "E38",
+          "D38",
+          "C38",
+          "B38",
+          "A38"
+        ],
+        "terminal-upper-39": [
+          "J39",
+          "I39",
+          "H39",
+          "G39",
+          "F39"
+        ],
+        "terminal-lower-39": [
+          "E39",
+          "D39",
+          "C39",
+          "B39",
+          "A39"
+        ],
+        "terminal-upper-40": [
+          "J40",
+          "I40",
+          "H40",
+          "G40",
+          "F40"
+        ],
+        "terminal-lower-40": [
+          "E40",
+          "D40",
+          "C40",
+          "B40",
+          "A40"
+        ],
+        "terminal-upper-41": [
+          "J41",
+          "I41",
+          "H41",
+          "G41",
+          "F41"
+        ],
+        "terminal-lower-41": [
+          "E41",
+          "D41",
+          "C41",
+          "B41",
+          "A41"
+        ],
+        "terminal-upper-42": [
+          "J42",
+          "I42",
+          "H42",
+          "G42",
+          "F42"
+        ],
+        "terminal-lower-42": [
+          "E42",
+          "D42",
+          "C42",
+          "B42",
+          "A42"
+        ],
+        "terminal-upper-43": [
+          "J43",
+          "I43",
+          "H43",
+          "G43",
+          "F43"
+        ],
+        "terminal-lower-43": [
+          "E43",
+          "D43",
+          "C43",
+          "B43",
+          "A43"
+        ],
+        "terminal-upper-44": [
+          "J44",
+          "I44",
+          "H44",
+          "G44",
+          "F44"
+        ],
+        "terminal-lower-44": [
+          "E44",
+          "D44",
+          "C44",
+          "B44",
+          "A44"
+        ],
+        "terminal-upper-45": [
+          "J45",
+          "I45",
+          "H45",
+          "G45",
+          "F45"
+        ],
+        "terminal-lower-45": [
+          "E45",
+          "D45",
+          "C45",
+          "B45",
+          "A45"
+        ],
+        "terminal-upper-46": [
+          "J46",
+          "I46",
+          "H46",
+          "G46",
+          "F46"
+        ],
+        "terminal-lower-46": [
+          "E46",
+          "D46",
+          "C46",
+          "B46",
+          "A46"
+        ],
+        "terminal-upper-47": [
+          "J47",
+          "I47",
+          "H47",
+          "G47",
+          "F47"
+        ],
+        "terminal-lower-47": [
+          "E47",
+          "D47",
+          "C47",
+          "B47",
+          "A47"
+        ],
+        "terminal-upper-48": [
+          "J48",
+          "I48",
+          "H48",
+          "G48",
+          "F48"
+        ],
+        "terminal-lower-48": [
+          "E48",
+          "D48",
+          "C48",
+          "B48",
+          "A48"
+        ],
+        "terminal-upper-49": [
+          "J49",
+          "I49",
+          "H49",
+          "G49",
+          "F49"
+        ],
+        "terminal-lower-49": [
+          "E49",
+          "D49",
+          "C49",
+          "B49",
+          "A49"
+        ],
+        "terminal-upper-50": [
+          "J50",
+          "I50",
+          "H50",
+          "G50",
+          "F50"
+        ],
+        "terminal-lower-50": [
+          "E50",
+          "D50",
+          "C50",
+          "B50",
+          "A50"
+        ],
+        "terminal-upper-51": [
+          "J51",
+          "I51",
+          "H51",
+          "G51",
+          "F51"
+        ],
+        "terminal-lower-51": [
+          "E51",
+          "D51",
+          "C51",
+          "B51",
+          "A51"
+        ],
+        "terminal-upper-52": [
+          "J52",
+          "I52",
+          "H52",
+          "G52",
+          "F52"
+        ],
+        "terminal-lower-52": [
+          "E52",
+          "D52",
+          "C52",
+          "B52",
+          "A52"
+        ],
+        "terminal-upper-53": [
+          "J53",
+          "I53",
+          "H53",
+          "G53",
+          "F53"
+        ],
+        "terminal-lower-53": [
+          "E53",
+          "D53",
+          "C53",
+          "B53",
+          "A53"
+        ],
+        "terminal-upper-54": [
+          "J54",
+          "I54",
+          "H54",
+          "G54",
+          "F54"
+        ],
+        "terminal-lower-54": [
+          "E54",
+          "D54",
+          "C54",
+          "B54",
+          "A54"
+        ],
+        "terminal-upper-55": [
+          "J55",
+          "I55",
+          "H55",
+          "G55",
+          "F55"
+        ],
+        "terminal-lower-55": [
+          "E55",
+          "D55",
+          "C55",
+          "B55",
+          "A55"
+        ],
+        "terminal-upper-56": [
+          "J56",
+          "I56",
+          "H56",
+          "G56",
+          "F56"
+        ],
+        "terminal-lower-56": [
+          "E56",
+          "D56",
+          "C56",
+          "B56",
+          "A56"
+        ],
+        "terminal-upper-57": [
+          "J57",
+          "I57",
+          "H57",
+          "G57",
+          "F57"
+        ],
+        "terminal-lower-57": [
+          "E57",
+          "D57",
+          "C57",
+          "B57",
+          "A57"
+        ],
+        "terminal-upper-58": [
+          "J58",
+          "I58",
+          "H58",
+          "G58",
+          "F58"
+        ],
+        "terminal-lower-58": [
+          "E58",
+          "D58",
+          "C58",
+          "B58",
+          "A58"
+        ],
+        "terminal-upper-59": [
+          "J59",
+          "I59",
+          "H59",
+          "G59",
+          "F59"
+        ],
+        "terminal-lower-59": [
+          "E59",
+          "D59",
+          "C59",
+          "B59",
+          "A59"
+        ],
+        "terminal-upper-60": [
+          "J60",
+          "I60",
+          "H60",
+          "G60",
+          "F60"
+        ],
+        "terminal-lower-60": [
+          "E60",
+          "D60",
+          "C60",
+          "B60",
+          "A60"
+        ],
+        "terminal-upper-61": [
+          "J61",
+          "I61",
+          "H61",
+          "G61",
+          "F61"
+        ],
+        "terminal-lower-61": [
+          "E61",
+          "D61",
+          "C61",
+          "B61",
+          "A61"
+        ],
+        "terminal-upper-62": [
+          "J62",
+          "I62",
+          "H62",
+          "G62",
+          "F62"
+        ],
+        "terminal-lower-62": [
+          "E62",
+          "D62",
+          "C62",
+          "B62",
+          "A62"
+        ],
+        "terminal-upper-63": [
+          "J63",
+          "I63",
+          "H63",
+          "G63",
+          "F63"
+        ],
+        "terminal-lower-63": [
+          "E63",
+          "D63",
+          "C63",
+          "B63",
+          "A63"
+        ],
         "rail-top-negative-left": [
           "top-negative-01",
           "top-negative-02",
@@ -11170,12 +12490,21 @@
       "subcategoryId": "resistors",
       "catalogOrder": 1,
       "appearsInBasic": true,
-      "searchAliases": ["resistor-axial", "Резистор", "Axial resistor"],
+      "searchAliases": [
+        "resistor-axial",
+        "Резистор",
+        "Axial resistor"
+      ],
       "displayNameEn": "Axial resistor",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 2.54,
       "physicalHeightMm": 11.582,
-      "viewBox": [0, 0, 106, 282],
+      "viewBox": [
+        0,
+        0,
+        106,
+        282
+      ],
       "assetFit": "stretch",
       "pins": [
         {
@@ -11196,8 +12525,14 @@
       "footprint": {
         "kind": "axial",
         "pinOffsetsMm": [
-          [0, 0],
-          [0, 10.16]
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            10.16
+          ]
         ]
       },
       "states": [],
@@ -11206,17 +12541,30 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["resistance", "tolerance"]
+          "channels": [
+            "resistance",
+            "tolerance"
+          ]
         }
       ],
       "stateContract": {
         "type": "resistor_colour_code",
-        "bands": ["digit-1", "digit-2", "multiplier", "tolerance"],
+        "bands": [
+          "digit-1",
+          "digit-2",
+          "multiplier",
+          "tolerance"
+        ],
         "resistanceOhms": {
           "min": 0.1,
           "max": 99000000000
         },
-        "tolerancePercent": [1, 2, 5, 10]
+        "tolerancePercent": [
+          1,
+          2,
+          5,
+          10
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -11247,12 +12595,21 @@
       "subcategoryId": "leds",
       "catalogOrder": 2,
       "appearsInBasic": true,
-      "searchAliases": ["led-5mm", "Светодиод", "5 mm LED"],
+      "searchAliases": [
+        "led-5mm",
+        "Светодиод",
+        "5 mm LED"
+      ],
       "displayNameEn": "5 mm LED",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 4.8381,
       "physicalHeightMm": 8.0635,
-      "viewBox": [0, 0, 240, 400],
+      "viewBox": [
+        0,
+        0,
+        240,
+        400
+      ],
       "pins": [
         {
           "id": "cathode",
@@ -11272,8 +12629,14 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
         ]
       },
       "states": [
@@ -16765,18 +18128,32 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["brightness", "fault"]
+          "channels": [
+            "brightness",
+            "fault"
+          ]
         }
       ],
       "stateContract": {
         "type": "ordinary_led",
-        "colors": ["blue", "green", "orange", "red", "white", "yellow"],
+        "colors": [
+          "blue",
+          "green",
+          "orange",
+          "red",
+          "white",
+          "yellow"
+        ],
         "brightness": {
           "min": 0,
           "max": 100,
           "step": 1
         },
-        "specialStates": ["reverse", "overcurrent", "burned"]
+        "specialStates": [
+          "reverse",
+          "overcurrent",
+          "burned"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -16807,12 +18184,21 @@
       "subcategoryId": "buttons",
       "catalogOrder": 3,
       "appearsInBasic": true,
-      "searchAliases": ["button-tactile-6mm", "Кнопка", "6×6 mm tactile button"],
+      "searchAliases": [
+        "button-tactile-6mm",
+        "Кнопка",
+        "6×6 mm tactile button"
+      ],
       "displayNameEn": "6×6 mm tactile button",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 10,
       "physicalHeightMm": 10,
-      "viewBox": [0, 0, 10, 10],
+      "viewBox": [
+        0,
+        0,
+        10,
+        10
+      ],
       "pins": [
         {
           "id": "SW-A1",
@@ -16846,13 +18232,29 @@
       "footprint": {
         "kind": "rectangle",
         "pinOffsetsMm": [
-          [0, 0],
-          [5.08, 0],
-          [0, 7.62],
-          [5.08, 7.62]
+          [
+            0,
+            0
+          ],
+          [
+            5.08,
+            0
+          ],
+          [
+            0,
+            7.62
+          ],
+          [
+            5.08,
+            7.62
+          ]
         ]
       },
-      "states": ["released", "pressed", "animated"],
+      "states": [
+        "released",
+        "pressed",
+        "animated"
+      ],
       "stateAssets": [
         {
           "state": "released",
@@ -16883,13 +18285,22 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["pressed"]
+          "channels": [
+            "pressed"
+          ]
         }
       ],
       "stateContract": {
         "type": "momentary",
-        "states": ["released", "pressed"],
-        "transition": ["released", "pressed", "released"]
+        "states": [
+          "released",
+          "pressed"
+        ],
+        "transition": [
+          "released",
+          "pressed",
+          "released"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -16920,12 +18331,21 @@
       "subcategoryId": "variable-resistors",
       "catalogOrder": 4,
       "appearsInBasic": true,
-      "searchAliases": ["potentiometer", "Потенциометр", "Поворотный"],
+      "searchAliases": [
+        "potentiometer",
+        "Потенциометр",
+        "Поворотный"
+      ],
       "displayNameEn": "potentiometer",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 12.192,
       "physicalHeightMm": 13.716,
-      "viewBox": [0, 0, 12.192, 13.716],
+      "viewBox": [
+        0,
+        0,
+        12.192,
+        13.716
+      ],
       "pins": [
         {
           "id": "terminal-1",
@@ -16952,9 +18372,18 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [5.08, 0],
-          [2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            5.08,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
         ]
       },
       "states": [],
@@ -16963,13 +18392,21 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["wiperPosition"]
+          "channels": [
+            "wiperPosition"
+          ]
         }
       ],
       "stateContract": {
         "type": "potentiometer",
-        "wiperPosition": [0, 1],
-        "knobAngleDegrees": [-135, 135]
+        "wiperPosition": [
+          0,
+          1
+        ],
+        "knobAngleDegrees": [
+          -135,
+          135
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -16989,40 +18426,8 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
-      "componentId": "electrolytic-capacitor",
-      "familyId": "capacitor",
-      "familyLabelRu": "Конденсатор",
-      "familyLabelEn": "Electrolytic capacitor",
-      "variantId": "electrolytic-capacitor",
-      "variantLabelRu": "Электролитический",
-      "variantLabelEn": "Electrolytic capacitor",
-      "category": "passives",
-      "subcategoryId": "capacitors",
-      "catalogOrder": 5,
       "appearsInBasic": true,
-      "searchAliases": ["electrolytic-capacitor", "Конденсатор", "Electrolytic capacitor"],
-      "displayNameEn": "Electrolytic capacitor",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 8.667,
-      "physicalHeightMm": 14.133,
-      "viewBox": [0, 0, 8.667, 14.133],
-      "pins": [
-        {
-          "id": "negative",
-          "xMm": 2.4876,
-          "yMm": 12.4038,
-          "electricalRole": "negative",
-          "toleranceMm": 0
-        },
-        {
-          "id": "positive",
-          "xMm": 6.4019,
-          "yMm": 12.3891,
-          "electricalRole": "positive",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
+      "provenance": "owner_supplied",
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -17032,27 +18437,80 @@
           "channels": []
         }
       ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "electrolytic-capacitor",
+      "familyId": "capacitor",
+      "familyLabelRu": "Конденсатор",
+      "familyLabelEn": "Capacitor",
+      "variantId": "electrolytic-capacitor",
+      "variantLabelRu": "Электролитический",
+      "variantLabelEn": "Electrolytic",
+      "category": "passives",
+      "subcategoryId": "capacitors",
+      "catalogOrder": 5,
+      "searchAliases": [
+        "electrolytic-capacitor",
+        "конденсатор",
+        "электролитический",
+        "capacitor"
+      ],
+      "displayNameEn": "Electrolytic capacitor",
+      "physicalWidthMm": 16.91,
+      "physicalHeightMm": 19.2,
+      "viewBox": [
+        0,
+        0,
+        273,
+        310
+      ],
+      "pins": [
+        {
+          "id": "negative",
+          "xMm": 6.07,
+          "yMm": 15.61,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "positive",
+          "xMm": 11.15,
+          "yMm": 15.61,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            5.08,
+            0
+          ]
+        ]
+      },
       "stateContract": {
         "type": "static",
         "state": "static"
       },
-      "simulationSupport": "visual_and_contacts_only",
-      "blockReason": "Отрисовка и 31 контакт доступны; электрическая модель Arduino ещё не реализована",
-      "catalogTier": "core",
-      "ownerApproval": {
-        "source": "direct_owner_file",
-        "artTrusted": true,
-        "approvedAt": "2026-08-10"
-      },
-      "isDefaultVariant": true,
       "displayName": "Электролитический конденсатор",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/electrolytic-capacitor.svg",
-      "sourceSha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/electrolytic-capacitor.svg",
-      "runtimeSha256": "fda377088e6325dc58cc4f933ae7df226ae5cf2bf828c04a44963fd59ec7c93c",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "sourceOwnerPath": "capacitor_electrolytic.svg",
+      "sourceSha256": "d7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09",
+      "runtimePath": "/assets/electronics/component-database/components/passives/electrolytic-capacitor/component.svg",
+      "runtimeSha256": "d7872267d260ccb6868502e89993068c24ef5008cffd80ac584461520f88bd09"
     },
     {
       "componentId": "switch-spdt",
@@ -17066,12 +18524,21 @@
       "subcategoryId": "switches",
       "catalogOrder": 6,
       "appearsInBasic": true,
-      "searchAliases": ["switch-spdt", "Ползунковый переключатель", "SPDT slide switch"],
+      "searchAliases": [
+        "switch-spdt",
+        "Ползунковый переключатель",
+        "SPDT slide switch"
+      ],
       "displayNameEn": "SPDT slide switch",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 7.112,
       "physicalHeightMm": 3.81,
-      "viewBox": [0, 0, 7.112, 3.81],
+      "viewBox": [
+        0,
+        0,
+        7.112,
+        3.81
+      ],
       "pins": [
         {
           "id": "throw-left",
@@ -17098,12 +18565,25 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0],
-          [5.08, 0]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ]
         ]
       },
-      "states": ["left", "right", "animated"],
+      "states": [
+        "left",
+        "right",
+        "animated"
+      ],
       "stateAssets": [
         {
           "state": "left",
@@ -17134,13 +18614,18 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["throw"]
+          "channels": [
+            "throw"
+          ]
         }
       ],
       "stateContract": {
         "type": "spdt",
         "common": "common",
-        "throws": ["left", "right"]
+        "throws": [
+          "left",
+          "right"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -17171,12 +18656,21 @@
       "subcategoryId": "batteries",
       "catalogOrder": 7.1,
       "appearsInBasic": true,
-      "searchAliases": ["battery-1.5v", "Батарея", "1,5 В"],
+      "searchAliases": [
+        "battery-1.5v",
+        "Батарея",
+        "1,5 В"
+      ],
       "displayNameEn": "battery-1.5v",
       "provenance": "owner_supplied",
       "physicalWidthMm": 23.524,
       "physicalHeightMm": 66.87,
-      "viewBox": [0, 0, 23.524, 66.87],
+      "viewBox": [
+        0,
+        0,
+        23.524,
+        66.87
+      ],
       "pins": [
         {
           "id": "negative",
@@ -17205,7 +18699,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -17232,12 +18729,24 @@
       "subcategoryId": "batteries",
       "catalogOrder": 7.2,
       "appearsInBasic": true,
-      "searchAliases": ["battery-3v", "Батарея", "3 В", "CR2032", "кнопочная батарея", "coin cell"],
+      "searchAliases": [
+        "battery-3v",
+        "Батарея",
+        "3 В",
+        "CR2032",
+        "кнопочная батарея",
+        "coin cell"
+      ],
       "displayNameEn": "CR2032 coin battery 3 V",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 24,
       "physicalHeightMm": 28.6,
-      "viewBox": [0, 0, 240, 286],
+      "viewBox": [
+        0,
+        0,
+        240,
+        286
+      ],
       "pins": [
         {
           "id": "negative",
@@ -17266,7 +18775,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -17293,12 +18805,21 @@
       "subcategoryId": "batteries",
       "catalogOrder": 7.3,
       "appearsInBasic": true,
-      "searchAliases": ["battery-6v", "Батарея", "6 В"],
+      "searchAliases": [
+        "battery-6v",
+        "Батарея",
+        "6 В"
+      ],
       "displayNameEn": "battery-6v",
       "provenance": "owner_supplied",
       "physicalWidthMm": 68.507,
       "physicalHeightMm": 65.043,
-      "viewBox": [0, 0, 68.507, 65.043],
+      "viewBox": [
+        0,
+        0,
+        68.507,
+        65.043
+      ],
       "pins": [
         {
           "id": "negative",
@@ -17327,7 +18848,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -17354,12 +18878,26 @@
       "subcategoryId": "batteries",
       "catalogOrder": 7.4,
       "appearsInBasic": true,
-      "searchAliases": ["battery-9v", "Батарея", "9 В", "Крона", "крона", "PP3", "6F22", "6LR61"],
+      "searchAliases": [
+        "battery-9v",
+        "Батарея",
+        "9 В",
+        "Крона",
+        "крона",
+        "PP3",
+        "6F22",
+        "6LR61"
+      ],
       "displayNameEn": "9V PP3 battery",
       "provenance": "owner_supplied",
       "physicalWidthMm": 23.5763,
       "physicalHeightMm": 52.667,
-      "viewBox": [0, 0, 23.5763, 52.667],
+      "viewBox": [
+        0,
+        0,
+        23.5763,
+        52.667
+      ],
       "pins": [
         {
           "id": "negative",
@@ -17388,7 +18926,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -17415,12 +18956,21 @@
       "subcategoryId": "breadboards",
       "catalogOrder": 10.1,
       "appearsInBasic": true,
-      "searchAliases": ["breadboard-small", "Макетная плата", "170 точек"],
+      "searchAliases": [
+        "breadboard-small",
+        "Макетная плата",
+        "170 точек"
+      ],
       "displayNameEn": "breadboard-small",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 47,
       "physicalHeightMm": 35,
-      "viewBox": [0, 0, 47, 35],
+      "viewBox": [
+        0,
+        0,
+        47,
+        35
+      ],
       "pins": [
         {
           "id": "J1",
@@ -18619,7 +20169,9 @@
         "holeCount": 170,
         "groupCount": 34
       },
-      "states": ["default"],
+      "states": [
+        "default"
+      ],
       "stateAssets": [
         {
           "state": "default",
@@ -18670,12 +20222,21 @@
       "subcategoryId": "breadboards",
       "catalogOrder": 10.2,
       "appearsInBasic": true,
-      "searchAliases": ["breadboard-medium", "Макетная плата", "420 точек"],
+      "searchAliases": [
+        "breadboard-medium",
+        "Макетная плата",
+        "420 точек"
+      ],
       "displayNameEn": "breadboard-medium",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 83,
       "physicalHeightMm": 55,
-      "viewBox": [0, 0, 83, 55],
+      "viewBox": [
+        0,
+        0,
+        83,
+        55
+      ],
       "pins": [
         {
           "id": "J1",
@@ -21624,7 +23185,9 @@
         "holeCount": 420,
         "groupCount": 64
       },
-      "states": ["default"],
+      "states": [
+        "default"
+      ],
       "stateAssets": [
         {
           "state": "default",
@@ -21675,12 +23238,21 @@
       "subcategoryId": "breadboards",
       "catalogOrder": 10.3,
       "appearsInBasic": true,
-      "searchAliases": ["breadboard-large", "Макетная плата", "882 точки"],
+      "searchAliases": [
+        "breadboard-large",
+        "Макетная плата",
+        "882 точки"
+      ],
       "displayNameEn": "breadboard-large",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 165.1,
       "physicalHeightMm": 54.6,
-      "viewBox": [0, 0, 165.1, 54.6],
+      "viewBox": [
+        0,
+        0,
+        165.1,
+        54.6
+      ],
       "pins": [
         {
           "id": "J1",
@@ -27863,7 +29435,9 @@
         "holeCount": 882,
         "groupCount": 130
       },
-      "states": ["default"],
+      "states": [
+        "default"
+      ],
       "stateAssets": [
         {
           "state": "default",
@@ -27914,12 +29488,21 @@
       "subcategoryId": "boards",
       "catalogOrder": 12,
       "appearsInBasic": true,
-      "searchAliases": ["arduino-uno", "Arduino Uno", "Uno"],
+      "searchAliases": [
+        "arduino-uno",
+        "Arduino Uno",
+        "Uno"
+      ],
       "displayNameEn": "arduino-uno",
       "provenance": "owner_supplied",
       "physicalWidthMm": 78.74,
       "physicalHeightMm": 58.816875,
-      "viewBox": [0, 0, 992, 741],
+      "viewBox": [
+        0,
+        0,
+        992,
+        741
+      ],
       "pins": [
         {
           "id": "a0",
@@ -28171,6 +29754,28 @@
       "previousInventoryClassification": "replaced_by_direct_owner_svg"
     },
     {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
       "componentId": "vibration-motor",
       "familyId": "vibration-motor",
       "familyLabelRu": "Вибромотор",
@@ -28181,35 +29786,61 @@
       "category": "motors",
       "subcategoryId": "motors",
       "catalogOrder": 13,
-      "appearsInBasic": true,
-      "searchAliases": ["vibration-motor", "Вибромотор", "Vibration motor"],
+      "searchAliases": [
+        "vibration-motor",
+        "вибромотор",
+        "vibration motor"
+      ],
       "displayNameEn": "Vibration motor",
-      "provenance": "missing_owner_source",
-      "physicalWidthMm": null,
-      "physicalHeightMm": null,
-      "viewBox": null,
-      "pins": [],
-      "footprint": null,
-      "states": [],
-      "stateAssets": [],
-      "animations": [],
-      "stateContract": null,
-      "simulationSupport": "not_available",
-      "blockReason": "отдельный owner-файл не найден; DC motor не используется как подмена",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
+      "physicalWidthMm": 7.43,
+      "physicalHeightMm": 22.92,
+      "viewBox": [
+        0,
+        0,
+        120,
+        370
+      ],
+      "pins": [
+        {
+          "id": "negative",
+          "xMm": 2.43,
+          "yMm": 22.86,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "positive",
+          "xMm": 4.97,
+          "yMm": 22.86,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
+        ]
       },
-      "isDefaultVariant": true,
+      "stateContract": {
+        "type": "motor",
+        "speed": [
+          0,
+          1
+        ]
+      },
       "displayName": "Вибромотор",
-      "sourceOwnerArchive": null,
-      "sourceOwnerPath": null,
-      "sourceSha256": null,
-      "runtimePath": null,
-      "runtimeSha256": null,
-      "status": "disabled_missing_svg",
-      "previousInventoryClassification": "missing_owner_source"
+      "sourceOwnerPath": "ASA_Lab_vibration_motor.svg",
+      "sourceSha256": "f17c24306a12af8c14fa5e6caee11c343bf69a67ecadbd91b3f0afbf0eaf1c1d",
+      "runtimePath": "/assets/electronics/component-database/components/motors/vibration-motor/component.svg",
+      "runtimeSha256": "f17c24306a12af8c14fa5e6caee11c343bf69a67ecadbd91b3f0afbf0eaf1c1d"
     },
     {
       "componentId": "dc-motor",
@@ -28223,12 +29854,21 @@
       "subcategoryId": "motors",
       "catalogOrder": 14,
       "appearsInBasic": true,
-      "searchAliases": ["dc-motor", "Двигатель постоянного тока", "DC motor"],
+      "searchAliases": [
+        "dc-motor",
+        "Двигатель постоянного тока",
+        "DC motor"
+      ],
       "displayNameEn": "DC motor",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 25.333,
       "physicalHeightMm": 19.333,
-      "viewBox": [0, 0, 25.333, 19.333],
+      "viewBox": [
+        0,
+        0,
+        25.333,
+        19.333
+      ],
       "pins": [
         {
           "id": "negative",
@@ -28252,13 +29892,23 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["speed", "direction"]
+          "channels": [
+            "speed",
+            "direction"
+          ]
         }
       ],
       "stateContract": {
         "type": "dc_motor",
-        "speed": [0, 1],
-        "direction": ["clockwise", "counterclockwise", "stopped"]
+        "speed": [
+          0,
+          1
+        ],
+        "direction": [
+          "clockwise",
+          "counterclockwise",
+          "stopped"
+        ]
       },
       "simulationSupport": "not_available",
       "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
@@ -28289,12 +29939,21 @@
       "subcategoryId": "servos",
       "catalogOrder": 15,
       "appearsInBasic": true,
-      "searchAliases": ["servo-motor", "Микросерво", "Micro servo"],
+      "searchAliases": [
+        "servo-motor",
+        "Микросерво",
+        "Micro servo"
+      ],
       "displayNameEn": "Micro servo",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 15.2,
       "physicalHeightMm": 39.1668,
-      "viewBox": [0, 0, 241, 621],
+      "viewBox": [
+        0,
+        0,
+        241,
+        621
+      ],
       "pins": [
         {
           "id": "gnd",
@@ -28325,12 +29984,17 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["angle"]
+          "channels": [
+            "angle"
+          ]
         }
       ],
       "stateContract": {
         "type": "servo",
-        "angleDegrees": [0, 180]
+        "angleDegrees": [
+          0,
+          180
+        ]
       },
       "simulationSupport": "unsupported_fail_closed",
       "blockReason": null,
@@ -28350,6 +30014,100 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "gearmotor",
+      "familyId": "gearmotor",
+      "familyLabelRu": "Мотор-редуктор",
+      "familyLabelEn": "Gearmotor",
+      "variantId": "gearmotor",
+      "variantLabelRu": "Мотор-редуктор",
+      "variantLabelEn": "Gearmotor",
+      "category": "motors",
+      "subcategoryId": "motors",
+      "catalogOrder": 15.1,
+      "searchAliases": [
+        "gearmotor",
+        "мотор-редуктор",
+        "TT motor"
+      ],
+      "displayNameEn": "Gearmotor",
+      "physicalWidthMm": 43.52,
+      "physicalHeightMm": 68.58,
+      "viewBox": [
+        0,
+        0,
+        514,
+        810
+      ],
+      "pins": [
+        {
+          "id": "negative",
+          "xMm": 10.33,
+          "yMm": 47.88,
+          "electricalRole": "negative",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "positive",
+          "xMm": 10.33,
+          "yMm": 50.42,
+          "electricalRole": "positive",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            2.54
+          ]
+        ]
+      },
+      "stateContract": {
+        "type": "dc_motor",
+        "speed": [
+          0,
+          1
+        ],
+        "direction": [
+          "clockwise",
+          "counterclockwise",
+          "stopped"
+        ]
+      },
+      "displayName": "Мотор-редуктор",
+      "sourceOwnerPath": "мотор_редуктор_arduino.svg",
+      "sourceSha256": "03a40143d0b91ae5bd3f87f559a521f61ad1b161536d5b849899cf15296117dd",
+      "runtimePath": "/assets/electronics/component-database/components/motors/gearmotor/component.svg",
+      "runtimeSha256": "03a40143d0b91ae5bd3f87f559a521f61ad1b161536d5b849899cf15296117dd"
+    },
+    {
       "componentId": "battery-holder-aa-1",
       "familyId": "battery-holder-aa",
       "familyLabelRu": "Батарейный отсек AA",
@@ -28361,12 +30119,21 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.1,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-1", "Батарейный отсек AA", "1×AA"],
+      "searchAliases": [
+        "battery-holder-aa-1",
+        "Батарейный отсек AA",
+        "1×AA"
+      ],
       "displayNameEn": "battery-holder-aa-1",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 20,
       "physicalHeightMm": 60.2,
-      "viewBox": [0, 0, 283, 843],
+      "viewBox": [
+        0,
+        0,
+        283,
+        843
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -28385,7 +30152,9 @@
         }
       ],
       "footprint": null,
-      "states": ["1-cell"],
+      "states": [
+        "1-cell"
+      ],
       "stateAssets": [
         {
           "state": "1-cell",
@@ -28405,7 +30174,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -28436,12 +30208,21 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.2,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-2", "Батарейный отсек AA", "2×AA"],
+      "searchAliases": [
+        "battery-holder-aa-2",
+        "Батарейный отсек AA",
+        "2×AA"
+      ],
       "displayNameEn": "battery-holder-aa-2",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 34.2756,
       "physicalHeightMm": 60.2,
-      "viewBox": [0, 0, 485, 843],
+      "viewBox": [
+        0,
+        0,
+        485,
+        843
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -28460,7 +30241,9 @@
         }
       ],
       "footprint": null,
-      "states": ["2-cell"],
+      "states": [
+        "2-cell"
+      ],
       "stateAssets": [
         {
           "state": "2-cell",
@@ -28480,7 +30263,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -28511,12 +30297,21 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.3,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-3", "Батарейный отсек AA", "3×AA"],
+      "searchAliases": [
+        "battery-holder-aa-3",
+        "Батарейный отсек AA",
+        "3×AA"
+      ],
       "displayNameEn": "battery-holder-aa-3",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 48.5512,
       "physicalHeightMm": 60.2,
-      "viewBox": [0, 0, 687, 843],
+      "viewBox": [
+        0,
+        0,
+        687,
+        843
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -28535,7 +30330,9 @@
         }
       ],
       "footprint": null,
-      "states": ["3-cell"],
+      "states": [
+        "3-cell"
+      ],
       "stateAssets": [
         {
           "state": "3-cell",
@@ -28555,7 +30352,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -28586,12 +30386,21 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.4,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-4", "Батарейный отсек AA", "4×AA"],
+      "searchAliases": [
+        "battery-holder-aa-4",
+        "Батарейный отсек AA",
+        "4×AA"
+      ],
       "displayNameEn": "battery-holder-aa-4",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 62.8269,
       "physicalHeightMm": 60.2,
-      "viewBox": [0, 0, 889, 843],
+      "viewBox": [
+        0,
+        0,
+        889,
+        843
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -28610,7 +30419,9 @@
         }
       ],
       "footprint": null,
-      "states": ["4-cell"],
+      "states": [
+        "4-cell"
+      ],
       "stateAssets": [
         {
           "state": "4-cell",
@@ -28630,7 +30441,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -28661,7 +30475,11 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.5,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-5", "Батарейный отсек AA", "5×AA"],
+      "searchAliases": [
+        "battery-holder-aa-5",
+        "Батарейный отсек AA",
+        "5×AA"
+      ],
       "displayNameEn": "battery-holder-aa-5",
       "provenance": "missing_owner_source",
       "physicalWidthMm": null,
@@ -28710,12 +30528,21 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.6,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-6", "Батарейный отсек AA", "6×AA"],
+      "searchAliases": [
+        "battery-holder-aa-6",
+        "Батарейный отсек AA",
+        "6×AA"
+      ],
       "displayNameEn": "battery-holder-aa-6",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 91.3781,
       "physicalHeightMm": 60.2,
-      "viewBox": [0, 0, 1293, 843],
+      "viewBox": [
+        0,
+        0,
+        1293,
+        843
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -28734,7 +30561,9 @@
         }
       ],
       "footprint": null,
-      "states": ["6-cell"],
+      "states": [
+        "6-cell"
+      ],
       "stateAssets": [
         {
           "state": "6-cell",
@@ -28754,7 +30583,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -28785,12 +30617,21 @@
       "subcategoryId": "battery-holders",
       "catalogOrder": 20.8,
       "appearsInBasic": false,
-      "searchAliases": ["battery-holder-aa-8", "Батарейный отсек AA", "8×AA"],
+      "searchAliases": [
+        "battery-holder-aa-8",
+        "Батарейный отсек AA",
+        "8×AA"
+      ],
       "displayNameEn": "battery-holder-aa-8",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 119.9293,
       "physicalHeightMm": 60.2,
-      "viewBox": [0, 0, 1697, 843],
+      "viewBox": [
+        0,
+        0,
+        1697,
+        843
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -28809,7 +30650,9 @@
         }
       ],
       "footprint": null,
-      "states": ["8-cell"],
+      "states": [
+        "8-cell"
+      ],
       "stateAssets": [
         {
           "state": "8-cell",
@@ -28829,7 +30672,10 @@
       ],
       "stateContract": {
         "type": "dc_source",
-        "polarity": ["positive", "negative"]
+        "polarity": [
+          "positive",
+          "negative"
+        ]
       },
       "simulationSupport": "existing_model",
       "blockReason": null,
@@ -28860,12 +30706,21 @@
       "subcategoryId": "diodes",
       "catalogOrder": 21.1,
       "appearsInBasic": false,
-      "searchAliases": ["diode-do35", "Диод", "DO-35"],
+      "searchAliases": [
+        "diode-do35",
+        "Диод",
+        "DO-35"
+      ],
       "displayNameEn": "diode-do35",
       "provenance": "owner_supplied",
       "physicalWidthMm": 6,
       "physicalHeightMm": 18,
-      "viewBox": [0, 0, 6, 18],
+      "viewBox": [
+        0,
+        0,
+        6,
+        18
+      ],
       "pins": [
         {
           "id": "anode",
@@ -28885,11 +30740,19 @@
       "footprint": {
         "kind": "axial",
         "pinOffsetsMm": [
-          [0, 0],
-          [0, 10.16]
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            10.16
+          ]
         ]
       },
-      "states": ["default"],
+      "states": [
+        "default"
+      ],
       "stateAssets": [
         {
           "state": "default",
@@ -28940,12 +30803,21 @@
       "subcategoryId": "diodes",
       "catalogOrder": 21.2,
       "appearsInBasic": false,
-      "searchAliases": ["diode-do41", "Диод", "DO-41"],
+      "searchAliases": [
+        "diode-do41",
+        "Диод",
+        "DO-41"
+      ],
       "displayNameEn": "diode-do41",
       "provenance": "owner_supplied",
       "physicalWidthMm": 20,
       "physicalHeightMm": 7,
-      "viewBox": [0, 0, 20, 7],
+      "viewBox": [
+        0,
+        0,
+        20,
+        7
+      ],
       "pins": [
         {
           "id": "anode",
@@ -28965,11 +30837,19 @@
       "footprint": {
         "kind": "axial",
         "pinOffsetsMm": [
-          [0, 0],
-          [10.16, 0]
+          [
+            0,
+            0
+          ],
+          [
+            10.16,
+            0
+          ]
         ]
       },
-      "states": ["default"],
+      "states": [
+        "default"
+      ],
       "stateAssets": [
         {
           "state": "default",
@@ -29020,12 +30900,21 @@
       "subcategoryId": "leds",
       "catalogOrder": 22,
       "appearsInBasic": false,
-      "searchAliases": ["rgb-led", "RGB-светодиод", "RGB LED"],
+      "searchAliases": [
+        "rgb-led",
+        "RGB-светодиод",
+        "RGB LED"
+      ],
       "displayNameEn": "RGB LED",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 8.75,
       "physicalHeightMm": 10.125,
-      "viewBox": [0, 0, 8.75, 10.125],
+      "viewBox": [
+        0,
+        0,
+        8.75,
+        10.125
+      ],
       "pins": [
         {
           "id": "red",
@@ -29059,10 +30948,22 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0],
-          [5.08, 0],
-          [7.62, 0]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ],
+          [
+            7.62,
+            0
+          ]
         ]
       },
       "states": [
@@ -29244,18 +31145,34 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["red", "green", "blue"]
+          "channels": [
+            "red",
+            "green",
+            "blue"
+          ]
         }
       ],
       "stateContract": {
         "type": "rgb_led",
         "channels": {
-          "red": [0, 100],
-          "green": [0, 100],
-          "blue": [0, 100]
+          "red": [
+            0,
+            100
+          ],
+          "green": [
+            0,
+            100
+          ],
+          "blue": [
+            0,
+            100
+          ]
         },
         "mixing": "additive",
-        "commonVariants": ["common-anode", "common-cathode"],
+        "commonVariants": [
+          "common-anode",
+          "common-cathode"
+        ],
         "pinCount": 4
       },
       "simulationSupport": "existing_model",
@@ -29296,7 +31213,12 @@
       "provenance": "owner_supplied",
       "physicalWidthMm": 12.7,
       "physicalHeightMm": 19.05,
-      "viewBox": [0, 0, 12.7, 19.05],
+      "viewBox": [
+        0,
+        0,
+        12.7,
+        19.05
+      ],
       "pins": [
         {
           "id": "top-1",
@@ -29372,19 +31294,51 @@
       "footprint": {
         "kind": "dual-inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0],
-          [5.08, 0],
-          [7.62, 0],
-          [10.16, 0],
-          [0, 15.24],
-          [2.54, 15.24],
-          [5.08, 15.24],
-          [7.62, 15.24],
-          [10.16, 15.24]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ],
+          [
+            7.62,
+            0
+          ],
+          [
+            10.16,
+            0
+          ],
+          [
+            0,
+            15.24
+          ],
+          [
+            2.54,
+            15.24
+          ],
+          [
+            5.08,
+            15.24
+          ],
+          [
+            7.62,
+            15.24
+          ],
+          [
+            10.16,
+            15.24
+          ]
         ]
       },
-      "states": ["dynamic-template"],
+      "states": [
+        "dynamic-template"
+      ],
       "stateAssets": [
         {
           "state": "dynamic-template",
@@ -29399,15 +31353,50 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["segments", "brightness"]
+          "channels": [
+            "segments",
+            "brightness"
+          ]
         }
       ],
       "stateContract": {
         "type": "seven_segment",
-        "groups": ["a", "b", "c", "d", "e", "f", "g", "dp"],
-        "brightness": [0, 100],
-        "commonVariants": ["common-anode", "common-cathode"],
-        "glyphs": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "b", "C", "d", "E", "F"],
+        "groups": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "dp"
+        ],
+        "brightness": [
+          0,
+          100
+        ],
+        "commonVariants": [
+          "common-anode",
+          "common-cathode"
+        ],
+        "glyphs": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "A",
+          "b",
+          "C",
+          "d",
+          "E",
+          "F"
+        ],
         "arbitraryMask": true
       },
       "simulationSupport": "existing_model",
@@ -29439,12 +31428,21 @@
       "subcategoryId": "lamps",
       "catalogOrder": 24,
       "appearsInBasic": false,
-      "searchAliases": ["incandescent-lamp", "Лампа", "Incandescent lamp"],
+      "searchAliases": [
+        "incandescent-lamp",
+        "Лампа",
+        "Incandescent lamp"
+      ],
       "displayNameEn": "Incandescent lamp",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 20,
       "physicalHeightMm": 30,
-      "viewBox": [0, 0, 20, 30],
+      "viewBox": [
+        0,
+        0,
+        20,
+        30
+      ],
       "pins": [
         {
           "id": "L1",
@@ -29464,11 +31462,22 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
         ]
       },
-      "states": ["off", "dim", "on", "max"],
+      "states": [
+        "off",
+        "dim",
+        "on",
+        "max"
+      ],
       "stateAssets": [
         {
           "state": "off",
@@ -29507,12 +31516,19 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["power"]
+          "channels": [
+            "power"
+          ]
         }
       ],
       "stateContract": {
         "type": "lamp",
-        "states": ["off", "dim", "on", "max"],
+        "states": [
+          "off",
+          "dim",
+          "on",
+          "max"
+        ],
         "driver": "power"
       },
       "simulationSupport": "existing_model",
@@ -29553,7 +31569,12 @@
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 28.667,
       "physicalHeightMm": 22.8,
-      "viewBox": [0, 0, 28.667, 22.8],
+      "viewBox": [
+        0,
+        0,
+        28.667,
+        22.8
+      ],
       "pins": [
         {
           "id": "negative",
@@ -29582,8 +31603,14 @@
       ],
       "stateContract": {
         "type": "power_supply",
-        "voltage": [0, 30],
-        "currentLimit": [0, 5]
+        "voltage": [
+          0,
+          30
+        ],
+        "currentLimit": [
+          0,
+          5
+        ]
       },
       "simulationSupport": "not_available",
       "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
@@ -29614,12 +31641,21 @@
       "subcategoryId": "light-sensors",
       "catalogOrder": 26,
       "appearsInBasic": true,
-      "searchAliases": ["photoresistor", "Фоторезистор", "Photoresistor"],
+      "searchAliases": [
+        "photoresistor",
+        "Фоторезистор",
+        "Photoresistor"
+      ],
       "displayNameEn": "Photoresistor",
       "provenance": "owner_supplied",
       "physicalWidthMm": 10.2973,
       "physicalHeightMm": 12.1508,
-      "viewBox": [0, 0, 150, 177],
+      "viewBox": [
+        0,
+        0,
+        150,
+        177
+      ],
       "pins": [
         {
           "id": "lead-1",
@@ -29639,8 +31675,14 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [-2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            -2.54,
+            0
+          ]
         ]
       },
       "states": [],
@@ -29654,7 +31696,10 @@
       ],
       "stateContract": {
         "type": "sensor_input",
-        "illumination": [0, 1]
+        "illumination": [
+          0,
+          1
+        ]
       },
       "simulationSupport": "photoresistor_model",
       "blockReason": null,
@@ -29674,6 +31719,106 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "soil-moisture-sensor",
+      "familyId": "soil-moisture-sensor",
+      "familyLabelRu": "Датчик влажности почвы",
+      "familyLabelEn": "Soil moisture sensor",
+      "variantId": "soil-moisture-sensor",
+      "variantLabelRu": "Датчик влажности почвы",
+      "variantLabelEn": "Soil moisture sensor",
+      "category": "sensors",
+      "subcategoryId": "environment-sensors",
+      "catalogOrder": 26.01,
+      "searchAliases": [
+        "soil-moisture-sensor",
+        "датчик влажности почвы",
+        "soil sensor"
+      ],
+      "displayNameEn": "Soil moisture sensor",
+      "physicalWidthMm": 15.83,
+      "physicalHeightMm": 42.33,
+      "viewBox": [
+        0,
+        0,
+        268,
+        716
+      ],
+      "pins": [
+        {
+          "id": "vcc",
+          "xMm": 5.32,
+          "yMm": 2.42,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "gnd",
+          "xMm": 7.86,
+          "yMm": 2.42,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "signal",
+          "xMm": 10.4,
+          "yMm": 2.42,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ]
+        ]
+      },
+      "stateContract": {
+        "type": "sensor_input",
+        "moisturePercent": [
+          0,
+          100
+        ]
+      },
+      "displayName": "Датчик влажности почвы",
+      "sourceOwnerPath": "soil_moisture_sensor (2).svg",
+      "sourceSha256": "09de32dc6f5dd345bf4dabdfc05496e4a188264a3e8b8f123061b766decf6bf3",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/soil-moisture-sensor/component.svg",
+      "runtimeSha256": "09de32dc6f5dd345bf4dabdfc05496e4a188264a3e8b8f123061b766decf6bf3"
+    },
+    {
       "componentId": "ultrasonic-sensor",
       "familyId": "ultrasonic-sensor",
       "familyLabelRu": "Ультразвуковой датчик расстояния",
@@ -29685,12 +31830,22 @@
       "subcategoryId": "distance-sensors",
       "catalogOrder": 26.1,
       "appearsInBasic": true,
-      "searchAliases": ["ultrasonic-sensor", "ультразвуковой датчик", "датчик расстояния", "PING"],
+      "searchAliases": [
+        "ultrasonic-sensor",
+        "ультразвуковой датчик",
+        "датчик расстояния",
+        "PING"
+      ],
       "displayNameEn": "Ultrasonic distance sensor",
       "provenance": "owner_supplied",
       "physicalWidthMm": 44.83,
       "physicalHeightMm": 26.42,
-      "viewBox": [0, 0, 285, 168],
+      "viewBox": [
+        0,
+        0,
+        285,
+        168
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -29718,9 +31873,18 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0],
-          [5.08, 0]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ]
         ]
       },
       "states": [],
@@ -29734,7 +31898,10 @@
       ],
       "stateContract": {
         "type": "sensor_input",
-        "distanceMeters": [0.02, 3]
+        "distanceMeters": [
+          0.02,
+          3
+        ]
       },
       "simulationSupport": "unsupported_fail_closed",
       "blockReason": "Размещение, соединение и схема доступны; математическая модель расстояния ещё не реализована.",
@@ -29754,6 +31921,219 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": false,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "ultrasonic-hc-sr04",
+      "familyId": "ultrasonic-sensor",
+      "familyLabelRu": "Ультразвуковой датчик расстояния",
+      "familyLabelEn": "Ultrasonic distance sensor",
+      "variantId": "ultrasonic-hc-sr04",
+      "variantLabelRu": "HC-SR04, 4 вывода",
+      "variantLabelEn": "HC-SR04, 4 pin",
+      "category": "sensors",
+      "subcategoryId": "distance-sensors",
+      "catalogOrder": 26.11,
+      "searchAliases": [
+        "ultrasonic-hc-sr04",
+        "HC-SR04",
+        "ультразвуковой датчик",
+        "датчик расстояния"
+      ],
+      "displayNameEn": "HC-SR04 ultrasonic distance sensor",
+      "physicalWidthMm": 44.63,
+      "physicalHeightMm": 25.1,
+      "viewBox": [
+        0,
+        0,
+        738,
+        415
+      ],
+      "pins": [
+        {
+          "id": "vcc",
+          "xMm": 18.57,
+          "yMm": 25.04,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "trigger",
+          "xMm": 21.11,
+          "yMm": 25.04,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "echo",
+          "xMm": 23.65,
+          "yMm": 25.04,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "gnd",
+          "xMm": 26.19,
+          "yMm": 25.04,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ],
+          [
+            7.62,
+            0
+          ]
+        ]
+      },
+      "stateContract": {
+        "type": "sensor_input",
+        "distanceMeters": [
+          0.02,
+          4
+        ]
+      },
+      "displayName": "Ультразвуковой датчик HC-SR04",
+      "sourceOwnerPath": "HC_SR04_sensor_v2.svg",
+      "sourceSha256": "5120ca5300c1b86c618d7dd9c5d2c88eb6c52ba4478d2b3f5bb9d9b5b5ca65be",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/ultrasonic-hc-sr04/component.svg",
+      "runtimeSha256": "5120ca5300c1b86c618d7dd9c5d2c88eb6c52ba4478d2b3f5bb9d9b5b5ca65be"
+    },
+    {
+      "appearsInBasic": true,
+      "provenance": "owner_supplied",
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "pir-sensor",
+      "familyId": "pir-sensor",
+      "familyLabelRu": "Пироэлектрический ИК-датчик",
+      "familyLabelEn": "PIR sensor",
+      "variantId": "pir-sensor",
+      "variantLabelRu": "PIR",
+      "variantLabelEn": "PIR sensor",
+      "category": "sensors",
+      "subcategoryId": "motion-sensors",
+      "catalogOrder": 26.15,
+      "searchAliases": [
+        "pir-sensor",
+        "PIR",
+        "датчик движения",
+        "пироэлектрический датчик"
+      ],
+      "displayNameEn": "PIR motion sensor",
+      "physicalWidthMm": 44.53,
+      "physicalHeightMm": 43.52,
+      "viewBox": [
+        0,
+        0,
+        526,
+        514
+      ],
+      "pins": [
+        {
+          "id": "vcc",
+          "xMm": 19.56,
+          "yMm": 35.64,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "signal",
+          "xMm": 22.1,
+          "yMm": 35.64,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "gnd",
+          "xMm": 24.64,
+          "yMm": 35.64,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ]
+        ]
+      },
+      "stateContract": {
+        "type": "sensor_input",
+        "motionDetected": [
+          false,
+          true
+        ]
+      },
+      "displayName": "Пироэлектрический ИК-датчик",
+      "sourceOwnerPath": "pir_sensor_555-28027_pure_vector.svg",
+      "sourceSha256": "11b415352c2cf216d04e7f0caa6f290a6fa2da44a2c3879e82702e7a6e9223dc",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/pir-sensor/component.svg",
+      "runtimeSha256": "11b415352c2cf216d04e7f0caa6f290a6fa2da44a2c3879e82702e7a6e9223dc"
+    },
+    {
       "componentId": "temperature-sensor",
       "familyId": "temperature-sensor",
       "familyLabelRu": "Датчик температуры",
@@ -29765,12 +32145,21 @@
       "subcategoryId": "temperature-sensors",
       "catalogOrder": 26.2,
       "appearsInBasic": true,
-      "searchAliases": ["temperature-sensor", "датчик температуры", "TMP"],
+      "searchAliases": [
+        "temperature-sensor",
+        "датчик температуры",
+        "TMP"
+      ],
       "displayNameEn": "TMP temperature sensor",
       "provenance": "owner_supplied",
       "physicalWidthMm": 5.79,
       "physicalHeightMm": 9.6371,
-      "viewBox": [118, 54, 155, 258],
+      "viewBox": [
+        118,
+        54,
+        155,
+        258
+      ],
       "pins": [
         {
           "id": "pin-1",
@@ -29797,9 +32186,18 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [2.54, 0],
-          [5.08, 0]
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ],
+          [
+            5.08,
+            0
+          ]
         ]
       },
       "states": [],
@@ -29813,7 +32211,10 @@
       ],
       "stateContract": {
         "type": "sensor_input",
-        "temperatureCelsius": [-55, 150]
+        "temperatureCelsius": [
+          -55,
+          150
+        ]
       },
       "simulationSupport": "unsupported_fail_closed",
       "blockReason": "Размещение, соединение и схема доступны; математическая модель температуры ещё не реализована.",
@@ -29844,12 +32245,22 @@
       "subcategoryId": "transistors",
       "catalogOrder": 27,
       "appearsInBasic": true,
-      "searchAliases": ["transistor-npn", "NPN-транзистор", "NPN transistor", "транзистор"],
+      "searchAliases": [
+        "transistor-npn",
+        "NPN-транзистор",
+        "NPN transistor",
+        "транзистор"
+      ],
       "displayNameEn": "NPN transistor",
       "provenance": "owner_supplied",
       "physicalWidthMm": 5.79,
       "physicalHeightMm": 9.6371,
-      "viewBox": [118, 54, 155, 258],
+      "viewBox": [
+        118,
+        54,
+        155,
+        258
+      ],
       "pins": [
         {
           "id": "base",
@@ -29876,9 +32287,18 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [-2.54, 0],
-          [2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            -2.54,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
         ]
       },
       "states": [],
@@ -29923,12 +32343,22 @@
       "subcategoryId": "transistors",
       "catalogOrder": 27.1,
       "appearsInBasic": true,
-      "searchAliases": ["transistor-pnp", "PNP-транзистор", "PNP transistor", "транзистор"],
+      "searchAliases": [
+        "transistor-pnp",
+        "PNP-транзистор",
+        "PNP transistor",
+        "транзистор"
+      ],
       "displayNameEn": "PNP transistor",
       "provenance": "owner_supplied",
       "physicalWidthMm": 5.79,
       "physicalHeightMm": 9.6371,
-      "viewBox": [118, 54, 155, 258],
+      "viewBox": [
+        118,
+        54,
+        155,
+        258
+      ],
       "pins": [
         {
           "id": "base",
@@ -29955,9 +32385,18 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [-2.54, 0],
-          [2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            -2.54,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
         ]
       },
       "states": [],
@@ -30002,12 +32441,23 @@
       "subcategoryId": "transistors",
       "catalogOrder": 27.2,
       "appearsInBasic": true,
-      "searchAliases": ["transistor-fet", "полевой транзистор", "MOSFET", "FET", "транзистор"],
+      "searchAliases": [
+        "transistor-fet",
+        "полевой транзистор",
+        "MOSFET",
+        "FET",
+        "транзистор"
+      ],
       "displayNameEn": "N-channel FET",
       "provenance": "owner_supplied",
       "physicalWidthMm": 5.79,
       "physicalHeightMm": 9.6371,
-      "viewBox": [118, 54, 155, 258],
+      "viewBox": [
+        118,
+        54,
+        155,
+        258
+      ],
       "pins": [
         {
           "id": "gate",
@@ -30034,9 +32484,18 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [0, 0],
-          [-2.54, 0],
-          [2.54, 0]
+          [
+            0,
+            0
+          ],
+          [
+            -2.54,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
         ]
       },
       "states": [],
@@ -30081,12 +32540,23 @@
       "subcategoryId": "sound",
       "catalogOrder": 28,
       "appearsInBasic": true,
-      "searchAliases": ["piezo", "пьезо", "пассивный зуммер", "buzzer", "passive buzzer"],
+      "searchAliases": [
+        "piezo",
+        "пьезо",
+        "пассивный зуммер",
+        "buzzer",
+        "passive buzzer"
+      ],
       "displayNameEn": "Passive piezo buzzer",
       "provenance": "exact_owner_svg",
       "physicalWidthMm": 22.133,
       "physicalHeightMm": 22,
-      "viewBox": [0, 0, 22.133, 22],
+      "viewBox": [
+        0,
+        0,
+        22.133,
+        22
+      ],
       "pins": [
         {
           "id": "negative",
@@ -30110,7 +32580,9 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["active"]
+          "channels": [
+            "active"
+          ]
         }
       ],
       "stateContract": {
@@ -30147,12 +32619,22 @@
       "subcategoryId": "sound",
       "catalogOrder": 28.1,
       "appearsInBasic": true,
-      "searchAliases": ["piezo", "пьезодиск", "пьезопластина", "piezo disc"],
+      "searchAliases": [
+        "piezo",
+        "пьезодиск",
+        "пьезопластина",
+        "piezo disc"
+      ],
       "displayNameEn": "Open piezo disc",
       "provenance": "owner_supplied",
       "physicalWidthMm": 24,
       "physicalHeightMm": 24,
-      "viewBox": [0, 0, 240, 240],
+      "viewBox": [
+        0,
+        0,
+        240,
+        240
+      ],
       "assetFit": "meet",
       "pins": [
         {
@@ -30177,13 +32659,22 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": ["frequencyHz", "soundLevel"]
+          "channels": [
+            "frequencyHz",
+            "soundLevel"
+          ]
         }
       ],
       "stateContract": {
         "type": "passive_piezo",
-        "frequencyHz": [20, 20000],
-        "soundLevel": [0, 1],
+        "frequencyHz": [
+          20,
+          20000
+        ],
+        "soundLevel": [
+          0,
+          1
+        ],
         "driver": "arduino_tone_or_digital_toggle"
       },
       "simulationSupport": "passive_piezo_arduino_tone_v1",
@@ -30204,40 +32695,8 @@
       "previousInventoryClassification": "owner_supplied"
     },
     {
-      "componentId": "multimeter",
-      "familyId": "multimeter",
-      "familyLabelRu": "Мультиметр",
-      "familyLabelEn": "Multimeter",
-      "variantId": "multimeter",
-      "variantLabelRu": "Цифровой",
-      "variantLabelEn": "Multimeter",
-      "category": "instruments",
-      "subcategoryId": "meters",
-      "catalogOrder": 29,
       "appearsInBasic": false,
-      "searchAliases": ["multimeter", "Мультиметр", "Multimeter"],
-      "displayNameEn": "Multimeter",
-      "provenance": "exact_owner_svg",
-      "physicalWidthMm": 36.4,
-      "physicalHeightMm": 14,
-      "viewBox": [0, 0, 36.4, 14],
-      "pins": [
-        {
-          "id": "com",
-          "xMm": 16.7844,
-          "yMm": 12.1787,
-          "electricalRole": "com",
-          "toleranceMm": 0
-        },
-        {
-          "id": "v-ohm-ma",
-          "xMm": 19.126,
-          "yMm": 12.1407,
-          "electricalRole": "v-ohm-ma",
-          "toleranceMm": 0
-        }
-      ],
-      "footprint": null,
+      "provenance": "owner_supplied",
       "states": [],
       "stateAssets": [],
       "animations": [
@@ -30247,135 +32706,301 @@
           "channels": []
         }
       ],
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель пока не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg",
+      "componentId": "multimeter",
+      "familyId": "multimeter",
+      "familyLabelRu": "Мультиметр",
+      "familyLabelEn": "Multimeter",
+      "variantId": "multimeter",
+      "variantLabelRu": "Цифровой",
+      "variantLabelEn": "Digital",
+      "category": "instruments",
+      "subcategoryId": "meters",
+      "catalogOrder": 29,
+      "searchAliases": [
+        "multimeter",
+        "мультиметр",
+        "тестер"
+      ],
+      "displayNameEn": "Multimeter",
+      "physicalWidthMm": 44.59,
+      "physicalHeightMm": 23.24,
+      "viewBox": [
+        0,
+        0,
+        474,
+        247
+      ],
+      "pins": [
+        {
+          "id": "com",
+          "xMm": 20.93,
+          "yMm": 18.16,
+          "electricalRole": "com",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "v-ohm-ma",
+          "xMm": 23.47,
+          "yMm": 18.16,
+          "electricalRole": "measurement",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
+        ]
+      },
       "stateContract": {
         "type": "measurement_display",
         "value": "number",
         "unit": "typed"
       },
-      "simulationSupport": "not_available",
-      "blockReason": "owner SVG подтверждён; модель компонента ещё не реализована",
-      "catalogTier": "preview",
-      "metadataOnlyProof": {
-        "source": "rejected_runtime_manifest_non_art_metadata",
-        "artNotTrusted": true
-      },
-      "isDefaultVariant": true,
       "displayName": "Мультиметр",
-      "sourceOwnerArchive": "reference-lab-zip",
-      "sourceOwnerPath": "Electro-venik-reference-lab/visual-canon-lab/svg/multimeter.svg",
-      "sourceSha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "runtimePath": "/assets/electronics/component-database/components/reference-candidates/multimeter.svg",
-      "runtimeSha256": "e4f0139f35ff4ace03bad5a59ecf8c8546125380c32fe621dd2e9d44d6956513",
-      "status": "disabled_missing_model",
-      "previousInventoryClassification": "exact_owner_svg"
+      "sourceOwnerPath": "multimeter_component_pure_vector.svg",
+      "sourceSha256": "ac74479c633f4ffd2f9faa49eee3349b4655b2bbdc6c00779bcf349e108f6733",
+      "runtimePath": "/assets/electronics/component-database/components/instruments/multimeter/component.svg",
+      "runtimeSha256": "ac74479c633f4ffd2f9faa49eee3349b4655b2bbdc6c00779bcf349e108f6733"
     }
   ],
   "breadboardPlacementRules": {
     "snapToleranceMm": 0.25,
     "requiredPitchMm": 2.54,
-    "rotationDegrees": [0, 90, 180, 270]
+    "rotationDegrees": [
+      0,
+      90,
+      180,
+      270
+    ]
   },
   "componentFootprints": [
     {
       "componentId": "button-tactile-6mm",
       "kind": "rectangle",
       "pinOffsetsMm": [
-        [0, 0],
-        [5.08, 0],
-        [0, 7.62],
-        [5.08, 7.62]
+        [
+          0,
+          0
+        ],
+        [
+          5.08,
+          0
+        ],
+        [
+          0,
+          7.62
+        ],
+        [
+          5.08,
+          7.62
+        ]
       ]
     },
     {
       "componentId": "switch-spdt",
       "kind": "inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [2.54, 0],
-        [5.08, 0]
+        [
+          0,
+          0
+        ],
+        [
+          2.54,
+          0
+        ],
+        [
+          5.08,
+          0
+        ]
       ]
     },
     {
       "componentId": "potentiometer",
       "kind": "inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [5.08, 0],
-        [2.54, 0]
+        [
+          0,
+          0
+        ],
+        [
+          5.08,
+          0
+        ],
+        [
+          2.54,
+          0
+        ]
       ]
     },
     {
       "componentId": "photoresistor",
       "kind": "inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [-2.54, 0]
+        [
+          0,
+          0
+        ],
+        [
+          -2.54,
+          0
+        ]
       ]
     },
     {
       "componentId": "resistor-axial",
       "kind": "axial",
       "pinOffsetsMm": [
-        [0, 0],
-        [0, 10.16]
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          10.16
+        ]
       ]
     },
     {
       "componentId": "led-5mm",
       "kind": "inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [2.54, 0]
+        [
+          0,
+          0
+        ],
+        [
+          2.54,
+          0
+        ]
       ]
     },
     {
       "componentId": "rgb-led",
       "kind": "inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [2.54, 0],
-        [5.08, 0],
-        [7.62, 0]
+        [
+          0,
+          0
+        ],
+        [
+          2.54,
+          0
+        ],
+        [
+          5.08,
+          0
+        ],
+        [
+          7.62,
+          0
+        ]
       ]
     },
     {
       "componentId": "diode-do35",
       "kind": "axial",
       "pinOffsetsMm": [
-        [0, 0],
-        [10.16, 0]
+        [
+          0,
+          0
+        ],
+        [
+          10.16,
+          0
+        ]
       ]
     },
     {
       "componentId": "diode-do41",
       "kind": "axial",
       "pinOffsetsMm": [
-        [0, 0],
-        [10.16, 0]
+        [
+          0,
+          0
+        ],
+        [
+          10.16,
+          0
+        ]
       ]
     },
     {
       "componentId": "seven-segment-display",
       "kind": "dual-inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [2.54, 0],
-        [5.08, 0],
-        [7.62, 0],
-        [10.16, 0],
-        [0, 15.24],
-        [2.54, 15.24],
-        [5.08, 15.24],
-        [7.62, 15.24],
-        [10.16, 15.24]
+        [
+          0,
+          0
+        ],
+        [
+          2.54,
+          0
+        ],
+        [
+          5.08,
+          0
+        ],
+        [
+          7.62,
+          0
+        ],
+        [
+          10.16,
+          0
+        ],
+        [
+          0,
+          15.24
+        ],
+        [
+          2.54,
+          15.24
+        ],
+        [
+          5.08,
+          15.24
+        ],
+        [
+          7.62,
+          15.24
+        ],
+        [
+          10.16,
+          15.24
+        ]
       ]
     },
     {
       "componentId": "incandescent-lamp",
       "kind": "inline",
       "pinOffsetsMm": [
-        [0, 0],
-        [2.54, 0]
+        [
+          0,
+          0
+        ],
+        [
+          2.54,
+          0
+        ]
       ]
     }
   ]
