@@ -92,6 +92,51 @@ function starGeometry(pointsCount = 5, innerRatio = 0.44): THREE.BufferGeometry 
   return extrudedShapeGeometry(points, 0.24);
 }
 
+/**
+ * Tinkercad's first Star is not an extrusion. Its star-shaped footprint rises
+ * to one centre apex, producing ten readable triangular facets. Keeping the
+ * triangles unshared preserves the deliberate hard facet normals.
+ */
+function pointedStarGeometry(pointsCount = 5, innerRatio = 0.44): THREE.BufferGeometry {
+  const ring: THREE.Vector3[] = [];
+  for (let index = 0; index < pointsCount * 2; index += 1) {
+    const angle = -Math.PI / 2 + (index * Math.PI) / pointsCount;
+    const radius = index % 2 === 0 ? 0.5 : 0.5 * innerRatio;
+    ring.push(new THREE.Vector3(Math.cos(angle) * radius, -0.5, Math.sin(angle) * radius));
+  }
+  const apex = new THREE.Vector3(0, 0.5, 0);
+  const bottom = new THREE.Vector3(0, -0.5, 0);
+  const vertices: number[] = [];
+  for (let index = 0; index < ring.length; index += 1) {
+    const current = ring[index] as THREE.Vector3;
+    const next = ring[(index + 1) % ring.length] as THREE.Vector3;
+    vertices.push(
+      current.x,
+      current.y,
+      current.z,
+      next.x,
+      next.y,
+      next.z,
+      apex.x,
+      apex.y,
+      apex.z,
+      next.x,
+      next.y,
+      next.z,
+      current.x,
+      current.y,
+      current.z,
+      bottom.x,
+      bottom.y,
+      bottom.z,
+    );
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function roundRoofGeometry(sides: number): THREE.BufferGeometry {
   const geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, sides, 1, false, 0, Math.PI);
   geometry.rotateZ(Math.PI / 2);
@@ -334,7 +379,7 @@ export function createPrimitiveGeometryForKind(
       geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, sides);
       break;
     case 'star':
-      geometry = starGeometry();
+      geometry = pointedStarGeometry();
       break;
     case 'heart':
       geometry = heartGeometry();
@@ -477,6 +522,9 @@ export function createPrimitiveGeometry(node: ThreeDNode): THREE.BufferGeometry 
     );
   }
   if (node.primitive === 'star') {
+    return normaliseToUnitBox(pointedStarGeometry(5, 0.44));
+  }
+  if (node.primitive === 'star-6') {
     return normaliseToUnitBox(starGeometry(node.parameters.points, node.parameters.innerRatio));
   }
   if (node.primitive === 'extrude-sketch') {

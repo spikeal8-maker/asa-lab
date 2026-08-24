@@ -23,7 +23,7 @@ interface ShapeInspectorProps {
   readonly execute: (command: ThreeDCommand) => void;
 }
 
-const COLORS = ['#ef3340', '#f68b1f', '#f6c800', '#5fbf5f', '#27a9e1', '#006fb9', '#8a4bb8'];
+const COLORS = ['#e31c2b', '#f5831f', '#f2c313', '#4aa94b', '#00a5c8', '#304c97', '#6e2786'];
 
 function numeric(value: string, fallback: number, minimum?: number): number {
   const parsed = Number(value);
@@ -51,6 +51,7 @@ function primitiveTitle(node: ThreeDNode): string {
     'round-roof': 'Круглая кровля',
     ring: 'Кольцо',
     icosahedron: 'Икосаэдр',
+    star: 'Звезда объёмная',
     'star-6': 'Звезда',
     'extrude-sketch': 'Extrude sketch',
     'revolve-sketch': 'Revolve sketch',
@@ -260,13 +261,19 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
     'heart',
   ].includes(node.primitive);
   const dimensionRows = (
-    basicShape
-      ? []
-      : [
-          ['width', node.primitive === 'box' ? 'Длина' : 'Ширина'],
-          ['depth', 'Глубина'],
+    node.primitive === 'box'
+      ? [
+          ['width', 'Длина'],
+          ['depth', 'Ширина'],
           ['height', 'Высота'],
         ]
+      : basicShape
+        ? []
+        : [
+            ['width', 'Ширина'],
+            ['depth', 'Глубина'],
+            ['height', 'Высота'],
+          ]
   ) as readonly (readonly [keyof ThreeDDimensions, string])[];
   const replaceParameters = (values: Partial<ThreeDNode['parameters']>): void => {
     execute({
@@ -728,7 +735,7 @@ function ShapeProperties({ node, execute, replaceDimension }: ShapePropertiesPro
         </>
       )}
 
-      {node.primitive === 'star' && (
+      {node.primitive === 'star-6' && (
         <>
           <RangeProperty
             label="Точки"

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ShapeLibrary } from '../ShapeLibrary';
 
 describe('ASA 3D basic shape catalog', () => {
-  it('matches the 21 visible Tinkercad basic solids and includes editable text', () => {
+  it('shows the 18 enabled Tinkercad basic solids and defers sketch generators', () => {
     const markup = renderToStaticMarkup(
       createElement(ShapeLibrary, {
         onAdd: vi.fn(),
@@ -17,13 +17,13 @@ describe('ASA 3D basic shape catalog', () => {
       }),
     );
 
-    expect(markup.match(/data-category="basic"/g)).toHaveLength(21);
+    expect(markup.match(/data-category="basic"/g)).toHaveLength(18);
     expect(markup).toContain('data-primitive="text"');
     expect(markup).toContain('data-primitive="round-roof"');
     expect(markup).toContain('data-primitive="ring"');
     expect(markup).toContain('data-primitive="icosahedron"');
-    expect(markup).toContain('data-primitive="extrude-sketch"');
-    expect(markup).toContain('data-primitive="revolve-sketch"');
-    expect(markup).toContain('data-primitive="scribble"');
+    expect(markup).not.toContain('data-primitive="extrude-sketch"');
+    expect(markup).not.toContain('data-primitive="revolve-sketch"');
+    expect(markup).not.toContain('data-primitive="scribble"');
   });
 });

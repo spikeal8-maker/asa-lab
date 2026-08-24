@@ -239,7 +239,27 @@ describe('ASA 3D primitive geometry', () => {
     smoothTorus.dispose();
   });
 
-  it('rebuilds tube, polygon and star meshes from their individual parameters', () => {
+  it('rebuilds the pyramid and ring when their Tinkercad side controls change', () => {
+    const pyramid = createThreeDNode('pyramid', 'pyramid-sides');
+    const trianglePyramid = createPrimitiveGeometry({ ...pyramid, sides: 3 });
+    const octagonalPyramid = createPrimitiveGeometry({ ...pyramid, sides: 8 });
+    const ring = createThreeDNode('ring', 'ring-sides');
+    const coarseRing = createPrimitiveGeometry({ ...ring, sides: 8 });
+    const smoothRing = createPrimitiveGeometry({ ...ring, sides: 64 });
+
+    expect(octagonalPyramid.getAttribute('position').count).toBeGreaterThan(
+      trianglePyramid.getAttribute('position').count,
+    );
+    expect(smoothRing.getAttribute('position').count).toBeGreaterThan(
+      coarseRing.getAttribute('position').count,
+    );
+    trianglePyramid.dispose();
+    octagonalPyramid.dispose();
+    coarseRing.dispose();
+    smoothRing.dispose();
+  });
+
+  it('rebuilds tube, polygon and the extruded star from their individual parameters', () => {
     const tube = createThreeDNode('tube', 'tube-parameters');
     const tubeGeometry = createPrimitiveGeometry({
       ...tube,
@@ -252,8 +272,8 @@ describe('ASA 3D primitive geometry', () => {
       bevel: 1.5,
       parameters: { ...polygon.parameters, bevelSegments: 5 },
     });
-    const star = createThreeDNode('star', 'star-parameters');
-    const fivePointStar = createPrimitiveGeometry(star);
+    const star = createThreeDNode('star-6', 'star-parameters');
+    const sixPointStar = createPrimitiveGeometry(star);
     const twelvePointStar = createPrimitiveGeometry({
       ...star,
       parameters: { ...star.parameters, points: 12, innerRatio: 0.25 },
@@ -262,12 +282,28 @@ describe('ASA 3D primitive geometry', () => {
     expect(tubeGeometry.getAttribute('position').count).toBeGreaterThan(0);
     expect(beveledPolygon.getAttribute('position').count).toBeGreaterThan(0);
     expect(twelvePointStar.getAttribute('position').count).toBeGreaterThan(
-      fivePointStar.getAttribute('position').count,
+      sixPointStar.getAttribute('position').count,
     );
     tubeGeometry.dispose();
     beveledPolygon.dispose();
-    fivePointStar.dispose();
+    sixPointStar.dispose();
     twelvePointStar.dispose();
+  });
+
+  it('keeps the two Tinkercad stars as distinct printable solids', () => {
+    const pointed = createPrimitiveGeometry(createThreeDNode('star', 'pointed-star'));
+    const extruded = createPrimitiveGeometry(createThreeDNode('star-6', 'extruded-star'));
+    pointed.computeBoundingBox();
+    extruded.computeBoundingBox();
+
+    expect(pointed.getAttribute('position').count).toBe(60);
+    expect(extruded.getAttribute('position').count).toBeGreaterThan(
+      pointed.getAttribute('position').count,
+    );
+    expect(pointed.boundingBox?.max.y).toBeCloseTo(0.5, 5);
+    expect(extruded.boundingBox?.max.y).toBeCloseTo(0.5, 5);
+    pointed.dispose();
+    extruded.dispose();
   });
 
   it('turns saved sketch points and twist into printable geometry', () => {

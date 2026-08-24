@@ -1025,12 +1025,12 @@ button.asa3d-save-recovery {
 
 .asa3d-shape-card {
   display: grid;
-  grid-template-rows: 70px auto;
+  grid-template-rows: 1fr;
   align-items: center;
   justify-items: center;
   min-width: 0;
-  min-height: 98px;
-  padding: 5px 2px 7px;
+  min-height: 92px;
+  padding: 7px 2px;
   overflow: hidden;
   background: #fff;
   border: 1px solid #dce3e6;
@@ -1054,13 +1054,15 @@ button.asa3d-save-recovery {
 }
 
 .asa3d-shape-card small {
-  width: 100%;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 9px;
-  text-align: center;
-  text-overflow: ellipsis;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
+  border: 0;
 }
 
 .asa3d-shape-thumbnail {
@@ -2358,11 +2360,12 @@ button.asa3d-save-recovery {
 
   .asa3d-workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) 132px;
+    grid-template-rows: minmax(0, 1fr) 168px;
   }
 
   .asa3d-library {
     grid-row: 2;
+    grid-template-rows: 40px minmax(0, 1fr);
     overflow-x: auto;
     overflow-y: hidden;
     border-top: 1px solid var(--asa3d-line);
@@ -2370,22 +2373,38 @@ button.asa3d-save-recovery {
   }
 
   .asa3d-library-tools,
-  .asa3d-library-title,
   .asa3d-library-search,
-  .asa3d-library-hint {
+  .asa3d-library-hint,
+  .asa3d-library-settings {
     display: none;
+  }
+
+  .asa3d-library-title {
+    display: flex;
+    min-height: 40px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--asa3d-line);
+  }
+
+  .asa3d-library-title > button {
+    display: none;
+  }
+
+  .asa3d-library-category,
+  .asa3d-library-category select {
+    width: 100%;
   }
 
   .asa3d-shape-grid {
     display: flex;
     gap: 7px;
     height: 100%;
-    padding: 8px 10px;
+    padding: 7px 10px;
   }
 
   .asa3d-shape-card {
-    flex: 0 0 92px;
-    grid-template-rows: 78px auto;
+    flex: 0 0 86px;
+    grid-template-rows: 1fr;
   }
 
   .asa3d-view-cube {
@@ -2430,9 +2449,24 @@ button.asa3d-save-recovery {
   .asa3d-inspector {
     top: auto;
     right: 8px;
-    bottom: 52px;
+    bottom: 8px;
     width: min(280px, calc(100% - 70px));
-    max-height: 58%;
+    max-height: calc(100% - 16px);
+    overscroll-behavior: contain;
+  }
+
+  .asa3d-operation-picker button {
+    min-height: 54px;
+  }
+
+  .asa3d-compact-range {
+    min-height: 34px;
+  }
+
+  .asa3d-compact-range input[type='number'],
+  .asa3d-compact-text-field input,
+  .asa3d-compact-text-field select {
+    min-height: 30px;
   }
 
   .asa3d-grid-panel {
