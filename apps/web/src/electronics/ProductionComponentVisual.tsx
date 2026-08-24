@@ -336,7 +336,7 @@ export function ProductionComponentVisual({
         <g
           className="workbench-tinkercad-diode"
           data-visual-contract="tinkercad-four-pitch"
-          transform={`translate(${width / 2} ${height / 2}) rotate(-90) scale(${TINKERCAD_MODEL_TO_WORLD})`}
+          transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
           <line
             x1="0"
@@ -574,14 +574,30 @@ export function ProductionComponentVisual({
           </g>
         </g>
       ) : (
-        <image
-          className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-          href={asset}
-          width={width}
-          height={height}
-          preserveAspectRatio={imageFit}
-          pointerEvents="none"
-        />
+        <>
+          <image
+            className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
+            href={asset}
+            width={width}
+            height={height}
+            preserveAspectRatio={imageFit}
+            pointerEvents="none"
+          />
+          {entry.key === 'temperature-sensor' ? (
+            <g className="workbench-temperature-sensor-mark" pointerEvents="none">
+              <rect
+                x={width * 0.1}
+                y={height * 0.2}
+                width={width * 0.8}
+                height={height * 0.55}
+                rx={width * 0.12}
+              />
+              <text x={width * 0.5} y={height * 0.49} fontSize={width * 0.25}>
+                TMP
+              </text>
+            </g>
+          ) : null}
+        </>
       )}
 
       {entry.familyId === 'piezo' ? (

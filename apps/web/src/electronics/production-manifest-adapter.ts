@@ -221,6 +221,10 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   lamp: 'Лампа накаливания, яркость которой зависит от питания цепи.',
   'regulated-power-supply': 'Регулируемый лабораторный источник питания.',
   photoresistor: 'Фоторезистор изменяет сопротивление в зависимости от освещения.',
+  'ultrasonic-sensor':
+    'Ультразвуковой датчик расстояния PING с выводами GND, 5V и SIG. Размещение и соединение доступны; математическая модель готовится.',
+  'temperature-sensor':
+    'Трёхвыводный датчик температуры TMP. Размещение и соединение доступны; математическая модель готовится.',
   'transistor-npn': 'NPN-транзистор для усиления и переключения электрического сигнала.',
   transistor:
     'Транзистор для усиления и переключения сигнала: NPN, PNP или полевой (N-канал). Тип выбирается в панели настроек.',
@@ -405,6 +409,12 @@ function defaults(componentId: string): {
 }
 
 function pinLabel(componentId: string, pinId: string): string {
+  if (componentId === 'ultrasonic-sensor') {
+    return { gnd: 'GND', vcc: '5V', signal: 'SIG' }[pinId] ?? pinId;
+  }
+  if (componentId === 'temperature-sensor') {
+    return { 'pin-1': '1', 'pin-2': '2', 'pin-3': '3' }[pinId] ?? pinId;
+  }
   if (componentId === 'rgb-led') {
     const rgbLabels: Readonly<Record<string, string>> = {
       red: 'Красный',
