@@ -16,6 +16,8 @@ describe('PublicEntryPage licensing notice', () => {
     const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
 
     expect(html.match(/>Войти<\/button>/g)).toHaveLength(1);
+    expect(html).toContain('data-testid="entry-header-sign-up"');
+    expect(html).toContain('>Зарегистрироваться</button>');
     expect(html).toContain('>Уже есть аккаунт</button>');
   });
 
@@ -23,6 +25,8 @@ describe('PublicEntryPage licensing notice', () => {
     const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
 
     expect(html).not.toMatch(/STEM-лаборатория для школы|в разработке|будущая среда|планируется/i);
+    expect(html).toContain('Придумывайте. Создавайте. Проверяйте.');
+    expect(html).toContain('/social/asa-lab-og.png');
     expect(html).toContain('собственного проекта');
     expect(html).toContain('Посмотреть возможности');
     expect(html).toContain('Визуальные алгоритмы');

@@ -18,25 +18,37 @@ export function PublicEntryPage({
           <a href="#teachers">Преподавателям</a>
           <a href="#safety">Безопасность</a>
         </nav>
-        <button
-          type="button"
-          className="btn-secondary public-entry-sign-in"
-          data-testid="entry-sign-in"
-          onClick={() => onChoose('sign-in')}
-        >
-          Войти
-        </button>
+        <div className="public-entry-header-actions" aria-label="Аккаунт">
+          <button
+            type="button"
+            className="btn-secondary public-entry-sign-in"
+            data-testid="entry-sign-in"
+            onClick={() => onChoose('sign-in')}
+          >
+            Войти
+          </button>
+          <button
+            type="button"
+            className="btn-primary public-entry-register"
+            data-testid="entry-header-sign-up"
+            onClick={() => onChoose('sign-up')}
+          >
+            Зарегистрироваться
+          </button>
+        </div>
       </header>
 
       <main>
         <section className="public-entry-hero">
+          <div className="public-entry-hero-visual" aria-hidden="true">
+            <img src="/social/asa-lab-og.png" alt="" />
+          </div>
           <div className="public-entry-hero-copy">
-            <p className="entry-kicker">От идеи к работающему проекту</p>
-            <h1>Цифровая лаборатория для проектирования и изобретений</h1>
+            <p className="entry-kicker">ASA Lab · цифровая лаборатория</p>
+            <h1>Придумывайте. Создавайте. Проверяйте.</h1>
             <p className="public-entry-lead">
-              Создавайте 3D-модели, электронные схемы, программы, чертежи и другие цифровые проекты.
-              Экспериментируйте, проверяйте идеи, меняйте решения и превращайте замысел в
-              собственный работающий результат.
+              3D-моделирование, виртуальная электроника, блочное программирование, рисование,
+              шахматы и шашки — в одной среде, где идея становится собственным проектом.
             </p>
             <div className="public-entry-actions">
               <button
@@ -56,18 +68,6 @@ export function PublicEntryPage({
               совместной или учебной работы.
             </p>
           </div>
-          <aside className="public-entry-hero-board" aria-label="Возможности ASA Lab">
-            <span className="entry-board-chip entry-board-chip-code">Блоки</span>
-            <span className="entry-board-chip entry-board-chip-art">Рисование</span>
-            <span className="entry-board-chip entry-board-chip-3d">3D</span>
-            <span className="entry-board-chip entry-board-chip-circuit">Электроника</span>
-            <span className="entry-board-chip entry-board-chip-game">Шахматы · шашки</span>
-            <div className="entry-board-centre">
-              <AsaLabWordmark compact />
-              <strong>Идея → проект → проверка</strong>
-              <span>Инструменты создания в одной среде</span>
-            </div>
-          </aside>
         </section>
 
         <section
