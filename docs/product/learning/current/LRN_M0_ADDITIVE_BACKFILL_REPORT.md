@@ -220,6 +220,9 @@ Focused negative tests prove:
   base Compose also has no migration URL/password fallback. Empty direct-
   Compose values reach the fail-closed runner and are rejected before connect;
   explicit test/staging overlays remain renderable.
+- dev API/Vite child-process builders strip all `MIGRATION_*` attestations, so
+  an admin migration credential loaded from `.env.local` cannot reach runtime
+  children.
 
 ## Corrected acceptance evidence
 

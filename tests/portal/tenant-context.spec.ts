@@ -41,6 +41,9 @@ describe('database URL isolation', () => {
       {
         APP_DATABASE_URL: 'postgres://app@host/db',
         DATABASE_URL: 'postgres://admin@host/db',
+        MIGRATION_DATABASE_URL: 'postgres://migration@host/db',
+        MIGRATION_EXPECT_DATABASE: 'db',
+        MIGRATION_CONFIRM: 'APPLY:db',
         TEST_DATABASE_URL: 'postgres://admin@host/db_test',
         APP_TEST_DATABASE_URL: 'postgres://app@host/db_test',
         PATH: 'x',
@@ -49,6 +52,9 @@ describe('database URL isolation', () => {
     );
     expect(env['APP_DATABASE_URL']).toBe('postgres://app@host/db');
     expect(env['DATABASE_URL']).toBeUndefined();
+    expect(env['MIGRATION_DATABASE_URL']).toBeUndefined();
+    expect(env['MIGRATION_EXPECT_DATABASE']).toBeUndefined();
+    expect(env['MIGRATION_CONFIRM']).toBeUndefined();
     expect(env['TEST_DATABASE_URL']).toBeUndefined();
     expect(env['APP_TEST_DATABASE_URL']).toBeUndefined();
     expect(env['API_PORT']).toBe('4611');
@@ -58,12 +64,18 @@ describe('database URL isolation', () => {
     const env = webChildEnv({
       APP_DATABASE_URL: 'postgres://app@host/db',
       DATABASE_URL: 'postgres://admin@host/db',
+      MIGRATION_DATABASE_URL: 'postgres://migration@host/db',
+      MIGRATION_EXPECT_DATABASE: 'db',
+      MIGRATION_CONFIRM: 'APPLY:db',
       TEST_DATABASE_URL: 'postgres://admin@host/db_test',
       APP_TEST_DATABASE_URL: 'postgres://app@host/db_test',
       PATH: 'x',
     });
     expect(env['APP_DATABASE_URL']).toBeUndefined();
     expect(env['DATABASE_URL']).toBeUndefined();
+    expect(env['MIGRATION_DATABASE_URL']).toBeUndefined();
+    expect(env['MIGRATION_EXPECT_DATABASE']).toBeUndefined();
+    expect(env['MIGRATION_CONFIRM']).toBeUndefined();
     expect(env['TEST_DATABASE_URL']).toBeUndefined();
     expect(env['APP_TEST_DATABASE_URL']).toBeUndefined();
     expect(env['PATH']).toBe('x');

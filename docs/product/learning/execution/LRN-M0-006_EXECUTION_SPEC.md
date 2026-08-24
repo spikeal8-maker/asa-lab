@@ -367,6 +367,8 @@ or declaring one with an empty value, stop with an actionable compatibility
 error before Compose starts. Base Compose has no migration target/password
 fallback; an empty direct-Compose value is rejected by the runner before it
 connects, while explicit test/staging overlays remain renderable.
+Dev API and Vite child environments strip the migration URL, expected database
+and confirmation token; only the API runtime-role URL may reach the API child.
 
 ### 8.5 Determinism and constraints
 
