@@ -22,6 +22,15 @@
       "runtimePath": "/assets/electronics/component-database/components/motors/servo-motor/component.svg",
       "importedAt": "2026-08-24",
       "transformation": "none_byte_exact_copy"
+    },
+    {
+      "componentId": "ultrasonic-sensor",
+      "originalFileName": "ASA_Lab_PING_3pin_sensor.svg",
+      "sha256": "fcca7e406eb6a949ea3c0edd7c46c10c4a4235bf9d880ae2dd1622d37c59d96f",
+      "bytes": 21041,
+      "runtimePath": "/assets/electronics/component-database/components/sensors/ultrasonic-sensor/component.svg",
+      "importedAt": "2026-08-24",
+      "transformation": "none_byte_exact_copy"
     }
   ]
 }

@@ -39,13 +39,16 @@ requirements:
   - tests/courses/learning-migration-dry-run.pg.spec.ts
 - id: MIG-004
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Preserve excellent/good/progress/redo as legacy metadata without automatic grade conversion
   evidence:
   - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
   - tools/learning-migration-dry-run.mjs
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  - migrations/0087_learning_additive_backfill.sql
   tests:
   - tests/courses/learning-migration-dry-run.unit.spec.ts
+  - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: MIG-006
   milestone: M0
   status: proven
@@ -57,11 +60,15 @@ requirements:
   - tests/courses/learning-migration-dry-run.unit.spec.ts
 - id: MIG-007
   milestone: M0
-  status: target
+  status: proven
   summary: Keep future migration additive and reversible until canonical cutover
   evidence:
   - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
-  tests: []
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
+  - migrations/0086_learning_identity_foundation.sql
+  - migrations/0087_learning_additive_backfill.sql
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: MIG-005
   milestone: M0
   status: in_progress
@@ -69,16 +76,22 @@ requirements:
   evidence:
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
-  tests: []
+  - contexts/learning/domain/canonical-learning-state.ts
+  tests:
+  - contexts/learning/testing/canonical-learning-state.spec.ts
+  - tests/courses/learning-canonical-adapters.spec.ts
 - id: IDN-001
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Stable logical learner identity independent of StudentSeat/account login
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - migrations/0086_learning_identity_foundation.sql
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
-  - E2E-016
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+  - tests/courses/learning-identity-rls.pg.spec.ts
 - id: IDN-002
   milestone: M0
   status: proven
@@ -96,24 +109,31 @@ requirements:
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
-  tests: []
+  - migrations/0086_learning_identity_foundation.sql
+  tests:
+  - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: IDN-004
   milestone: M0
-  status: in_progress
+  status: proven
   summary: StudentSeat to Account linking preserves one logical learner history
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
+  - migrations/0086_learning_identity_foundation.sql
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
-  - E2E-016
+  - tests/courses/learning-additive-backfill.pg.spec.ts
+  - tests/courses/learning-identity-rls.pg.spec.ts
 - id: MIG-003
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Never fabricate historical immutable submission evidence
   evidence:
   - docs/product/learning/current/LRN_M0_LEGACY_DRY_RUN_REPORT.md
   - tools/learning-migration-dry-run.mjs
+  - migrations/0087_learning_additive_backfill.sql
+  - docs/product/learning/current/LRN_M0_ADDITIVE_BACKFILL_REPORT.md
   tests:
-  - TST-INT-015
+  - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: ARCH-002
   milestone: M1
   status: target

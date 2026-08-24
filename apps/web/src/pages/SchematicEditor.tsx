@@ -205,6 +205,21 @@ function SchematicView({
                   name: component.name ?? entry?.label ?? component.kind,
                 }}
               />
+              {entry?.asset && !entry.simulationSupported && entry.blockReason ? (
+                <g
+                  className="workbench-schematic-model-warning"
+                  transform="translate(78 -7)"
+                  role="img"
+                  aria-label="Математическая модель ещё не готова"
+                >
+                  <circle r="11" />
+                  <text y="4">!</text>
+                  <title>
+                    {entry.blockReason ??
+                      'Компонент участвует в схеме, но математическая модель ещё не готова.'}
+                  </title>
+                </g>
+              ) : null}
             </g>
           );
         })}

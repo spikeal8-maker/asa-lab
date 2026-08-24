@@ -210,6 +210,18 @@ export function WorkbenchSidebars({
                     data-catalog-tier={family.catalogTier}
                     data-selected-variant={selectedVariant.variantId}
                   >
+                    {family.enabled &&
+                    family.simulationStatus === 'not_yet_supported' &&
+                    selectedVariant.entry.blockReason ? (
+                      <span
+                        className="workbench-catalog-model-warning"
+                        role="img"
+                        aria-label="Математическая модель ещё не готова"
+                        title="Можно размещать и соединять. Математическая модель ещё не готова."
+                      >
+                        !
+                      </span>
+                    ) : null}
                     <button
                       type="button"
                       className="workbench-catalog-add"

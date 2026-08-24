@@ -28863,21 +28863,21 @@
       "searchAliases": ["diode-do35", "Диод", "DO-35"],
       "displayNameEn": "diode-do35",
       "provenance": "owner_supplied",
-      "physicalWidthMm": 18,
-      "physicalHeightMm": 6,
-      "viewBox": [0, 0, 18, 6],
+      "physicalWidthMm": 6,
+      "physicalHeightMm": 18,
+      "viewBox": [0, 0, 6, 18],
       "pins": [
         {
           "id": "anode",
-          "xMm": 2.54,
-          "yMm": 3,
+          "xMm": 3,
+          "yMm": 2.54,
           "electricalRole": "anode",
           "toleranceMm": 0
         },
         {
           "id": "cathode",
-          "xMm": 12.7,
-          "yMm": 3,
+          "xMm": 3,
+          "yMm": 12.7,
           "electricalRole": "cathode",
           "toleranceMm": 0
         }
@@ -28886,7 +28886,7 @@
         "kind": "axial",
         "pinOffsetsMm": [
           [0, 0],
-          [10.16, 0]
+          [0, 10.16]
         ]
       },
       "states": ["default"],
@@ -28918,7 +28918,7 @@
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
-      "isDefaultVariant": false,
+      "isDefaultVariant": true,
       "displayName": "Диод DO-35",
       "sourceOwnerArchive": "owner-svg-pin-adjusted",
       "sourceOwnerPath": "owner-adjusted/diode-do35.svg",
@@ -28998,7 +28998,7 @@
         "source": "rejected_runtime_manifest_non_art_metadata",
         "artNotTrusted": true
       },
-      "isDefaultVariant": true,
+      "isDefaultVariant": false,
       "displayName": "Диод DO-41",
       "sourceOwnerArchive": "owner-svg-pin-adjusted",
       "sourceOwnerPath": "owner-adjusted/diode-do41.svg",
@@ -29672,6 +29672,165 @@
       "runtimeSha256": "9d4ad8754adfffd7a824d324ea7ed2ed7dee3587dd0f2509ecaf68b685b5936b",
       "status": "enabled",
       "previousInventoryClassification": "exact_owner_svg"
+    },
+    {
+      "componentId": "ultrasonic-sensor",
+      "familyId": "ultrasonic-sensor",
+      "familyLabelRu": "Ультразвуковой датчик расстояния",
+      "familyLabelEn": "Ultrasonic distance sensor",
+      "variantId": "ultrasonic-sensor",
+      "variantLabelRu": "PING, 3 вывода",
+      "variantLabelEn": "PING, 3 pin",
+      "category": "sensors",
+      "subcategoryId": "distance-sensors",
+      "catalogOrder": 26.1,
+      "appearsInBasic": true,
+      "searchAliases": ["ultrasonic-sensor", "ультразвуковой датчик", "датчик расстояния", "PING"],
+      "displayNameEn": "Ultrasonic distance sensor",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 44.83,
+      "physicalHeightMm": 26.42,
+      "viewBox": [0, 0, 285, 168],
+      "assetFit": "meet",
+      "pins": [
+        {
+          "id": "gnd",
+          "xMm": 19.87,
+          "yMm": 26.42,
+          "electricalRole": "ground",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "vcc",
+          "xMm": 22.41,
+          "yMm": 26.42,
+          "electricalRole": "power",
+          "toleranceMm": 0.4
+        },
+        {
+          "id": "signal",
+          "xMm": 24.95,
+          "yMm": 26.42,
+          "electricalRole": "signal",
+          "toleranceMm": 0.4
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0],
+          [5.08, 0]
+        ]
+      },
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "stateContract": {
+        "type": "sensor_input",
+        "distanceMeters": [0.02, 3]
+      },
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель расстояния ещё не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_direct_upload",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "displayName": "Ультразвуковой датчик расстояния",
+      "sourceOwnerArchive": "owner-direct-upload-2026-08-24",
+      "sourceOwnerPath": "ASA_Lab_PING_3pin_sensor.svg",
+      "sourceSha256": "fcca7e406eb6a949ea3c0edd7c46c10c4a4235bf9d880ae2dd1622d37c59d96f",
+      "runtimePath": "/assets/electronics/component-database/components/sensors/ultrasonic-sensor/component.svg",
+      "runtimeSha256": "fcca7e406eb6a949ea3c0edd7c46c10c4a4235bf9d880ae2dd1622d37c59d96f",
+      "status": "enabled",
+      "previousInventoryClassification": "exact_owner_svg"
+    },
+    {
+      "componentId": "temperature-sensor",
+      "familyId": "temperature-sensor",
+      "familyLabelRu": "Датчик температуры",
+      "familyLabelEn": "Temperature sensor",
+      "variantId": "temperature-sensor",
+      "variantLabelRu": "TMP",
+      "variantLabelEn": "TMP",
+      "category": "sensors",
+      "subcategoryId": "temperature-sensors",
+      "catalogOrder": 26.2,
+      "appearsInBasic": true,
+      "searchAliases": ["temperature-sensor", "датчик температуры", "TMP"],
+      "displayNameEn": "TMP temperature sensor",
+      "provenance": "owner_supplied",
+      "physicalWidthMm": 5.79,
+      "physicalHeightMm": 9.6371,
+      "viewBox": [118, 54, 155, 258],
+      "pins": [
+        {
+          "id": "pin-1",
+          "xMm": 0.3735,
+          "yMm": 9.6371,
+          "electricalRole": "pin-1",
+          "toleranceMm": 0
+        },
+        {
+          "id": "pin-2",
+          "xMm": 2.9135,
+          "yMm": 9.6371,
+          "electricalRole": "pin-2",
+          "toleranceMm": 0
+        },
+        {
+          "id": "pin-3",
+          "xMm": 5.4535,
+          "yMm": 9.6371,
+          "electricalRole": "pin-3",
+          "toleranceMm": 0
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0],
+          [5.08, 0]
+        ]
+      },
+      "states": [],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "none",
+          "decorativeLoop": false,
+          "channels": []
+        }
+      ],
+      "stateContract": {
+        "type": "sensor_input",
+        "temperatureCelsius": [-55, 150]
+      },
+      "simulationSupport": "unsupported_fail_closed",
+      "blockReason": "Размещение, соединение и схема доступны; математическая модель температуры ещё не реализована.",
+      "catalogTier": "core",
+      "metadataOnlyProof": {
+        "source": "owner_runtime_asset_reuse",
+        "artNotTrusted": false
+      },
+      "isDefaultVariant": true,
+      "displayName": "Датчик температуры TMP",
+      "sourceOwnerArchive": "owner-drawn-svg",
+      "sourceOwnerPath": "owner-drawn/transistor-npn.svg",
+      "sourceSha256": "4781a74f85762c0ffafda3a554238a7ea1bd7d2b2128d34cba7ba7f50629e8b6",
+      "runtimePath": "/assets/electronics/component-database/components/transistor/transistor-npn/component.svg",
+      "runtimeSha256": "4781a74f85762c0ffafda3a554238a7ea1bd7d2b2128d34cba7ba7f50629e8b6",
+      "status": "enabled",
+      "previousInventoryClassification": "owner_supplied"
     },
     {
       "componentId": "transistor-npn",

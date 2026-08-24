@@ -1547,6 +1547,25 @@
 .workbench-catalog-card.disabled {
   opacity: 0.72;
 }
+.workbench-catalog-model-warning {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #f4a51c;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(34, 43, 49, 0.4);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
 .workbench-catalog-add {
   grid-template-rows: 65px 28px;
   gap: 0;
@@ -1851,6 +1870,17 @@
 }
 .workbench-schematic-symbol .schematic-light-rays path {
   stroke: #d94a3f;
+}
+.workbench-schematic-model-warning circle {
+  fill: #f4a51c;
+  stroke: #fff;
+  stroke-width: 2;
+}
+.workbench-schematic-model-warning text {
+  fill: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  text-anchor: middle;
 }
 .workbench-bom-view {
   padding: 28px;
@@ -2443,6 +2473,19 @@
 }
 .workbench-component-diagnostic-indicator.error circle {
   fill: #e43b32;
+}
+.workbench-component-diagnostic-indicator.workbench-component-model-warning circle {
+  fill: #f4a51c;
+}
+.workbench-temperature-sensor-mark rect {
+  fill: #333;
+}
+.workbench-temperature-sensor-mark text {
+  fill: #e7e7e7;
+  font-family: Arial, sans-serif;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 .workbench-component-diagnostic-indicator.workbench-led-warning-indicator circle,
 .workbench-component-diagnostic-indicator.workbench-led-warning-indicator.error circle {

@@ -276,6 +276,8 @@ importers:
 
   contexts/identity: {}
 
+  contexts/learning: {}
+
   contexts/organization:
     dependencies:
       '@asa-lab/database':

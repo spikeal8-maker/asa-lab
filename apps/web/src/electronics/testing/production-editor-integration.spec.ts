@@ -55,7 +55,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'battery-holder-aa-4': [62.8269, 60.2],
   'battery-holder-aa-6': [91.3781, 60.2],
   'battery-holder-aa-8': [119.9293, 60.2],
-  'diode-do35': [18, 6],
+  'diode-do35': [6, 18],
   'diode-do41': [20, 7],
   'rgb-led': [8.75, 10.125],
   'seven-segment-display': [12.7, 19.05],
@@ -67,6 +67,8 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'piezo-passive-buzzer': [22.133, 22],
   'piezo-disc': [24, 24],
   'servo-motor': [15.2, 39.1668],
+  'ultrasonic-sensor': [44.83, 26.42],
+  'temperature-sensor': [5.79, 9.6371],
 } as const;
 
 const BREADBOARD_MOUNTABLE = [
@@ -82,6 +84,8 @@ const BREADBOARD_MOUNTABLE = [
   ['seven-segment-display', 'top-1', 'F1'],
   ['incandescent-lamp', 'L1', 'J1'],
   ['transistor-npn', 'base', 'J2'],
+  ['ultrasonic-sensor', 'gnd', 'J1'],
+  ['temperature-sensor', 'pin-1', 'J1'],
 ] as const;
 
 beforeAll(() => {
@@ -301,6 +305,19 @@ describe('owner SVG integration in the real Electronics document', () => {
       simulationSupported: false,
       catalogStatus: 'enabled',
     });
+    expect(families.find((family) => family.familyId === 'ultrasonic-sensor')).toMatchObject({
+      defaultVariantId: 'ultrasonic-sensor',
+      enabled: true,
+      simulationStatus: 'not_yet_supported',
+    });
+    expect(families.find((family) => family.familyId === 'temperature-sensor')).toMatchObject({
+      defaultVariantId: 'temperature-sensor',
+      enabled: true,
+      simulationStatus: 'not_yet_supported',
+    });
+    expect(families.find((family) => family.familyId === 'diode')?.defaultVariantId).toBe(
+      'diode-do35',
+    );
     expect(
       families
         .find((family) => family.familyId === 'diode')

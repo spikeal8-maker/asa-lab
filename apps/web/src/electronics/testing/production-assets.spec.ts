@@ -38,7 +38,7 @@ describe('Electronics owner SVG foundation', () => {
     expect(existsSync(resolve(publicRoot, 'assets/electronics/owner-audit'))).toBe(true);
   });
 
-  it('keeps the two direct owner uploads byte-exact in the component database', () => {
+  it('keeps direct owner uploads byte-exact in the component database', () => {
     const imports = JSON.parse(
       readFileSync(
         resolve(publicRoot, 'assets/electronics/component-database/owner-imports.json'),
@@ -64,6 +64,12 @@ describe('Electronics owner SVG foundation', () => {
         componentId: 'servo-motor',
         originalFileName: 'servo_motor_top_clean_v2.svg',
         sha256: '2227b5058f77028eae3909ba63f129cec1931e9be2962e2ff87f61c551fdd964',
+        transformation: 'none_byte_exact_copy',
+      },
+      {
+        componentId: 'ultrasonic-sensor',
+        originalFileName: 'ASA_Lab_PING_3pin_sensor.svg',
+        sha256: 'fcca7e406eb6a949ea3c0edd7c46c10c4a4235bf9d880ae2dd1622d37c59d96f',
         transformation: 'none_byte_exact_copy',
       },
     ]);
@@ -215,15 +221,17 @@ describe('Electronics owner SVG foundation', () => {
       }
     }
 
-    for (const [componentId, width, height, pinSpan] of [
-      ['diode-do35', 18, 6, 10.16],
-      ['diode-do41', 20, 7, 10.16],
+    for (const [componentId, width, height, pinSpan, axis] of [
+      ['diode-do35', 6, 18, 10.16, 'y'],
+      ['diode-do41', 20, 7, 10.16, 'x'],
     ] as const) {
       const diode = catalog.find((item) => item.key === componentId);
       expect(diode?.physicalSizeMm, componentId).toEqual({ width, height });
+      const coordinate = axis === 'x' ? 'xMm' : 'yMm';
       expect(
-        (diode?.terminals.cathode?.xMm ?? 0) - (diode?.terminals.anode?.xMm ?? 0),
-        `${componentId}:pin-span`,
+        (diode?.terminals.cathode?.[coordinate] ?? 0) -
+          (diode?.terminals.anode?.[coordinate] ?? 0),
+        `${componentId}:pin-span-${axis}`,
       ).toBeCloseTo(pinSpan, 4);
     }
   });

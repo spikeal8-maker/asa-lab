@@ -400,15 +400,18 @@ async function verifySchema(client) {
   const applied = await client.query(
     'SELECT version, checksum FROM schema_migrations ORDER BY version',
   );
-  if (applied.rows.length !== planned.length) throw new Error('unsupported_schema:migration_count');
-  for (let index = 0; index < planned.length; index += 1) {
+  if (applied.rows.length > planned.length || applied.rows.length === 0)
+    throw new Error('unsupported_schema:migration_count');
+  for (let index = 0; index < applied.rows.length; index += 1) {
     const expected = planned[index];
     const actual = applied.rows[index];
     if (actual.version !== expected.version || !expected.compatibleChecksums.has(actual.checksum)) {
       throw new Error(`unsupported_schema:migration_${expected.version}`);
     }
   }
-  return planned.at(-1).version;
+  const latest = applied.rows.at(-1).version;
+  if (Number.parseInt(latest, 10) < 85) throw new Error('unsupported_schema:before_0085');
+  return latest;
 }
 
 export async function analyzeLearningData(

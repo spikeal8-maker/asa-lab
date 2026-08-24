@@ -182,6 +182,13 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain("'led-burnout-explosion'");
     expect(stageSource).toContain('workbench-led-burnout-explosion');
     expect(stageSource).toContain('workbench-component-diagnostic-tooltip');
+    expect(stageSource).toContain('data-testid="component-model-warning"');
+    expect(stageSource).toContain('unsupportedModelIndicators');
+    expect(editorSource).toContain('workbench-schematic-model-warning');
+    expect(workbenchCss).toContain('.workbench-catalog-model-warning');
+    expect(workbenchCss).toContain('.workbench-component-model-warning');
+    expect(productionVisualSource).toContain("entry.key === 'temperature-sensor'");
+    expect(productionVisualSource).toContain('TMP');
     expect(workbenchCss).toContain('.workbench-component-diagnostic-indicator circle');
     expect(workbenchCss).toContain('.workbench-led-explosion-outer');
     expect(workbenchCss).toContain('.workbench-led-explosion-inner');

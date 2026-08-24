@@ -242,7 +242,7 @@ export function WorkbenchStage({
     .filter((component) => component.kind !== 'wire')
     .map((component) => {
       const entry = catalogEntry(component);
-      if (!entry?.asset || !entry.terminals) return null;
+      if (!entry?.asset || !entry.terminals || !entry.simulationSupported) return null;
       const baseSize = renderedSize(entry, 0);
       const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
       const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
@@ -355,6 +355,56 @@ export function WorkbenchStage({
                 </div>
               </foreignObject>
             ) : null}
+          </g>
+        </g>
+      );
+    });
+  const unsupportedModelIndicators = orderedComponents
+    .filter((component) => component.kind !== 'wire')
+    .map((component) => {
+      const entry = catalogEntry(component);
+      if (!entry?.asset || !entry.terminals || entry.simulationSupported || !entry.blockReason)
+        return null;
+      const baseSize = renderedSize(entry, 0);
+      const warningText = entry.blockReason;
+      return (
+        <g
+          key={`unsupported:${component.id}`}
+          transform={componentTransform(component)}
+          data-testid="component-model-warning"
+          data-component-id={component.id}
+          data-component-type={component.componentTypeId}
+        >
+          <g
+            className="workbench-component-diagnostic-indicator workbench-component-model-warning"
+            transform={`translate(${baseSize.width * 0.83} ${baseSize.height * 0.16})`}
+            pointerEvents="all"
+            role="img"
+            tabIndex={0}
+            aria-label={warningText}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              c.selectComponent(component.id, event.shiftKey);
+            }}
+          >
+            <circle r={9 / c.viewport.zoom} vectorEffect="non-scaling-stroke" />
+            <text y={4 / c.viewport.zoom} fontSize={12 / c.viewport.zoom}>
+              !
+            </text>
+            <foreignObject
+              className="workbench-component-diagnostic-tooltip"
+              x={-100 / c.viewport.zoom}
+              y={18 / c.viewport.zoom}
+              width={200 / c.viewport.zoom}
+              height={112 / c.viewport.zoom}
+              pointerEvents="none"
+            >
+              <div style={{ fontSize: `${12 / c.viewport.zoom}px` }}>
+                <strong>Модель ещё не готова</strong>
+                <small>{warningText}</small>
+              </div>
+            </foreignObject>
           </g>
         </g>
       );
@@ -940,6 +990,7 @@ export function WorkbenchStage({
         ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
           {diagnosticIndicators}
+          {unsupportedModelIndicators}
         </g>
       </svg>
       {document.components.filter((item) => item.kind !== 'wire').length === 0 ? (

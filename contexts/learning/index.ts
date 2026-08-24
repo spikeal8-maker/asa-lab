@@ -1,0 +1,16 @@
+export {
+  CanonicalLearningContractError,
+  adaptCourseProjectCanonicalInput,
+  adaptDirectProjectCanonicalInput,
+  adaptQuizCanonicalInput,
+  resolveCanonicalLearningState,
+  type AssessmentResultSnapshot,
+  type AttemptSnapshot,
+  type CanonicalAdapterInput,
+  type CanonicalLearningFlag,
+  type CanonicalLearningState,
+  type CanonicalLearningStateInput,
+  type CanonicalSelectedResult,
+  type CanonicalWorkflowState,
+  type ResultRevisionSnapshot,
+} from './domain/canonical-learning-state.js';
