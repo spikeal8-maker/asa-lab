@@ -177,7 +177,7 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
     case 'tube':
       return { width: 20, depth: 20, height: 20 };
     case 'star':
-      return { width: 40, depth: 40, height: 5 };
+      return { width: 20, depth: 20, height: 5 };
     case 'heart':
       return { width: 24, depth: 20, height: 5 };
     case 'half-sphere':
@@ -194,8 +194,9 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
       return { width: 24, depth: 24, height: 5 };
     case 'extrude-sketch':
     case 'scribble':
-    case 'star-6':
       return { width: 24, depth: 20, height: 5 };
+    case 'star-6':
+      return { width: 20, depth: 20, height: 5 };
     default:
       return { width: 20, depth: 20, height: 20 };
   }
@@ -235,15 +236,17 @@ export const THREE_D_SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
   sphere: '#0099c6',
   cone: '#6e2786',
   torus: '#00a5c8',
-  wedge: '#2f7d3a',
-  roof: '#58a84f',
+  wedge: '#304878',
+  roof: '#4aa94b',
   pyramid: '#f2c313',
-  'half-sphere': '#d94693',
+  'half-sphere': '#c90d78',
   tube: '#e68117',
   'rounded-box': '#1e70c9',
   polygon: '#304c97',
-  star: '#f2c313',
-  heart: '#b7653f',
+  // Tinkercad's first Star is the cool cyan, centre-peaked solid. The yellow
+  // item beside it is a different, flat extruded-star generator (`star-6`).
+  star: '#62b8c4',
+  heart: '#8c6542',
   diamond: '#d82633',
   capsule: '#00a5c8',
   paraboloid: '#7fb34d',
@@ -254,7 +257,7 @@ export const THREE_D_SHAPE_COLORS: Readonly<Record<PrimitiveKind, string>> = {
   'round-roof': '#68b9c0',
   ring: '#8c6b45',
   icosahedron: '#d82633',
-  'star-6': '#e0bd16',
+  'star-6': '#d7b600',
 };
 
 function defaultShapeParameters(primitive: PrimitiveKind): ThreeDShapeParameters {
@@ -282,11 +285,11 @@ function defaultShapeParameters(primitive: PrimitiveKind): ThreeDShapeParameters
     text: 'TEXT',
     font: 'sans',
     bevelSegments: 1,
-    radius: primitive === 'torus' ? 7.5 : primitive === 'star' ? 20 : 10,
+    radius: primitive === 'torus' ? 7.5 : 10,
     tubeRadius: 2.5,
     wallThickness: 2.5,
     steps: primitive === 'torus' ? 48 : primitive === 'sphere' ? 24 : 24,
-    points: 5,
+    points: primitive === 'star-6' ? 6 : 5,
     innerRatio: 0.5,
     fontSize: 10,
     segments: 0,

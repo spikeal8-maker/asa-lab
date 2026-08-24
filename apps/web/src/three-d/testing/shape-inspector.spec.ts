@@ -12,9 +12,9 @@ describe('ASA 3D compact shape inspector', () => {
     expect(markup).toContain('data-testid="asa3d-shape-inspector"');
     expect(markup).toContain('Радиус');
     expect(markup).toContain('Шаги');
-    expect(markup).not.toContain('Длина');
-    expect(markup).not.toContain('Глубина');
-    expect(markup).not.toContain('Высота');
+    expect(markup).toContain('Длина');
+    expect(markup).toContain('Ширина');
+    expect(markup).toContain('Высота');
     expect(markup).not.toContain('Положение');
     expect(markup).not.toContain('Поворот');
   });
@@ -96,9 +96,45 @@ describe('ASA 3D compact shape inspector', () => {
     expect(render('tube')).toContain('Толщина стенки');
     expect(render('tube')).toContain('Сегменты скоса');
     expect(render('polygon')).toContain('min="3" max="12"');
-    expect(render('star')).toContain('Внутренний радиус (%)');
+    expect(render('star')).not.toContain('Внутренний радиус (%)');
+    expect(render('star-6')).toContain('Внутренний радиус (%)');
     expect(render('pyramid')).toContain('min="3" max="28"');
     expect(render('ring')).toContain('min="3" max="128"');
+  });
+
+  it('provides a compact functional inspector for every enabled basic solid', () => {
+    const enabled = [
+      'box',
+      'cylinder',
+      'sphere',
+      'cone',
+      'pyramid',
+      'roof',
+      'text',
+      'round-roof',
+      'half-sphere',
+      'torus',
+      'tube',
+      'ring',
+      'wedge',
+      'polygon',
+      'icosahedron',
+      'star',
+      'star-6',
+      'heart',
+    ] as const;
+
+    for (const primitive of enabled) {
+      const node = createThreeDNode(primitive, `inspect-${primitive}`);
+      const markup = renderToStaticMarkup(
+        createElement(ShapeInspector, { node, execute: vi.fn() }),
+      );
+      expect(markup, primitive).toContain('data-testid="asa3d-shape-inspector"');
+      expect(markup, primitive).toContain('aria-label="Тип формы"');
+      expect(markup, primitive).toContain('aria-label="Цвет тела"');
+      expect(markup, primitive).toContain('Тело');
+      expect(markup, primitive).toContain('Отверстие');
+    }
   });
 
   it('offers a persisted sketch editor for all three sketch generators', () => {

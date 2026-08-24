@@ -50,6 +50,7 @@ function collectTriangles(
 ): ProjectedTriangle[] {
   const position = geometry.getAttribute('position');
   if (!(position instanceof THREE.BufferAttribute)) return [];
+  const normalAttribute = geometry.getAttribute('normal');
   const index = geometry.getIndex();
   const count = index ? index.count : position.count;
   const base = new THREE.Color(color);
@@ -61,6 +62,8 @@ function collectTriangles(
   const edgeA = new THREE.Vector3();
   const edgeB = new THREE.Vector3();
   const normal = new THREE.Vector3();
+  const vertexNormal = new THREE.Vector3();
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(modelMatrix);
   const center = new THREE.Vector3();
   const toCamera = new THREE.Vector3();
   const toKey = new THREE.Vector3();
@@ -78,6 +81,19 @@ function collectTriangles(
     edgeB.subVectors(c, a);
     normal.crossVectors(edgeA, edgeB);
     if (normal.lengthSq() < 0.000001) continue;
+    if (normalAttribute instanceof THREE.BufferAttribute) {
+      normal
+        .set(0, 0, 0)
+        .add(
+          vertexNormal.fromBufferAttribute(normalAttribute, aIndex).applyNormalMatrix(normalMatrix),
+        )
+        .add(
+          vertexNormal.fromBufferAttribute(normalAttribute, bIndex).applyNormalMatrix(normalMatrix),
+        )
+        .add(
+          vertexNormal.fromBufferAttribute(normalAttribute, cIndex).applyNormalMatrix(normalMatrix),
+        );
+    }
     normal.normalize();
     center
       .copy(a)
@@ -132,17 +148,21 @@ function drawShadow(context: CanvasRenderingContext2D): void {
 function previewModelMatrix(primitive: PrimitiveKind): THREE.Matrix4 {
   const widthRatio = primitive === 'text' ? 1.55 : 1;
   const heightRatio =
-    primitive === 'torus'
+    primitive === 'torus' || primitive === 'ring'
       ? 7 / 24
+      : primitive === 'half-sphere' || primitive === 'round-roof'
+        ? 0.5
       : primitive === 'roof'
         ? 15 / 20
         : primitive === 'text'
           ? 0.2
-          : primitive === 'star' || primitive === 'star-6'
-            ? 0.24
-            : primitive === 'heart'
-              ? 0.35
-              : 1;
+          : primitive === 'star'
+            ? 0.32
+            : primitive === 'star-6'
+              ? 0.24
+              : primitive === 'heart'
+                ? 0.35
+                : 1;
   const matrix = new THREE.Matrix4().makeRotationY(-0.16);
   matrix.scale(new THREE.Vector3(widthRatio, heightRatio, 1));
   matrix.setPosition(0, (heightRatio - 1) / 2, 0);

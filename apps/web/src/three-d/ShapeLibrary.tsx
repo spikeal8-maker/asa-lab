@@ -44,24 +44,6 @@ const SHAPES: readonly {
     category: 'basic',
   },
   { primitive: 'sphere', label: 'Сфера', color: THREE_D_SHAPE_COLORS.sphere, category: 'basic' },
-  {
-    primitive: 'extrude-sketch',
-    label: 'Extrude sketch',
-    color: THREE_D_SHAPE_COLORS['extrude-sketch'],
-    category: 'basic',
-  },
-  {
-    primitive: 'revolve-sketch',
-    label: 'Revolve sketch',
-    color: THREE_D_SHAPE_COLORS['revolve-sketch'],
-    category: 'basic',
-  },
-  {
-    primitive: 'scribble',
-    label: 'Scribble',
-    color: THREE_D_SHAPE_COLORS.scribble,
-    category: 'basic',
-  },
   { primitive: 'cone', label: 'Конус', color: THREE_D_SHAPE_COLORS.cone, category: 'basic' },
   {
     primitive: 'pyramid',
@@ -99,7 +81,12 @@ const SHAPES: readonly {
     color: THREE_D_SHAPE_COLORS.icosahedron,
     category: 'basic',
   },
-  { primitive: 'star', label: 'Звезда', color: THREE_D_SHAPE_COLORS.star, category: 'basic' },
+  {
+    primitive: 'star',
+    label: 'Звезда объёмная',
+    color: THREE_D_SHAPE_COLORS.star,
+    category: 'basic',
+  },
   {
     primitive: 'star-6',
     label: 'Звезда',
@@ -273,9 +260,10 @@ export function ShapeLibrary({
               beginDrag(event, primitive, 'solid');
               onDragStateChange({ primitive, operation: 'solid' });
             }}
-            onDragEnd={() => onDragStateChange(null)}
-            onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
-            title={`Добавить: ${label}`}
+              onDragEnd={() => onDragStateChange(null)}
+              onClick={(event) => onAdd(primitive, undefined, event.shiftKey, 'solid')}
+              aria-label={label}
+              title={`Добавить: ${label}`}
           >
             <ShapeThumbnail primitive={primitive} color={color} />
             <small>{label}</small>
