@@ -189,6 +189,7 @@ pnpm contracts:check       PASS
 pnpm gate:governance       PASS
 pnpm control-plane:check   PASS
 git diff --check           PASS
+git diff --check origin/main...HEAD PASS
 ```
 
 Browser/runtime, migration, OpenAPI and product security execution are N/A:

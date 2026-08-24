@@ -1,7 +1,7 @@
 # LRN-M0 — Canonical State/Result Resolver Contract
 
-**Task:** `LRN-M0-004`  
-**Status:** normative design; runtime not implemented  
+**Task:** `LRN-M0-004`
+**Status:** normative design; runtime not implemented
 **Baseline:** `879f659471709e36d6df6110ab6c0e0612a4c7c5`
 
 ## 1. Decision
@@ -212,6 +212,7 @@ interface CanonicalLearningStateInput {
     classroomAccess: 'active' | 'ended' | 'unknown';
   };
   timing: {
+    asOf: string;
     effectiveDueAt: string | null;
   };
 }
@@ -223,6 +224,11 @@ only persisted evidence. All IDs and tenant/school/class relationships are
 validated by the database reader before invoking the pure resolver. An
 incoherent cross-tenant or cross-learner input returns a server contract error;
 it does not become `invalidated` or a hidden cell.
+
+`timing.asOf` is the server-selected evaluation timestamp for the entire input
+snapshot. Availability and `after_due` compare `asOf` to `effectiveDueAt`; the
+pure resolver never reads the wall clock. Batch consumers MUST use one `asOf`
+for all cells in a response so identical input remains deterministic.
 
 The domain mapping is pure and UI-independent. Compatibility readers may remain
 SQL functions/adapters for:

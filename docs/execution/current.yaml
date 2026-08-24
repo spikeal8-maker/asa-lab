@@ -128,7 +128,7 @@ parallel_lanes:
       base_branch: main
       pr: 116
       pr_draft: false
-      status: in_progress
+      status: done
       checkpoint: merged_to_main
       owner_acceptance: accepted
     revisions:
@@ -274,7 +274,7 @@ parallel_lanes:
       base_branch: main
       pr: 144
       pr_draft: false
-      status: done
+      status: in_progress
       checkpoint: lrn_m0_004_evidence_published
       owner_acceptance: pending
     revisions:
