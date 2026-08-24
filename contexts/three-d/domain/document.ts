@@ -175,7 +175,7 @@ function defaultDimensions(primitive: PrimitiveKind): ThreeDDimensions {
     case 'torus':
       return { width: 20, depth: 20, height: 5 };
     case 'roof':
-      return { width: 20, depth: 20, height: 15 };
+      return { width: 20, depth: 20, height: 12 };
     case 'tube':
       return { width: 20, depth: 20, height: 20 };
     case 'star':

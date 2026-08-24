@@ -86,10 +86,12 @@ export function calculateHeightResize(
 export function calculateLiftPosition(
   initialPosition: number,
   axisDelta: number,
-  floorPosition: number,
+  floorOffset: number,
   snapStep: number,
 ): number {
-  return Math.max(floorPosition, snapToStep(initialPosition + axisDelta, snapStep));
+  const initialBottom = initialPosition - floorOffset;
+  const snappedBottom = Math.max(0, snapToStep(initialBottom + axisDelta, snapStep));
+  return floorOffset + snappedBottom;
 }
 
 export function normaliseDegrees(value: number): number {
