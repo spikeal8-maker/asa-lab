@@ -226,6 +226,33 @@ const COMPONENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   multimeter: 'Измерительный прибор для напряжения, тока и сопротивления.',
 };
 
+const BATTERY_CATALOG_PRESENTATION: Readonly<
+  Record<
+    string,
+    {
+      readonly familyId: string;
+      readonly familyLabel: string;
+      readonly appearsInBasic: boolean;
+    }
+  >
+> = {
+  'battery-9v': { familyId: 'battery-9v', familyLabel: 'Батарея 9 В', appearsInBasic: true },
+  'battery-3v': {
+    familyId: 'battery-3v',
+    familyLabel: 'Кнопочная батарея 3 В',
+    appearsInBasic: true,
+  },
+  'battery-1.5v': {
+    familyId: 'battery-1.5v',
+    familyLabel: 'Батарея 1,5 В',
+    appearsInBasic: true,
+  },
+  // The owner has supplied this source, but it is not on Tinkercad's Basic
+  // shelf. It remains available under All/Power without being folded into the
+  // 9 V battery card.
+  'battery-6v': { familyId: 'battery-6v', familyLabel: 'Батарея 6 В', appearsInBasic: false },
+};
+
 function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (/^battery(?:-|$)|^regulated-power-supply$/.test(componentId)) return 'source';
   if (componentId === 'resistor-axial') return 'resistor';
@@ -539,26 +566,29 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
   assertFailClosed(item);
   const kind = componentKind(item.componentId);
   const configured = defaults(item.componentId);
+  const presentation = BATTERY_CATALOG_PRESENTATION[item.componentId];
+  const familyId = presentation?.familyId ?? item.familyId;
   const width = item.physicalWidthMm ?? 20;
   const height = item.physicalHeightMm ?? 16;
   const viewBox = item.viewBox ?? [0, 0, width, height];
   return {
     key: item.componentId,
-    familyId: item.familyId,
-    familyLabel: item.familyLabelRu,
+    familyId,
+    familyLabel: presentation?.familyLabel ?? item.familyLabelRu,
     variantId: item.variantId,
     isDefaultVariant: item.isDefaultVariant,
     variantLabel: item.variantLabelRu,
     subcategoryId: item.subcategoryId,
     catalogOrder: item.catalogOrder,
     catalogTier: item.catalogTier,
-    appearsInBasic: item.appearsInBasic,
+    appearsInBasic: presentation?.appearsInBasic ?? item.appearsInBasic,
     blockReason: item.blockReason,
     kind,
     label: item.displayName,
     semanticCategory: item.category,
     category: category(item.category),
     description:
+      COMPONENT_DESCRIPTIONS[familyId] ??
       COMPONENT_DESCRIPTIONS[item.familyId] ??
       (item.status === 'enabled'
         ? 'Компонент из подтверждённого комплекта владельца.'

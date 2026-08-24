@@ -14,6 +14,7 @@ import {
   defaultProductionType,
   productionBreadboard,
   productionCatalog,
+  productionCatalogEntry,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
 import {
@@ -227,25 +228,28 @@ describe('owner SVG integration in the real Electronics document', () => {
       'potentiometer',
       'capacitor',
       'spdt-switch',
-      'battery',
-      'battery-holder-aa',
+      'battery-9v',
+      'battery-3v',
+      'battery-1.5v',
       'breadboard',
       'arduino-uno',
       'vibration-motor',
       'dc-motor',
       'servo',
+      'gearmotor',
       'transistor',
       'rgb-led',
       'diode',
       'photoresistor',
+      'soil-moisture-sensor',
+      'ultrasonic-sensor',
+      'pir-sensor',
       'piezo',
+      'temperature-sensor',
       'multimeter',
-      'seven-segment',
-      'lamp',
-      'regulated-power-supply',
     ]);
     expect(basicFamilies.some((family) => family.familyId === 'microbit')).toBe(false);
-    expect(basicFamilies).toHaveLength(families.length);
+    expect(basicFamilies.every((family) => !family.familyLabel.includes('Варианты:'))).toBe(true);
     expect(families.find((family) => family.familyId === 'battery-holder-aa')).toMatchObject({
       defaultVariantId: 'battery-holder-aa-2',
       catalogTier: 'core',
@@ -271,6 +275,10 @@ describe('owner SVG integration in the real Electronics document', () => {
     expect(families.find((family) => family.familyId === 'breadboard')?.defaultVariantId).toBe(
       'breadboard-medium',
     );
+    expect(families.find((family) => family.familyId === 'capacitor')).toMatchObject({
+      defaultVariantId: 'electrolytic-capacitor',
+      familyLabel: 'Конденсатор',
+    });
     expect(families.find((family) => family.familyId === 'piezo')).toMatchObject({
       defaultVariantId: 'piezo-passive-buzzer',
       enabled: true,
@@ -286,16 +294,27 @@ describe('owner SVG integration in the real Electronics document', () => {
         .find((family) => family.familyId === 'diode')
         ?.variants.map((variant) => variant.variantId),
     ).toEqual(['diode-do35', 'diode-do41']);
-    expect(families.find((family) => family.familyId === 'battery')).toMatchObject({
-      enabled: true,
-      appearsInBasic: true,
-      simulationStatus: 'supported',
-      defaultVariantId: 'battery-9v',
-    });
-    // Every battery variant here is backed by the owner's original SVG.
+    expect(productionCatalogEntry('diode-do35')?.physicalSizeMm).not.toEqual(
+      productionCatalogEntry('diode-do41')?.physicalSizeMm,
+    );
     expect(
-      families.find((family) => family.familyId === 'battery')?.variants.map((v) => v.variantId),
-    ).toEqual(['battery-1.5v', 'battery-3v', 'battery-6v', 'battery-9v']);
+      ['battery-9v', 'battery-3v', 'battery-1.5v'].map((familyId) =>
+        families.find((family) => family.familyId === familyId),
+      ),
+    ).toMatchObject([
+      { familyLabel: 'Батарея 9 В', defaultVariantId: 'battery-9v', enabled: true },
+      {
+        familyLabel: 'Кнопочная батарея 3 В',
+        defaultVariantId: 'battery-3v',
+        enabled: true,
+      },
+      { familyLabel: 'Батарея 1,5 В', defaultVariantId: 'battery-1.5v', enabled: true },
+    ]);
+    expect(families.find((family) => family.familyId === 'battery-6v')).toMatchObject({
+      familyLabel: 'Батарея 6 В',
+      appearsInBasic: false,
+      enabled: true,
+    });
     expect(families.filter((family) => family.catalogTier === 'preview')).not.toHaveLength(0);
     expect(
       families
@@ -313,7 +332,7 @@ describe('owner SVG integration in the real Electronics document', () => {
           expect(entry.asset, variant.variantId).not.toContain('/production/');
           expect(entry.asset, variant.variantId).not.toContain('/source-reference/');
         } else {
-          expect(['vibration-motor']).toContain(entry.preview);
+          expect(['vibration-motor', 'visual']).toContain(entry.preview);
           expect(family.enabled).toBe(false);
         }
         expect(renderedSize(entry)).toEqual({

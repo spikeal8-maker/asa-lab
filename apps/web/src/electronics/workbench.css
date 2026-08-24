@@ -953,9 +953,6 @@
   text-align: center;
   overflow: visible;
 }
-.workbench-catalog-card:has(.workbench-variant-popover) {
-  z-index: 50;
-}
 .workbench-catalog-card:not(.disabled):hover {
   border-color: #bdd3dd;
   box-shadow: 0 2px 7px rgba(32, 53, 66, 0.08);
@@ -983,28 +980,6 @@
 .workbench-catalog-add:disabled {
   cursor: default;
 }
-.workbench-catalog-variants {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  min-height: 21px;
-  padding: 2px 5px;
-  border: 1px solid #cbd6dc;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #3c5a6c;
-  font-size: 9px;
-  line-height: 1;
-  cursor: pointer;
-}
-.workbench-catalog-variants:hover,
-.workbench-catalog-variants[aria-expanded='true'] {
-  border-color: #1596ce;
-  color: #136d94;
-}
 .workbench-catalog-name {
   display: -webkit-box;
   min-width: 0;
@@ -1015,72 +990,11 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.workbench-catalog-blocked {
-  display: -webkit-box;
-  max-width: 100%;
-  overflow: hidden;
-  color: #8a4e4e;
-  font-size: 9px;
-  line-height: 1.15;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
 .workbench-catalog-art {
   display: grid;
   place-items: center;
   width: 100%;
   height: 74px;
-}
-.workbench-variant-popover {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% - 3px);
-  left: 0;
-  display: grid;
-  gap: 8px;
-  width: 210px;
-  padding: 10px;
-  border: 1px solid #cfd7dd;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 12px 28px rgba(25, 41, 52, 0.2);
-  color: #3d5362;
-  text-align: left;
-}
-.workbench-catalog-card:nth-child(3n + 2) .workbench-variant-popover {
-  left: 50%;
-  transform: translateX(-50%);
-}
-.workbench-catalog-card:nth-child(3n) .workbench-variant-popover {
-  right: 0;
-  left: auto;
-}
-.workbench-variant-popover strong {
-  font-size: 12px;
-}
-.workbench-variant-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
-}
-.workbench-variant-options button,
-.workbench-variant-add {
-  min-height: 30px;
-  border: 1px solid #d7dee3;
-  border-radius: 4px;
-  background: #f7f9fa;
-  color: var(--ink-muted);
-  font-size: 11px;
-}
-.workbench-variant-options button.selected {
-  border-color: #1596ce;
-  background: #eaf6fb;
-  color: #136d94;
-}
-.workbench-variant-add {
-  background: #168fc6;
-  color: #fff;
-  font-weight: 650;
 }
 .workbench-catalog-grid.list-view {
   grid-template-columns: 1fr;
@@ -1649,9 +1563,6 @@
 .workbench-catalog-name {
   min-height: 26px;
   line-height: 1.15;
-}
-.workbench-catalog-blocked {
-  display: none;
 }
 .workbench-component-preview {
   max-width: 65px;
@@ -3932,21 +3843,6 @@ html.arduino-palette-resizing * {
     width: 100%;
     height: 68px;
   }
-  .workbench-variant-popover,
-  .workbench-catalog-card:nth-child(3n + 2) .workbench-variant-popover,
-  .workbench-catalog-card:nth-child(3n) .workbench-variant-popover {
-    position: fixed;
-    z-index: 95;
-    top: auto;
-    right: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom));
-    left: 12px;
-    width: auto;
-    max-height: min(52dvh, 420px);
-    overflow-y: auto;
-    transform: none;
-  }
-
   .workbench-shell:not(.library-collapsed) .workbench-inspector {
     display: none;
   }
