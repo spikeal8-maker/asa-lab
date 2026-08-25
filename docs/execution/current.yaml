@@ -255,10 +255,10 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-accepted ASA Learning M0 lane, now executing only LRN-M1-001.
-  # M1-002 onward and M2-M7 remain outside this activation.
+  # Owner-accepted ASA Learning M0 and LRN-M1-001 lane, now executing only
+  # LRN-M1-002. M1-003 onward and M2-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m1-001
+    worktree_id: learning-m1-002
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
@@ -290,6 +290,7 @@ parallel_lanes:
       - migrations/0088_learning_m0_006_acceptance_corrections.sql
       - migrations/0089_learning_canonical_read_projection.sql
       - migrations/0091_learning_activity_version_convergence.sql
+      - migrations/0092_course_enrollments.sql
       - schemas/openapi.yaml
       - tools/migrate.mjs
       - tools/provision-test-db.mjs
@@ -298,22 +299,22 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-M1-001
-      issue: 154
-      branch: agent/learning-m1-001
+      id: TASK-LEARNING-M1-002
+      issue: 156
+      branch: agent/learning-m1-002
       base_branch: main
-      pr: 155
+      pr: 157
       pr_draft: false
-      status: done
-      checkpoint: merged_to_main
+      status: in_progress
+      checkpoint: evidence_complete
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
-      head_sha: ee43c1830a69ce2343466c18a547e1050f074f3d
-      owner_accepted_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
-      product_merge_sha: c1991b1029645ef148c5e9db858cd0cbf94bbc1e
+      convergence_baseline_sha: b8f21534ff48f4ec532df3866c4677e1b2d2a63d
+      head_sha: b8f21534ff48f4ec532df3866c4677e1b2d2a63d
+      owner_accepted_sha: b8f21534ff48f4ec532df3866c4677e1b2d2a63d
+      product_merge_sha: b8f21534ff48f4ec532df3866c4677e1b2d2a63d
     execution_lease:
-      executor_id: codex-learning-m1-001
+      executor_id: codex-learning-m1-002
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -322,7 +323,7 @@ parallel_lanes:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm test:learning-m1-001
+          - pnpm test:learning-m1-002
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:

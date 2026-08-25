@@ -118,14 +118,17 @@ requirements:
 - id: IDN-003
   milestone: M1
   status: in_progress
-  summary: Universal Learning runtime ownership references the ADR-selected stable learner key; M0 proves compatibility mapping while ActivityRun and ActivityParticipation remain M1
+  summary: Universal Learning runtime ownership references the ADR-selected stable learner key; CourseEnrollment now uses learner_identities.id while ActivityParticipation, Attempt and Result lineage remain incomplete
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   - migrations/0086_learning_identity_foundation.sql
   - docs/review/learning/M0_ACCEPTANCE_REPORT.md
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
+  - tests/courses/course-enrollments.pg.spec.ts
 - id: IDN-004
   milestone: M0
   status: proven
@@ -137,6 +140,36 @@ requirements:
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
   - tests/courses/learning-identity-rls.pg.spec.ts
+- id: AUD-001
+  milestone: M1
+  status: proven
+  summary: CourseEnrollment lifecycle is assigned, active or withdrawn only; completion is not enrollment state
+  evidence:
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/execution/LRN-M1-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  tests:
+  - tests/courses/course-enrollments.pg.spec.ts
+- id: AUD-002
+  milestone: M1
+  status: proven
+  summary: A guarded explicit meaningful learner interaction idempotently activates an assigned CourseEnrollment
+  evidence:
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/execution/LRN-M1-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  tests:
+  - tests/courses/course-enrollments.pg.spec.ts
+- id: AUD-003
+  milestone: M1
+  status: proven
+  summary: CourseEnrollment withdrawal preserves the row and its assignment and activation history
+  evidence:
+  - migrations/0092_course_enrollments.sql
+  - docs/product/learning/execution/LRN-M1-002_EXECUTION_SPEC.md
+  - docs/product/learning/current/LRN_M1_COURSE_ENROLLMENT_REPORT.md
+  tests:
+  - tests/courses/course-enrollments.pg.spec.ts
 - id: MIG-003
   milestone: M0
   status: proven
