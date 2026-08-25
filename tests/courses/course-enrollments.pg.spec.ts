@@ -536,6 +536,18 @@ describe('LRN-M1-002 CourseEnrollment', () => {
   });
 
   it('emits one append-only audit record per real lifecycle transition', async () => {
+    const ambiguousLegacyUser = await admin.query(
+      `INSERT INTO users (tenant_id,school_id,role,email,display_name,password_hash)
+       VALUES ($1,$2,'teacher','ambiguous-' || gen_random_uuid()::text || '@test.local',
+               'Ambiguous legacy link','isolated-test-only') RETURNING id`,
+      [owner.tenantId, owner.schoolId],
+    );
+    await admin.query(
+      `INSERT INTO legacy_user_account_links
+         (tenant_id,user_id,account_id,principal_id,migration_state)
+       VALUES ($1,$2,$3,$4,'active')`,
+      [owner.tenantId, ambiguousLegacyUser.rows[0].id, ownerAccountId, ownerPrincipalId],
+    );
     const learner = await createLearner();
     const enrollment = await assign(runId, learner.identityId);
     await assign(runId, learner.identityId);
@@ -544,7 +556,7 @@ describe('LRN-M1-002 CourseEnrollment', () => {
     await withdraw(enrollment.enrollment_id!);
     await withdraw(enrollment.enrollment_id!);
     const events = await admin.query(
-      `SELECT action,payload_json FROM audit_events
+      `SELECT action,actor_user_id,payload_json FROM audit_events
         WHERE entity_type='course_enrollment' AND entity_id=$1 ORDER BY id`,
       [enrollment.enrollment_id],
     );
@@ -552,6 +564,11 @@ describe('LRN-M1-002 CourseEnrollment', () => {
       'course_enrollment.assigned',
       'course_enrollment.activated',
       'course_enrollment.withdrawn',
+    ]);
+    expect(events.rows.map((row) => row.actor_user_id)).toEqual([
+      owner.teacherId,
+      null,
+      owner.teacherId,
     ]);
     expect(events.rows[0].payload_json).toMatchObject({
       actorPrincipalId: ownerPrincipalId,

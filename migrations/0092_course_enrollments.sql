@@ -175,7 +175,7 @@ DECLARE
     v_enrollment public.course_enrollments%ROWTYPE;
     v_created boolean := false;
 BEGIN
-    SELECT run.tenant_id, classroom.school_id, run.classroom_id, legacy.user_id
+    SELECT run.tenant_id, classroom.school_id, run.classroom_id, membership.user_id
       INTO v_tenant, v_school, v_classroom, v_actor_user
       FROM public.classroom_course_runs run
       JOIN public.classrooms classroom
@@ -189,10 +189,6 @@ BEGIN
        AND membership.classroom_id = run.classroom_id
        AND membership.account_id = principal.account_id
        AND membership.member_role IN ('owner', 'co_teacher')
-      LEFT JOIN public.legacy_user_account_links legacy
-        ON legacy.tenant_id = run.tenant_id
-       AND legacy.principal_id = principal.id
-       AND legacy.migration_state = 'active'
      WHERE run.id = p_course_run_id
        AND run.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
        AND classroom.status = 'active';
@@ -343,14 +339,6 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT legacy.user_id INTO v_actor_user
-      FROM public.principals principal
-      LEFT JOIN public.legacy_user_account_links legacy
-        ON legacy.tenant_id = v_enrollment.tenant_id
-       AND legacy.account_id = principal.account_id
-       AND legacy.migration_state = 'active'
-     WHERE principal.id = p_actor_principal_id;
-
     UPDATE public.course_enrollments enrollment
        SET status = 'active',
            activated_at = now(),
@@ -427,11 +415,18 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT legacy.user_id INTO v_actor_user
-      FROM public.legacy_user_account_links legacy
-     WHERE legacy.tenant_id = v_enrollment.tenant_id
-       AND legacy.principal_id = p_actor_principal_id
-       AND legacy.migration_state = 'active';
+    SELECT membership.user_id INTO v_actor_user
+      FROM public.classroom_course_runs run
+      JOIN public.principals principal
+        ON principal.id = p_actor_principal_id
+       AND principal.kind = 'account'
+      JOIN public.classroom_memberships membership
+        ON membership.tenant_id = run.tenant_id
+       AND membership.classroom_id = run.classroom_id
+       AND membership.account_id = principal.account_id
+       AND membership.member_role IN ('owner', 'co_teacher')
+     WHERE run.tenant_id = v_enrollment.tenant_id
+       AND run.id = v_enrollment.course_run_id;
 
     UPDATE public.course_enrollments enrollment
        SET status = 'withdrawn',

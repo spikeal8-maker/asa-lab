@@ -152,9 +152,12 @@ course_enrollment.withdrawn
 ```
 
 Retries emit no duplicate audit record. Payload contains the canonical actor
-principal and fixed source; teacher operations retain the existing legacy user
-link when available. Audit UPDATE remains rejected by the existing immutable
-trigger. No second audit system was created.
+principal and fixed source. Teacher audit attribution uses the exact
+`classroom_memberships.user_id` row that authorized the command, never an
+ambiguous legacy account link; learner activation keeps nullable
+`actor_user_id` and records the canonical principal in payload. Audit UPDATE
+remains rejected by the existing immutable trigger. No second audit system was
+created.
 
 ## MIGRATION
 
