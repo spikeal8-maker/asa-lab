@@ -116,13 +116,14 @@ requirements:
   tests: []
   decision: ADR-LEARNER-IDENTITY-001
 - id: IDN-003
-  milestone: M0
+  milestone: M1
   status: in_progress
-  summary: Learning runtime references the ADR-selected stable learner key
+  summary: Universal Learning runtime ownership references the ADR-selected stable learner key; M0 proves compatibility mapping while ActivityRun and ActivityParticipation remain M1
   evidence:
   - docs/architecture/ADR-LEARNER-IDENTITY-001.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   - migrations/0086_learning_identity_foundation.sql
+  - docs/review/learning/M0_ACCEPTANCE_REPORT.md
   tests:
   - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: IDN-004

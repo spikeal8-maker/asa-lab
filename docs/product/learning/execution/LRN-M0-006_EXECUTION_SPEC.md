@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-006`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** IN PROGRESS — OWNER CHANGES REQUIRED
+**Status:** DONE — corrective evidence complete; owner accepted
 **Baseline SHA:** `9290ab18490f376460a3b5f396f8b8a4fd905488`  
 **Issue:** `#147`  
 **Pull requests:** `#148` (original merge), `#149` (acceptance corrections)
