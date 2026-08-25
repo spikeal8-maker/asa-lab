@@ -227,7 +227,7 @@ parallel_lanes:
       branch: agent/r3-project-lifecycle
       base_branch: main
       pr: 112
-      pr_draft: true
+      pr_draft: false
       status: in_progress
       checkpoint: project_lifecycle_foundation
       owner_acceptance: pending
