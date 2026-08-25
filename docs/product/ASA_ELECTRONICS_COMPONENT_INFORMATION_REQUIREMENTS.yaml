@@ -1,0 +1,110 @@
+schema_version: 1.0.0
+spec: docs/product/ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md
+status: proposed
+
+decision_statuses: [owner_direction, pending_owner, approved, rejected]
+
+decisions:
+  - id: DEC-INFO-001
+    decision: separate_properties_runtime_state_and_educational_help
+    status: owner_direction
+    evidence_required: [desktop_owner_review, mobile_owner_review]
+  - id: DEC-INFO-002
+    decision: help_replaces_component_catalog_and_restores_catalog_state
+    status: pending_owner
+    evidence_required: [desktop_owner_review, mobile_owner_review]
+  - id: DEC-INFO-003
+    decision: neutral_info_control_for_runtime_state
+    status: pending_owner
+    evidence_required: [desktop_owner_review]
+  - id: DEC-INFO-004
+    decision: exclamation_is_diagnostic_badge_only
+    status: pending_owner
+    evidence_required: [diagnostic_states_owner_review]
+  - id: DEC-INFO-005
+    decision: mobile_help_is_full_screen_layer
+    status: pending_owner
+    evidence_required: [mobile_owner_review]
+
+requirements:
+  - id: ELEC-INFO-001
+    statement: enabled catalog families have a typed inspector profile
+    verification: automated
+    fixture: canonical_component_catalog
+    planned_test: component-information-coverage.spec.ts
+  - id: ELEC-INFO-002
+    statement: family and variant IDs resolve only through the canonical catalog
+    verification: automated
+    fixture: canonical_component_catalog
+    planned_test: component-information-identity.spec.ts
+  - id: ELEC-INFO-003
+    statement: compact inspector contains settings but no runtime measurements or help prose
+    verification: automated_and_visual
+    fixture: supported_resistor
+    planned_test: component-compact-inspector.spec.ts
+  - id: ELEC-INFO-004
+    statement: technical state renders only current finite solver values
+    verification: automated
+    fixture: supported_resistor_solved
+    planned_test: component-runtime-provenance.spec.ts
+  - id: ELEC-INFO-005
+    statement: a document edit invalidates values from an older simulation run
+    verification: automated
+    fixture: supported_resistor_stale_result
+    planned_test: component-runtime-provenance.spec.ts
+  - id: ELEC-INFO-006
+    statement: unsupported topology is fail-closed and exposes no numeric component values
+    verification: automated
+    fixture: unsupported_ultrasonic_sensor
+    planned_test: component-unsupported-state.spec.ts
+  - id: ELEC-INFO-007
+    statement: diagnostics are anchored to the actual component wire or net
+    verification: automated
+    fixture: unsupported_component_blocks_topology
+    planned_test: component-diagnostic-anchor.spec.ts
+  - id: ELEC-INFO-008
+    statement: free terminal and stopped simulation do not create a generic error
+    verification: automated
+    fixture: open_circuit_stopped
+    planned_test: component-neutral-states.spec.ts
+  - id: ELEC-INFO-009
+    statement: variant-specific pinout limits and connection rules override family help
+    verification: automated_and_content_review
+    fixture: family_with_distinct_variant_pinouts
+    planned_test: component-help-variant-override.spec.ts
+  - id: ELEC-INFO-010
+    statement: closing help restores catalog search category scroll and selected variant
+    verification: browser
+    fixture: populated_catalog_state
+    planned_test: component-help-navigation.spec.ts
+  - id: ELEC-INFO-011
+    statement: opening information layers does not trigger a solver run or change document coordinates
+    verification: browser
+    fixture: supported_resistor
+    planned_test: component-information-side-effects.spec.ts
+  - id: ELEC-INFO-012
+    statement: complex boards and instruments use grouped domain-specific presentation
+    verification: automated_and_visual
+    fixture: arduino_grouped_pins
+    planned_test: component-complex-profile.spec.ts
+  - id: ELEC-INFO-013
+    statement: component information layers are keyboard accessible and expose semantic names
+    verification: browser_accessibility
+    fixture: supported_resistor
+    planned_test: component-information-accessibility.spec.ts
+  - id: ELEC-INFO-014
+    statement: mobile information layers preserve canvas and draft navigation
+    verification: browser_and_visual
+    fixture: mobile_390x844
+    planned_test: component-information-mobile.spec.ts
+  - id: ELEC-INFO-015
+    statement: help content and media are lazy and excluded from the initial editor bundle
+    verification: build_and_browser
+    fixture: production_bundle
+    planned_test: component-information-performance.spec.ts
+
+evidence:
+  commit_sha: null
+  automated_results: []
+  screenshots: []
+  owner_acceptance: pending
