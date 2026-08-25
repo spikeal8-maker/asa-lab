@@ -308,6 +308,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('aria-label="Положение движка"');
     expect(sidebarSource).not.toContain('Положение движка: {Math.round');
     expect(sidebarSource).toContain('(!selectedIsPotentiometer || helpOpen)');
+    expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
+    expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
+    expect(productionVisualSource).toContain('data-testid="potentiometer-angle"');
+    expect(productionVisualSource).not.toContain('<foreignObject');
     expect(workbenchCss).toMatch(
       /\.workbench-inspector\.is-potentiometer \.workbench-inspector-body > label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
     );

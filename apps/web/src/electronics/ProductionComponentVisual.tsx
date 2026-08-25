@@ -1,9 +1,10 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import {
   potentiometerKnobAngle,
+  potentiometerRuntimeMarkup,
   RESISTOR_BAND_CSS,
   resistorBandState,
   rgbLedColour,
@@ -51,6 +52,68 @@ interface Props {
   readonly simulationTimeMs?: number;
   readonly onSwitchActuate?: (() => void) | undefined;
   readonly onArduinoReset?: (() => void) | undefined;
+}
+
+const ownerSvgSourceCache = new Map<string, Promise<string>>();
+
+function ownerSvgSource(asset: string): Promise<string> {
+  const cached = ownerSvgSourceCache.get(asset);
+  if (cached) return cached;
+  const pending = fetch(asset, { cache: 'force-cache' }).then((response) => {
+    if (!response.ok) throw new Error(`Owner SVG request failed: ${response.status}`);
+    return response.text();
+  });
+  ownerSvgSourceCache.set(asset, pending);
+  return pending;
+}
+
+function OwnerPotentiometerVisual({
+  asset,
+  width,
+  height,
+  wiperPosition,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly wiperPosition: number;
+}): JSX.Element {
+  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void ownerSvgSource(asset)
+      .then((source) => {
+        if (mounted) setOwnerSvg(source);
+      })
+      .catch(() => {
+        if (mounted) setOwnerSvg(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [asset]);
+  const angle = potentiometerKnobAngle(wiperPosition);
+  const markup = useMemo(
+    () => (ownerSvg ? potentiometerRuntimeMarkup(ownerSvg, wiperPosition) : ''),
+    [ownerSvg, wiperPosition],
+  );
+  if (!markup) {
+    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  }
+  return (
+    <svg
+      data-testid="potentiometer-angle"
+      data-owner-svg-state-angle={angle}
+      x="0"
+      y="0"
+      width={width}
+      height={height}
+      viewBox="0 0 144 164"
+      preserveAspectRatio="xMidYMid meet"
+      pointerEvents="none"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
 }
 
 // Exact segment outlines of the owner-drawn art (viewBox 0 0 12.7 19.05, units are mm).
@@ -514,14 +577,23 @@ export function ProductionComponentVisual({
         </g>
       ) : (
         <>
-          <image
-            className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-            href={asset}
-            width={width}
-            height={height}
-            preserveAspectRatio={imageFit}
-            pointerEvents="none"
-          />
+          {entry.key === 'potentiometer' ? (
+            <OwnerPotentiometerVisual
+              asset={asset}
+              width={width}
+              height={height}
+              wiperPosition={component.wiperPosition ?? 0.5}
+            />
+          ) : (
+            <image
+              className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
+              href={asset}
+              width={width}
+              height={height}
+              preserveAspectRatio={imageFit}
+              pointerEvents="none"
+            />
+          )}
           {entry.key === 'temperature-sensor' ? (
             <g className="workbench-temperature-sensor-mark" pointerEvents="none">
               <rect
@@ -647,7 +719,7 @@ export function ProductionComponentVisual({
 
       {entry.key === 'potentiometer' ? (
         <g
-          data-testid="potentiometer-angle"
+          data-testid="potentiometer-legacy-vector-contract"
           data-owner-svg-state-angle={potentiometerKnobAngle(component.wiperPosition ?? 0.5)}
           display="none"
           aria-hidden="true"

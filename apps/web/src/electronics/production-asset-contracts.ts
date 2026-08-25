@@ -275,6 +275,24 @@ export function potentiometerKnobAngle(wiperPosition: number): number {
   return 45 + Math.min(1, Math.max(0, wiperPosition)) * 270;
 }
 
+export function potentiometerRuntimeMarkup(ownerSvg: string, wiperPosition: number): string {
+  const rotation = potentiometerKnobAngle(wiperPosition) - 45;
+  const transform = ` transform="rotate(${rotation} 71.5 71)"`;
+  const withMovingPointer = ownerSvg
+    .replace(
+      '<line x1="61" y1="82" x2="42" y2="101"',
+      `<line x1="61" y1="82" x2="42" y2="101"${transform}`,
+    )
+    .replace(
+      '<line x1="58.6" y1="84.3" x2="44.2" y2="98.7"',
+      `<line x1="58.6" y1="84.3" x2="44.2" y2="98.7"${transform}`,
+    );
+  const bodyStart = withMovingPointer.indexOf('>');
+  const bodyEnd = withMovingPointer.lastIndexOf('</svg>');
+  if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
+  return withMovingPointer.slice(bodyStart + 1, bodyEnd);
+}
+
 export function lampState(powerRatio: number): LampState {
   const value = Math.min(1, Math.max(0, powerRatio));
   if (value === 0) return 'off';

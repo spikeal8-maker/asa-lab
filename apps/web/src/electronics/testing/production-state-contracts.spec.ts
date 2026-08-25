@@ -5,6 +5,7 @@ import {
   motorMotion,
   ordinaryLedState,
   potentiometerKnobAngle,
+  potentiometerRuntimeMarkup,
   rgbLedColour,
   rgbLedDisplayColour,
   rgbLedState,
@@ -88,5 +89,13 @@ describe('typed Electronics state and animation contracts', () => {
     });
     expect(servoAngle(-20)).toBe(0);
     expect(servoAngle(220)).toBe(180);
+  });
+
+  it('rotates the two existing owner SVG pointer lines without redrawing the potentiometer', () => {
+    const ownerSvg = `<svg viewBox="0 0 144 164"><circle cx="71.5" cy="71" r="49"/><line x1="61" y1="82" x2="42" y2="101" stroke="#132B3A"/><line x1="58.6" y1="84.3" x2="44.2" y2="98.7" stroke="#22435C"/></svg>`;
+    const markup = potentiometerRuntimeMarkup(ownerSvg, 0.5);
+    expect(markup.match(/transform="rotate\(135 71\.5 71\)"/g)).toHaveLength(2);
+    expect(markup).toContain('<circle cx="71.5" cy="71" r="49"/>');
+    expect(ownerSvg).not.toContain('transform=');
   });
 });
