@@ -566,7 +566,7 @@ Same learner/activity показывает согласованный state/resu
 
 ## TASK LRN-M0-008 — M0 Acceptance Gate
 
-**status:** BLOCKED  
+**status:** DONE — `M0 ACCEPTED`; owner acceptance pending
 **depends_on:** LRN-M0-001..007
 
 ### Gate
@@ -955,26 +955,14 @@ ActivityRun-scoped preview + confirm + append result revisions.
 
 ---
 
-## TASK LRN-M2-009 — VS-1 Class Quiz Vertical Proof
+## TASK LRN-M2-010 — M2 Acceptance Gate
 
-**depends_on:** M1 accepted + M2-001..008 + minimal M3 result projection
+**depends_on:** M1 accepted + M2-001..008
 
-Prove:
+Accept the Attempt, Submission, quiz, selection and regrade runtime without
+claiming the still-unimplemented M3 Gradebook projection or VS-1 browser proof.
 
-```text
-teacher assigns quiz
-→ learner starts
-→ answers persist
-→ reload
-→ timer
-→ submit
-→ auto grade
-→ selected result
-→ Gradebook
-→ learner same result
-```
-
-Browser evidence required.
+STOP for owner acceptance before M3.
 
 ---
 
@@ -1051,6 +1039,31 @@ flags[]
 ```
 
 No single overloaded status enum.
+
+---
+
+## TASK LRN-M2-009 — VS-1 Class Quiz Vertical Proof
+
+**scheduling:** early M3; historical task ID retained for traceability
+**depends_on:** M1 accepted + M2 accepted through LRN-M2-010 + M3-001..006
+
+Prove:
+
+```text
+teacher assigns quiz
+→ learner starts
+→ answers persist
+→ reload
+→ timer
+→ submit
+→ auto grade
+→ selected result
+→ canonical Gradebook projection
+→ learner same result
+```
+
+Browser evidence required. This proof runs before Gradebook UI expansion and
+does not permit M3 work before M2 owner acceptance.
 
 ---
 
@@ -1538,5 +1551,3 @@ VS-3
 ```
 
 Если для любого из трёх создана отдельная параллельная система Attempt/Result/Gradebook — реализация считается архитектурно неверной независимо от внешнего вида UI.
-
-

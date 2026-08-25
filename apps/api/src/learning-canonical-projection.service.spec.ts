@@ -218,4 +218,32 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     expect(projection.size).toBe(0);
     expect(pool.query).not.toHaveBeenCalled();
   });
+
+  it('restores the same canonical state after a canonical to legacy to canonical round trip', async () => {
+    const evidence = {
+      ...base,
+      legacyWork: {
+        projectId: '70000000-0000-4000-8000-000000000001',
+        startedAt: '2026-08-20T10:00:00.000Z',
+        submittedAt: '2026-08-20T11:00:00.000Z',
+      },
+    };
+    const before = structuredClone(evidence);
+    const pool = poolWith(evidence);
+
+    const first = await new LearningCanonicalProjectionService(pool, {
+      LEARNING_CANONICAL_READS: 'canonical',
+    }).forSeat(base.seatId, '2026-08-21T00:00:00.000Z');
+    const legacy = await new LearningCanonicalProjectionService(pool, {
+      LEARNING_CANONICAL_READS: 'legacy',
+    }).forSeat(base.seatId, '2026-08-21T00:00:00.000Z');
+    const restored = await new LearningCanonicalProjectionService(pool, {
+      LEARNING_CANONICAL_READS: 'canonical',
+    }).forSeat(base.seatId, '2026-08-21T00:00:00.000Z');
+
+    expect(legacy.size).toBe(0);
+    expect(restored).toEqual(first);
+    expect(evidence).toEqual(before);
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
 });

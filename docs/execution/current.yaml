@@ -257,11 +257,11 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-activated ASA Learning M0 state-convergence lane. The repository
-  # task id follows the control-plane schema; its only active Work Queue item is
-  # LRN-M0-007. M0-008 and M1-M7 remain outside this activation.
+  # Owner-activated ASA Learning M0 acceptance lane. The repository task id
+  # follows the control-plane schema; its only active Work Queue item is
+  # LRN-M0-008. M1-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m0-surface-convergence
+    worktree_id: learning-m0-acceptance
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
@@ -296,22 +296,22 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-M0-007
-      issue: 150
-      branch: agent/learning-m0-surface-convergence
+      id: TASK-LEARNING-M0-008
+      issue: 152
+      branch: agent/learning-m0-acceptance
       base_branch: main
-      pr: 151
+      pr: 153
       pr_draft: false
       status: done
-      checkpoint: merged_to_main
+      checkpoint: m0_acceptance_evidence_published
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 7f185eadfdf03eb75d24acb4f1add0abefbae3f6
-      head_sha: 7f185eadfdf03eb75d24acb4f1add0abefbae3f6
-      owner_accepted_sha: c8fe06ccf54bb65ef18f6eb51cce32b189de7df8
-      product_merge_sha: 9e7398a8ef4bdb0963601a694a4a9d7eed34d996
+      convergence_baseline_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
+      head_sha: 027e77671cc76d2fb594f6aa2ffc5fae94137a5c
+      owner_accepted_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
+      product_merge_sha: 00179afadbae87abca32f4ad3a3206d0d1e64823
     execution_lease:
-      executor_id: codex-learning-m0-surface-convergence
+      executor_id: codex-learning-m0-acceptance
       holder: unassigned
       acquired_at: null
       expires_at: null
