@@ -5,6 +5,8 @@
 **Общий Project lifecycle:** [`TINKERCAD_PARITY_SPEC.md`](TINKERCAD_PARITY_SPEC.md).
 **Карточки, состояние и справка компонентов:**
 [`ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md`](ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md).
+**Исполнимый порядок развития математического ядра:**
+[`ASA_ELECTRONICS_SIMULATION_SHORT_PATH_PLAN.md`](ASA_ELECTRONICS_SIMULATION_SHORT_PATH_PLAN.md).
 
 ## 1. Цель
 

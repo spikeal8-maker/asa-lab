@@ -1,0 +1,742 @@
+# ASA Lab — исполнимый план развития математического ядра электроники
+
+**Статус:** owner-directed implementation plan.  
+**Назначение:** нормативный порядок развития электрической симуляции после
+текущего M1 DC foundation.  
+**Состояние исполнения:** хранится только в
+[`docs/execution/current.yaml`](../execution/current.yaml); этот документ не
+дублирует активную задачу, Issue, checkpoint, ветку или SHA.  
+**Связанные документы:**
+[`ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md`](ASA_ELECTRONICS_WORKBENCH_COMPLETE_SPEC.md),
+[`ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md`](ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md),
+[`ASA_ELECTRONICS_TOOL_CATALOG.yaml`](ASA_ELECTRONICS_TOOL_CATALOG.yaml),
+[`AGENTS.md`](../../AGENTS.md).
+
+## 1. Цель и принятая стратегия
+
+Цель — получить детерминированный образовательный симулятор низковольтных
+электрических цепей, который:
+
+- правильно строит электрическую топологию независимо от геометрии проводов;
+- рассчитывает токи, напряжения, мощность и переходные процессы;
+- воспроизводит основные реальные режимы компонентов в объявленном диапазоне;
+- честно показывает ограничения модели и никогда не выдумывает результат;
+- использует одно математическое ядро в браузере и на сервере;
+- расширяется новой моделью без добавления component-specific условий в общий
+  solver;
+- связывает визуальные состояния только с рассчитанными наблюдениями модели.
+
+Принят **укороченный вертикальный путь**:
+
+```text
+VISUAL-0  физически значимые визуальные блокеры
+MATH-0    контракт, fixtures, точность, миграция и baseline
+MATH-1    источник + резистор
+MATH-2    диод + LED + нелинейное DC-ядро
+MATH-3    NPN-транзисторный ключ
+MATH-4    конденсатор + настоящее transient-ядро
+MATH-5    двигатель постоянного тока
+```
+
+Каждый этап завершает полноценный пользовательский срез:
+
+```text
+каталог → размещение → контакты → netlist → модель → расчёт
+→ диагностика → визуальная реакция → save/reload → browser/server parity
+```
+
+Расширение к PNP, MOSFET, приборам, датчикам и Arduino начинается только после
+приёмки MATH-5.
+
+## 2. Обязательные решения
+
+| ID | Решение | Последствие |
+| --- | --- | --- |
+| DEC-MATH-001 | Не завершать весь визуал до математики | До MATH-1 исправляются только масштаб, выводы, посадка, вращение и доступность компонентов |
+| DEC-MATH-002 | Каталожная доступность не равна готовности модели | Подтверждённый owner SVG можно размещать; отсутствие модели даёт `unsupported` при расчёте |
+| DEC-MATH-003 | Электрическая модель выбирается по `modelId` и `modelVersion`, а не по UI `kind` | Разные корпуса могут разделять уравнения, но иметь разные профили параметров |
+| DEC-MATH-004 | Сначала фиксируется TypeScript-контракт, затем рассматривается Rust/WASM | Перенос языка не предшествует доказательству правильной архитектуры |
+| DEC-MATH-005 | В production существует один авторитетный solver | Старый путь допускается только как временный test-only comparator |
+| DEC-MATH-006 | Модель не изменяет документ и UI | Она получает нормализованные параметры и возвращает stamping, токи, observations и diagnostics |
+| DEC-MATH-007 | Повреждение в первой версии живёт только в текущем запуске | Stop/новый Start восстанавливает компонент; повреждение не записывается в проект |
+| DEC-MATH-008 | Профили компонентов являются данными без исполняемого кода | Никаких `eval`, динамических модулей или загружаемых с клиента формул |
+| DEC-MATH-009 | Математическое время не зависит от FPS | UI только отображает samples; scheduler управляет временем расчёта |
+| DEC-MATH-010 | Unsupported остаётся fail-closed | Никакой частичный `solved` для документа с неподдержанной электрической моделью |
+
+Изменение любого решения требует отдельной правки этого документа с
+обоснованием и повторной проверкой затронутых этапов.
+
+## 3. Границы
+
+### 3.1. Входит в укороченный путь
+
+- безопасное размещение DC motor до реализации его модели;
+- исправление исходной ориентации DO-41 без изменения owner SVG;
+- версионированный контракт электрической модели;
+- обратная совместимость существующих CircuitDocument;
+- линейное DC, нелинейное DC и transient;
+- источник, резистор, DO-35, DO-41, обычный LED, NPN, конденсатор и DC motor;
+- мощность, предупреждение, перегрев и runtime-повреждение там, где этап это
+  требует;
+- контрольные схемы, golden fixtures, browser/server parity и production
+  evidence.
+
+### 3.2. Не входит до завершения MATH-5
+
+- косметическое завершение всего каталога;
+- изменение или перерисовка owner SVG;
+- PNP, MOSFET, индуктивность и полноценный RLC;
+- мультиметр, осциллограф и генератор как законченные приборы;
+- модели PIR, влажности, расстояния и других сложных датчиков;
+- Arduino compiler/runtime и библиотеки;
+- полный промышленный SPICE, BSIM или моделирование производства деталей;
+- изменение сетевых маршрутов, Compose-топологии, tenant/RLS и production БД.
+
+## 4. Неприкосновенные инварианты
+
+Каждый этап обязан сохранять требования `AGENTS.md`:
+
+1. Netlist не зависит от формы и bend points провода.
+2. Breadboard hole groups входят в те же электрические сети.
+3. Все значения конечны; `NaN` и `Infinity` запрещены на каждой границе.
+4. Unsupported-компонент завершает весь расчёт статусом `unsupported`.
+5. Проверяются KCL и остаток напряжения идеальных источников.
+6. Один документ и одно явное simulation time дают байт-в-байт одинаковый
+   результат.
+7. Сортировка ключей терминалов выполняется посимвольно, без `localeCompare`.
+8. Браузер пересчитывает локально до autosave.
+9. Сервер проверяет результат тем же ядром и тем же набором моделей.
+10. Owner SVG, audit-материалы, ZIP, backups и данные БД не изменяются.
+
+## 5. Разделение источников истины
+
+| Слой | Канонические данные | Не имеет права определять |
+| --- | --- | --- |
+| Каталог | имя, семейство, вариант, SVG, физические размеры, pin anchors, порядок | уравнения и runtime-результаты |
+| CircuitDocument | экземпляры, stable IDs, соединения, параметры пользователя, явно сохранённое состояние | вычисленные токи и напряжения |
+| Model profile | номинальные физические параметры, пределы, источник параметров, версия | геометрию и UI |
+| DeviceModel | уравнения, stamping, state transition, terminal currents, observations | каталог, React и autosave |
+| Solver | topology, unknowns, итерации, timestep, convergence, residuals | особенности конкретного SVG |
+| Presentation | анимация, свечение, звук, inspector state | самостоятельную электрическую истину |
+
+Дублирующие таблицы вида `SIMULATED_TYPES`, `component.kind === ...` и отдельные
+UI-формулы постепенно удаляются после переноса соответствующего семейства.
+
+## 6. Контракт данных
+
+### 6.1. Идентификация модели
+
+Каждый электрический экземпляр после нормализации имеет:
+
+```text
+componentTypeId       точный тип каталога
+variantId             визуальный/физический вариант
+electricalModelId     семейство уравнений
+electricalModelVersion версия контракта уравнений
+modelProfileId        набор физических параметров
+modelProfileVersion   версия набора параметров
+```
+
+Примеры профилей первой программы:
+
+```text
+ideal-dc-source@1
+generic-battery-pack@1
+axial-resistor@1
+generic-signal-diode-do35@1
+generic-rectifier-diode-do41@1
+generic-red-led@1
+generic-npn-to92@1
+generic-capacitor@1
+generic-dc-motor-5v@1
+```
+
+Названия профилей являются рабочим контрактом плана. Корпус DO-35 или DO-41 не
+доказывает конкретную марку диода. Перед внедрением профиль обязан получить
+подтверждённый источник параметров и может быть уточнён без изменения
+`componentTypeId`.
+
+Каждый профиль хранит provenance: источник параметров, дату/версию документа,
+температуру и диапазон измерений, единицы, допустимое применение и лицензионное
+основание использования данных. Неподтверждённое типичное значение маркируется
+как educational assumption, а не как datasheet fact.
+
+### 6.2. Минимальный интерфейс модели
+
+Целевая семантика интерфейса:
+
+```ts
+interface DeviceModel<Parameters, State> {
+  readonly id: string;
+  readonly version: number;
+  readonly analyses: readonly ('dc' | 'transient')[];
+
+  validate(instance: NormalizedDevice<Parameters>): readonly ModelIssue[];
+  createState(instance: NormalizedDevice<Parameters>): State;
+  stampDc(context: DcStampContext, instance: NormalizedDevice<Parameters>): void;
+  linearize?(
+    context: NonlinearStampContext,
+    instance: NormalizedDevice<Parameters>,
+    guess: OperatingPoint,
+  ): void;
+  stampTransient?(
+    context: TransientStampContext,
+    instance: NormalizedDevice<Parameters>,
+    state: Readonly<State>,
+  ): void;
+  commitState?(
+    instance: NormalizedDevice<Parameters>,
+    previous: Readonly<State>,
+    solved: OperatingPoint,
+  ): State;
+  observe(context: ObservationContext, instance: NormalizedDevice<Parameters>): DeviceObservation;
+}
+```
+
+Это спецификация ответственности, а не обязательные буквальные имена TypeScript.
+Изменение сигнатур разрешено только при сохранении следующих правил:
+
+- stamping разрешён только через ограниченный context;
+- модель не получает React, DOM, viewport, SVG и repository services;
+- модель не изменяет `ElectronicsDocument`;
+- каждый terminal current возвращается с единой ориентацией: положительный ток
+  входит в компонент;
+- сумма terminal currents участвует в общей проверке KCL;
+- модель не может объявить `solved`; итоговый статус принадлежит solver;
+- параметры и state проверяются на конечность и диапазон до assembly матрицы.
+
+### 6.3. Миграция существующих документов
+
+Миграция выполняется в следующую свободную версию CircuitDocument и остаётся
+additive:
+
+1. Старые `kind`, `value`, `variantId` и `stateProperties` читаются.
+2. Нормализатор назначает точные model/profile IDs по подтверждённой таблице.
+3. Неизвестные поля сохраняются согласно существующей политике документа.
+4. Неизвестный `electricalModelId` не заменяется похожей моделью и даёт
+   `unsupported`.
+5. Первый save может записать новую каноническую форму, не меняя электрического
+   смысла.
+6. Повторные load/save дают стабильный документ без дальнейших миграций.
+
+Обязательные fixtures:
+
+- последний документ прежней схемы;
+- документ каждого поддержанного семейства;
+- документ с неизвестной будущей моделью;
+- документ с legacy Arduino properties;
+- документ с breadboard и повернутыми компонентами;
+- документ с неконечным или выходящим за диапазон параметром.
+
+## 7. Точность и честность модели
+
+Численная точность solver и физическая точность профиля — разные свойства.
+
+### 7.1. Численная приёмка
+
+| Проверка | Обязательный предел |
+| --- | --- |
+| Конечность | 100% результатов finite |
+| KCL residual | не более `1e-6 A` |
+| Остаток идеального источника | не более `1e-9 V` |
+| Линейная аналитическая схема | `abs <= 1e-9` или `rel <= 1e-7` для нормализованной величины |
+| Детерминизм | байт-в-байт одинаковый сериализованный результат |
+| Browser/server parity | одинаковый model set, input digest, status и значения в тех же допусках |
+| DC power balance | остаток не более `max(1e-9 W, 1e-6 × supplied power)` для применимых fixtures |
+
+Если текущая реализация не достигает указанного предела, MATH-0 обязан либо
+исправить её, либо изменить предел отдельным решением с измерительным отчётом.
+
+### 7.2. Физическая приёмка профиля
+
+| Уровень | Требование |
+| --- | --- |
+| `unsupported` | расчёт запрещён fail-closed |
+| `educational` | правильные режимы и монотонность; диапазон применимости объявлен |
+| `datasheet-calibrated` | рабочие точки лежат в объявленной envelope datasheet |
+| `reference-verified` | есть независимые analytical/SPICE fixtures и допуск профиля |
+
+Для укороченного пути обязательны:
+
+- источник и резистор: `reference-verified`;
+- DO-35, DO-41, LED и конденсатор: не ниже `datasheet-calibrated`;
+- NPN и DC motor: сначала `educational`, затем отдельная калибровка до
+  `datasheet-calibrated`;
+- визуальная яркость и цвет не объявляются физической фотометрией без отдельной
+  калибровки.
+
+Допуски нелинейных и динамических профилей задаются в самих fixtures. Один
+универсальный процент для всех рабочих точек запрещён: около cutoff и нулевого
+тока относительная ошибка не имеет корректного смысла.
+
+## 8. Runtime-повреждение и диагностика
+
+До появления transient MATH-2 использует только мгновенную классификацию
+рабочей точки:
+
+```text
+normal | warning | destructive_operating_point
+```
+
+Она не притворяется накопительным нагревом. Начиная с MATH-4 модели, которым это
+нужно, используют временную state machine:
+
+```text
+normal → warning → overheated → failed_open
+```
+
+- `warning` не изменяет topology;
+- `overheated` может изменять параметры только если это явно задано моделью;
+- `failed_open` моделируется конечным большим сопротивлением и соответствующей
+  минимальной проводимостью по общей численной политике, а не `Infinity`;
+- переход зависит от рассчитанной мощности и модельного времени;
+- переход состояния применяется между принятыми timestep, а не меняет topology
+  внутри незавершённой nonlinear iteration;
+- Stop и новый Start очищают runtime damage;
+- damage не входит в autosave и immutable project version первой программы;
+- UI показывает только diagnosis, возвращённый solver;
+- неподключённый исправный компонент не получает предупреждение сам по себе.
+
+Для MATH-2 обязательны warning/destructive operating-point diagnostics LED без
+ложного накопительного времени. Накопительное runtime-повреждение LED и NPN
+включается после MATH-4. Для MATH-5 обязательны перегрев и заклинивание
+двигателя.
+
+## 9. Solver architecture
+
+Целевая структура ответственности:
+
+```text
+contexts/electronics/domain/
+  topology/       stable terminals, nets, breadboard connectivity
+  models/         DeviceModel implementations and profiles
+  analysis/
+    dc/           operating point and nonlinear iteration
+    transient/    timestep, integration and state history
+  numerics/       matrix, unknown vector and linear solve
+  validation/     finite values, KCL, source residual, power balance
+  observation/    stable result and diagnostic assembly
+  compatibility/ legacy document normalization and test-only comparator
+```
+
+Это целевая группировка, а не требование выполнить массовое перемещение одним
+коммитом. Файлы выносятся только вместе с проходящими parity-тестами.
+
+### 9.1. Нелинейное DC
+
+MATH-2 обязан реализовать общий цикл:
+
+1. Создать deterministic initial guess.
+2. Попросить нелинейные модели выполнить linearization.
+3. Собрать и решить MNA-систему.
+4. Проверить изменение unknowns и residuals.
+5. При необходимости применить damping.
+6. При сложном старте применить GMIN stepping и/или source stepping.
+7. Завершить `solved` только после convergence и quality verification.
+8. При исчерпании бюджета вернуть `nonconvergent`, а не последние значения как
+   правильные.
+
+Iteration limit, damping policy и continuation steps являются частью
+`solverRevision` и покрываются детерминированными fixtures.
+
+### 9.2. Transient
+
+MATH-4 начинает с Backward Euler как устойчивого интегратора. Обязательны:
+
+- DC operating point перед первым шагом, если fixture не задаёт иное;
+- явное model time и timestep;
+- верхняя и нижняя границы timestep;
+- уменьшение шага около событий;
+- rollback state при неуспешном шаге;
+- commit state только после принятого шага;
+- ограниченный sample buffer для UI;
+- отсутствие зависимости результата от `requestAnimationFrame`.
+
+Trapezoidal integration и индуктивность относятся к расширению после MATH-5,
+если для контрольных схем укороченного пути достаточно Backward Euler.
+
+## 10. Эталонные данные
+
+Каждый fixture содержит:
+
+```text
+fixtureId
+purpose
+document
+analysis request
+model/profile versions
+expected status
+expected node voltages
+expected terminal currents
+expected power/observations
+expected diagnostics
+tolerances per assertion
+reference kind: analytical | datasheet | spice | compatibility
+reference source and calculation notes
+```
+
+Ожидаемые значения запрещено копировать только из проверяемого solver. Для
+каждой новой формулы требуется независимый расчёт, datasheet envelope или
+SPICE-reference. Compatibility fixture может использовать старый solver только
+для доказательства отсутствия непреднамеренной регрессии, но не физической
+правильности.
+
+Рекомендуемое размещение:
+
+```text
+contexts/electronics/testing/fixtures/models/
+contexts/electronics/testing/fixtures/circuits/
+contexts/electronics/testing/fixtures/references/
+```
+
+## 11. Ресурсы и защита от зависания
+
+MATH-0 измеряет текущий baseline на зафиксированном reference hardware и
+записывает его в test artifact. До измерения действуют предварительные бюджеты:
+
+| Метрика | Предварительный бюджет |
+| --- | --- |
+| Блокировка main thread расчётом | не более одного frame (`16 ms`); тяжёлый расчёт уходит в Worker |
+| DC, 100 поддержанных компонентов | p95 не более `50 ms` |
+| DC, 300 поддержанных компонентов | p95 не более `250 ms` |
+| Пользовательское изменение → новое состояние | p95 не более `100 ms` для контрольной схемы этапа |
+| Nonlinear iterations | ограниченный конфигурацией детерминированный максимум |
+| Transient steps и retries | жёстко ограничены analysis request |
+| Память одной browser simulation | целевой предел `64 MiB` без asset cache |
+
+MATH-0 имеет право один раз скорректировать предварительные числа на основании
+измерений. После утверждения бюджета регрессия более 20% блокирует этап либо
+требует отдельного принятого решения.
+
+Защита от вычислительного DoS:
+
+- предел количества компонентов, nets и источников;
+- предел nonlinear iterations;
+- предел timestep retries и samples;
+- валидация всех параметров до matrix assembly;
+- отмена устаревшего browser job;
+- отсутствие сетевого или файлового доступа из модели;
+- серверный timeout и тот же fail-closed status contract.
+
+## 12. Стратегия перехода со старого solver
+
+1. MATH-0 фиксирует старые результаты и вводит test-only comparator.
+2. Новая модель включается только для одного семейства этапа.
+3. В тестах оба пути получают один нормализованный вход.
+4. Comparator различает intentional physical correction и случайную регрессию.
+5. Browser/runtime использует только выбранную авторитетную ревизию.
+6. После прохождения этапа старые component-specific ветки семейства удаляются.
+7. Постоянный runtime feature flag между двумя solver запрещён.
+
+Intentional correction оформляется fixture с независимым reference, объясняет
+разницу и обновляет `solverRevision`/`modelSetDigest`.
+
+## 13. Исполнение этапов
+
+### 13.1. VISUAL-0 — физически значимые блокеры
+
+**Вход:** чистая актуальная `main`, подтверждённые owner SVG двигателя и диодов.
+
+**Работа:**
+
+1. Разделить `placeable` и `simulationSupported` в каталожном адаптере.
+2. Сделать DC motor доступным для placement, selection, rotation и wiring.
+3. Оставить расчёт документа с DC motor статусом `unsupported`.
+4. Исправить исходный поворот DO-41 через presentation metadata/transform.
+5. Не изменять байты owner SVG.
+6. Проверить pin anchors до и после каждого поворота 45°.
+7. Проверить посадку на breadboard и приоритет выбора провода над телом детали.
+
+**Acceptance:**
+
+- двигатель можно найти, поставить, выбрать, повернуть, удалить и подключить;
+- выводы не смещаются относительно визуала;
+- DO-41 имеет согласованную с reference исходную ориентацию;
+- save/reload сохраняет rotation и connections;
+- Start с двигателем возвращает `unsupported`, без ложных измерений.
+
+**Evidence:** desktop screenshot до/после, rotated/breadboard screenshot,
+browser journey и сохранённый документ.
+
+### 13.2. MATH-0 — контракт и baseline
+
+**Работа:**
+
+1. Создать model/profile registry без изменения runtime-результата.
+2. Зафиксировать unit convention: V, A, Ohm, F, H, s, W и SI scaling;
+   внутренняя температура хранится в K, UI может отображать °C.
+3. Добавить additive document normalization и compatibility fixtures.
+4. Создать fixture schema и независимые reference notes.
+5. Зафиксировать текущие supported circuits и unsupported behavior.
+6. Измерить performance baseline.
+7. Создать test-only old/new comparator.
+8. Зафиксировать solver revision и model set digest из реального registry.
+
+**Acceptance:**
+
+- существующие документы открываются и сохраняются без потери данных;
+- registry deterministic и не зависит от порядка импорта;
+- неизвестная модель остаётся unsupported;
+- текущие результаты не изменились;
+- baseline artifact воспроизводим;
+- нет runtime-переключателя между двумя solver.
+
+### 13.3. MATH-1 — источник и резистор
+
+**Работа:**
+
+1. Вынести matrix/stamping context минимально необходимого DC-пути.
+2. Перенести идеальный источник и резистор в DeviceModel.
+3. Перенести провод и breadboard как topology infrastructure, не как нагрузку.
+4. Сделать terminal currents единственным источником KCL verification.
+5. Реализовать профиль батарейного отсека: число элементов, ЭДС и внутреннее
+   сопротивление.
+6. Удалить старые ветки перенесённых моделей после parity.
+
+**Контрольные схемы:** один резистор, series, parallel, divider, open, short,
+conflicting sources, AA holder variants.
+
+**Acceptance:**
+
+- выполняются численные пределы раздела 7;
+- изменение количества элементов действительно изменяет напряжение и ток;
+- короткое замыкание остаётся конечным и диагностированным;
+- результат одинаков в browser и server;
+- линейный срез не использует component-specific verification formula вне модели.
+
+### 13.4. MATH-2 — диод и LED
+
+**Работа:**
+
+1. Добавить общий nonlinear iteration loop.
+2. Реализовать Shockley-based diode model с series resistance и bounded
+   exponential evaluation.
+3. Создать отдельные параметрические профили DO-35 и DO-41.
+4. Реализовать LED profile: материал/цвет, forward curve, current limits,
+   power и мгновенные operating-point diagnostics; накопительное damage
+   добавляется после MATH-4.
+5. Связать яркость и визуальное состояние только с observation модели.
+6. Удалить старые piecewise/component-specific ветки после reference parity.
+
+**Контрольные схемы:** forward/reverse diode, normal LED, reverse LED,
+resistor-less LED, series LEDs, independent parallel branches.
+
+**Acceptance:**
+
+- нелинейное решение сходится на полном fixture sweep;
+- обратное включение не создаёт ложную яркость;
+- normal/warning/destructive operating-point states следуют рассчитанной мощности;
+- изменение цвета выбирает профиль, а не UI-множитель;
+- nonconvergent никогда не становится solved.
+
+**Архитектурный stop:** если добавление второго диодного профиля требует
+изменения nonlinear solver, контракт пересматривается до MATH-3.
+
+### 13.5. MATH-3 — NPN-транзисторный ключ
+
+**Работа:**
+
+1. Реализовать один generic NPN TO-92 educational profile.
+2. Модель должна различать cutoff, active и saturation математически.
+3. Вернуть токи base, collector, emitter и power dissipation.
+4. Добавить Early effect и bounded junction evaluation в заявленном диапазоне.
+5. Диагностировать base/collector overcurrent и overheating.
+6. Связать inspector operating region с observation модели.
+
+**Контрольные схемы:** open base, weak base drive, active region, saturated
+LED switch, reverse/miswired terminals, collector overload.
+
+**Acceptance:**
+
+- `Ib + Ic + Ie` выполняет terminal-current convention и KCL;
+- режим не задаётся UI или заранее выбранным state;
+- LED в контрольном ключе управляется результатом общей схемы;
+- fixture sweep имеет независимый analytical/SPICE reference;
+- failed/unsafe diagnostics привязаны к конкретному экземпляру и terminal.
+
+### 13.6. MATH-4 — конденсатор и transient
+
+**Работа:**
+
+1. Добавить transient request, model time, timestep и deterministic scheduler.
+2. Реализовать state lifecycle и rollback неуспешного шага.
+3. Реализовать конденсатор через Backward Euler companion model.
+4. Добавить adaptive step reduction около событий и convergence failures.
+5. Отделить sample cadence UI от solver timestep.
+6. Добавить RC и NPN astable fixtures.
+
+**Контрольные схемы:** RC charge, RC discharge, switch edge, RC delay,
+transistor multivibrator.
+
+**Acceptance:**
+
+- RC time constant соответствует analytical reference в fixture tolerance;
+- результат одинаков при разных FPS и render cadence;
+- rejected timestep не изменяет committed device state;
+- stop/start имеет определённую reset semantics;
+- одинаковый document + analysis request даёт одинаковую sample sequence.
+
+### 13.7. MATH-5 — двигатель постоянного тока
+
+**Модель:**
+
+```text
+V = R·i + L·di/dt + Ke·ω
+J·dω/dt = Kt·i - b·ω - τload
+Pcu = i²·R
+```
+
+**Работа:**
+
+1. Создать `generic-dc-motor-5v` profile с источником и диапазоном параметров.
+2. Реализовать winding R/L, back EMF, torque, inertia, damping и external load.
+3. Вернуть current, speed, direction, torque, electrical/mechanical power и
+   temperature observation.
+4. Реализовать stall/overheat diagnostics.
+5. Управлять SVG-анимацией только рассчитанными speed/direction.
+6. Проверить двигатель через NPN и flyback diode.
+
+**Контрольные схемы:** free spin, reversed polarity, startup, loaded motor,
+stall, NPN switch, switch-off with/without flyback diode, PWM-equivalent source
+в пределах возможностей MATH-4.
+
+**Acceptance:**
+
+- пусковой ток выше установившегося;
+- скорость создаёт back EMF и снижает установившийся ток;
+- изменение полярности меняет направление;
+- нагрузка снижает скорость и увеличивает ток;
+- stall создаёт нулевую скорость и ограниченный моделью высокий ток;
+- защитный диод изменяет switch-off transient;
+- визуал не вращается при unsupported/nonconvergent/zero-speed результате.
+
+## 14. Gates каждого этапа
+
+### 14.1. До записи
+
+```text
+git status
+git fetch origin main
+git switch main
+git pull --ff-only origin main
+read docs/execution/current.yaml
+pnpm control-plane:check
+```
+
+Остановиться при `blocking`, повреждении control plane или пересекающихся
+незавершённых изменениях.
+
+### 14.2. Во время работы
+
+Каждый этап делится на небольшие изменения:
+
+```text
+contract/fixture → model → solver integration → UI observation → cleanup
+```
+
+После каждого изменения запускаются узкие тесты затронутого слоя. Полный
+focused gate выполняется на итоговом SHA без Nx cache:
+
+```text
+NX_SKIP_NX_CACHE=true pnpm gate:electronics-m1
+```
+
+Browser evidence:
+
+```text
+pnpm gate:electronics-m1:browser
+```
+
+`gate:repository` требуется перед release candidate согласно `AGENTS.md`; без
+PostgreSQL полный PASS не заявляется.
+
+### 14.3. Условия перехода дальше
+
+Следующий этап запрещён, если:
+
+- не выполнена хотя бы одна acceptance-проверка;
+- fixture expected values получены только из проверяемого solver;
+- browser/server расходятся;
+- есть cached-only evidence;
+- production работает не на проверенном SHA;
+- runtime содержит два авторитетных solver;
+- новый component-specific обход добавлен вне DeviceModel;
+- появился `NaN`, `Infinity`, недетерминизм или ложный `solved`.
+
+## 15. Публикация и откат
+
+Пользовательские production-рубежи:
+
+| Рубеж | Содержимое |
+| --- | --- |
+| R-VISUAL-0 | размещаемый DC motor и исправленный DO-41 |
+| R-MATH-1 | новое линейное ядро, источник и резистор |
+| R-MATH-2 | nonlinear diode/LED и operating-point diagnostics |
+| R-MATH-3 | NPN-ключ |
+| R-MATH-4 | RC transient и мультивибратор |
+| R-MATH-5 | физическая модель DC motor |
+
+Для каждого рубежа фиксируются:
+
+- commit SHA;
+- команды и некэшированный результат gates;
+- solver revision и model set digest;
+- URL и порты;
+- browser screenshots/video;
+- input documents и simulation reports;
+- production revision после перезапуска.
+
+Зелёный CI и успешный production smoke-check не являются owner acceptance.
+Переход к следующему этапу требует отдельно зафиксированной приёмки владельцем
+видимого результата текущего рубежа.
+
+Откат выполняется только переключением на последний проверенный release artifact
+или разрешённым non-destructive Git-переходом. Запрещены force-push,
+`reset --hard`, удаление данных и изменение маршрутов. Документы, созданные новой
+схемой, должны оставаться читаемыми; откат runtime не имеет права молча
+перезаписывать неизвестные model fields.
+
+## 16. Порядок работы исполнителя
+
+Для каждого этапа исполнитель действует одинаково:
+
+1. Подтверждает актуальную `main` и отсутствие чужих пересекающихся изменений.
+2. Читает этот план и связанные спецификации.
+3. Формулирует один проверяемый результат этапа.
+4. Сначала добавляет/уточняет независимый fixture.
+5. Реализует минимальный model/solver slice.
+6. Подключает observation к inspector/visual без дублирования формулы.
+7. Запускает focused tests и исправляет только относящиеся к этапу дефекты.
+8. Запускает некэшированный focused gate.
+9. Запускает browser journey на стандартных портах.
+10. Проверяет save/reload и fail-closed behavior.
+11. Удаляет заменённый старый путь и повторяет gates.
+12. Публикует только законченный рубеж и проверяет production exact SHA.
+13. Отчитывается по контракту `AGENTS.md`.
+14. Не начинает следующий этап до приёмки текущего результата.
+
+## 17. Критерий завершения укороченного пути
+
+Программа MATH-0…MATH-5 завершена только когда пользователь может:
+
+```text
+разместить батарею, резистор, LED, NPN, конденсатор и DC motor
+→ собрать цепь на breadboard
+→ запустить расчёт
+→ увидеть физически согласованные токи, напряжения и состояния
+→ наблюдать RC-переход и запуск двигателя
+→ получить диагностику перегрузки и защитного диода
+→ остановить, снова запустить, сохранить и открыть проект
+```
+
+При этом:
+
+- все модели проходят заявленные numerical/profile acceptance;
+- браузер и сервер используют одну версию ядра;
+- документ и результаты детерминированы;
+- unsupported-компоненты остаются fail-closed;
+- визуал не содержит самостоятельной электрической логики;
+- добавление следующей модели не требует изменения общего solver.
+
+После этого отдельным решением открывается следующая программа: PNP/MOSFET,
+RLC, приборы, environment sensors и Arduino runtime.
