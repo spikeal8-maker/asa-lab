@@ -1,5 +1,5 @@
 schema: docs/product/schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json
-schema_version: 1.1.0
+schema_version: 1.2.0
 spec: docs/product/ASA_ELECTRONICS_COMPONENT_INFORMATION_SYSTEM.md
 status: proposed
 
@@ -43,7 +43,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, build]
-    planned_test_path: apps/web/src/electronics/testing/component-information-coverage.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-CONTRACT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/canonical-component-catalog.json
     gate: pnpm gate:electronics-m1
     assertions: [all_enabled_families_have_profiles, validation_does_not_mutate_catalog]
@@ -56,7 +56,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit]
-    planned_test_path: apps/web/src/electronics/testing/component-information-identity.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-CONTRACT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/canonical-component-catalog.json
     gate: pnpm gate:electronics-m1
     assertions: [no_join_by_kind_display_name_or_asset_path, every_override_matches_family_variant]
@@ -69,7 +69,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, visual]
-    planned_test_path: apps/web/src/electronics/testing/component-compact-inspector.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-CONTRACT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/supported-resistor.json
     gate: pnpm gate:electronics-m1
     assertions: [primary_fields_visible_without_scroll, runtime_values_absent, help_prose_absent]
@@ -82,7 +82,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, integration]
-    planned_test_path: apps/web/src/electronics/testing/component-runtime-provenance.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/supported-resistor-solved.json
     gate: pnpm gate:electronics-m1
     assertions: [finite_values_only, matching_simulation_input_digest, solved_status_required]
@@ -95,7 +95,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, integration]
-    planned_test_path: contexts/electronics/testing/simulation-input-digest.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001]
     planned_fixture_path: contexts/electronics/testing/fixtures/digest-change-matrix.json
     gate: pnpm gate:electronics-m1
     assertions: [wire_or_model_change_changes_digest, viewport_name_and_wire_color_do_not_change_digest]
@@ -108,7 +108,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit]
-    planned_test_path: contexts/electronics/testing/deterministic-result.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001]
     planned_fixture_path: contexts/electronics/testing/fixtures/deterministic-resistor.json
     gate: pnpm gate:electronics-m1
     assertions: [same_input_is_byte_identical, run_metadata_is_outside_canonical_result]
@@ -121,7 +121,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, integration]
-    planned_test_path: contexts/electronics/testing/component-unsupported-state.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001]
     planned_fixture_path: contexts/electronics/testing/fixtures/unsupported-ultrasonic-sensor.json
     gate: pnpm gate:electronics-m1
     assertions: [solve_status_unsupported, no_component_measurements, blocking_component_anchored]
@@ -134,7 +134,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit]
-    planned_test_path: contexts/electronics/testing/component-diagnostic-anchor.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001]
     planned_fixture_path: contexts/electronics/testing/fixtures/anchored-diagnostics.json
     gate: pnpm gate:electronics-m1
     assertions: [anchor_exists, ui_does_not_reassign_severity, message_key_and_params_are_consistent]
@@ -147,7 +147,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit]
-    planned_test_path: apps/web/src/electronics/testing/component-neutral-states.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/open-circuit-stopped.json
     gate: pnpm gate:electronics-m1
     assertions: [no_generic_correct_circuit_message, no_warning_badge_without_diagnostic]
@@ -160,7 +160,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, content_review]
-    planned_test_path: apps/web/src/electronics/testing/component-help-variant-override.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-HELP-CONTENT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/family-distinct-variant-pinouts.json
     gate: pnpm gate:electronics-m1
     assertions: [family_default_applies, variant_override_wins, foreign_variant_is_rejected]
@@ -172,8 +172,9 @@ requirements:
     status: blocked
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-002]
+    blocked_reason: awaiting DEC-INFO-002 owner decision
     verification: [browser, visual]
-    planned_test_path: e2e/electronics-component-help-navigation.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/populated-catalog-state.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [help_opens_in_approved_surface, catalog_state_restored_exactly]
@@ -185,8 +186,9 @@ requirements:
     status: blocked
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-003, DEC-INFO-004]
+    blocked_reason: awaiting DEC-INFO-003 and DEC-INFO-004 owner decisions
     verification: [browser, visual, accessibility]
-    planned_test_path: e2e/electronics-component-state-control.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/diagnostic-state-matrix.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [neutral_state_has_no_warning_badge, warning_and_error_badges_match_diagnostics, semantic_name_present]
@@ -199,7 +201,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, visual]
-    planned_test_path: apps/web/src/electronics/testing/component-complex-profile.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-INFO-CONTRACT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/complex-component-profiles.json
     gate: pnpm gate:electronics-m1
     assertions: [arduino_pins_grouped, breadboard_holes_not_flattened, instrument_metrics_are_domain_specific]
@@ -212,7 +214,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [browser, accessibility]
-    planned_test_path: e2e/electronics-component-information-accessibility.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/active-interaction-priority.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [semantic_controls, visible_focus, active_wire_cancelled_before_information_layer]
@@ -224,8 +226,9 @@ requirements:
     status: blocked
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-002, DEC-INFO-005]
+    blocked_reason: awaiting DEC-INFO-002 and DEC-INFO-005 owner decisions
     verification: [browser, visual, accessibility]
-    planned_test_path: e2e/electronics-component-information-mobile.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/mobile-390x844.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [canvas_coordinates_unchanged, safe_area_respected, browser_back_closes_only_owned_history_layer]
@@ -238,10 +241,10 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [browser, build]
-    planned_test_path: e2e/electronics-component-information-performance.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/performance-profile.json
     gate: pnpm gate:electronics-m1:browser
-    assertions: [help_excluded_from_initial_bundle, no_solver_call, no_svg_reparse, no_handler_long_task_over_50ms]
+    assertions: [help_excluded_from_initial_bundle, no_solver_call, no_svg_reparse, p95_interaction_task_ms_within_declared_profile_budget]
     evidence: { result: not_run, verified_sha: null, artifacts: [] }
 
   - id: ELEC-INFO-017
@@ -251,7 +254,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, content_review]
-    planned_test_path: apps/web/src/electronics/testing/component-help-content-schema.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-HELP-CONTENT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/help-content-security-matrix.json
     gate: pnpm gate:electronics-m1
     assertions: [html_rejected, media_digest_required, external_script_rejected, https_source_allowlist_enforced]
@@ -264,7 +267,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [unit, content_review]
-    planned_test_path: apps/web/src/electronics/testing/component-help-approval.spec.ts
+    planned_test_ids: [TST-ELECTRONICS-COMPONENT-HELP-CONTENT-001]
     planned_fixture_path: apps/web/src/electronics/testing/fixtures/help-approval-lifecycle.json
     gate: pnpm gate:electronics-m1
     assertions: [published_requires_all_roles, safety_change_invalidates_approval, translation_number_change_requires_engineering_review]
@@ -277,7 +280,7 @@ requirements:
     activation: mandatory
     depends_on_decisions: []
     verification: [browser]
-    planned_test_path: e2e/electronics-component-information-navigation-priority.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/navigation-priority-matrix.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [no_browser_history_trap, unsaved_guard_preserved, focused_layer_closes_after_active_interaction]
@@ -289,8 +292,9 @@ requirements:
     status: blocked
     activation: after_decisions
     depends_on_decisions: [DEC-INFO-006]
+    blocked_reason: awaiting DEC-INFO-006 owner decision
     verification: [browser, visual]
-    planned_test_path: e2e/electronics-component-help-empty-state.spec.ts
+    planned_test_ids: [TST-E2E-ELECTRONICS-COMPONENT-INFO-001]
     planned_fixture_path: e2e/fixtures/electronics/missing-published-help.json
     gate: pnpm gate:electronics-m1:browser
     assertions: [no_blank_help_page, behavior_matches_decision]

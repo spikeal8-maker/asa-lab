@@ -7,7 +7,7 @@
   "required": ["schema", "schema_version", "spec", "status", "decisions", "requirements"],
   "properties": {
     "schema": { "type": "string", "minLength": 1 },
-    "schema_version": { "const": "1.1.0" },
+    "schema_version": { "const": "1.2.0" },
     "spec": { "type": "string", "minLength": 1 },
     "status": { "enum": ["proposed", "approved", "superseded"] },
     "decisions": {
@@ -56,7 +56,13 @@
           "then": {
             "required": ["resolution"],
             "properties": {
-              "resolution": { "required": ["accepted_alternative"] }
+              "resolution": {
+                "type": "object",
+                "properties": {
+                  "accepted_alternative": { "type": "string", "minLength": 1 }
+                },
+                "required": ["accepted_alternative"]
+              }
             }
           }
         },
@@ -65,7 +71,10 @@
             "properties": { "status": { "const": "approved" } },
             "required": ["status"]
           },
-          "then": { "required": ["resolution"] }
+          "then": {
+            "properties": { "resolution": { "$ref": "#/$defs/decisionResolution" } },
+            "required": ["resolution"]
+          }
         }
       ]
     },
@@ -96,7 +105,7 @@
         "activation",
         "depends_on_decisions",
         "verification",
-        "planned_test_path",
+        "planned_test_ids",
         "planned_fixture_path",
         "gate",
         "assertions",
@@ -117,13 +126,34 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/decisionId" }
         },
+        "blocked_by_requirements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/requirementId" }
+        },
+        "blocked_by_external": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "blocked_reason": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+        },
         "verification": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": { "enum": ["unit", "integration", "browser", "visual", "accessibility", "content_review", "build"] }
         },
-        "planned_test_path": { "type": "string", "minLength": 1 },
+        "planned_test_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^TST-[A-Z0-9-]+-[0-9]{3}$"
+          }
+        },
         "planned_fixture_path": { "type": "string", "minLength": 1 },
         "gate": { "type": "string", "minLength": 1 },
         "assertions": {
@@ -140,7 +170,13 @@
             "required": ["activation"]
           },
           "then": {
-            "properties": { "depends_on_decisions": { "minItems": 1 } }
+            "properties": {
+              "depends_on_decisions": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/decisionId" }
+              }
+            }
           }
         },
         {
@@ -151,9 +187,15 @@
           "then": {
             "properties": {
               "evidence": {
+                "type": "object",
                 "properties": {
                   "result": { "const": "pass" },
-                  "verified_sha": { "$ref": "#/$defs/sha" }
+                  "verified_sha": { "$ref": "#/$defs/sha" },
+                  "artifacts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string", "minLength": 1 }
+                  }
                 },
                 "required": ["result", "verified_sha", "artifacts"]
               }
@@ -166,10 +208,8 @@
             "required": ["status"]
           },
           "then": {
-            "properties": {
-              "activation": { "const": "after_decisions" },
-              "depends_on_decisions": { "minItems": 1 }
-            }
+            "properties": { "blocked_reason": { "type": "string", "minLength": 1 } },
+            "required": ["blocked_reason"]
           }
         }
       ]

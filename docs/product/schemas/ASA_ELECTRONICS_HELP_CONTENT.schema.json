@@ -82,19 +82,9 @@
           "items": { "$ref": "#/$defs/sourceReference" }
         },
         "contentStatus": {
-          "enum": ["draft", "needs_review", "approved", "published"]
-        },
-        "review": { "$ref": "#/$defs/review" }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": { "contentStatus": { "const": "published" } },
-            "required": ["contentStatus"]
-          },
-          "then": { "required": ["review"] }
+          "enum": ["draft", "needs_review", "approved"]
         }
-      ]
+      }
     },
     "block": {
       "oneOf": [
@@ -223,18 +213,6 @@
         "publisher": { "$ref": "#/$defs/safeText" },
         "url": { "type": "string", "format": "uri", "pattern": "^https://" },
         "verifiedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "review": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["contentDigest", "reviewedBy", "engineeringApprovedBy", "ownerPublishedBy", "reviewedAt"],
-      "properties": {
-        "contentDigest": { "$ref": "#/$defs/sha256" },
-        "reviewedBy": { "type": "string", "minLength": 1 },
-        "engineeringApprovedBy": { "type": "string", "minLength": 1 },
-        "ownerPublishedBy": { "type": "string", "minLength": 1 },
-        "reviewedAt": { "type": "string", "format": "date-time" }
       }
     },
     "sha256": {

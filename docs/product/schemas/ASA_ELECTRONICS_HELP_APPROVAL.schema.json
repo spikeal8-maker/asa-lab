@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asa-lab.ru/schemas/electronics/help-approval.v1.json",
+  "title": "ASA Lab electronics help approval ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "approvals"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "approvals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/approval" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "componentFamilyId",
+        "locale",
+        "contentVersion",
+        "contentDigest",
+        "reviewedBy",
+        "engineeringApprovedBy",
+        "ownerPublishedBy",
+        "reviewedAt",
+        "sourceCommitSha"
+      ],
+      "properties": {
+        "componentFamilyId": { "$ref": "#/$defs/identifier" },
+        "locale": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+        },
+        "contentVersion": { "type": "integer", "minimum": 1 },
+        "contentDigest": { "$ref": "#/$defs/sha256" },
+        "reviewedBy": { "type": "string", "minLength": 1 },
+        "engineeringApprovedBy": { "type": "string", "minLength": 1 },
+        "ownerPublishedBy": { "type": "string", "minLength": 1 },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "sourceCommitSha": { "$ref": "#/$defs/sha" }
+      }
+    }
+  }
+}

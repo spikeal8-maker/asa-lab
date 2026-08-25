@@ -79,10 +79,7 @@
       "properties": {
         "fieldId": { "$ref": "#/$defs/identifier" },
         "labelKey": { "type": "string", "minLength": 1 },
-        "propertyPath": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$"
-        },
+        "propertyBindingId": { "$ref": "#/$defs/identifier" },
         "priority": { "enum": ["primary", "secondary", "advanced"] },
         "editor": { "enum": ["text", "number", "select", "toggle", "action"] },
         "unit": { "type": "string", "minLength": 1 },
@@ -90,10 +87,7 @@
         "maximum": { "type": "number" },
         "step": { "type": "number", "exclusiveMinimum": 0 },
         "required": { "type": "boolean" },
-        "optionsSource": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$"
-        },
+        "optionsSourceId": { "$ref": "#/$defs/identifier" },
         "actionId": { "$ref": "#/$defs/identifier" },
         "variantIds": {
           "type": "array",
@@ -107,15 +101,24 @@
             "properties": { "editor": { "const": "action" } },
             "required": ["editor"]
           },
-          "then": { "required": ["actionId"] },
-          "else": { "required": ["propertyPath"] }
+          "then": {
+            "properties": { "actionId": { "$ref": "#/$defs/identifier" } },
+            "required": ["actionId"]
+          },
+          "else": {
+            "properties": { "propertyBindingId": { "$ref": "#/$defs/identifier" } },
+            "required": ["propertyBindingId"]
+          }
         },
         {
           "if": {
             "properties": { "editor": { "const": "select" } },
             "required": ["editor"]
           },
-          "then": { "required": ["optionsSource"] }
+          "then": {
+            "properties": { "optionsSourceId": { "$ref": "#/$defs/identifier" } },
+            "required": ["optionsSourceId"]
+          }
         }
       ]
     },
@@ -125,7 +128,7 @@
       "required": [
         "metricId",
         "labelKey",
-        "sourcePath",
+        "metricBindingId",
         "unit",
         "precision",
         "signConvention",
@@ -137,10 +140,7 @@
       "properties": {
         "metricId": { "$ref": "#/$defs/identifier" },
         "labelKey": { "type": "string", "minLength": 1 },
-        "sourcePath": {
-          "type": "string",
-          "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$"
-        },
+        "metricBindingId": { "$ref": "#/$defs/identifier" },
         "unit": { "type": "string", "minLength": 1 },
         "precision": { "type": "integer", "minimum": 0, "maximum": 9 },
         "signConvention": { "type": "string", "minLength": 1 },

@@ -11,6 +11,50 @@ source_of_truth: docs/testing/planned-test-catalog.yaml
 
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
+  - id: TST-ELECTRONICS-COMPONENT-INFO-CONTRACT-001
+    title: Electronics component information schema and registry contract
+    suite: contracts
+    level: module
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-ALPHA-001, TASK-ELEC-001]
+    command: pnpm test:electronics-component-information-contract
+    timeout_seconds: 600
+    owner: electronics-team
+    artifacts: [schema-report, component-information-fixtures]
+
+  - id: TST-ELECTRONICS-COMPONENT-INFO-RUNTIME-001
+    title: Electronics component information runtime provenance and determinism
+    suite: integration
+    level: module
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-ALPHA-001, TASK-ELEC-001]
+    command: pnpm test:electronics-component-information-runtime
+    timeout_seconds: 900
+    owner: simulation-engineering
+    artifacts: [junit, deterministic-solve-fixtures, digest-change-matrix]
+
+  - id: TST-E2E-ELECTRONICS-COMPONENT-INFO-001
+    title: Electronics component inspector state and help browser journey
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-ALPHA-001, TASK-ELEC-001]
+    command: pnpm e2e:electronics-component-information
+    timeout_seconds: 1500
+    owner: electronics-team
+    artifacts: [playwright-report, screenshots, performance-profile]
+
+  - id: TST-ELECTRONICS-COMPONENT-HELP-CONTENT-001
+    title: Electronics component help content security and approval lifecycle
+    suite: contracts
+    level: module
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-ALPHA-001, TASK-ELEC-001]
+    command: pnpm test:electronics-component-help-content
+    timeout_seconds: 600
+    owner: electronics-team
+    artifacts: [schema-report, content-review-fixtures, approval-ledger-fixtures]
+
   - id: TST-MODULE-CONTRACT-001
     title: Module SDK and subject module contract validation
     suite: contracts

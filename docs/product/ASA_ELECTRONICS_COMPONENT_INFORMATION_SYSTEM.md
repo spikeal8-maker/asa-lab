@@ -18,6 +18,7 @@
 **Схемы контрактов:**
 [`ASA_ELECTRONICS_INSPECTOR_PROFILE.schema.json`](schemas/ASA_ELECTRONICS_INSPECTOR_PROFILE.schema.json),
 [`ASA_ELECTRONICS_HELP_CONTENT.schema.json`](schemas/ASA_ELECTRONICS_HELP_CONTENT.schema.json),
+[`ASA_ELECTRONICS_HELP_APPROVAL.schema.json`](schemas/ASA_ELECTRONICS_HELP_APPROVAL.schema.json),
 [`ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json`](schemas/ASA_ELECTRONICS_COMPONENT_INFORMATION_REQUIREMENTS.schema.json).
 
 ## 0. Сила требований, иерархия и решения
@@ -215,10 +216,16 @@ runtime-базу.
 ```text
 familyId     группа вариантов, показанная одной карточкой каталога
 variantId    выбираемый вариант внутри семейства
-componentId  конкретный runtime/asset contract
-instanceId   экземпляр componentId в ProjectDocument
+componentTypeId  конкретный runtime/asset contract из каталога
+componentInstanceId  экземпляр компонента; в ProjectDocument это SchematicComponent.id
 kind         внутренняя связь с моделью; не используется как ключ UI-контента
 ```
+
+Поле `TerminalRef.componentId` — историческое имя ссылки именно на
+`componentInstanceId`, а не на `componentTypeId`. Новые контракты UI и справки
+не вводят ещё один неоднозначный `componentId`. На границе текущего документа
+адаптер обязан явно отображать `SchematicComponent.id ↔ componentInstanceId` и
+`SchematicComponent.componentTypeId ↔ componentTypeId`.
 
 Профиль и справка ссылаются на `familyId`; различия задаются через
 `variantOverrides[variantId]`. Каждый override обязан ссылаться на существующий
@@ -290,7 +297,7 @@ docs/evidence/electronics/component-information/
 Техническая панель показывает значение, только если одновременно выполнены все
 условия:
 
-1. результат относится к выбранному `componentId`;
+1. результат относится к выбранному `componentInstanceId`;
 2. результат относится к текущей ревизии документа;
 3. моделирование находится в подходящем состоянии;
 4. значение конечно;
@@ -354,16 +361,44 @@ SimulationRunMetadata
 
 В digest не входят viewport, zoom, положение панелей, search, пользовательское
 имя, цвет провода без электрического смысла и help state. Один только
-`componentId` не доказывает актуальность результата. До внедрения
+`componentInstanceId` не доказывает актуальность результата. До внедрения
 `simulationInputDigest` UI скрывает показания после любого потенциально
 электрического изменения, но не обязан инвалидировать их из-за чистого UI-edit.
+
+#### 7.1.1. Алгоритм `simulationInputDigest` v1
+
+Алгоритм имеет идентификатор `asa-electronics-simulation-input-v1` и не зависит
+от locale или порядка обхода `Map`/`Set`:
+
+1. Собрать payload с `digestVersion`, `documentSchemaVersion`, electrical
+   analysis settings, controller program/runtime settings, model parameters,
+   stimulus state, components, connections, terminals и breadboard groups.
+2. Компоненты сортировать посимвольно по `componentInstanceId`; connections —
+   по стабильному connection ID; terminal pairs внутри net — по паре
+   `componentInstanceId`/`terminalId`. Объектные ключи сортировать по Unicode
+   code point. Массивы, для которых порядок имеет электрический смысл,
+   сохраняют порядок и явно перечисляются в реализации.
+3. Включать `componentTypeId`, `variantId`, электрические значения и
+   `componentInstanceId` как стабильный идентификатор связности. Исключать
+   position/rotation, viewport, zoom, panel/help state, display name, wire
+   vertices и неэлектрический wire color.
+4. До сериализации отклонять `NaN`, `Infinity` и `-Infinity`, заменять `-0` на
+   `0`. Конечные JSON numbers сериализовать по ECMAScript `JSON.stringify`.
+5. Сериализовать compact JSON без whitespace в UTF-8 и вычислить SHA-256 в
+   lowercase hex.
+
+Любое изменение состава payload или правил нормализации создаёт новый
+`digestVersion`. Golden fixtures обязаны фиксировать и канонические bytes, и
+digest; браузер и сервер вычисляют их одной общей функцией и сравниваются
+байт-в-байт. Существующий `topologySignature` не является заменой этому digest:
+он описывает только топологию и имеет отдельное назначение.
 
 ### 7.2. Контракт отдельной метрики
 
 ```text
 metricId
 labelKey
-sourcePath
+metricBindingId
 unit
 precision
 signConvention
@@ -520,19 +555,16 @@ relatedComponents
 approvedAssets[]
 variantOverrides{}
 sourceReferences[]
-contentStatus: draft | needs_review | approved | published
-reviewedBy
-engineeringApprovedBy
-reviewedAt
-lastVerifiedAt
+contentStatus: draft | needs_review | approved
 localeFallback
 ```
 
 Тексты не должны быть рассыпаны по условным веткам JSX. Содержимое получает
 стабильные идентификаторы и готовится к локализации.
 
-`published` разрешён только после заполнения `engineeringApprovedBy` для
-pinout, connection rules, safety и starter example. Перевод наследует
+Публикация разрешена только при наличии отдельной schema-valid approval-записи
+с теми же `componentFamilyId`, locale, `contentVersion` и `contentDigest`.
+Перевод наследует
 электротехническое одобрение исходной версии, только если структурные значения и
 числа не изменились; иначе требуется повторная проверка.
 
@@ -543,7 +575,10 @@ pinout, connection rules, safety и starter example. Перевод наслед
 - `ownerPublisher` переводит одобренную ревизию в `published`.
 
 Событие approval содержит actor ID, content digest и timestamp в отдельном audit
-ledger. Изменение pinout, connection rules, safety, starter example,
+ledger по `ASA_ELECTRONICS_HELP_APPROVAL.schema.json`. `contentDigest` — SHA-256
+lowercase hex от UTF-8 canonical JSON help entry после schema validation; объект
+approval в digest не входит. Канонизация использует те же правила сортировки
+ключей и чисел, что digest v1. Изменение pinout, connection rules, safety, starter example,
 source references или variant limits автоматически сбрасывает инженерное
 одобрение. Изменение только перевода повторно проверяется редактором; изменение
 числа или единицы требует engineering review.
@@ -576,12 +611,23 @@ JSON Schema проверяет форму, но не заменяет прове
 - уникальность family, field, metric, content и requirement IDs;
 - существование family/variant/terminal IDs в каноническом каталоге;
 - отсутствие variant override для чужого семейства;
-- корректность `sourcePath` относительно типизированного SolveResult;
+- разрешимость `propertyBindingId`, `optionsSourceId`, `actionId` и
+  `metricBindingId` через типизированные registry getter/setter/extractor;
 - существование source references и approved assets;
 - отсутствие HTML и внешних URL вне allowlist;
 - переходы decision/content/requirement statuses;
 - существование test и fixture для `implemented`/`verified`;
 - соответствие verified evidence тому же commit SHA и указанному gate.
+
+Строковые пути к полям документа или SolveResult запрещены: JSON хранит только
+стабильные binding IDs, а TypeScript registry связывает их с типизированными
+getter/setter/extractor. Validator обязан отклонять неизвестный binding ID до
+сборки UI.
+
+Фиксированный validator использует JSON Schema Draft 2020-12, Ajv 2020 в strict
+режиме и `ajv-formats`. Ledger требований ссылается на тесты только через IDs из
+канонического `docs/testing/planned-test-catalog.yaml`; отдельные определения
+planned tests в продуктовой спецификации запрещены.
 
 ### 9.5. Версионирование контрактов
 
@@ -638,8 +684,9 @@ help/state layer; перехват навигации браузера по ум
 - открытие/закрытие help и technical state не запускает solver;
 - смена выделения не выполняет повторный parse owner SVG;
 - локальное действие немедленно меняет семантическое состояние control;
-  синхронная работа обработчика не создаёт long task более 50 ms в browser
-  performance fixture; тяжёлый контент получает отдельный loading state;
+  p95 длительности interaction task укладывается в budget, записанный в
+  versioned browser performance fixture; тяжёлый контент получает отдельный
+  loading state;
 - изображения имеют заданные размеры до загрузки и не вызывают layout shift;
 - touch, mouse и keyboard используют одну state machine;
 - mobile layout учитывает safe-area, экранную клавиатуру и отсутствие hover.
@@ -669,6 +716,12 @@ commit SHA. Без этих параметров число latency не счи�
 
 Работа идёт независимыми потоками. `pending_owner` не блокирует фундамент, если
 требование не содержит `depends_on_decisions`.
+
+Статус `blocked` не означает автоматически ожидание владельца. Ledger различает
+`depends_on_decisions`, `blocked_by_requirements` и `blocked_by_external`, а
+`blocked_reason` обязан называть текущую проверяемую причину. После устранения
+причины требование возвращается в `planned` или продвигается в `implemented`;
+скрывать технический долг за owner decision запрещено.
 
 ### 13.1. Data foundation
 
