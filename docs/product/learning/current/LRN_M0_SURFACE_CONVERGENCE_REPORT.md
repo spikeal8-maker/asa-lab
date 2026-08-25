@@ -1,8 +1,8 @@
 # LRN-M0-007 — Surface Convergence Report
 
-**Task:** `LRN-M0-007`  
-**Baseline:** `7f185eadfdf03eb75d24acb4f1add0abefbae3f6`  
-**Scope:** existing ASA Learning read surfaces only  
+**Task:** `LRN-M0-007`
+**Baseline:** `7f185eadfdf03eb75d24acb4f1add0abefbae3f6`
+**Scope:** existing ASA Learning read surfaces only
 **Production:** `NOT DEPLOYED / MIGRATION NOT APPLIED / BACKFILL NOT RUN`
 
 ## Result
