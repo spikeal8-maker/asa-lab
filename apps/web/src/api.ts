@@ -981,6 +981,13 @@ export interface SolveResult {
     sourceVoltageToleranceVolt: number;
   };
   topologySignature?: string;
+  simulationInputDigest?: string;
+  solverRevision?: 'asa-electronics-solver-v1';
+  modelSetDigest?: 'asa-electronics-model-set-v1';
+  analysis?: {
+    electricalMode: 'dc' | 'transient';
+    controllerRuntime: 'none' | 'arduino';
+  };
 }
 
 export interface ApiError {

@@ -19,6 +19,12 @@ export {
 export type { ElectronicsDocument as SchematicDocument } from './domain/document.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
 export {
+  canonicalSimulationInput,
+  sha256Hex,
+  simulationInputDigest,
+  SIMULATION_INPUT_DIGEST_VERSION,
+} from './domain/simulation-input-digest.js';
+export {
   ledBrightnessPercent,
   ordinaryLedProfile,
   rgbLedProfile,

@@ -304,10 +304,14 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('workbench-terminal-status');
     expect(sidebarSource).toContain("if (kind === 'potentiometer') return 'Сопротивление'");
     expect(sidebarSource).toContain("selectedIsPotentiometer ? ' is-potentiometer' : ''");
-    expect(sidebarSource).toContain("c.selectedComponent.kind === 'potentiometer' && helpOpen");
+    expect(sidebarSource).toContain(
+      "c.selectedComponent.kind === 'potentiometer' && secondaryOpen",
+    );
     expect(sidebarSource).toContain('aria-label="Положение движка"');
     expect(sidebarSource).not.toContain('Положение движка: {Math.round');
-    expect(sidebarSource).toContain('(!selectedIsPotentiometer || helpOpen)');
+    expect(sidebarSource).toContain('(!selectedIsPotentiometer || secondaryOpen)');
+    expect(sidebarSource).toContain('aria-label={`Техническое состояние');
+    expect(sidebarSource).toContain('aria-label={`Справка о компоненте');
     expect(productionVisualSource).toContain('<OwnerPotentiometerVisual');
     expect(productionVisualSource).toContain('potentiometerRuntimeMarkup(ownerSvg, wiperPosition)');
     expect(productionVisualSource).toContain('data-testid="potentiometer-angle"');
@@ -326,8 +330,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('data-testid="component-simulation-status"');
     expect(sidebarSource).toContain("'Электрическая модель пока не реализована'");
     expect(sidebarSource).toContain("'Ниже показаны фактические результаты текущего расчёта.'");
-    expect(sidebarSource).toContain('helpOpen && c.simulationRunning && measurement');
-    expect(sidebarSource).toContain('helpOpen && selectedDiagnostics.length > 0');
+    expect(sidebarSource).toContain('stateOpen && measurement && technicalMetrics.length > 0');
+    expect(sidebarSource).toContain('stateOpen && selectedDiagnostics.length > 0');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');

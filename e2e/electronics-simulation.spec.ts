@@ -591,9 +591,19 @@ async function saveDocument(
   projectId: string,
   document: SchematicDocument,
 ): Promise<void> {
+  const origin = new URL(page.url()).origin;
+  const opened = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin },
+  });
+  expect(opened.status()).toBe(200);
+  const current = (await opened.json()) as { draft: { revision: number } };
   const response = await page.context().request.put(`/api/projects/${projectId}/draft`, {
-    headers: { origin: new URL(page.url()).origin },
-    data: { document, baseRevision: 1, mutationId: crypto.randomUUID() },
+    headers: { origin },
+    data: {
+      document,
+      baseRevision: current.draft.revision,
+      mutationId: crypto.randomUUID(),
+    },
   });
   expect(response.status()).toBe(200);
 }
@@ -681,7 +691,7 @@ async function unobstructedComponentPoint(
     .locator(
       `[data-testid="schematic-component"][data-component-type="${componentTypeId}"] .workbench-part`,
     )
-    .evaluate((element) => {
+    .evaluate((element, typeId) => {
       const rect = element.getBoundingClientRect();
       for (let y = rect.top + 8; y < rect.bottom - 8; y += 12) {
         for (let x = rect.left + 8; x < rect.right - 8; x += 12) {
@@ -695,8 +705,8 @@ async function unobstructedComponentPoint(
           }
         }
       }
-      throw new Error(`no unobstructed point found for ${componentTypeId}`);
-    });
+      throw new Error(`no unobstructed point found for ${typeId}`);
+    }, componentTypeId);
 }
 
 test.beforeAll(async () => {
@@ -707,6 +717,58 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await admin.end();
+});
+
+test('component inspector separates compact settings, live state and educational help', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'R4-M1 component information');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: false, resistorOhms: 220, reversedLed: false }),
+  );
+  await page.goto(`/#/home/${projectId}`);
+
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByTestId('component-compact-properties')).toContainText('Имя');
+  await expect(inspector.getByTestId('component-compact-properties')).toContainText(
+    'Сопротивление',
+  );
+  await expect(inspector).not.toContainText('Модель ожидает корректную цепь');
+
+  await inspector.getByRole('button', { name: 'Техническое состояние Резистор' }).click();
+  await expect(inspector.getByTestId('component-simulation-status')).toContainText(
+    'Моделирование остановлено',
+  );
+  await expect(inspector.getByRole('region', { name: 'Справка' })).toHaveCount(0);
+
+  await inspector.getByRole('button', { name: 'Справка о компоненте Резистор' }).click();
+  const help = inspector.getByRole('region', { name: 'Справка' });
+  await expect(help).toBeVisible();
+  await expect(help).toContainText('Описание');
+  await expect(help).toContainText('Принцип работы');
+  await expect(help).toContainText('Подключение');
+  await expect(inspector.getByTestId('component-simulation-status')).toHaveCount(0);
+
+  await inspector.getByRole('button', { name: 'Ещё параметры' }).click();
+  await expect(inspector.getByRole('combobox', { name: 'Допуск резистора' })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Свернуть библиотеку' }).click();
+  await expect(inspector).toBeVisible();
+  for (const buttonName of ['Техническое состояние Резистор', 'Справка о компоненте Резистор']) {
+    const box = await inspector.getByRole('button', { name: buttonName }).boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  }
+  failures.assertEmpty();
 });
 
 test('catalog placement is one hold-drag-release gesture and snaps on the first drop', async ({
@@ -867,7 +929,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(ledInspector.getByText(/Яркость|Ток|Напряжение/)).toHaveCount(0);
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-running.png`, fullPage: true });
 
-  await resistor.locator('.workbench-part').click();
+  await resistor.locator('.workbench-part').press('Enter');
   const resistanceInput = page
     .locator('.workbench-inspector label')
     .filter({ hasText: 'Сопротивление' })
@@ -892,7 +954,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   let previousBrightness = brightAt50Ohms;
   let persistedArbitraryBrightness = brightAt50Ohms;
   for (const resistance of [100, 166.7]) {
-    await resistor.locator('.workbench-part').click();
+    await resistor.locator('.workbench-part').press('Enter');
     const arbitraryResistanceInput = page
       .locator('.workbench-inspector label')
       .filter({ hasText: 'Сопротивление' })
@@ -904,7 +966,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     persistedArbitraryBrightness = await brightnessValue(page);
     previousBrightness = persistedArbitraryBrightness;
   }
-  await resistor.locator('.workbench-part').click();
+  await resistor.locator('.workbench-part').press('Enter');
   await expect(page.getByRole('combobox', { name: 'Единица сопротивления' })).toHaveValue('Ω');
   await expect(
     page
@@ -940,12 +1002,14 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await page.goto('/#/projects');
+  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
   await saveDocument(
     page,
     projectId,
     circuitDocument({ switchClosed: true, resistorOhms: 1000, reversedLed: true }),
   );
-  await page.reload();
+  await page.goto(`/#/home/${projectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await selectLed(page);
@@ -964,12 +1028,14 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await page.goto('/#/projects');
+  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
   await saveDocument(
     page,
     projectId,
     circuitDocument({ switchClosed: true, resistorOhms: 0, reversedLed: false }),
   );
-  await page.reload();
+  await page.goto(`/#/home/${projectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await selectLed(page);
   await expect(led).toHaveAttribute('data-diagnostics', /led_burnout/);
@@ -989,8 +1055,10 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   });
 
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await page.goto('/#/projects');
+  await page.evaluate((id) => localStorage.removeItem(`asa-project-local-draft:${id}`), projectId);
   await saveDocument(page, projectId, shortCircuitDocument());
-  await page.reload();
+  await page.goto(`/#/home/${projectId}`);
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await expect(page.getByText(/Время моделирования:/)).toBeVisible();
@@ -1104,6 +1172,7 @@ test('RGB LED mixes three calculated channels for both common modes', async ({ p
     await expect(rgb.getByTestId('rgb-led-mixture')).toHaveCSS('opacity', /^(?!0(?:\.0+)?$)/);
     await rgb.locator('.workbench-part').click();
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+    await inspector.getByRole('button', { name: 'Ещё параметры' }).click();
     await expect(inspector.getByLabel('Разводка выводов RGB-светодиода')).toHaveValue('RCBG');
     await expect(inspector.locator('.workbench-calculated-property')).toHaveCount(0);
     await expect(inspector.locator('.workbench-terminal-list')).toHaveCount(0);

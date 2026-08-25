@@ -17,6 +17,11 @@ import {
 } from './workbench-values';
 import { SEVEN_SEGMENT_COLOUR_OPTIONS } from './production-asset-contracts';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+import {
+  componentInformationProfile,
+  readMetricBinding,
+  type HelpSection,
+} from './component-information';
 
 function valueLabel(kind: string): string {
   if (kind === 'source') return 'Напряжение';
@@ -24,37 +29,6 @@ function valueLabel(kind: string): string {
   if (kind === 'potentiometer') return 'Сопротивление';
   if (kind === 'lamp') return 'Сопротивление нити';
   return 'Сопротивление';
-}
-
-function componentHelp(kind: string, componentKey?: string, description?: string): string {
-  if (componentKey === 'arduino-uno') {
-    return 'Arduino Uno выполняет setup() один раз, затем повторяет loop(). Питание 5 В и 3,3 В доступно всегда. Ниже показаны все цифровые, аналоговые и силовые выводы; свободный вывод — нормальное состояние, а не ошибка.';
-  }
-  const help: Readonly<Record<string, string>> = {
-    source: 'Напряжение задаёт разность потенциалов между положительным и отрицательным выводами.',
-    resistor:
-      'Сопротивление ограничивает ток. Значение можно вводить в Ω, kΩ или другой выбранной единице; полосы на корпусе обновляются автоматически.',
-    led: 'Цвет выбирается до запуска. Яркость, ток и перегрузка рассчитываются электрической схемой.',
-    'rgb-led': 'Каналы R, G и B рассчитываются отдельно относительно общего катода.',
-    'seven-segment': 'Сегменты A–G и DP светятся только от тока через реальные выводы индикатора.',
-    button: 'Четырёхконтактная кнопка замыкает пары клемм только пока она удерживается.',
-    switch: 'SPDT соединяет общий вывод с одной из двух клемм.',
-    potentiometer: 'Положение движка делит полное сопротивление на два плеча.',
-    diode: 'Диод проводит ток от анода к катоду после достижения прямого падения напряжения.',
-    transistor:
-      'Биполярные NPN/PNP управляют током коллектора током базы; полевой (N-канал) — током стока от напряжения затвора. Модель различает отсечку, активный режим и насыщение.',
-    lamp: 'Яркость лампы рассчитывается по электрической мощности на нити.',
-    breadboard: 'Отверстия макетной платы соединены внутренними группами с шагом 2,54 мм.',
-  };
-  const behavior = help[kind];
-  if (description && behavior && !description.includes(behavior)) {
-    return `${description} ${behavior}`;
-  }
-  return description ?? behavior ?? 'Параметры компонента сохраняются вместе с проектом.';
-}
-
-function formatCurrent(value: number): string {
-  return `${(value * 1000).toFixed(2)} мА`;
 }
 
 const LED_COLOUR_OPTIONS = [
@@ -87,6 +61,9 @@ export function WorkbenchSidebars({
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [stateOpen, setStateOpen] = useState(false);
+  const [secondaryOpen, setSecondaryOpen] = useState(false);
+  const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
@@ -96,7 +73,49 @@ export function WorkbenchSidebars({
     ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
     : [];
   const selectedSimulationSupported = c.selectedEntry?.simulationSupported === true;
-  useEffect(() => setHelpOpen(false), [c.selectedComponent?.id]);
+  const hasSecondarySettings = Boolean(
+    c.selectedComponent &&
+    c.selectedEntry &&
+    ((c.selectedFamily?.variants.length ?? 0) > 1 ||
+      c.selectedEntry.key === 'resistor-axial' ||
+      c.selectedEntry.key === 'rgb-led' ||
+      c.selectedEntry.key === 'seven-segment-display' ||
+      ['diode', 'switch', 'button', 'potentiometer', 'transistor'].includes(
+        c.selectedComponent.kind,
+      )),
+  );
+  useEffect(() => {
+    setHelpOpen(false);
+    setStateOpen(false);
+    setSecondaryOpen(false);
+    setHelpSections(null);
+  }, [c.selectedComponent?.id]);
+  useEffect(() => {
+    if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
+    let active = true;
+    setHelpSections(null);
+    void import('./component-help-content').then(({ componentHelpSections }) => {
+      if (active) {
+        setHelpSections(
+          componentHelpSections(c.selectedComponent!.kind, c.selectedEntry!.description),
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [c.selectedComponent, c.selectedEntry, helpOpen]);
+  const informationProfile =
+    c.selectedComponent && c.selectedFamily
+      ? componentInformationProfile(c.selectedFamily.familyId, c.selectedComponent.kind)
+      : null;
+  const technicalMetrics =
+    informationProfile && measurement
+      ? informationProfile.technicalMetrics.flatMap((metric) => {
+          const value = readMetricBinding(metric.metricBindingId, measurement);
+          return value === null ? [] : [{ ...metric, value }];
+        })
+      : [];
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
       ? c.selectedComponent
@@ -296,28 +315,72 @@ export function WorkbenchSidebars({
                     : (c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'Компонент')}
               </span>
             </div>
-            <button
-              type="button"
-              className="workbench-inspector-help"
-              onClick={() => setHelpOpen((value) => !value)}
-              aria-label={`Показать подробные параметры ${
-                c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
-              }`}
-              aria-expanded={helpOpen}
-            >
-              ?
-            </button>
+            {c.selectedComponent ? (
+              <div className="workbench-inspector-information-actions">
+                <button
+                  type="button"
+                  className="workbench-inspector-help"
+                  onClick={() => {
+                    setStateOpen((value) => !value);
+                    setHelpOpen(false);
+                  }}
+                  aria-label={`Техническое состояние ${
+                    c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+                  }`}
+                  aria-expanded={stateOpen}
+                  data-active={stateOpen}
+                >
+                  i
+                  {selectedDiagnostics.length > 0 ? (
+                    <span
+                      className="workbench-inspector-diagnostic-badge"
+                      data-severity={
+                        selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'error')
+                          ? 'error'
+                          : 'warning'
+                      }
+                      aria-hidden="true"
+                    >
+                      !
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className="workbench-inspector-help"
+                  onClick={() => {
+                    setHelpOpen((value) => !value);
+                    setStateOpen(false);
+                  }}
+                  aria-label={`Справка о компоненте ${
+                    c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+                  }`}
+                  aria-expanded={helpOpen}
+                  data-active={helpOpen}
+                >
+                  ?
+                </button>
+              </div>
+            ) : null}
           </div>
 
-          {helpOpen && c.selectedComponent ? (
+          {helpOpen && c.selectedComponent && c.selectedEntry ? (
+            <div className="workbench-inspector-help-popover" role="region" aria-label="Справка">
+              {helpSections ? (
+                helpSections.map((section) => (
+                  <section key={section.id}>
+                    <strong>{section.title}</strong>
+                    <p>{section.text}</p>
+                  </section>
+                ))
+              ) : (
+                <p>Загрузка справки…</p>
+              )}
+            </div>
+          ) : null}
+
+          {stateOpen && c.selectedComponent ? (
             <>
-              <div className="workbench-inspector-help-popover" role="note">
-                {componentHelp(
-                  c.selectedComponent.kind,
-                  c.selectedEntry?.key,
-                  c.selectedEntry?.description,
-                )}
-              </div>
               <div
                 className={`workbench-component-model-status${
                   selectedSimulationSupported ? ' supported' : ' pending'
@@ -327,10 +390,16 @@ export function WorkbenchSidebars({
                 <strong>
                   {selectedSimulationSupported
                     ? c.simulationRunning
-                      ? measurement
-                        ? 'Электрическая модель рассчитывается'
-                        : 'Модель ожидает корректную цепь'
-                      : 'Электрическая модель готова'
+                      ? c.result?.status === 'solved'
+                        ? measurement
+                          ? 'Расчёт актуален'
+                          : 'Ток через компонент отсутствует'
+                        : c.result?.status === 'unsupported'
+                          ? 'Расчёт заблокирован неподдерживаемым компонентом'
+                          : 'Расчёт не завершён'
+                      : measurement
+                        ? 'Сохранённый результат актуален'
+                        : 'Моделирование остановлено'
                     : 'Электрическая модель пока не реализована'}
                 </strong>
                 <span>
@@ -338,8 +407,8 @@ export function WorkbenchSidebars({
                     ? c.simulationRunning
                       ? measurement
                         ? 'Ниже показаны фактические результаты текущего расчёта.'
-                        : 'Измерения появятся после успешного расчёта подключённой схемы.'
-                      : 'Запустите моделирование, чтобы получить напряжения, ток и мощность.'
+                        : 'Численные значения отсутствуют; это не считается ошибкой само по себе.'
+                      : 'Запустите моделирование, чтобы пересчитать электрическое состояние.'
                     : 'Компонент можно размещать и соединять. Измерения появятся после внедрения его математической модели.'}
                 </span>
               </div>
@@ -353,7 +422,7 @@ export function WorkbenchSidebars({
             <div className="workbench-inspector-body" data-testid="component-compact-properties">
               {c.selectedFamily &&
               c.selectedFamily.variants.length > 1 &&
-              (!selectedIsPotentiometer || helpOpen) ? (
+              (!selectedIsPotentiometer || secondaryOpen) ? (
                 <label>
                   <span>Вариант</span>
                   <select
@@ -386,7 +455,17 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
-              {selectedIsArduino && helpOpen ? (
+              {hasSecondarySettings ? (
+                <button
+                  type="button"
+                  className="workbench-inspector-more"
+                  onClick={() => setSecondaryOpen((value) => !value)}
+                  aria-expanded={secondaryOpen}
+                >
+                  {secondaryOpen ? 'Скрыть дополнительные параметры' : 'Ещё параметры'}
+                </button>
+              ) : null}
+              {selectedIsArduino && stateOpen ? (
                 <div className="workbench-arduino-summary" data-testid="arduino-compact-summary">
                   <div>
                     <strong>
@@ -401,14 +480,10 @@ export function WorkbenchSidebars({
                   >
                     Reset
                   </button>
-                  <small>
-                    {helpOpen
-                      ? 'Подробные выводы раскрыты ниже.'
-                      : 'Нажмите ?, чтобы раскрыть выводы и измерения.'}
-                  </small>
+                  <small>Подробные выводы показаны в техническом состоянии.</small>
                 </div>
               ) : null}
-              {c.selectedComponent.kind === 'piezo' && helpOpen ? (
+              {c.selectedComponent.kind === 'piezo' && stateOpen ? (
                 <div className="workbench-piezo-summary" data-testid="piezo-runtime-summary">
                   <strong>
                     {c.resultByComponent.get(c.selectedComponent.id)?.energized
@@ -427,7 +502,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
               {['source', 'resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
-              (c.selectedComponent.kind === 'diode' && helpOpen) ? (
+              (c.selectedComponent.kind === 'diode' && secondaryOpen) ? (
                 <label>
                   <span>{valueLabel(c.selectedComponent.kind)}</span>
                   <div className="workbench-value-field">
@@ -474,7 +549,7 @@ export function WorkbenchSidebars({
                   </div>
                 </label>
               ) : null}
-              {c.selectedEntry.key === 'resistor-axial' && helpOpen ? (
+              {c.selectedEntry.key === 'resistor-axial' && secondaryOpen ? (
                 <>
                   <label>
                     <span>Допуск</span>
@@ -518,7 +593,7 @@ export function WorkbenchSidebars({
                   </label>
                 </>
               ) : null}
-              {helpOpen &&
+              {secondaryOpen &&
               (c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button') ? (
                 <label className="workbench-toggle-property">
                   <span>
@@ -534,7 +609,7 @@ export function WorkbenchSidebars({
                   />
                 </label>
               ) : null}
-              {c.selectedComponent.kind === 'button' && helpOpen ? (
+              {c.selectedComponent.kind === 'button' && secondaryOpen ? (
                 <button
                   type="button"
                   className="workbench-momentary-button"
@@ -546,7 +621,7 @@ export function WorkbenchSidebars({
                   Удерживать кнопку
                 </button>
               ) : null}
-              {c.selectedComponent.kind === 'potentiometer' && helpOpen ? (
+              {c.selectedComponent.kind === 'potentiometer' && secondaryOpen ? (
                 <label>
                   <span>Положение</span>
                   <input
@@ -562,7 +637,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedComponent.kind === 'transistor' && helpOpen ? (
+              {c.selectedComponent.kind === 'transistor' && secondaryOpen ? (
                 <fieldset className="workbench-state-controls">
                   <legend>
                     {transistorType === 'fet'
@@ -654,7 +729,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedEntry.key === 'rgb-led' ? (
+              {c.selectedEntry.key === 'rgb-led' && secondaryOpen ? (
                 <label>
                   <span>Разводка выводов</span>
                   <select
@@ -674,7 +749,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedEntry.key === 'seven-segment-display' ? (
+              {c.selectedEntry.key === 'seven-segment-display' && secondaryOpen ? (
                 <fieldset className="workbench-state-controls">
                   <legend>Семисегментный индикатор</legend>
                   <label>
@@ -711,7 +786,7 @@ export function WorkbenchSidebars({
                       ))}
                     </select>
                   </label>
-                  {helpOpen ? (
+                  {stateOpen ? (
                     <div className="workbench-segment-measurements">
                       {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => (
                         <span key={segment}>
@@ -724,14 +799,14 @@ export function WorkbenchSidebars({
                 </fieldset>
               ) : null}
 
-              {c.selectedComponent.kind === 'breadboard' && helpOpen ? (
+              {c.selectedComponent.kind === 'breadboard' && stateOpen ? (
                 <div className="workbench-breadboard-summary">
                   <strong>{c.selectedComponent.pinIds?.length ?? 0} отверстий</strong>
                   <span>Шаг 2,54 мм · внутренние группы активны</span>
                 </div>
               ) : null}
 
-              {helpOpen ? (
+              {stateOpen ? (
                 <dl
                   className="workbench-terminal-list"
                   aria-label="Подключение выводов"
@@ -763,7 +838,7 @@ export function WorkbenchSidebars({
                 </dl>
               ) : null}
 
-              {helpOpen && Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
+              {stateOpen && Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">
                   <strong>Отверстия макетки</strong>
                   {Object.entries(c.selectedComponent.holeBindings ?? {}).map(
@@ -776,69 +851,37 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {helpOpen && c.simulationRunning && measurement ? (
-                <dl className="workbench-measurements">
-                  {c.selectedComponent.kind === 'transistor' ? (
-                    <>
-                      <div>
-                        <dt>{transistorType === 'fet' ? 'Ток затвора' : 'Ток базы'}</dt>
-                        <dd>{formatCurrent(measurement.baseCurrent ?? 0)}</dd>
-                      </div>
-                      <div>
-                        <dt>{transistorType === 'fet' ? 'Ток стока' : 'Ток коллектора'}</dt>
-                        <dd>{formatCurrent(measurement.collectorCurrent ?? 0)}</dd>
-                      </div>
-                      <div>
-                        <dt>{transistorType === 'fet' ? 'Ток истока' : 'Ток эмиттера'}</dt>
-                        <dd>{formatCurrent(measurement.emitterCurrent ?? 0)}</dd>
-                      </div>
-                    </>
-                  ) : null}
-                  {c.selectedComponent.kind !== 'transistor' ? (
-                    <div>
-                      <dt>Ток</dt>
-                      <dd>{formatCurrent(measurement.current)}</dd>
+              {stateOpen && measurement && technicalMetrics.length > 0 ? (
+                <dl
+                  className="workbench-measurements"
+                  data-profile-family={informationProfile?.componentFamilyId}
+                >
+                  {technicalMetrics.map((metric) => (
+                    <div key={metric.metricId}>
+                      <dt>{metric.label}</dt>
+                      <dd>
+                        {typeof metric.value === 'number'
+                          ? metric.value.toFixed(metric.precision)
+                          : metric.value}{' '}
+                        {metric.unit}
+                      </dd>
                     </div>
-                  ) : null}
-                  <div>
-                    <dt>
-                      {c.selectedComponent.kind === 'transistor'
-                        ? transistorType === 'fet'
-                          ? 'VDS'
-                          : 'VCE'
-                        : 'Падение'}
-                    </dt>
-                    <dd>{measurement.voltageDrop.toFixed(3)} В</dd>
-                  </div>
-                  {measurement.power !== undefined ? (
-                    <div>
-                      <dt>Мощность</dt>
-                      <dd>{measurement.power.toFixed(3)} Вт</dd>
-                    </div>
-                  ) : null}
-                  {c.selectedComponent.kind === 'resistor' &&
-                  measurement.powerUtilizationPercent !== undefined ? (
+                  ))}
+                  {measurement.powerUtilizationPercent !== undefined ? (
                     <div>
                       <dt>Нагрузка по мощности</dt>
                       <dd>{measurement.powerUtilizationPercent.toFixed(0)}%</dd>
                     </div>
                   ) : null}
-                  {measurement.brightness !== undefined &&
-                  ['led', 'rgb-led', 'seven-segment', 'lamp'].includes(c.selectedComponent.kind) ? (
-                    <div>
-                      <dt>Яркость</dt>
-                      <dd>{measurement.brightness.toFixed(0)}%</dd>
-                    </div>
-                  ) : null}
-                  {c.selectedComponent.kind === 'led' || c.selectedComponent.kind === 'lamp' ? (
+                  {measurement.lit !== undefined ? (
                     <div>
                       <dt>Состояние</dt>
-                      <dd>{measurement.lit ? 'Горит' : 'Не горит'}</dd>
+                      <dd>{measurement.lit ? 'Активен' : 'Не активен'}</dd>
                     </div>
                   ) : null}
                 </dl>
               ) : null}
-              {helpOpen && selectedDiagnostics.length > 0 ? (
+              {stateOpen && selectedDiagnostics.length > 0 ? (
                 <div
                   className="workbench-component-diagnostics"
                   data-testid="component-diagnostics"
