@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-007`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** IN_PROGRESS  
+**Status:** DONE
 **Baseline SHA:** `7f185eadfdf03eb75d24acb4f1add0abefbae3f6`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
 **Work Queue:** `docs/product/learning/ASA_LEARNING_AGENT_WORK_QUEUE.md`
@@ -190,22 +190,22 @@ For 30 learners × 100 assignments, canonical evidence is fetched in a fixed num
 
 ## 21. Acceptance checklist
 
-- [ ] M0-006 owner acceptance recorded
-- [ ] one shared semantic resolver used by relevant CURRENT surfaces
-- [ ] legacy submitted / not-started regression closed
-- [ ] changes-requested regression closed
-- [ ] selected result consistent across learner/teacher
-- [ ] compatibility grading placeholder hidden
-- [ ] direct/course/quiz consistent
-- [ ] lifecycle/history split proven
-- [ ] reversible feature cutover and rollback proven
-- [ ] unit/integration/PostgreSQL/RLS tests pass
-- [ ] browser regressions and screenshots pass
-- [ ] 30 × 100 projection has no N+1
-- [ ] contracts/control-plane/governance/code/data gates pass
-- [ ] official CI green
-- [ ] ledger and factual project-map updated
+- [x] M0-006 owner acceptance recorded
+- [x] one shared semantic resolver used by relevant CURRENT surfaces
+- [x] legacy submitted / not-started regression closed
+- [x] changes-requested regression closed
+- [x] selected result consistent across learner/teacher
+- [x] compatibility grading placeholder hidden
+- [x] direct/course/quiz consistent
+- [x] lifecycle/history split proven
+- [x] reversible feature cutover and rollback proven
+- [x] unit/integration/PostgreSQL/RLS tests pass
+- [x] browser regressions and screenshots pass
+- [x] 30 × 100 projection has no N+1
+- [x] contracts/control-plane/governance/code/data gates pass
+- [x] official governance/code/PostgreSQL CI green on the published feature SHA
+- [x] ledger and factual project-map updated
 
 ## 22. Evidence
 
-Pending implementation. Production status must remain `NOT DEPLOYED / NOT APPLIED` unless separately authorized.
+Implemented and merged by PR #151 as `9e7398a8ef4bdb0963601a694a4a9d7eed34d996`. Production status remains `NOT DEPLOYED / NOT APPLIED`; no production action was authorized or performed.

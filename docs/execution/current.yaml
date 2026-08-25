@@ -301,15 +301,15 @@ parallel_lanes:
       branch: agent/learning-m0-surface-convergence
       base_branch: main
       pr: 151
-      pr_draft: true
-      status: in_progress
-      checkpoint: lrn_m0_007_execution_spec_preflight
+      pr_draft: false
+      status: done
+      checkpoint: merged_to_main
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 7f185eadfdf03eb75d24acb4f1add0abefbae3f6
       head_sha: 7f185eadfdf03eb75d24acb4f1add0abefbae3f6
       owner_accepted_sha: c8fe06ccf54bb65ef18f6eb51cce32b189de7df8
-      product_merge_sha: 65c058c733669345e8cf178712921b1d71ef16b2
+      product_merge_sha: 9e7398a8ef4bdb0963601a694a4a9d7eed34d996
     execution_lease:
       executor_id: codex-learning-m0-surface-convergence
       holder: unassigned

@@ -2,6 +2,7 @@
 
 **Task:** `LRN-M0-007`
 **Baseline:** `7f185eadfdf03eb75d24acb4f1add0abefbae3f6`
+**Product merge:** `9e7398a8ef4bdb0963601a694a4a9d7eed34d996` (PR #151)
 **Scope:** existing ASA Learning read surfaces only
 **Production:** `NOT DEPLOYED / MIGRATION NOT APPLIED / BACKFILL NOT RUN`
 
@@ -151,8 +152,9 @@ M0-007 proves a compatibility identity resolution boundary, not universal stable
 - fresh no-cache API and web builds: passed;
 - `pnpm gate:code`: passed with Nx cache explicitly skipped (`compose:check` reported its documented local Docker skip);
 - `pnpm gate:data`: passed on a freshly provisioned `asalab_test` (1,096 tests plus 15 RLS tests). The first run on an accumulated test database hit two unrelated five-second timeouts; both passed after the repository-supported isolated test reset.
+- official `ASA Lab Governance and Code Gates`: governance, code and PostgreSQL/RLS passed on published feature SHA `ad80b6938e36e79df2c4d4f55d9000bfa2bff618` before merge.
 
-Repository governance/code/data gates and official GitHub CI are recorded after the final evidence run and publication; this report must not be used to claim them before those receipts exist.
+The unrelated optional Electronics browser workflow remained red because a wire hit-area intercepted a resistor click in `electronics-simulation.spec.ts`; M0-007 changes no Electronics code. Its shared solver/editor build passed, and the required repository governance/code/data workflow is green.
 
 ## Known gaps
 
