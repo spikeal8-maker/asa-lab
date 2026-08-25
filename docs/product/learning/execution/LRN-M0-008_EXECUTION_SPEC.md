@@ -2,7 +2,7 @@
 
 **Task:** `LRN-M0-008`  
 **Milestone:** `M0 — State Convergence`  
-**Status:** IN_PROGRESS  
+**Status:** DONE — `M0 ACCEPTED`; owner acceptance pending
 **Baseline SHA:** `309c66b4c04d769945af2f7c0c3bdb728ccb2a97`  
 **Issue:** `#152`  
 **Master Spec:** `docs/product/ASA_LEARNING_TECHNICAL_SPEC.md`  
@@ -148,24 +148,31 @@ Re-run 30 learners × 100 assignments; require one bounded projection query and 
 
 ## 21. Acceptance checklist
 
-- [ ] M0-001..007 coherence matrix
-- [ ] Master Spec M0 DoD evidence matrix
-- [ ] fresh isolated database 0001..0089
-- [ ] repeat migrations = zero pending
-- [ ] regression matrix A-H
-- [ ] ledger M0 subset audit
-- [ ] IDN-003 M1 disposition without semantic weakening
-- [ ] GRD-002/GRD-005 remain honest M3 scope
-- [ ] M2-009 dependency conflict corrected documentarily
-- [ ] factual governance/project-map drift corrected
-- [ ] safe production rollout and rollback documented, not executed
-- [ ] contracts/OpenAPI gate
-- [ ] unit/integration/migration/security/performance gates
-- [ ] browser evidence
-- [ ] required repository gates on exact candidate SHA
-- [ ] official GitHub workflow
-- [ ] final verdict is exactly `M0 ACCEPTED` or `M0 NOT ACCEPTED`
+- [x] M0-001..007 coherence matrix
+- [x] Master Spec M0 DoD evidence matrix
+- [x] fresh isolated database 0001..0089
+- [x] repeat migrations = zero pending
+- [x] regression matrix A-H
+- [x] ledger M0 subset audit
+- [x] IDN-003 M1 disposition without semantic weakening
+- [x] GRD-002/GRD-005 remain honest M3 scope
+- [x] M2-009 dependency conflict corrected documentarily
+- [x] factual governance/project-map drift corrected
+- [x] safe production rollout and rollback documented, not executed
+- [x] contracts/OpenAPI gate
+- [x] unit/integration/migration/security/performance gates
+- [x] browser evidence
+- [x] required repository gates on exact candidate SHA
+- [x] official GitHub workflow
+- [x] final verdict is exactly `M0 ACCEPTED` or `M0 NOT ACCEPTED`
 
 ## 22. Evidence
 
-Pending. The final report will record the candidate/final SHA, exact commands and outputs, fresh database receipt, browser artifacts, security/performance evidence, known non-M0 gaps and production status.
+```text
+acceptance candidate SHA: 027e77671cc76d2fb594f6aa2ffc5fae94137a5c
+publication merge SHA: 00179afadbae87abca32f4ad3a3206d0d1e64823
+official workflow: https://github.com/spikeal8-maker/asa-lab/actions/runs/32880590542
+verdict: M0 ACCEPTED
+production: untouched
+next milestone: not activated
+```

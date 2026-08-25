@@ -23,10 +23,11 @@ execution direct_main
 ## Parallel ASA Learning M0 lane
 
 The owner accepted `LRN-M0-001` through `LRN-M0-007`. `LRN-M0-008 — M0
-Acceptance Gate` is the only active Learning task in draft PR #153. It evaluates
-the complete M0 evidence chain on a fresh isolated database; it does not add a
-feature. The primary Admin/Auth task is unchanged. M1-M7 are not activated, and
-production deployment, migration apply and backfill are not authorized.
+Acceptance Gate` published verdict `M0 ACCEPTED` through merged PR #153 after a
+fresh isolated database and exact-SHA governance/code/data workflow. Owner
+acceptance of the gate remains pending. The primary Admin/Auth task is unchanged.
+M1-M7 are not activated, and production deployment, migration apply and backfill
+are not authorized.
 
 The CURRENT repository already contains course, direct-assignment, quiz,
 attempt/result and gradebook implementations. Therefore `CTX-CONTENT`,

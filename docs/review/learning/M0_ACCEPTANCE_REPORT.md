@@ -2,7 +2,8 @@
 
 **Task:** `LRN-M0-008 — M0 Acceptance Gate`  
 **Baseline:** `309c66b4c04d769945af2f7c0c3bdb728ccb2a97`  
-**Acceptance candidate SHA:** assigned to the evidence commit containing this report; recorded by the closure commit after exact-SHA CI  
+**Acceptance candidate SHA:** `027e77671cc76d2fb594f6aa2ffc5fae94137a5c`
+**Publication merge SHA:** `00179afadbae87abca32f4ad3a3206d0d1e64823`
 **Product source SHA:** `309c66b4c04d769945af2f7c0c3bdb728ccb2a97`  
 **Production:** `NOT DEPLOYED / MIGRATIONS 0086..0089 NOT APPLIED / BACKFILL NOT RUN`
 
@@ -196,7 +197,13 @@ Recorded before closure:
 - guarded convergence CLI: second run 0, grade conversion 0, fabricated history 0;
 - browser: 1/1 PASS, six screenshots;
 - performance: 3,000 rows, one query, 89.3 ms;
-- remaining required repository gates and exact-SHA GitHub workflow are recorded by the closure commit.
+- `git diff --check`: PASS;
+- `pnpm contracts:check`: PASS, 52 OpenAPI paths;
+- `pnpm control-plane:check`: PASS;
+- `pnpm gate:governance`: PASS;
+- `NX_SKIP_NX_CACHE=true pnpm gate:code`: PASS; Nx cache skipped (local Compose rendering was explicitly SKIPPED because Docker CLI was unavailable);
+- `pnpm gate:data`: PASS on a reset fresh acceptance DB, 160 files / 1,097 tests plus 15 RLS tests;
+- official exact-SHA workflow: PASS for governance, code and PostgreSQL/RLS — https://github.com/spikeal8-maker/asa-lab/actions/runs/32880590542.
 
 ## Next boundary
 

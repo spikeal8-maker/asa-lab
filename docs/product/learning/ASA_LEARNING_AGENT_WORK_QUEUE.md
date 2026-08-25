@@ -566,7 +566,7 @@ Same learner/activity показывает согласованный state/resu
 
 ## TASK LRN-M0-008 — M0 Acceptance Gate
 
-**status:** BLOCKED  
+**status:** DONE — `M0 ACCEPTED`; owner acceptance pending
 **depends_on:** LRN-M0-001..007
 
 ### Gate

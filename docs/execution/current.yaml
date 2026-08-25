@@ -301,15 +301,15 @@ parallel_lanes:
       branch: agent/learning-m0-acceptance
       base_branch: main
       pr: 153
-      pr_draft: true
-      status: in_progress
-      checkpoint: m0_acceptance_gate
+      pr_draft: false
+      status: done
+      checkpoint: m0_acceptance_evidence_published
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
-      head_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
+      head_sha: 027e77671cc76d2fb594f6aa2ffc5fae94137a5c
       owner_accepted_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
-      product_merge_sha: 9e7398a8ef4bdb0963601a694a4a9d7eed34d996
+      product_merge_sha: 00179afadbae87abca32f4ad3a3206d0d1e64823
     execution_lease:
       executor_id: codex-learning-m0-acceptance
       holder: unassigned
