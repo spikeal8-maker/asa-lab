@@ -72,4 +72,31 @@ describe('ASA 3D logical selection model', () => {
       { x: -5, y: 10, z: 30 },
     ]);
   });
+
+  it('scales a boolean proxy around its shared centre without flattening its members', () => {
+    const second = createThreeDNode('cylinder', 'second');
+    const nodes = [
+      { ...createThreeDNode('box', 'first'), groupId: 'group-a' },
+      {
+        ...second,
+        groupId: 'group-a',
+        transform: { ...second.transform, position: { x: 20, y: 10, z: 0 } },
+      },
+    ];
+    const replacements = directManipulationReplacements({ ...createEmptyThreeDDocument(), nodes }, [
+      {
+        nodeId: 'group:group-a',
+        dimensions: { width: 80, height: 20, depth: 20 },
+        transform: {
+          position: { x: 10, y: 10, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+        },
+      },
+    ]);
+
+    expect(replacements.map((node) => node.transform.position.x)).toEqual([-10, 30]);
+    expect(replacements.map((node) => node.dimensions.width)).toEqual([40, 40]);
+    expect(replacements.every((node) => node.groupId === 'group-a')).toBe(true);
+  });
 });

@@ -76,6 +76,14 @@ interface DragState {
     readonly entry: DirectManipulationEntry;
     readonly startPosition: THREE.Vector3;
   }[];
+  readonly transformEntries: readonly {
+    readonly nodeId: string;
+    readonly entry: DirectManipulationEntry;
+    readonly startPosition: THREE.Vector3;
+    readonly startQuaternion: THREE.Quaternion;
+    readonly startScale: THREE.Vector3;
+  }[];
+  readonly multiSelection: boolean;
   moved: boolean;
   currentAngleDegrees: number;
 }
@@ -499,11 +507,9 @@ export class DirectManipulator {
     const selectedEntries = this.selectedEntries();
     this.updateFootprint(selectedEntries);
     if (selectedEntries.length > 1) {
-      this.centreMarker.visible = false;
-      this.handleRoot.visible = false;
-      this.rotationRing.visible = false;
+      this.updateMultiSelectionHandles(selectedEntries);
       this.publishHandlePositions(null);
-      this.clearDimensionVisuals();
+      this.updateLabelPositions();
       return;
     }
     const entry = this.selectedEntry();
@@ -610,6 +616,74 @@ export class DirectManipulator {
     this.updateRotationRingTransform(entry);
     this.publishHandlePositions(entry);
     this.updateLabelPositions();
+  }
+
+  private updateMultiSelectionHandles(entries: readonly DirectManipulationEntry[]): void {
+    const bounds = new THREE.Box3();
+    entries.forEach((entry) => bounds.expandByObject(entry.object));
+    if (bounds.isEmpty()) return;
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const frontCentre = new THREE.Vector3(center.x, center.y, bounds.max.z);
+    this.centreMarker.visible = true;
+    this.centreMarker.position.copy(frontCentre);
+    this.centreMarker.quaternion.copy(this.camera.quaternion);
+    this.centreMarker.scale.setScalar(this.worldUnitsPerPixel(frontCentre) * 6);
+
+    const showHandles = entries.some((entry) => !entry.node.locked);
+    this.handleRoot.visible = showHandles;
+    if (!showHandles) return;
+    for (const descriptor of RESIZE_HANDLES) {
+      const visual = this.handles.get(descriptor.id);
+      if (!visual) continue;
+      const world = new THREE.Vector3(
+        center.x + (descriptor.xSign ?? 0) * (size.x / 2),
+        bounds.min.y,
+        center.z + (descriptor.zSign ?? 0) * (size.z / 2),
+      );
+      visual.root.visible = true;
+      visual.root.position.copy(world);
+      visual.root.quaternion.identity();
+      visual.root.scale.setScalar(this.worldUnitsPerPixel(world) * 20);
+    }
+
+    const heightVisual = this.handles.get(HEIGHT_HANDLE.id);
+    if (heightVisual) {
+      const world = new THREE.Vector3(center.x, bounds.max.y, center.z);
+      heightVisual.root.visible = true;
+      heightVisual.root.position.copy(world);
+      heightVisual.root.quaternion.identity();
+      heightVisual.root.scale.setScalar(this.worldUnitsPerPixel(world) * 20);
+    }
+    const liftVisual = this.handles.get(LIFT_HANDLE.id);
+    if (liftVisual) {
+      const world = new THREE.Vector3(center.x, bounds.max.y, center.z);
+      const unit = this.worldUnitsPerPixel(world);
+      world.y += unit * 57;
+      liftVisual.root.visible = true;
+      liftVisual.root.position.copy(world);
+      liftVisual.root.quaternion.identity();
+      liftVisual.root.scale.setScalar(unit * 23);
+    }
+
+    const rotationPositions: readonly [string, THREE.Vector3][] = [
+      ['rotate-y', new THREE.Vector3(bounds.max.x, bounds.min.y, center.z)],
+      ['rotate-x', new THREE.Vector3(center.x, bounds.min.y, bounds.max.z)],
+      ['rotate-z', new THREE.Vector3(center.x, bounds.max.y, center.z)],
+    ];
+    rotationPositions.forEach(([id, boundary]) => {
+      const visual = this.handles.get(id);
+      if (!visual) return;
+      const unit = this.worldUnitsPerPixel(boundary);
+      const world = boundary.clone();
+      if (id === 'rotate-y') world.x += unit * 34;
+      else if (id === 'rotate-x') world.z += unit * 34;
+      else world.y += unit * 29;
+      visual.root.visible = true;
+      visual.root.position.copy(world);
+      visual.root.scale.set(unit * 26, unit * 26, 1);
+    });
+    this.updateMultiRotationRingTransform(bounds);
   }
 
   private updateFootprint(entries: readonly DirectManipulationEntry[]): void {
@@ -980,10 +1054,18 @@ export class DirectManipulator {
   ): void {
     this.pinnedMeasurement = null;
     const object = entry.object;
-    const startPosition = object.position.clone();
-    const startQuaternion = object.quaternion.clone();
-    const startScale = object.scale.clone();
-    const dimensions = this.effectiveDimensions(entry);
+    const selectedEntries = this.selectedEntries().filter((selected) => !selected.node.locked);
+    const multiSelection = descriptor.kind !== 'move' && selectedEntries.length > 1;
+    const selectionBounds = new THREE.Box3();
+    selectedEntries.forEach((selected) => selectionBounds.expandByObject(selected.object));
+    const startPosition = multiSelection
+      ? selectionBounds.getCenter(new THREE.Vector3())
+      : object.position.clone();
+    const startQuaternion = multiSelection ? new THREE.Quaternion() : object.quaternion.clone();
+    const startScale = multiSelection ? new THREE.Vector3(1, 1, 1) : object.scale.clone();
+    const dimensions = multiSelection
+      ? selectionBounds.getSize(new THREE.Vector3())
+      : this.effectiveDimensions(entry);
     const localY = new THREE.Vector3(0, 1, 0).applyQuaternion(startQuaternion).normalize();
     let plane: THREE.Plane;
     let axisWorld: THREE.Vector3 | null = null;
@@ -1002,14 +1084,20 @@ export class DirectManipulator {
        */
       plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -dragPlaneHeight(startPosition.y));
     } else if (descriptor.kind === 'resize') {
-      mathematicalHandlePoint = this.worldFromLocal(
-        entry,
-        new THREE.Vector3(
-          (descriptor.xSign ?? 0) * (dimensions.x / 2),
-          -dimensions.y / 2,
-          (descriptor.zSign ?? 0) * (dimensions.z / 2),
-        ),
-      );
+      mathematicalHandlePoint = multiSelection
+        ? new THREE.Vector3(
+            startPosition.x + (descriptor.xSign ?? 0) * (dimensions.x / 2),
+            selectionBounds.min.y,
+            startPosition.z + (descriptor.zSign ?? 0) * (dimensions.z / 2),
+          )
+        : this.worldFromLocal(
+            entry,
+            new THREE.Vector3(
+              (descriptor.xSign ?? 0) * (dimensions.x / 2),
+              -dimensions.y / 2,
+              (descriptor.zSign ?? 0) * (dimensions.z / 2),
+            ),
+          );
       plane = new THREE.Plane().setFromNormalAndCoplanarPoint(localY, mathematicalHandlePoint);
     } else if (descriptor.kind === 'height') {
       axisWorld = localY;
@@ -1044,6 +1132,13 @@ export class DirectManipulator {
               startPosition: selected.object.position.clone(),
             }))
         : [{ nodeId, entry, startPosition: startPosition.clone() }];
+    const transformEntries = (multiSelection ? selectedEntries : [entry]).map((selected) => ({
+      nodeId: selected.node.id,
+      entry: selected,
+      startPosition: selected.object.position.clone(),
+      startQuaternion: selected.object.quaternion.clone(),
+      startScale: selected.object.scale.clone(),
+    }));
     const startRotationVector =
       descriptor.kind === 'rotate'
         ? startPoint
@@ -1069,8 +1164,12 @@ export class DirectManipulator {
       axisWorld,
       startRotationVector,
       pointerGrabOffset,
-      floorPositionY: startPosition.y - bounds.min.y,
+      floorPositionY: multiSelection
+        ? startPosition.y - selectionBounds.min.y
+        : startPosition.y - bounds.min.y,
       moveEntries,
+      transformEntries,
+      multiSelection,
       moved: false,
       currentAngleDegrees: 0,
     };
@@ -1140,15 +1239,34 @@ export class DirectManipulator {
         centered: event.altKey,
         uniform: event.shiftKey,
       });
-      object.scale.set(
-        result.width / drag.entry.node.dimensions.width,
-        drag.startScale.y,
-        result.depth / drag.entry.node.dimensions.depth,
-      );
       const centreOffset = new THREE.Vector3(result.centerOffsetX, 0, result.centerOffsetZ)
         .applyQuaternion(drag.startQuaternion)
         .add(drag.startPosition);
-      object.position.copy(centreOffset);
+      if (drag.multiSelection) {
+        const scaleX = result.width / drag.initialWidth;
+        const scaleZ = result.depth / drag.initialDepth;
+        drag.transformEntries.forEach((moving) => {
+          const relative = moving.startPosition.clone().sub(drag.startPosition);
+          moving.entry.object.position.set(
+            centreOffset.x + relative.x * scaleX,
+            moving.startPosition.y,
+            centreOffset.z + relative.z * scaleZ,
+          );
+          moving.entry.object.scale.set(
+            moving.startScale.x * scaleX,
+            moving.startScale.y,
+            moving.startScale.z * scaleZ,
+          );
+          moving.entry.object.updateMatrixWorld(true);
+        });
+      } else {
+        object.scale.set(
+          result.width / drag.entry.node.dimensions.width,
+          drag.startScale.y,
+          result.depth / drag.entry.node.dimensions.depth,
+        );
+        object.position.copy(centreOffset);
+      }
     } else if (drag.descriptor.kind === 'height') {
       const axisDelta = delta.dot(drag.axisWorld as THREE.Vector3);
       const result = calculateHeightResize(
@@ -1159,27 +1277,55 @@ export class DirectManipulator {
         event.altKey,
       );
       const uniformFactor = result.height / drag.initialHeight;
-      object.scale.set(
-        event.shiftKey
-          ? (drag.initialWidth * uniformFactor) / drag.entry.node.dimensions.width
-          : drag.startScale.x,
-        result.height / drag.entry.node.dimensions.height,
-        event.shiftKey
-          ? (drag.initialDepth * uniformFactor) / drag.entry.node.dimensions.depth
-          : drag.startScale.z,
-      );
-      object.position
-        .copy(drag.startPosition)
+      const targetCenter = drag.startPosition
+        .clone()
         .add((drag.axisWorld as THREE.Vector3).clone().multiplyScalar(result.centerOffset));
+      if (drag.multiSelection) {
+        drag.transformEntries.forEach((moving) => {
+          const relative = moving.startPosition.clone().sub(drag.startPosition);
+          moving.entry.object.position.set(
+            targetCenter.x + relative.x * (event.shiftKey ? uniformFactor : 1),
+            targetCenter.y + relative.y * uniformFactor,
+            targetCenter.z + relative.z * (event.shiftKey ? uniformFactor : 1),
+          );
+          moving.entry.object.scale.set(
+            moving.startScale.x * (event.shiftKey ? uniformFactor : 1),
+            moving.startScale.y * uniformFactor,
+            moving.startScale.z * (event.shiftKey ? uniformFactor : 1),
+          );
+          moving.entry.object.updateMatrixWorld(true);
+        });
+      } else {
+        object.scale.set(
+          event.shiftKey
+            ? (drag.initialWidth * uniformFactor) / drag.entry.node.dimensions.width
+            : drag.startScale.x,
+          result.height / drag.entry.node.dimensions.height,
+          event.shiftKey
+            ? (drag.initialDepth * uniformFactor) / drag.entry.node.dimensions.depth
+            : drag.startScale.z,
+        );
+        object.position.copy(targetCenter);
+      }
     } else if (drag.descriptor.kind === 'lift') {
       const axisDelta = delta.dot(drag.axisWorld as THREE.Vector3);
-      object.position.copy(drag.startPosition);
-      object.position.y = calculateLiftPosition(
+      const targetY = calculateLiftPosition(
         drag.startPosition.y,
         axisDelta,
         drag.floorPositionY,
         this.gridSnap,
       );
+      if (drag.multiSelection) {
+        const offsetY = targetY - drag.startPosition.y;
+        drag.transformEntries.forEach((moving) => {
+          moving.entry.object.position.copy(moving.startPosition);
+          moving.entry.object.position.y += offsetY;
+          moving.entry.object.updateMatrixWorld(true);
+        });
+      } else {
+        object.position.copy(drag.startPosition);
+        object.position.y = targetY;
+      }
     } else {
       const axis = drag.axisWorld as THREE.Vector3;
       const currentVector = point.clone().sub(drag.startPosition).projectOnPlane(axis).normalize();
@@ -1192,7 +1338,22 @@ export class DirectManipulator {
         axisVector(drag.descriptor.axis ?? 'y'),
         snapped,
       );
-      object.quaternion.copy(drag.startQuaternion).multiply(localRotation).normalize();
+      if (drag.multiSelection) {
+        drag.transformEntries.forEach((moving) => {
+          const relative = moving.startPosition
+            .clone()
+            .sub(drag.startPosition)
+            .applyQuaternion(localRotation);
+          moving.entry.object.position.copy(drag.startPosition).add(relative);
+          moving.entry.object.quaternion
+            .copy(localRotation)
+            .multiply(moving.startQuaternion)
+            .normalize();
+          moving.entry.object.updateMatrixWorld(true);
+        });
+      } else {
+        object.quaternion.copy(drag.startQuaternion).multiply(localRotation).normalize();
+      }
     }
 
     object.updateMatrixWorld(true);
@@ -1208,6 +1369,14 @@ export class DirectManipulator {
     if (drag.descriptor.kind === 'move') {
       return drag.moveEntries.some(
         (moving) => moving.entry.object.position.distanceToSquared(moving.startPosition) > 0.000001,
+      );
+    }
+    if (drag.multiSelection) {
+      return drag.transformEntries.some(
+        (moving) =>
+          moving.entry.object.position.distanceToSquared(moving.startPosition) > 0.000001 ||
+          moving.entry.object.scale.distanceToSquared(moving.startScale) > 0.000001 ||
+          1 - Math.abs(moving.entry.object.quaternion.dot(moving.startQuaternion)) > 0.000001,
       );
     }
     const object = drag.entry.object;
@@ -1230,9 +1399,22 @@ export class DirectManipulator {
     delete this.container.dataset['manipulationCount'];
     this.canvas.style.cursor = 'default';
     if (drag.moved) {
-      if (drag.descriptor.kind === 'move' && drag.moveEntries.length > 1) {
+      if ((drag.descriptor.kind === 'move' && drag.moveEntries.length > 1) || drag.multiSelection) {
+        const movingEntries = drag.multiSelection ? drag.transformEntries : drag.moveEntries;
         this.callbacks.onCommitMany(
-          drag.moveEntries.map((moving) => this.createCommit(moving.nodeId, moving.entry.object)),
+          movingEntries.map((moving) => {
+            let dimensions: ThreeDDimensions | undefined;
+            if (drag.descriptor.kind === 'resize' || drag.descriptor.kind === 'height') {
+              const effective = this.effectiveDimensions(moving.entry);
+              dimensions = {
+                width: round(effective.x, 3),
+                depth: round(effective.z, 3),
+                height: round(effective.y, 3),
+              };
+              moving.entry.object.scale.set(1, 1, 1);
+            }
+            return this.createCommit(moving.nodeId, moving.entry.object, dimensions);
+          }),
         );
         this.clearDimensionVisuals();
         this.pinnedMeasurement = null;
@@ -1337,7 +1519,13 @@ export class DirectManipulator {
     this.clearRotationRing();
     this.rotationRingAxis = axis;
     this.rotationRing.userData['directHandleId'] = handleId;
-    const dimensions = this.effectiveDimensions(entry);
+    const selectedEntries = this.selectedEntries();
+    const selectionBounds = new THREE.Box3();
+    selectedEntries.forEach((selected) => selectionBounds.expandByObject(selected.object));
+    const dimensions =
+      selectedEntries.length > 1
+        ? selectionBounds.getSize(new THREE.Vector3())
+        : this.effectiveDimensions(entry);
     const radius = Math.max(dimensions.x, dimensions.y, dimensions.z) * 0.92;
     const inner = radius * 0.8;
     const ringMaterial = new THREE.MeshBasicMaterial({
@@ -1422,7 +1610,22 @@ export class DirectManipulator {
     lines.renderOrder = 52;
     this.rotationRing.add(lines);
     this.rotationRing.visible = true;
-    this.updateRotationRingTransform(entry);
+    if (selectedEntries.length > 1) this.updateMultiRotationRingTransform(selectionBounds);
+    else this.updateRotationRingTransform(entry);
+  }
+
+  private updateMultiRotationRingTransform(bounds: THREE.Box3): void {
+    if (!this.rotationRingAxis || !this.rotationRing.visible || bounds.isEmpty()) return;
+    const center = bounds.getCenter(new THREE.Vector3());
+    this.rotationRing.position.copy(center);
+    if (this.rotationRingAxis === 'y') this.rotationRing.position.y = bounds.min.y;
+    const orientation = new THREE.Quaternion();
+    if (this.rotationRingAxis === 'y') {
+      orientation.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+    } else if (this.rotationRingAxis === 'x') {
+      orientation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    }
+    this.rotationRing.quaternion.copy(orientation);
   }
 
   private updateRotationRingTransform(entry: DirectManipulationEntry): void {
@@ -1468,6 +1671,7 @@ export class DirectManipulator {
     this.measurementEditingEnabled = Boolean(
       !this.drag && descriptor && descriptor.id === this.pinnedMeasurement?.descriptor.id,
     );
+    if (this.selectedEntries().length > 1) return;
     const entry = this.selectedEntry();
     if (!entry || !descriptor) return;
     const dimensions = this.effectiveDimensions(entry);
