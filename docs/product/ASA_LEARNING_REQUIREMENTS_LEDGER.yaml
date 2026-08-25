@@ -20,12 +20,17 @@ requirements:
   tests: []
 - id: MIG-001
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Resolve legacy classroom status and Attempt/Gradebook contradictions before Gradebook 2.0
   evidence:
   - docs/product/learning/current/LRN_M0_CURRENT_ARCHITECTURE.md
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
-  tests: []
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  - migrations/0089_learning_canonical_read_projection.sql
+  tests:
+  - apps/api/src/learning-canonical-projection.service.spec.ts
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
 - id: MIG-002
   milestone: M0
   status: proven
@@ -73,15 +78,21 @@ requirements:
   - tests/courses/learning-additive-backfill.pg.spec.ts
 - id: MIG-005
   milestone: M0
-  status: in_progress
+  status: proven
   summary: After accepted migration derive runtime status from Participation, Attempt and Result rather than parallel legacy flags
   evidence:
   - docs/product/learning/current/LRN_M0_STATUS_DIVERGENCE_REPORT.md
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
   - contexts/learning/domain/canonical-learning-state.ts
+  - apps/api/src/learning-canonical-projection.service.ts
+  - migrations/0089_learning_canonical_read_projection.sql
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
   tests:
   - contexts/learning/testing/canonical-learning-state.spec.ts
   - tests/courses/learning-canonical-adapters.spec.ts
+  - apps/api/src/learning-canonical-projection.service.spec.ts
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
 - id: IDN-001
   milestone: M0
   status: proven
@@ -146,11 +157,17 @@ requirements:
   - TST-INT-002
 - id: ARCH-003
   milestone: M0
-  status: in_progress
+  status: proven
   summary: Gradebook is a canonical projection and not independent grade storage
   evidence:
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
-  tests: []
+  - apps/api/src/learning-assessments.controller.ts
+  - apps/api/src/learning-canonical-projection.service.ts
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  tests:
+  - apps/api/src/learning-assessments.controller.spec.ts
+  - tests/courses/learning-surface-convergence.pg.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
 - id: RUN-005
   milestone: M1
   status: target
@@ -248,15 +265,24 @@ requirements:
   summary: Gradebook matrix is built from one canonical server projection
   evidence:
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
-  tests: []
+  - apps/api/src/learning-assessments.controller.ts
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
+  tests:
+  - apps/api/src/learning-assessments.controller.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
 - id: GRD-005
   milestone: M3
   status: in_progress
   summary: Gradebook cell separates workflowState, selectedResult and flags
   evidence:
   - docs/product/learning/current/LRN_M0_CANONICAL_STATE_RESULT_RESOLVER.md
+  - apps/api/src/learning-canonical-projection.service.ts
+  - apps/web/src/components/ClassroomGradebook.tsx
+  - docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
   tests:
   - E2E-005
+  - apps/api/src/learning-canonical-projection.service.spec.ts
+  - e2e/learning-surface-convergence.spec.ts
 - id: GRD-007
   milestone: M3
   status: target

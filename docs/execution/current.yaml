@@ -288,6 +288,7 @@ parallel_lanes:
       - migrations/0086_learning_identity_foundation.sql
       - migrations/0087_learning_additive_backfill.sql
       - migrations/0088_learning_m0_006_acceptance_corrections.sql
+      - migrations/0089_learning_canonical_read_projection.sql
       - tools/migrate.mjs
       - tools/provision-test-db.mjs
       - tools/learning-migration-dry-run.mjs

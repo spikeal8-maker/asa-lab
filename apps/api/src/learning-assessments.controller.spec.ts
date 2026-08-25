@@ -13,7 +13,10 @@ function request(): FastifyRequest {
 
 function controller(rows: unknown[]) {
   const query = vi.fn(async (sql: string) => ({
-    rows: sql.includes('grading_scheme_for_classroom') ? [] : rows,
+    rows:
+      sql.includes('grading_scheme_for_classroom') || sql.includes('learning_canonical_evidence')
+        ? []
+        : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({

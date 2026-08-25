@@ -57,31 +57,31 @@ docs/product/learning/execution/LRN-M0-007_EXECUTION_SPEC.md
 docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md
 docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 docs/project-map/project-map.yaml (only factual M0 wording if still audit-only)
-contexts/learning/domain/canonical-learning-state.ts
-contexts/learning/testing/canonical-learning-state.spec.ts
 apps/api/src/learning-canonical-projection.service.ts
 apps/api/src/learning-canonical-projection.service.spec.ts
-apps/api/src/app.module.ts
+apps/api/package.json
 apps/api/src/classroom-join.controller.ts
 apps/api/src/classroom-join.controller.spec.ts
 apps/api/src/classrooms.controller.ts
-apps/api/src/classrooms.controller.spec.ts
 apps/api/src/courses.controller.ts
 apps/api/src/courses.controller.spec.ts
 apps/api/src/learning-assessments.controller.ts
 apps/api/src/learning-assessments.controller.spec.ts
 apps/web/src/api.ts
-existing affected learner/teacher components and their focused tests
-schemas/openapi.yaml (only if a touched wire contract is represented there)
+apps/web/src/learning/canonical-learning-presentation.ts
+existing affected learner/teacher components
+migrations/0089_learning_canonical_read_projection.sql
+schemas/openapi.yaml
 tests/courses/learning-surface-convergence.pg.spec.ts
 e2e/learning-surface-convergence.spec.ts
 e2e/artifacts/learning/**
+pnpm-lock.yaml
 ```
 
 ## 7. Files explicitly out of scope
 
 ```text
-migrations/** (no schema change is required)
+new tables, mutable backfill or destructive migrations
 contexts/identity/**
 new ActivityRun/ActivityParticipation runtime
 new product pages/navigation
@@ -91,7 +91,7 @@ production configuration and data
 
 ## 8. Database / migration
 
-N/A — the cutover is a server read-model projection over existing schema. No DDL, mutation or backfill is required or authorized.
+`migrations/0089_learning_canonical_read_projection.sql` adds read-only, `STABLE SECURITY DEFINER` evidence functions for authenticated teacher, seat-session and linked-account readers. The functions batch the existing legacy work, latest Attempt, persisted Gradebook pointer, selected Result, identity lineage and compatibility grading metadata. They add no table, column, index or data mutation. Direct internal evidence access is revoked; only guarded wrappers are executable by `asalab_app`. Production apply remains prohibited.
 
 ## 9. API / OpenAPI
 
@@ -106,11 +106,11 @@ canonicalState: {
 }
 ```
 
-Internal provenance and compatibility diagnostics are excluded from learner DTOs. Teacher DTOs may include a localized `compatibilityDiagnostic` only for `legacy_unresolved`. Existing legacy fields remain for rollback. OpenAPI is updated only for touched paths already present; baseline learning endpoints absent from OpenAPI are recorded as existing debt, not silently expanded beyond the task.
+Internal provenance and compatibility diagnostics are excluded from learner DTOs. Teacher DTOs may include a localized `compatibilityDiagnostic` only for `legacy_unresolved`. Existing legacy fields remain for rollback. OpenAPI adds the touched learning paths and the additive `CanonicalLearningSurfaceState` contract; unrelated baseline contract debt remains out of scope.
 
 ## 10. Transaction boundaries
 
-Read-only projection calls run as one statement against a single snapshot. No write transaction is added.
+Read-only projection calls run as one statement against a single snapshot. Migration DDL is transactional under the repository migrator; no product write transaction is added.
 
 ## 11. Idempotency / concurrency
 

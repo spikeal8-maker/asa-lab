@@ -4,6 +4,11 @@ import { AssignmentView } from './AssignmentView';
 import { newClientId } from '../client-id';
 import { useSchoolTime } from './school-time';
 import './classroom-assignments.css';
+import {
+  canonicalLearningClass,
+  canonicalLearningLabel,
+  canonicalSubmissionLocked,
+} from '../learning/canonical-learning-presentation';
 
 /**
  * What the teacher has set, on the learner's own home page.
@@ -116,14 +121,16 @@ export function SeatAssignments({
                   — первое, на что жалуется ребёнок, нажавший «Сдать». */}
               <span
                 className={`seat-assignment-state${
-                  assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : ''
+                  canonicalLearningClass(assignment.canonicalState) ||
+                  (assignment.submittedAt ? ' is-done' : assignment.projectId ? ' is-working' : '')
                 }`}
               >
-                {assignment.submittedAt
-                  ? `Сдано ${time.dateTime(assignment.submittedAt)}`
-                  : assignment.projectId
-                    ? 'В работе'
-                    : 'Не начато'}
+                {canonicalLearningLabel(assignment.canonicalState) ??
+                  (assignment.submittedAt
+                    ? `Сдано ${time.dateTime(assignment.submittedAt)}`
+                    : assignment.projectId
+                      ? 'В работе'
+                      : 'Не начато')}
               </span>
               {openId === assignment.id ? (
                 <div className="seat-assignment-full">
@@ -175,7 +182,12 @@ export function SeatAssignments({
                   <button
                     type="button"
                     className="btn-secondary"
-                    disabled={busy === assignment.id || assignment.submittedAt !== null}
+                    disabled={
+                      busy === assignment.id ||
+                      (assignment.canonicalState
+                        ? canonicalSubmissionLocked(assignment.canonicalState)
+                        : assignment.submittedAt !== null)
+                    }
                     onClick={async () => {
                       setBusy(assignment.id);
                       const result = await api.submitSeatAssignment(assignment.id, true);
@@ -183,7 +195,15 @@ export function SeatAssignments({
                       if (result.ok) await reload();
                     }}
                   >
-                    {assignment.submittedAt ? 'На проверке' : 'Сдать'}
+                    {assignment.canonicalState
+                      ? assignment.canonicalState.workflowState === 'changes_requested'
+                        ? 'Сдать доработку'
+                        : canonicalSubmissionLocked(assignment.canonicalState)
+                          ? 'Работа сдана'
+                          : 'Сдать'
+                      : assignment.submittedAt
+                        ? 'Работа сдана'
+                        : 'Сдать'}
                   </button>
                 </>
               ) : (
