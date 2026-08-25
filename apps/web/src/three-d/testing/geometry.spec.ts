@@ -394,6 +394,77 @@ describe('ASA 3D primitive geometry', () => {
     geometry?.dispose();
   });
 
+  it('preserves curved source normals through boolean grouping', () => {
+    const sphere = createThreeDNode('sphere', 'smooth-sphere');
+    const box = {
+      ...createThreeDNode('box', 'separate-box'),
+      transform: {
+        ...createThreeDNode('box', 'separate-box-transform').transform,
+        position: { x: 40, y: 10, z: 0 },
+      },
+    };
+    const geometry = createBooleanGeometry([sphere, box], 'union');
+    const positions = geometry?.getAttribute('position');
+    const normals = geometry?.getAttribute('normal');
+    let hasInterpolatedCurvedNormal = false;
+
+    if (positions && normals) {
+      for (let offset = 0; offset + 2 < positions.count; offset += 3) {
+        const a = new THREE.Vector3().fromBufferAttribute(positions, offset);
+        const b = new THREE.Vector3().fromBufferAttribute(positions, offset + 1);
+        const c = new THREE.Vector3().fromBufferAttribute(positions, offset + 2);
+        const faceNormal = b.sub(a).cross(c.sub(a)).normalize();
+        for (let index = 0; index < 3; index += 1) {
+          const vertexNormal = new THREE.Vector3().fromBufferAttribute(normals, offset + index);
+          if (Math.abs(faceNormal.dot(vertexNormal)) < 0.999) {
+            hasInterpolatedCurvedNormal = true;
+            break;
+          }
+        }
+        if (hasInterpolatedCurvedNormal) break;
+      }
+    }
+
+    expect(geometry).not.toBeNull();
+    expect(hasInterpolatedCurvedNormal).toBe(true);
+    geometry?.dispose();
+  });
+
+  it('does not emit zero-area needles for overlapping unions and spherical holes', () => {
+    const box = createThreeDNode('box', 'clean-box');
+    const cylinder = {
+      ...createThreeDNode('cylinder', 'clean-cylinder'),
+      transform: {
+        ...createThreeDNode('cylinder', 'clean-cylinder-transform').transform,
+        position: { x: 8, y: 10, z: 0 },
+      },
+    };
+    const sphereHole = {
+      ...createThreeDNode('sphere', 'clean-sphere-hole'),
+      operation: 'hole' as const,
+      dimensions: { width: 12, depth: 12, height: 12 },
+    };
+    const union = createBooleanGeometry([box, cylinder], 'union');
+    const difference = createBooleanGeometry([box, sphereHole], 'difference');
+
+    for (const geometry of [union, difference]) {
+      expect(geometry).not.toBeNull();
+      const position = geometry?.getAttribute('position');
+      const normal = geometry?.getAttribute('normal');
+      expect(position?.count).toBeGreaterThan(0);
+      for (const value of [...(position?.array ?? []), ...(normal?.array ?? [])]) {
+        expect(Number.isFinite(value)).toBe(true);
+      }
+      for (let offset = 0; position && offset + 2 < position.count; offset += 3) {
+        const a = new THREE.Vector3().fromBufferAttribute(position, offset);
+        const b = new THREE.Vector3().fromBufferAttribute(position, offset + 1);
+        const c = new THREE.Vector3().fromBufferAttribute(position, offset + 2);
+        expect(b.sub(a).cross(c.sub(a)).lengthSq()).toBeGreaterThan(1e-10);
+      }
+      geometry?.dispose();
+    }
+  });
+
   it('switches boolean modes without losing the saved solid and hole roles', () => {
     const solid = createThreeDNode('box', 'solid');
     const hole = {

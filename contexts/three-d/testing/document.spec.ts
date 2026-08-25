@@ -110,6 +110,27 @@ describe('ASA 3D document', () => {
     expect(grouped.nodes.every((node) => node.groupId === 'group-1')).toBe(true);
   });
 
+  it('preserves every solid and hole role when an editable group is regrouped', () => {
+    const wall = createThreeDNode('box', 'wall');
+    const tower = createThreeDNode('cylinder', 'tower');
+    const opening = {
+      ...createThreeDNode('sphere', 'opening'),
+      operation: 'hole' as const,
+    };
+    const source = { ...createEmptyThreeDDocument(), nodes: [wall, tower, opening] };
+    const firstGroup = groupDocumentNodes(source, ['wall', 'tower'], 'group-1', 'union');
+    const regrouped = groupDocumentNodes(
+      firstGroup,
+      ['wall', 'tower', 'opening'],
+      'group-2',
+      'difference',
+    );
+
+    expect(regrouped.nodes.map((node) => node.operation)).toEqual(['solid', 'solid', 'hole']);
+    expect(regrouped.nodes.every((node) => node.groupId === 'group-2')).toBe(true);
+    expect(source.nodes.map((node) => node.groupId)).toEqual([null, null, null]);
+  });
+
   it('bundles shapes without changing geometry, colour or boolean state', () => {
     const first = createThreeDNode('box', 'first');
     const second = createThreeDNode('cylinder', 'second');

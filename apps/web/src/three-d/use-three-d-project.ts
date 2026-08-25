@@ -585,23 +585,8 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         operation === 'union' && selected.some((node) => node.operation === 'hole')
           ? 'difference'
           : operation;
-      let prepared = document;
-      if (
-        effectiveOperation === 'difference' &&
-        !selected.some((node) => node.operation === 'hole')
-      ) {
-        const baseId = selected.find((node) => node.operation === 'solid')?.id ?? selected[0]?.id;
-        prepared = {
-          ...document,
-          nodes: document.nodes.map((node) =>
-            groupNodeIds.includes(node.id)
-              ? { ...node, operation: node.id === baseId ? 'solid' : 'hole' }
-              : node,
-          ),
-        };
-      }
       commitDocument(
-        groupDocumentNodes(prepared, groupNodeIds, makeId('group'), effectiveOperation),
+        groupDocumentNodes(document, groupNodeIds, makeId('group'), effectiveOperation),
       );
       setSelectedIds(groupNodeIds);
       setNotice('Формы объединены в редактируемую булеву группу.');
@@ -626,11 +611,6 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
           .map((node) => node.groupId),
       );
       if (groupIds.size !== 1) return;
-      const [groupId] = [...groupIds];
-      const members = document.nodes.filter((node) => node.groupId === groupId);
-      const keepExistingDifference =
-        operation === 'difference' && members.some((node) => node.operation === 'hole');
-      const baseId = members.find((node) => node.operation === 'solid')?.id ?? members[0]?.id;
       commitDocument({
         ...document,
         nodes: document.nodes.map((node) =>
@@ -638,14 +618,6 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
             ? {
                 ...node,
                 groupOperation: operation,
-                operation:
-                  operation === 'difference'
-                    ? keepExistingDifference
-                      ? node.operation
-                      : node.id === baseId
-                        ? 'solid'
-                        : 'hole'
-                    : node.operation,
               }
             : node,
         ),

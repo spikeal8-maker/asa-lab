@@ -95,8 +95,10 @@ class Plane {
         backVertices.push(split.clone());
       }
     }
-    if (frontVertices.length >= 3) front.push(new Polygon(frontVertices));
-    if (backVertices.length >= 3) back.push(new Polygon(backVertices));
+    const frontPolygon = cleanPolygon(frontVertices);
+    const backPolygon = cleanPolygon(backVertices);
+    if (frontPolygon) front.push(frontPolygon);
+    if (backPolygon) back.push(backPolygon);
   }
 }
 
@@ -119,6 +121,53 @@ class Polygon {
     this.vertices.reverse().forEach((vertex) => vertex.flip());
     this.plane.flip();
   }
+}
+
+/**
+ * BSP cuts can land on an existing vertex and leave a repeated or collinear
+ * point in the generated loop. Passing that loop back into the tree creates a
+ * zero plane and, later, needle triangles. Besides being invalid printable
+ * geometry, those needles were visible as the dark streaks reported on union
+ * and sphere subtraction results.
+ */
+function cleanPolygon(vertices: readonly Vertex[]): Polygon | null {
+  const cleaned: Vertex[] = [];
+  for (const vertex of vertices) {
+    if (!vertex.position.toArray().every(Number.isFinite)) return null;
+    const previous = cleaned.at(-1);
+    if (!previous || previous.position.distanceToSquared(vertex.position) > EPSILON * EPSILON) {
+      cleaned.push(vertex);
+    }
+  }
+  if (
+    cleaned.length > 2 &&
+    cleaned[0]!.position.distanceToSquared(cleaned.at(-1)!.position) <= EPSILON * EPSILON
+  ) {
+    cleaned.pop();
+  }
+  let changed = true;
+  while (changed && cleaned.length > 3) {
+    changed = false;
+    for (let index = 0; index < cleaned.length; index += 1) {
+      const previous = cleaned[(index - 1 + cleaned.length) % cleaned.length]!;
+      const current = cleaned[index]!;
+      const next = cleaned[(index + 1) % cleaned.length]!;
+      const cross = current.position
+        .clone()
+        .sub(previous.position)
+        .cross(next.position.clone().sub(current.position));
+      if (cross.lengthSq() > EPSILON * EPSILON) continue;
+      cleaned.splice(index, 1);
+      changed = true;
+      break;
+    }
+  }
+  if (cleaned.length < 3) return null;
+  const area = cleaned[1]!.position
+    .clone()
+    .sub(cleaned[0]!.position)
+    .cross(cleaned[2]!.position.clone().sub(cleaned[0]!.position));
+  return area.lengthSq() > EPSILON * EPSILON ? new Polygon(cleaned) : null;
 }
 
 class Node {
@@ -233,6 +282,8 @@ function intersect(a: Node, b: Node): Node {
 function geometryToNode(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4): Node {
   const source = geometry.index ? geometry.toNonIndexed() : geometry.clone();
   const position = source.getAttribute('position');
+  const normal = source.getAttribute('normal');
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrix);
   const polygons: Polygon[] = [];
   for (let offset = 0; offset + 2 < position.count; offset += 3) {
     const vertices: Vertex[] = [];
@@ -240,15 +291,21 @@ function geometryToNode(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4): 
       const point = new THREE.Vector3()
         .fromBufferAttribute(position, offset + index)
         .applyMatrix4(matrix);
-      vertices.push(new Vertex(point, new THREE.Vector3()));
+      const vertexNormal = normal
+        ? new THREE.Vector3()
+            .fromBufferAttribute(normal, offset + index)
+            .applyNormalMatrix(normalMatrix)
+            .normalize()
+        : new THREE.Vector3();
+      vertices.push(new Vertex(point, vertexNormal));
     }
     const faceNormal = vertices[1]!.position
       .clone()
       .sub(vertices[0]!.position)
       .cross(vertices[2]!.position.clone().sub(vertices[0]!.position))
       .normalize();
-    vertices.forEach((vertex) => vertex.normal.copy(faceNormal));
-    if (faceNormal.lengthSq() > EPSILON) polygons.push(new Polygon(vertices));
+    if (!normal) vertices.forEach((vertex) => vertex.normal.copy(faceNormal));
+    if (faceNormal.lengthSq() > EPSILON * EPSILON) polygons.push(new Polygon(vertices));
   }
   source.dispose();
   return new Node(polygons);
@@ -280,11 +337,18 @@ function toGeometry(node: Node): THREE.BufferGeometry {
   const normals: number[] = [];
   for (const polygon of node.allPolygons()) {
     for (let index = 2; index < polygon.vertices.length; index += 1) {
-      for (const vertex of [
+      const triangle = [
         polygon.vertices[0]!,
         polygon.vertices[index - 1]!,
         polygon.vertices[index]!,
-      ]) {
+      ] as const;
+      const areaSquared = triangle[1].position
+        .clone()
+        .sub(triangle[0].position)
+        .cross(triangle[2].position.clone().sub(triangle[0].position))
+        .lengthSq();
+      if (areaSquared <= EPSILON * EPSILON) continue;
+      for (const vertex of triangle) {
         positions.push(vertex.position.x, vertex.position.y, vertex.position.z);
         normals.push(vertex.normal.x, vertex.normal.y, vertex.normal.z);
       }

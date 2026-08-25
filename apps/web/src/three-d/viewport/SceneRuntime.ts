@@ -15,7 +15,7 @@ import {
   type DirectManipulationEntry,
 } from './DirectManipulator';
 import { createBooleanMesh } from './csg';
-import { addModelOutlines, createNodeObject, disposeObject } from './geometry';
+import { createNodeObject, disposeObject } from './geometry';
 import { addCadSceneLights } from './cad-appearance';
 
 export interface SceneRuntimeCallbacks {
@@ -346,7 +346,14 @@ export class SceneRuntime {
         rendered = fallback.children.length > 0 ? fallback : null;
       }
       if (!rendered) continue;
-      if (rendered instanceof THREE.Mesh) addModelOutlines(rendered, 'solid');
+      /*
+       * A BSP result is already a single printable surface, but internally it
+       * is triangulated. EdgesGeometry cannot distinguish those tessellation
+       * edges from authored hard edges after polygons have been split by CSG,
+       * which produced the long radial scratches visible on grouped models.
+       * Keep ordinary primitives outlined; boolean solids use their clean
+       * surface shading and the selection/manipulator outline instead.
+       */
       const entryId = `group:${groupId}`;
       const bounds = new THREE.Box3().setFromObject(rendered);
       const size = bounds.getSize(new THREE.Vector3());
