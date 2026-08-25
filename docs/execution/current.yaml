@@ -204,7 +204,6 @@ parallel_lanes:
     worktree_id: r3-project-lifecycle
     owned_paths:
       - contexts/projects/**
-      - apps/api/src/app.module.ts
       - apps/api/src/projects.controller.ts
       - apps/api/src/tokens.ts
       - apps/web/src/api.ts
@@ -218,7 +217,6 @@ parallel_lanes:
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
       - migrations/0013_project_lifecycle.sql
-      - schemas/openapi.yaml
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
@@ -257,11 +255,10 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
-  # Owner-activated ASA Learning M0 acceptance lane. The repository task id
-  # follows the control-plane schema; its only active Work Queue item is
-  # LRN-M0-008. M1-M7 remain outside this activation.
+  # Owner-accepted ASA Learning M0 lane, now executing only LRN-M1-001.
+  # M1-002 onward and M2-M7 remain outside this activation.
   - id: learning
-    worktree_id: learning-m0-acceptance
+    worktree_id: learning-m1-001
     owned_paths:
       - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
       - docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
@@ -274,6 +271,9 @@ parallel_lanes:
       - apps/api/src/classrooms.controller.ts
       - apps/api/src/courses.controller.ts
       - apps/api/src/learning-assessments.controller.ts
+      - apps/api/src/learning-activities.controller.ts
+      - apps/api/src/learning-activities.controller.spec.ts
+      - apps/api/src/app.module.ts
       - apps/web/src/components/AssignmentBrief.tsx
       - apps/web/src/components/ClassroomAssignments.tsx
       - apps/web/src/components/ClassroomCourses.tsx
@@ -289,6 +289,8 @@ parallel_lanes:
       - migrations/0087_learning_additive_backfill.sql
       - migrations/0088_learning_m0_006_acceptance_corrections.sql
       - migrations/0089_learning_canonical_read_projection.sql
+      - migrations/0090_learning_activity_version_convergence.sql
+      - schemas/openapi.yaml
       - tools/migrate.mjs
       - tools/provision-test-db.mjs
       - tools/learning-migration-dry-run.mjs
@@ -296,22 +298,22 @@ parallel_lanes:
       - tools/learning-additive-backfill.mjs
       - tests/courses/**
     task:
-      id: TASK-LEARNING-M0-008
-      issue: 152
-      branch: agent/learning-m0-acceptance
+      id: TASK-LEARNING-M1-001
+      issue: 154
+      branch: agent/learning-m1-001
       base_branch: main
-      pr: 153
+      pr: 155
       pr_draft: false
-      status: done
-      checkpoint: m0_acceptance_evidence_published
+      status: in_progress
+      checkpoint: current_audit_execution_spec
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
-      head_sha: 027e77671cc76d2fb594f6aa2ffc5fae94137a5c
-      owner_accepted_sha: 309c66b4c04d769945af2f7c0c3bdb728ccb2a97
-      product_merge_sha: 00179afadbae87abca32f4ad3a3206d0d1e64823
+      convergence_baseline_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
+      head_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
+      owner_accepted_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
+      product_merge_sha: 24ff391386d3ea6acb99bcbb73a0542802a1f785
     execution_lease:
-      executor_id: codex-learning-m0-acceptance
+      executor_id: codex-learning-m1-001
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -320,11 +322,11 @@ parallel_lanes:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm control-plane:check
+          - pnpm test:learning-m1-001
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm gate:governance
+          - pnpm gate:repository
 
 integration:
   owner_lane: admin-auth
