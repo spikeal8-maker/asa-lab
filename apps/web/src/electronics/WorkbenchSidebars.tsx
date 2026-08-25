@@ -26,7 +26,7 @@ function valueLabel(kind: string): string {
   return 'Сопротивление';
 }
 
-function componentHelp(kind: string, componentKey?: string): string {
+function componentHelp(kind: string, componentKey?: string, description?: string): string {
   if (componentKey === 'arduino-uno') {
     return 'Arduino Uno выполняет setup() один раз, затем повторяет loop(). Питание 5 В и 3,3 В доступно всегда. Ниже показаны все цифровые, аналоговые и силовые выводы; свободный вывод — нормальное состояние, а не ошибка.';
   }
@@ -46,7 +46,11 @@ function componentHelp(kind: string, componentKey?: string): string {
     lamp: 'Яркость лампы рассчитывается по электрической мощности на нити.',
     breadboard: 'Отверстия макетной платы соединены внутренними группами с шагом 2,54 мм.',
   };
-  return help[kind] ?? 'Параметры компонента сохраняются вместе с проектом.';
+  const behavior = help[kind];
+  if (description && behavior && !description.includes(behavior)) {
+    return `${description} ${behavior}`;
+  }
+  return description ?? behavior ?? 'Параметры компонента сохраняются вместе с проектом.';
 }
 
 function formatCurrent(value: number): string {
@@ -88,6 +92,10 @@ export function WorkbenchSidebars({
     : undefined;
   const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
   const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
+  const selectedDiagnostics = c.selectedComponent
+    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
+    : [];
+  const selectedSimulationSupported = c.selectedEntry?.simulationSupported === true;
   useEffect(() => setHelpOpen(false), [c.selectedComponent?.id]);
   const resistanceComponent =
     c.selectedComponent && ['resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind)
@@ -292,9 +300,9 @@ export function WorkbenchSidebars({
               type="button"
               className="workbench-inspector-help"
               onClick={() => setHelpOpen((value) => !value)}
-              aria-label={
-                selectedIsArduino ? 'Показать подробные параметры Arduino' : 'Справка о параметрах'
-              }
+              aria-label={`Показать подробные параметры ${
+                c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+              }`}
               aria-expanded={helpOpen}
             >
               ?
@@ -302,16 +310,47 @@ export function WorkbenchSidebars({
           </div>
 
           {helpOpen && c.selectedComponent ? (
-            <div className="workbench-inspector-help-popover" role="note">
-              {componentHelp(c.selectedComponent.kind, c.selectedEntry?.key)}
-            </div>
+            <>
+              <div className="workbench-inspector-help-popover" role="note">
+                {componentHelp(
+                  c.selectedComponent.kind,
+                  c.selectedEntry?.key,
+                  c.selectedEntry?.description,
+                )}
+              </div>
+              <div
+                className={`workbench-component-model-status${
+                  selectedSimulationSupported ? ' supported' : ' pending'
+                }`}
+                data-testid="component-simulation-status"
+              >
+                <strong>
+                  {selectedSimulationSupported
+                    ? c.simulationRunning
+                      ? measurement
+                        ? 'Электрическая модель рассчитывается'
+                        : 'Модель ожидает корректную цепь'
+                      : 'Электрическая модель готова'
+                    : 'Электрическая модель пока не реализована'}
+                </strong>
+                <span>
+                  {selectedSimulationSupported
+                    ? c.simulationRunning
+                      ? measurement
+                        ? 'Ниже показаны фактические результаты текущего расчёта.'
+                        : 'Измерения появятся после успешного расчёта подключённой схемы.'
+                      : 'Запустите моделирование, чтобы получить напряжения, ток и мощность.'
+                    : 'Компонент можно размещать и соединять. Измерения появятся после внедрения его математической модели.'}
+                </span>
+              </div>
+            </>
           ) : null}
 
           {c.selectedComponent &&
           c.selectedEntry &&
           c.selection.kind === 'component' &&
           c.selection.ids.length === 1 ? (
-            <div className="workbench-inspector-body">
+            <div className="workbench-inspector-body" data-testid="component-compact-properties">
               {c.selectedFamily &&
               c.selectedFamily.variants.length > 1 &&
               (!selectedIsPotentiometer || helpOpen) ? (
@@ -347,7 +386,7 @@ export function WorkbenchSidebars({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
-              {selectedIsArduino ? (
+              {selectedIsArduino && helpOpen ? (
                 <div className="workbench-arduino-summary" data-testid="arduino-compact-summary">
                   <div>
                     <strong>
@@ -369,7 +408,7 @@ export function WorkbenchSidebars({
                   </small>
                 </div>
               ) : null}
-              {c.selectedComponent.kind === 'piezo' ? (
+              {c.selectedComponent.kind === 'piezo' && helpOpen ? (
                 <div className="workbench-piezo-summary" data-testid="piezo-runtime-summary">
                   <strong>
                     {c.resultByComponent.get(c.selectedComponent.id)?.energized
@@ -387,9 +426,8 @@ export function WorkbenchSidebars({
                   </small>
                 </div>
               ) : null}
-              {['source', 'resistor', 'potentiometer', 'diode', 'lamp'].includes(
-                c.selectedComponent.kind,
-              ) ? (
+              {['source', 'resistor', 'potentiometer', 'lamp'].includes(c.selectedComponent.kind) ||
+              (c.selectedComponent.kind === 'diode' && helpOpen) ? (
                 <label>
                   <span>{valueLabel(c.selectedComponent.kind)}</span>
                   <div className="workbench-value-field">
@@ -436,7 +474,7 @@ export function WorkbenchSidebars({
                   </div>
                 </label>
               ) : null}
-              {c.selectedEntry.key === 'resistor-axial' ? (
+              {c.selectedEntry.key === 'resistor-axial' && helpOpen ? (
                 <>
                   <label>
                     <span>Допуск</span>
@@ -480,7 +518,8 @@ export function WorkbenchSidebars({
                   </label>
                 </>
               ) : null}
-              {c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button' ? (
+              {helpOpen &&
+              (c.selectedComponent.kind === 'switch' || c.selectedComponent.kind === 'button') ? (
                 <label className="workbench-toggle-property">
                   <span>
                     {c.selectedComponent.kind === 'button'
@@ -495,7 +534,7 @@ export function WorkbenchSidebars({
                   />
                 </label>
               ) : null}
-              {c.selectedComponent.kind === 'button' ? (
+              {c.selectedComponent.kind === 'button' && helpOpen ? (
                 <button
                   type="button"
                   className="workbench-momentary-button"
@@ -523,7 +562,7 @@ export function WorkbenchSidebars({
                 </label>
               ) : null}
 
-              {c.selectedComponent.kind === 'transistor' ? (
+              {c.selectedComponent.kind === 'transistor' && helpOpen ? (
                 <fieldset className="workbench-state-controls">
                   <legend>
                     {transistorType === 'fet'
@@ -672,27 +711,27 @@ export function WorkbenchSidebars({
                       ))}
                     </select>
                   </label>
-                  <div className="workbench-segment-measurements">
-                    {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => (
-                      <span key={segment}>
-                        {segment.toUpperCase()}{' '}
-                        {measurement?.branchBrightness?.[segment]?.toFixed(0) ?? '0'}%
-                      </span>
-                    ))}
-                  </div>
+                  {helpOpen ? (
+                    <div className="workbench-segment-measurements">
+                      {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => (
+                        <span key={segment}>
+                          {segment.toUpperCase()}{' '}
+                          {measurement?.branchBrightness?.[segment]?.toFixed(0) ?? '0'}%
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </fieldset>
               ) : null}
 
-              {c.selectedComponent.kind === 'breadboard' ? (
+              {c.selectedComponent.kind === 'breadboard' && helpOpen ? (
                 <div className="workbench-breadboard-summary">
                   <strong>{c.selectedComponent.pinIds?.length ?? 0} отверстий</strong>
                   <span>Шаг 2,54 мм · внутренние группы активны</span>
                 </div>
               ) : null}
 
-              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
-              (!selectedIsArduino || helpOpen) &&
-              (!selectedIsPotentiometer || helpOpen) ? (
+              {helpOpen ? (
                 <dl
                   className="workbench-terminal-list"
                   aria-label="Подключение выводов"
@@ -724,9 +763,7 @@ export function WorkbenchSidebars({
                 </dl>
               ) : null}
 
-              {!['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
-              Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 &&
-              (!selectedIsPotentiometer || helpOpen) ? (
+              {helpOpen && Object.keys(c.selectedComponent.holeBindings ?? {}).length > 0 ? (
                 <div className="workbench-hole-bindings" data-testid="hole-bindings">
                   <strong>Отверстия макетки</strong>
                   {Object.entries(c.selectedComponent.holeBindings ?? {}).map(
@@ -739,11 +776,7 @@ export function WorkbenchSidebars({
                 </div>
               ) : null}
 
-              {c.simulationRunning &&
-              measurement &&
-              !['led-5mm', 'rgb-led'].includes(c.selectedEntry.key) &&
-              (!selectedIsArduino || helpOpen) &&
-              (!selectedIsPotentiometer || helpOpen) ? (
+              {helpOpen && c.simulationRunning && measurement ? (
                 <dl className="workbench-measurements">
                   {c.selectedComponent.kind === 'transistor' ? (
                     <>
@@ -804,6 +837,22 @@ export function WorkbenchSidebars({
                     </div>
                   ) : null}
                 </dl>
+              ) : null}
+              {helpOpen && selectedDiagnostics.length > 0 ? (
+                <div
+                  className="workbench-component-diagnostics"
+                  data-testid="component-diagnostics"
+                >
+                  <strong>Диагностика схемы</strong>
+                  {selectedDiagnostics.map((diagnostic) => (
+                    <div key={`${diagnostic.code}:${diagnostic.message}`}>
+                      <span data-severity={diagnostic.severity}>{diagnostic.message}</span>
+                      {diagnostic.suggestedAction ? (
+                        <small>{diagnostic.suggestedAction}</small>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
               ) : null}
             </div>
           ) : null}

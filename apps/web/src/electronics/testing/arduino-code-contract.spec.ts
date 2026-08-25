@@ -186,7 +186,8 @@ describe('Arduino programming room contract', () => {
     expect(stageSource).toContain('simulationTimeMs={c.simulationTimeMs}');
     expect(stageSource).not.toContain('<title>{diagnosticText}</title>');
     expect(sidebarSource).toContain('data-testid="arduino-compact-summary"');
-    expect(sidebarSource).toContain('(!selectedIsArduino || helpOpen)');
+    expect(sidebarSource).toContain('selectedIsArduino && helpOpen');
+    expect(sidebarSource).toContain("data-testid={selectedIsArduino ? 'arduino-pin-details'");
     expect(sidebarSource).toContain("selectedIsArduino ? ' arduino-pin-status' : ''");
     expect(css).toContain('.workbench-terminal-status.arduino-pin-status');
   });

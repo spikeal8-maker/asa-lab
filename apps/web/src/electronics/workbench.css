@@ -2191,6 +2191,23 @@
   font-size: 12px;
   line-height: 1.35;
 }
+.workbench-component-model-status {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #c5cfd9;
+  background: #f7fafc;
+  color: #405666;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.workbench-component-model-status strong {
+  color: #176a46;
+  font-size: 12px;
+}
+.workbench-component-model-status.pending strong {
+  color: #9a6500;
+}
 .workbench-arduino-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2234,10 +2251,10 @@
 .workbench-inspector-body {
   padding: 2px;
 }
-.workbench-inspector.is-potentiometer .workbench-inspector-body > label {
+.workbench-inspector .workbench-inspector-body > label {
   grid-template-columns: 104px minmax(0, 1fr);
 }
-.workbench-inspector.is-potentiometer .workbench-inspector-body > label > span {
+.workbench-inspector .workbench-inspector-body > label > span {
   overflow-wrap: normal;
   word-break: normal;
 }
@@ -2308,6 +2325,27 @@
   color: var(--ink-muted);
   font-size: 10px;
   text-align: center;
+}
+.workbench-component-diagnostics {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid #d8e0e5;
+  color: #34495e;
+  font-size: 11px;
+}
+.workbench-component-diagnostics > div {
+  display: grid;
+  gap: 1px;
+}
+.workbench-component-diagnostics span[data-severity='error'] {
+  color: #a72b22;
+}
+.workbench-component-diagnostics span[data-severity='warning'] {
+  color: #916000;
+}
+.workbench-component-diagnostics small {
+  color: #667985;
 }
 .workbench-state-controls {
   display: block;

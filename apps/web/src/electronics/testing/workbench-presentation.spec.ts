@@ -320,8 +320,14 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(productionVisualSource).not.toContain('<foreignObject');
     expect(workbenchCss).toMatch(
-      /\.workbench-inspector\.is-potentiometer \.workbench-inspector-body > label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
+      /\.workbench-inspector \.workbench-inspector-body > label\s*\{[^}]*grid-template-columns:\s*104px minmax\(0, 1fr\);/s,
     );
+    expect(sidebarSource).toContain('data-testid="component-compact-properties"');
+    expect(sidebarSource).toContain('data-testid="component-simulation-status"');
+    expect(sidebarSource).toContain("'Электрическая модель пока не реализована'");
+    expect(sidebarSource).toContain("'Ниже показаны фактические результаты текущего расчёта.'");
+    expect(sidebarSource).toContain('helpOpen && c.simulationRunning && measurement');
+    expect(sidebarSource).toContain('helpOpen && selectedDiagnostics.length > 0');
     expect(sidebarSource).not.toContain('workbench-led-electrical-state');
     expect(editorSource).toContain('window.print()');
     expect(editorSource).toContain('text/csv;charset=utf-8');
